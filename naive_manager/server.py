@@ -223,9 +223,13 @@ def _rewrite_listener(config: dict) -> dict:
             else address
             for address in server["listen"]
         ]
-        rewritten = rewritten or any(
-            address in {":4443", "127.0.0.1:4443"} for address in server["listen"]
-        )
+        is_naive = any(address in {":4443", "127.0.0.1:4443"} for address in server["listen"])
+        if is_naive:
+            automatic_https = server.setdefault("automatic_https", {})
+            if not isinstance(automatic_https, dict):
+                raise RuntimeError("Caddy returned invalid automatic HTTPS settings")
+            automatic_https["disable_redirects"] = True
+            rewritten = True
     if not rewritten:
         raise RuntimeError("Caddy configuration has no Naive listener")
     return config

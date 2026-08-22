@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from naive_manager.server import ManagerHTTPServer, QuotaEnforcer, caddy_adapt
+from naive_manager.server import ManagerHTTPServer, QuotaEnforcer, _rewrite_listener, caddy_adapt
 from naive_manager.service import (
     ACCOUNTING_BEGIN,
     ACCOUNTING_END,
@@ -39,6 +39,25 @@ CADDY = """{
     }
 }
 """
+
+def test_private_listener_rewrite_disables_automatic_https_redirects():
+    config = {
+        "apps": {
+            "http": {
+                "servers": {
+                    "naive": {"listen": [":443", "127.0.0.1:443"]},
+                    "unrelated": {"listen": ["127.0.0.1:8443"]},
+                }
+            }
+        }
+    }
+
+    rewritten = _rewrite_listener(config)
+
+    naive = rewritten["apps"]["http"]["servers"]["naive"]
+    assert naive["listen"] == [":4443", "127.0.0.1:4443"]
+    assert naive["automatic_https"] == {"disable_redirects": True}
+    assert "automatic_https" not in rewritten["apps"]["http"]["servers"]["unrelated"]
 
 
 class Hooks:

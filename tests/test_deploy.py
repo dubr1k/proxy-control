@@ -143,6 +143,10 @@ class DeployCliTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(
+                config["apps"]["http"]["servers"]["naive"]["automatic_https"],
+                {"disable_redirects": True},
+            )
+            self.assertEqual(
                 config["apps"]["http"]["servers"]["admin"]["listen"],
                 ["127.0.0.1:2019"],
             )
