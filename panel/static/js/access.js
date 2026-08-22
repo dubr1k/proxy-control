@@ -97,25 +97,6 @@ function karingVariant(value) {
   };
 }
 
-function karingConfigVariant(value) {
-  if (!plainObject(value) || value.label !== "Karing" || value.type !== "config"
-    || value.description !== "sing-box outbound — подходит для Karing.") {
-    throw new Error("Сервис вернул некорректный sing-box outbound для Karing");
-  }
-  const configText = jsonConfig(value.config);
-  return {
-    label: "Karing",
-    payloadType: "config",
-    payloadLabel: "sing-box outbound",
-    payload: configText,
-    copyLabel: "Копировать outbound",
-    description: value.description,
-    downloadLabel: "Скачать sing-box JSON",
-    downloadText: `${configText}\n`,
-    filename: filename(value.filename),
-    qr: null,
-  };
-}
 
 function naiveNative(value, username) {
   if (!plainObject(value) || value.label !== "NaiveProxy" || value.type !== "config"
@@ -234,7 +215,7 @@ export function normaliseAccessPayload(data, service, username) {
     }
     return {
       native: naiveNative(native, username),
-      karing: karingConfigVariant(data.clients.karing),
+      karing: karingVariant(data.clients.karing),
       shadowrocket: shadowrocketVariant(data.clients.shadowrocket, native),
       unsupported: unsupportedText(data.unsupported_clients),
     };

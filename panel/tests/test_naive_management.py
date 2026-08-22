@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from urllib.parse import urlsplit
-import pytest
+import json
+from urllib.parse import parse_qs, urlsplit
+
 import httpx
+import pytest
 
 from panel.app import Settings, create_app
 from panel.naive import MemoryNaive, NaiveClient, NaiveError
@@ -70,12 +72,13 @@ async def test_naive_owner_can_create_reveal_rotate_toggle_and_delete(client, lo
     assert "qr" not in native
 
     karing = reveal["clients"]["karing"]
-    assert karing["type"] == "config"
+    assert karing["type"] == "link"
     assert karing["label"] == "Karing"
-    assert karing["description"] == "sing-box outbound — подходит для Karing."
     assert karing["filename"] == "karing-naive-ios-phone.json"
-    assert "import_url" not in karing and "qr" not in karing
+    assert karing["import_url"].startswith("karing://install-config?")
+    assert karing["qr"]["payload"] == karing["import_url"]
     profile = karing["config"]
+    assert profile == json.loads(parse_qs(urlsplit(karing["import_url"]).query)["url"][0])
     assert profile["outbounds"] == [{
         "type": "naive",
         "tag": "naive-ios-phone",

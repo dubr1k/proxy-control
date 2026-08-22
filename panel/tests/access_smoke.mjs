@@ -5,9 +5,10 @@ import { createAccessDialogs, normaliseAccessPayload } from "../static/js/access
 
 const qr = (payload) => ({ payload, image: "data:image/svg+xml;base64,PHN2Zy8+" });
 
-test("Naive variants keep native config, a Karing-compatible sing-box outbound, and Shadowrocket manual fields distinct", () => {
+test("Naive variants keep native config, a Karing deep link, and Shadowrocket manual fields distinct", () => {
   const endpoint = "https://phone:secret@naive.example.com";
   const singBoxConfig = { outbounds: [{ type: "naive", server: "naive.example.com" }] };
+  const karingLink = "karing://install-config?url=%7B%22outbounds%22%3A%5B%7B%22type%22%3A%22naive%22%2C%22server%22%3A%22naive.example.com%22%7D%5D%7D&name=Naive";
   const result = normaliseAccessPayload({
     service: "naive",
     username: "phone",
@@ -20,10 +21,11 @@ test("Naive variants keep native config, a Karing-compatible sing-box outbound, 
       },
       karing: {
         label: "Karing",
-        type: "config",
-        description: "sing-box outbound — подходит для Karing.",
+        type: "link",
+        import_url: karingLink,
         config: singBoxConfig,
         filename: "karing-naive-phone.json",
+        qr: qr(karingLink),
       },
       shadowrocket: {
         label: "Shadowrocket",
@@ -42,11 +44,10 @@ test("Naive variants keep native config, a Karing-compatible sing-box outbound, 
   assert.equal(result.native.payloadType, "config");
   assert.match(result.native.payload, /"proxy": "https:\/\/phone:secret@naive\.example\.com"/);
   assert.equal(result.native.qr, null);
-  assert.equal(result.karing.payloadType, "config");
-  assert.deepEqual(JSON.parse(result.karing.payload), singBoxConfig);
-  assert.equal(result.karing.description, "sing-box outbound — подходит для Karing.");
-  assert.equal(result.karing.openLabel, undefined);
-  assert.equal(result.karing.qr, null);
+  assert.equal(result.karing.payloadType, "link");
+  assert.equal(result.karing.payload, karingLink);
+  assert.deepEqual(result.karing.qr.payload, karingLink);
+  assert.equal(result.karing.openLabel, "Открыть в Karing");
   assert.equal(result.shadowrocket.payloadType, "manual");
   assert.match(result.shadowrocket.payload, /Тип: HTTPS/);
   assert.match(result.shadowrocket.payload, /Пароль: secret/);
@@ -167,8 +168,8 @@ function fakeRoot(prefix, { qr = true } = {}) {
   };
 }
 
-test("dialog renderer shows the Naive Karing sing-box outbound without a broken deep link or QR", () => {
-  const root = fakeRoot("naive", { qr: false });
+test("dialog renderer shows the Naive Karing deep link and matching QR", () => {
+  const root = fakeRoot("naive");
   const opened = [];
   const dialogs = createAccessDialogs({
     root,
@@ -182,6 +183,7 @@ test("dialog renderer shows the Naive Karing sing-box outbound without a broken 
   dialogs.bind();
   const endpoint = "https://phone:secret@naive.example.com";
   const config = { outbounds: [] };
+  const karingLink = "karing://install-config?url=%7B%22outbounds%22%3A%5B%5D%7D&name=Naive";
   dialogs.showNaiveAccess({
     service: "naive",
     username: "phone",
@@ -194,10 +196,11 @@ test("dialog renderer shows the Naive Karing sing-box outbound without a broken 
       },
       karing: {
         label: "Karing",
-        type: "config",
-        description: "sing-box outbound — подходит для Karing.",
+        type: "link",
+        import_url: karingLink,
         config,
         filename: "karing-naive-phone.json",
+        qr: qr(karingLink),
       },
       shadowrocket: {
         label: "Shadowrocket",
@@ -214,12 +217,12 @@ test("dialog renderer shows the Naive Karing sing-box outbound without a broken 
   }, "phone");
 
   assert.deepEqual(opened, ["#naive-access-modal"]);
-  assert.equal(root.elements["#naive-qr-image"], undefined);
   const karingTab = root.elements["#naive-client-tabs"].buttons.find(
     (button) => button.dataset.client === "karing",
   );
   root.elements["#naive-client-tabs"].listeners.click({ target: karingTab });
-  assert.deepEqual(JSON.parse(root.elements["#naive-payload"].value), config);
-  assert.equal(root.elements["#naive-client-description"].textContent, "sing-box outbound — подходит для Karing.");
+  assert.equal(root.elements["#naive-payload"].value, karingLink);
+  assert.equal(root.elements["#open-naive-client"].href, karingLink);
+  assert.equal(root.elements["#naive-qr-image"].src, qr(karingLink).image);
   assert.notEqual(root.elements["#naive-payload"].value, endpoint);
 });
