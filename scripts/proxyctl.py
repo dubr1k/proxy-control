@@ -1149,6 +1149,7 @@ class RuntimeInstaller:
             f"server_name {self.plan.panel_domain}; "
             f"ssl_certificate /etc/letsencrypt/live/{self.plan.proxy_domain}/fullchain.pem; "
             f"ssl_certificate_key /etc/letsencrypt/live/{self.plan.proxy_domain}/privkey.pem; "
+            f"location = / {{ root /var/www/{self.plan.panel_domain}; try_files /index.html =404; }} "
             f"location / {{ proxy_pass http://127.0.0.1:{self.plan.panel_app_port}; "
             "proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; "
             "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; } }\n"
@@ -1232,6 +1233,9 @@ class RuntimeInstaller:
         cover = _root_path(self.root, f"/var/www/{self.plan.proxy_domain}/index.html")
         if not cover.exists():
             _atomic_write(cover, b"<!doctype html><title>Welcome</title><h1>Welcome</h1>\n", mode=0o644)
+        panel_cover = _root_path(self.root, f"/var/www/{self.plan.panel_domain}/index.html")
+        if not panel_cover.exists():
+            _atomic_write(panel_cover, b"<!doctype html><title>Workspace</title><h1>Secure workspace</h1>\n", mode=0o644)
         return created
 
     def _remove_managed_files(self, state: dict, *, check_hashes: bool, allow_missing: bool = False) -> None:

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import http.server
 import json
 import os
 import shutil
 import signal
+import socket
+import ssl
 import stat
 import subprocess
 import sys
+import threading
+import time
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -228,7 +234,109 @@ def test_generated_acme_and_panel_sites_pass_native_nginx_syntax_check(tmp_path)
     )
     assert checked.returncode == 0, checked.stderr
     assert acme_site.count(b"{") == acme_site.count(b"}") == 6
-    assert panel_site.count(b"{") == panel_site.count(b"}") == 2
+    assert panel_site.count(b"{") == panel_site.count(b"}") == 3
+
+def test_generated_panel_site_serves_cover_at_root_and_proxies_panel_paths(tmp_path):
+    nginx = shutil.which("nginx")
+    assert nginx is not None, "native nginx is required for generated-site behavior validation"
+    runtime_plan = plan(Path(__file__).parents[1])
+    manager = RuntimeInstaller(runtime_plan, root=tmp_path, runner=FakeRunner())
+    panel_site = manager._panel_site_content()
+
+    certificate = tmp_path / "fullchain.pem"
+    private_key = tmp_path / "privkey.pem"
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+            "-subj", f"/CN={runtime_plan.panel_domain}", "-days", "1",
+            "-keyout", str(private_key), "-out", str(certificate),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    cover_root = tmp_path / "cover"
+    cover_root.mkdir()
+    (cover_root / "index.html").write_text("panel-cover")
+
+    class UpstreamHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"panel-upstream")
+
+        def log_message(self, _format, *_args):
+            pass
+
+    upstream = http.server.ThreadingHTTPServer(("127.0.0.1", 0), UpstreamHandler)
+    upstream_thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    upstream_thread.start()
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        tls_port = reserved.getsockname()[1]
+
+    panel_site = (
+        panel_site.replace(
+            f"listen 127.0.0.1:{runtime_plan.panel_tls_port}".encode(),
+            f"listen 127.0.0.1:{tls_port}".encode(),
+        )
+        .replace(
+            f"/etc/letsencrypt/live/{runtime_plan.proxy_domain}/fullchain.pem".encode(),
+            str(certificate).encode(),
+        )
+        .replace(
+            f"/etc/letsencrypt/live/{runtime_plan.proxy_domain}/privkey.pem".encode(),
+            str(private_key).encode(),
+        )
+        .replace(
+            f"/var/www/{runtime_plan.panel_domain}".encode(),
+            str(cover_root).encode(),
+        )
+        .replace(
+            f"127.0.0.1:{runtime_plan.panel_app_port}".encode(),
+            f"127.0.0.1:{upstream.server_port}".encode(),
+        )
+    )
+    (tmp_path / "nginx.conf").write_bytes(
+        b"user root; worker_processes 1; pid nginx.pid; error_log stderr notice; events {} http {\n"
+        + panel_site
+        + b"}\n"
+    )
+    process = subprocess.Popen(
+        [nginx, "-p", f"{tmp_path}/", "-c", "nginx.conf", "-g", "daemon off;"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    context = ssl._create_unverified_context()
+    try:
+        for _ in range(50):
+            try:
+                with socket.create_connection(("127.0.0.1", tls_port), timeout=0.1):
+                    break
+            except OSError:
+                if process.poll() is not None:
+                    raise AssertionError(process.stderr.read())
+                time.sleep(0.02)
+        else:
+            raise AssertionError("generated panel site did not start")
+
+        def get(path):
+            request = urllib.request.Request(
+                f"https://127.0.0.1:{tls_port}{path}",
+                headers={"Host": runtime_plan.panel_domain},
+            )
+            with urllib.request.urlopen(request, context=context, timeout=2) as response:
+                return response.read()
+
+        assert get("/") == b"panel-cover"
+        assert get("/login") == b"panel-upstream"
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+        upstream.shutdown()
+        upstream.server_close()
+        upstream_thread.join(timeout=5)
 
 
 def test_runtime_install_owns_complete_stack_and_never_exposes_password(tmp_path):
@@ -255,6 +363,9 @@ def test_runtime_install_owns_complete_stack_and_never_exposes_password(tmp_path
     assert original_route != route.read_text()
 
     project = root / "opt/mtproxy-shared443"
+    panel_cover = root / "var/www/panel.example.com/index.html"
+    assert panel_cover.is_file()
+    assert "Proxy Control" not in panel_cover.read_text()
     rendered_env = (project / ".env").read_text().splitlines()
     assert "PANEL_ALLOWED_HOSTS=panel.example.com" in rendered_env
     assert "PANEL_HEALTHCHECK_HOST=panel.example.com" in rendered_env
