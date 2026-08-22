@@ -234,7 +234,7 @@ def test_generated_acme_and_panel_sites_pass_native_nginx_syntax_check(tmp_path)
     )
     assert checked.returncode == 0, checked.stderr
     assert acme_site.count(b"{") == acme_site.count(b"}") == 6
-    assert panel_site.count(b"{") == panel_site.count(b"}") == 3
+    assert panel_site.count(b"{") == panel_site.count(b"}") == 5
 
 def test_generated_panel_site_serves_cover_at_root_and_proxies_panel_paths(tmp_path):
     nginx = shutil.which("nginx")
@@ -321,15 +321,19 @@ def test_generated_panel_site_serves_cover_at_root_and_proxies_panel_paths(tmp_p
         else:
             raise AssertionError("generated panel site did not start")
 
-        def get(path):
+        def get(path, *, session=False):
+            headers = {"Host": runtime_plan.panel_domain}
+            if session:
+                headers["Cookie"] = "panel_session=test-session"
             request = urllib.request.Request(
                 f"https://127.0.0.1:{tls_port}{path}",
-                headers={"Host": runtime_plan.panel_domain},
+                headers=headers,
             )
             with urllib.request.urlopen(request, context=context, timeout=2) as response:
                 return response.read()
 
         assert get("/") == b"panel-cover"
+        assert get("/", session=True) == b"panel-upstream"
         assert get("/login") == b"panel-upstream"
     finally:
         process.terminate()
@@ -384,6 +388,25 @@ def test_runtime_install_owns_complete_stack_and_never_exposes_password(tmp_path
     assert bootstrap[1] == str(password_file)
     assert any(call[0][:2] == ("certbot", "certonly") and "panel.example.com" in call[0] for call in runner.calls)
     assert any(call[0][0] == "/usr/local/bin/mtproxy-respq-probe" for call in runner.calls)
+
+def test_runtime_install_public_webroots_ignore_restrictive_umask(tmp_path):
+    root, _route = runtime_root(tmp_path)
+    manager = RuntimeInstaller(
+        plan(Path(__file__).parents[1]),
+        root=root,
+        runner=FakeRunner(installed={"python3", "ca-certificates"}),
+    )
+    previous = os.umask(0o077)
+    try:
+        manager.install()
+    finally:
+        os.umask(previous)
+
+    for domain in ("proxy.example.com", "panel.example.com"):
+        webroot = root / "var/www" / domain
+        assert stat.S_IMODE(webroot.stat().st_mode) == 0o755
+        assert stat.S_IMODE((webroot / ".well-known").stat().st_mode) == 0o755
+        assert stat.S_IMODE((webroot / ".well-known/acme-challenge").stat().st_mode) == 0o755
 
 
 def test_runtime_uninstall_preserves_credentials_and_named_volumes_by_default(tmp_path):

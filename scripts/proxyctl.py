@@ -1144,15 +1144,21 @@ class RuntimeInstaller:
         ).encode()
 
     def _panel_site_content(self) -> bytes:
+        proxy = (
+            f"proxy_pass http://127.0.0.1:{self.plan.panel_app_port}; "
+            "proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; "
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; "
+        )
         return (
             f"server {{ listen 127.0.0.1:{self.plan.panel_tls_port} ssl; "
             f"server_name {self.plan.panel_domain}; "
             f"ssl_certificate /etc/letsencrypt/live/{self.plan.proxy_domain}/fullchain.pem; "
             f"ssl_certificate_key /etc/letsencrypt/live/{self.plan.proxy_domain}/privkey.pem; "
-            f"location = / {{ root /var/www/{self.plan.panel_domain}; try_files /index.html =404; }} "
-            f"location / {{ proxy_pass http://127.0.0.1:{self.plan.panel_app_port}; "
-            "proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; "
-            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; } }\n"
+            f"location = / {{ error_page 418 = @panel_root; "
+            f"if ($cookie_panel_session != \"\") {{ return 418; }} "
+            f"root /var/www/{self.plan.panel_domain}; try_files /index.html =404; }} "
+            f"location @panel_root {{ {proxy}}} "
+            f"location / {{ {proxy}}} }}\n"
         ).encode()
 
     def _expected_managed_hashes(self) -> dict[str, str]:
@@ -1165,7 +1171,13 @@ class RuntimeInstaller:
 
     def _write_acme_site(self) -> None:
         for domain in (self.plan.proxy_domain, self.plan.panel_domain):
-            _durable_mkdir(_root_path(self.root, f"/var/www/{domain}/.well-known/acme-challenge"))
+            webroot = _root_path(self.root, f"/var/www/{domain}")
+            well_known = webroot / ".well-known"
+            challenge = well_known / "acme-challenge"
+            _durable_mkdir(challenge)
+            for directory in (webroot, well_known, challenge):
+                os.chmod(directory, 0o755)
+                _fsync_dir(directory)
         available = _root_path(self.root, "/etc/nginx/sites-available")
         enabled = _root_path(self.root, "/etc/nginx/sites-enabled")
         _atomic_write(available / "proxy-control-acme.conf", self._acme_site_content(), mode=0o644)
