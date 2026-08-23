@@ -7,6 +7,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Added
 
 - NaiveProxy per-user traffic quotas: `quota_bytes` on create and a dedicated quota endpoint, with usage, remaining and exhaustion reported in the panel. A manager thread enforces quotas on an interval (`NAIVE_QUOTA_INTERVAL_SECONDS`, default 60 s) and transactionally removes an exhausted user's credentials from the managed Caddy block.
+- A NekoBox client tab in the NaiveProxy one-time reveal that carries a `naive+https://USER:PASSWORD@HOST:443#NAME` link and a matching QR, the format NekoBox for Android and its forks parse.
 - Standalone Proxy Control documentation, governance templates, screenshot policy, and third-party notices.
 - CI coverage for the complete Python suite, Ruff, all tracked shell scripts, all Compose variants, project image builds, documentation links, and provenance notices.
 
@@ -29,6 +30,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Public ACME roots are forced to `0755` even under restrictive operator umasks.
 - Route repair/uninstall validates and removes only the marked Proxy Control block, preserving adjacent SNI routes added after core installation.
 - Naive private-listener start/reload disables automatic HTTPS redirects, and Naive Karing reveals again provide a verified `karing://install-config` deep link with a matching QR pane.
+- Client tabs without a verified QR format (NaiveProxy Native, Shadowrocket) now drop the QR pane instead of rendering an empty white placeholder that reads as a broken code.
+- Toasts are raised into the top layer via a manual popover, so a confirmation such as “link copied” is no longer painted behind an open modal's blurred backdrop.
 
 ### Security
 

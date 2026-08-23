@@ -166,8 +166,8 @@
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">MIERU · КЛИЕНТ</span><h2 id="mieru-access-title">Доступ Mieru</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <div id="mieru-client-tabs" class="client-tabs" role="tablist" aria-label="Клиент Mieru"></div>
-      <div class="access-layout">
-        <div class="qr-wrap"><img id="mieru-qr-image" alt="" hidden><div id="mieru-qr-empty" class="qr-empty">Этот способ требует файл или ручной ввод — QR не используется.</div><span id="mieru-qr-caption">QR выбранного клиента</span></div>
+      <div id="mieru-access-layout" class="access-layout">
+        <div id="mieru-qr-wrap" class="qr-wrap"><img id="mieru-qr-image" alt="" hidden><span id="mieru-qr-caption">QR выбранного клиента</span></div>
         <div class="access-details">
           <span class="status-pill active"><i></i> Данные готовы</span>
           <p id="mieru-client-description"></p>
@@ -186,8 +186,8 @@
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">NAIVEPROXY · КЛИЕНТ</span><h2 id="naive-access-title">Доступ NaiveProxy</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <div id="naive-client-tabs" class="client-tabs" role="tablist" aria-label="Клиент NaiveProxy"></div>
-      <div class="access-layout">
-        <div class="qr-wrap"><img id="naive-qr-image" alt="" hidden><div id="naive-qr-empty" class="qr-empty">Этот способ требует файл или ручной ввод — QR не используется.</div><span id="naive-qr-caption">QR выбранного клиента</span></div>
+      <div id="naive-access-layout" class="access-layout">
+        <div id="naive-qr-wrap" class="qr-wrap"><img id="naive-qr-image" alt="" hidden><span id="naive-qr-caption">QR выбранного клиента</span></div>
         <div class="access-details">
           <span class="status-pill active"><i></i> Данные готовы</span>
           <p id="naive-client-description"></p>
@@ -202,7 +202,7 @@
     </form>
   </dialog>
 
-  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <div id="toast-region" class="toast-region" popover="manual" aria-live="polite"></div>
   <script type="module" src="/static/app.js"></script>
 </body>
 </html>

@@ -63,13 +63,29 @@ async def test_naive_owner_can_create_reveal_rotate_toggle_and_delete(client, lo
     assert first.status_code == 200
     assert first.headers["cache-control"] == "no-store"
     reveal = first.json()
-    assert set(reveal["clients"]) == {"native", "karing", "shadowrocket"}
+    assert set(reveal["clients"]) == {
+        "native",
+        "nekobox",
+        "karing",
+        "shadowrocket",
+    }
     native = reveal["clients"]["native"]
     assert native["type"] == "config"
     assert native["config"]["listen"] == "socks://127.0.0.1:1080"
     assert native["config"]["proxy"].startswith("https://ios-phone:")
     assert native["config"]["proxy"].endswith("@naive.example.com")
     assert "qr" not in native
+
+    nekobox = reveal["clients"]["nekobox"]
+    assert nekobox["label"] == "NekoBox"
+    assert nekobox["type"] == "link"
+    assert nekobox["share_url"].startswith("naive+https://ios-phone:")
+    assert nekobox["share_url"].split("#")[0].endswith("@naive.example.com:443")
+    assert nekobox["qr"]["payload"] == nekobox["share_url"]
+    assert nekobox["qr"]["image"].startswith("data:image/svg+xml;base64,")
+    assert urlsplit(nekobox["share_url"].removeprefix("naive+")).password == (
+        urlsplit(native["config"]["proxy"]).password
+    )
 
     karing = reveal["clients"]["karing"]
     assert karing["type"] == "link"

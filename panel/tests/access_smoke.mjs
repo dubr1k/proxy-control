@@ -7,6 +7,7 @@ const qr = (payload) => ({ payload, image: "data:image/svg+xml;base64,PHN2Zy8+" 
 
 test("Naive variants keep native config, a Karing deep link, and Shadowrocket manual fields distinct", () => {
   const endpoint = "https://phone:secret@naive.example.com";
+  const nekoboxLink = "naive+https://phone:secret@naive.example.com:443#Naive%20%C2%B7%20phone";
   const singBoxConfig = { outbounds: [{ type: "naive", server: "naive.example.com" }] };
   const karingLink = "karing://install-config?url=%7B%22outbounds%22%3A%5B%7B%22type%22%3A%22naive%22%2C%22server%22%3A%22naive.example.com%22%7D%5D%7D&name=Naive";
   const result = normaliseAccessPayload({
@@ -18,6 +19,12 @@ test("Naive variants keep native config, a Karing deep link, and Shadowrocket ma
         type: "config",
         config: { listen: "socks://127.0.0.1:1080", proxy: endpoint },
         filename: "naive-phone.json",
+      },
+      nekobox: {
+        label: "NekoBox",
+        type: "link",
+        share_url: nekoboxLink,
+        qr: qr(nekoboxLink),
       },
       karing: {
         label: "Karing",
@@ -44,6 +51,9 @@ test("Naive variants keep native config, a Karing deep link, and Shadowrocket ma
   assert.equal(result.native.payloadType, "config");
   assert.match(result.native.payload, /"proxy": "https:\/\/phone:secret@naive\.example\.com"/);
   assert.equal(result.native.qr, null);
+  assert.equal(result.nekobox.payloadType, "link");
+  assert.equal(result.nekobox.payload, nekoboxLink);
+  assert.equal(result.nekobox.qr.payload, nekoboxLink);
   assert.equal(result.karing.payloadType, "link");
   assert.equal(result.karing.payload, karingLink);
   assert.deepEqual(result.karing.qr.payload, karingLink);
@@ -145,7 +155,8 @@ function fakeRoot(prefix, { qr = true } = {}) {
     `open-${prefix}-client`, `download-${prefix}-payload`,
     `${prefix}-unsupported`, `${prefix}-access-title`, `${prefix}-access-modal`,
   ];
-  if (qr) ids.push(`${prefix}-qr-image`, `${prefix}-qr-empty`, `download-${prefix}-qr`, `${prefix}-qr-caption`);
+  ids.push(`${prefix}-access-layout`);
+  if (qr) ids.push(`${prefix}-qr-image`, `${prefix}-qr-wrap`, `download-${prefix}-qr`, `${prefix}-qr-caption`);
   const elements = Object.fromEntries(ids.map((id) => [`#${id}`, fakeElement()]));
   const tabs = elements[`#${prefix}-client-tabs`];
   tabs.buttons = [];
@@ -183,6 +194,7 @@ test("dialog renderer shows the Naive Karing deep link and matching QR", () => {
   dialogs.bind();
   const endpoint = "https://phone:secret@naive.example.com";
   const config = { outbounds: [] };
+  const nekoboxLink = "naive+https://phone:secret@naive.example.com:443#Naive%20%C2%B7%20phone";
   const karingLink = "karing://install-config?url=%7B%22outbounds%22%3A%5B%5D%7D&name=Naive";
   dialogs.showNaiveAccess({
     service: "naive",
@@ -193,6 +205,12 @@ test("dialog renderer shows the Naive Karing deep link and matching QR", () => {
         type: "config",
         config: { listen: "socks://127.0.0.1:1080", proxy: endpoint },
         filename: "naive-phone.json",
+      },
+      nekobox: {
+        label: "NekoBox",
+        type: "link",
+        share_url: nekoboxLink,
+        qr: qr(nekoboxLink),
       },
       karing: {
         label: "Karing",
@@ -224,5 +242,24 @@ test("dialog renderer shows the Naive Karing deep link and matching QR", () => {
   assert.equal(root.elements["#naive-payload"].value, karingLink);
   assert.equal(root.elements["#open-naive-client"].href, karingLink);
   assert.equal(root.elements["#naive-qr-image"].src, qr(karingLink).image);
+  assert.equal(root.elements["#naive-qr-wrap"].hidden, false);
+  assert.equal(root.elements["#naive-access-layout"].classList.contains("no-qr"), false);
   assert.notEqual(root.elements["#naive-payload"].value, endpoint);
+
+  const nekoboxTab = root.elements["#naive-client-tabs"].buttons.find(
+    (button) => button.dataset.client === "nekobox",
+  );
+  root.elements["#naive-client-tabs"].listeners.click({ target: nekoboxTab });
+  assert.equal(root.elements["#naive-payload"].value, nekoboxLink);
+  assert.equal(root.elements["#naive-qr-image"].src, qr(nekoboxLink).image);
+  assert.equal(root.elements["#naive-qr-wrap"].hidden, false);
+
+  const shadowrocketTab = root.elements["#naive-client-tabs"].buttons.find(
+    (button) => button.dataset.client === "shadowrocket",
+  );
+  root.elements["#naive-client-tabs"].listeners.click({ target: shadowrocketTab });
+  assert.equal(root.elements["#naive-qr-wrap"].hidden, true);
+  assert.equal(root.elements["#naive-qr-image"].hidden, true);
+  assert.equal(root.elements["#download-naive-qr"].hidden, true);
+  assert.equal(root.elements["#naive-access-layout"].classList.contains("no-qr"), true);
 });

@@ -126,6 +126,36 @@ function naiveNative(value, username) {
   };
 }
 
+function naiveNekobox(value, username, native) {
+  if (!plainObject(value) || value.label !== "NekoBox" || value.type !== "link"
+    || typeof value.share_url !== "string"
+    || !value.share_url.startsWith("naive+https://")) {
+    throw new Error("Сервис вернул некорректную ссылку NekoBox");
+  }
+  const endpoint = new URL(native.config.proxy);
+  try {
+    const link = new URL(value.share_url.slice("naive+".length));
+    if (link.protocol !== "https:" || link.hostname !== endpoint.hostname
+      || (link.port || "443") !== (endpoint.port || "443")
+      || decodeURIComponent(link.username) !== username
+      || decodeURIComponent(link.password) !== decodeURIComponent(endpoint.password)
+      || link.search || !["", "/"].includes(link.pathname)) {
+      throw new Error("invalid NekoBox link");
+    }
+  } catch {
+    throw new Error("Сервис вернул некорректную ссылку NekoBox");
+  }
+  return {
+    label: "NekoBox",
+    payloadType: "link",
+    payloadLabel: "Ссылка naive+https",
+    payload: value.share_url,
+    copyLabel: "Копировать ссылку",
+    description: "NekoBox и совместимые форки импортируют NaiveProxy по ссылке naive+https://. Отсканируйте QR или вставьте ссылку из буфера обмена.",
+    qr: qrFor(value.qr, value.share_url),
+  };
+}
+
 function shadowrocketVariant(value, native) {
   if (!plainObject(value) || value.label !== "Shadowrocket" || value.type !== "manual"
     || !plainObject(value.fields)) {
@@ -210,11 +240,13 @@ export function normaliseAccessPayload(data, service, username) {
   }
   if (service === "naive") {
     const native = data.clients.native;
-    if (!native || !data.clients.karing || !data.clients.shadowrocket) {
+    if (!native || !data.clients.nekobox || !data.clients.karing
+      || !data.clients.shadowrocket) {
       throw new Error("Сервис вернул неполный набор профилей NaiveProxy");
     }
     return {
       native: naiveNative(native, username),
+      nekobox: naiveNekobox(data.clients.nekobox, username, native),
       karing: karingVariant(data.clients.karing),
       shadowrocket: shadowrocketVariant(data.clients.shadowrocket, native),
       unsupported: unsupportedText(data.unsupported_clients),
@@ -301,11 +333,15 @@ export function createAccessDialogs(context) {
     setDownload(prefix, variant);
 
     const image = query(`#${prefix}-qr-image`, root);
-    const empty = query(`#${prefix}-qr-empty`, root);
+    const wrap = query(`#${prefix}-qr-wrap`, root);
+    const layout = query(`#${prefix}-access-layout`, root);
     const qrDownload = query(`#download-${prefix}-qr`, root);
-    if (!image || !empty || !qrDownload) return;
+    if (!image || !wrap || !layout || !qrDownload) return;
+    // Without a QR the pane is dropped entirely: an empty white placeholder
+    // reads as a broken code and invites scanning it into the wrong client.
+    wrap.hidden = !variant.qr;
+    layout.classList.toggle("no-qr", !variant.qr);
     image.hidden = !variant.qr;
-    empty.hidden = Boolean(variant.qr);
     image.removeAttribute("src");
     qrDownload.hidden = !variant.qr;
     qrDownload.removeAttribute("href");
@@ -315,8 +351,6 @@ export function createAccessDialogs(context) {
       qrDownload.href = variant.qr.image;
       qrDownload.download = `${prefix}-${client}.svg`;
       query(`#${prefix}-qr-caption`, root).textContent = `QR: ${variant.payloadLabel}`;
-    } else {
-      query(`#${prefix}-qr-caption`, root).textContent = "QR для этого способа не используется";
     }
   }
 

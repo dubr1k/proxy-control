@@ -123,10 +123,13 @@ The one-time access dialog separates formats by client:
   ```json
   {"listen":"socks://127.0.0.1:1080","proxy":"https://USER:PASSWORD@proxy.example.com"}
   ```
+- **NekoBox** exposes a `naive+https://USER:PASSWORD@HOST:443#NAME` link and its QR. That is the format `parseNaive` accepts in NekoBox for Android and its forks, so QR import works there.
 - **Karing** downloads the complete sing-box JSON profile and offers a `karing://install-config` deep link. Its QR encodes that deep link with the full profile content, never the raw `https://USER:PASSWORD@HOST` endpoint.
 - **Shadowrocket** shows explicit manual fields (`HTTPS`, server, port, username, password). Proxy Control does not generate an unverified Shadowrocket URI or QR.
 
-Karing's current source accepts `karing://install-config?url=...` and imports sing-box configuration content; its current protocol editor includes Naive. See the [Karing URL-scheme contract](https://karing.app/en/cooperation/scheme), [Karing import guide](https://karing.app/en/quickstart), and [sing-box Naive outbound schema](https://sing-box.sagernet.org/configuration/outbound/naive/). All three variants contain the same credential and remain subject to the one-time reveal and `Cache-Control: no-store` rules.
+Tabs without a QR (Native, Shadowrocket) drop the QR pane entirely instead of rendering an empty white placeholder: a blank plate reads as a broken code and invites scanning it into the wrong client.
+
+Karing's current source accepts `karing://install-config?url=...` and imports sing-box configuration content; its current protocol editor includes Naive. See the [Karing URL-scheme contract](https://karing.app/en/cooperation/scheme), [Karing import guide](https://karing.app/en/quickstart), and [sing-box Naive outbound schema](https://sing-box.sagernet.org/configuration/outbound/naive/). All variants contain the same credential and remain subject to the one-time reveal and `Cache-Control: no-store` rules.
 
 ## Backup
 

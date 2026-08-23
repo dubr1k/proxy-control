@@ -7,7 +7,19 @@ export function createUi(root) {
     const node = root.createElement("div");
     node.className = `toast ${type === "error" ? "error" : ""}`;
     node.textContent = message;
-    query("#toast-region", root)?.append(node);
+    const region = query("#toast-region", root);
+    region?.append(node);
+    // Modal dialogs live in the top layer, so a plain z-index leaves the toast
+    // behind the blurred backdrop. Re-showing the popover puts the region back
+    // on top of whichever dialog was opened last.
+    // hidePopover() throws when the popover is already hidden, so the two calls
+    // are guarded separately; either one failing must not skip the other.
+    try {
+      region?.hidePopover?.();
+    } catch { /* not shown yet */ }
+    try {
+      region?.showPopover?.();
+    } catch { /* popover unsupported: the static region still renders */ }
     window.setTimeout(() => node.remove(), 3200);
   }
 

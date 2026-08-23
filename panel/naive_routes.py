@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import re
 from typing import Literal
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import Depends, HTTPException, Request
 
 from .naive import NaiveError
-from .reveals import karing_client
+from .reveals import karing_client, qr_data
 from .schemas import NaiveQuotaUpdate, NaiveUserCreate
 from .web_context import RequestContext
 
@@ -163,6 +163,14 @@ def register_naive_routes(app, context: RequestContext) -> None:
                 }
             ]
         }
+        # NekoBox and its forks import NaiveProxy from a `naive+https://` URL
+        # (io.nekohasekai.sagernet.fmt.naive.parseNaive), so the QR pane can
+        # carry a link those clients actually accept.
+        nekobox_url = (
+            f"naive+https://{quote(username, safe='')}:{quote(password, safe='')}"
+            f"@{settings.naive_public_host}:443"
+            f"#{quote(f'Naive · {username}', safe='')}"
+        )
         return {
             "service": "naive",
             "username": username,
@@ -172,6 +180,15 @@ def register_naive_routes(app, context: RequestContext) -> None:
                     "type": "config",
                     "config": native_config,
                     "filename": f"naive-{username}.json",
+                },
+                "nekobox": {
+                    "label": "NekoBox",
+                    "type": "link",
+                    "share_url": nekobox_url,
+                    "qr": {
+                        "payload": nekobox_url,
+                        "image": qr_data(nekobox_url),
+                    },
                 },
                 "karing": karing_client(
                     karing_config,

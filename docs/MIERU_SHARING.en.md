@@ -71,6 +71,7 @@ Client tabs scroll horizontally, while QR, payload, import command, unsupported-
 - **No QR:** use the create/rotate one-time dialog, not list view.
 - **Old link fails:** expected after rotation.
 - **New link imports but cannot connect:** check server status, TCP/UDP listener, DNS/firewall, and real protocol probe.
+- **Client created both TCP and UDP entries, only TCP works:** `mierus://` advertises every server port binding, so clients such as NekoBox/husi materialise one entry per protocol. The server-side UDP listener is fine: the official mieru 3.35 client with `"protocol": "UDP"` completes end-to-end through mita 3.35. In practice UDP fails on the path (mobile carriers and some Wi-Fi networks drop or throttle non-QUIC UDP) or in a given client fork's UDP transport. Action: use the TCP entry; there is no need to remove the server's UDP binding. To verify the server, point the official client at a UDP-only profile — if that works, the fault is client- or network-side.
 - **Traffic unavailable:** this is an honest adapter limitation, not a credential problem.
 - **Viewer sees no QR:** expected RBAC behavior.
 

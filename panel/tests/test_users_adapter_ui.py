@@ -330,7 +330,10 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     assert "Автоматического ежемесячного сброса нет" in text
     assert 'data-view="mieru"' in text and 'id="mieru-modal"' in text
     assert 'id="mieru-access-modal"' in text and 'id="mieru-client-tabs"' in text
-    assert 'id="mieru-qr-image"' in text and 'id="mieru-qr-empty"' in text
+    assert 'id="mieru-qr-image"' in text and 'id="mieru-qr-wrap"' in text
+    assert 'id="mieru-access-layout"' in text and 'id="naive-access-layout"' in text
+    assert 'id="mieru-qr-empty"' not in text and 'id="naive-qr-empty"' not in text
+    assert 'id="toast-region" class="toast-region" popover="manual"' in text
     assert 'id="mieru-payload"' in text and 'id="download-mieru-qr"' in text
     assert 'id="mieru-quota-modal"' in text and 'id="mieru-quota-rows"' in text
     assert "renderMieru" in modules["main"] and "handleMieruAction" in modules["mieru"]
@@ -346,7 +349,9 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     assert 'data-quick="mieru-users"' not in modules["mieru"]
     assert 'class="quick-action mieru-quick-action"' not in modules["mieru"]
     assert ".quick-action.mieru-quick-action{position:relative;top:12px}" not in css.text
-    assert ".client-tabs" in css.text and ".qr-empty" in css.text
+    assert ".client-tabs" in css.text and ".qr-empty" not in css.text
+    assert ".access-layout.no-qr{grid-template-columns:1fr}" in css.text
+    assert ".toast-region{position:fixed;inset:auto 18px 18px auto" in css.text
     assert "@media(max-width:760px)" in css.text and ".client-tabs{overflow-x:auto" in css.text
     assert 'id="fleet-modal"' in text and 'id="create-fleet-node"' in text
     assert 'id="new-node-id"' in text and 'id="new-node-name"' in text

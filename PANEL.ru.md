@@ -127,10 +127,13 @@ One-time dialog разделяет форматы по клиентам:
   ```json
   {"listen":"socks://127.0.0.1:1080","proxy":"https://USER:PASSWORD@proxy.example.com"}
   ```
+- **NekoBox** отдаёт ссылку `naive+https://USER:PASSWORD@HOST:443#NAME` и её QR. Это формат, который разбирает `parseNaive` в NekoBox for Android и его форках, поэтому импорт по QR там работает.
 - **Karing** скачивает полный sing-box JSON profile и открывает `karing://install-config`. QR кодирует эту deep link с содержимым полного профиля, а не raw endpoint `https://USER:PASSWORD@HOST`.
 - **Shadowrocket** показывает только проверяемые поля для ручного ввода (`HTTPS`, server, port, username, password). Proxy Control не придумывает неподтверждённую Shadowrocket URI или QR.
 
-Текущий source Karing принимает `karing://install-config?url=...`, импортирует содержимое sing-box config и содержит Naive в protocol editor. См. [Karing URL scheme](https://karing.app/en/cooperation/scheme), [инструкцию импорта Karing](https://karing.app/en/quickstart) и [схему Naive outbound в sing-box](https://sing-box.sagernet.org/configuration/outbound/naive/). Все три варианта содержат один credential и подчиняются one-time reveal и `Cache-Control: no-store`.
+На вкладках без QR (Native, Shadowrocket) панель убирает QR-плашку целиком, а не показывает пустой белый прямоугольник: пустая плашка читается как сломанный код и провоцирует сканировать её не тем клиентом.
+
+Текущий source Karing принимает `karing://install-config?url=...`, импортирует содержимое sing-box config и содержит Naive в protocol editor. См. [Karing URL scheme](https://karing.app/en/cooperation/scheme), [инструкцию импорта Karing](https://karing.app/en/quickstart) и [схему Naive outbound в sing-box](https://sing-box.sagernet.org/configuration/outbound/naive/). Все варианты содержат один credential и подчиняются one-time reveal и `Cache-Control: no-store`.
 
 ## Резервное копирование
 
