@@ -293,6 +293,34 @@ def test_repair_and_uninstall_are_idempotent_and_refuse_foreign_drift(tmp_path):
     assert route.read_text() == original
     assert not (root / "var/lib/proxy-control/ownership.json").exists()
 
+def test_repair_and_uninstall_preserve_foreign_routes_added_after_install(tmp_path):
+    root, route = host_root(tmp_path)
+    original = route.read_text()
+    plan = InstallPlan(
+        proxy_domain="mt.example.com",
+        panel_domain="panel-mt.example.com",
+        route_file="/etc/nginx/stream.d/routes.conf",
+    )
+    apply_plan(plan, root=root, validate=lambda: None, reload=lambda: None)
+    route.write_text(
+        route.read_text().replace(
+            "    default 127.0.0.1:8443;",
+            "    edge.example.com 127.0.0.1:4443;\n    default 127.0.0.1:8443;",
+        )
+    )
+    expected = original.replace(
+        "    default 127.0.0.1:8443;",
+        "    edge.example.com 127.0.0.1:4443;\n    default 127.0.0.1:8443;",
+    )
+
+    repair_installation(root=root, validate=lambda: None, reload=lambda: None)
+    uninstall_installation(root=root, validate=lambda: None, reload=lambda: None)
+
+    assert route.read_text() == expected
+    assert "edge.example.com 127.0.0.1:4443;" in route.read_text()
+    assert "mt.example.com 127.0.0.1:8445;" not in route.read_text()
+    assert "panel-mt.example.com 127.0.0.1:8443;" not in route.read_text()
+
 
 def test_interrupted_apply_and_uninstall_recover_from_durable_manifest(tmp_path):
     root, route = host_root(tmp_path)

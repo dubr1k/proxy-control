@@ -389,6 +389,35 @@ def patch_stream_map(
     insert_at = start + default_match.start()
     return text[:insert_at] + managed + text[insert_at:]
 
+def _owned_route_marker(state: dict, *, end: bool = False) -> str:
+    prefix = OWNERSHIP_END if end else OWNERSHIP_BEGIN
+    return f"{prefix} {state['install_id']}"
+
+
+def _remove_owned_route_block(current: bytes, state: dict) -> bytes:
+    try:
+        text = current.decode()
+    except UnicodeDecodeError as exc:
+        raise InstallerConflict("owned route file has drifted") from exc
+    lines = text.splitlines(keepends=True)
+    begin = _owned_route_marker(state)
+    end = _owned_route_marker(state, end=True)
+    begins = [index for index, line in enumerate(lines) if line.strip() == begin]
+    ends = [index for index, line in enumerate(lines) if line.strip() == end]
+    if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
+        raise InstallerConflict("owned route file has drifted")
+    start, finish = begins[0], ends[0]
+    plan = state["plan"]
+    expected = [
+        begin,
+        f"{plan['proxy_domain']} {plan['proxy_backend']};",
+        f"{plan['panel_domain']} {plan['panel_backend']};",
+        end,
+    ]
+    if [line.strip() for line in lines[start:finish + 1]] != expected:
+        raise InstallerConflict("owned route file has drifted")
+    return "".join(lines[:start] + lines[finish + 1:]).encode()
+
 
 @dataclass(frozen=True)
 class InstallPlan:
@@ -787,7 +816,7 @@ def _repair_installation_unlocked(
         raise InstallerConflict("owned route or backup is missing")
     current = route.read_bytes()
     if not backup.is_file():
-        if state["status"] == "uninstalling" and _sha256(current) == state["route_sha256_before"]:
+        if state["status"] == "uninstalling" and _owned_route_marker(state) not in current.decode(errors="ignore"):
             validate()
             reload()
             manifest.unlink()
@@ -798,8 +827,7 @@ def _repair_installation_unlocked(
     if _sha256(original) != state["route_sha256_before"]:
         raise InstallerConflict("owned backup has drifted")
     if state["status"] == "active":
-        if _sha256(current) != state["route_sha256_owned"]:
-            raise InstallerConflict("owned route file has drifted")
+        _remove_owned_route_block(current, state)
         validate()
         return
     if state["status"] == "applying":
@@ -816,18 +844,8 @@ def _repair_installation_unlocked(
         manifest.unlink()
         _fsync_dir(manifest.parent)
         return
-    if _sha256(current) == state["route_sha256_before"]:
-        validate()
-        reload()
-        backup.unlink()
-        _fsync_dir(backup.parent)
-        manifest.unlink()
-        _fsync_dir(manifest.parent)
-        return
-    if _sha256(current) == state["route_sha256_owned"]:
-        state["status"] = "active"
-        _write_state(manifest, state)
-        validate()
+    if state["status"] == "uninstalling":
+        _uninstall_installation_unlocked(root=root, validate=validate, reload=reload)
         return
     raise InstallerConflict("owned route file has drifted")
 
@@ -849,8 +867,9 @@ def _uninstall_installation_unlocked(
     if not route.is_file():
         raise InstallerConflict("owned route or backup is missing")
     current = route.read_bytes()
+    marker_present = _owned_route_marker(state) in current.decode(errors="ignore")
     if not backup.is_file():
-        if state["status"] == "uninstalling" and _sha256(current) == state["route_sha256_before"]:
+        if state["status"] == "uninstalling" and not marker_present:
             validate()
             reload()
             manifest.unlink()
@@ -860,36 +879,34 @@ def _uninstall_installation_unlocked(
     original = backup.read_bytes()
     if _sha256(original) != state["route_sha256_before"]:
         raise InstallerConflict("owned backup has drifted")
-    current_hash = _sha256(current)
-    if current_hash not in {state["route_sha256_owned"], state["route_sha256_before"]}:
-        raise InstallerConflict("owned route file has drifted")
-    if state["status"] == "active":
-        if current_hash != state["route_sha256_owned"]:
-            raise InstallerConflict("owned route file has drifted")
+    updated = _remove_owned_route_block(current, state) if marker_present else current
+    was_active = state["status"] == "active"
+    if was_active:
         state["status"] = "uninstalling"
         _write_state(manifest, state)
     try:
-        if current_hash == state["route_sha256_owned"]:
+        if updated != current:
             _atomic_write(
                 route,
-                original,
+                updated,
                 mode=state["route_mode"],
                 owner=(state["route_uid"], state["route_gid"]),
             )
         validate()
         reload()
     except BaseException:
-        if current_hash == state["route_sha256_owned"]:
+        if updated != current:
             _atomic_write(
                 route,
                 current,
                 mode=state["route_mode"],
                 owner=(state["route_uid"], state["route_gid"]),
             )
+        if was_active:
             state["status"] = "active"
             _write_state(manifest, state)
-            validate()
-            reload()
+        validate()
+        reload()
         raise
     backup.unlink()
     _fsync_dir(backup.parent)
