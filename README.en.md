@@ -60,6 +60,10 @@ An AI agent must follow this algorithm and provide factual command results. It m
 
 3. Identify the actual change boundary and every connected interface: README, Compose, Dockerfiles, systemd, Python API, UI, JavaScript, tests, backup/restore, and Fleet. Do not change foreign routes, containers, volumes, secrets, or production configuration without an explicit request.
 4. When code changes, write a narrow regression test first, verify that it fails for the expected reason, implement the smallest change, and run the test again.
+5. Keep restrictive `umask 077` inside secret/backup creation only and restore it immediately. The checkout/build context must be readable by runtime UIDs, APT keyrings/source lists by `_apt`, and public ACME roots by the Nginx worker.
+6. Print a success marker only in a successful `if` branch. `fallible-command; echo OK` is forbidden: it can falsely report a package installation, manager health, or repair as successful.
+7. Verify secret-bearing browser dialogs through safe booleans, labels, lengths, and matching metadata. Never return an accessibility/DOM snapshot containing a password, link, subscription ID, or hidden path; rotate any value that reaches tool output.
+
 
 #### Agent dependency setup
 
@@ -574,6 +578,8 @@ The root-only adapter copies the manager-owned Caddyfile into `/run/caddy-naive`
 
 `naive-manager` uses only the local Caddy Admin API and Unix socket, receives no Docker socket, and can read completed logs but cannot create, truncate, rename, or append to them. Never publish the Caddy Admin API.
 
+Production bootstrap order: install/start current private-listener Caddy first, require Admin `127.0.0.1:2019`, run manager `--bootstrap-only`, reload `caddy-naive`, complete one authenticated CONNECT so `access.json` exists, then start the long-running manager/panel overlay. Current adapter and manager set `automatic_https.disable_redirects=true`; old builds can restart-loop on privileged TCP/80. See [PANEL.en.md](PANEL.en.md).
+
 Naive acceptance:
 
 1. cover HTTPS without credentials;
@@ -916,6 +922,8 @@ Before enabling this boundary:
    ```
 
 Then recreate only the panel container with the complete Compose file set. Keep the `/run/proxy-control` bind mount; the socket must be mode `0660` and belong to a group accessible to panel UID `10001`.
+
+The health contract is HTTP 200 with `{"status":"ok"}`; there is no `ready` field. Verify that exact response through both the host and panel-container UDS paths.
 
 The UI operation is owner-only and requires the current version (`expected_current`). Under an exclusive lock, the agent:
 

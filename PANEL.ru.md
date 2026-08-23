@@ -74,7 +74,7 @@ Production-контракт учёта хранит десять ротаций 
 - `transaction.json` — fsync-журнал незавершённой транзакции; после сбоя manager при старте либо восстанавливает оба предыдущих файла, либо повторно загружает уже полностью записанное новое поколение;
 - `manager-token` — копия внутреннего токена с режимом `0400` для UID manager-контейнера.
 
-Перед первым запуском скопируйте действующий Caddyfile в `${NAIVE_DATA_DIR}/Caddyfile`, создайте `secrets/naive-manager-token` с режимом `0600`, передайте такую же копию как `${NAIVE_DATA_DIR}/manager-token`, затем выполните initial import:
+Перед первым запуском скопируйте действующий Caddyfile в `${NAIVE_DATA_DIR}/Caddyfile`, создайте `secrets/naive-manager-token` с режимом `0600` и передайте такую же копию как `${NAIVE_DATA_DIR}/manager-token`. Restrictive `umask 077` не должен делать source/build context нечитаемым для UID `10002`. Bootstrap использует Caddy Admin `/adapt`, поэтому сначала запускается host Caddy из legacy-credential generation, затем выполняется import:
 
 ```sh
 NAIVE_DATA_DIR=${NAIVE_DATA_DIR:-/var/lib/naive-manager}
@@ -97,12 +97,22 @@ done
 chown -h 10002:101 "${NAIVE_DATA_DIR}/Caddyfile" "${NAIVE_DATA_DIR}/manager-token"
 chmod 0640 "${NAIVE_DATA_DIR}/Caddyfile"
 chmod 0400 "${NAIVE_DATA_DIR}/manager-token"
-docker compose -f compose.yaml -f compose.naive.yaml run --rm --build naive-manager --bootstrap-only
-caddy adapt --adapter caddyfile --validate --config "${NAIVE_DATA_DIR}/Caddyfile" >/dev/null
 install -o root -g root -m 0755 scripts/check-naive-caddy-build.sh /usr/local/libexec/check-naive-caddy-build
+install -o root -g root -m 0755 scripts/caddy-naive-adapt /usr/local/libexec/caddy-naive-adapt
 install -o root -g root -m 0644 deploy/caddy-naive.service /etc/systemd/system/caddy-naive.service
 systemctl daemon-reload
+systemctl enable --now caddy-naive
+test "$(ss -H -lnt 'sport = :2019' | awk '{print $4}')" = 127.0.0.1:2019
+test "$(ss -H -lnt 'sport = :4443' | awk '{print $4}')" = 127.0.0.1:4443
+docker compose -f compose.yaml -f compose.naive.yaml run --rm --build naive-manager --bootstrap-only
+systemctl reload caddy-naive
+# Выполните один authenticated public CONNECT, закройте туннель и потребуйте:
+test -f /var/log/naive-proxy/access.json
+test "$(stat -c %a /var/log/naive-proxy/access.json)" = 640
+docker compose -f compose.yaml -f compose.naive.yaml up -d --build --wait
 ```
+
+Текущие `caddy-naive-adapt` и `naive_manager` отключают automatic HTTPS redirects в private generation. Без этого непривилегированный Caddy пытается занять `127.0.0.1:80`. Initial bootstrap записывает managed credentials/accounting, но не активирует их: обязательный `systemctl reload caddy-naive` должен предшествовать запуску long-running manager, а первый завершённый CONNECT — проверке accounting health.
 
 Host Caddy и manager-контейнер имеют разные identity: Caddy использует UID `10003`, manager остаётся `10002:101` и получает только supplementary accounting GID `10004`. `/var/log/naive-proxy` имеет owner `10003:10004` и mode `0750`; Caddy создаёт логи mode `0640`, поэтому manager может читать, но не создавать, обрезать, переименовывать или дописывать их. Manager data остаётся `10002:101`, mode `0700`. При старте и systemd reload привилегированный `install` staging-копирует manager-owned source в `/run/caddy-naive/Caddyfile` (`10003:10004`, `0400`) внутри runtime directory mode `0700`; Caddy runtime не может пройти в `/var/lib/naive-manager`. Manager mutations не используют staged-файл: свежий source адаптируется и валидируется через loopback Admin API, а тот же JSON отправляется в `/load`, поэтому stale-stage window отсутствует и transaction rollback сохраняется. До cutover выполните `systemd-analyze verify`, проверьте `systemctl show caddy-naive -p User -p Group`, невозможность manager дописать лог и невозможность Caddy прочитать manager state.
 

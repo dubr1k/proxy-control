@@ -48,18 +48,29 @@ Production-safe unit использует:
 - socket `/run/mita/mita.sock` mode `0770`;
 - отдельного non-login user `mita`.
 
-Не используйте `RuntimeDirectory=mita` с bind-mounted UDS: restart может заменить directory inode и оставить container на stale mount.
+Не используйте `RuntimeDirectory=mita` с bind-mounted UDS: restart может заменить directory inode и оставить container на stale mount. Fresh host сначала получает одну валидную generation: selected TCP+UDP bindings, один защищённый bootstrap user и all-domain/all-IP SOCKS5 egress на `127.0.0.1:45000`. Zero-user/empty-config unit не запускайте.
 
 ```bash
 sudo install -m 0644 deploy/mita.tmpfiles.conf /etc/tmpfiles.d/mita.conf
 sudo install -m 0644 deploy/mita.service /etc/systemd/system/mita.service
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/mita.conf
 sudo systemctl daemon-reload
+# Создайте /var/lib/mita/bootstrap-input.json как 0600 mita:mita.
+# Пароль генерируется без вывода; config содержит bindings, bootstrap user и WARP egress.
+sudo systemd-run --unit=mita-bootstrap --property=User=mita --property=Group=mita \
+  --setenv=MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json \
+  --setenv=MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita run
+sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock \
+  /usr/bin/mita apply config /var/lib/mita/bootstrap-input.json
+sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita start
+sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita stop
+sudo systemctl stop mita-bootstrap.service
+sudo rm -f /var/lib/mita/bootstrap-input.json
 sudo systemctl enable --now mita
 MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
 ```
 
-Принимайте только exact output `mita server status is "RUNNING"`.
+Принимайте только exact output `mita server status is "RUNNING"`. Manager импортирует persisted hashed generation; временные acceptance users удаляются отдельно, а bootstrap user сохраняется, чтобы не получить zero-user failure.
 
 ## Manager identity и token
 

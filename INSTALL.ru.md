@@ -24,6 +24,8 @@ audit → plan → install → repair → uninstall
 
 Cloud/CDN proxy для raw MTProto hostname должен быть отключён (DNS-only). Unhandled AAAA, NAT mismatch, ambiguous Nginx maps и port collisions — hard stops.
 
+Restrictive `umask 077` используйте только внутри secret/backup subshell. До Git clone, Docker build context и APT верните `022`; public ACME roots и `.well-known/acme-challenge` должны иметь mode `0755`. Если сертификат proxy/panel был выпущен до installer, его renewal `webroot_map` должен сразу использовать `/var/www/<proxy-domain>` и `/var/www/<panel-domain>`.
+
 ## Сборка и установка внешнего TDLib-probe
 
 Из checkout репозитория до планирования соберите зафиксированный Docker image и установите root-only hook:
@@ -117,6 +119,10 @@ ss -lntup
 - adjacent SNI regression;
 - SQLite integrity и backup checksum;
 - проверку, что Telemt API не опубликован на host.
+
+После подключения Naive или других соседних SNI-маршрутов выполните `sudo python3 scripts/proxyctl.py repair`. Current `main` проверяет только блок между ownership markers и при uninstall удаляет только его, сохраняя добавленные позднее чужие маршруты. Deployment старого commit, который хеширует весь route file, нужно обновить до расширения карты.
+
+После установки всех deploy hooks обязательно выполните `sudo certbot renew --dry-run --no-random-sleep-on-renew`; initial issuance не проверяет будущий `webroot_map`.
 
 ## 6. Repair
 

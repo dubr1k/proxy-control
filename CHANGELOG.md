@@ -25,6 +25,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Fixed
 
 - Mieru transactions no longer re-hash the blanked password mita returns for an already stored user, so creating, rotating, deleting or quota-editing an access after the first one succeeds instead of failing the readback check and rolling back with `manager operation failed`.
+- Installer panel TLS vhosts now serve a neutral cover at `/` for unauthenticated requests while preserving the authenticated post-login landing.
+- Public ACME roots are forced to `0755` even under restrictive operator umasks.
+- Route repair/uninstall validates and removes only the marked Proxy Control block, preserving adjacent SNI routes added after core installation.
+- Naive private-listener start/reload disables automatic HTTPS redirects, and Naive Karing reveals again provide a verified `karing://install-config` deep link with a matching QR pane.
 
 ### Security
 

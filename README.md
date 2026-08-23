@@ -61,6 +61,10 @@ AI-агент обязан выполнить этот алгоритм и пр�
 3. Определить фактическую границу изменения и все связанные интерфейсы: README, Compose, Dockerfile, systemd, Python API, UI, JavaScript, тесты, backup/restore и Fleet. Не менять чужие маршруты, контейнеры, volumes, секреты и production-конфигурацию без явного задания.
 4. При изменении кода сначала написать узкий регрессионный тест, убедиться, что он падает по ожидаемой причине, затем внести минимальную реализацию и повторить проверку.
 
+5. Ограничительный `umask 077` действует только внутри создания secrets/backups и сразу восстанавливается. Checkout/build context должен быть читаем runtime UID, APT keyring/source list — `_apt`, а public ACME roots — Nginx worker.
+6. Success marker печатается только в успешной ветке `if`. Конструкция `fallible-command; echo OK` запрещена: она уже приводила к ложным отчётам об установленном пакете, healthy manager и прошедшем repair.
+7. Secret-bearing browser dialogs проверяются безопасными агрегатами. Accessibility snapshot или DOM dump с password/link/hidden path запрещён; попавшее в tool output значение немедленно ротируется.
+
 #### Установка зависимостей агента
 
 В рабочей копии проекта:
@@ -574,6 +578,8 @@ Root-only адаптер копирует управляемый manager Caddyfi
 
 `naive-manager` использует только локальный Caddy Admin API и Unix-сокет, не получает Docker socket и может читать завершённые логи, но не создавать, обрезать, переименовывать или дописывать их. Не публикуйте Caddy Admin API.
 
+Production bootstrap order: install/start current private-listener Caddy first, require Admin `127.0.0.1:2019`, run manager `--bootstrap-only`, reload `caddy-naive`, complete one authenticated CONNECT so `access.json` exists, then start the long-running manager/panel overlay. Current adapter and manager set `automatic_https.disable_redirects=true`; old builds can restart-loop on privileged TCP/80. Full sequence: [PANEL.ru.md](PANEL.ru.md).
+
 Проверка Naive:
 
 1. cover HTTPS без учётных данных;
@@ -916,6 +922,8 @@ PY
    ```
 
 После этого пересоздайте только panel-контейнер с полным набором Compose-файлов. Bind mount `/run/proxy-control` должен оставаться, а socket должен иметь режим `0660` и группу, доступную UID панели `10001`.
+
+Health contract is HTTP 200 with `{"status":"ok"}`; there is no `ready` field. Check that exact response from both host and panel-container UDS paths.
 
 Операция из UI доступна только роли `owner` и требует текущую версию (`expected_current`). Агент под эксклюзивной блокировкой:
 

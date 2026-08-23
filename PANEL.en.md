@@ -70,7 +70,7 @@ Deploy the manager before the panel: an older manager silently ignores `quota_by
 
 The production accounting contract keeps ten 10 MiB Caddy rotations plus the active file (110 MiB declared footprint) and allows at most 128 MiB of exact consumed-prefix verification per collection request. Prefix verification is synchronous and request-wide across all retained files; the extra 18 MiB is bounded headroom for an active file crossing its rotation boundary. Startup rejects a verification budget below the declared footprint. A changed prefix or a footprint that exceeds the bounded budget fails closed and makes accounting unhealthy instead of returning counters that may have been replayed or omitted.
 
-Before first start, copy the active Caddyfile to `${NAIVE_DATA_DIR}/Caddyfile`, create `secrets/naive-manager-token` with mode `0600`, provide the same token as `${NAIVE_DATA_DIR}/manager-token`, and run the initial import:
+Before first start, copy the active Caddyfile to `${NAIVE_DATA_DIR}/Caddyfile`, create `secrets/naive-manager-token` mode `0600`, and provide the same token as `${NAIVE_DATA_DIR}/manager-token`. Do not let restrictive `umask 077` make the source/build context unreadable to UID `10002`. Bootstrap validates through Caddy Admin `/adapt`, so start host Caddy from the legacy-credential generation before the initial import:
 
 ```sh
 NAIVE_DATA_DIR=${NAIVE_DATA_DIR:-/var/lib/naive-manager}
@@ -93,12 +93,22 @@ done
 chown -h 10002:101 "${NAIVE_DATA_DIR}/Caddyfile" "${NAIVE_DATA_DIR}/manager-token"
 chmod 0640 "${NAIVE_DATA_DIR}/Caddyfile"
 chmod 0400 "${NAIVE_DATA_DIR}/manager-token"
-docker compose -f compose.yaml -f compose.naive.yaml run --rm --build naive-manager --bootstrap-only
-caddy adapt --adapter caddyfile --validate --config "${NAIVE_DATA_DIR}/Caddyfile" >/dev/null
 install -o root -g root -m 0755 scripts/check-naive-caddy-build.sh /usr/local/libexec/check-naive-caddy-build
+install -o root -g root -m 0755 scripts/caddy-naive-adapt /usr/local/libexec/caddy-naive-adapt
 install -o root -g root -m 0644 deploy/caddy-naive.service /etc/systemd/system/caddy-naive.service
 systemctl daemon-reload
+systemctl enable --now caddy-naive
+test "$(ss -H -lnt 'sport = :2019' | awk '{print $4}')" = 127.0.0.1:2019
+test "$(ss -H -lnt 'sport = :4443' | awk '{print $4}')" = 127.0.0.1:4443
+docker compose -f compose.yaml -f compose.naive.yaml run --rm --build naive-manager --bootstrap-only
+systemctl reload caddy-naive
+# Complete one authenticated public CONNECT, close it, and require:
+test -f /var/log/naive-proxy/access.json
+test "$(stat -c %a /var/log/naive-proxy/access.json)" = 640
+docker compose -f compose.yaml -f compose.naive.yaml up -d --build --wait
 ```
+
+Current `caddy-naive-adapt` and `naive_manager` disable automatic HTTPS redirects in the private generation. Without that, unprivileged Caddy attempts `127.0.0.1:80`. Initial bootstrap writes managed credentials/accounting but does not activate them: `systemctl reload caddy-naive` must precede the long-running manager, and the first completed CONNECT must precede accounting health.
 
 Host Caddy and the container manager have separate identities: Caddy is UID `10003`, while the manager remains `10002:101` and receives only supplementary accounting GID `10004`. `/var/log/naive-proxy` is `10003:10004` mode `0750`; Caddy creates mode-`0640` logs, so the manager can read but cannot create, truncate, rename, or append them. Manager data remains `10002:101` mode `0700`. At Caddy start and systemd reload, privileged `install` stages the manager-owned source as `/run/caddy-naive/Caddyfile` (`10003:10004`, `0400`) in a mode-`0700` runtime directory. Caddy cannot traverse `/var/lib/naive-manager` at runtime. Manager-driven mutations do not use the staged file: they adapt and validate the just-written source through the loopback admin API and send that exact JSON to `/load`, preserving transactional rollback without a stale-stage window. Verify `systemd-analyze verify`, inspect `systemctl show caddy-naive -p User -p Group`, and confirm the manager cannot append the log while Caddy cannot read manager state before cutover.
 

@@ -24,6 +24,8 @@ The complete installer deploys Telemt/MTProxy and the panel. NaiveProxy, Mieru, 
 
 Disable CDN/proxying for the raw MTProto hostname. Unhandled AAAA, NAT mismatch, ambiguous maps, and port collisions are hard stops.
 
+Use restrictive `umask 077` only inside a secret/backup subshell. Restore `022` before Git clone, Docker build contexts, and APT; public ACME roots and `.well-known/acme-challenge` must be mode `0755`. If the proxy/panel certificate is pre-issued, use `/var/www/<proxy-domain>` and `/var/www/<panel-domain>` in its renewal map from the first issuance.
+
 ## Build and install the external TDLib probe
 
 From the checked-out repository, build the pinned Docker image and install the root-only hook before planning:
@@ -94,6 +96,10 @@ ss -lntup
 ```
 
 Also run external `resPQ` for each user secret, a real Telegram client test, panel HTTPS/login, adjacent SNI regression, SQLite integrity/backup checksum, and confirm Telemt API is not host-published.
+
+After adding Naive or another adjacent SNI route, run `sudo python3 scripts/proxyctl.py repair`. Current `main` validates only the ownership-marker block and uninstall removes only that block, preserving routes added later. Upgrade deployments that still hash the whole route file before expanding the map.
+
+After every renewal hook is installed, run `sudo certbot renew --dry-run --no-random-sleep-on-renew`; initial issuance does not verify the future renewal webroot map.
 
 ## 6. Repair
 
