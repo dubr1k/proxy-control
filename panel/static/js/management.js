@@ -75,7 +75,7 @@ export function openAdminModal(context, admin = null) {
 
 export function bindManagement(context) {
   const { root, api, ui } = context;
-  query("#save-admin", root)?.addEventListener("click", async (event) => {
+  query("#save-admin", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#admin-form", root);
     const error = query("#admin-error", root);
     if (!form.reportValidity()) return;
@@ -93,7 +93,7 @@ export function bindManagement(context) {
     }
     error.textContent = "";
     try {
-      ui.setBusy(event.currentTarget, true, "Сохраняем…");
+      ui.setBusy(button, true, "Сохраняем…");
       await api(id ? `/api/admins/${id}` : "/api/admins", { method: id ? "PATCH" : "POST", body: JSON.stringify(payload) });
       query("#admin-modal", root).close();
       ui.toast(id ? "Администратор обновлён" : "Администратор добавлен");
@@ -101,7 +101,7 @@ export function bindManagement(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
     }
   });
   query("#delete-admin", root)?.addEventListener("click", async () => {

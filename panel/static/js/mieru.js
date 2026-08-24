@@ -148,14 +148,14 @@ export function bindMieru(context) {
     event.preventDefault();
     query("#save-mieru-quota", root).click();
   });
-  query("#create-mieru", root)?.addEventListener("click", async (event) => {
+  query("#create-mieru", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#mieru-form", root);
     const error = query("#mieru-error", root);
     error.textContent = "";
     if (!form.reportValidity()) return;
     const username = query("#new-mieru-user", root).value;
     try {
-      ui.setBusy(event.currentTarget, true);
+      ui.setBusy(button, true);
       const data = await api("/api/mieru/users", {
         method: "POST",
         body: JSON.stringify({ username, quotas: createQuotas(context), expected_revision: context.state.mieruService.revision }),
@@ -168,7 +168,7 @@ export function bindMieru(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
       syncMieruCreateButton(context);
     }
   });
@@ -189,7 +189,7 @@ export function bindMieru(context) {
     if (!quotas.length) renderQuotaRows(context, []);
     else query("#add-mieru-quota", root).disabled = quotas.length >= 16;
   });
-  query("#save-mieru-quota", root)?.addEventListener("click", async (event) => {
+  query("#save-mieru-quota", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#mieru-quota-form", root);
     const error = query("#mieru-quota-error", root);
     error.textContent = "";
@@ -197,7 +197,7 @@ export function bindMieru(context) {
     try {
       const quotas = collectQuotaRows(context);
       const username = query("#mieru-quota-user", root).value;
-      ui.setBusy(event.currentTarget, true, "Сохраняем…");
+      ui.setBusy(button, true, "Сохраняем…");
       await api(`/api/mieru/users/${encodeURIComponent(username)}/quotas`, {
         method: "POST",
         body: JSON.stringify({ quotas, expected_revision: context.state.mieruService.revision }),
@@ -208,7 +208,7 @@ export function bindMieru(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
     }
   });
 }

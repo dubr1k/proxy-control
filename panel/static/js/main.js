@@ -120,9 +120,9 @@ function bindPanel(context) {
     else if (context.state.view === "mieru") openMieruModal(context);
     else openUserModal(context);
   });
-  query("#refresh", root).addEventListener("click", (event) => {
-    ui.setBusy(event.currentTarget, true, "…");
-    context.navigate(context.state.view).finally(() => ui.setBusy(event.currentTarget, false));
+  query("#refresh", root).addEventListener("click", ({ currentTarget: button }) => {
+    ui.setBusy(button, true, "…");
+    context.navigate(context.state.view).finally(() => ui.setBusy(button, false));
   });
   query("#logout", root).addEventListener("click", async () => {
     try {

@@ -210,7 +210,7 @@ export function openFleetModal(context) {
 
 export function bindFleet(context) {
   const { api, root, ui } = context;
-  query("#create-fleet-node", root)?.addEventListener("click", async (event) => {
+  query("#create-fleet-node", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#fleet-form", root);
     const error = query("#fleet-error", root);
     if (!form.reportValidity()) return;
@@ -220,7 +220,7 @@ export function bindFleet(context) {
     const inventory = region ? { region } : {};
     error.textContent = "";
     try {
-      ui.setBusy(event.currentTarget, true, "Добавляем…");
+      ui.setBusy(button, true, "Добавляем…");
       await api("/api/fleet/nodes", { method: "POST", body: JSON.stringify({ node_id: nodeId, display_name: displayName, inventory }) });
       query("#fleet-modal", root).close();
       context.state.fleetSelection = nodeId;
@@ -229,7 +229,7 @@ export function bindFleet(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
     }
   });
 }

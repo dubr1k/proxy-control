@@ -595,3 +595,26 @@ async def test_created_and_rotated_reveals_carry_the_qr_the_access_dialog_requir
     rerevealed = (await client.get(f"/api/reveal/{rotated.json()['reveal_token']}")).json()
     assert re.fullmatch(r"data:image/svg\+xml;base64,[A-Za-z0-9+/=]+", rerevealed["qr"])
     assert rerevealed["link"] != revealed["link"]
+
+
+async def test_busy_buttons_capture_their_target_instead_of_reading_it_after_await(
+    client, login_user,
+):
+    """`event.currentTarget` is null once a handler resumes after an await.
+
+    Every busy-button handler sets the label before its first await and clears
+    it in `finally`, which runs after dispatch has ended. Reading
+    `event.currentTarget` there yields null, setBusy() returns early, and the
+    button stays disabled reading "Создаём…" until a reload. The target is
+    therefore destructured in the parameter list, where it is still live.
+    """
+    await login_user(client)
+    modules = (
+        "main.js", "users.js", "management.js", "mieru.js", "naive.js",
+        "fleet.js", "audit.js", "dashboard.js", "access.js", "ui.js",
+    )
+    for name in modules:
+        source = (await client.get(f"/static/js/{name}")).text
+        assert "event.currentTarget" not in source, name
+        for handler in re.findall(r"\(\{ currentTarget: (\w+) \}\) =>", source):
+            assert handler == "button", name

@@ -148,13 +148,13 @@ export async function handleUserAction(context, action, username, button) {
 export function bindUsers(context) {
   const { root, api, ui } = context;
   query("#new-user", root)?.addEventListener("input", () => syncCreateButton(context));
-  query("#create-user", root)?.addEventListener("click", async (event) => {
+  query("#create-user", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const input = query("#new-user", root);
     const error = query("#user-error", root);
     error.textContent = "";
     if (!input.reportValidity()) return;
     try {
-      ui.setBusy(event.currentTarget, true, "Создаём…");
+      ui.setBusy(button, true, "Создаём…");
       const data = await api("/api/users", { method: "POST", body: JSON.stringify({ username: input.value }) });
       const access = await api(`/api/reveal/${encodeURIComponent(data.reveal_token)}`);
       query("#user-modal", root).close();
@@ -171,11 +171,11 @@ export function bindUsers(context) {
     } catch (error) {
       error && (query("#user-error", root).textContent = error.message);
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
       syncCreateButton(context);
     }
   });
-  query("#save-limits", root)?.addEventListener("click", async (event) => {
+  query("#save-limits", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#limits-form", root);
     const error = query("#limits-error", root);
     if (!form.reportValidity()) return;
@@ -191,7 +191,7 @@ export function bindUsers(context) {
     };
     error.textContent = "";
     try {
-      ui.setBusy(event.currentTarget, true, "Сохраняем…");
+      ui.setBusy(button, true, "Сохраняем…");
       await api(`/api/users/${encodeURIComponent(username)}/limits`, { method: "POST", body: JSON.stringify(payload) });
       query("#limits-modal", root).close();
       ui.toast("Лимиты сохранены");
@@ -199,14 +199,14 @@ export function bindUsers(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
     }
   });
-  query("#reset-quota", root)?.addEventListener("click", async (event) => {
+  query("#reset-quota", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const username = query("#limits-user", root).value;
     if (!await ui.confirmed("Сбросить счётчик трафика?", `Накопленный расход ${username} станет равен нулю. Сам лимит сохранится.`, "Сбросить")) return;
     try {
-      ui.setBusy(event.currentTarget, true);
+      ui.setBusy(button, true);
       await api(`/api/users/${encodeURIComponent(username)}/reset-quota`, { method: "POST" });
       query("#limits-modal", root).close();
       ui.toast("Счётчик трафика сброшен");
@@ -214,7 +214,7 @@ export function bindUsers(context) {
     } catch (error) {
       query("#limits-error", root).textContent = error.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
     }
   });
 }

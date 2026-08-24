@@ -154,14 +154,14 @@ export async function handleNaiveAction(context, action, username, button) {
 export function bindNaive(context) {
   const { api, root, ui } = context;
   query("#naive-form", root)?.addEventListener("input", () => syncNaiveCreateButton(context));
-  query("#create-naive", root)?.addEventListener("click", async (event) => {
+  query("#create-naive", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#naive-form", root);
     const input = query("#new-naive-user", root);
     const error = query("#naive-error", root);
     error.textContent = "";
     if (!form.reportValidity()) return;
     try {
-      ui.setBusy(event.currentTarget, true, "Применяем…");
+      ui.setBusy(button, true, "Применяем…");
       const data = await api("/api/naive/users", { method: "POST", body: JSON.stringify({ username: input.value, quota_bytes: naiveQuotaBytes(context, "#new-naive-quota") }) });
       const access = await api(`/api/reveal/${encodeURIComponent(data.reveal_token)}`);
       query("#naive-modal", root).close();
@@ -171,11 +171,11 @@ export function bindNaive(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
       syncNaiveCreateButton(context);
     }
   });
-  query("#save-naive-quota", root)?.addEventListener("click", async (event) => {
+  query("#save-naive-quota", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#naive-quota-form", root);
     const input = query("#naive-quota-mib", root);
     const error = query("#naive-quota-error", root);
@@ -187,7 +187,7 @@ export function bindNaive(context) {
       return;
     }
     try {
-      ui.setBusy(event.currentTarget, true, "Сохраняем…");
+      ui.setBusy(button, true, "Сохраняем…");
       const result = await api(`/api/naive/users/${encodeURIComponent(username)}/quota`, { method: "POST", body: JSON.stringify({ quota_bytes: naiveQuotaBytes(context, "#naive-quota-mib") }) });
       query("#naive-quota-modal", root).close();
       ui.toast(result.quota_bytes == null ? "Квота Naive отключена" : "Квота Naive сохранена");
@@ -195,7 +195,7 @@ export function bindNaive(context) {
     } catch (exception) {
       error.textContent = exception.message;
     } finally {
-      ui.setBusy(event.currentTarget, false);
+      ui.setBusy(button, false);
     }
   });
 }
