@@ -94,10 +94,18 @@ def secret_reveal(data):
     user = data.get("user") if isinstance(data.get("user"), dict) else data
     links = user.get("links", {}) if isinstance(user, dict) else {}
     candidates = links.get("tls", []) if isinstance(links, dict) else []
-    return {
-        "secret": data.get("secret"),
-        "link": candidates[0] if candidates else data.get("link"),
-    }
+    link = candidates[0] if candidates else data.get("link")
+    result = {"secret": data.get("secret"), "link": link}
+    # The access dialog renders a QR straight from this payload and rejects a
+    # reveal without one, so the QR travels with the link rather than costing a
+    # second /access round-trip. A malformed link yields no QR on purpose: the
+    # dialog validates the link first and reports that, and encoding a bad link
+    # into a scannable QR would only hide the fault.
+    try:
+        result["qr"] = qr_data(proxy_link(link))
+    except HTTPException:
+        pass
+    return result
 
 
 def proxy_link(value) -> str:

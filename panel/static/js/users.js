@@ -126,7 +126,15 @@ export async function handleUserAction(context, action, username, button) {
       await api(`/api/users/${encodeURIComponent(username)}`, { method: "DELETE" });
     } else {
       const data = await api(`/api/users/${encodeURIComponent(username)}/${action}`, { method: "POST" });
-      if (action === "rotate") await context.access.revealToken(data.reveal_token, username);
+      // Same contract as creation: the rotated key is already live, so a dialog
+      // that cannot render it must not hide the refreshed list behind an error.
+      if (action === "rotate") {
+        try {
+          await context.access.revealToken(data.reveal_token, username);
+        } catch (dialogError) {
+          ui.toast(dialogError.message, "error");
+        }
+      }
     }
     ui.toast({ delete: "Подключение удалено", disable: "Доступ заблокирован", enable: "Доступ разблокирован", rotate: "Ключ обновлён" }[action]);
     await context.navigate("users");
@@ -150,8 +158,15 @@ export function bindUsers(context) {
       const data = await api("/api/users", { method: "POST", body: JSON.stringify({ username: input.value }) });
       const access = await api(`/api/reveal/${encodeURIComponent(data.reveal_token)}`);
       query("#user-modal", root).close();
-      context.access.showAccess(access, input.value);
       ui.toast("Доступ создан");
+      // The access dialog is presentation: a payload it refuses to render must
+      // not swallow the refresh, or a created profile stays invisible until the
+      // operator reloads the page. Report the dialog failure, list either way.
+      try {
+        context.access.showAccess(access, input.value);
+      } catch (dialogError) {
+        ui.toast(dialogError.message, "error");
+      }
       await context.navigate("users");
     } catch (error) {
       error && (query("#user-error", root).textContent = error.message);

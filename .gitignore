@@ -20,6 +20,14 @@ Desktop.ini
 .gemini/
 .agent/
 
+# graphify knowledge graph: derived artefacts, rebuilt from source with
+# `graphify update .`. graph.json/graph.html run into megabytes and churn on
+# every build, so nothing under the output dir belongs in history.
+graphify-out/
+# Defensive: sidecars and vaults graphify can write outside graphify-out/
+# (e.g. `--obsidian-dir <path>` or a stale interpreter/root marker).
+.graphify_*
+
 # Local deployment secrets and logs. Ignore the whole directory: files added
 # here later (bootstrap passwords, manager tokens) must never need a new rule.
 secrets/*

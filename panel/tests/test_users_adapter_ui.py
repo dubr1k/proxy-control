@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from panel.telemt import TelemtClient, TelemtError
@@ -561,3 +563,35 @@ async def test_versions_panel_is_owner_only_and_has_runtime_update_contract(clie
     assert "/api/versions" in management and "/update`" in management
     assert "expected_current" in management
     assert ".version-grid" in (await client.get("/static/style.css")).text
+
+
+async def test_created_and_rotated_reveals_carry_the_qr_the_access_dialog_requires(
+    client, login_user, telemt,
+):
+    """showAccess() validates data.qr, so a reveal without one breaks the dialog.
+
+    The MTProxy access modal renders a QR image and a download link from
+    `data.qr`; access.js rejects anything that is not an SVG data URI. When the
+    create/rotate reveal omitted the field the dialog threw before the users
+    list was re-fetched, so a new profile only appeared after a page reload.
+    """
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+
+    created = await client.post(
+        "/api/users", json={"username": "alice"}, headers={"X-CSRF-Token": csrf}
+    )
+    assert created.status_code == 201
+    revealed = (await client.get(f"/api/reveal/{created.json()['reveal_token']}")).json()
+    # The exact shape access.js accepts (qrSource + proxyLink in static/js/access.js).
+    assert re.fullmatch(r"data:image/svg\+xml;base64,[A-Za-z0-9+/=]+", revealed["qr"])
+    assert len(revealed["qr"]) <= 500_000
+    assert revealed["link"].startswith("tg://proxy?")
+
+    rotated = await client.post(
+        "/api/users/alice/rotate", headers={"X-CSRF-Token": csrf}
+    )
+    assert rotated.status_code == 200
+    rerevealed = (await client.get(f"/api/reveal/{rotated.json()['reveal_token']}")).json()
+    assert re.fullmatch(r"data:image/svg\+xml;base64,[A-Za-z0-9+/=]+", rerevealed["qr"])
+    assert rerevealed["link"] != revealed["link"]
