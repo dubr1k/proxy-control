@@ -6,6 +6,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- A host resource card on the overview reporting CPU utilisation, memory and root-filesystem usage with warning thresholds, sourced from a new read-only `GET /v1/host` on the host version-agent. The panel runs read-only with all capabilities dropped and mounts nothing from the host but the agent socket, so the agent is the only component that can measure these; when it is unreachable the card degrades to a stated reason instead of guessing.
 - NaiveProxy per-user traffic quotas: `quota_bytes` on create and a dedicated quota endpoint, with usage, remaining and exhaustion reported in the panel. A manager thread enforces quotas on an interval (`NAIVE_QUOTA_INTERVAL_SECONDS`, default 60 s) and transactionally removes an exhausted user's credentials from the managed Caddy block.
 - A NekoBox client tab in the NaiveProxy one-time reveal that carries a `naive+https://USER:PASSWORD@HOST:443#NAME` link and a matching QR, the format NekoBox for Android and its forks parse.
 - Standalone Proxy Control documentation, governance templates, screenshot policy, and third-party notices.
@@ -25,6 +26,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- Creating or rotating an MTProxy access now refreshes the list without a page reload. The reveal payload carried no QR while the access dialog requires one, so it threw after the modal closed and before the list was re-fetched, leaving the new profile invisible until F5. The QR now travels with the reveal, and a dialog that cannot render is reported without blocking the refresh.
+- Busy buttons no longer stick on "Создаём…". Handlers read `event.currentTarget` in `finally`, which runs after dispatch has ended and yields null, so the button was never re-enabled; the target is now captured while it is still live.
 - Mieru transactions no longer re-hash the blanked password mita returns for an already stored user, so creating, rotating, deleting or quota-editing an access after the first one succeeds instead of failing the readback check and rolling back with `manager operation failed`.
 - Installer panel TLS vhosts now serve a neutral cover at `/` for unauthenticated requests while preserving the authenticated post-login landing.
 - Public ACME roots are forced to `0755` even under restrictive operator umasks.

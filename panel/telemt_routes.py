@@ -13,6 +13,7 @@ from .naive import NaiveError
 from .naive_routes import safe_naive_traffic
 from .reveals import qr_data
 from .schemas import UserCreate, UserLimits
+from .versions import VersionAgentError
 from .web_context import RequestContext
 
 
@@ -66,6 +67,53 @@ def safe_user(data, quota=None):
         ):
             result["quota_last_reset_epoch_secs"] = last_reset
     return result
+
+
+def _safe_usage(data, extra=()):
+    """One host resource: byte totals plus its percentage, nothing else."""
+    if not isinstance(data, dict):
+        return None
+    result = {}
+    for key in ("total_bytes", "available_bytes", "used_bytes", *extra):
+        value = data.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            result[key] = value
+    percent = data.get("used_percent")
+    if isinstance(percent, (int, float)) and not isinstance(percent, bool):
+        result["used_percent"] = round(min(100.0, max(0.0, float(percent))), 1)
+    return result or None
+
+
+def safe_host(data):
+    """Map the agent's host telemetry to the panel contract.
+
+    Each section is independent: a kernel that stops exposing one of them must
+    cost the card that row, not the whole panel.
+    """
+    if not isinstance(data, dict):
+        return {"available": False, "reason": "invalid_host_metrics"}
+    cpu_raw = data.get("cpu")
+    if not isinstance(cpu_raw, dict):
+        cpu_raw = {}
+    cpu = _safe_usage(cpu_raw, extra=("cores",)) or {}
+    load = cpu_raw.get("load_average")
+    if (
+        isinstance(load, list)
+        and len(load) == 3
+        and all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and value >= 0
+            for value in load
+        )
+    ):
+        cpu["load_average"] = [round(float(value), 2) for value in load]
+    return {
+        "available": True,
+        "cpu": cpu or None,
+        "memory": _safe_usage(data.get("memory")),
+        "disk": _safe_usage(data.get("disk")),
+    }
 
 
 def safe_quota_reset(data):
@@ -305,6 +353,13 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
                 }
         else:
             protocols["mieru"] = {"available": False, "status": "disabled"}
+        # Host CPU/RAM/disk can only come from the host agent: the panel runs
+        # read-only with ALL capabilities dropped and mounts nothing from the
+        # host but the agent socket, so it has nothing of its own to measure.
+        try:
+            host = safe_host(await app.state.versions.host())
+        except VersionAgentError:
+            host = {"available": False, "reason": "version_agent_unavailable"}
         return {
             "health": health,
             "stats": stats,
@@ -312,6 +367,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
             "active_ips": active_ips,
             "traffic": {"runtime_total_octets": total_octets},
             "protocols": protocols,
+            "host": host,
         }
 
     @app.get("/api/users")

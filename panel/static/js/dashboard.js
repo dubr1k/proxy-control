@@ -24,6 +24,56 @@ function paintNavCounts(context, data, nodes) {
   if (fleet) fleet.textContent = nodes ?? "—";
 }
 
+// Above this the resource is the story, so the bar turns amber then red; below
+// it a filled bar would cry wolf on a server that is simply being used.
+const HOST_WARN_PERCENT = 75;
+const HOST_CRITICAL_PERCENT = 90;
+
+function hostRow(label, usage, detail) {
+  const percent = usage?.used_percent;
+  if (typeof percent !== "number") {
+    return `<span><small>${esc(label)}</small><b>—</b><em>Нет данных</em></span>`;
+  }
+  const level = percent >= HOST_CRITICAL_PERCENT
+    ? "critical"
+    : percent >= HOST_WARN_PERCENT ? "warn" : "";
+  return `<span><small>${esc(label)}</small><b>${percent.toFixed(1)} %</b>
+    <span class="usage-bar ${level}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i style="width:${percent.toFixed(1)}%"></i></span>
+    <em>${esc(detail)}</em></span>`;
+}
+
+function hostCard(host) {
+  if (!host || host.available !== true) {
+    const reason = host?.reason === "version_agent_unavailable"
+      ? "Host-agent не отвечает. Метрики хоста читает только он: панель работает read-only и не монтирует ни /proc, ни файловую систему хоста."
+      : "Агент вернул метрики в неизвестном формате.";
+    return `<article class="protocol-card host-card degraded">
+      <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill blocked"><i></i>Недоступны</span></div>
+      <p class="protocol-note">${esc(reason)}</p>
+    </article>`;
+  }
+  const { cpu, memory, disk } = host;
+  const worst = Math.max(
+    ...[cpu?.used_percent, memory?.used_percent, disk?.used_percent]
+      .filter((value) => typeof value === "number"),
+    0,
+  );
+  const strained = worst >= HOST_WARN_PERCENT;
+  const load = Array.isArray(cpu?.load_average)
+    ? `load ${cpu.load_average.map((value) => value.toFixed(2)).join(" · ")}`
+    : "load average недоступен";
+  const cores = typeof cpu?.cores === "number" ? `${number(cpu.cores)} ядер · ${load}` : load;
+  return `<article class="protocol-card host-card ${strained ? "degraded" : ""}">
+    <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}"><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
+    <p class="protocol-note">${esc(cores)}</p>
+    <div class="protocol-metrics host-metrics">
+      ${hostRow("Загрузка CPU", cpu, "Мгновенная утилизация, окно 150 мс")}
+      ${hostRow("Оперативная память", memory, memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "")}
+      ${hostRow("Диск (корень)", disk, disk ? `${bytes(disk.available_bytes)} свободно из ${bytes(disk.total_bytes)}` : "")}
+    </div>
+  </article>`;
+}
+
 export async function renderDashboard(context, generation) {
   const { api, root, state, ui } = context;
   const [data, users, nodes] = await Promise.all([
@@ -58,6 +108,7 @@ export async function renderDashboard(context, generation) {
     : `${number(naiveCredentials.active)} активных · ${number(naiveCredentials.disabled)} отключённых`;
 
   ui.view.innerHTML = `<div class="protocol-overview">
+    ${hostCard(data.host)}
     <article class="protocol-card ${mtReady ? "" : "degraded"}">
       <div class="protocol-head"><span><small>MTProto · FakeTLS</small><h2>MTProxy</h2></span><span class="status-pill ${mtReady ? "active" : "blocked"}"><i></i>${mtReady ? "Работает" : "Недоступен"}</span></div>
       <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(mtCredentials.active)}</strong></span><span><small>Отключённые</small><strong>${number(mtCredentials.disabled)}</strong></span></div>

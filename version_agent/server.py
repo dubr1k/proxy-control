@@ -8,6 +8,7 @@ import socketserver
 from pathlib import Path
 
 from .catalog import CatalogError
+from .host import host_metrics
 from .service import ConflictError, UpdateError, agent_from_env
 
 _MAX_BODY = 16 * 1024
@@ -64,6 +65,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802 - BaseHTTPRequestHandler API
         if self.path == "/v1/health":
             self._send(200, {"status": "ok"})
+            return
+        if self.path == "/v1/host":
+            # Read-only telemetry: it takes no input and runs no command, so it
+            # widens the agent's surface by nothing an attacker could act on.
+            self._send(200, host_metrics())
             return
         if self.path != "/v1/versions":
             self._send(404, {"detail": "not found"})

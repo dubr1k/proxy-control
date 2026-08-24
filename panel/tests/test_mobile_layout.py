@@ -29,6 +29,10 @@ def _browser() -> str:
         None,
     )
     if executable is None:
+        # macOS ships Chrome inside a bundle, so it is never on PATH.
+        bundled = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+        executable = str(bundled) if bundled.exists() else None
+    if executable is None:
         pytest.fail("Chromium-compatible browser is required for the mobile layout gate")
     return executable
 
@@ -250,6 +254,73 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         f"<style>{css}</style></head><body><main>{cards}</main>"
         f"<nav class='mobile-nav'>{buttons}</nav><script>{script}</script></body></html>"
+    )
+
+    rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")
+    errors = json.loads(rendered["errors"])
+    assert rendered["innerWidth"] == 390
+    assert rendered["result"] == "pass", errors
+
+
+def test_host_resource_card_stacks_and_stays_inside_the_phone_viewport(tmp_path: Path) -> None:
+    """The fourth overview card must not reintroduce horizontal scroll on a phone."""
+    css = (ROOT / "static" / "style.css").read_text()
+
+    def row(label: str, value: str, percent: str, detail: str) -> str:
+        return f"""
+          <span><small>{label}</small><b>{value}</b>
+            <span class="usage-bar"><i style="width:{percent}"></i></span>
+            <em>{detail}</em></span>
+        """
+
+    card = f"""
+      <div class="protocol-overview">
+        <article class="protocol-card host-card">
+          <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill active"><i></i>В норме</span></div>
+          <p class="protocol-note">8 ядер · load 12.75 · 11.20 · 9.80</p>
+          <div class="protocol-metrics host-metrics">
+            {row("Загрузка CPU", "99.9 %", "99.9%", "Мгновенная утилизация, окно 150 мс")}
+            {row("Оперативная память", "88.4 %", "88.4%", "13.8 ГБ из 15.6 ГБ")}
+            {row("Диск (корень)", "94.1 %", "94.1%", "20 ГБ свободно из 348 ГБ")}
+          </div>
+        </article>
+      </div>
+    """
+    script = """
+      addEventListener("load", () => {
+        const errors = [];
+        const tolerance = 1;
+        if (innerWidth !== 390) errors.push(`viewport is ${innerWidth}px instead of 390px`);
+        const card = document.querySelector(".host-card");
+        const cardBox = card.getBoundingClientRect();
+        const rows = [...document.querySelectorAll(".host-metrics > span")];
+        if (rows.length !== 3) errors.push("expected three resource rows");
+        rows.forEach((row, index) => {
+          const box = row.getBoundingClientRect();
+          if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
+            errors.push(`row ${index} escapes the card horizontally`);
+          }
+          if (index > 0) {
+            const previous = rows[index - 1].getBoundingClientRect();
+            if (box.top + tolerance < previous.bottom) errors.push(`row ${index} overlaps row ${index - 1}`);
+          }
+          const bar = row.querySelector(".usage-bar");
+          const barBox = bar.getBoundingClientRect();
+          if (barBox.width <= 0) errors.push(`row ${index} has no usage bar`);
+          if (barBox.right > cardBox.right + tolerance) errors.push(`row ${index} bar escapes the card`);
+        });
+        if (document.documentElement.scrollWidth > document.documentElement.clientWidth + tolerance) {
+          errors.push("page scrolls horizontally");
+        }
+        document.body.dataset.result = errors.length ? "fail" : "pass";
+        document.body.dataset.errors = JSON.stringify(errors);
+      });
+    """
+    page = tmp_path / "host-card.html"
+    page.write_text(
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<style>{css}</style></head><body><main>{card}</main><script>{script}</script></body></html>"
     )
 
     rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")

@@ -84,3 +84,59 @@ async def test_version_update_rejects_viewer(tmp_path, telemt, naive, mieru, log
             headers={"X-CSRF-Token": client.cookies["panel_csrf"]},
         )
         assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_overview_reports_host_resources_from_the_agent(
+    tmp_path, telemt, naive, mieru, login_user
+):
+    """The panel cannot measure the host itself, so the card must come from the agent.
+
+    The container runs read-only with ALL capabilities dropped and mounts
+    nothing from the host but the agent socket, so CPU/RAM/disk have exactly one
+    honest source. The overview carries them alongside the protocol cards.
+    """
+    from httpx import ASGITransport, AsyncClient
+    from panel.app import Settings, create_app
+
+    versions = MemoryVersions()
+    settings = Settings(
+        database_path=tmp_path / "panel.sqlite3",
+        session_cookie_secure=False,
+        allowed_hosts=("testserver",),
+        naive_public_host="naive.example.com",
+        naive_enabled=True,
+        mieru_enabled=True,
+    )
+    app = create_app(
+        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
+    )
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        await login_user(client)
+        host = (await client.get("/api/dashboard")).json()["host"]
+
+    assert host["available"] is True
+    assert host["cpu"]["used_percent"] == 12.5 and host["cpu"]["cores"] == 4
+    assert host["cpu"]["load_average"] == [0.5, 0.4, 0.3]
+    assert host["memory"]["used_percent"] == 27.4
+    assert host["disk"]["available_bytes"] == 71_940_702_208
+    # Only the mapped contract travels: a future agent field must not reach the UI.
+    assert set(host) == {"available", "cpu", "memory", "disk"}
+
+
+@pytest.mark.anyio
+async def test_overview_degrades_to_a_reason_when_the_host_agent_is_silent(
+    client, login_user,
+):
+    """A dead agent costs the dashboard one card, never the whole page."""
+    await login_user(client)
+    body = (await client.get("/api/dashboard")).json()
+    assert body["host"] == {
+        "available": False,
+        "reason": "version_agent_unavailable",
+    }
+    # The protocol cards are unaffected.
+    assert body["protocols"]["mtproxy"]["ready"] is True
