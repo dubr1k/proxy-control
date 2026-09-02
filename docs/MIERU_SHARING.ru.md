@@ -38,8 +38,9 @@ Mita хранит `hashedPassword`; plaintext password восстановить 
 | Official Mieru | `mierus://`, import command | Поддерживается | Показанная `mierus://` URL |
 | Karing | Полный Mieru sing-box profile, download и `karing://install-config` | Не предлагается | Karing deep link с полным profile |
 | Shadowrocket | Не предлагается; проверенного формата нет | Не предлагается | Нет |
+| NekoBox+ | Не предлагается; проверенного формата нет | Не предлагается | Нет |
 
-Используйте official Mieru client, совместимый с server `mita` 3.35.x, либо текущий Karing build. [Официальная инструкция Mieru](https://github.com/enfein/mieru/blob/main/docs/client-install.md) определяет `mierus://`, `mieru import config` и поля Mieru outbound для sing-box. Karing документирует импорт config content и [URL scheme](https://karing.app/en/cooperation/scheme); текущий source Karing содержит Mieru outbound type.
+Используйте official Mieru client, совместимый с server `mita` 3.35.x или 3.36.x, либо текущий Karing build. [Официальная инструкция Mieru](https://github.com/enfein/mieru/blob/main/docs/client-install.md) определяет `mierus://`, `mieru import config` и поля Mieru outbound для sing-box. Karing документирует импорт config content и [URL scheme](https://karing.app/en/cooperation/scheme); текущий source Karing содержит Mieru outbound type.
 
 После импорта проверьте ожидаемые hostname/port, доступность declared TCP/UDP listeners, end-to-end transport и отказ старого config после rotation. Не публикуйте credential payload в общедоступных tickets, chats или screenshots.
 
@@ -71,7 +72,7 @@ Client tabs прокручиваются горизонтально, а QR, payl
 - **QR отсутствует:** проверьте, что используется create/rotate one-time dialog, а не list view.
 - **Старая ссылка не работает:** это ожидаемо после rotation.
 - **Новая ссылка импортируется, но соединения нет:** проверьте server status, listener TCP/UDP, DNS/firewall и реальный protocol probe.
-- **Клиент завёл записи TCP и UDP, работает только TCP:** `mierus://` объявляет каждый port binding сервера, поэтому клиент вроде NekoBox/husi создаёт отдельную запись на каждый протокол. Серверный UDP-listener при этом исправен: официальный клиент mieru 3.35 с `"protocol": "UDP"` проходит end-to-end через mita 3.35 без потерь. Практическая причина отказа UDP — путь до сервера (мобильные операторы и часть Wi-Fi сетей режут или ограничивают не-QUIC UDP) либо реализация UDP-транспорта в конкретном форке клиента. Действие: пользуйтесь TCP-записью; удалять UDP binding на сервере не требуется. Проверить сервер можно официальным клиентом с UDP-профилем — если он проходит, проблема на стороне клиента или сети.
+- **Клиент создал записи TCP и UDP, но работает только TCP:** `mierus://` объявляет каждый заданный server port binding. Сначала сравните импортированные записи с текущей конфигурацией manager; необъявленный transport не поддерживается. Если UDP объявлен, проверьте его official client с UDP-only profile, прежде чем считать сервер неисправным. Если probe успешен, используйте TCP на проблемном пути и считайте отказ client- или network-specific. Не добавляйте и не сохраняйте UDP listener только потому, что сторонний client создал такую запись.
 - **Traffic unavailable:** это честная limitation typed adapter, а не проблема credential.
 - **Viewer не видит QR:** ожидаемое RBAC поведение.
 

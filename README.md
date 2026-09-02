@@ -598,7 +598,7 @@ HTTP/3 (`quic://`) в поставке выключен: серверный бл
 
 ### Mieru / mita
 
-Mieru использует внешний процесс `mita` версии **3.35.x**. Он не входит в MIT-репозиторий и образы; бинарный файл устанавливается оператором отдельно.
+Mieru использует внешний процесс `mita` версии **3.35.x или 3.36.x**. Он не входит в MIT-репозиторий и образы; бинарный файл устанавливается оператором отдельно.
 
 Зафиксированные пакеты:
 
@@ -606,20 +606,22 @@ Mieru использует внешний процесс `mita` версии **3
 |---|---|---|---|
 | amd64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb` | `cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342` | `4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31` |
 | arm64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_arm64.deb` | `66ff435dd5bd6078944cb4eb7fc427366afaac5ab51030ff62561c645c31a9e3` | `a4e486c1531b7bebec02eca2b60dcba2a4971b2cd479c590d8405aab59fe6a23` |
+| amd64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb` | `44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a` | `38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170` |
+| arm64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_arm64.deb` | `a43dbc4d75dcb18978ea79b924ce859e2485af8b776dfc981b29a7b60644157c` | `5105cf47ae85cfa885922fe8384f53f1977ea230259eb066130b7232ce0847b0` |
 
-Пример для amd64:
+Пример для v3.36.0 amd64:
 
 ```bash
 curl -fL --proto '=https' --tlsv1.2 \
-  https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb \
-  -o mita_3.35.0_amd64.deb
-printf '%s  %s\n' cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342 mita_3.35.0_amd64.deb | sha256sum -c -
-dpkg-deb -x mita_3.35.0_amd64.deb mita-root
-printf '%s  %s\n' 4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 mita-root/usr/bin/mita | sha256sum -c -
+  https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb \
+  -o mita_3.36.0_amd64.deb
+printf '%s  %s\n' 44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a mita_3.36.0_amd64.deb | sha256sum -c -
+dpkg-deb -x mita_3.36.0_amd64.deb mita-root
+printf '%s  %s\n' 38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170 mita-root/usr/bin/mita | sha256sum -c -
 sudo install -o root -g root -m 0755 mita-root/usr/bin/mita /usr/bin/mita
 ```
 
-Для arm64 замените URL и оба digest. Проверяйте именно digest исполняемого файла, а не только пакета.
+Для другой поддерживаемой версии или архитектуры используйте URL и оба digest из одной pinned строки. Проверяйте именно digest исполняемого файла, а не только пакета.
 
 Подготовьте отдельного системного пользователя, если он не был создан при установке внешнего пакета, и каталог состояния:
 

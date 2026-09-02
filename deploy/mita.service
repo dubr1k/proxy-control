@@ -1,5 +1,5 @@
 [Unit]
-Description=Mieru proxy server v3.35.0 (Proxy Control)
+Description=Mieru proxy server (Proxy Control)
 After=network-online.target systemd-tmpfiles-setup.service
 Wants=network-online.target
 

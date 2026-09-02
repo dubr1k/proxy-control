@@ -99,7 +99,7 @@
 
   <dialog id="mieru-modal" class="sheet">
     <form method="dialog" id="mieru-form">
-      <div class="modal-head"><div><span class="eyebrow">MIERU V3.35</span><h2>Новый Mieru-доступ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <div class="modal-head"><div><span class="eyebrow">MIERU 3.35–3.36</span><h2>Новый Mieru-доступ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <p class="modal-copy">Пароль и mierus:// ссылка показываются один раз. Квота — rolling application-byte admission quota (approximate), а не жёсткий биллинговый лимит. Очистите оба поля квоты, чтобы выдать безлимитный доступ.</p>
       <label>Имя<input id="new-mieru-user" pattern="[A-Za-z0-9_.\-]+" maxlength="64" required placeholder="например, my-mac"><small>Латиница, цифры, точка, дефис и подчёркивание</small></label>
       <div class="limit-form-grid"><label>Окно, дней<input id="mieru-days" type="number" min="1" max="3650" step="1" inputmode="numeric" value="30" placeholder="без квоты"></label><label>Квота, MiB<input id="mieru-mib" type="number" min="1" max="2147483647" step="1" inputmode="numeric" value="1024" placeholder="без квоты"></label></div>
@@ -108,7 +108,7 @@
   </dialog>
   <dialog id="mieru-quota-modal" class="sheet">
     <form method="dialog" id="mieru-quota-form">
-      <div class="modal-head"><div><span class="eyebrow">MIERU V3.35</span><h2 id="mieru-quota-title">Rolling-квоты</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <div class="modal-head"><div><span class="eyebrow">MIERU 3.35–3.36</span><h2 id="mieru-quota-title">Rolling-квоты</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <input id="mieru-quota-user" type="hidden">
       <p class="modal-copy">Квоты проверяются при открытии сессии и остаются approximate admission limit, а не hard cap. Можно задать до 16 окон; удалите все строки, чтобы выдать безлимитный доступ.</p>
       <div id="mieru-quota-rows" class="quota-rows"></div>

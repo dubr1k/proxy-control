@@ -20,7 +20,7 @@ function mieruRow(context, user) {
   const enabled = user.enabled === true;
   const traffic = user.traffic_available === true
     ? `<b>↑ ${bytes(user.upload_bytes)} · ↓ ${bytes(user.download_bytes)}</b><small>application bytes · rolling quota approximate</small>`
-    : "<b>Недоступно</b><small>mita v3.35 не предоставляет типизированную историю трафика</small>";
+    : "<b>Недоступно</b><small>mita 3.35–3.36 не предоставляет типизированную историю трафика</small>";
   const actions = context.state.me.role === "viewer"
     ? "Только просмотр"
     : `<button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
@@ -40,7 +40,7 @@ export async function renderMieru(context, generation) {
   if (!isCurrent(context.state, generation, "mieru") || users === null) return;
   const ready = context.state.mieruService.ready === true;
   context.ui.view.innerHTML = `<div class="security-note">Квоты Mieru — rolling application-byte admission quota (approximate): проверяются при открытии сессии и не являются hard cap.</div>
-  <div class="naive-overview"><article><small>mita v3.35</small><strong>${ready ? "RUNNING" : "DEGRADED"}</strong><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${ready ? "Ready" : "Ошибка"}</span></article><article><small>Пользователи</small><strong>${number(users.length)}</strong><span>revision ${esc(context.state.mieruService.revision || "—")}</span></article></div>
+  <div class="naive-overview"><article><small>mita 3.35–3.36</small><strong>${ready ? "RUNNING" : "DEGRADED"}</strong><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${ready ? "Ready" : "Ошибка"}</span></article><article><small>Пользователи</small><strong>${number(users.length)}</strong><span>revision ${esc(context.state.mieruService.revision || "—")}</span></article></div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Пользователь</span><span>Статус и квота</span><span>Трафик</span><span class="align-right">Действия</span></div>${users.length ? users.map((user) => mieruRow(context, user)).join("") : '<div class="empty-state"><h3>Mieru-доступов нет</h3><p>Добавьте доступ, чтобы выдать конфигурацию с one-time reveal.</p></div>'}</section>`;
 }
 

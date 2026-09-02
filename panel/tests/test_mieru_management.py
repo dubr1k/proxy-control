@@ -174,10 +174,28 @@ async def test_panel_mieru_owner_lifecycle_is_one_time_and_audited(
     reveal = revealed.json()
     assert set(reveal["clients"]) == {"native", "karing"}
     native = reveal["clients"]["native"]
-    assert native["type"] == "link"
-    assert native["share_url"].startswith("mierus://phone:")
-    assert native["import_command"].startswith("mieru import config ")
-    assert native["qr"]["payload"] == native["share_url"]
+    assert native["type"] == "config"
+    assert native["filename"] == "mieru-client.json"
+    assert native["apply_command"] == "mieru apply config mieru-client.json"
+    assert native["simple_share_url"].startswith("mierus://phone:")
+    native_url = urlsplit(native["simple_share_url"])
+    assert native["config"] == {
+        "profiles": [{
+            "profileName": "phone",
+            "user": {"name": "phone", "password": native_url.password},
+            "servers": [{
+                "domainName": "mieru.example.com",
+                "portBindings": [{"port": 8443, "protocol": "TCP"}],
+            }],
+            "mtu": 1400,
+        }],
+        "activeProfile": "phone",
+        "rpcPort": 50000,
+        "socks5Port": 1080,
+        "socks5ListenLAN": False,
+        "loggingLevel": "INFO",
+    }
+    assert native["qr"]["payload"] == native["simple_share_url"]
     assert native["qr"]["image"].startswith("data:image/svg+xml;base64,")
 
     karing = reveal["clients"]["karing"]
@@ -186,7 +204,6 @@ async def test_panel_mieru_owner_lifecycle_is_one_time_and_audited(
     assert karing["qr"]["payload"] == karing["import_url"]
     profile = json.loads(parse_qs(urlsplit(karing["import_url"]).query)["url"][0])
     assert profile == karing["config"]
-    native_url = urlsplit(native["share_url"])
     assert profile["outbounds"] == [{
         "type": "mieru",
         "tag": "mieru-TCP-8443",
@@ -197,7 +214,8 @@ async def test_panel_mieru_owner_lifecycle_is_one_time_and_audited(
         "password": native_url.password,
     }]
     assert reveal["unsupported_clients"] == {
-        "shadowrocket": "Проверенный формат импорта Mieru для Shadowrocket отсутствует."
+        "nekobox": "Проверенный формат импорта Mieru для NekoBox+ отсутствует.",
+        "shadowrocket": "Проверенный формат импорта Mieru для Shadowrocket отсутствует.",
     }
     assert "share_url" not in reveal and "qr" not in reveal
     assert revealed.headers["cache-control"] == "no-store"
@@ -215,7 +233,7 @@ async def test_panel_mieru_owner_lifecycle_is_one_time_and_audited(
     audit = str((await client.get("/api/audit")).json())
     assert "mierus://" not in audit and "mieru.create" in audit
 
-async def test_panel_mieru_rotation_returns_the_same_client_specific_matrix(
+async def test_panel_mieru_rotation_uses_a_new_karing_profile_name(
     client, login_user,
 ):
     await login_user(client)
@@ -225,6 +243,14 @@ async def test_panel_mieru_rotation_returns_the_same_client_specific_matrix(
         json={"username": "phone", "quotas": [], "expected_revision": "rev-1"},
         headers={"X-CSRF-Token": csrf},
     )
+    created_reveal = await client.get(
+        "/api/reveal/" + created.json()["reveal_token"]
+    )
+    created_karing = created_reveal.json()["clients"]["karing"]
+    created_name = parse_qs(
+        urlsplit(created_karing["import_url"]).query
+    )["name"][0]
+
     rotated = await client.post(
         "/api/mieru/users/phone/rotate",
         json={"expected_revision": created.json()["revision"]},
@@ -233,10 +259,30 @@ async def test_panel_mieru_rotation_returns_the_same_client_specific_matrix(
 
     assert rotated.status_code == 200
     reveal = await client.get("/api/reveal/" + rotated.json()["reveal_token"])
+    rotated_karing = reveal.json()["clients"]["karing"]
+    rotated_name = parse_qs(
+        urlsplit(rotated_karing["import_url"]).query
+    )["name"][0]
+    assert created_name.startswith("Mieru · phone · ")
+    assert rotated_name.startswith("Mieru · phone · ")
+    assert created_name != rotated_name
     assert set(reveal.json()["clients"]) == {"native", "karing"}
-    assert reveal.json()["clients"]["karing"]["qr"]["payload"].startswith(
+    assert rotated_karing["qr"]["payload"].startswith(
         "karing://install-config?"
     )
+
+
+def test_mieru_ipv6_reveal_canonicalizes_native_and_karing_addresses():
+    reveal = mieru_access(
+        "mierus://phone:secret@[2001:0db8::1]"
+        "?profile=phone&port=8443&protocol=TCP"
+    )
+
+    native_server = reveal["clients"]["native"]["config"]["profiles"][0]["servers"][0]
+    assert native_server["ipAddress"] == "2001:db8::1"
+    karing_url = reveal["clients"]["karing"]["import_url"]
+    karing_profile = json.loads(parse_qs(urlsplit(karing_url).query)["url"][0])
+    assert karing_profile["outbounds"][0]["server"] == "2001:db8::1"
 
 
 def test_mieru_range_reveal_keeps_native_link_and_does_not_fabricate_karing_endpoint():
@@ -246,7 +292,12 @@ def test_mieru_range_reveal_keeps_native_link_and_does_not_fabricate_karing_endp
     )
 
     assert set(reveal["clients"]) == {"native"}
-    assert reveal["clients"]["native"]["share_url"].startswith("mierus://")
+    native = reveal["clients"]["native"]
+    assert native["type"] == "config"
+    assert native["config"]["profiles"][0]["servers"][0]["portBindings"] == [
+        {"portRange": "8000-8010", "protocol": "TCP"}
+    ]
+    assert native["simple_share_url"].startswith("mierus://")
     assert reveal["unsupported_clients"]["karing"] == (
         "Профиль Karing доступен только для точных портов Mieru, не диапазонов."
     )

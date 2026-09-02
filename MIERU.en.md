@@ -1,41 +1,43 @@
-# Mieru / mita v3.35 management
+# Mieru / mita v3.35–v3.36 management
 
 **English** · [Русский](MIERU.ru.md)
 
 See also the product [architecture](docs/ARCHITECTURE.md), [accounting contract](docs/ACCOUNTING.md), and [upgrade procedure](docs/UPGRADING.md).
 
-Proxy Control supports exactly **mita 3.35.x** through a local, authenticated Unix-socket manager. Mita remains a separate GPLv3+ process; this adapter is MIT and contains no copied upstream source or generated stubs.
+Proxy Control supports exactly **mita 3.35.x and 3.36.x** through a local, authenticated Unix-socket manager. Mita remains a separate GPLv3+ process; this adapter is MIT and contains no copied upstream source or generated stubs.
 
 ## Pinned upstream artifacts
 
-Only download the v3.35.0 Debian packages from the exact upstream release URLs below. Verify the **package** digest before extraction; do not install the package merely to obtain the binary. Then extract with `dpkg-deb -x` and verify the separate **`/usr/bin/mita` executable** digest. The manager's `MIERU_MITA_SHA256` runtime gate always uses the executable digest, never the package digest.
+Only download the pinned v3.35.0 or v3.36.0 Debian packages from the exact upstream release URLs below. Verify the **package** digest before extraction; do not install the package merely to obtain the binary. Then extract with `dpkg-deb -x` and verify the separate **`/usr/bin/mita` executable** digest. The manager's `MIERU_MITA_SHA256` runtime gate always uses the executable digest, never the package digest.
 
 | Architecture | Pinned upstream `.deb` URL | Debian package SHA-256 | Extracted `usr/bin/mita` SHA-256 |
 |---|---|---|---|
 | amd64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb` | `cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342` | `4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31` |
 | arm64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_arm64.deb` | `66ff435dd5bd6078944cb4eb7fc427366afaac5ab51030ff62561c645c31a9e3` | `a4e486c1531b7bebec02eca2b60dcba2a4971b2cd479c590d8405aab59fe6a23` |
+| amd64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb` | `44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a` | `38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170` |
+| arm64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_arm64.deb` | `a43dbc4d75dcb18978ea79b924ce859e2485af8b776dfc981b29a7b60644157c` | `5105cf47ae85cfa885922fe8384f53f1977ea230259eb066130b7232ce0847b0` |
 
-Example for amd64 (substitute the arm64 URL and both arm64 digests when applicable):
+Example for v3.36.0 amd64 (substitute one complete pinned row when using another supported version or architecture):
 
 ```sh
 curl -fL --proto '=https' --tlsv1.2 \
-  https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb \
-  -o mita_3.35.0_amd64.deb
-printf '%s  %s\n' cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342 mita_3.35.0_amd64.deb | sha256sum -c -
-dpkg-deb -x mita_3.35.0_amd64.deb mita-root
-printf '%s  %s\n' 4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 mita-root/usr/bin/mita | sha256sum -c -
+  https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb \
+  -o mita_3.36.0_amd64.deb
+printf '%s  %s\n' 44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a mita_3.36.0_amd64.deb | sha256sum -c -
+dpkg-deb -x mita_3.36.0_amd64.deb mita-root
+printf '%s  %s\n' 38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170 mita-root/usr/bin/mita | sha256sum -c -
 ```
 
-The v3.35.0 Debian executables are statically linked. Reserve numeric UID/GID `10005:10005` for the non-login `mieru-manager` identity (fail closed if either number belongs to another principal), add that user to the distinct `mita` socket group, and add the panel service user only to group `10005`. Install `deploy/mieru-manager.service`. Put a random 32–512 character ASCII token in `/etc/mieru-manager/token`, then run `sudo ./scripts/prepare-mieru-token.sh prepare /etc/mieru-manager/token`; the resulting metadata is exactly `root:10005` mode `0440`.
+The pinned v3.35.0 and v3.36.0 Debian executables are statically linked. Reserve numeric UID/GID `10005:10005` for the non-login `mieru-manager` identity (fail closed if either number belongs to another principal), add that user to the distinct `mita` socket group, and add the panel service user only to group `10005`. Install `deploy/mieru-manager.service`. Put a random 32–512 character ASCII token in `/etc/mieru-manager/token`, then run `sudo ./scripts/prepare-mieru-token.sh prepare /etc/mieru-manager/token`; the resulting metadata is exactly `root:10005` mode `0440`.
 
 ```text
 MIERU_PUBLIC_HOST=mieru.example.com
 MIERU_MANAGER_TOKEN_FILE=/etc/mieru-manager/token
 MIERU_MANAGER_STATE=/var/lib/mieru-manager
-MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31
+MIERU_MITA_SHA256=38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170
 ```
 
-The helper verifies the pinned executable SHA-256 before every invocation and accepts only mita 3.35.x at bootstrap. It invokes only fixed `/usr/bin/mita` argv commands with in-memory bounded stdout/stderr. Each invocation runs in a new process group; timeout, output-limit, exceptional, and successful completion paths kill remaining same-group descendants before returning. A malicious child can escape that boundary by double-forking and calling `setsid()`, so this containment is not a sandbox and depends on the executable remaining pinned and trusted. Complete secret-bearing JSON is inherited through an anonymous FD and never a named tempfile, command line, log, audit, or HTTP list response. Keep `/run/mita/mita.sock` mode 0770; do not enable `MITA_INSECURE_UDS`. Use the stable tmpfiles-created `/run/mita` directory from `deploy/mita.tmpfiles.conf`; do not use `RuntimeDirectory=mita` with a bind-mounted UDS because a restart can replace the directory inode.
+The helper verifies the pinned executable SHA-256 before every invocation and accepts only mita 3.35.x or 3.36.x at bootstrap. It invokes only fixed `/usr/bin/mita` argv commands with in-memory bounded stdout/stderr. Each invocation runs in a new process group; timeout, output-limit, exceptional, and successful completion paths kill remaining same-group descendants before returning. A malicious child can escape that boundary by double-forking and calling `setsid()`, so this containment is not a sandbox and depends on the executable remaining pinned and trusted. Complete secret-bearing JSON is inherited through an anonymous FD and never a named tempfile, command line, log, audit, or HTTP list response. Keep `/run/mita/mita.sock` mode 0770; do not enable `MITA_INSECURE_UDS` in production.
 
 A fresh host must persist one valid generation before enabling the hardened `mita` unit: selected TCP+UDP bindings, one protected bootstrap user, and the all-domain/all-IP WARP SOCKS5 egress rule. Start a temporary `mita run` boundary with the stable UDS, apply a mode-`0600` mita-owned bootstrap JSON, prove `RUNNING`, stop the transient boundary, delete the plaintext input, then enable `deploy/mita.service`. Keep the protected bootstrap user; use separate temporary users for TCP/UDP acceptance and delete those afterward. Starting the hardened unit with an empty/zero-user generation is a hard stop.
 
@@ -88,7 +90,7 @@ Declare every TCP/UDP Mieru port or range explicitly. **No installer or manager 
 
 Config updates are full-snapshot CAS transactions with durable backup/journal recovery. Journal v3 metadata is authenticated with a manager-local 32-byte HMAC key stored as an exact mode-0600 regular file in the state directory; the key is never included in backups, logs, audit records, or API responses. Recovery fails closed if an active journal cannot be authenticated. Ports, MTU, DNS, egress, traffic patterns and SSRF flags use stop/start. Credential rotation, disable, and delete force restart for revocation; quota-only changes may reload. Unknown observed fields fail closed.
 
-Per-user Mieru traffic metrics are deliberately reported as degraded/unavailable in this MIT adapter. In v3.35, `mita get metrics` is opaque grouped diagnostics and `mita get users` renders a human table; only the GPL gRPC `GetUsers` boundary exposes typed histories. The adapter does not invent a JSON shape, parse rounded table values, copy GPL-generated stubs, or claim baseline reset support. Traffic and quota semantics in mita itself remain **application bytes** and rolling approximate session-admission checks—not hard caps or billing counters.
+Per-user Mieru traffic metrics are deliberately reported as degraded/unavailable in this MIT adapter. In v3.35 and v3.36, `mita get metrics` is opaque grouped diagnostics and `mita get users` renders a human table; only the GPL gRPC `GetUsers` boundary exposes typed histories. The adapter does not invent a JSON shape, parse rounded table values, copy GPL-generated stubs, or claim baseline reset support. Traffic and quota semantics in mita itself remain **application bytes** and rolling approximate session-admission checks—not hard caps or billing counters.
 
 ## Fleet limitation
 

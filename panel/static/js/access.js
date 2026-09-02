@@ -192,39 +192,69 @@ function shadowrocketVariant(value, native) {
 }
 
 function mieruNative(value) {
-  if (!plainObject(value) || value.label !== "Mieru" || value.type !== "link"
-    || typeof value.share_url !== "string" || typeof value.import_command !== "string") {
-    throw new Error("Сервис вернул некорректную ссылку Mieru");
+  if (!plainObject(value) || value.label !== "Mieru" || value.type !== "config"
+    || !plainObject(value.config) || typeof value.simple_share_url !== "string"
+    || typeof value.apply_command !== "string") {
+    throw new Error("Сервис вернул некорректную конфигурацию Mieru");
   }
-  try {
-    const link = new URL(value.share_url);
-    if (link.protocol !== "mierus:" || !link.username || !link.password || !link.hostname) {
-      throw new Error("invalid Mieru link");
-    }
-  } catch {
-    throw new Error("Сервис вернул некорректную ссылку Mieru");
-  }
-  if (!value.import_command.startsWith("mieru import config ")) {
+  const configName = filename(value.filename);
+  if (value.apply_command !== `mieru apply config ${configName}`) {
     throw new Error("Сервис вернул некорректную команду Mieru");
   }
+  try {
+    const link = new URL(value.simple_share_url);
+    const profiles = value.config.profiles;
+    const profile = Array.isArray(profiles) && profiles.length === 1 ? profiles[0] : null;
+    const server = plainObject(profile) && Array.isArray(profile.servers)
+      && profile.servers.length === 1 ? profile.servers[0] : null;
+    const user = plainObject(profile) ? profile.user : null;
+    const bindings = plainObject(server) ? server.portBindings : null;
+    const ports = link.searchParams.getAll("port");
+    const protocols = link.searchParams.getAll("protocol");
+    const serverHost = plainObject(server) ? (server.domainName || server.ipAddress) : "";
+    const linkHost = link.hostname.startsWith("[") && link.hostname.endsWith("]")
+      ? link.hostname.slice(1, -1) : link.hostname;
+    if (link.protocol !== "mierus:" || !link.username || !link.password || !link.hostname
+      || !plainObject(profile) || !plainObject(user) || !Array.isArray(bindings)
+      || bindings.length !== ports.length || ports.length !== protocols.length
+      || profile.profileName !== link.searchParams.get("profile")
+      || value.config.activeProfile !== profile.profileName
+      || user.name !== decodeURIComponent(link.username)
+      || user.password !== decodeURIComponent(link.password)
+      || serverHost !== linkHost
+      || value.config.rpcPort !== 50000 || value.config.socks5Port !== 1080
+      || value.config.socks5ListenLAN !== false || value.config.loggingLevel !== "INFO"
+      || bindings.some((binding, index) => !plainObject(binding)
+        || binding.protocol !== protocols[index]
+        || String(binding.port ?? binding.portRange) !== ports[index])) {
+      throw new Error("invalid Mieru config");
+    }
+  } catch {
+    throw new Error("Сервис вернул некорректную конфигурацию Mieru");
+  }
+  const payload = JSON.stringify(value.config, null, 2);
   return {
     label: "Native",
-    payloadType: "link",
-    payloadLabel: "Ссылка mierus://",
-    payload: value.share_url,
-    copyLabel: "Копировать ссылку",
-    description: "Официальный Mieru импортирует ссылку командой mieru import config.",
-    secondaryLabel: "Команда импорта",
-    secondaryPayload: value.import_command,
-    secondaryCopyLabel: "Копировать команду",
-    qr: qrFor(value.qr, value.share_url),
+    payloadType: "config",
+    payloadLabel: "Содержимое mieru-client.json",
+    payload,
+    copyLabel: "Копировать конфигурацию",
+    description: "Сохраните полный конфиг, выполните mieru apply config mieru-client.json, затем mieru start. Ссылка mierus:// и QR добавляют профиль только в уже настроенный клиент.",
+    secondaryLabel: "Ссылка mierus:// для настроенного клиента",
+    secondaryPayload: value.simple_share_url,
+    secondaryCopyLabel: "Копировать ссылку",
+    downloadLabel: "Скачать mieru-client.json",
+    downloadText: `${payload}\n`,
+    filename: configName,
+    qr: qrFor(value.qr, value.simple_share_url),
+    qrLabel: "Ссылка mierus:// для настроенного клиента",
   };
 }
 
 function unsupportedText(value) {
   if (value === undefined) return "";
   if (!plainObject(value)) throw new Error("Сервис вернул некорректную матрицу клиентов");
-  const labels = { karing: "Karing", shadowrocket: "Shadowrocket" };
+  const labels = { karing: "Karing", nekobox: "NekoBox+", shadowrocket: "Shadowrocket" };
   return Object.entries(value).map(([client, reason]) => {
     if (!labels[client] || typeof reason !== "string" || !reason) {
       throw new Error("Сервис вернул некорректную матрицу клиентов");
@@ -346,11 +376,12 @@ export function createAccessDialogs(context) {
     qrDownload.hidden = !variant.qr;
     qrDownload.removeAttribute("href");
     if (variant.qr) {
+      const qrLabel = variant.qrLabel || variant.payloadLabel;
       image.src = variant.qr.image;
-      image.alt = `QR-код: ${variant.payloadLabel}`;
+      image.alt = `QR-код: ${qrLabel}`;
       qrDownload.href = variant.qr.image;
       qrDownload.download = `${prefix}-${client}.svg`;
-      query(`#${prefix}-qr-caption`, root).textContent = `QR: ${variant.payloadLabel}`;
+      query(`#${prefix}-qr-caption`, root).textContent = `QR: ${qrLabel}`;
     }
   }
 

@@ -22,6 +22,12 @@
         "kind": "binary",
         "url": "https://artifacts.example.com/mita-3.35.0",
         "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      {
+        "version": "3.36.0",
+        "kind": "binary",
+        "url": "https://artifacts.example.com/mita-3.36.0",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
       }
     ]
   }

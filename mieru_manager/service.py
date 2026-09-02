@@ -1,4 +1,4 @@
-"""Transactional, fail-closed manager for the separate GPL mita v3.35 daemon."""
+"""Transactional, fail-closed manager for the separate GPL mita daemon."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from typing import Any, Callable
 from urllib.parse import quote, urlencode
 
 
-SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.35\.\d+)\Z")
+SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.(?:35|36)\.\d+)\Z")
 LOG_LEVELS = {"DEFAULT", "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"}
 TRANSPORTS = {"TCP", "UDP"}
 DUAL_STACK = {"USE_FIRST_IP", "PREFER_IPv4", "PREFER_IPv6", "ONLY_IPv4", "ONLY_IPv6"}
@@ -656,7 +656,7 @@ class MitaCLI:
         return match.group(1)
 
     def metrics(self) -> dict:
-        raise MitaError("typed per-user metrics are unavailable in the mita v3.35 CLI")
+        raise MitaError("typed per-user metrics are unavailable in the mita CLI")
 
     def probe(self) -> None:
         if self.status() != "RUNNING":
@@ -700,7 +700,7 @@ class MieruManager:
                 self._recover()
             match = SUPPORTED_VERSION.fullmatch(str(self.mita.version()).strip())
             if not match:
-                raise ConfigConflict("only mita v3.35.x is supported")
+                raise ConfigConflict("only mita v3.35.x or v3.36.x is supported")
             observed = self.mita.observe()
             validate_config(observed, elevated=True)
             if self.state_file.exists():

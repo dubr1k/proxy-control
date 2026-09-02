@@ -41,6 +41,9 @@ async def test_version_update_requires_owner_and_current_revision(
         listed = await client.get("/api/versions")
         assert listed.status_code == 200
         assert listed.json()["components"]["telemt"]["current"] == "3.4.24"
+        assert "3.36.0" in {
+            item["version"] for item in listed.json()["components"]["mita"]["available"]
+        }
         csrf = client.cookies["panel_csrf"]
         response = await client.post(
             "/api/versions/telemt/update",

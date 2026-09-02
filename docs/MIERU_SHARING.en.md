@@ -38,8 +38,9 @@ Warn the user that the old config stops working as soon as rotation succeeds.
 | Official Mieru | `mierus://`, import command | Supported | The displayed `mierus://` URL |
 | Karing | Full Mieru sing-box profile, download, and `karing://install-config` | Not offered | The Karing deep link containing the full profile |
 | Shadowrocket | Not offered; no verified format | Not offered | None |
+| NekoBox+ | Not offered; no verified format | Not offered | None |
 
-Use an official Mieru client compatible with server `mita` 3.35.x, or a current Karing build. The [official Mieru client guide](https://github.com/enfein/mieru/blob/main/docs/client-install.md) defines `mierus://`, `mieru import config`, and the sing-box Mieru outbound fields. Karing documents configuration-content import and its [URL scheme](https://karing.app/en/cooperation/scheme); its current source lists the Mieru outbound type.
+Use an official Mieru client compatible with server `mita` 3.35.x or 3.36.x, or a current Karing build. The [official Mieru client guide](https://github.com/enfein/mieru/blob/main/docs/client-install.md) defines `mierus://`, `mieru import config`, and the sing-box Mieru outbound fields. Karing documents configuration-content import and its [URL scheme](https://karing.app/en/cooperation/scheme); its current source lists the Mieru outbound type.
 
 After import verify expected hostname/port, declared TCP/UDP listener reachability, end-to-end transport, and rejection of the old config after rotation. Never paste any credential payload into a broadly visible ticket/chat or screenshot.
 
@@ -71,7 +72,7 @@ Client tabs scroll horizontally, while QR, payload, import command, unsupported-
 - **No QR:** use the create/rotate one-time dialog, not list view.
 - **Old link fails:** expected after rotation.
 - **New link imports but cannot connect:** check server status, TCP/UDP listener, DNS/firewall, and real protocol probe.
-- **Client created both TCP and UDP entries, only TCP works:** `mierus://` advertises every server port binding, so clients such as NekoBox/husi materialise one entry per protocol. The server-side UDP listener is fine: the official mieru 3.35 client with `"protocol": "UDP"` completes end-to-end through mita 3.35. In practice UDP fails on the path (mobile carriers and some Wi-Fi networks drop or throttle non-QUIC UDP) or in a given client fork's UDP transport. Action: use the TCP entry; there is no need to remove the server's UDP binding. To verify the server, point the official client at a UDP-only profile — if that works, the fault is client- or network-side.
+- **Client created both TCP and UDP entries, only TCP works:** `mierus://` advertises each declared server port binding. Compare the imported entries with the current manager configuration first; an undeclared transport is not supported. When UDP is declared, prove it with an official-client UDP-only profile before blaming the server. If that probe succeeds, use TCP on the affected path and treat the failure as client- or network-specific. Do not add or retain a UDP listener solely because a third-party client generated one.
 - **Traffic unavailable:** this is an honest adapter limitation, not a credential problem.
 - **Viewer sees no QR:** expected RBAC behavior.
 

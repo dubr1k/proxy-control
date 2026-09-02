@@ -277,6 +277,15 @@ def manager(tmp_path, mita=None):
     )
 
 
+def test_bootstrap_accepts_mita_3_36(tmp_path):
+    mita = FakeMita()
+    mita.version = lambda: "3.36.0"
+
+    result = manager(tmp_path, mita).bootstrap()
+
+    assert result["version"] == "3.36.0"
+
+
 def test_bootstrap_creates_private_durable_journal_authentication_key(tmp_path):
     root = tmp_path / "state"
 

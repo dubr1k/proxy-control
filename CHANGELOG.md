@@ -23,12 +23,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The panel backend is composed from protocol- and responsibility-specific route modules while preserving `panel.app:create_app`, existing API paths, RBAC, security headers, and one-time reveal behavior. Audit reads now support bounded cursor pagination and actor/action/target filters.
 - Fleet v1 is Telemt-only; Mieru operations and Mieru capability advertisement were removed from its models, node execution path, and documentation.
 - Naive and Mieru one-time reveals now expose client-specific Native, Karing, and verified manual variants. Karing receives a full profile through its documented deep link instead of a raw endpoint QR; unsupported Shadowrocket/Mieru and Mieru port-range combinations are reported without fabricated import formats.
+- The Mieru manager, deployment guidance, and panel version metadata now admit pinned mita 3.36.x binaries while retaining 3.35.x compatibility.
 
 ### Fixed
 
 - Creating or rotating an MTProxy access now refreshes the list without a page reload. The reveal payload carried no QR while the access dialog requires one, so it threw after the modal closed and before the list was re-fetched, leaving the new profile invisible until F5. The QR now travels with the reveal, and a dialog that cannot render is reported without blocking the refresh.
 - Busy buttons no longer stick on "Создаём…". Handlers read `event.currentTarget` in `finally`, which runs after dispatch has ended and yields null, so the button was never re-enabled; the target is now captured while it is still live.
 - Mieru transactions no longer re-hash the blanked password mita returns for an already stored user, so creating, rotating, deleting or quota-editing an access after the first one succeeds instead of failing the readback check and rolling back with `manager operation failed`.
+- Mieru Native reveals now provide a complete `mieru-client.json` with the required active profile, RPC port, and SOCKS5 port, so a brand-new official client can apply and start it. The human-readable `mierus://` link and QR are retained only for adding the profile to an already configured client.
+- Rotated Mieru credentials now produce a generation-specific Karing profile name, so Karing imports the replacement instead of rejecting it as a duplicate and retaining the revoked password. The Mieru reveal also explicitly marks NekoBox+ as unsupported.
 - Installer panel TLS vhosts now serve a neutral cover at `/` for unauthenticated requests while preserving the authenticated post-login landing.
 - Public ACME roots are forced to `0755` even under restrictive operator umasks.
 - Route repair/uninstall validates and removes only the marked Proxy Control block, preserving adjacent SNI routes added after core installation.

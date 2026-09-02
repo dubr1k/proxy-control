@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import shlex
+import hashlib
+import ipaddress
 import re
 from typing import Literal
 from urllib.parse import parse_qsl, unquote, urlsplit
@@ -46,34 +47,71 @@ def mieru_access(value) -> dict:
 
     username = unquote(parts.username)
     password = unquote(parts.password)
+    bindings = []
+    for port, protocol in zip(ports, protocols, strict=True):
+        if re.fullmatch(r"[0-9]{1,5}", port) and 1 <= int(port) <= 65535:
+            binding = {"port": int(port), "protocol": protocol}
+        else:
+            match = re.fullmatch(r"([0-9]{1,5})-([0-9]{1,5})", port)
+            if not match or not 1 <= int(match[1]) <= int(match[2]) <= 65535:
+                raise HTTPException(409, "Mieru connection link unavailable")
+            binding = {"portRange": port, "protocol": protocol}
+        bindings.append(binding)
+
+    mtu_values = values.get("mtu", [])
+    if len(mtu_values) > 1 or (
+        mtu_values and not re.fullmatch(r"[0-9]{4,5}", mtu_values[0])
+    ):
+        raise HTTPException(409, "Mieru connection link unavailable")
+    mtu = int(mtu_values[0]) if mtu_values else 1400
+    if not 1280 <= mtu <= 1500:
+        raise HTTPException(409, "Mieru connection link unavailable")
+
+    server = {"portBindings": bindings}
+    server_host = parts.hostname
+    try:
+        server_host = str(ipaddress.ip_address(parts.hostname))
+        server["ipAddress"] = server_host
+    except ValueError:
+        server["domainName"] = server_host
+    profile_name = values["profile"][0]
+    native_config = {
+        "profiles": [{
+            "profileName": profile_name,
+            "user": {"name": username, "password": password},
+            "servers": [server],
+            "mtu": mtu,
+        }],
+        "activeProfile": profile_name,
+        "rpcPort": 50000,
+        "socks5Port": 1080,
+        "socks5ListenLAN": False,
+        "loggingLevel": "INFO",
+    }
     native = {
         "label": "Mieru",
-        "type": "link",
-        "share_url": value,
-        "import_command": f"mieru import config {shlex.quote(value)}",
+        "type": "config",
+        "config": native_config,
+        "filename": "mieru-client.json",
+        "apply_command": "mieru apply config mieru-client.json",
+        "simple_share_url": value,
         "qr": {"payload": value, "image": qr_data(value)},
     }
     clients = {"native": native}
     unsupported = {
+        "nekobox": "Проверенный формат импорта Mieru для NekoBox+ отсутствует.",
         "shadowrocket": (
             "Проверенный формат импорта Mieru для Shadowrocket отсутствует."
-        )
+        ),
     }
 
-    exact_ports: list[int] = []
-    for port in ports:
-        if not re.fullmatch(r"[0-9]{1,5}", port):
-            break
-        number = int(port)
-        if not 1 <= number <= 65535:
-            break
-        exact_ports.append(number)
-    if len(exact_ports) == len(ports):
+    exact_ports = [binding["port"] for binding in bindings if "port" in binding]
+    if len(exact_ports) == len(bindings):
         outbounds = [
             {
                 "type": "mieru",
                 "tag": f"mieru-{protocol}-{port}",
-                "server": parts.hostname,
+                "server": server_host,
                 "server_port": port,
                 "transport": protocol,
                 "username": username,
@@ -81,9 +119,10 @@ def mieru_access(value) -> dict:
             }
             for port, protocol in zip(exact_ports, protocols, strict=True)
         ]
+        credential_generation = hashlib.sha256(password.encode()).hexdigest()[:8]
         clients["karing"] = karing_client(
             {"outbounds": outbounds},
-            name=f"Mieru · {values['profile'][0]}",
+            name=f"Mieru · {values['profile'][0]} · {credential_generation}",
             filename=f"karing-mieru-{values['profile'][0]}.json",
         )
     else:

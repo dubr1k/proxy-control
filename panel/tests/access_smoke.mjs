@@ -64,8 +64,21 @@ test("Naive variants keep native config, a Karing deep link, and Shadowrocket ma
   assert.equal(result.shadowrocket.qr, null);
 });
 
-test("Mieru variants use the native mierus link or the Karing profile deep link", () => {
+test("Mieru native variant bootstraps a fresh client and keeps the simple link for existing clients", () => {
   const nativeLink = "mierus://phone:secret@mieru.example.com?profile=phone&port=8443&protocol=TCP";
+  const nativeConfig = {
+    profiles: [{
+      profileName: "phone",
+      user: { name: "phone", password: "secret" },
+      servers: [{ domainName: "mieru.example.com", portBindings: [{ port: 8443, protocol: "TCP" }] }],
+      mtu: 1400,
+    }],
+    activeProfile: "phone",
+    rpcPort: 50000,
+    socks5Port: 1080,
+    socks5ListenLAN: false,
+    loggingLevel: "INFO",
+  };
   const karingLink = "karing://install-config?url=%7B%22outbounds%22%3A%5B%5D%7D&name=Mieru";
   const result = normaliseAccessPayload({
     service: "mieru",
@@ -73,9 +86,11 @@ test("Mieru variants use the native mierus link or the Karing profile deep link"
     clients: {
       native: {
         label: "Mieru",
-        type: "link",
-        share_url: nativeLink,
-        import_command: `mieru import config '${nativeLink}'`,
+        type: "config",
+        config: nativeConfig,
+        filename: "mieru-client.json",
+        apply_command: "mieru apply config mieru-client.json",
+        simple_share_url: nativeLink,
         qr: qr(nativeLink),
       },
       karing: {
@@ -88,15 +103,56 @@ test("Mieru variants use the native mierus link or the Karing profile deep link"
       },
     },
     unsupported_clients: {
+      nekobox: "Проверенный формат импорта Mieru для NekoBox+ отсутствует.",
       shadowrocket: "Проверенный формат импорта Mieru для Shadowrocket отсутствует.",
     },
   }, "mieru", "phone");
 
-  assert.equal(result.native.payload, nativeLink);
+  assert.equal(result.native.payloadType, "config");
+  assert.deepEqual(JSON.parse(result.native.payload), nativeConfig);
+  assert.equal(result.native.secondaryPayload, nativeLink);
+  assert.equal(result.native.downloadLabel, "Скачать mieru-client.json");
   assert.equal(result.native.qr.payload, nativeLink);
   assert.equal(result.karing.payload, karingLink);
   assert.equal(result.karing.qr.payload, karingLink);
   assert.match(result.unsupported, /Shadowrocket/);
+  assert.match(result.unsupported, /NekoBox\+/);
+});
+
+test("Mieru native accepts a canonical config address for a non-canonical IPv6 share URL", () => {
+  const nativeLink = "mierus://phone:secret@[2001:0db8::1]?profile=phone&port=8443&protocol=TCP";
+  const nativeConfig = {
+    profiles: [{
+      profileName: "phone",
+      user: { name: "phone", password: "secret" },
+      servers: [{ ipAddress: "2001:db8::1", portBindings: [{ port: 8443, protocol: "TCP" }] }],
+      mtu: 1400,
+    }],
+    activeProfile: "phone",
+    rpcPort: 50000,
+    socks5Port: 1080,
+    socks5ListenLAN: false,
+    loggingLevel: "INFO",
+  };
+
+  const result = normaliseAccessPayload({
+    service: "mieru",
+    username: "phone",
+    clients: {
+      native: {
+        label: "Mieru",
+        type: "config",
+        config: nativeConfig,
+        filename: "mieru-client.json",
+        apply_command: "mieru apply config mieru-client.json",
+        simple_share_url: nativeLink,
+        qr: qr(nativeLink),
+      },
+    },
+    unsupported_clients: {},
+  }, "mieru", "phone");
+
+  assert.equal(result.native.secondaryPayload, nativeLink);
 });
 
 test("client QR metadata must describe the displayed payload", () => {
@@ -106,9 +162,23 @@ test("client QR metadata must describe the displayed payload", () => {
     clients: {
       native: {
         label: "Mieru",
-        type: "link",
-        share_url: "mierus://phone:secret@example.com?profile=phone&port=8443&protocol=TCP",
-        import_command: "mieru import config x",
+        type: "config",
+        config: {
+          profiles: [{
+            profileName: "phone",
+            user: { name: "phone", password: "secret" },
+            servers: [{ domainName: "example.com", portBindings: [{ port: 8443, protocol: "TCP" }] }],
+            mtu: 1400,
+          }],
+          activeProfile: "phone",
+          rpcPort: 50000,
+          socks5Port: 1080,
+          socks5ListenLAN: false,
+          loggingLevel: "INFO",
+        },
+        filename: "mieru-client.json",
+        apply_command: "mieru apply config mieru-client.json",
+        simple_share_url: "mierus://phone:secret@example.com?profile=phone&port=8443&protocol=TCP",
         qr: qr("https://phone:secret@example.com"),
       },
     },
@@ -262,4 +332,59 @@ test("dialog renderer shows the Naive Karing deep link and matching QR", () => {
   assert.equal(root.elements["#naive-qr-image"].hidden, true);
   assert.equal(root.elements["#download-naive-qr"].hidden, true);
   assert.equal(root.elements["#naive-access-layout"].classList.contains("no-qr"), true);
+});
+
+test("dialog renderer labels the Mieru Native QR as the simple-share link", () => {
+  const root = fakeRoot("mieru");
+  const dialogs = createAccessDialogs({
+    root,
+    api: async () => { throw new Error("unexpected API call"); },
+    ui: {
+      openModal: () => {},
+      copyText: async () => {},
+      toast: () => {},
+    },
+  });
+  dialogs.bind();
+  const nativeLink = "mierus://phone:secret@mieru.example.com?profile=phone&port=8443&protocol=TCP";
+  dialogs.showMieruAccess({
+    service: "mieru",
+    username: "phone",
+    clients: {
+      native: {
+        label: "Mieru",
+        type: "config",
+        config: {
+          profiles: [{
+            profileName: "phone",
+            user: { name: "phone", password: "secret" },
+            servers: [{
+              domainName: "mieru.example.com",
+              portBindings: [{ port: 8443, protocol: "TCP" }],
+            }],
+            mtu: 1400,
+          }],
+          activeProfile: "phone",
+          rpcPort: 50000,
+          socks5Port: 1080,
+          socks5ListenLAN: false,
+          loggingLevel: "INFO",
+        },
+        filename: "mieru-client.json",
+        apply_command: "mieru apply config mieru-client.json",
+        simple_share_url: nativeLink,
+        qr: qr(nativeLink),
+      },
+    },
+    unsupported_clients: {},
+  }, "phone");
+
+  assert.equal(
+    root.elements["#mieru-qr-caption"].textContent,
+    "QR: Ссылка mierus:// для настроенного клиента",
+  );
+  assert.equal(
+    root.elements["#mieru-qr-image"].alt,
+    "QR-код: Ссылка mierus:// для настроенного клиента",
+  );
 });
