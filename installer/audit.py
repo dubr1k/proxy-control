@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import multiprocessing
 import os
 import re
 import selectors
 import signal
 import socket
-import ssl
 import subprocess
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Protocol
 
 from installer.model import HostMode, InstallerConfig
@@ -58,6 +57,10 @@ _PRIVATE_KEY_BLOCK = re.compile(
 
 class AuditError(RuntimeError):
     """An audit failed without exposing command input or captured content."""
+
+
+class CommandUnavailable(AuditError):
+    """The requested executable does not exist on this host."""
 
 
 @dataclass(frozen=True, order=True)
@@ -132,6 +135,8 @@ class CommandRunner:
                 timeout=self.timeout,
                 max_output=self.max_output,
             )
+        except CommandUnavailable:
+            raise
         except AuditError as exc:
             message = str(exc)
             if message in {
@@ -141,6 +146,8 @@ class CommandRunner:
             }:
                 raise AuditError(message) from None
             raise AuditError("command could not be executed") from None
+        except FileNotFoundError:
+            raise CommandUnavailable("command is unavailable") from None
         except subprocess.TimeoutExpired:
             raise AuditError("command timed out") from None
         except Exception:
@@ -170,25 +177,7 @@ class CommandRunner:
             raise AuditError("command returned malformed JSON") from None
 
     def resolve(self, domain: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        try:
-            answers = self._resolver(domain, 443, type=socket.SOCK_STREAM)
-        except socket.gaierror:
-            answers = []
-        except Exception as exc:
-            raise AuditError(_sanitize_error(str(exc))) from None
-        ipv4: set[str] = set()
-        ipv6: set[str] = set()
-        for family, _kind, _proto, _canon, address in answers:
-            if not address:
-                continue
-            value = _canonical_ip(address[0])
-            if value is None:
-                continue
-            if family == socket.AF_INET and ":" not in value:
-                ipv4.add(value)
-            elif family == socket.AF_INET6 and ":" in value:
-                ipv6.add(value)
-        return tuple(sorted(ipv4)), tuple(sorted(ipv6))
+        return _bounded_resolve(self._resolver, domain, self.timeout)
 
 
 def _validated_argv(argv: Sequence[str]) -> tuple[str, ...]:
@@ -224,6 +213,8 @@ def _bounded_execute(
             stderr=subprocess.PIPE,
             start_new_session=True,
         )
+    except FileNotFoundError:
+        raise CommandUnavailable("command is unavailable") from None
     except OSError:
         raise AuditError("command could not be executed") from None
     assert process.stdout is not None
@@ -267,13 +258,77 @@ def _bounded_execute(
 
 
 def _terminate_process(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        return
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
     process.wait()
+
+
+def _resolver_worker(connection, resolver: Resolver, domain: str) -> None:
+    try:
+        answers = resolver(domain, 443, type=socket.SOCK_STREAM)
+        observations: list[tuple[int, str]] = []
+        for family, _kind, _proto, _canon, address in answers:
+            if len(observations) >= 256:
+                break
+            if family not in {socket.AF_INET, socket.AF_INET6} or not address:
+                continue
+            value = _canonical_ip(address[0])
+            if value is not None:
+                observations.append((family, value))
+        connection.send(("ok", observations))
+    except socket.gaierror:
+        connection.send(("resolver_error", []))
+    except BaseException:
+        connection.send(("resolver_error", []))
+    finally:
+        connection.close()
+
+
+def _bounded_resolve(
+    resolver: Resolver,
+    domain: str,
+    timeout: float,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    context = multiprocessing.get_context("fork")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(target=_resolver_worker, args=(sender, resolver, domain))
+    process.daemon = True
+    process.start()
+    sender.close()
+    try:
+        if not receiver.poll(timeout):
+            _stop_worker(process)
+            raise AuditError("DNS resolution timed out")
+        try:
+            status, observations = receiver.recv()
+        except EOFError:
+            _stop_worker(process)
+            raise AuditError("DNS resolution failed") from None
+        process.join(timeout=0.2)
+        if process.is_alive():
+            _stop_worker(process)
+            raise AuditError("DNS resolution failed")
+        if status != "ok":
+            raise AuditError("DNS resolution failed")
+    finally:
+        receiver.close()
+        if process.is_alive():
+            _stop_worker(process)
+        process.close()
+    ipv4 = {value for family, value in observations if family == socket.AF_INET}
+    ipv6 = {value for family, value in observations if family == socket.AF_INET6}
+    return tuple(sorted(ipv4)), tuple(sorted(ipv6))
+
+
+def _stop_worker(process: multiprocessing.Process) -> None:
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=0.2)
+    if process.is_alive():
+        process.kill()
+        process.join()
 
 
 def _environment_secret_values() -> tuple[str, ...]:
@@ -301,12 +356,24 @@ def _sanitize_error(text: str) -> str:
 
 def _safe_audit_error(text: str) -> str:
     if text in {
+        "CAA alias loop detected",
+        "CAA alias result was ambiguous",
+        "CAA query failed",
+        "CAA query limit exceeded",
+        "CAA response was malformed",
+        "DNS resolution failed",
+        "DNS resolution timed out",
+        "Nginx observation is malformed",
         "command could not be executed",
         "command output limit exceeded",
         "command returned an invalid response",
         "command returned malformed JSON",
         "command timed out",
-    } or re.fullmatch(r"command failed with exit status -?\d+", text):
+        "required audit command is unavailable",
+    } or re.fullmatch(
+        r"(?:command failed|required audit command failed) with exit status -?\d+",
+        text,
+    ):
         return text
     return _sanitize_error(text)
 
@@ -411,46 +478,67 @@ def audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
 def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
     domains = tuple(validate_domain(domain) for domain in config.required_domains())
 
-    architecture = _SAFE_ARCHITECTURES.get(runner.capture(("uname", "-m")).strip(), "unknown")
-    disks = _parse_disks(runner.capture(("df", "-Pk")))
-    memory = _parse_memory(runner.capture(("free", "-b")))
-    addresses = _parse_addresses(runner.json(("ip", "-j", "address")))
+    architecture = _SAFE_ARCHITECTURES.get(
+        _required_capture(runner, ("uname", "-m")).strip(),
+        "unknown",
+    )
+    disks = _parse_disks(_required_capture(runner, ("df", "-Pk")))
+    memory = _parse_memory(_required_capture(runner, ("free", "-b")))
+    addresses = _parse_addresses(_required_json(runner, ("ip", "-j", "address")))
     local_addresses = {item["address"] for item in addresses}
-    listeners = _parse_listeners(runner.capture(("ss", "-H", "-lntup")))
+    listeners = _parse_listeners(_required_capture(runner, ("ss", "-H", "-lntup")))
 
-    nginx_result = runner.run(("nginx", "-T"))
-    nginx = _parse_nginx(nginx_result.stdout) if nginx_result.returncode == 0 else _empty_nginx()
+    nginx_result, nginx_observation = _optional_run(runner, ("nginx", "-T"))
+    nginx = (
+        parse_nginx_observation(nginx_result.stdout)
+        if nginx_result is not None
+        else _empty_nginx(nginx_observation)
+    )
 
-    docker_result = runner.run(("docker", "--version"))
-    compose_result = runner.run(("docker", "compose", "version", "--short"))
-    systemd_result = runner.run(
+    docker_result, docker_observation = _optional_run(runner, ("docker", "--version"))
+    compose_result, compose_observation = _optional_run(
+        runner,
+        ("docker", "compose", "version", "--short"),
+    )
+    systemd_result, systemd_observation = _optional_run(
+        runner,
         (
             "systemctl",
             "list-unit-files",
             "--type=service",
             "--no-legend",
             "--no-pager",
-        )
+        ),
     )
-    ufw_result = runner.run(("ufw", "status", "verbose"))
+    ufw_result, ufw_observation = _optional_run(runner, ("ufw", "status", "verbose"))
 
-    xray_present = runner.run(("test", "-f", _XRAY_CONFIG)).returncode == 0
+    xray_present = _required_run(runner, ("test", "-f", _XRAY_CONFIG)).returncode == 0
     xray = {
         "installed": xray_present,
-        "inbounds": parse_xray_inbounds(runner.json(("cat", _XRAY_CONFIG)))
+        "inbounds": parse_xray_inbounds(
+            _required_json(runner, ("cat", _XRAY_CONFIG))
+        )
         if xray_present
         else (),
     }
-    installer_present = runner.run(("test", "-f", _INSTALLER_STATE)).returncode == 0
+    installer_present = (
+        _required_run(runner, ("test", "-f", _INSTALLER_STATE)).returncode == 0
+    )
 
     dns: dict[str, object] = {}
     certificates: dict[str, object] = {}
     unhandled_aaaa: list[str] = []
     caa_mismatch: list[str] = []
+    caa_cache: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    caa_queries = [0]
     for domain in domains:
         ipv4, ipv6 = runner.resolve(domain)
-        caa_result = runner.run(("dig", "+short", "CAA", domain))
-        caa = _parse_caa(caa_result.stdout) if caa_result.returncode == 0 else ()
+        caa, caa_source = _applicable_caa(
+            domain,
+            runner,
+            caa_cache,
+            caa_queries,
+        )
         caa_compatible = _caa_compatible(caa)
         aaaa_handled = not ipv6 or set(ipv6) <= local_addresses
         if not aaaa_handled:
@@ -464,6 +552,7 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
             "aaaa_handled": aaaa_handled,
             "caa": caa,
             "caa_compatible": caa_compatible,
+            "caa_source": caa_source,
         }
         certificates[domain] = _certificate_fact(domain, runner)
 
@@ -510,17 +599,70 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
             "three_xui": xray,
         },
         ownership={
-            "compose": _version_fact(compose_result, bare=True),
-            "docker": _version_fact(docker_result),
+            "compose": _version_fact(
+                compose_result,
+                compose_observation,
+                bare=True,
+            ),
+            "docker": _version_fact(docker_result, docker_observation),
             "installer": {"present": installer_present},
-            "systemd": _systemd_fact(systemd_result),
+            "systemd": _systemd_fact(systemd_result, systemd_observation),
             "three_xui": {"mode": config.three_xui.mode.value, "present": xray_present},
-            "ufw": _ufw_fact(config, ufw_result),
+            "ufw": _ufw_fact(config, ufw_result, ufw_observation),
         },
         prerequisites=prerequisite_facts,
         hard_stops=tuple(hard_stops),
         operator_prerequisites=(cloud_prerequisite,),
     )
+
+
+def _required_run(
+    runner: CommandRunner,
+    argv: Sequence[str],
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return runner.run(argv)
+    except CommandUnavailable:
+        raise AuditError("required audit command is unavailable") from None
+
+
+def _required_capture(runner: CommandRunner, argv: Sequence[str]) -> str:
+    result = _required_run(runner, argv)
+    if result.returncode != 0:
+        raise AuditError(f"required audit command failed with exit status {result.returncode}")
+    return result.stdout
+
+
+def _required_json(runner: CommandRunner, argv: Sequence[str]) -> object:
+    text = _required_capture(runner, argv)
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, RecursionError):
+        raise AuditError("command returned malformed JSON") from None
+
+
+def _optional_run(
+    runner: CommandRunner,
+    argv: Sequence[str],
+) -> tuple[subprocess.CompletedProcess[str] | None, str]:
+    try:
+        result = runner.run(argv)
+    except CommandUnavailable:
+        return None, "unavailable"
+    except AuditError:
+        return None, "unknown"
+    if result.returncode != 0:
+        return None, "unknown"
+    return result, "observed"
+
+
+def listener_inventory(runner: CommandRunner) -> tuple[set[int], dict[int, list[str]]]:
+    parsed = _parse_listeners(_required_capture(runner, ("ss", "-H", "-lntup")))
+    owners = {
+        int(port): list(names)
+        for port, names in parsed["owners"].items()  # type: ignore[union-attr]
+    }
+    return set(parsed["ports"]), owners  # type: ignore[arg-type]
 
 
 def _parse_disks(text: str) -> tuple[dict[str, object], ...]:
@@ -613,42 +755,158 @@ def _parse_listeners(text: str) -> dict[str, object]:
     }
 
 
-def _empty_nginx() -> dict[str, object]:
-    return {"available": False, "http_domains": (), "sni_routes": {}, "stream_enabled": False}
+def _empty_nginx(observation: str) -> dict[str, object]:
+    return {
+        "available": False,
+        "duplicate_sni_domains": (),
+        "http_domains": (),
+        "observation": observation,
+        "sni_map_count": 0,
+        "sni_map_files": {},
+        "sni_routes": {},
+        "stream_enabled": False,
+    }
 
 
-def _parse_nginx(text: str) -> dict[str, object]:
-    routes = parse_sni_routes(text)
+def parse_nginx_observation(text: str) -> dict[str, object]:
+    sections = _nginx_sections(text)
+    route_values: dict[str, set[str]] = {}
+    route_counts: dict[str, int] = {}
+    map_files: dict[str, int] = {}
+    http_domains: set[str] = set()
+    for path, section in sections.items():
+        count = len(_sni_map_blocks(section))
+        if count and path != "<effective>":
+            map_files[path] = count
+        for domain, backend in parse_sni_entries(section):
+            route_values.setdefault(domain, set()).add(backend)
+            route_counts[domain] = route_counts.get(domain, 0) + 1
+        http_domains.update(parse_http_domains(section))
+    routes = {
+        domain: sorted(backends)[0]
+        for domain, backends in sorted(route_values.items())
+    }
     return {
         "available": True,
-        "http_domains": tuple(sorted(parse_http_domains(text))),
-        "sni_routes": dict(sorted(routes.items())),
+        "duplicate_sni_domains": tuple(
+            sorted(domain for domain, count in route_counts.items() if count > 1)
+        ),
+        "http_domains": tuple(sorted(http_domains)),
+        "observation": "observed",
+        "sni_map_count": sum(len(_sni_map_blocks(section)) for section in sections.values()),
+        "sni_map_files": dict(sorted(map_files.items())),
+        "sni_routes": routes,
         "stream_enabled": bool(re.search(r"(?m)^\s*stream\s*\{", text)),
     }
 
 
-def _parse_caa(text: str) -> tuple[str, ...]:
+def _nginx_sections(text: str) -> dict[str, str]:
+    sections: dict[str, list[str]] = {"<effective>": []}
+    current = "<effective>"
+    for line in text.splitlines(keepends=True):
+        marker = re.fullmatch(r"# configuration file (/[^:\r\n]+):\r?\n?", line)
+        if marker and _safe_text(marker.group(1), 512):
+            current = marker.group(1)
+            sections.setdefault(current, [])
+            continue
+        sections[current].append(line)
+    return {
+        path: "".join(lines)
+        for path, lines in sections.items()
+        if lines
+    }
+
+
+def _sni_map_blocks(text: str) -> tuple[tuple[int, int], ...]:
+    blocks: list[tuple[int, int]] = []
+    pattern = re.compile(r"map\s+\$ssl_preread_server_name\s+\$[A-Za-z0-9_]+\s*\{")
+    for match in pattern.finditer(text):
+        depth = 0
+        for index in range(match.end() - 1, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    blocks.append((match.start(), index + 1))
+                    break
+        else:
+            raise AuditError("Nginx observation is malformed")
+    return tuple(blocks)
+
+
+def _parse_caa_answer(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     records: set[str] = set()
-    pattern = re.compile(r'^\s*(\d{1,3})\s+(issue|issuewild|iodef)\s+"([^"\r\n]{0,255})"\s*$', re.I)
+    aliases: list[str] = []
+    pattern = re.compile(
+        r'^\s*(\d{1,3})\s+(issue|issuewild|iodef)\s+"([^"\r\n]{0,255})"\s*$',
+        re.I,
+    )
     for line in text.splitlines():
+        if not line.strip():
+            continue
         match = pattern.fullmatch(line)
         if match:
-            records.add(f'{int(match.group(1))} {match.group(2).lower()} "{match.group(3)}"')
-    return tuple(sorted(records))
+            records.add(
+                f'{int(match.group(1))} {match.group(2).lower()} "{match.group(3)}"'
+            )
+            continue
+        try:
+            alias = validate_domain(line)
+        except ValueError:
+            raise AuditError("CAA response was malformed") from None
+        if alias not in aliases:
+            aliases.append(alias)
+    return tuple(sorted(records)), tuple(aliases)
+
+
+def _applicable_caa(
+    domain: str,
+    runner: CommandRunner,
+    cache: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+    query_count: list[int],
+) -> tuple[tuple[str, ...], str | None]:
+    current = domain
+    visited: set[str] = set()
+    while current not in visited:
+        visited.add(current)
+        if current not in cache:
+            query_count[0] += 1
+            if query_count[0] > 64:
+                raise AuditError("CAA query limit exceeded")
+            result = _required_run(runner, ("dig", "+short", "CAA", current))
+            if result.returncode != 0:
+                raise AuditError("CAA query failed")
+            cache[current] = _parse_caa_answer(result.stdout)
+        records, aliases = cache[current]
+        if records:
+            source = aliases[-1] if aliases else current
+            return records, source
+        if aliases:
+            current = aliases[-1]
+            continue
+        labels = current.split(".")
+        if len(labels) == 1:
+            return (), None
+        current = ".".join(labels[1:])
+    raise AuditError("CAA alias loop detected")
 
 
 def _caa_compatible(records: Sequence[str]) -> bool:
     authorities: list[str] = []
     for record in records:
-        match = re.fullmatch(r'\d+ issue "([^";\s]+)(?:;[^\"]*)?"', record, re.I)
-        if match:
-            authorities.append(match.group(1).lower().rstrip("."))
+        match = re.fullmatch(r'\d+ issue "([^\"]*)"', record, re.I)
+        if not match:
+            continue
+        authority = match.group(1).split(";", 1)[0].strip().lower().rstrip(".")
+        authorities.append(authority)
     return not authorities or "letsencrypt.org" in authorities
 
 
 def _certificate_fact(domain: str, runner: CommandRunner) -> dict[str, object]:
     path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
-    result = runner.run(
+    result = _required_run(
+        runner,
         (
             "openssl",
             "x509",
@@ -658,18 +916,21 @@ def _certificate_fact(domain: str, runner: CommandRunner) -> dict[str, object]:
             "-dates",
             "-ext",
             "subjectAltName",
-        )
+        ),
     )
     if result.returncode != 0:
         return {"covers_domain": False, "present": False}
     names: set[str] = set()
-    for name in re.findall(r"DNS:([^,\s]+)", result.stdout):
+    for raw_name in re.findall(r"DNS:([^,\s]+)", result.stdout):
         try:
-            names.add(validate_domain(name))
+            if raw_name.startswith("*."):
+                names.add("*." + validate_domain(raw_name[2:]))
+            else:
+                names.add(validate_domain(raw_name))
         except ValueError:
             continue
     fact: dict[str, object] = {
-        "covers_domain": domain in names,
+        "covers_domain": any(_san_covers(name, domain) for name in names),
         "names": tuple(sorted(names)),
         "present": True,
     }
@@ -680,34 +941,67 @@ def _certificate_fact(domain: str, runner: CommandRunner) -> dict[str, object]:
     return fact
 
 
-def _version_fact(result: subprocess.CompletedProcess[str], *, bare: bool = False) -> dict[str, object]:
-    if result.returncode != 0:
-        return {"available": False}
-    pattern = r"^\s*(\d+(?:\.\d+){1,3})\s*$" if bare else r"\bversion\s+(\d+(?:\.\d+){1,3})\b"
+def _san_covers(name: str, domain: str) -> bool:
+    if not name.startswith("*."):
+        return name == domain
+    suffix = name[2:]
+    return domain.endswith("." + suffix) and len(domain.split(".")) == len(suffix.split(".")) + 1
+
+
+def _version_fact(
+    result: subprocess.CompletedProcess[str] | None,
+    observation: str,
+    *,
+    bare: bool = False,
+) -> dict[str, object]:
+    if result is None:
+        return {"available": False, "observation": observation}
+    pattern = (
+        r"^\s*(\d+(?:\.\d+){1,3})\s*$"
+        if bare
+        else r"\bversion\s+(\d+(?:\.\d+){1,3})\b"
+    )
     match = re.search(pattern, result.stdout, re.I)
-    fact: dict[str, object] = {"available": True}
+    fact: dict[str, object] = {"available": True, "observation": observation}
     if match:
         fact["version"] = match.group(1)
     return fact
 
 
-def _systemd_fact(result: subprocess.CompletedProcess[str]) -> dict[str, object]:
-    if result.returncode != 0:
-        return {"available": False, "services": ()}
+def _systemd_fact(
+    result: subprocess.CompletedProcess[str] | None,
+    observation: str,
+) -> dict[str, object]:
+    if result is None:
+        return {"available": False, "observation": observation, "services": ()}
     services = {
         fields[0]
         for line in result.stdout.splitlines()
-        if (fields := line.split()) and re.fullmatch(r"[A-Za-z0-9_.@-]+\.service", fields[0])
+        if (fields := line.split())
+        and re.fullmatch(r"[A-Za-z0-9_.@-]+\.service", fields[0])
     }
-    return {"available": True, "services": tuple(sorted(services))}
+    return {
+        "available": True,
+        "observation": observation,
+        "services": tuple(sorted(services)),
+    }
 
 
-def _ufw_fact(config: InstallerConfig, result: subprocess.CompletedProcess[str]) -> dict[str, object]:
-    active = result.returncode == 0 and bool(re.search(r"(?im)^Status:\s+active\s*$", result.stdout))
+def _ufw_fact(
+    config: InstallerConfig,
+    result: subprocess.CompletedProcess[str] | None,
+    observation: str,
+) -> dict[str, object]:
+    active = result is not None and bool(
+        re.search(r"(?im)^Status:\s+active\s*$", result.stdout)
+    )
     return {
         "active": active,
-        "available": result.returncode == 0,
-        "mode": "managed" if config.host_mode is HostMode.FRESH and config.firewall.manage_ufw else "read_only",
+        "available": result is not None,
+        "mode": "managed"
+        if config.host_mode is HostMode.FRESH and config.firewall.manage_ufw
+        else "read_only",
+        "observation": observation,
     }
 
 
@@ -737,254 +1031,3 @@ def _canonical_ip(value: object) -> str | None:
         return None
 
 
-# Legacy rooted audit compatibility lives here so proxyctl has no parallel parsers.
-@dataclass(frozen=True)
-class DomainAudit:
-    domain: str
-    a_records: list[str]
-    aaaa_records: list[str]
-    dns_matches_host: bool
-    unhandled_aaaa: bool
-    tls_certificate_present: bool
-
-
-@dataclass(frozen=True)
-class NginxAudit:
-    installed: bool
-    stream_enabled: bool
-    sni_routes: dict[str, str]
-    http_domains: list[str]
-    config_files: list[str]
-    sni_map_count: int = 0
-    sni_map_files: dict[str, int] = field(default_factory=dict)
-    duplicate_sni_domains: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class XrayAudit:
-    installed: bool
-    inbounds: tuple[dict[str, object], ...]
-
-
-@dataclass(frozen=True)
-class AuditReport:
-    nginx: NginxAudit
-    xray: XrayAudit
-    docker_available: bool
-    listening_ports: list[int]
-    listener_owners: dict[int, list[str]] = field(default_factory=dict)
-    domains: list[DomainAudit] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "docker_available": self.docker_available,
-            "domains": [vars(item) for item in self.domains],
-            "listener_owners": self.listener_owners,
-            "listening_ports": self.listening_ports,
-            "nginx": vars(self.nginx),
-            "xray": vars(self.xray),
-        }
-
-
-def legacy_audit_host(
-    *,
-    root: Path = Path("/"),
-    listening_ports: set[int] | None = None,
-    listener_owners: dict[int, list[str]] | None = None,
-    docker_available: bool | None = None,
-    dns_records: dict[str, dict[str, list[str]]] | None = None,
-    local_addresses: set[str] | None = None,
-    tls_names: set[str] | None = None,
-    domains: set[str] | None = None,
-) -> AuditReport:
-    files = _legacy_nginx_files(root)
-    texts = {path: _legacy_read_text(path) for path in files}
-    nginx_main = _legacy_read_text(_legacy_root_path(root, "/etc/nginx/nginx.conf"))
-    route_values: dict[str, set[str]] = {}
-    route_counts: dict[str, int] = {}
-    http_domains: set[str] = set()
-    map_files: dict[str, int] = {}
-    for path, text in texts.items():
-        count = _sni_map_count(text)
-        if count:
-            map_files[_legacy_host_path(root, path)] = count
-        for domain, backend in parse_sni_entries(text):
-            route_values.setdefault(domain, set()).add(backend)
-            route_counts[domain] = route_counts.get(domain, 0) + 1
-        http_domains.update(parse_http_domains(text))
-    routes = {domain: sorted(backends)[0] for domain, backends in route_values.items()}
-    duplicates = sorted(domain for domain, count in route_counts.items() if count > 1)
-    if listening_ports is None:
-        listening_ports, detected_owners = legacy_listener_inventory()
-        if listener_owners is None:
-            listener_owners = detected_owners
-    if listener_owners is None:
-        listener_owners = {}
-    if docker_available is None:
-        docker_available = _command_available("docker")
-
-    requested = set(domains or ()) | set((dns_records or {}).keys())
-    records = dns_records if dns_records is not None else {
-        name: _legacy_resolve_domain(name) for name in requested
-    }
-    local = _legacy_local_addresses() if local_addresses is None else local_addresses
-    cert_names = _legacy_certificate_names(root, requested) if tls_names is None else tls_names
-    domain_audits = []
-    for domain in sorted(validate_domain(name) for name in requested):
-        record = records.get(domain, {})
-        a_records = sorted(set(record.get("A", [])))
-        aaaa_records = sorted(set(record.get("AAAA", [])))
-        domain_audits.append(
-            DomainAudit(
-                domain=domain,
-                a_records=a_records,
-                aaaa_records=aaaa_records,
-                dns_matches_host=bool(set(a_records) & local),
-                unhandled_aaaa=bool(aaaa_records and not set(aaaa_records) <= local),
-                tls_certificate_present=domain in cert_names,
-            )
-        )
-    xray_path = _legacy_root_path(root, _XRAY_CONFIG)
-    xray_installed = xray_path.is_file()
-    xray_inbounds: tuple[dict[str, object], ...] = ()
-    if xray_installed:
-        try:
-            xray_inbounds = parse_xray_inbounds(json.loads(xray_path.read_text()))
-        except (OSError, UnicodeError, json.JSONDecodeError, RecursionError):
-            xray_inbounds = ()
-    return AuditReport(
-        nginx=NginxAudit(
-            installed=bool(files),
-            stream_enabled=bool(re.search(r"(?m)^\s*stream\s*\{", nginx_main)),
-            sni_routes=dict(sorted(routes.items())),
-            http_domains=sorted(http_domains),
-            config_files=[_legacy_host_path(root, path) for path in files],
-            sni_map_count=sum(map_files.values()),
-            sni_map_files=dict(sorted(map_files.items())),
-            duplicate_sni_domains=duplicates,
-        ),
-        xray=XrayAudit(xray_installed, xray_inbounds),
-        docker_available=docker_available,
-        listening_ports=sorted(listening_ports),
-        listener_owners={
-            port: sorted(set(names)) for port, names in sorted(listener_owners.items())
-        },
-        domains=domain_audits,
-    )
-
-
-def legacy_listener_inventory() -> tuple[set[int], dict[int, list[str]]]:
-    try:
-        result = subprocess.run(
-            ["ss", "-H", "-lntp"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return set(), {}
-    parsed = _parse_listeners(result.stdout)
-    owners = {
-        int(port): list(names)
-        for port, names in parsed["owners"].items()  # type: ignore[union-attr]
-    }
-    return set(parsed["ports"]), owners  # type: ignore[arg-type]
-
-
-def _legacy_root_path(root: Path, absolute: str) -> Path:
-    if not absolute.startswith("/"):
-        raise ValueError("host paths must be absolute")
-    return root / absolute.lstrip("/")
-
-
-def _legacy_host_path(root: Path, path: Path) -> str:
-    return "/" + str(path.relative_to(root))
-
-
-def _legacy_read_text(path: Path) -> str:
-    try:
-        return path.read_text()
-    except (FileNotFoundError, PermissionError, OSError, UnicodeError):
-        return ""
-
-
-def _legacy_nginx_files(root: Path) -> list[Path]:
-    candidates = [_legacy_root_path(root, "/etc/nginx/nginx.conf")]
-    for directory in (
-        "/etc/nginx/stream.d",
-        "/etc/nginx/stream-conf.d",
-        "/etc/nginx/conf.d",
-        "/etc/nginx/sites-enabled",
-    ):
-        folder = _legacy_root_path(root, directory)
-        if folder.is_dir():
-            candidates.extend(sorted(path for path in folder.iterdir() if path.is_file()))
-    unique: list[Path] = []
-    seen: set[tuple[int, int]] = set()
-    for path in candidates:
-        if not path.is_file():
-            continue
-        metadata = path.stat()
-        identity = (metadata.st_dev, metadata.st_ino)
-        if identity not in seen:
-            seen.add(identity)
-            unique.append(path)
-    return unique
-
-
-def _legacy_resolve_domain(domain: str) -> dict[str, list[str]]:
-    records: dict[str, set[str]] = {"A": set(), "AAAA": set()}
-    try:
-        answers = socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)
-    except socket.gaierror:
-        answers = []
-    for family, _kind, _proto, _canon, address in answers:
-        value = _canonical_ip(address[0])
-        if value is not None and family == socket.AF_INET:
-            records["A"].add(value)
-        elif value is not None and family == socket.AF_INET6:
-            records["AAAA"].add(value)
-    return {key: sorted(value) for key, value in records.items()}
-
-
-def _legacy_local_addresses() -> set[str]:
-    try:
-        result = subprocess.run(
-            ["ip", "-j", "address"], capture_output=True, text=True, check=False
-        )
-        value = json.loads(result.stdout or "[]")
-    except (OSError, json.JSONDecodeError, RecursionError):
-        return set()
-    return {item["address"] for item in _parse_addresses(value)}
-
-
-def _legacy_certificate_names(root: Path, domains: set[str]) -> set[str]:
-    present = set()
-    for domain in domains:
-        cert = _legacy_root_path(root, f"/etc/letsencrypt/live/{domain}/fullchain.pem")
-        if not cert.is_file():
-            continue
-        try:
-            decoded = ssl._ssl._test_decode_cert(str(cert))  # noqa: SLF001
-        except (OSError, ssl.SSLError, ValueError):
-            continue
-        names = {
-            value.lower()
-            for kind, value in decoded.get("subjectAltName", [])
-            if kind == "DNS"
-        }
-        if domain in names:
-            present.add(domain)
-    return present
-
-
-def _sni_map_count(text: str) -> int:
-    return len(re.findall(r"map\s+\$ssl_preread_server_name\s+\$[A-Za-z0-9_]+\s*\{", text))
-
-
-def _command_available(name: str) -> bool:
-    for directory in os.environ.get("PATH", "").split(os.pathsep):
-        candidate = Path(directory) / name
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return True
-    return False

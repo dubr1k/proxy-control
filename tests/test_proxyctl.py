@@ -5,8 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from installer.audit import legacy_audit_host as audit_host
-from installer.audit import validate_domain
+from installer.audit import (
+    AuditFacts,
+    parse_nginx_observation,
+    parse_xray_inbounds,
+    validate_domain,
+)
 
 from scripts.proxyctl import InstallPlan, InstallerConflict, patch_stream_map
 
@@ -38,13 +42,64 @@ def fixture_root(tmp_path: Path) -> Path:
     return root
 
 
+def facts_from_root(
+    root: Path,
+    *,
+    listening_ports: set[int],
+    listener_owners: dict[int, list[str]] | None = None,
+    docker_available: bool,
+) -> AuditFacts:
+    chunks: list[str] = []
+    for relative in (
+        "etc/nginx/nginx.conf",
+        "etc/nginx/stream.d",
+        "etc/nginx/stream-conf.d",
+        "etc/nginx/conf.d",
+        "etc/nginx/sites-enabled",
+    ):
+        path = root / relative
+        files = [path] if path.is_file() else sorted(path.iterdir()) if path.is_dir() else []
+        for config_file in files:
+            if config_file.is_file():
+                chunks.append(
+                    f"# configuration file /{config_file.relative_to(root)}:\n"
+                    + config_file.read_text()
+                )
+    xray_path = root / "usr/local/x-ui/bin/config.json"
+    inbounds = parse_xray_inbounds(json.loads(xray_path.read_text())) if xray_path.is_file() else ()
+    return AuditFacts(
+        listeners={
+            "owners": {
+                str(port): tuple(sorted(names))
+                for port, names in sorted((listener_owners or {}).items())
+            },
+            "ports": tuple(sorted(listening_ports)),
+            "tcp": tuple(sorted(listening_ports)),
+            "udp": (),
+        },
+        ownership={"docker": {"available": docker_available}},
+        topology={
+            "certificates": {},
+            "dns": {},
+            "nginx": parse_nginx_observation("".join(chunks)),
+            "three_xui": {"installed": xray_path.is_file(), "inbounds": inbounds},
+        },
+    )
+
+
 def test_audit_reports_existing_shared_443_without_dumping_secrets(tmp_path):
     root = fixture_root(tmp_path)
-    report = audit_host(root=root, listening_ports={22, 80, 443, 10443, 45000}, docker_available=False)
+    report = facts_from_root(
+        root,
+        listening_ports={22, 80, 443, 10443, 45000},
+        docker_available=False,
+    )
 
-    assert report.nginx.stream_enabled is True
-    assert report.nginx.sni_routes == {"vpn.example.com": "127.0.0.1:10443"}
-    assert report.xray.inbounds == (
+    assert report.topology["nginx"]["stream_enabled"] is True
+    assert report.topology["nginx"]["sni_routes"] == {
+        "vpn.example.com": "127.0.0.1:10443"
+    }
+    assert report.topology["three_xui"]["inbounds"] == (
         {
             "tag": "in-443-tcp",
             "protocol": "vless",
@@ -54,9 +109,9 @@ def test_audit_reports_existing_shared_443_without_dumping_secrets(tmp_path):
             "reality_server_names": ("vpn.example.com",),
         },
     )
-    assert report.docker_available is False
-    assert report.listening_ports == [22, 80, 443, 10443, 45000]
-    assert "privateKey" not in json.dumps(report.to_dict())
+    assert report.ownership["docker"]["available"] is False
+    assert report.listeners["ports"] == (22, 80, 443, 10443, 45000)
+    assert "privateKey" not in json.dumps(report.stable_dict())
 
 
 def test_audit_discovers_stream_conf_d_routes(tmp_path):
@@ -72,17 +127,23 @@ def test_audit_discovers_stream_conf_d_routes(tmp_path):
         "}\n"
     )
 
-    report = audit_host(
-        root=root,
+    report = facts_from_root(
+        root,
         listening_ports={443},
         docker_available=True,
-        local_addresses={"127.0.0.1"},
     )
 
-    assert report.nginx.sni_routes == {"relay.example.com": "127.0.0.1:8445"}
+    assert report.topology["nginx"]["sni_routes"] == {
+        "relay.example.com": "127.0.0.1:8445"
+    }
+
 
 def test_install_plan_rejects_domain_and_port_collisions(tmp_path):
-    report = audit_host(root=fixture_root(tmp_path), listening_ports={443, 8445, 8787}, docker_available=True)
+    report = facts_from_root(
+        fixture_root(tmp_path),
+        listening_ports={443, 8445, 8787},
+        docker_available=True,
+    )
 
     with pytest.raises(InstallerConflict, match="domain already routed"):
         InstallPlan.from_audit(report, proxy_domain="vpn.example.com", panel_domain="new-panel.example.com")

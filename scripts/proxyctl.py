@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -21,8 +22,9 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from installer.audit import (
-    AuditReport,
-    legacy_listener_inventory as _listener_inventory,
+    AuditFacts,
+    CommandRunner as AuditCommandRunner,
+    listener_inventory,
     parse_sni_routes,
     validate_domain,
 )
@@ -73,7 +75,7 @@ def _read_text(path: Path) -> str:
 
 
 def _listening_ports() -> set[int]:
-    return _listener_inventory()[0]
+    return listener_inventory(AuditCommandRunner())[0]
 
 
 def _map_blocks(text: str) -> list[tuple[int, int]]:
@@ -174,6 +176,12 @@ def _remove_owned_route_block(current: bytes, state: dict) -> bytes:
     return "".join(lines[:start] + lines[finish + 1:]).encode()
 
 
+def _audit_mapping(value: object, label: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise InstallerConflict(f"{label} audit facts are invalid")
+    return value
+
+
 @dataclass(frozen=True)
 class InstallPlan:
     proxy_domain: str
@@ -211,7 +219,7 @@ class InstallPlan:
     @classmethod
     def from_audit(
         cls,
-        report: AuditReport,
+        report: AuditFacts,
         *,
         proxy_domain: str,
         panel_domain: str,
@@ -225,40 +233,68 @@ class InstallPlan:
             raise InstallerConflict("proxy and panel domains must differ")
         if not route_file.startswith("/") or ".." in Path(route_file).parts:
             raise InstallerConflict("route file must be a normalized absolute path")
-        known = set(report.nginx.sni_routes) | set(report.nginx.http_domains)
+        if report.hard_stops:
+            raise InstallerConflict("host audit contains blocking findings")
+        nginx = _audit_mapping(report.topology.get("nginx"), "Nginx")
+        listeners = report.listeners
+        ownership = report.ownership
+        sni_routes = _audit_mapping(nginx.get("sni_routes"), "Nginx routes")
+        http_domains = nginx.get("http_domains", ())
+        if not isinstance(http_domains, tuple):
+            raise InstallerConflict("Nginx audit facts are invalid")
+        known = set(sni_routes) | set(http_domains)
         for domain in (proxy_domain, panel_domain):
             if domain in known:
                 raise InstallerConflict(f"domain already routed: {domain}")
-        if report.nginx.duplicate_sni_domains:
+        duplicates = nginx.get("duplicate_sni_domains", ())
+        if duplicates:
             raise InstallerConflict("duplicate SNI routes make the topology ambiguous")
-        if report.nginx.stream_enabled and report.nginx.sni_map_count != 1:
+        stream_enabled = nginx.get("stream_enabled") is True
+        if stream_enabled and nginx.get("sni_map_count") != 1:
             raise InstallerConflict("exactly one SNI map is required")
+        listening_ports = listeners.get("ports", ())
+        if not isinstance(listening_ports, tuple):
+            raise InstallerConflict("listener audit facts are invalid")
         for port in (proxy_backend_port, panel_backend_port):
             if not 1024 <= port <= 65535:
                 raise InstallerConflict(f"backend port {port} is outside 1024..65535")
-            if port in report.listening_ports:
+            if port in listening_ports:
                 raise InstallerConflict(f"backend port {port} is already listening")
-        if not report.nginx.stream_enabled and 443 in report.listening_ports:
+        if not stream_enabled and 443 in listening_ports:
             raise InstallerConflict("public 443 is occupied without an Nginx stream router")
-        owners_443 = report.listener_owners.get(443, [])
-        if report.nginx.stream_enabled and owners_443 and not any("nginx" in name.lower() for name in owners_443):
+        listener_owners = _audit_mapping(listeners.get("owners", {}), "listener owners")
+        owners_443 = listener_owners.get("443", ())
+        if stream_enabled and owners_443 and not any(
+            isinstance(name, str) and "nginx" in name.lower() for name in owners_443
+        ):
             raise InstallerConflict("public 443 is not owned by Nginx despite a stream configuration")
-        if not report.docker_available:
+        docker = _audit_mapping(ownership.get("docker"), "Docker")
+        if docker.get("available") is not True:
             raise InstallerConflict("Docker is unavailable")
-        if report.nginx.stream_enabled and report.nginx.sni_map_files.get(route_file) != 1:
+        map_files = _audit_mapping(nginx.get("sni_map_files"), "Nginx map files")
+        if stream_enabled and map_files.get(route_file) != 1:
             raise InstallerConflict("route file is not the single audited SNI map file")
         if require_domain_preflight:
-            checks = {item.domain: item for item in report.domains}
-            if set(checks) != {proxy_domain, panel_domain}:
+            dns = _audit_mapping(report.topology.get("dns"), "DNS")
+            certificates = _audit_mapping(
+                report.topology.get("certificates"),
+                "certificate",
+            )
+            if not {proxy_domain, panel_domain} <= set(dns):
                 raise InstallerConflict("domain preflight evidence is incomplete")
             for domain in (proxy_domain, panel_domain):
-                check = checks.get(domain)
-                if check is None or not check.dns_matches_host:
+                check = _audit_mapping(dns.get(domain), "domain")
+                if check.get("a_matches_local") is not True:
                     raise InstallerConflict(f"DNS does not resolve to this host: {domain}")
-                if check.unhandled_aaaa:
+                if check.get("aaaa_handled") is not True:
                     raise InstallerConflict(f"unhandled AAAA record: {domain}")
-                if not check.tls_certificate_present:
-                    raise InstallerConflict(f"TLS certificate is missing or does not cover: {domain}")
+                if check.get("caa_compatible") is not True:
+                    raise InstallerConflict(f"CAA does not authorize issuance: {domain}")
+                certificate = _audit_mapping(certificates.get(domain), "certificate")
+                if certificate.get("covers_domain") is not True:
+                    raise InstallerConflict(
+                        f"TLS certificate is missing or does not cover: {domain}"
+                    )
         return cls(proxy_domain, panel_domain, route_file, proxy_backend_port, panel_backend_port)
 
 

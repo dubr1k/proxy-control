@@ -4,7 +4,9 @@ import json
 import socket
 import subprocess
 import sys
+import time
 from collections.abc import Sequence
+from dataclasses import replace
 
 import pytest
 
@@ -263,7 +265,7 @@ def test_audit_error_redacts_headers_passwords_tokens_uuid_keys_and_panel_paths(
     monkeypatch.setenv("AUDIT_API_TOKEN", environment_secret)
 
     class FailingRunner:
-        def capture(self, *args, **kwargs):
+        def run(self, *args, **kwargs):
             del args, kwargs
             raise RuntimeError(
                 "Authorization: Bearer abc Cookie: sid=cookie-secret "
@@ -341,6 +343,7 @@ def test_injected_dns_a_aaaa_and_caa_accept_local_addresses():
             "aaaa_handled": True,
             "caa": ('0 issue "letsencrypt.org"',),
             "caa_compatible": True,
+            "caa_source": domain,
         }
         for domain in sorted(selected.required_domains())
     }
@@ -501,3 +504,295 @@ def test_audit_uses_only_read_only_commands_and_coexist_never_inspects_firewall_
     }
     for command in executor.calls:
         assert not (set(part.lower() for part in command) & forbidden), command
+
+
+class MissingOptionalExecutor(ScriptedExecutor):
+    def __init__(
+        self,
+        responses: dict[tuple[str, ...], tuple[int, str, str]],
+        missing: set[str],
+    ) -> None:
+        super().__init__(responses)
+        self.missing = missing
+
+    def __call__(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout: float,
+        max_output: int,
+    ) -> subprocess.CompletedProcess[str]:
+        if argv[0] in self.missing:
+            raise FileNotFoundError(argv[0])
+        return super().__call__(argv, timeout=timeout, max_output=max_output)
+
+
+def test_missing_optional_tools_are_explicit_facts_not_audit_failures():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    executor = MissingOptionalExecutor(
+        host_responses(domains),
+        {"docker", "nginx", "systemctl", "ufw"},
+    )
+    runner = CommandRunner(
+        executor=executor,
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    facts = audit_host(selected, runner)
+
+    assert facts.topology["nginx"] == {
+        "available": False,
+        "http_domains": (),
+        "observation": "unavailable",
+        "sni_map_count": 0,
+        "sni_map_files": {},
+        "sni_routes": {},
+        "stream_enabled": False,
+        "duplicate_sni_domains": (),
+    }
+    assert facts.ownership["docker"] == {
+        "available": False,
+        "observation": "unavailable",
+    }
+    assert facts.ownership["compose"] == {
+        "available": False,
+        "observation": "unavailable",
+    }
+    assert facts.ownership["systemd"] == {
+        "available": False,
+        "observation": "unavailable",
+        "services": (),
+    }
+    assert facts.ownership["ufw"]["observation"] == "unavailable"
+
+
+def test_required_base_tool_absence_fails_closed_distinctly():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    runner = CommandRunner(
+        executor=MissingOptionalExecutor(host_responses(domains), {"ip"}),
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    with pytest.raises(AuditError, match="required audit command is unavailable"):
+        audit_host(selected, runner)
+
+
+def test_failed_optional_observations_are_explicitly_unknown():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    responses = host_responses(domains)
+    for command in (
+        ("nginx", "-T"),
+        ("docker", "--version"),
+        ("docker", "compose", "version", "--short"),
+        (
+            "systemctl",
+            "list-unit-files",
+            "--type=service",
+            "--no-legend",
+            "--no-pager",
+        ),
+        ("ufw", "status", "verbose"),
+    ):
+        responses[command] = (1, "", "failed")
+    runner = CommandRunner(
+        executor=ScriptedExecutor(responses),
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    facts = audit_host(selected, runner)
+
+    assert facts.topology["nginx"]["observation"] == "unknown"
+    assert facts.ownership["docker"]["observation"] == "unknown"
+    assert facts.ownership["compose"]["observation"] == "unknown"
+    assert facts.ownership["systemd"]["observation"] == "unknown"
+    assert facts.ownership["ufw"]["observation"] == "unknown"
+
+
+def test_dns_resolution_transient_failure_and_timeout_fail_closed():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    responses = host_responses(selected.required_domains())
+
+    def transient(*args, **kwargs):
+        del args, kwargs
+        raise socket.gaierror(socket.EAI_AGAIN, "temporary resolver failure")
+
+    transient_runner = CommandRunner(
+        executor=ScriptedExecutor(responses),
+        resolver=transient,
+    )
+    with pytest.raises(AuditError, match="DNS resolution failed"):
+        audit_host(selected, transient_runner)
+
+    def stalled(*args, **kwargs):
+        del args, kwargs
+        time.sleep(2)
+        return []
+
+    stalled_runner = CommandRunner(
+        executor=ScriptedExecutor(responses),
+        resolver=stalled,
+        timeout=0.03,
+    )
+    with pytest.raises(AuditError, match="DNS resolution timed out"):
+        audit_host(selected, stalled_runner)
+
+
+@pytest.mark.parametrize("overflow", [False, True])
+def test_command_runner_kills_descendants_after_leader_exit(tmp_path, overflow):
+    marker = tmp_path / ("overflow-leak" if overflow else "timeout-leak")
+    child_lines = []
+    if overflow:
+        child_lines.append("    os.write(1, b'x' * 4096)")
+    child_lines.extend(
+        (
+            "    time.sleep(0.3)",
+            f"    pathlib.Path({str(marker)!r}).write_text('leaked')",
+            "    os._exit(0)",
+        )
+    )
+    script = "\n".join(
+        (
+            "import os, pathlib, time",
+            "pid = os.fork()",
+            "if pid == 0:",
+            *child_lines,
+            "os._exit(0)",
+        )
+    )
+    runner = CommandRunner(timeout=0.03, max_output=64)
+
+    with pytest.raises(AuditError, match="output limit" if overflow else "timed out"):
+        runner.capture((sys.executable, "-c", script))
+    time.sleep(0.4)
+
+    assert not marker.exists()
+
+
+def test_failed_caa_query_is_not_treated_as_empty_rrset():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    responses = host_responses(domains)
+    responses[("dig", "+short", "CAA", domains[0])] = (9, "", "query failed")
+    runner = CommandRunner(
+        executor=ScriptedExecutor(responses),
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    with pytest.raises(AuditError, match="CAA query failed"):
+        audit_host(selected, runner)
+
+
+def test_successful_empty_caa_rrsets_remain_distinct_from_query_failure():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    responses = host_responses(domains, caa="")
+    responses[("dig", "+short", "CAA", "example.com")] = (0, "", "")
+    responses[("dig", "+short", "CAA", "com")] = (0, "", "")
+    executor = ScriptedExecutor(responses)
+    runner = CommandRunner(
+        executor=executor,
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    facts = audit_host(selected, runner)
+
+    assert not facts.hard_stops
+    assert all(facts.topology["dns"][domain]["caa"] == () for domain in domains)
+    assert all(
+        facts.topology["dns"][domain]["caa_source"] is None for domain in domains
+    )
+    dig_calls = [
+        call for call in executor.calls if call[:3] == ("dig", "+short", "CAA")
+    ]
+    assert len(dig_calls) <= len(domains) + 2
+
+
+@pytest.mark.parametrize(
+    ("parent_caa", "expected_codes"),
+    [
+        ('0 issue "sectigo.com"\n', {"dns.caa_mismatch"}),
+        ('0 issue "letsencrypt.org"\n', set()),
+        ('0 issue ";"\n', {"dns.caa_mismatch"}),
+    ],
+)
+def test_caa_policy_is_inherited_from_first_parent_rrset(parent_caa, expected_codes):
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    responses = host_responses(domains, caa="")
+    responses[("dig", "+short", "CAA", "example.com")] = (0, parent_caa, "")
+    executor = ScriptedExecutor(responses)
+    runner = CommandRunner(
+        executor=executor,
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    facts = audit_host(selected, runner)
+
+    assert {stop.code for stop in facts.hard_stops} == expected_codes
+    assert all(facts.topology["dns"][domain]["caa_source"] == "example.com" for domain in domains)
+    dig_calls = [call for call in executor.calls if call[:3] == ("dig", "+short", "CAA")]
+    assert len(dig_calls) <= len(domains) + 1
+
+
+def test_caa_alias_result_is_followed_within_the_query_bound():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    responses = host_responses(domains)
+    responses[("dig", "+short", "CAA", domains[0])] = (0, "caa-policy.example.net.\n", "")
+    responses[("dig", "+short", "CAA", "caa-policy.example.net")] = (
+        0,
+        '0 issue "letsencrypt.org"\n',
+        "",
+    )
+    runner = CommandRunner(
+        executor=ScriptedExecutor(responses),
+        resolver=resolver({domain: ([HOST_V4], [HOST_V6]) for domain in domains}),
+    )
+
+    facts = audit_host(selected, runner)
+
+    assert facts.topology["dns"][domains[0]]["caa_source"] == "caa-policy.example.net"
+    assert not facts.hard_stops
+
+
+@pytest.mark.parametrize(
+    ("domain", "covered"),
+    [("panel.example.com", True), ("a.b.example.com", False)],
+)
+def test_certificate_wildcard_san_covers_exactly_one_label(domain, covered):
+    original = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    selected = replace(original, domains=replace(original.domains, panel=domain))
+    domains = selected.required_domains()
+    responses = host_responses(domains)
+    responses[
+        (
+            "openssl",
+            "x509",
+            "-in",
+            f"/etc/letsencrypt/live/{domain}/fullchain.pem",
+            "-noout",
+            "-dates",
+            "-ext",
+            "subjectAltName",
+        )
+    ] = (0, "X509v3 Subject Alternative Name:\n    DNS:*.example.com\n", "")
+    runner = CommandRunner(
+        executor=ScriptedExecutor(responses),
+        resolver=resolver({name: ([HOST_V4], [HOST_V6]) for name in domains}),
+    )
+
+    facts = audit_host(selected, runner)
+
+    assert facts.topology["certificates"][domain]["covers_domain"] is covered
+
+
+def test_no_legacy_audit_model_or_proxyctl_collector_remains():
+    import installer.audit as audit_module
+    import scripts.proxyctl as proxyctl
+
+    assert not hasattr(audit_module, "AuditReport")
+    assert not hasattr(audit_module, "legacy_audit_host")
+    assert not hasattr(proxyctl, "audit_host")
