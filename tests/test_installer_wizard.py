@@ -131,6 +131,8 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
 
     assert completed.returncode == 0, transcript
     assert "Пароли и ключи будут созданы только при установке" in transcript
+    assert "Изменения не внесены." not in transcript
+    assert "No changes were made." not in transcript
     config = load_config(output)
     assert config.host_mode is HostMode.FRESH
     assert config.profile is Profile.FULL
@@ -196,6 +198,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
 
     assert completed.returncode == 0, transcript
     assert "Passwords and keys are generated only during installation" in transcript
+    assert "No changes were made." not in transcript
     assert load_config(output).host_mode is HostMode.COEXIST
 
 
@@ -229,6 +232,47 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
     assert config.domains.panel == "new-panel.example.com"
     assert config.firewall.manage_ufw is True
     assert "Configuration saved" in transcript
+    assert "No changes were made." not in transcript
+
+
+def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
+    tmp_path: Path,
+):
+    output = tmp_path / "existing.toml"
+    answers = [
+        "",
+        "coexist",
+        "core",
+        "existing",
+        "panel.example.com",
+        "relay.example.com",
+        "xui.example.com",
+        "",
+        "",
+        "",
+        "admin@example.com",
+        "owner",
+        "back",
+        "",
+        "edit",
+        "three_xui.panel_domain",
+        "",
+        "save",
+    ]
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(
+        terminal,
+        locale=Locale.EN,
+        config_output=output,
+    )
+
+    with pytest.raises(WizardSaved) as caught:
+        wizard.run(AuditFacts())
+
+    assert caught.value.config.three_xui.panel_domain is None
+    assert caught.value.config.three_xui.hysteria_domain is None
+    assert load_config(output) == caught.value.config
 
 
 def test_wizard_quit_before_digest_confirmation_has_no_mutations(tmp_path: Path):

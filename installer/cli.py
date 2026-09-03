@@ -183,6 +183,8 @@ def _wizard(
     preliminary_facts = services.audit(None)
     try:
         config = wizard.run(preliminary_facts)
+    except WizardSaved:
+        raise
     except WizardQuit:
         selected_locale = getattr(wizard, "locale", None)
         if not isinstance(selected_locale, Locale):
@@ -197,8 +199,12 @@ def _wizard(
     if not isinstance(selected_locale, Locale):
         selected_locale = locale or Locale.EN
     prompt = text(selected_locale, "digest", prefix=plan.digest[:12]) + ": "
-    confirmation = io.read_line(prompt)
-    if confirmation.strip().lower() == "quit":
+    try:
+        confirmation = io.read_line(prompt, strip=False)
+    except WizardQuit:
+        io.write(text(selected_locale, "quit"))
+        return 0
+    if confirmation.lower() == "quit":
         io.write(text(selected_locale, "quit"))
         return 0
     if not _HEX_12.fullmatch(confirmation) or not secrets.compare_digest(

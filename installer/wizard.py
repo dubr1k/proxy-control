@@ -51,7 +51,13 @@ class WizardIO(Protocol):
 
     def write(self, value: str = "") -> None: ...
 
-    def read_line(self, prompt: str, *, echo: bool = True) -> str: ...
+    def read_line(
+        self,
+        prompt: str,
+        *,
+        echo: bool = True,
+        strip: bool = True,
+    ) -> str: ...
 
     def choose_enum(
         self,
@@ -97,7 +103,13 @@ class TerminalIO:
         self.output.write(value + "\n")
         self.output.flush()
 
-    def read_line(self, prompt: str, *, echo: bool = True) -> str:
+    def read_line(
+        self,
+        prompt: str,
+        *,
+        echo: bool = True,
+        strip: bool = True,
+    ) -> str:
         self.output.write(prompt)
         self.output.flush()
         restore: list[int] | None = None
@@ -120,10 +132,11 @@ class TerminalIO:
                 self.write()
         if value == "":
             raise WizardQuit
-        normalized = value.strip()
-        if normalized.lower() in {"quit", "q", "выход"}:
+        raw = value.removesuffix("\n").removesuffix("\r")
+        result = raw.strip() if strip else raw
+        if result.lower() in {"quit", "q", "выход"}:
             raise WizardQuit
-        return normalized
+        return result
 
     def choose_enum(
         self,
@@ -159,10 +172,10 @@ class TerminalIO:
         suffix = f" [{default}]" if default is not None else ""
         while True:
             raw = self.read_line(f"{prompt}{suffix}: ")
-            if not raw and default is not None:
-                raw = default
             if not raw and allow_empty:
                 return ""
+            if not raw and default is not None:
+                raw = default
             try:
                 return validator(raw)
             except ValueError as exc:
@@ -512,8 +525,21 @@ class TerminalWizard:
         }
         if field in domains:
             key, message = domains[field]
+            optional = (
+                values["xui_mode"] is ThreeXuiMode.EXISTING
+                and field
+                in {
+                    EditField.XUI_PANEL,
+                    EditField.XUI_TCP,
+                    EditField.XUI_XHTTP,
+                    EditField.XUI_HYSTERIA,
+                }
+            )
             values[key] = self.io.validated(
-                text(self.locale, message), _domain, default=_optional(values.get(key))
+                text(self.locale, message),
+                _domain,
+                default=_optional(values.get(key)),
+                allow_empty=optional,
             )
         elif field is EditField.ACME_EMAIL:
             values["acme_email"] = self.io.validated(

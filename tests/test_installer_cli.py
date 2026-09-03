@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import errno
 import io
 import json
+import os
+import pty
+import select
+import threading
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -9,6 +15,7 @@ import pytest
 
 import installer.cli as cli
 from installer.config import load_config
+from installer.i18n import Locale
 from installer.model import InstallerConfig
 from installer.planner import AuditFacts, InstallPlan, ReleaseIdentity, build_plan
 from installer.transaction import TransactionState
@@ -52,6 +59,7 @@ class RecordingStore:
 @dataclass
 class ReturningWizard:
     config: InstallerConfig
+    locale: Locale | None = None
 
     def run(self, facts: AuditFacts) -> InstallerConfig:
         assert isinstance(facts, AuditFacts)
@@ -112,6 +120,66 @@ def _run(
     terminal = cli.TerminalIO(io.StringIO(input_text), stdout)
     result = cli.run(argv, services=services, io=terminal, stdout=stdout, stderr=stderr)
     return result, stdout.getvalue(), stderr.getvalue()
+
+
+def _run_in_pty(
+    argv: list[str],
+    services: cli.CliServices,
+    *,
+    answers: list[str],
+) -> tuple[int, str]:
+    master, slave = pty.openpty()
+    input_stream = os.fdopen(os.dup(slave), "r")
+    output_stream = os.fdopen(os.dup(slave), "w")
+    os.close(slave)
+    result: list[int] = []
+
+    def invoke() -> None:
+        terminal = cli.TerminalIO(input_stream, output_stream)
+        result.append(
+            cli.run(
+                argv,
+                services=services,
+                io=terminal,
+                stdout=output_stream,
+                stderr=output_stream,
+            )
+        )
+        output_stream.flush()
+
+    worker = threading.Thread(target=invoke)
+    worker.start()
+    os.write(master, ("\n".join(answers) + "\n").encode())
+    chunks: list[bytes] = []
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        ready, _, _ = select.select([master], [], [], 0.05)
+        if ready:
+            try:
+                chunks.append(os.read(master, 65536))
+            except OSError as exc:
+                if exc.errno != errno.EIO:
+                    raise
+                break
+        if not worker.is_alive() and not ready:
+            break
+    worker.join(timeout=1)
+    if worker.is_alive():
+        raise AssertionError("in-process PTY did not exit")
+    input_stream.close()
+    output_stream.close()
+    while True:
+        try:
+            chunk = os.read(master, 65536)
+        except OSError as exc:
+            if exc.errno == errno.EIO:
+                break
+            raise
+        if not chunk:
+            break
+        chunks.append(chunk)
+    os.close(master)
+    return result[0], b"".join(chunks).decode(errors="replace").replace("\r", "")
 
 
 def test_toml_plan_uses_the_same_typed_config_and_canonical_plan():
@@ -182,6 +250,19 @@ def test_interactive_confirmation_accepts_exactly_first_twelve_lowercase_hex(
         assert engine.calls == []
 
 
+@pytest.mark.parametrize("confirmation", [" {prefix}", "{prefix} ", "\t{prefix}"])
+def test_interactive_digest_rejects_surrounding_whitespace(confirmation: str):
+    config = load_config(CORE_CONFIG)
+    plan = _plan(config)
+    services, engine = _services(config)
+    raw = confirmation.format(prefix=plan.digest[:12])
+
+    result, _stdout, _stderr = _run(["wizard"], services, input_text=raw + "\n")
+
+    assert result == 2
+    assert engine.calls == []
+
+
 def test_interactive_quit_at_digest_does_not_call_engine():
     config = load_config(CORE_CONFIG)
     services, engine = _services(config)
@@ -190,6 +271,21 @@ def test_interactive_quit_at_digest_does_not_call_engine():
 
     assert result == 0, stderr
     assert "No changes were made" in stdout
+    assert engine.calls == []
+
+
+def test_russian_digest_quit_uses_localized_pty_output():
+    config = load_config(CORE_CONFIG)
+    wizard = ReturningWizard(config, locale=Locale.RU)
+    services, engine = _services(config, wizard=wizard)
+
+    result, transcript = _run_in_pty(
+        ["wizard", "--lang", "ru"], services, answers=["quit"]
+    )
+
+    assert result == 0
+    assert "Изменения не внесены." in transcript
+    assert "No changes were made." not in transcript
     assert engine.calls == []
 
 

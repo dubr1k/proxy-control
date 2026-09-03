@@ -66,7 +66,7 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "action": "Действие",
         "edit_field": "Поле для изменения",
         "saved": "Конфигурация сохранена: {path}",
-        "quit": "Изменения не внесены. No changes were made.",
+        "quit": "Изменения не внесены.",
         "digest": "Введите первые 12 символов дайджеста плана ({prefix}) или quit",
         "digest_mismatch": "подтверждение дайджеста плана не совпадает",
         "invalid": "Недопустимое значение: {error}",
