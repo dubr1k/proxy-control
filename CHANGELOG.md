@@ -27,6 +27,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- Added an opt-in, idempotent systemd-managed TCP MSS clamp for Mieru listeners. It addresses confirmed mobile return-path black holes without changing unrelated firewall rules and removes its exact rule on stop.
 - Creating or rotating an MTProxy access now refreshes the list without a page reload. The reveal payload carried no QR while the access dialog requires one, so it threw after the modal closed and before the list was re-fetched, leaving the new profile invisible until F5. The QR now travels with the reveal, and a dialog that cannot render is reported without blocking the refresh.
 - Busy buttons no longer stick on "Создаём…". Handlers read `event.currentTarget` in `finally`, which runs after dispatch has ended and yields null, so the button was never re-enabled; the target is now captured while it is still live.
 - Mieru transactions no longer re-hash the blanked password mita returns for an already stored user, so creating, rotating, deleting or quota-editing an access after the first one succeeds instead of failing the readback check and rolling back with `manager operation failed`.

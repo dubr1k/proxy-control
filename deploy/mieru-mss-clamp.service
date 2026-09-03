@@ -1,0 +1,30 @@
+[Unit]
+Description=Clamp TCP MSS for the Mieru public listener
+Wants=network-online.target
+After=network-online.target
+Before=mita.service
+
+[Service]
+Type=oneshot
+Environment=MIERU_PORT=46001
+Environment=MIERU_MSS=1100
+Environment=IPTABLES=/usr/sbin/iptables
+EnvironmentFile=-/etc/proxy-control/mieru-mss-clamp.env
+ExecStart=/usr/local/libexec/mieru-mss-clamp apply ${MIERU_PORT} ${MIERU_MSS}
+ExecStop=/usr/local/libexec/mieru-mss-clamp remove ${MIERU_PORT} ${MIERU_MSS}
+RemainAfterExit=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_ADMIN
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

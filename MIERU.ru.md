@@ -110,6 +110,23 @@ docker compose up -d --build
 
 Mieru не захватывает TCP/443 автоматически. Явно выберите dedicated TCP/UDP ports, проверьте `ss -lntup`, cloud firewall и host firewall. Shared 443 остаётся у Nginx. Management UDS не имеет отношения к public listener.
 
+### MSS clamp для мобильного пути
+
+Если `ss -tin 'sport = :<mieru-port>'` показывает зависшие мобильные соединения с растущим `Send-Q`, `cwnd:1`, повторными `bytes_retrans` и экспоненциальным RTO при успешной Mieru-аутентификации, обратный путь теряет крупные TCP-сегменты. Применяйте отдельный clamp только после наблюдения этой сигнатуры и проверки, что меньший MSS устраняет retransmissions. Это изменение host firewall; installer никогда не включает его автоматически.
+
+Установите идемпотентный helper и unit, затем задайте реальный listener port и проверенный рабочий MSS:
+
+```bash
+sudo install -m 0755 scripts/mieru-mss-clamp.sh /usr/local/libexec/mieru-mss-clamp
+sudo install -m 0644 deploy/mieru-mss-clamp.service /etc/systemd/system/mieru-mss-clamp.service
+sudo install -d -m 0755 /etc/proxy-control
+printf 'MIERU_PORT=46001\nMIERU_MSS=1100\n' | sudo tee /etc/proxy-control/mieru-mss-clamp.env >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now mieru-mss-clamp.service
+```
+
+Unit добавляет одно точное правило TCPMSS в `mangle/PREROUTING` и при остановке удаляет только его. Проверяйте новые соединения, а не старые sockets: `ss -tin` должен показывать `mss` ниже проблемного значения, опустевший `Send-Q` и стабильные retransmission/RTO counters. Откат: `sudo systemctl disable --now mieru-mss-clamp.service`.
+
 ## Пользователи, ссылки и QR
 
 Create возвращает one-time `mierus://` URL, QR и import command. List API secret-free. Existing password из `hashedPassword` не восстанавливается; **«Новая ссылка + QR»** выполняет rotation и инвалидирует старый config. Полный flow: [MIERU_SHARING.ru.md](docs/MIERU_SHARING.ru.md).

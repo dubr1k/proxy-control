@@ -88,6 +88,23 @@ An active `journal.json` and its original `journal.key` are one recovery unit. A
 
 Declare every TCP/UDP Mieru port or range explicitly. **No installer or manager silently takes port 443.** When nginx/MTProxy/NaiveProxy already owns shared 443, choose dedicated Mieru ports (for example 8443 TCP and 8443 UDP), publish them in host/cloud firewalls, and verify both protocols. Loopback management sockets are unrelated to public listeners.
 
+### Mobile-path MSS clamp
+
+If `ss -tin 'sport = :<mieru-port>'` shows established mobile connections stuck with a growing `Send-Q`, `cwnd:1`, repeated `bytes_retrans`, and exponential RTO backoff while Mieru authentication succeeds, the return path is black-holing larger TCP segments. Use the dedicated clamp only after observing that signature and proving a smaller MSS removes retransmissions. This is a host-firewall mutation and is never enabled by the installer.
+
+Install the idempotent helper and unit, then set the actual listener port and the measured working MSS:
+
+```bash
+sudo install -m 0755 scripts/mieru-mss-clamp.sh /usr/local/libexec/mieru-mss-clamp
+sudo install -m 0644 deploy/mieru-mss-clamp.service /etc/systemd/system/mieru-mss-clamp.service
+sudo install -d -m 0755 /etc/proxy-control
+printf 'MIERU_PORT=46001\nMIERU_MSS=1100\n' | sudo tee /etc/proxy-control/mieru-mss-clamp.env >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now mieru-mss-clamp.service
+```
+
+The unit inserts one exact `mangle/PREROUTING` TCPMSS rule and removes only that rule on stop. Verify new connections—not old sockets—with `ss -tin`; the negotiated `mss` must be below the failing value, `Send-Q` must drain, and retransmission/RTO counters must remain stable. Roll back with `sudo systemctl disable --now mieru-mss-clamp.service`.
+
 Config updates are full-snapshot CAS transactions with durable backup/journal recovery. Journal v3 metadata is authenticated with a manager-local 32-byte HMAC key stored as an exact mode-0600 regular file in the state directory; the key is never included in backups, logs, audit records, or API responses. Recovery fails closed if an active journal cannot be authenticated. Ports, MTU, DNS, egress, traffic patterns and SSRF flags use stop/start. Credential rotation, disable, and delete force restart for revocation; quota-only changes may reload. Unknown observed fields fail closed.
 
 Per-user Mieru traffic metrics are deliberately reported as degraded/unavailable in this MIT adapter. In v3.35 and v3.36, `mita get metrics` is opaque grouped diagnostics and `mita get users` renders a human table; only the GPL gRPC `GetUsers` boundary exposes typed histories. The adapter does not invent a JSON shape, parse rounded table values, copy GPL-generated stubs, or claim baseline reset support. Traffic and quota semantics in mita itself remain **application bytes** and rolling approximate session-admission checks—not hard caps or billing counters.

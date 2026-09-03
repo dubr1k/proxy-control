@@ -68,6 +68,76 @@ class DeployCliTests(unittest.TestCase):
             workflow.index("systemd-analyze verify deploy/*.service"),
         )
 
+    def test_mieru_mss_clamp_is_idempotent_reversible_and_service_managed(self):
+        helper = ROOT / "scripts/mieru-mss-clamp.sh"
+        unit = (ROOT / "deploy/mieru-mss-clamp.service").read_text()
+        self.assertTrue(os.access(helper, os.X_OK))
+        self.assertIn("Before=mita.service", unit)
+        self.assertIn("RemainAfterExit=yes", unit)
+        self.assertIn("EnvironmentFile=-/etc/proxy-control/mieru-mss-clamp.env", unit)
+        self.assertIn(
+            "ExecStart=/usr/local/libexec/mieru-mss-clamp apply ${MIERU_PORT} ${MIERU_MSS}",
+            unit,
+        )
+        self.assertIn(
+            "ExecStop=/usr/local/libexec/mieru-mss-clamp remove ${MIERU_PORT} ${MIERU_MSS}",
+            unit,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            state = root / "installed"
+            log = root / "calls.jsonl"
+            fake = root / "iptables"
+            fake.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "from pathlib import Path\n"
+                "args = sys.argv[1:]\n"
+                "state = Path(os.environ['IPTABLES_STATE'])\n"
+                "with Path(os.environ['IPTABLES_LOG']).open('a') as out:\n"
+                "    out.write(json.dumps(args) + '\\n')\n"
+                "operation = next(value for value in ('-C', '-I', '-D') if value in args)\n"
+                "if operation == '-C':\n"
+                "    raise SystemExit(0 if state.exists() else 1)\n"
+                "if operation == '-I':\n"
+                "    state.write_text('installed')\n"
+                "elif operation == '-D':\n"
+                "    state.unlink()\n"
+            )
+            fake.chmod(0o755)
+            env = {
+                **os.environ,
+                "IPTABLES": str(fake),
+                "IPTABLES_STATE": str(state),
+                "IPTABLES_LOG": str(log),
+            }
+            for action in ("apply", "apply", "remove", "remove"):
+                result = subprocess.run(
+                    [helper, action, "46001", "1100"],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            inserts = [call for call in calls if "-I" in call]
+            deletes = [call for call in calls if "-D" in call]
+            self.assertEqual(len(inserts), 1)
+            self.assertEqual(len(deletes), 1)
+            self.assertIn("--dport", inserts[0])
+            self.assertIn("46001", inserts[0])
+            self.assertIn("--set-mss", inserts[0])
+            self.assertIn("1100", inserts[0])
+            self.assertIn("proxy-control-mieru-mss-clamp", inserts[0])
+            invalid = subprocess.run(
+                [helper, "apply", "0", "1100"],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(invalid.returncode, 0)
+
     def test_caddy_naive_adapter_rewrites_only_private_https_listeners(self):
         helper = ROOT / "scripts/caddy-naive-adapt"
         self.assertTrue(os.access(helper, os.X_OK))

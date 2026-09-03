@@ -692,6 +692,8 @@ docker compose ps
 
 Mieru never takes 443. Explicitly configure at least one TCP and/or UDP binding, choose dedicated ports, open them in cloud and host firewalls, and verify with `ss -lntup`. The panel validates configuration through the manager; port, MTU, DNS, egress, and network changes require stop/start.
 
+On mobile paths that black-hole larger return segments, `deploy/mieru-mss-clamp.service` can persist a measured per-listener TCP MSS clamp without changing unrelated firewall rules. It is opt-in only: install it after confirming the `Send-Q`/retransmission/RTO signature documented in [MIERU.en.md](MIERU.en.md).
+
 Creating a user returns a one-time `mierus://` link, QR code, and import command. Rotation, disable, and delete require a controlled restart for revocation. The quota is an approximate application-byte admission check, not a hard billing limit. There is no safe typed per-user traffic boundary, so the UI may report `unavailable`.
 
 When restoring Mieru, always restore `journal.json` together with its original `journal.key`. Never delete or regenerate the key to make a journal start.
