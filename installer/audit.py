@@ -774,31 +774,63 @@ def _empty_nginx(observation: str) -> dict[str, object]:
         "duplicate_sni_domains": (),
         "http_domains": (),
         "observation": observation,
+        "route_target": None,
         "sni_map_count": 0,
         "sni_map_files": {},
         "sni_routes": {},
         "stream_enabled": False,
+        "topology_error": None,
     }
 
 
 def parse_nginx_observation(text: str) -> dict[str, object]:
+    from installer.adapters.nginx import (
+        TopologyError,
+        parse_effective_nginx,
+        select_route_target,
+    )
+
+    try:
+        topology = parse_effective_nginx(text)
+    except TopologyError:
+        raise AuditError("Nginx observation is malformed") from None
     sections = _nginx_sections(text)
     route_values: dict[str, set[str]] = {}
     route_counts: dict[str, int] = {}
     map_files: dict[str, int] = {}
     http_domains: set[str] = set()
-    for path, section in sections.items():
-        count = len(_sni_map_blocks(section))
-        if count and path != "<effective>":
-            map_files[path] = count
-        for domain, backend in parse_sni_entries(section):
-            route_values.setdefault(domain, set()).add(backend)
+    sni_maps = [
+        mapping
+        for mapping in topology.maps
+        if mapping.source_variable == "$ssl_preread_server_name"
+    ]
+    for mapping in sni_maps:
+        if mapping.source_file != "<effective>":
+            map_files[mapping.source_file] = map_files.get(mapping.source_file, 0) + 1
+        for route in mapping.routes:
+            domain = route.key.lower()
+            if _DOMAIN_RE.fullmatch(domain) is None:
+                continue
+            route_values.setdefault(domain, set()).add(route.value)
             route_counts[domain] = route_counts.get(domain, 0) + 1
+    for section in sections.values():
         http_domains.update(parse_http_domains(section))
     routes = {
         domain: sorted(backends)[0]
         for domain, backends in sorted(route_values.items())
     }
+    route_target: dict[str, str] | None = None
+    topology_error: str | None = None
+    try:
+        selected = select_route_target(topology)
+    except TopologyError as exc:
+        topology_error = str(exc)
+    else:
+        route_target = {
+            "source_file": selected.source_file,
+            "source_variable": selected.source_variable,
+            "variable": selected.variable,
+        }
     return {
         "available": True,
         "duplicate_sni_domains": tuple(
@@ -806,10 +838,12 @@ def parse_nginx_observation(text: str) -> dict[str, object]:
         ),
         "http_domains": tuple(sorted(http_domains)),
         "observation": "observed",
-        "sni_map_count": sum(len(_sni_map_blocks(section)) for section in sections.values()),
+        "route_target": route_target,
+        "sni_map_count": len(sni_maps),
         "sni_map_files": dict(sorted(map_files.items())),
         "sni_routes": routes,
-        "stream_enabled": bool(re.search(r"(?m)^\s*stream\s*\{", text)),
+        "stream_enabled": topology.stream_enabled,
+        "topology_error": topology_error,
     }
 
 
@@ -830,22 +864,6 @@ def _nginx_sections(text: str) -> dict[str, str]:
     }
 
 
-def _sni_map_blocks(text: str) -> tuple[tuple[int, int], ...]:
-    blocks: list[tuple[int, int]] = []
-    pattern = re.compile(r"map\s+\$ssl_preread_server_name\s+\$[A-Za-z0-9_]+\s*\{")
-    for match in pattern.finditer(text):
-        depth = 0
-        for index in range(match.end() - 1, len(text)):
-            if text[index] == "{":
-                depth += 1
-            elif text[index] == "}":
-                depth -= 1
-                if depth == 0:
-                    blocks.append((match.start(), index + 1))
-                    break
-        else:
-            raise AuditError("Nginx observation is malformed")
-    return tuple(blocks)
 
 
 def _parse_caa_answer(

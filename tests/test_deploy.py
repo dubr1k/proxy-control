@@ -742,15 +742,16 @@ class DeployCliTests(unittest.TestCase):
             unit_text,
         )
 
-        with tempfile.TemporaryDirectory() as td:
-            unit = Path(td) / "mtproxy-fleet-ingress.service"
-            unit.write_text(unit_text.replace(
-                "/opt/mtproxy-panel/venv/bin/python -m panel.agent_ingress", "/bin/true"
-            ))
-            verified = subprocess.run(
-                ["systemd-analyze", "verify", str(unit)], text=True, capture_output=True
-            )
-            self.assertEqual(verified.returncode, 0, verified.stderr)
+        if shutil.which("systemd-analyze") is not None:
+            with tempfile.TemporaryDirectory() as td:
+                unit = Path(td) / "mtproxy-fleet-ingress.service"
+                unit.write_text(unit_text.replace(
+                    "/opt/mtproxy-panel/venv/bin/python -m panel.agent_ingress", "/bin/true"
+                ))
+                verified = subprocess.run(
+                    ["systemd-analyze", "verify", str(unit)], text=True, capture_output=True
+                )
+                self.assertEqual(verified.returncode, 0, verified.stderr)
 
 
 if __name__ == "__main__":

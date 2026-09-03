@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from installer.adapters.nginx import TopologyError, patch_owned_map
 
 from installer.audit import (
     AuditFacts,
@@ -13,7 +14,7 @@ from installer.audit import (
 )
 from installer.model import HostMode
 
-from scripts.proxyctl import InstallPlan, InstallerConflict, patch_stream_map
+from scripts.proxyctl import InstallPlan, InstallerConflict
 
 
 def fixture_root(tmp_path: Path) -> Path:
@@ -201,38 +202,45 @@ def test_stream_patch_is_owned_idempotent_and_preserves_unrelated_routes():
         "    vpn.example.com 127.0.0.1:10443;\n"
         "    default 127.0.0.1:8443;\n}\n"
     )
-    changed = patch_stream_map(
+    changed = patch_owned_map(
         original,
-        proxy_domain="mt.example.com",
-        panel_domain="panel-mt.example.com",
-        proxy_backend="127.0.0.1:8445",
-        panel_backend="127.0.0.1:8443",
+        variable="$upstream_443",
+        routes=(
+            ("mt.example.com", "127.0.0.1:8445"),
+            ("panel-mt.example.com", "127.0.0.1:8443"),
+        ),
+        ownership_id="test",
     )
 
     assert changed.count("# BEGIN PROXY-CONTROL ROUTES") == 1
     assert "vpn.example.com 127.0.0.1:10443;" in changed
     assert changed.index("mt.example.com") < changed.index("default")
-    assert patch_stream_map(
+    assert patch_owned_map(
         changed,
-        proxy_domain="mt.example.com",
-        panel_domain="panel-mt.example.com",
-        proxy_backend="127.0.0.1:8445",
-        panel_backend="127.0.0.1:8443",
+        variable="$upstream_443",
+        routes=(
+            ("mt.example.com", "127.0.0.1:8445"),
+            ("panel-mt.example.com", "127.0.0.1:8443"),
+        ),
+        ownership_id="test",
     ) == changed
 
 
 def test_stream_patch_rejects_ambiguous_or_foreign_owned_input():
-    with pytest.raises(InstallerConflict, match="exactly one SNI map"):
-        patch_stream_map(
-            "map $ssl_preread_server_name $a { default x; }\nmap $ssl_preread_server_name $b { default y; }",
-            proxy_domain="mt.example.com", panel_domain="panel.example.com",
-            proxy_backend="127.0.0.1:8445", panel_backend="127.0.0.1:8443",
+    with pytest.raises(TopologyError, match="exactly one effective map"):
+        patch_owned_map(
+            "map $ssl_preread_server_name $a { default x; }\n"
+            "map $ssl_preread_server_name $a { default y; }",
+            variable="$a",
+            routes=(("mt.example.com", "127.0.0.1:8445"),),
+            ownership_id="test",
         )
-    with pytest.raises(InstallerConflict, match="domain already routed"):
-        patch_stream_map(
+    with pytest.raises(TopologyError, match="domain already routed"):
+        patch_owned_map(
             "map $ssl_preread_server_name $upstream_443 { mt.example.com 127.0.0.1:9999; default 127.0.0.1:8443; }",
-            proxy_domain="mt.example.com", panel_domain="panel.example.com",
-            proxy_backend="127.0.0.1:8445", panel_backend="127.0.0.1:8443",
+            variable="$upstream_443",
+            routes=(("mt.example.com", "127.0.0.1:8445"),),
+            ownership_id="test",
         )
 
 

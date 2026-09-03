@@ -21,11 +21,17 @@ from typing import Callable, Sequence
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from installer.adapters.nginx import (
+    OWNERSHIP_BEGIN,
+    OWNERSHIP_END,
+    TopologyError,
+    patch_owned_map,
+    remove_owned_map_block,
+)
 from installer.audit import (
     AuditFacts,
     CommandRunner as AuditCommandRunner,
     listener_inventory,
-    parse_sni_routes,
     validate_domain,
 )
 from installer.model import HostMode
@@ -42,8 +48,6 @@ from installer.transaction import (
     sha256 as _sha256,
 )
 
-OWNERSHIP_BEGIN = "# BEGIN PROXY-CONTROL ROUTES"
-OWNERSHIP_END = "# END PROXY-CONTROL ROUTES"
 STATE_PATH = "/var/lib/proxy-control/ownership.json"
 STATE_SCHEMA = 1
 
@@ -79,73 +83,6 @@ def _listening_ports() -> set[int]:
     return listener_inventory(AuditCommandRunner())[0]
 
 
-def _map_blocks(text: str) -> list[tuple[int, int]]:
-    blocks = []
-    pattern = re.compile(r"map\s+\$ssl_preread_server_name\s+\$[A-Za-z0-9_]+\s*\{")
-    for match in pattern.finditer(text):
-        depth = 0
-        for index in range(match.end() - 1, len(text)):
-            if text[index] == "{":
-                depth += 1
-            elif text[index] == "}":
-                depth -= 1
-                if depth == 0:
-                    blocks.append((match.start(), index + 1))
-                    break
-        else:
-            raise InstallerConflict("unterminated SNI map")
-    return blocks
-
-
-def patch_stream_map(
-    text: str,
-    *,
-    proxy_domain: str,
-    panel_domain: str,
-    proxy_backend: str,
-    panel_backend: str,
-    ownership_id: str | None = None,
-) -> str:
-    proxy_domain, panel_domain = validate_domain(proxy_domain), validate_domain(panel_domain)
-    if proxy_domain == panel_domain:
-        raise InstallerConflict("proxy and panel domains must differ")
-    blocks = _map_blocks(text)
-    if len(blocks) != 1:
-        raise InstallerConflict("exactly one SNI map is required")
-    start, end = blocks[0]
-    block = text[start:end]
-    wanted = {proxy_domain: proxy_backend, panel_domain: panel_backend}
-    existing = parse_sni_routes(block)
-    for domain, backend in wanted.items():
-        if domain in existing and backend != existing[domain]:
-            raise InstallerConflict(f"domain already routed: {domain}")
-    suffix = f" {ownership_id}" if ownership_id else ""
-    begin, finish = OWNERSHIP_BEGIN + suffix, OWNERSHIP_END + suffix
-    managed = (
-        f"    {begin}\n"
-        f"    {proxy_domain} {proxy_backend};\n"
-        f"    {panel_domain} {panel_backend};\n"
-        f"    {finish}\n"
-    )
-    begins, ends = block.count(OWNERSHIP_BEGIN), block.count(OWNERSHIP_END)
-    if (begins, ends) == (1, 1):
-        marker_start = block.index(OWNERSHIP_BEGIN)
-        marker_end = block.index("\n", block.index(OWNERSHIP_END, marker_start))
-        current = block[marker_start:marker_end]
-        expected = managed.strip()
-        def normalize(value: str) -> str:
-            return "\n".join(line.strip() for line in value.splitlines())
-
-        if normalize(current) != normalize(expected):
-            raise InstallerConflict("owned route block differs from requested configuration")
-        return text
-    if (begins, ends) != (0, 0):
-        raise InstallerConflict("malformed ownership markers")
-    default_match = re.search(r"(?m)^\s*default\s+[^;]+;", block)
-    if default_match is None:
-        raise InstallerConflict("SNI map has no default route")
-    insert_at = start + default_match.start()
-    return text[:insert_at] + managed + text[insert_at:]
 
 def _owned_route_marker(state: dict, *, end: bool = False) -> str:
     prefix = OWNERSHIP_END if end else OWNERSHIP_BEGIN
@@ -153,28 +90,18 @@ def _owned_route_marker(state: dict, *, end: bool = False) -> str:
 
 
 def _remove_owned_route_block(current: bytes, state: dict) -> bytes:
-    try:
-        text = current.decode()
-    except UnicodeDecodeError as exc:
-        raise InstallerConflict("owned route file has drifted") from exc
-    lines = text.splitlines(keepends=True)
-    begin = _owned_route_marker(state)
-    end = _owned_route_marker(state, end=True)
-    begins = [index for index, line in enumerate(lines) if line.strip() == begin]
-    ends = [index for index, line in enumerate(lines) if line.strip() == end]
-    if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
-        raise InstallerConflict("owned route file has drifted")
-    start, finish = begins[0], ends[0]
     plan = state["plan"]
-    expected = [
-        begin,
-        f"{plan['proxy_domain']} {plan['proxy_backend']};",
-        f"{plan['panel_domain']} {plan['panel_backend']};",
-        end,
-    ]
-    if [line.strip() for line in lines[start:finish + 1]] != expected:
-        raise InstallerConflict("owned route file has drifted")
-    return "".join(lines[:start] + lines[finish + 1:]).encode()
+    try:
+        return remove_owned_map_block(
+            current,
+            routes=(
+                (plan["proxy_domain"], plan["proxy_backend"]),
+                (plan["panel_domain"], plan["panel_backend"]),
+            ),
+            ownership_id=state["install_id"],
+        )
+    except TopologyError as exc:
+        raise InstallerConflict(str(exc)) from exc
 
 
 def _audit_mapping(value: object, label: str) -> Mapping[str, object]:
@@ -190,6 +117,7 @@ class InstallPlan:
     route_file: str = "/etc/nginx/stream.d/routes.conf"
     proxy_backend_port: int = 8445
     panel_backend_port: int = 8787
+    route_variable: str = "$upstream_443"
     schema: int = 1
 
     @property
@@ -208,6 +136,7 @@ class InstallPlan:
             "proxy_backend": self.proxy_backend,
             "panel_backend": self.panel_backend,
             "route_file": self.route_file,
+            "route_variable": self.route_variable,
             "actions": [
                 {"kind": "nginx_route", "target": self.route_file},
                 {"kind": "ownership_manifest", "target": STATE_PATH},
@@ -259,8 +188,11 @@ class InstallPlan:
         if duplicates:
             raise InstallerConflict("duplicate SNI routes make the topology ambiguous")
         stream_enabled = nginx.get("stream_enabled") is True
-        if stream_enabled and nginx.get("sni_map_count") != 1:
-            raise InstallerConflict("exactly one SNI map is required")
+        topology_error = nginx.get("topology_error")
+        if stream_enabled and topology_error is not None:
+            if not isinstance(topology_error, str):
+                raise InstallerConflict("Nginx audit facts are invalid")
+            raise InstallerConflict(topology_error)
         listening_ports = listeners.get("ports", ())
         if not isinstance(listening_ports, tuple):
             raise InstallerConflict("listener audit facts are invalid")
@@ -281,8 +213,22 @@ class InstallPlan:
         if docker.get("available") is not True:
             raise InstallerConflict("Docker is unavailable")
         map_files = _audit_mapping(nginx.get("sni_map_files"), "Nginx map files")
-        if stream_enabled and map_files.get(route_file) != 1:
-            raise InstallerConflict("route file is not the single audited SNI map file")
+        selected_route_file = route_file
+        route_variable = "$upstream_443"
+        if stream_enabled:
+            route_target = _audit_mapping(nginx.get("route_target"), "Nginx route target")
+            source_file = route_target.get("source_file")
+            selected_variable = route_target.get("variable")
+            if (
+                not isinstance(source_file, str)
+                or not isinstance(selected_variable, str)
+                or not re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", selected_variable)
+            ):
+                raise InstallerConflict("Nginx route target is invalid")
+            if route_file != source_file and map_files.get(route_file) != 1:
+                raise InstallerConflict("route file is not the active audited SNI map file")
+            selected_route_file = source_file
+            route_variable = selected_variable
         if require_domain_preflight:
             dns = _audit_mapping(report.topology.get("dns"), "DNS")
             certificates = _audit_mapping(
@@ -304,7 +250,14 @@ class InstallPlan:
                     raise InstallerConflict(
                         f"TLS certificate is missing or does not cover: {domain}"
                     )
-        return cls(proxy_domain, panel_domain, route_file, proxy_backend_port, panel_backend_port)
+        return cls(
+            proxy_domain,
+            panel_domain,
+            selected_route_file,
+            proxy_backend_port,
+            panel_backend_port,
+            route_variable=route_variable,
+        )
 
 
 
@@ -322,7 +275,7 @@ def _validate_manifest_plan(plan: object) -> None:
         raise InstallerConflict("ownership manifest plan is invalid")
     required = {
         "schema", "proxy_domain", "panel_domain", "proxy_backend", "panel_backend",
-        "route_file", "actions",
+        "route_file", "route_variable", "actions",
     }
     if set(plan) != required or plan.get("schema") != 1:
         raise InstallerConflict("ownership manifest plan is invalid")
@@ -335,6 +288,11 @@ def _validate_manifest_plan(plan: object) -> None:
         raise InstallerConflict("ownership manifest plan is invalid")
     route_file = plan["route_file"]
     if not isinstance(route_file, str) or not route_file.startswith("/") or ".." in Path(route_file).parts:
+        raise InstallerConflict("ownership manifest plan is invalid")
+    route_variable = plan["route_variable"]
+    if not isinstance(route_variable, str) or not re.fullmatch(
+        r"\$[A-Za-z_][A-Za-z0-9_]*", route_variable
+    ):
         raise InstallerConflict("ownership manifest plan is invalid")
     for key in ("proxy_backend", "panel_backend"):
         if not isinstance(plan[key], str) or not re.fullmatch(r"127\.0\.0\.1:(\d{4,5})", plan[key]):
@@ -428,14 +386,18 @@ def _apply_plan_unlocked(
     original = route.read_bytes()
     metadata = route.stat()
     install_id = uuid.uuid4().hex
-    changed = patch_stream_map(
-        original.decode(),
-        proxy_domain=plan.proxy_domain,
-        panel_domain=plan.panel_domain,
-        proxy_backend=plan.proxy_backend,
-        panel_backend=plan.panel_backend,
-        ownership_id=install_id,
-    ).encode()
+    try:
+        changed = patch_owned_map(
+            original.decode(),
+            variable=plan.route_variable,
+            routes=(
+                (plan.proxy_domain, plan.proxy_backend),
+                (plan.panel_domain, plan.panel_backend),
+            ),
+            ownership_id=install_id,
+        ).encode()
+    except (TopologyError, UnicodeDecodeError) as exc:
+        raise InstallerConflict(str(exc)) from exc
     backup_host = f"/var/lib/proxy-control/backups/{install_id}.route"
     backup = _root_path(root, backup_host)
     _atomic_write(backup, original, mode=0o600)

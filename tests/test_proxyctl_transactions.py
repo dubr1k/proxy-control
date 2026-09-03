@@ -181,6 +181,7 @@ def test_plan_is_deterministic_and_blocks_failed_domain_preflight(tmp_path):
         "proxy_backend": "127.0.0.1:8445",
         "proxy_domain": "mt.example.com",
         "route_file": "/etc/nginx/stream.d/routes.conf",
+        "route_variable": "$upstream_443",
         "schema": 1,
     }
 
@@ -213,13 +214,30 @@ def test_plan_is_deterministic_and_blocks_failed_domain_preflight(tmp_path):
         )
 
 
-def test_plan_fails_closed_on_ambiguous_map_and_direct_443_listener(tmp_path):
+def test_plan_selects_active_map_and_fails_closed_on_ambiguous_paths_and_direct_listener(tmp_path):
     root, route = host_root(tmp_path)
-    route.write_text(route.read_text() + "\nmap $ssl_preread_server_name $other { default 127.0.0.1:9; }\n")
+    route.write_text(
+        route.read_text()
+        + "\nmap $ssl_preread_server_name $other { default 127.0.0.1:9; }\n"
+    )
     report = facts_from_root(root=root, listening_ports={443}, docker_available=True)
-    with pytest.raises(InstallerConflict, match="exactly one SNI map"):
+    selected = InstallPlan.from_audit(
+        report,
+        proxy_domain="mt.example.com",
+        panel_domain="panel-mt.example.com",
+        route_file="/etc/nginx/stream.d/routes.conf",
+        require_domain_preflight=False,
+    )
+    assert selected.route_variable == "$upstream_443"
+
+    route.write_text(
+        route.read_text()
+        + "server { listen 443; ssl_preread on; proxy_pass $other; }\n"
+    )
+    ambiguous = facts_from_root(root=root, listening_ports={443}, docker_available=True)
+    with pytest.raises(InstallerConflict, match="more than one effective map"):
         InstallPlan.from_audit(
-            report,
+            ambiguous,
             proxy_domain="mt.example.com",
             panel_domain="panel-mt.example.com",
             route_file="/etc/nginx/stream.d/routes.conf",
@@ -268,7 +286,7 @@ def test_plan_fails_closed_on_ambiguous_map_and_direct_443_listener(tmp_path):
     foreign = root5 / "tmp/foreign.conf"
     foreign.parent.mkdir()
     foreign.write_text("map $ssl_preread_server_name $x { default 127.0.0.1:9; }\n")
-    with pytest.raises(InstallerConflict, match="audited SNI map file"):
+    with pytest.raises(InstallerConflict, match="active audited SNI map file"):
         InstallPlan.from_audit(
             facts_from_root(root=root5, listening_ports={443}, docker_available=True),
             proxy_domain="mt.example.com",

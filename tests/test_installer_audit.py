@@ -545,11 +545,13 @@ def test_missing_optional_tools_are_explicit_facts_not_audit_failures():
         "available": False,
         "http_domains": (),
         "observation": "unavailable",
+        "route_target": None,
         "sni_map_count": 0,
         "sni_map_files": {},
         "sni_routes": {},
         "stream_enabled": False,
         "duplicate_sni_domains": (),
+        "topology_error": None,
     }
     assert facts.ownership["docker"] == {
         "available": False,
