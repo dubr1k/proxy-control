@@ -19,10 +19,34 @@ class Adapter(Protocol):
         facts: AuditFacts,
     ) -> tuple[Action, ...]: ...
 
+    def prepare(self, action: Action) -> Mapping[str, object]: ...
+
+    def apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]: ...
+
+    def reconcile_apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]: ...
+
     def verify(self, action: Action) -> Evidence: ...
 
     def rollback(
         self,
         action: Action,
         checkpoint: Mapping[str, object],
+        *,
+        purge_data: bool = False,
+    ) -> Evidence: ...
+
+    def reconcile_rollback(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        *,
+        purge_data: bool = False,
     ) -> Evidence: ...

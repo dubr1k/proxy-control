@@ -27,7 +27,16 @@ from installer.planner import (
 TRANSACTION_SCHEMA = 1
 INSTALLER_PATH = "/var/lib/proxy-control/installer"
 LOCK_PATH = "/run/lock/proxy-control.lock"
-_CHECKPOINT_PHASES = frozenset({"prepared", "applied", "verified", "rolled_back"})
+_CHECKPOINT_PHASES = frozenset(
+    {
+        "prepared",
+        "applying",
+        "applied",
+        "verified",
+        "rollback_in_progress",
+        "rolled_back",
+    }
+)
 _STATE_STATUSES = frozenset(
     {
         "applying",
@@ -267,6 +276,7 @@ class TransactionState:
     accepted_digest: str
     checkpoints: tuple[TransactionCheckpoint, ...] = ()
     purge_data: bool | None = None
+    rollback_target: str | None = None
     origin: str = "installer-v1"
     error: str | None = None
     legacy: Mapping[str, object] = field(default_factory=dict, repr=False)
@@ -290,6 +300,8 @@ class TransactionState:
             raise TransactionError("transaction checkpoint actions are duplicated")
         if self.purge_data is not None and not isinstance(self.purge_data, bool):
             raise TransactionError("transaction data policy is invalid")
+        if self.rollback_target not in {None, "rolled_back", "uninstalled"}:
+            raise TransactionError("transaction rollback target is invalid")
         if not self.origin:
             raise TransactionError("transaction origin is invalid")
         object.__setattr__(self, "legacy", _freeze_mapping(self.legacy))
@@ -311,6 +323,8 @@ class TransactionState:
             value["legacy"] = _thaw(self.legacy)
         if self.purge_data is not None:
             value["purge_data"] = self.purge_data
+        if self.rollback_target is not None:
+            value["rollback_target"] = self.rollback_target
         return value
 
     @classmethod
@@ -326,7 +340,7 @@ class TransactionState:
             "status",
             "transaction_id",
         }
-        optional = {"error", "legacy", "purge_data"}
+        optional = {"error", "legacy", "purge_data", "rollback_target"}
         if not required <= set(value) or not set(value) <= required | optional:
             raise TransactionError("transaction state is invalid")
         raw_checkpoints = value["checkpoints"]
@@ -343,6 +357,7 @@ class TransactionState:
                 origin=value["origin"],
                 plan_digest=value["plan_digest"],
                 purge_data=value.get("purge_data"),
+                rollback_target=value.get("rollback_target"),
                 schema=value["schema"],
                 status=value["status"],
                 transaction_id=value["transaction_id"],
@@ -351,14 +366,19 @@ class TransactionState:
             raise TransactionError("transaction state is invalid") from exc
 
     @classmethod
-    def from_verified_legacy(cls, legacy: Mapping[str, object]) -> TransactionState:
+    def from_verified_legacy(
+        cls,
+        legacy: Mapping[str, object],
+        plan: InstallPlan,
+        checkpoint: TransactionCheckpoint,
+    ) -> TransactionState:
         encoded = _canonical_json(legacy)
-        digest = sha256(encoded)
         return cls(
             transaction_id=sha256(b"runtime-v2:" + encoded)[:32],
             status="active",
-            plan_digest=digest,
-            accepted_digest=digest,
+            plan_digest=plan.digest,
+            accepted_digest=plan.digest,
+            checkpoints=(checkpoint,),
             origin="runtime-v2",
             legacy=legacy,
         )
@@ -378,6 +398,8 @@ class TransactionStore:
         self.credentials_path = self.directory / "credentials"
 
     def initialize(self) -> None:
+        for directory in (self.directory, self.backups_path, self.credentials_path):
+            _assert_contained(self.root, directory)
         durable_mkdir(self.directory, mode=0o700)
         durable_mkdir(self.backups_path, mode=0o700)
         durable_mkdir(self.credentials_path, mode=0o700)
@@ -478,8 +500,8 @@ class TransactionEngine:
         with self.store.locked():
             state = self.store.read_state()
             plan = self._read_matching_plan(state)
-            self._validate_adapters(plan)
             if state.status == "applying":
+                self._validate_adapters(plan)
                 try:
                     return self._continue_apply(plan, state)
                 except Exception as exc:
@@ -494,12 +516,20 @@ class TransactionEngine:
                     except Exception:
                         raise
                     raise
-            if state.status in {"rolling_back", "rollback_failed"}:
-                return self._rollback(plan, state, final_status="rolled_back")
-            if state.status == "uninstalling":
-                return self._rollback(plan, state, final_status="uninstalled")
+            if state.status in {"rolling_back", "rollback_failed", "uninstalling"}:
+                self._validate_adapters(plan)
+                final_status = state.rollback_target
+                if final_status is None:
+                    final_status = (
+                        "uninstalled"
+                        if state.status == "uninstalling"
+                        else "rolled_back"
+                    )
+                return self._rollback(plan, state, final_status=final_status)
             if state.status == "active":
+                self._validate_adapters(plan)
                 self._assert_all_owned(state)
+            self._persist(state)
             return state
 
     def repair(self) -> TransactionState:
@@ -534,6 +564,7 @@ class TransactionEngine:
             plan = self._read_matching_plan(state)
             self._validate_adapters(plan)
             if state.status in {"uninstalled", "rolled_back"}:
+                self._persist(state)
                 return state
             if state.status not in {"active", "uninstalling"}:
                 raise TransactionError("resume the interrupted transaction before uninstall")
@@ -545,6 +576,7 @@ class TransactionEngine:
                 state,
                 status="uninstalling",
                 purge_data=purge_data,
+                rollback_target="uninstalled",
                 error=None,
             )
             self._persist(state)
@@ -558,38 +590,49 @@ class TransactionEngine:
         checkpoints = {item.action_id: item for item in state.checkpoints}
         for action in plan.actions:
             checkpoint = checkpoints.get(action.id)
+            adapter = self._adapter(action)
             if checkpoint is None:
+                prepare = getattr(adapter, "prepare", None)
+                if not callable(prepare):
+                    raise TransactionError(
+                        f"adapter does not implement prepare: {action.adapter}"
+                    )
+                raw_checkpoint = prepare(action)
+                data = _checkpoint_data(raw_checkpoint, action.adapter)
                 checkpoint = TransactionCheckpoint(
                     action_id=action.id,
                     adapter=action.adapter,
                     phase="prepared",
+                    data=data,
                 )
                 state = self._with_checkpoint(state, checkpoint)
                 self._persist_checkpoint(state, checkpoint, action)
                 checkpoints[action.id] = checkpoint
             if checkpoint.phase == "prepared":
-                adapter = self._adapter(action)
+                checkpoint = replace(checkpoint, phase="applying")
+                state = self._with_checkpoint(state, checkpoint)
+                self._persist_checkpoint(state, checkpoint, action)
+                checkpoints[action.id] = checkpoint
                 apply_method = getattr(adapter, "apply", None)
                 if not callable(apply_method):
                     raise TransactionError(
                         f"adapter does not implement apply: {action.adapter}"
                     )
-                raw_checkpoint = apply_method(action)
-                if not isinstance(raw_checkpoint, Mapping):
-                    data = getattr(raw_checkpoint, "data", None)
-                    if not isinstance(data, Mapping):
-                        raise TransactionError(
-                            f"adapter returned an invalid checkpoint: {action.adapter}"
-                        )
-                    raw_checkpoint = data
-                data = _freeze_mapping(raw_checkpoint)
-                ownership = self._capture_ownership(action, data)
-                checkpoint = replace(
-                    checkpoint,
-                    phase="applied",
-                    data=data,
-                    ownership=ownership,
-                )
+                raw_checkpoint = apply_method(action, _thaw(checkpoint.data))
+                data = _checkpoint_data(raw_checkpoint, action.adapter)
+                checkpoint = self._finish_apply(action, checkpoint, data)
+                state = self._with_checkpoint(state, checkpoint)
+                self._persist_checkpoint(state, checkpoint, action)
+                checkpoints[action.id] = checkpoint
+            elif checkpoint.phase == "applying":
+                reconcile = getattr(adapter, "reconcile_apply", None)
+                if not callable(reconcile):
+                    raise TransactionError(
+                        f"adapter does not implement reconcile_apply: {action.adapter}"
+                    )
+                raw_checkpoint = reconcile(action, _thaw(checkpoint.data))
+                data = _checkpoint_data(raw_checkpoint, action.adapter)
+                checkpoint = self._finish_apply(action, checkpoint, data)
                 state = self._with_checkpoint(state, checkpoint)
                 self._persist_checkpoint(state, checkpoint, action)
                 checkpoints[action.id] = checkpoint
@@ -603,11 +646,25 @@ class TransactionEngine:
                 state = self._with_checkpoint(state, checkpoint)
                 self._persist_checkpoint(state, checkpoint, action)
                 checkpoints[action.id] = checkpoint
-            if checkpoint.phase == "rolled_back":
+            if checkpoint.phase in {"rollback_in_progress", "rolled_back"}:
                 raise TransactionError("cannot apply a rolled-back checkpoint")
         state = replace(state, status="active", error=None)
         self._persist(state)
         return state
+
+    def _finish_apply(
+        self,
+        action: Action,
+        checkpoint: TransactionCheckpoint,
+        data: Mapping[str, object],
+    ) -> TransactionCheckpoint:
+        ownership = self._capture_ownership(action, data)
+        return replace(
+            checkpoint,
+            phase="applied",
+            data=data,
+            ownership=ownership,
+        )
 
     def _rollback(
         self,
@@ -624,20 +681,68 @@ class TransactionEngine:
             state = replace(
                 state,
                 status="uninstalling" if final_status == "uninstalled" else "rolling_back",
+                rollback_target=final_status,
                 error=type(error).__name__ if error is not None else state.error,
             )
             self._persist(state)
             by_action = {action.id: action for action in plan.actions}
+            purge_data = state.purge_data is True
             for checkpoint in reversed(state.checkpoints):
-                if checkpoint.phase not in {"applied", "verified"}:
+                if checkpoint.phase == "rolled_back":
                     continue
                 action = by_action.get(checkpoint.action_id)
                 if action is None or action.adapter != checkpoint.adapter:
                     raise TransactionError("checkpoint does not belong to the persisted plan")
-                self._assert_owned(checkpoint.ownership)
-                evidence = self._adapter(action).rollback(action, _thaw(checkpoint.data))
+                if checkpoint.phase == "prepared":
+                    checkpoint = replace(checkpoint, phase="rolled_back")
+                    state = self._with_checkpoint(state, checkpoint)
+                    self._persist(state)
+                    continue
+                adapter = self._adapter(action)
+                preserve = {
+                    path: entry
+                    for path, entry in checkpoint.ownership.items()
+                    if entry.get("preserve") is True
+                }
+                if checkpoint.phase in {"applied", "verified"}:
+                    self._assert_owned(checkpoint.ownership)
+                    checkpoint = replace(checkpoint, phase="rollback_in_progress")
+                    state = self._with_checkpoint(state, checkpoint)
+                    self._persist_checkpoint(state, checkpoint, action)
+                    rollback = getattr(adapter, "rollback", None)
+                    if not callable(rollback):
+                        raise TransactionError(
+                            f"adapter does not implement rollback: {action.adapter}"
+                        )
+                    evidence = rollback(
+                        action,
+                        _thaw(checkpoint.data),
+                        purge_data=purge_data,
+                    )
+                elif checkpoint.phase in {"applying", "rollback_in_progress"}:
+                    if checkpoint.phase == "applying":
+                        checkpoint = replace(
+                            checkpoint,
+                            phase="rollback_in_progress",
+                        )
+                        state = self._with_checkpoint(state, checkpoint)
+                        self._persist_checkpoint(state, checkpoint, action)
+                    reconcile = getattr(adapter, "reconcile_rollback", None)
+                    if not callable(reconcile):
+                        raise TransactionError(
+                            f"adapter does not implement reconcile_rollback: {action.adapter}"
+                        )
+                    evidence = reconcile(
+                        action,
+                        _thaw(checkpoint.data),
+                        purge_data=purge_data,
+                    )
+                else:
+                    continue
                 if not isinstance(evidence, Evidence) or not evidence.success:
                     raise TransactionError(f"adapter rollback failed: {action.adapter}")
+                if not purge_data:
+                    self._assert_owned(preserve)
                 checkpoint = replace(
                     checkpoint,
                     phase="rolled_back",
@@ -652,6 +757,7 @@ class TransactionEngine:
             failed = replace(
                 state,
                 status="rollback_failed",
+                rollback_target=final_status,
                 error=type(exc).__name__,
             )
             self._persist(failed)
@@ -713,7 +819,7 @@ class TransactionEngine:
         return MappingProxyType(ownership)
 
     def _assert_all_owned(self, state: TransactionState) -> None:
-        self._assert_owned(self._ownership_for(state))
+        self._assert_owned(self._ownership_for(state, include_in_progress=False))
 
     def _assert_owned(self, ownership: Mapping[str, Mapping[str, object]]) -> None:
         for host_path, expected in ownership.items():
@@ -731,10 +837,15 @@ class TransactionEngine:
     def _ownership_for(
         self,
         state: TransactionState,
+        *,
+        include_in_progress: bool = True,
     ) -> Mapping[str, Mapping[str, object]]:
+        phases = {"applied", "verified"}
+        if include_in_progress:
+            phases.add("rollback_in_progress")
         ownership: dict[str, Mapping[str, object]] = {}
         for checkpoint in state.checkpoints:
-            if checkpoint.phase in {"applied", "verified"}:
+            if checkpoint.phase in phases:
                 for path, entry in checkpoint.ownership.items():
                     if path in ownership:
                         raise OwnershipError("ownership journal contains duplicate paths")
@@ -866,9 +977,78 @@ def import_runtime_v2(
     root: Path,
     legacy: Mapping[str, object],
 ) -> TransactionState:
-    """Convert a verified runtime-v2 journal without touching managed host bytes."""
+    """Persist a verified runtime-v2 import without touching managed host bytes."""
+    root = Path(root)
     validate_legacy_runtime_v2(root, legacy)
-    return TransactionState.from_verified_legacy(legacy)
+    encoded = _canonical_json(legacy)
+    legacy_digest = sha256(encoded)
+    action = Action(
+        id="runtime-v2.import",
+        adapter="runtime-v2",
+        owner="proxy-control:runtime-v2",
+        mutations=("adopt verified runtime-v2 ownership",),
+        preconditions=("runtime-v2 journal is active and verified",),
+        verification=("runtime-v2 managed files retain their verified digests",),
+        inverse=("remove runtime-v2 managed files through its adapter",),
+        credentials_required=False,
+    )
+    plan = InstallPlan(
+        config={"legacy_runtime_schema": 2},
+        facts=AuditFacts(ownership={"imported_runtime": "v2"}),
+        release=ReleaseIdentity(
+            tag="runtime-v2",
+            commit=legacy_digest[:40],
+            manifest_sha256=legacy_digest,
+        ),
+        adapter_order=("runtime-v2",),
+        adapter_dependencies={"runtime-v2": ()},
+        actions=(action,),
+    )
+    managed_files = legacy["managed_files"]
+    ownership: dict[str, Mapping[str, object]] = {}
+    for host_path in managed_files:
+        normalized, path = _owned_path(root, host_path)
+        identity = _path_identity(path)
+        ownership[normalized] = MappingProxyType(
+            {
+                "action_id": action.id,
+                "adapter": action.adapter,
+                "kind": identity["kind"],
+                "preserve": False,
+                "sha256": identity["sha256"],
+            }
+        )
+    data = {
+        "legacy": _thaw(legacy),
+        "ownership": {
+            host_path: {
+                "preserve": False,
+                "sha256": entry["sha256"],
+            }
+            for host_path, entry in ownership.items()
+        },
+    }
+    checkpoint = TransactionCheckpoint(
+        action_id=action.id,
+        adapter=action.adapter,
+        phase="verified",
+        data=data,
+        ownership=ownership,
+        evidence={
+            "action_id": action.id,
+            "details": {},
+            "observations": ["runtime-v2 managed files verified"],
+            "success": True,
+        },
+    )
+    state = TransactionState.from_verified_legacy(legacy, plan, checkpoint)
+    store = TransactionStore(root)
+    with store.locked():
+        if store.state_path.exists():
+            raise TransactionError("an installer transaction already exists")
+        store.write_plan(plan)
+        TransactionEngine(store, {})._persist(state)
+    return state
 
 
 def _path_identity(path: Path) -> dict[str, str]:
@@ -893,9 +1073,39 @@ def _owned_path(root: Path, raw_path: object) -> tuple[str, Path]:
 
 
 def _root_path(root: Path, absolute: str) -> Path:
-    if not absolute.startswith("/"):
-        raise TransactionError("host paths must be absolute")
-    return Path(root) / absolute.lstrip("/")
+    if not absolute.startswith("/") or ".." in Path(absolute).parts:
+        raise TransactionError("host paths must be absolute and normalized")
+    root = Path(root)
+    candidate = root / absolute.lstrip("/")
+    _assert_contained(root, candidate.parent)
+    return candidate
+
+
+def _assert_contained(root: Path, path: Path) -> None:
+    try:
+        boundary = Path(root).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise OwnershipError("supplied root is not a safe directory") from exc
+    cursor = path
+    while not cursor.exists() and not cursor.is_symlink():
+        if cursor == cursor.parent:
+            raise OwnershipError("rooted path escapes supplied root")
+        cursor = cursor.parent
+    try:
+        resolved = cursor.resolve(strict=True)
+        resolved.relative_to(boundary)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise OwnershipError("rooted path escapes supplied root") from exc
+
+
+def _checkpoint_data(value: object, adapter: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        value = getattr(value, "data", None)
+    if not isinstance(value, Mapping):
+        raise TransactionError(
+            f"adapter returned an invalid checkpoint: {adapter}"
+        )
+    return _freeze_mapping(value)
 
 
 def _evidence_to_dict(evidence: Evidence) -> dict[str, object]:

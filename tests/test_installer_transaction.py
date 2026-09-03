@@ -29,6 +29,9 @@ class RecordingAdapter:
     root: Path
     crash_after: str | None = None
     fail_apply: bool = False
+    crash_during_apply: type[BaseException] | None = None
+    crash_during_rollback: type[BaseException] | None = None
+    preserve_data: bool = False
     log: list[str] | None = None
     requires: frozenset[str] = frozenset()
 
@@ -37,10 +40,26 @@ class RecordingAdapter:
         return self.root / f"{self.name}.owned"
 
     @property
+    def data_path(self) -> Path:
+        return self.root / f"{self.name}.data"
+
+    @property
     def counter(self) -> Path:
         return self.root / f"{self.name}.mutations"
 
-    def apply(self, action: Action) -> dict[str, object]:
+    def prepare(self, action: Action) -> dict[str, object]:
+        ownership: dict[str, object] = {
+            f"/{self.target.name}": {"preserve": False},
+        }
+        if self.preserve_data:
+            ownership[f"/{self.data_path.name}"] = {"preserve": True}
+        return {"ownership": ownership, "owner": action.owner}
+
+    def apply(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+    ) -> dict[str, object]:
         if self.log is not None:
             self.log.append(f"apply:{self.name}")
         if self.fail_apply:
@@ -48,24 +67,69 @@ class RecordingAdapter:
         count = int(self.counter.read_text()) if self.counter.exists() else 0
         self.counter.write_text(str(count + 1))
         self.target.write_bytes(f"owned by {action.owner}\n".encode())
-        return {"owned_paths": [f"/{self.target.name}"]}
+        if self.preserve_data:
+            self.data_path.write_bytes(b"persistent data\n")
+        if self.crash_during_apply is not None:
+            error = self.crash_during_apply
+            self.crash_during_apply = None
+            raise error("apply mutation committed")
+        return checkpoint
+
+    def reconcile_apply(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+    ) -> dict[str, object]:
+        if self.target.exists():
+            return checkpoint
+        return self.apply(action, checkpoint)
 
     def verify(self, action: Action) -> Evidence:
+        valid = self.target.read_bytes() == f"owned by {action.owner}\n".encode()
+        if self.preserve_data:
+            valid = valid and self.data_path.read_bytes() == b"persistent data\n"
         return Evidence(
             action_id=action.id,
-            success=self.target.read_bytes() == f"owned by {action.owner}\n".encode(),
+            success=valid,
             observations=("owned file verified",),
         )
 
-    def rollback(self, action: Action, checkpoint: dict[str, object]) -> Evidence:
-        assert checkpoint["owned_paths"] == [f"/{self.target.name}"]
+    def rollback(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+        *,
+        purge_data: bool = False,
+    ) -> Evidence:
+        assert f"/{self.target.name}" in checkpoint["ownership"]
         if self.log is not None:
             self.log.append(f"rollback:{self.name}")
         self.target.unlink(missing_ok=True)
+        if purge_data:
+            self.data_path.unlink(missing_ok=True)
+        if self.crash_during_rollback is not None:
+            error = self.crash_during_rollback
+            self.crash_during_rollback = None
+            raise error("rollback mutation committed")
         return Evidence(
             action_id=action.id,
             success=True,
             observations=("owned file removed",),
+        )
+
+    def reconcile_rollback(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+        *,
+        purge_data: bool = False,
+    ) -> Evidence:
+        if self.target.exists() or (purge_data and self.data_path.exists()):
+            return self.rollback(action, checkpoint, purge_data=purge_data)
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("rollback already committed",),
         )
 
     def checkpoint_committed(self, phase: str, action: Action) -> None:
@@ -73,6 +137,50 @@ class RecordingAdapter:
         if phase == self.crash_after:
             self.crash_after = None
             raise InjectedCrash(phase)
+
+
+@dataclass
+class LegacyRuntimeAdapter:
+    root: Path
+    name: str = "runtime-v2"
+    requires: frozenset[str] = frozenset()
+
+    def verify(self, action: Action) -> Evidence:
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("legacy runtime verified",),
+        )
+
+    def rollback(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+        *,
+        purge_data: bool = False,
+    ) -> Evidence:
+        del purge_data
+        legacy = checkpoint["legacy"]
+        for host_path in legacy["managed_files"]:
+            (self.root / host_path.lstrip("/")).unlink(missing_ok=True)
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("legacy managed files removed",),
+        )
+
+    def reconcile_rollback(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+        *,
+        purge_data: bool = False,
+    ) -> Evidence:
+        return self.rollback(
+            action,
+            checkpoint,
+            purge_data=purge_data,
+        )
 
 
 def action_for(name: str) -> Action:
@@ -154,6 +262,104 @@ def test_applied_state_is_durable_before_derived_ownership_journal(
     assert adapter.counter.read_text() == "1"
 
 
+def test_resume_reconciles_process_death_after_adapter_mutation(tmp_path: Path) -> None:
+    adapter = RecordingAdapter(
+        "core",
+        tmp_path,
+        crash_during_apply=InjectedCrash,
+    )
+    plan = plan_for("core")
+
+    with pytest.raises(InjectedCrash, match="apply mutation committed"):
+        engine_for(tmp_path, adapter).apply(plan, accepted_digest=plan.digest)
+
+    state = TransactionStore(tmp_path).read_state()
+    assert state.checkpoints[-1].phase == "applying"
+    recovered = engine_for(tmp_path, RecordingAdapter("core", tmp_path)).resume()
+    assert recovered.status == "active"
+    assert adapter.counter.read_text() == "1"
+
+
+def test_normal_exception_after_adapter_mutation_rolls_it_back(tmp_path: Path) -> None:
+    adapter = RecordingAdapter(
+        "core",
+        tmp_path,
+        crash_during_apply=RuntimeError,
+    )
+    plan = plan_for("core")
+
+    with pytest.raises(RuntimeError, match="apply mutation committed"):
+        engine_for(tmp_path, adapter).apply(plan, accepted_digest=plan.digest)
+
+    assert not adapter.target.exists()
+    assert TransactionStore(tmp_path).read_state().status == "rolled_back"
+
+
+@pytest.mark.parametrize("failure", [InjectedCrash, RuntimeError])
+def test_resume_reconciles_death_or_error_after_destructive_rollback(
+    tmp_path: Path,
+    failure: type[BaseException],
+) -> None:
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+    adapter.crash_during_rollback = failure
+
+    with pytest.raises(failure, match="rollback mutation committed"):
+        engine.uninstall(purge_data=False)
+
+    recovered = engine_for(tmp_path, RecordingAdapter("core", tmp_path)).resume()
+    assert recovered.status == "uninstalled"
+    assert not adapter.target.exists()
+
+
+@pytest.mark.parametrize("purge_data", [False, True])
+def test_uninstall_routes_persisted_data_policy_to_adapter(
+    tmp_path: Path,
+    purge_data: bool,
+) -> None:
+    adapter = RecordingAdapter("core", tmp_path, preserve_data=True)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+
+    state = engine.uninstall(purge_data=purge_data)
+
+    assert state.status == "uninstalled"
+    assert adapter.data_path.exists() is (not purge_data)
+
+
+def test_terminal_resume_rebuilds_derived_journals_from_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    store = TransactionStore(tmp_path)
+    write_report = store.write_report
+
+    def die_after_terminal_state(report: dict[str, object]) -> None:
+        if report["status"] == "active":
+            raise InjectedCrash("terminal report")
+        write_report(report)
+
+    monkeypatch.setattr(store, "write_report", die_after_terminal_state)
+    with pytest.raises(InjectedCrash, match="terminal report"):
+        TransactionEngine(store, {"core": adapter}).apply(
+            plan,
+            accepted_digest=plan.digest,
+        )
+
+    recovered_store = TransactionStore(tmp_path)
+    recovered = TransactionEngine(
+        recovered_store,
+        {"core": RecordingAdapter("core", tmp_path)},
+    ).resume()
+    assert recovered.status == "active"
+    assert json.loads(recovered_store.report_path.read_text())["status"] == "active"
+
+
 def test_rollback_refuses_foreign_drift_before_deletion(tmp_path: Path) -> None:
     adapter = RecordingAdapter("core", tmp_path)
     plan = plan_for("core")
@@ -210,6 +416,52 @@ def test_store_uses_private_directory_and_file_permissions(tmp_path: Path) -> No
         store.report_path,
     ):
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_store_rejects_symlinked_parent_that_escapes_root(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (root / "var").symlink_to(outside, target_is_directory=True)
+    original_mode = stat.S_IMODE(outside.stat().st_mode)
+
+    with pytest.raises(OwnershipError, match="escapes supplied root"):
+        TransactionStore(root).initialize()
+
+    assert stat.S_IMODE(outside.stat().st_mode) == original_mode
+    assert not (outside / "lib").exists()
+
+
+def test_legacy_import_rejects_symlinked_parent_that_escapes_root(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    managed = outside / "nginx/proxy-control-panel.conf"
+    managed.parent.mkdir(parents=True)
+    managed.write_bytes(b"outside")
+    (root / "etc").symlink_to(outside, target_is_directory=True)
+    legacy = {
+        "schema": 2,
+        "status": "active",
+        "phase": "route_installed",
+        "plan": {"project_dir": "/opt/mtproxy-shared443"},
+        "owned_packages": [],
+        "managed_files": ["/etc/nginx/proxy-control-panel.conf"],
+        "managed_hashes": {
+            "/etc/nginx/proxy-control-panel.conf": hashlib.sha256(
+                b"outside"
+            ).hexdigest(),
+        },
+        "project_created": False,
+    }
+
+    with pytest.raises(OwnershipError, match="escapes supplied root"):
+        import_runtime_v2(root, legacy)
+
+    assert managed.read_bytes() == b"outside"
 
 
 def test_apply_requires_the_complete_accepted_plan_digest(tmp_path: Path) -> None:
@@ -273,7 +525,25 @@ def test_runtime_v2_import_is_explicit_and_preserves_managed_bytes(tmp_path: Pat
     assert isinstance(state, TransactionState)
     assert state.status == "active"
     assert state.origin == "runtime-v2"
+    assert TransactionStore(tmp_path).state_path.is_file()
     assert {path: path.read_bytes() for path in fixtures} == before
+    engine = TransactionEngine(
+        TransactionStore(tmp_path),
+        {"runtime-v2": LegacyRuntimeAdapter(tmp_path)},
+    )
+
+    repaired = engine.repair()
+
+    assert repaired.status == "active"
+    assert {path: path.read_bytes() for path in fixtures} == before
+
+    uninstalled = engine.uninstall(purge_data=False)
+
+    assert uninstalled.status == "uninstalled"
+    assert not nginx_site.exists()
+    assert credentials.read_bytes() == before[credentials]
+    assert nginx_route.read_bytes() == before[nginx_route]
+    assert compose_data.read_bytes() == before[compose_data]
     assert json.loads(json.dumps(state.to_dict()))["origin"] == "runtime-v2"
 
 
