@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -679,18 +680,30 @@ def test_archive_path_swap_cannot_change_verified_bytes(tmp_path, monkeypatch):
         max_metadata_size=1024,
     )
     destination = tmp_path / "stage"
-    real_verify_open_archive = release_module._verify_open_archive
+    real_copy_verified_archive = release_module._copy_verified_archive
     swapped = False
 
-    def swap_after_verification(source, expected_sha256, archive_path):
+    def swap_after_verification(
+        source,
+        private_copy,
+        expected_sha256,
+        archive_path,
+        max_compressed_size,
+    ):
         nonlocal swapped
-        real_verify_open_archive(source, expected_sha256, archive_path)
+        real_copy_verified_archive(
+            source,
+            private_copy,
+            expected_sha256,
+            archive_path,
+            max_compressed_size,
+        )
         os.replace(replacement, archive)
         swapped = True
 
     monkeypatch.setattr(
         release_module,
-        "_verify_open_archive",
+        "_copy_verified_archive",
         swap_after_verification,
     )
 
@@ -858,7 +871,7 @@ def test_backup_cleanup_failure_does_not_report_failed_install(tmp_path, monkeyp
 
     def fail_backup_cleanup(parent_fd, name):
         if ".backup-" in name:
-            raise OSError("simulated post-commit cleanup failure")
+            raise RuntimeError("simulated post-commit cleanup failure")
         return real_remove_tree_at(parent_fd, name)
 
     monkeypatch.setattr(release_module, "_remove_tree_at", fail_backup_cleanup)
@@ -867,3 +880,173 @@ def test_backup_cleanup_failure_does_not_report_failed_install(tmp_path, monkeyp
 
     assert (destination / "pkg/app").read_bytes() == b"verified payload\n"
     assert len(list(tmp_path.glob(".stage.backup-*"))) == 1
+
+
+def test_in_place_archive_overwrite_after_hash_cannot_change_parsed_bytes(
+    tmp_path, monkeypatch
+):
+    archive = _tar(
+        tmp_path,
+        [{"name": "pkg/app", "data": b"reviewed"}],
+        filename="reviewed-inode.tar.gz",
+    )
+    replacement = _tar(
+        tmp_path,
+        [{"name": "pkg/app", "data": b"substituted"}],
+        filename="replacement-bytes.tar.gz",
+    )
+    replacement_bytes = replacement.read_bytes()
+    manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path="pkg/app", kind="file"),),
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        max_entries=4,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+    real_copy_verified_archive = release_module._copy_verified_archive
+
+    def overwrite_inode_after_hash(
+        source,
+        private_copy,
+        expected_sha256,
+        archive_path,
+        max_compressed_size,
+    ):
+        real_copy_verified_archive(
+            source,
+            private_copy,
+            expected_sha256,
+            archive_path,
+            max_compressed_size,
+        )
+        descriptor = os.open(archive, os.O_WRONLY | os.O_TRUNC)
+        try:
+            os.write(descriptor, replacement_bytes)
+        finally:
+            os.close(descriptor)
+
+    monkeypatch.setattr(
+        release_module,
+        "_copy_verified_archive",
+        overwrite_inode_after_hash,
+    )
+    destination = tmp_path / "stage"
+
+    safe_extract_tar(archive, destination, manifest)
+
+    assert (destination / "pkg/app").read_bytes() == b"reviewed"
+
+
+def test_compressed_archive_bytes_have_a_hard_bound(tmp_path):
+    archive = _tar(
+        tmp_path,
+        [{"name": "pkg/app", "data": os.urandom(4096)}],
+        filename="compressed-limit.tar.gz",
+    )
+    manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path="pkg/app", kind="file"),),
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        max_entries=4,
+        max_total_size=8192,
+        max_compressed_size=64,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+
+    with pytest.raises(ReleaseError, match="compressed archive size limit"):
+        safe_extract_tar(archive, tmp_path / "stage", manifest)
+
+
+@pytest.mark.parametrize("mode", [0o777, 0o1777])
+def test_untrusted_immediate_destination_parent_is_rejected(tmp_path, mode):
+    archive = _tar(tmp_path, _valid_members())
+    parent = tmp_path / "untrusted-parent"
+    parent.mkdir()
+    parent.chmod(mode)
+    destination = parent / "stage"
+
+    with pytest.raises(ReleaseError, match="untrusted destination parent"):
+        safe_extract_tar(archive, destination, _valid_archive_manifest())
+
+    assert list(parent.iterdir()) == []
+
+
+def test_nonsticky_writable_destination_ancestor_is_rejected(tmp_path):
+    archive = _tar(tmp_path, _valid_members())
+    ancestor = tmp_path / "untrusted-ancestor"
+    ancestor.mkdir()
+    ancestor.chmod(0o777)
+    parent = ancestor / "trusted-child"
+    parent.mkdir(mode=0o700)
+
+    with pytest.raises(ReleaseError, match="untrusted destination ancestor"):
+        safe_extract_tar(
+            archive,
+            parent / "stage",
+            _valid_archive_manifest(),
+        )
+
+    assert list(parent.iterdir()) == []
+
+
+def test_sticky_writable_ancestor_allows_trusted_owned_child(tmp_path):
+    archive = _tar(tmp_path, _valid_members())
+    sticky_ancestor = tmp_path / "sticky-ancestor"
+    sticky_ancestor.mkdir()
+    sticky_ancestor.chmod(0o1777)
+    parent = sticky_ancestor / "trusted-child"
+    parent.mkdir(mode=0o700)
+    destination = parent / "stage"
+
+    safe_extract_tar(archive, destination, _valid_archive_manifest())
+
+    assert (destination / "pkg/app").read_bytes() == b"verified payload\n"
+
+
+def test_old_tree_cleanup_is_iterative_for_attacker_depth(tmp_path):
+    archive = _tar(tmp_path, _valid_members())
+    destination = tmp_path / "stage"
+    destination.mkdir()
+    current_fd = os.open(destination, os.O_RDONLY)
+    try:
+        for _index in range(300):
+            os.mkdir("d", 0o700, dir_fd=current_fd)
+            child_fd = os.open("d", os.O_RDONLY, dir_fd=current_fd)
+            os.close(current_fd)
+            current_fd = child_fd
+    finally:
+        os.close(current_fd)
+
+    previous_limit = sys.getrecursionlimit()
+    try:
+        sys.setrecursionlimit(200)
+        safe_extract_tar(archive, destination, _valid_archive_manifest())
+    finally:
+        sys.setrecursionlimit(previous_limit)
+        for backup in tmp_path.glob(".stage.backup-*"):
+            shutil.rmtree(backup)
+
+    assert (destination / "pkg/app").read_bytes() == b"verified payload\n"
+    assert list(tmp_path.glob(".stage.backup-*")) == []
+
+
+def test_precommit_cleanup_failure_does_not_mask_primary_error(
+    tmp_path, monkeypatch
+):
+    archive = _tar(tmp_path, _valid_members())
+    destination = tmp_path / "stage"
+
+    def fail_extraction(*_args, **_kwargs):
+        raise ReleaseError("primary extraction failure")
+
+    def fail_cleanup(*_args, **_kwargs):
+        raise RuntimeError("secondary cleanup failure")
+
+    monkeypatch.setattr(release_module, "_copy_regular_member", fail_extraction)
+    monkeypatch.setattr(release_module, "_remove_tree_at", fail_cleanup)
+
+    with pytest.raises(ReleaseError, match="primary extraction failure"):
+        safe_extract_tar(archive, destination, _valid_archive_manifest())
+
+    assert len(_stage_paths(destination)) == 1

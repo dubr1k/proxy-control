@@ -22,8 +22,10 @@ _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _SUPPORTED_ARCHITECTURES = frozenset({"amd64", "arm64"})
 _SUPPORTED_SPDX_LICENSES = frozenset({"GPL-3.0-only", "GPL-3.0-or-later"})
 _COPY_CHUNK_SIZE = 1024 * 1024
+_HARD_MAX_COMPRESSED_SIZE = 1024 * 1024 * 1024
 _HARD_MAX_DECOMPRESSED_SIZE = 2 * 1024 * 1024 * 1024
 _HARD_MAX_METADATA_SIZE = 8 * 1024 * 1024
+_DEFAULT_MAX_COMPRESSED_SIZE = 512 * 1024 * 1024
 _DEFAULT_MAX_DECOMPRESSED_SIZE = 1024 * 1024 * 1024
 _DEFAULT_MAX_METADATA_SIZE = 1024 * 1024
 _TAR_BLOCK_SIZE = 512
@@ -141,6 +143,7 @@ class ArchiveManifest:
     archive_sha256: str
     max_entries: int = 10_000
     max_total_size: int = 1024 * 1024 * 1024
+    max_compressed_size: int = _DEFAULT_MAX_COMPRESSED_SIZE
     max_decompressed_size: int = _DEFAULT_MAX_DECOMPRESSED_SIZE
     max_metadata_size: int = _DEFAULT_MAX_METADATA_SIZE
 
@@ -159,7 +162,7 @@ class _DestinationAnchor:
     absolute: Path
     components: tuple[str, ...]
     descriptors: tuple[int, ...]
-    identities: tuple[tuple[int, int], ...]
+    identities: tuple[tuple[int, int, int, int], ...]
     destination_identity: tuple[int, int] | None
 
     @property
@@ -172,7 +175,10 @@ class _DestinationAnchor:
 
     def close(self) -> None:
         for descriptor in reversed(self.descriptors):
-            os.close(descriptor)
+            try:
+                os.close(descriptor)
+            except Exception:
+                pass
 
 
 def verify_artifact(path: Path, expected_sha256: str) -> None:
@@ -202,7 +208,7 @@ def safe_extract_tar(
     destination: Path,
     manifest: ArchiveManifest,
 ) -> None:
-    """Verify and validate one opened archive before a dirfd-anchored install."""
+    """Verify immutable copied bytes before a trusted-dirfd install."""
 
     expected = _validate_archive_manifest(manifest)
     anchor: _DestinationAnchor | None = None
@@ -210,30 +216,43 @@ def safe_extract_tar(
     stage_fd = -1
     descriptor = _open_regular_file(archive, "archive")
     try:
-        with os.fdopen(descriptor, "rb") as raw_archive:
+        with os.fdopen(descriptor, "rb") as source_archive:
             descriptor = -1
-            _verify_open_archive(raw_archive, manifest.archive_sha256, archive)
-            with tempfile.TemporaryFile(mode="w+b") as decoded_archive:
-                _decode_bounded_tar(
+            with tempfile.TemporaryFile(mode="w+b") as raw_archive:
+                _copy_verified_archive(
+                    source_archive,
                     raw_archive,
-                    decoded_archive,
-                    manifest.max_decompressed_size,
+                    manifest.archive_sha256,
+                    archive,
+                    manifest.max_compressed_size,
                 )
-                _scan_tar_records(decoded_archive, manifest.max_metadata_size)
-                decoded_archive.seek(0)
-                with tarfile.open(
-                    fileobj=decoded_archive, mode="r:"
-                ) as opened_archive:
-                    members = _validate_tar(opened_archive, manifest, expected)
-                    anchor = _validate_destination(destination)
-                    _revalidate_destination(anchor)
-                    stage_name, stage_fd = _create_private_stage(anchor)
-                    _extract_members(opened_archive, members, stage_fd)
-                    os.close(stage_fd)
-                    stage_fd = -1
-                    _revalidate_destination(anchor)
-                    _replace_destination(anchor, stage_name)
-                    stage_name = None
+                with tempfile.TemporaryFile(mode="w+b") as decoded_archive:
+                    _decode_bounded_tar(
+                        raw_archive,
+                        decoded_archive,
+                        manifest.max_decompressed_size,
+                    )
+                    _scan_tar_records(
+                        decoded_archive, manifest.max_metadata_size
+                    )
+                    decoded_archive.seek(0)
+                    with tarfile.open(
+                        fileobj=decoded_archive, mode="r:"
+                    ) as opened_archive:
+                        members = _validate_tar(
+                            opened_archive, manifest, expected
+                        )
+                        anchor = _validate_destination(destination)
+                        _revalidate_destination(anchor)
+                        stage_name, stage_fd = _create_private_stage(anchor)
+                        _extract_members(opened_archive, members, stage_fd)
+                        os.close(stage_fd)
+                        stage_fd = -1
+
+        assert anchor is not None
+        assert stage_name is not None
+        _replace_destination(anchor, stage_name)
+        stage_name = None
     except ReleaseError:
         if stage_fd >= 0:
             os.close(stage_fd)
@@ -282,16 +301,35 @@ def _digest_open_file(source: BinaryIO) -> str:
     return digest.hexdigest()
 
 
-def _verify_open_archive(
-    source: BinaryIO, expected_sha256: str, archive_path: Path
+def _copy_verified_archive(
+    source: BinaryIO,
+    private_copy: BinaryIO,
+    expected_sha256: str,
+    archive_path: Path,
+    max_compressed_size: int,
 ) -> None:
-    actual = _digest_open_file(source)
+    digest = hashlib.sha256()
+    total = 0
+    while True:
+        chunk = source.read(min(_COPY_CHUNK_SIZE, max_compressed_size - total + 1))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_compressed_size:
+            raise ReleaseError(
+                f"compressed archive size limit exceeded: {max_compressed_size}"
+            )
+        digest.update(chunk)
+        private_copy.write(chunk)
+
+    actual = digest.hexdigest()
     if not secrets.compare_digest(actual, expected_sha256):
         raise ReleaseError(
             f"archive digest mismatch for {archive_path.name}: expected "
             f"{expected_sha256}, got {actual}"
         )
-    source.seek(0)
+    private_copy.flush()
+    private_copy.seek(0)
 
 
 def _decode_bounded_tar(
@@ -611,6 +649,13 @@ def _validate_archive_manifest(
         raise ReleaseError("archive manifest has an invalid type")
     _require_sha256(manifest.archive_sha256, "archive")
     if (
+        type(manifest.max_compressed_size) is not int
+        or not 0 < manifest.max_compressed_size <= _HARD_MAX_COMPRESSED_SIZE
+    ):
+        raise ReleaseError(
+            "archive max_compressed_size must be within the hard safety bound"
+        )
+    if (
         type(manifest.max_decompressed_size) is not int
         or not 0 < manifest.max_decompressed_size <= _HARD_MAX_DECOMPRESSED_SIZE
     ):
@@ -820,11 +865,14 @@ def _validate_destination(destination: Path) -> _DestinationAnchor:
 
     components = tuple(absolute.parent.parts[1:])
     descriptors: list[int] = []
-    identities: list[tuple[int, int]] = []
+    identities: list[tuple[int, int, int, int]] = []
+    directory_metadata: list[os.stat_result] = []
     try:
         root_fd = os.open(absolute.anchor, _directory_open_flags())
+        root_metadata = os.fstat(root_fd)
         descriptors.append(root_fd)
-        identities.append(_identity(os.fstat(root_fd)))
+        identities.append(_directory_fingerprint(root_metadata))
+        directory_metadata.append(root_metadata)
 
         for component in components:
             before = os.stat(component, dir_fd=descriptors[-1], follow_symlinks=False)
@@ -846,8 +894,10 @@ def _validate_destination(destination: Path) -> _DestinationAnchor:
                 os.close(child_fd)
                 raise ReleaseError("destination parent changed during validation")
             descriptors.append(child_fd)
-            identities.append(_identity(after))
+            identities.append(_directory_fingerprint(after))
+            directory_metadata.append(after)
 
+        _enforce_destination_chain_trust(directory_metadata)
         destination_identity = _destination_identity(
             descriptors[-1], absolute.name
         )
@@ -879,6 +929,43 @@ def _identity(metadata: os.stat_result) -> tuple[int, int]:
     return metadata.st_dev, metadata.st_ino
 
 
+def _directory_fingerprint(
+    metadata: os.stat_result,
+) -> tuple[int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_uid,
+        stat.S_IMODE(metadata.st_mode),
+    )
+
+
+def _trusted_uids() -> frozenset[int]:
+    return frozenset({0, os.getuid(), os.geteuid()})
+
+
+def _enforce_destination_chain_trust(
+    metadata_chain: list[os.stat_result],
+) -> None:
+    trusted_uids = _trusted_uids()
+    immediate_parent_index = len(metadata_chain) - 1
+    for index, metadata in enumerate(metadata_chain):
+        if metadata.st_uid not in trusted_uids:
+            raise ReleaseError("untrusted destination ancestor owner")
+        writable_by_untrusted = stat.S_IMODE(metadata.st_mode) & 0o022
+        if not writable_by_untrusted:
+            continue
+        if index == immediate_parent_index:
+            raise ReleaseError("untrusted destination parent permissions")
+        if not metadata.st_mode & stat.S_ISVTX:
+            raise ReleaseError("untrusted destination ancestor permissions")
+        next_metadata = metadata_chain[index + 1]
+        if next_metadata.st_uid not in trusted_uids:
+            raise ReleaseError(
+                "untrusted entry below sticky destination ancestor"
+            )
+
+
 def _destination_identity(parent_fd: int, name: str) -> tuple[int, int] | None:
     try:
         metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
@@ -888,11 +975,18 @@ def _destination_identity(parent_fd: int, name: str) -> tuple[int, int] | None:
         raise ReleaseError("destination must not be a symlink")
     if not stat.S_ISDIR(metadata.st_mode):
         raise ReleaseError("destination must be a directory or absent")
+    if metadata.st_uid not in _trusted_uids():
+        raise ReleaseError("untrusted destination owner")
     return _identity(metadata)
 
 
 def _revalidate_destination(anchor: _DestinationAnchor) -> None:
     try:
+        if (
+            _directory_fingerprint(os.fstat(anchor.descriptors[0]))
+            != anchor.identities[0]
+        ):
+            raise ReleaseError("destination root changed before mutation")
         for index, component in enumerate(anchor.components):
             metadata = os.stat(
                 component,
@@ -901,7 +995,8 @@ def _revalidate_destination(anchor: _DestinationAnchor) -> None:
             )
             if (
                 not stat.S_ISDIR(metadata.st_mode)
-                or _identity(metadata) != anchor.identities[index + 1]
+                or _directory_fingerprint(metadata)
+                != anchor.identities[index + 1]
             ):
                 raise ReleaseError("destination parent changed before mutation")
         current_destination = _destination_identity(
@@ -1132,7 +1227,7 @@ def _replace_destination(
 
     try:
         _remove_tree_at(parent_fd, backup_name)
-    except OSError:
+    except Exception:
         # The new destination is already committed. Leave the old tree under
         # its unpredictable private quarantine name rather than report a
         # false extraction failure or touch it through a pathname.
@@ -1149,18 +1244,47 @@ def _remove_tree_at(parent_fd: int, name: str) -> None:
         return
 
     descriptor = os.open(name, _directory_open_flags(), dir_fd=parent_fd)
-    try:
-        if _identity(metadata) != _identity(os.fstat(descriptor)):
-            raise OSError("directory changed during cleanup")
-        for child in os.listdir(descriptor):
-            _remove_tree_at(descriptor, child)
-    finally:
+    if _identity(metadata) != _identity(os.fstat(descriptor)):
         os.close(descriptor)
-    os.rmdir(name, dir_fd=parent_fd)
+        raise OSError("directory changed during cleanup")
+    stack = [(parent_fd, name, descriptor, os.scandir(descriptor))]
+    try:
+        while stack:
+            node_parent_fd, node_name, node_fd, entries = stack[-1]
+            try:
+                child = next(entries).name
+            except StopIteration:
+                stack.pop()
+                entries.close()
+                os.close(node_fd)
+                os.rmdir(node_name, dir_fd=node_parent_fd)
+                continue
+
+            child_metadata = os.stat(
+                child, dir_fd=node_fd, follow_symlinks=False
+            )
+            if not stat.S_ISDIR(child_metadata.st_mode):
+                os.unlink(child, dir_fd=node_fd)
+                continue
+            child_fd = os.open(
+                child, _directory_open_flags(), dir_fd=node_fd
+            )
+            if _identity(child_metadata) != _identity(os.fstat(child_fd)):
+                os.close(child_fd)
+                raise OSError("directory changed during cleanup")
+            stack.append((node_fd, child, child_fd, os.scandir(child_fd)))
+    except BaseException:
+        while stack:
+            _node_parent, _node_name, open_fd, entries = stack.pop()
+            try:
+                entries.close()
+            finally:
+                os.close(open_fd)
+        raise
 
 
 def _best_effort_remove_tree_at(parent_fd: int, name: str) -> None:
     try:
         _remove_tree_at(parent_fd, name)
-    except OSError:
+    except Exception:
         pass
