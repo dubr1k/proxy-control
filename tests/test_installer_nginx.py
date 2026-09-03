@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import stat
 import subprocess
 from pathlib import Path
@@ -12,9 +13,10 @@ from installer.adapters.nginx import (
     NginxAdapter,
     TopologyError,
     parse_effective_nginx,
+    remove_owned_map_block,
     select_route_target,
 )
-from installer.audit import CommandRunner
+from installer.audit import CommandRunner, parse_nginx_observation
 from installer.model import (
     DomainConfig,
     FirewallConfig,
@@ -108,7 +110,7 @@ def test_selects_only_map_feeding_active_443_proxy_pass() -> None:
 
 
 def test_tokenizer_ignores_comments_and_honors_quotes_and_source_markers() -> None:
-    text = '''# configuration file /etc/nginx/stream.d/quoted.conf:\nmap "$ssl_preread_server_name" "$chosen" {\n  # fake } ; proxy_pass $wrong;\n  "semi;brace}" "127.0.0.1:1";\n  default "127.0.0.1:2";\n}\nserver { listen "443"; ssl_preread "on"; proxy_pass "$chosen"; }\n'''
+    text = '''# configuration file /etc/nginx/stream.d/quoted.conf:\nstream {\nmap "$ssl_preread_server_name" "$chosen" {\n  # fake } ; proxy_pass $wrong;\n  "semi;brace}" "127.0.0.1:1";\n  default "127.0.0.1:2";\n}\nserver { listen "443"; ssl_preread "on"; proxy_pass "$chosen"; }\n}\n'''
 
     target = select_route_target(parse_effective_nginx(text))
 
@@ -133,7 +135,7 @@ def test_ambiguous_active_data_path_is_hard_stop_and_byte_preserving(tmp_path: P
 
 
 def test_dynamic_or_unresolved_active_proxy_pass_fails_closed() -> None:
-    dynamic = """# configuration file /etc/nginx/stream.d/routes.conf:\nmap $ssl_preread_server_name $backend { default 127.0.0.1:1; }\nserver { listen 443; ssl_preread on; proxy_pass $backend:$server_port; }\n"""
+    dynamic = """stream {\nmap $ssl_preread_server_name $backend { default 127.0.0.1:1; }\nserver { listen 443; ssl_preread on; proxy_pass $backend:$server_port; }\n}\n"""
     with pytest.raises(TopologyError, match="dynamic or unresolved"):
         select_route_target(parse_effective_nginx(dynamic))
 
@@ -286,3 +288,197 @@ def test_fresh_mode_owns_complete_generated_stream_router(tmp_path: Path) -> Non
     assert ("nginx", "-T") not in executor.calls
     adapter.rollback(action, checkpoint)
     assert not generated.exists()
+
+
+def test_parser_excludes_http_maps_and_servers_from_stream_topology() -> None:
+    text = """# configuration file /etc/nginx/nginx.conf:
+events {}
+http {
+    map $host $backend { default 127.0.0.1:9000; }
+    server { listen 443 ssl; proxy_pass http://app; }
+}
+stream { include /etc/nginx/stream.d/*.conf; }
+# configuration file /etc/nginx/stream.d/routes.conf:
+map $ssl_preread_server_name $backend {
+    default 127.0.0.1:8443;
+}
+server { listen 443; ssl_preread on; proxy_pass $backend; }
+"""
+    topology = parse_effective_nginx(text)
+
+    assert len(topology.maps) == 1
+    assert len(topology.servers) == 1
+    assert select_route_target(topology).variable == "$backend"
+
+
+@pytest.mark.parametrize(
+    "destination",
+    ["$fallback_backend", "127.0.0.1:$dynamic_port", "named_upstream"],
+)
+def test_selected_map_rejects_unresolved_destination(destination: str) -> None:
+    text = f"""stream {{
+map $ssl_preread_server_name $backend {{ default {destination}; }}
+server {{ listen 443; ssl_preread on; proxy_pass $backend; }}
+}}
+"""
+    with pytest.raises(TopologyError, match="dynamic or unresolved"):
+        select_route_target(parse_effective_nginx(text))
+
+
+def test_fresh_mode_rejects_preexisting_active_stream_router(tmp_path: Path) -> None:
+    runner, _ = runner_for(MULTI_MAP.read_text())
+    observed = AuditFacts(
+        topology={
+            "nginx": {
+                "observation": "observed",
+                "route_target": {"source_file": "/etc/nginx/stream.d/routes.conf"},
+                "stream_enabled": True,
+            }
+        }
+    )
+    with pytest.raises(TopologyError, match="active stream router"):
+        NginxAdapter(root=tmp_path, runner=runner).plan(
+            config(HostMode.FRESH),
+            observed,
+        )
+
+def test_audit_collision_routes_come_only_from_selected_active_map() -> None:
+    effective = MULTI_MAP.read_text().replace(
+        "default 127.0.0.1:9001;",
+        "mt.example.com 127.0.0.1:9999;\n    "
+        "mt.example.com 127.0.0.1:9999;\n    default 127.0.0.1:9001;",
+    )
+
+    observed = parse_nginx_observation(effective)
+
+    assert observed["sni_routes"] == {"vpn.example.com": "127.0.0.1:10443"}
+    assert observed["duplicate_sni_domains"] == ()
+
+
+def test_reconcile_apply_replays_validation_reload_and_owns_backup(tmp_path: Path) -> None:
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, executor = runner_for(effective)
+    adapter = NginxAdapter(root=root, runner=runner)
+    action = adapter.plan(config(), facts())[0]
+    prepared = adapter.prepare(action)
+    adapter.apply(action, prepared)
+    executor.calls.clear()
+
+    reconciled = adapter.reconcile_apply(action, prepared)
+
+    assert executor.calls == [
+        ("nginx", "-T"),
+        ("nginx", "-t"),
+        ("systemctl", "reload", "nginx"),
+    ]
+    backup = root / str(reconciled["backup_path"]).lstrip("/")
+    assert backup.read_bytes() != route.read_bytes()
+    assert reconciled["ownership"][str(reconciled["backup_path"])]["sha256"] == hashlib.sha256(
+        backup.read_bytes()
+    ).hexdigest()
+
+
+def test_reconcile_rollback_completes_validation_reload_and_backup_cleanup(
+    tmp_path: Path,
+) -> None:
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, executor = runner_for(effective)
+    adapter = NginxAdapter(root=root, runner=runner)
+    action = adapter.plan(config(), facts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+    route.write_bytes(
+        remove_owned_map_block(
+            route.read_bytes(),
+            routes=(
+                ("mt.example.com", "127.0.0.1:8445"),
+                ("panel.example.com", "127.0.0.1:8787"),
+            ),
+            ownership_id=action.id,
+        )
+    )
+    executor.calls.clear()
+
+    evidence = adapter.reconcile_rollback(action, applied)
+
+    assert evidence.success is True
+    assert executor.calls == [
+        ("nginx", "-T"),
+        ("nginx", "-t"),
+        ("systemctl", "reload", "nginx"),
+    ]
+    assert not (root / str(applied["backup_path"]).lstrip("/")).exists()
+
+
+def test_verify_and_rollback_fail_when_active_route_target_changes(tmp_path: Path) -> None:
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, executor = runner_for(effective)
+    adapter = NginxAdapter(root=root, runner=runner)
+    action = adapter.plan(config(), facts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+    executor.effective = effective.replace(
+        'proxy_pass "$proxy_control_backend";',
+        "proxy_pass $unused_backend;",
+    )
+    before = route.read_bytes()
+
+    assert adapter.verify(action).success is False
+    with pytest.raises(TopologyError, match="active"):
+        adapter.rollback(action, applied)
+    assert route.read_bytes() == before
+
+
+def test_symlink_identity_drift_is_rejected_before_verify_or_rollback(tmp_path: Path) -> None:
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    link = materialize_route(root, effective, symlink=True)
+    runner, _ = runner_for(effective)
+    adapter = NginxAdapter(root=root, runner=runner)
+    action = adapter.plan(config(), facts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+    owned = link.read_bytes()
+    link.unlink()
+    link.write_bytes(owned)
+
+    assert adapter.verify(action).success is False
+    with pytest.raises(TopologyError, match="path identity"):
+        adapter.rollback(action, applied)
+
+
+def test_checkpoint_validation_rejects_types_and_unbound_target_without_mutation(
+    tmp_path: Path,
+) -> None:
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, _ = runner_for(effective)
+    adapter = NginxAdapter(root=root, runner=runner)
+    action = adapter.plan(config(), facts())[0]
+    checkpoint = dict(adapter.prepare(action))
+    identity = dict(checkpoint["route_identity"])
+    identity["mode"] = "0640"
+    identity["resolved_path"] = "/etc/nginx/nginx.conf"
+    checkpoint["route_identity"] = identity
+    before = route.read_bytes()
+
+    with pytest.raises(TopologyError, match="checkpoint"):
+        adapter.apply(action, checkpoint)
+    assert route.read_bytes() == before
+
+
+def test_fresh_parent_symlink_escape_is_rejected(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "etc/nginx").mkdir(parents=True)
+    (root / "etc/nginx/stream.d").symlink_to(outside, target_is_directory=True)
+    runner, _ = runner_for("")
+    adapter = NginxAdapter(root=root, runner=runner)
+    with pytest.raises(TopologyError, match="escapes"):
+        adapter.plan(config(HostMode.FRESH), facts("unavailable"))
+    assert list(outside.iterdir()) == []

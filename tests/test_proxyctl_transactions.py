@@ -378,6 +378,7 @@ def test_repair_and_uninstall_are_idempotent_and_refuse_foreign_drift(tmp_path):
     root, route = host_root(tmp_path)
     original = route.read_text()
     plan = make_plan(root, route)
+
     apply_plan(plan, root=root, validate=lambda: None, reload=lambda: None)
 
     repair_installation(root=root, validate=lambda: None, reload=lambda: None)
@@ -396,6 +397,26 @@ def test_repair_and_uninstall_are_idempotent_and_refuse_foreign_drift(tmp_path):
     uninstall_installation(root=root, validate=lambda: None, reload=lambda: None)
     assert route.read_text() == original
     assert not (root / "var/lib/proxy-control/ownership.json").exists()
+
+def test_repair_durably_migrates_legacy_schema_one_manifest(tmp_path):
+    root, route = host_root(tmp_path)
+    plan = make_plan(root, route)
+    apply_plan(plan, root=root, validate=lambda: None, reload=lambda: None)
+    manifest = root / "var/lib/proxy-control/ownership.json"
+    legacy = json.loads(manifest.read_text())
+    legacy["plan"].pop("route_variable")
+    manifest.write_text(json.dumps(legacy))
+    calls: list[str] = []
+
+    repair_installation(
+        root=root,
+        validate=lambda: calls.append("validate"),
+        reload=lambda: calls.append("reload"),
+    )
+
+    migrated = json.loads(manifest.read_text())
+    assert migrated["plan"]["route_variable"] == "$upstream_443"
+    assert calls == ["validate"]
 
 def test_repair_and_uninstall_preserve_foreign_routes_added_after_install(tmp_path):
     root, route = host_root(tmp_path)

@@ -807,18 +807,8 @@ def parse_nginx_observation(text: str) -> dict[str, object]:
     for mapping in sni_maps:
         if mapping.source_file != "<effective>":
             map_files[mapping.source_file] = map_files.get(mapping.source_file, 0) + 1
-        for route in mapping.routes:
-            domain = route.key.lower()
-            if _DOMAIN_RE.fullmatch(domain) is None:
-                continue
-            route_values.setdefault(domain, set()).add(route.value)
-            route_counts[domain] = route_counts.get(domain, 0) + 1
     for section in sections.values():
         http_domains.update(parse_http_domains(section))
-    routes = {
-        domain: sorted(backends)[0]
-        for domain, backends in sorted(route_values.items())
-    }
     route_target: dict[str, str] | None = None
     topology_error: str | None = None
     try:
@@ -831,6 +821,16 @@ def parse_nginx_observation(text: str) -> dict[str, object]:
             "source_variable": selected.source_variable,
             "variable": selected.variable,
         }
+        for key, backend in selected.routes:
+            domain = key.lower()
+            if _DOMAIN_RE.fullmatch(domain) is None:
+                continue
+            route_values.setdefault(domain, set()).add(backend)
+            route_counts[domain] = route_counts.get(domain, 0) + 1
+    routes = {
+        domain: sorted(backends)[0]
+        for domain, backends in sorted(route_values.items())
+    }
     return {
         "available": True,
         "duplicate_sni_domains": tuple(

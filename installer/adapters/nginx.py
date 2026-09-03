@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import fnmatch
 import os
 import re
 import stat
@@ -79,30 +80,109 @@ class _Token:
 
 
 def parse_effective_nginx(text: str) -> NginxTopology:
-    """Parse the effective ``nginx -T`` stream grammar needed for route ownership."""
+    """Parse effective ``nginx -T`` stream contexts and expanded includes."""
     if not isinstance(text, str):
         raise TypeError("effective Nginx configuration must be text")
     tokens = _tokenize(text)
+    ranges, included_sources = _stream_context(tokens)
+
+    def accepted(index: int) -> bool:
+        return any(start <= index < end for start, end in ranges) or (
+            tokens[index].source_file in included_sources
+        )
+
+    return _parse_tokens(tokens, accepted=accepted, stream_enabled=bool(ranges))
+
+
+def _parse_file_nginx(text: str) -> NginxTopology:
+    tokens = _tokenize(text)
+    return _parse_tokens(
+        tokens,
+        accepted=lambda _index: True,
+        stream_enabled=False,
+    )
+
+
+def _parse_tokens(
+    tokens: tuple[_Token, ...],
+    *,
+    accepted: object,
+    stream_enabled: bool,
+) -> NginxTopology:
+    accepts = accepted
+    if not callable(accepts):
+        raise TypeError("token predicate must be callable")
     maps: list[NginxMap] = []
     servers: list[StreamServer] = []
-    stream_enabled = False
     index = 0
     while index < len(tokens):
         token = tokens[index]
-        if token.value == "stream" and index + 1 < len(tokens) and tokens[index + 1].value == "{":
-            stream_enabled = True
-        if token.value == "map" and index + 3 < len(tokens):
+        if accepts(index) and token.value == "map" and index + 3 < len(tokens):
             parsed = _parse_map(tokens, index)
             if parsed is not None:
                 mapping, index = parsed
                 maps.append(mapping)
                 continue
-        if token.value == "server" and index + 1 < len(tokens) and tokens[index + 1].value == "{":
+        if (
+            accepts(index)
+            and token.value == "server"
+            and index + 1 < len(tokens)
+            and tokens[index + 1].value == "{"
+        ):
             server, index = _parse_server(tokens, index)
             servers.append(server)
             continue
         index += 1
     return NginxTopology(tuple(maps), tuple(servers), stream_enabled)
+
+
+def _stream_context(
+    tokens: tuple[_Token, ...],
+) -> tuple[tuple[tuple[int, int], ...], frozenset[str]]:
+    ranges: list[tuple[int, int]] = []
+    patterns: set[str] = set()
+    for index, token in enumerate(tokens[:-1]):
+        if token.value != "stream" or tokens[index + 1].value != "{":
+            continue
+        close = _matching_close(tokens, index + 1)
+        ranges.append((index + 2, close))
+        cursor = index + 2
+        while cursor < close:
+            if (
+                tokens[cursor].value == "include"
+                and cursor + 2 < close
+                and tokens[cursor + 2].value == ";"
+            ):
+                patterns.add(tokens[cursor + 1].value)
+                cursor += 3
+                continue
+            cursor += 1
+    sources = {
+        token.source_file
+        for token in tokens
+        if token.source_file != "<effective>"
+    }
+    included: set[str] = set()
+    while True:
+        expanded = {
+            source
+            for source in sources
+            if any(fnmatch.fnmatchcase(source, pattern) for pattern in patterns)
+        }
+        new_sources = expanded - included
+        if not new_sources:
+            break
+        included.update(new_sources)
+        for index, token in enumerate(tokens[:-2]):
+            if (
+                token.source_file in new_sources
+                and tokens[index + 1].source_file == token.source_file
+                and tokens[index + 2].source_file == token.source_file
+                and token.value == "include"
+                and tokens[index + 2].value == ";"
+            ):
+                patterns.add(tokens[index + 1].value)
+    return tuple(ranges), frozenset(included)
 
 
 def select_route_target(topology: NginxTopology, listener_port: int = 443) -> RouteTarget:
@@ -131,12 +211,47 @@ def select_route_target(topology: NginxTopology, listener_port: int = 443) -> Ro
     mapping = matches[0]
     if mapping.source_variable != "$ssl_preread_server_name":
         raise TopologyError("active stream route is dynamic or unresolved")
+    if any(not _literal_backend(route.value) for route in mapping.routes):
+        raise TopologyError("active stream route is dynamic or unresolved")
     return RouteTarget(
         variable=mapping.variable,
         source_variable=mapping.source_variable,
         source_file=mapping.source_file,
         routes=tuple((route.key, route.value) for route in mapping.routes),
     )
+def derive_owned_route_variable(
+    text: str,
+    *,
+    routes: Sequence[tuple[str, str]],
+    ownership_id: str,
+) -> str:
+    """Derive a legacy route variable from one owned or unique SNI map."""
+    topology = _parse_file_nginx(text)
+    sni_maps = [
+        mapping
+        for mapping in topology.maps
+        if mapping.source_variable == "$ssl_preread_server_name"
+    ]
+    exact: list[NginxMap] = []
+    for mapping in sni_maps:
+        block = text[mapping.start : mapping.end].encode()
+        try:
+            remove_owned_map_block(
+                block,
+                routes=routes,
+                ownership_id=ownership_id,
+            )
+        except TopologyError:
+            continue
+        exact.append(mapping)
+    if len(exact) == 1:
+        return exact[0].variable
+    marker = f"{OWNERSHIP_BEGIN} {ownership_id}"
+    if marker in text or len(sni_maps) != 1:
+        raise TopologyError("legacy owned route topology is ambiguous")
+    return sni_maps[0].variable
+
+
 
 
 def patch_owned_map(
@@ -147,7 +262,7 @@ def patch_owned_map(
     ownership_id: str,
 ) -> str:
     """Insert or verify one exact owned block in a selected map destination."""
-    topology = parse_effective_nginx(text)
+    topology = _parse_file_nginx(text)
     matches = [mapping for mapping in topology.maps if mapping.variable == variable]
     if len(matches) != 1:
         raise TopologyError("selected route file does not contain exactly one effective map")
@@ -265,6 +380,10 @@ class NginxAdapter:
         if config.host_mode is HostMode.FRESH:
             if observation not in {"observed", "unavailable"}:
                 raise TopologyError("Nginx observation is invalid")
+            if nginx.get("stream_enabled") is True or isinstance(
+                nginx.get("route_target"), Mapping
+            ):
+                raise TopologyError("fresh mode cannot replace an active stream router")
             mode = "fresh"
             target_path = self.fresh_path
             variable = "$proxy_control_backend"
@@ -280,10 +399,17 @@ class NginxAdapter:
             for domain, backend in routes:
                 if domain in existing and existing[domain] != backend:
                     raise TopologyError(f"domain already routed: {domain}")
+        planned_identity = self._planned_path_identity(
+            target_path,
+            must_be_missing=mode == "fresh",
+        )
         mutations = (
             f"mode={mode}",
             f"target={target_path}",
             f"variable={variable}",
+            f"path_kind={planned_identity['kind']}",
+            f"resolved_path={planned_identity['resolved_path']}",
+            f"symlink_target={planned_identity['symlink_target'] or '-'}",
             *(f"route={domain} {backend}" for domain, backend in routes),
         )
         return (
@@ -301,48 +427,41 @@ class NginxAdapter:
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         specification = _action_specification(action)
-        host_path = specification["target"]
-        path = self._root_path(host_path)
-        exists = path.exists() or path.is_symlink()
-        if specification["mode"] == "coexist" and not exists:
-            raise TopologyError("selected route file does not exist")
-        if specification["mode"] == "fresh" and exists:
-            raise TopologyError("fresh router path is already occupied")
+        path = self._validate_planned_path(specification, allow_created=False)
+        exists = specification["path_kind"] != "missing"
         if exists:
-            try:
-                resolved = path.resolve(strict=True)
-            except (OSError, RuntimeError) as exc:
-                raise TopologyError("selected route file cannot be resolved") from exc
-            self._assert_contained(resolved)
-            if not resolved.is_file():
-                raise TopologyError("selected route path is not a regular file")
-            metadata = resolved.stat()
-            content = resolved.read_bytes()
-            identity: dict[str, object] = {
-                "exists": True,
-                "resolved_path": self._host_path(resolved),
-                "mode": stat.S_IMODE(metadata.st_mode),
-                "uid": metadata.st_uid,
-                "gid": metadata.st_gid,
-                "original_sha256": _sha256(content),
-                "symlink_target": os.readlink(path) if path.is_symlink() else None,
-            }
+            metadata = path.stat()
+            content = path.read_bytes()
+            original_hash: str | None = _sha256(content)
+            mode = stat.S_IMODE(metadata.st_mode)
+            uid = metadata.st_uid
+            gid = metadata.st_gid
         else:
-            identity = {
-                "exists": False,
-                "resolved_path": host_path,
-                "mode": 0o640,
-                "uid": os.getuid(),
-                "gid": os.getgid(),
-                "original_sha256": None,
-                "symlink_target": None,
-            }
+            original_hash = None
+            mode = 0o640
+            uid = os.getuid()
+            gid = os.getgid()
+        identity: dict[str, object] = {
+            "exists": exists,
+            "original_path": specification["target"],
+            "path_kind": specification["path_kind"],
+            "resolved_path": specification["resolved_path"],
+            "mode": mode,
+            "uid": uid,
+            "gid": gid,
+            "original_sha256": original_hash,
+            "symlink_target": specification["symlink_target"],
+        }
         return {"owner": action.owner, "ownership": {}, "route_identity": identity}
 
-    def apply(self, action: Action, checkpoint: Mapping[str, object]) -> Mapping[str, object]:
+    def apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
         specification = _action_specification(action)
-        identity = _checkpoint_identity(checkpoint, specification["target"])
-        path = self._root_path(str(identity["resolved_path"]))
+        identity = _checkpoint_identity(checkpoint, specification)
+        path = self._validate_planned_path(specification, allow_created=False)
         original = path.read_bytes() if bool(identity["exists"]) else b""
         original_hash = identity["original_sha256"]
         if bool(identity["exists"]) and _sha256(original) != original_hash:
@@ -351,6 +470,7 @@ class NginxAdapter:
         backup = self._backup_path(action, identity)
         if bool(identity["exists"]):
             atomic_write(backup, original, mode=0o600)
+        self._validate_planned_path(specification, allow_created=False)
         atomic_write(
             path,
             desired,
@@ -358,8 +478,17 @@ class NginxAdapter:
             owner=(int(identity["uid"]), int(identity["gid"])),
         )
         try:
+            if specification["mode"] == "coexist":
+                self._assert_active_route(
+                    action,
+                    specification,
+                    require_owned=True,
+                )
             self._run_checked(("nginx", "-t"), "nginx configuration test failed")
-            self._run_checked(("systemctl", "reload", "nginx"), "nginx reload failed")
+            self._run_checked(
+                ("systemctl", "reload", "nginx"),
+                "nginx reload failed",
+            )
         except BaseException:
             if bool(identity["exists"]):
                 atomic_write(
@@ -371,49 +500,86 @@ class NginxAdapter:
             else:
                 durable_remove(path, missing_ok=True)
             raise
-        result = _copy_checkpoint(checkpoint)
-        result["owned_sha256"] = _sha256(desired)
-        if bool(identity["exists"]):
-            backup_host = self._host_path(backup)
-            result["backup_path"] = backup_host
-            result["ownership"] = {
-                backup_host: {"preserve": False, "sha256": original_hash}
-            }
-        else:
-            result["backup_path"] = ""
-            result["ownership"] = {
-                str(specification["target"]): {
-                    "preserve": False,
-                    "sha256": _sha256(desired),
-                }
-            }
-        return result
+        return self._applied_checkpoint(action, checkpoint, identity, desired)
 
-    def reconcile_apply(self, action: Action, checkpoint: Mapping[str, object]) -> Mapping[str, object]:
+    def reconcile_apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
         specification = _action_specification(action)
-        identity = _checkpoint_identity(checkpoint, specification["target"])
-        path = self._root_path(str(identity["resolved_path"]))
-        if path.is_file():
-            current = path.read_bytes()
-            owned_hash = checkpoint.get("owned_sha256")
-            if isinstance(owned_hash, str) and _sha256(current) == owned_hash:
-                return checkpoint
-            if specification["mode"] == "coexist" and _owned_block_is_exact(current, specification, action.id):
-                return checkpoint
+        identity = _checkpoint_identity(checkpoint, specification)
+        target = self._root_path(str(identity["resolved_path"]))
+        if target.is_file():
+            current = target.read_bytes()
+            if specification["mode"] == "fresh":
+                recognized = current == _render_fresh(specification)
+            else:
+                recognized = _owned_block_in_selected_map(
+                    current,
+                    specification,
+                    action.id,
+                )
+            if recognized:
+                self._validate_planned_path(specification, allow_created=True)
+                if specification["mode"] == "coexist":
+                    self._assert_active_route(
+                        action,
+                        specification,
+                        require_owned=True,
+                    )
+                backup = self._backup_path(action, identity)
+                if bool(identity["exists"]) and (
+                    not backup.is_file()
+                    or _sha256(backup.read_bytes()) != identity["original_sha256"]
+                ):
+                    raise TopologyError("Nginx rollback backup is missing or drifted")
+                self._run_checked(
+                    ("nginx", "-t"),
+                    "nginx configuration test failed",
+                )
+                self._run_checked(
+                    ("systemctl", "reload", "nginx"),
+                    "nginx reload failed",
+                )
+                return self._applied_checkpoint(
+                    action,
+                    checkpoint,
+                    identity,
+                    current,
+                )
         return self.apply(action, checkpoint)
 
     def verify(self, action: Action) -> Evidence:
         specification = _action_specification(action)
-        path = self._root_path(specification["target"])
-        success = path.is_file()
-        if success and specification["mode"] == "coexist":
-            success = _owned_block_is_exact(path.read_bytes(), specification, action.id)
-        if success and specification["mode"] == "fresh":
-            success = path.read_bytes() == _render_fresh(specification)
+        try:
+            path = self._validate_planned_path(
+                specification,
+                allow_created=True,
+            )
+            if specification["mode"] == "coexist":
+                self._assert_active_route(
+                    action,
+                    specification,
+                    require_owned=True,
+                )
+                success = _owned_block_in_selected_map(
+                    path.read_bytes(),
+                    specification,
+                    action.id,
+                )
+            else:
+                success = path.read_bytes() == _render_fresh(specification)
+        except (OSError, TopologyError):
+            success = False
         return Evidence(
             action_id=action.id,
             success=success,
-            observations=("owned Nginx route verified" if success else "owned Nginx route is absent or drifted",),
+            observations=(
+                "owned Nginx route verified"
+                if success
+                else "owned Nginx route is absent or drifted",
+            ),
         )
 
     def rollback(
@@ -428,21 +594,25 @@ class NginxAdapter:
         if rollback_target not in {"rolled_back", "uninstalled"}:
             raise ValueError("invalid rollback target")
         specification = _action_specification(action)
-        identity = _checkpoint_identity(checkpoint, specification["target"])
-        path = self._root_path(str(identity["resolved_path"]))
-        current = path.read_bytes() if path.is_file() else b""
+        identity = _checkpoint_identity(checkpoint, specification)
+        path = self._validate_planned_path(specification, allow_created=True)
+        current = path.read_bytes()
         if specification["mode"] == "fresh":
-            if current and current != _render_fresh(specification):
+            if current != _render_fresh(specification):
                 raise TopologyError("owned route file has drifted")
             durable_remove(path, missing_ok=True)
         else:
-            if not path.is_file():
-                raise TopologyError("owned route file is missing")
+            self._assert_active_route(
+                action,
+                specification,
+                require_owned=True,
+            )
             restored = remove_owned_map_block(
                 current,
                 routes=specification["routes"],
                 ownership_id=action.id,
             )
+            self._validate_planned_path(specification, allow_created=True)
             atomic_write(
                 path,
                 restored,
@@ -451,19 +621,24 @@ class NginxAdapter:
             )
         try:
             self._run_checked(("nginx", "-t"), "nginx configuration test failed")
-            self._run_checked(("systemctl", "reload", "nginx"), "nginx reload failed")
+            self._run_checked(
+                ("systemctl", "reload", "nginx"),
+                "nginx reload failed",
+            )
         except BaseException:
-            if current:
-                atomic_write(
-                    path,
-                    current,
-                    mode=int(identity["mode"]),
-                    owner=(int(identity["uid"]), int(identity["gid"])),
-                )
+            atomic_write(
+                path,
+                current,
+                mode=int(identity["mode"]),
+                owner=(int(identity["uid"]), int(identity["gid"])),
+            )
             raise
-        backup = self._backup_path(action, identity)
-        durable_remove(backup, missing_ok=True)
-        return Evidence(action_id=action.id, success=True, observations=("owned Nginx route rolled back",))
+        durable_remove(self._backup_path(action, identity), missing_ok=True)
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("owned Nginx route rolled back",),
+        )
 
     def reconcile_rollback(
         self,
@@ -473,19 +648,172 @@ class NginxAdapter:
         purge_data: bool = False,
         rollback_target: str = "rolled_back",
     ) -> Evidence:
+        del purge_data, rollback_target
         specification = _action_specification(action)
-        identity = _checkpoint_identity(checkpoint, specification["target"])
-        path = self._root_path(str(identity["resolved_path"]))
-        if specification["mode"] == "fresh" and not path.exists():
-            return Evidence(action_id=action.id, success=True, observations=("Nginx rollback already committed",))
-        if specification["mode"] == "coexist" and path.is_file() and OWNERSHIP_BEGIN.encode() not in path.read_bytes():
-            return Evidence(action_id=action.id, success=True, observations=("Nginx rollback already committed",))
-        return self.rollback(
-            action,
-            checkpoint,
-            purge_data=purge_data,
-            rollback_target=rollback_target,
+        identity = _checkpoint_identity(checkpoint, specification)
+        original = self._root_path(str(specification["target"]))
+        exact_marker = f"{OWNERSHIP_BEGIN} {action.id}".encode()
+        if specification["mode"] == "fresh" and not (
+            original.exists() or original.is_symlink()
+        ):
+            self._root_path(str(specification["resolved_path"]))
+            committed = True
+        elif specification["mode"] == "coexist":
+            path = self._validate_planned_path(
+                specification,
+                allow_created=True,
+            )
+            current = path.read_bytes()
+            committed = exact_marker not in current
+            if committed:
+                self._assert_active_route(
+                    action,
+                    specification,
+                    require_owned=False,
+                )
+        else:
+            committed = False
+        if not committed:
+            return self.rollback(action, checkpoint)
+        self._run_checked(("nginx", "-t"), "nginx configuration test failed")
+        self._run_checked(
+            ("systemctl", "reload", "nginx"),
+            "nginx reload failed",
         )
+        durable_remove(self._backup_path(action, identity), missing_ok=True)
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("Nginx rollback side effects reconciled",),
+        )
+
+    def _applied_checkpoint(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        identity: Mapping[str, object],
+        desired: bytes,
+    ) -> dict[str, object]:
+        result = _copy_checkpoint(checkpoint)
+        result["owned_sha256"] = _sha256(desired)
+        if bool(identity["exists"]):
+            backup = self._backup_path(action, identity)
+            backup_host = self._host_path(backup)
+            result["backup_path"] = backup_host
+            result["ownership"] = {
+                backup_host: {
+                    "preserve": False,
+                    "sha256": identity["original_sha256"],
+                }
+            }
+        else:
+            result["backup_path"] = ""
+            specification = _action_specification(action)
+            result["ownership"] = {
+                str(specification["target"]): {
+                    "preserve": False,
+                    "sha256": _sha256(desired),
+                }
+            }
+        return result
+
+    def _assert_active_route(
+        self,
+        action: Action,
+        specification: Mapping[str, object],
+        *,
+        require_owned: bool,
+    ) -> None:
+        try:
+            target = select_route_target(
+                parse_effective_nginx(self.runner.capture(("nginx", "-T")))
+            )
+        except Exception:
+            raise TopologyError(
+                "owned route is not on the active 443 path"
+            ) from None
+        if (
+            target.source_file != specification["target"]
+            or target.variable != specification["variable"]
+        ):
+            raise TopologyError("owned route is not on the active 443 path")
+        path = self._validate_planned_path(
+            specification,
+            allow_created=True,
+        )
+        owned = _owned_block_in_selected_map(
+            path.read_bytes(),
+            specification,
+            action.id,
+        )
+        if require_owned and not owned:
+            raise TopologyError("owned route is not on the active 443 path")
+
+    def _planned_path_identity(
+        self,
+        host_path: str,
+        *,
+        must_be_missing: bool,
+    ) -> dict[str, str | None]:
+        path = self._root_path(host_path)
+        exists = path.exists() or path.is_symlink()
+        if must_be_missing:
+            if exists:
+                raise TopologyError("fresh router path is already occupied")
+            return {
+                "kind": "missing",
+                "resolved_path": host_path,
+                "symlink_target": None,
+            }
+        if not exists:
+            raise TopologyError("selected route file does not exist")
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise TopologyError("selected route file cannot be resolved") from exc
+        self._assert_contained(resolved)
+        if not resolved.is_file():
+            raise TopologyError("selected route path is not a regular file")
+        return {
+            "kind": "symlink" if path.is_symlink() else "file",
+            "resolved_path": self._host_path(resolved),
+            "symlink_target": os.readlink(path) if path.is_symlink() else None,
+        }
+
+    def _validate_planned_path(
+        self,
+        specification: Mapping[str, object],
+        *,
+        allow_created: bool,
+    ) -> Path:
+        original = self._root_path(str(specification["target"]))
+        expected_kind = specification["path_kind"]
+        expected_resolved = str(specification["resolved_path"])
+        if expected_kind == "missing":
+            if not allow_created:
+                if original.exists() or original.is_symlink():
+                    raise TopologyError("Nginx route path identity changed")
+                return self._root_path(expected_resolved)
+            if original.is_symlink() or not original.is_file():
+                raise TopologyError("Nginx route path identity changed")
+        elif expected_kind == "symlink":
+            if (
+                not original.is_symlink()
+                or os.readlink(original) != specification["symlink_target"]
+            ):
+                raise TopologyError("Nginx route path identity changed")
+        elif expected_kind == "file":
+            if original.is_symlink() or not original.is_file():
+                raise TopologyError("Nginx route path identity changed")
+        else:
+            raise TopologyError("Nginx action path identity is invalid")
+        try:
+            resolved = original.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise TopologyError("Nginx route path identity changed") from exc
+        if self._host_path(resolved) != expected_resolved:
+            raise TopologyError("Nginx route path identity changed")
+        return resolved
 
     def _run_checked(self, argv: tuple[str, ...], message: str) -> None:
         result = self.runner.run(argv)
@@ -495,7 +823,16 @@ class NginxAdapter:
     def _root_path(self, host_path: str) -> Path:
         normalized = _safe_host_path(host_path)
         path = self.root / normalized.lstrip("/")
-        self._assert_contained(path)
+        nearest = path
+        while not (nearest.exists() or nearest.is_symlink()):
+            if nearest == self.root:
+                return path
+            nearest = nearest.parent
+        try:
+            resolved = nearest.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise TopologyError("selected route parent cannot be resolved") from exc
+        self._assert_contained(resolved)
         return path
 
     def _host_path(self, path: Path) -> str:
@@ -506,12 +843,16 @@ class NginxAdapter:
         try:
             path.relative_to(self.root)
         except ValueError as exc:
-            raise TopologyError("selected route path escapes the supplied root") from exc
+            raise TopologyError(
+                "selected route path escapes the supplied root"
+            ) from exc
 
     def _backup_path(self, action: Action, identity: Mapping[str, object]) -> Path:
         digest = identity.get("original_sha256")
         suffix = digest if isinstance(digest, str) else _sha256(action.id.encode())
-        return self._root_path(f"/var/lib/proxy-control/installer/nginx/{suffix}.backup")
+        return self._root_path(
+            f"/var/lib/proxy-control/installer/nginx/{suffix}.backup"
+        )
 
 
 def _tokenize(text: str) -> tuple[_Token, ...]:
@@ -673,8 +1014,26 @@ def _listen_port(value: str) -> int | None:
     return port if 1 <= port <= 65535 else None
 
 
+def _literal_backend(value: str) -> bool:
+    if "$" in value or any(character.isspace() for character in value):
+        return False
+    if value.startswith("unix:/"):
+        return "\x00" not in value and len(value) > len("unix:/")
+    match = re.fullmatch(
+        r"(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:]+\]):(\d+)",
+        value,
+    )
+    return match is not None and 1 <= int(match.group(1)) <= 65535
+
+
 def _safe_host_path(path: str) -> str:
-    if not isinstance(path, str) or not path.startswith("/") or ".." in Path(path).parts or "\x00" in path:
+    if (
+        not isinstance(path, str)
+        or not path.startswith("/")
+        or ".." in Path(path).parts
+        or "\x00" in path
+        or any(character.isspace() for character in path)
+    ):
         raise TopologyError("Nginx route path must be a normalized absolute path")
     return str(Path(path))
 
@@ -697,12 +1056,55 @@ def _action_specification(action: Action) -> dict[str, object]:
             raise TopologyError("Nginx action is malformed")
         else:
             values[key] = value
-    if set(values) != {"mode", "target", "variable"} or values["mode"] not in {"fresh", "coexist"} or len(routes) != 2:
+    required_values = {
+        "mode",
+        "target",
+        "variable",
+        "path_kind",
+        "resolved_path",
+        "symlink_target",
+    }
+    if (
+        set(values) != required_values
+        or values["mode"] not in {"fresh", "coexist"}
+        or values["path_kind"] not in {"missing", "file", "symlink"}
+        or len(routes) != 2
+    ):
         raise TopologyError("Nginx action is malformed")
-    _safe_host_path(values["target"])
+    target = _safe_host_path(values["target"])
+    resolved_path = _safe_host_path(values["resolved_path"])
     if _VARIABLE.fullmatch(values["variable"]) is None:
         raise TopologyError("Nginx action is malformed")
-    return {"mode": values["mode"], "target": values["target"], "variable": values["variable"], "routes": tuple(routes)}
+    symlink_target = (
+        None if values["symlink_target"] == "-" else values["symlink_target"]
+    )
+    if (values["path_kind"] == "symlink") != isinstance(symlink_target, str):
+        raise TopologyError("Nginx action is malformed")
+    if isinstance(symlink_target, str) and (
+        not symlink_target or "\x00" in symlink_target
+    ):
+        raise TopologyError("Nginx action is malformed")
+    if values["path_kind"] == "missing" and resolved_path != target:
+        raise TopologyError("Nginx action is malformed")
+    if any(
+        not re.fullmatch(
+            r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+            r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?",
+            domain,
+        )
+        or not _literal_backend(backend)
+        for domain, backend in routes
+    ):
+        raise TopologyError("Nginx action is malformed")
+    return {
+        "mode": values["mode"],
+        "target": target,
+        "variable": values["variable"],
+        "path_kind": values["path_kind"],
+        "resolved_path": resolved_path,
+        "symlink_target": symlink_target,
+        "routes": tuple(routes),
+    }
 
 
 def _desired_content(specification: Mapping[str, object], original: bytes) -> bytes:
@@ -744,14 +1146,15 @@ def _render_fresh(specification: Mapping[str, object]) -> bytes:
 
 def _checkpoint_identity(
     checkpoint: Mapping[str, object],
-    host_path: object,
+    specification: Mapping[str, object],
 ) -> Mapping[str, object]:
-    del host_path
     identity = checkpoint.get("route_identity")
     if not isinstance(identity, Mapping):
         raise TopologyError("Nginx checkpoint is invalid")
     required = {
         "exists",
+        "original_path",
+        "path_kind",
         "resolved_path",
         "mode",
         "uid",
@@ -760,6 +1163,41 @@ def _checkpoint_identity(
         "symlink_target",
     }
     if set(identity) != required:
+        raise TopologyError("Nginx checkpoint is invalid")
+    exists = identity["exists"]
+    mode = identity["mode"]
+    uid = identity["uid"]
+    gid = identity["gid"]
+    original_hash = identity["original_sha256"]
+    if (
+        not isinstance(exists, bool)
+        or isinstance(mode, bool)
+        or not isinstance(mode, int)
+        or not 0 <= mode <= 0o7777
+        or isinstance(uid, bool)
+        or not isinstance(uid, int)
+        or uid < 0
+        or isinstance(gid, bool)
+        or not isinstance(gid, int)
+        or gid < 0
+    ):
+        raise TopologyError("Nginx checkpoint is invalid")
+    expected_exists = specification["path_kind"] != "missing"
+    if (
+        exists != expected_exists
+        or identity["original_path"] != specification["target"]
+        or identity["path_kind"] != specification["path_kind"]
+        or identity["resolved_path"] != specification["resolved_path"]
+        or identity["symlink_target"] != specification["symlink_target"]
+        or (
+            exists
+            and (
+                not isinstance(original_hash, str)
+                or re.fullmatch(r"[0-9a-f]{64}", original_hash) is None
+            )
+        )
+        or (not exists and original_hash is not None)
+    ):
         raise TopologyError("Nginx checkpoint is invalid")
     return identity
 
@@ -775,10 +1213,30 @@ def _copy_checkpoint(checkpoint: Mapping[str, object]) -> dict[str, object]:
     }
 
 
-def _owned_block_is_exact(content: bytes, specification: Mapping[str, object], ownership_id: str) -> bool:
+def _owned_block_in_selected_map(
+    content: bytes,
+    specification: Mapping[str, object],
+    ownership_id: str,
+) -> bool:
     try:
-        remove_owned_map_block(content, routes=specification["routes"], ownership_id=ownership_id)
-    except TopologyError:
+        text = content.decode()
+        topology = _parse_file_nginx(text)
+        matches = [
+            mapping
+            for mapping in topology.maps
+            if mapping.variable == specification["variable"]
+            and mapping.source_variable == "$ssl_preread_server_name"
+        ]
+        if len(matches) != 1:
+            return False
+        mapping = matches[0]
+        block = text[mapping.start : mapping.end].encode()
+        remove_owned_map_block(
+            block,
+            routes=specification["routes"],
+            ownership_id=ownership_id,
+        )
+    except (UnicodeDecodeError, TopologyError):
         return False
     return True
 
@@ -789,6 +1247,7 @@ def _sha256(content: bytes) -> str:
 
 __all__ = [
     "NginxAdapter",
+    "derive_owned_route_variable",
     "NginxTopology",
     "RouteTarget",
     "TopologyError",

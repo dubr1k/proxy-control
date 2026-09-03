@@ -224,12 +224,17 @@ def runtime_root(tmp_path: Path) -> tuple[Path, Path]:
     return root, route
 
 
-def plan(repo: Path) -> RuntimePlan:
+def plan(
+    repo: Path,
+    *,
+    route_variable: str = "$upstream_443",
+) -> RuntimePlan:
     return RuntimePlan(
         proxy_domain="proxy.example.com",
         panel_domain="panel.example.com",
         email="ops@example.com",
         route_file="/etc/nginx/stream.d/routes.conf",
+        route_variable=route_variable,
         source_dir=str(repo),
         project_dir="/opt/mtproxy-shared443",
         users=("owner",),
@@ -432,6 +437,24 @@ def test_runtime_install_owns_complete_stack_and_never_exposes_password(tmp_path
     assert bootstrap[1] == str(password_file)
     assert any(call[0][:2] == ("certbot", "certonly") and "panel.example.com" in call[0] for call in runner.calls)
     assert any(call[0][0] == "/usr/local/bin/mtproxy-respq-probe" for call in runner.calls)
+
+
+def test_runtime_install_propagates_selected_route_variable(tmp_path):
+    root, route = runtime_root(tmp_path)
+    route.write_text(route.read_text().replace("$upstream_443", "$chosen"))
+    selected = plan(
+        Path(__file__).parents[1],
+        route_variable="$chosen",
+    )
+    manager = RuntimeInstaller(selected, root=root, runner=FakeRunner())
+
+    manager.install()
+
+    assert "proxy.example.com 127.0.0.1:8445;" in route.read_text()
+    state = json.loads(
+        (root / "var/lib/proxy-control/runtime.json").read_text()
+    )
+    assert state["plan"]["route_variable"] == "$chosen"
 
 
 def test_rendered_proxyctl_loads_the_single_transaction_module_when_run_directly(tmp_path):

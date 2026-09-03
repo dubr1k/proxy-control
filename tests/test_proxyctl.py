@@ -127,6 +127,7 @@ def test_audit_discovers_stream_conf_d_routes(tmp_path):
         "    relay.example.com 127.0.0.1:8445;\n"
         "    default 127.0.0.1:8443;\n"
         "}\n"
+        "server { listen 443; ssl_preread on; proxy_pass $backend; }\n"
     )
 
     report = facts_from_root(

@@ -25,6 +25,7 @@ from installer.adapters.nginx import (
     OWNERSHIP_BEGIN,
     OWNERSHIP_END,
     TopologyError,
+    derive_owned_route_variable,
     patch_owned_map,
     remove_owned_map_block,
 )
@@ -338,13 +339,56 @@ def _load_state(root: Path) -> tuple[Path, dict] | None:
             raise InstallerConflict("ownership manifest metadata is invalid")
     if state["route_mode"] > 0o7777:
         raise InstallerConflict("ownership manifest metadata is invalid")
-    _validate_manifest_plan(state["plan"])
     for key, label in (
         ("route_sha256_before", "original"),
         ("route_sha256_owned", "owned"),
     ):
         if not isinstance(state[key], str) or not re.fullmatch(r"[0-9a-f]{64}", state[key]):
             raise InstallerConflict(f"ownership manifest has an invalid {label} hash")
+    plan = state["plan"]
+    if isinstance(plan, dict) and "route_variable" not in plan:
+        legacy_required = {
+            "schema",
+            "proxy_domain",
+            "panel_domain",
+            "proxy_backend",
+            "panel_backend",
+            "route_file",
+            "actions",
+        }
+        if set(plan) != legacy_required:
+            raise InstallerConflict("ownership manifest plan is invalid")
+        provisional = dict(plan)
+        provisional["route_variable"] = "$legacy_route"
+        _validate_manifest_plan(provisional)
+        candidates = (
+            _root_path(root, state["route_file"]),
+            _root_path(root, state["backup_file"]),
+        )
+        variables: set[str] = set()
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            try:
+                variables.add(
+                    derive_owned_route_variable(
+                        candidate.read_text(),
+                        routes=(
+                            (plan["proxy_domain"], plan["proxy_backend"]),
+                            (plan["panel_domain"], plan["panel_backend"]),
+                        ),
+                        ownership_id=install_id,
+                    )
+                )
+            except (OSError, UnicodeError, TopologyError):
+                continue
+        if len(variables) != 1:
+            raise InstallerConflict("legacy owned route topology is ambiguous")
+        plan = dict(plan)
+        plan["route_variable"] = variables.pop()
+        state["plan"] = plan
+        _write_state(path, state)
+    _validate_manifest_plan(state["plan"])
     return path, state
 
 
@@ -623,10 +667,13 @@ class RuntimePlan:
     panel_tls_port: int = 8443
     protocol_probe: str = ""
     schema: int = 1
+    route_variable: str = "$upstream_443"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "proxy_domain", validate_domain(self.proxy_domain))
         object.__setattr__(self, "panel_domain", validate_domain(self.panel_domain))
+        if not re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", self.route_variable):
+            raise InstallerConflict("route variable is invalid")
         if self.proxy_domain == self.panel_domain:
             raise InstallerConflict("proxy and panel domains must differ")
         if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", self.email):
@@ -651,6 +698,7 @@ class RuntimePlan:
             "panel_domain": self.panel_domain,
             "email": self.email,
             "route_file": self.route_file,
+            "route_variable": self.route_variable,
             "source_dir": self.source_dir,
             "project_dir": self.project_dir,
             "users": list(self.users),
@@ -1078,6 +1126,19 @@ class RuntimeInstaller:
                 )
         elif uninstall_ownership & set(state):
             raise InstallerConflict("runtime uninstall ownership is invalid")
+        persisted_plan = state.get("plan")
+        expected_plan = self.plan.to_dict()
+        if (
+            isinstance(persisted_plan, dict)
+            and "route_variable" not in persisted_plan
+            and persisted_plan == {
+                key: value
+                for key, value in expected_plan.items()
+                if key != "route_variable"
+            }
+        ):
+            state["plan"] = expected_plan
+            _write_state(self.state_path, state)
         if state.get("plan") != self.plan.to_dict():
             raise InstallerConflict("runtime transaction belongs to another plan")
         packages = state.get("owned_packages")
@@ -1255,8 +1316,12 @@ class RuntimeInstaller:
                 }
                 _write_state(self.state_path, state)
             route_plan = InstallPlan(
-                self.plan.proxy_domain, self.plan.panel_domain, self.plan.route_file,
-                self.plan.proxy_backend_port, self.plan.panel_tls_port,
+                proxy_domain=self.plan.proxy_domain,
+                panel_domain=self.plan.panel_domain,
+                route_file=self.plan.route_file,
+                proxy_backend_port=self.plan.proxy_backend_port,
+                panel_backend_port=self.plan.panel_tls_port,
+                route_variable=self.plan.route_variable,
             )
             try:
                 if state["owned_packages"]:
