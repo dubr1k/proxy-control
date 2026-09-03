@@ -5,13 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from scripts.proxyctl import (
-    InstallPlan,
-    InstallerConflict,
-    audit_host,
-    patch_stream_map,
-    validate_domain,
-)
+from installer.audit import legacy_audit_host as audit_host
+from installer.audit import validate_domain
+
+from scripts.proxyctl import InstallPlan, InstallerConflict, patch_stream_map
 
 
 def fixture_root(tmp_path: Path) -> Path:
@@ -47,16 +44,22 @@ def test_audit_reports_existing_shared_443_without_dumping_secrets(tmp_path):
 
     assert report.nginx.stream_enabled is True
     assert report.nginx.sni_routes == {"vpn.example.com": "127.0.0.1:10443"}
-    assert report.xray.inbounds == [{
-        "tag": "in-443-tcp", "protocol": "vless", "listen": "127.0.0.1", "port": 10443,
-        "security": "reality", "server_names": ["vpn.example.com"],
-    }]
+    assert report.xray.inbounds == (
+        {
+            "tag": "in-443-tcp",
+            "protocol": "vless",
+            "listen": "127.0.0.1",
+            "port": 10443,
+            "transport_security": "reality",
+            "reality_server_names": ("vpn.example.com",),
+        },
+    )
     assert report.docker_available is False
     assert report.listening_ports == [22, 80, 443, 10443, 45000]
     assert "privateKey" not in json.dumps(report.to_dict())
 
 
-def test_audit_discovers_stream_conf_d_routes(tmp_path, monkeypatch):
+def test_audit_discovers_stream_conf_d_routes(tmp_path):
     root = tmp_path / "root"
     (root / "etc/nginx/stream-conf.d").mkdir(parents=True)
     (root / "etc/nginx/nginx.conf").write_text(
@@ -68,7 +71,6 @@ def test_audit_discovers_stream_conf_d_routes(tmp_path, monkeypatch):
         "    default 127.0.0.1:8443;\n"
         "}\n"
     )
-    monkeypatch.setattr("scripts.proxyctl._listener_inventory", lambda: (set(), {}))
 
     report = audit_host(
         root=root,

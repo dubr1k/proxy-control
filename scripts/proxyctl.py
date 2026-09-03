@@ -8,19 +8,24 @@ import re
 import secrets
 import signal
 import shutil
-import socket
-import ssl
 import stat
 import subprocess
 import sys
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import Callable, Sequence
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from installer.audit import (
+    AuditReport,
+    legacy_listener_inventory as _listener_inventory,
+    parse_sni_routes,
+    validate_domain,
+)
 
 from installer.transaction import (
     atomic_write as _atomic_write,
@@ -38,10 +43,6 @@ OWNERSHIP_BEGIN = "# BEGIN PROXY-CONTROL ROUTES"
 OWNERSHIP_END = "# END PROXY-CONTROL ROUTES"
 STATE_PATH = "/var/lib/proxy-control/ownership.json"
 STATE_SCHEMA = 1
-DOMAIN_RE = re.compile(
-    r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
-    r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z"
-)
 
 
 class InstallerConflict(RuntimeError):
@@ -49,55 +50,6 @@ class InstallerConflict(RuntimeError):
 
 
 _operation_lock = partial(operation_lock, error_type=InstallerConflict)
-
-
-def validate_domain(value: str) -> str:
-    normalized = value.strip().lower().rstrip(".")
-    if not DOMAIN_RE.fullmatch(normalized):
-        raise ValueError("a plain fully-qualified domain name is required")
-    return normalized
-
-
-@dataclass(frozen=True)
-class DomainAudit:
-    domain: str
-    a_records: list[str]
-    aaaa_records: list[str]
-    dns_matches_host: bool
-    unhandled_aaaa: bool
-    tls_certificate_present: bool
-
-
-@dataclass(frozen=True)
-class NginxAudit:
-    installed: bool
-    stream_enabled: bool
-    sni_routes: dict[str, str]
-    http_domains: list[str]
-    config_files: list[str]
-    sni_map_count: int = 0
-    sni_map_files: dict[str, int] = field(default_factory=dict)
-    duplicate_sni_domains: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class XrayAudit:
-    installed: bool
-    inbounds: list[dict]
-    outbound_tags: list[str]
-
-
-@dataclass(frozen=True)
-class AuditReport:
-    nginx: NginxAudit
-    xray: XrayAudit
-    docker_available: bool
-    listening_ports: list[int]
-    listener_owners: dict[int, list[str]] = field(default_factory=dict)
-    domains: list[DomainAudit] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return asdict(self)
 
 
 def _root_path(root: Path, absolute: str) -> Path:
@@ -118,219 +70,6 @@ def _read_text(path: Path) -> str:
         return path.read_text()
     except (FileNotFoundError, PermissionError, OSError, UnicodeError):
         return ""
-
-
-def _nginx_files(root: Path) -> list[Path]:
-    candidates = [_root_path(root, "/etc/nginx/nginx.conf")]
-    for directory in (
-        "/etc/nginx/stream.d",
-        "/etc/nginx/stream-conf.d",
-        "/etc/nginx/conf.d",
-        "/etc/nginx/sites-enabled",
-    ):
-        folder = _root_path(root, directory)
-        if folder.is_dir():
-            candidates.extend(sorted(path for path in folder.iterdir() if path.is_file()))
-    unique: list[Path] = []
-    seen: set[tuple[int, int]] = set()
-    for path in candidates:
-        if not path.is_file():
-            continue
-        metadata = path.stat()
-        identity = (metadata.st_dev, metadata.st_ino)
-        if identity not in seen:
-            seen.add(identity)
-            unique.append(path)
-    return unique
-
-
-def _parse_sni_entries(text: str) -> list[tuple[str, str]]:
-    return [
-        (domain.lower(), backend)
-        for domain, backend in re.findall(
-            r"(?<![A-Za-z0-9_.-])([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)\s+"
-            r"((?:127\.0\.0\.1|\[?::1\]?):\d+)\s*;",
-            text,
-        )
-    ]
-
-
-def _parse_sni_routes(text: str) -> dict[str, str]:
-    return dict(_parse_sni_entries(text))
-
-
-def _parse_http_domains(text: str) -> set[str]:
-    domains: set[str] = set()
-    for match in re.finditer(r"(?m)^\s*server_name\s+([^;]+);", text):
-        for value in match.group(1).split():
-            try:
-                domains.add(validate_domain(value))
-            except ValueError:
-                continue
-    return domains
-
-
-def _xray_audit(root: Path) -> XrayAudit:
-    path = _root_path(root, "/usr/local/x-ui/bin/config.json")
-    if not path.is_file():
-        return XrayAudit(False, [], [])
-    try:
-        config = json.loads(path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return XrayAudit(True, [], [])
-    inbounds = []
-    for inbound in config.get("inbounds", []):
-        if not isinstance(inbound, dict):
-            continue
-        stream = inbound.get("streamSettings") if isinstance(inbound.get("streamSettings"), dict) else {}
-        reality = stream.get("realitySettings") if isinstance(stream.get("realitySettings"), dict) else {}
-        names = reality.get("serverNames") if isinstance(reality.get("serverNames"), list) else []
-        inbounds.append({
-            "tag": inbound.get("tag"),
-            "protocol": inbound.get("protocol"),
-            "listen": inbound.get("listen"),
-            "port": inbound.get("port"),
-            "security": stream.get("security"),
-            "server_names": sorted(name for name in names if isinstance(name, str)),
-        })
-    tags = [item.get("tag") for item in config.get("outbounds", []) if isinstance(item, dict)]
-    return XrayAudit(True, inbounds, sorted(tag for tag in tags if isinstance(tag, str)))
-
-
-def _resolve_domain(domain: str) -> dict[str, list[str]]:
-    records = {"A": set(), "AAAA": set()}
-    try:
-        answers = socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)
-    except socket.gaierror:
-        answers = []
-    for family, _kind, _proto, _canon, address in answers:
-        if family == socket.AF_INET:
-            records["A"].add(address[0])
-        elif family == socket.AF_INET6:
-            records["AAAA"].add(address[0])
-    return {key: sorted(value) for key, value in records.items()}
-
-
-def _local_addresses() -> set[str]:
-    addresses: set[str] = set()
-    result = subprocess.run(["ip", "-j", "address"], capture_output=True, text=True, check=False)
-    try:
-        links = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return addresses
-    for link in links:
-        for item in link.get("addr_info", []):
-            if item.get("scope") in {"global", "host"} and isinstance(item.get("local"), str):
-                addresses.add(item["local"])
-    return addresses
-
-
-def _certificate_names(root: Path, domains: set[str]) -> set[str]:
-    present = set()
-    for domain in domains:
-        cert = _root_path(root, f"/etc/letsencrypt/live/{domain}/fullchain.pem")
-        if not cert.is_file():
-            continue
-        try:
-            decoded = ssl._ssl._test_decode_cert(str(cert))  # noqa: SLF001
-        except (OSError, ssl.SSLError, ValueError):
-            continue
-        names = {value.lower() for kind, value in decoded.get("subjectAltName", []) if kind == "DNS"}
-        if domain in names:
-            present.add(domain)
-    return present
-
-
-def audit_host(
-    *,
-    root: Path = Path("/"),
-    listening_ports: set[int] | None = None,
-    listener_owners: dict[int, list[str]] | None = None,
-    docker_available: bool | None = None,
-    dns_records: dict[str, dict[str, list[str]]] | None = None,
-    local_addresses: set[str] | None = None,
-    tls_names: set[str] | None = None,
-    domains: set[str] | None = None,
-) -> AuditReport:
-    """Collect facts only. No file, service, package, firewall, or DNS mutation occurs."""
-    files = _nginx_files(root)
-    texts = {path: _read_text(path) for path in files}
-    nginx_main = _read_text(_root_path(root, "/etc/nginx/nginx.conf"))
-    route_values: dict[str, set[str]] = {}
-    route_counts: dict[str, int] = {}
-    http_domains: set[str] = set()
-    map_files: dict[str, int] = {}
-    for path, text in texts.items():
-        count = len(_map_blocks(text))
-        if count:
-            map_files[_host_path(root, path)] = count
-        for domain, backend in _parse_sni_entries(text):
-            route_values.setdefault(domain, set()).add(backend)
-            route_counts[domain] = route_counts.get(domain, 0) + 1
-        http_domains.update(_parse_http_domains(text))
-    routes = {domain: sorted(backends)[0] for domain, backends in route_values.items()}
-    duplicates = sorted(domain for domain, count in route_counts.items() if count > 1)
-    if listening_ports is None or listener_owners is None:
-        detected_ports, detected_owners = _listener_inventory()
-        if listening_ports is None:
-            listening_ports = detected_ports
-        if listener_owners is None:
-            listener_owners = detected_owners
-    if docker_available is None:
-        docker_available = shutil.which("docker") is not None
-
-    requested = set(domains or ()) | set((dns_records or {}).keys())
-    records = dns_records if dns_records is not None else {name: _resolve_domain(name) for name in requested}
-    local = _local_addresses() if local_addresses is None else local_addresses
-    cert_names = _certificate_names(root, requested) if tls_names is None else tls_names
-    domain_audits = []
-    for domain in sorted(validate_domain(name) for name in requested):
-        record = records.get(domain, {})
-        a_records = sorted(set(record.get("A", [])))
-        aaaa_records = sorted(set(record.get("AAAA", [])))
-        domain_audits.append(DomainAudit(
-            domain=domain,
-            a_records=a_records,
-            aaaa_records=aaaa_records,
-            dns_matches_host=bool(set(a_records) & local),
-            unhandled_aaaa=bool(aaaa_records and not set(aaaa_records) <= local),
-            tls_certificate_present=domain in cert_names,
-        ))
-
-    return AuditReport(
-        nginx=NginxAudit(
-            installed=bool(files),
-            stream_enabled=bool(re.search(r"(?m)^\s*stream\s*\{", nginx_main)),
-            sni_routes=dict(sorted(routes.items())),
-            http_domains=sorted(http_domains),
-            config_files=[_host_path(root, path) for path in files],
-            sni_map_count=sum(map_files.values()),
-            sni_map_files=dict(sorted(map_files.items())),
-            duplicate_sni_domains=duplicates,
-        ),
-        xray=_xray_audit(root),
-        docker_available=docker_available,
-        listening_ports=sorted(listening_ports),
-        listener_owners={port: sorted(set(names)) for port, names in sorted(listener_owners.items())},
-        domains=domain_audits,
-    )
-
-
-def _listener_inventory() -> tuple[set[int], dict[int, list[str]]]:
-    result = subprocess.run(["ss", "-H", "-lntp"], capture_output=True, text=True, check=False)
-    ports: set[int] = set()
-    owners: dict[int, list[str]] = {}
-    for line in result.stdout.splitlines():
-        fields = line.split()
-        endpoint = fields[3] if len(fields) > 3 else ""
-        match = re.search(r":(\d+)$", endpoint)
-        if match:
-            port = int(match.group(1))
-            ports.add(port)
-            names = re.findall(r'users:\(\("([^"\\]+)"', line)
-            if names:
-                owners.setdefault(port, []).extend(names)
-    return ports, owners
 
 
 def _listening_ports() -> set[int]:
@@ -373,7 +112,7 @@ def patch_stream_map(
     start, end = blocks[0]
     block = text[start:end]
     wanted = {proxy_domain: proxy_backend, panel_domain: panel_backend}
-    existing = _parse_sni_routes(block)
+    existing = parse_sni_routes(block)
     for domain, backend in wanted.items():
         if domain in existing and backend != existing[domain]:
             raise InstallerConflict(f"domain already routed: {domain}")

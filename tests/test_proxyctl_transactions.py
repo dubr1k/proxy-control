@@ -8,11 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from installer.audit import legacy_audit_host as audit_host
+
 from scripts.proxyctl import (
     InstallPlan,
     InstallerConflict,
     apply_plan,
-    audit_host,
     repair_installation,
     uninstall_installation,
 )
