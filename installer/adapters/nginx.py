@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import fnmatch
+import ipaddress
 import os
 import re
 import stat
@@ -1500,7 +1501,463 @@ def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+
+class CertificatePlan:
+    """Plan and verify service-scoped webroot HTTP-01 certificates."""
+
+    name = "certificates"
+    requires = frozenset({"nginx", "packages"})
+
+    def __init__(
+        self,
+        *,
+        root: Path = Path("/"),
+        runner: CommandRunner | None = None,
+        expected_key_owner: tuple[int, int] | None = None,
+    ) -> None:
+        if runner is None:
+            from installer.audit import CommandRunner
+
+            runner = CommandRunner()
+        self.root = root.resolve()
+        self.runner = runner
+        self.expected_key_owner = expected_key_owner or (os.getuid(), os.getgid())
+        if (
+            len(self.expected_key_owner) != 2
+            or any(
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                or value < 0
+                for value in self.expected_key_owner
+            )
+        ):
+            raise ValueError("certificate key owner must be a uid/gid pair")
+
+    def plan(self, config: InstallerConfig, facts: AuditFacts) -> tuple[Action, ...]:
+        if getattr(facts, "hard_stops", ()):
+            raise TopologyError("host audit contains blocking findings")
+        groups = _certificate_groups(config)
+        for _service, _certificate, names in groups:
+            _validate_certificate_facts(names, facts)
+        return tuple(
+            Action(
+                id=f"certificate.{service}",
+                adapter=self.name,
+                owner=f"proxy-control:certificate:{service}",
+                mutations=(
+                    f"service={service}",
+                    f"certificate={certificate}",
+                    f"email={config.acme_email}",
+                    *(f"name={name}" for name in names),
+                    *(f"webroot=/var/www/{name}" for name in names),
+                ),
+                preconditions=(
+                    "strict local A, handled AAAA, and HTTP-01 CAA facts pass",
+                ),
+                verification=(
+                    "certificate SANs and private key owner/mode are exact",
+                    "Certbot renewal dry run succeeds without random sleep",
+                ),
+                inverse=("preserve issued certificate and public ACME webroots",),
+                credentials_required=False,
+            )
+            for service, certificate, names in groups
+        )
+
+    def prepare(self, action: Action) -> Mapping[str, object]:
+        specification = _certificate_action(action)
+        return {
+            "certificate": specification["certificate"],
+            "created_webroots": (),
+            "names": specification["names"],
+            "owner": action.owner,
+            "ownership": {},
+        }
+
+    def apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        specification = _certificate_action(action)
+        created = set(_certificate_checkpoint(checkpoint, specification))
+        for webroot in specification["webroots"]:
+            created.update(self._ensure_webroot(webroot))
+        if not self._certificate_valid(specification):
+            argv: list[str] = [
+                "certbot",
+                "certonly",
+                "--non-interactive",
+                "--agree-tos",
+                "--email",
+                specification["email"],
+                "--cert-name",
+                specification["certificate"],
+                "--webroot",
+            ]
+            for name, webroot in zip(
+                specification["names"],
+                specification["webroots"],
+                strict=True,
+            ):
+                argv.extend(("-w", webroot, "-d", name))
+            self._run_checked(tuple(argv), "certificate issuance failed")
+        if not self._certificate_valid(specification):
+            raise TopologyError(
+                "certificate SANs or private key permissions are invalid"
+            )
+        self._run_checked(
+            (
+                "certbot",
+                "renew",
+                "--dry-run",
+                "--no-random-sleep-on-renew",
+            ),
+            "certificate renewal dry run failed",
+        )
+        return {
+            "certificate": specification["certificate"],
+            "created_webroots": tuple(sorted(created)),
+            "names": specification["names"],
+            "owner": action.owner,
+            "ownership": {},
+        }
+
+    def reconcile_apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        return self.apply(action, checkpoint)
+
+    def verify(self, action: Action) -> Evidence:
+        specification = _certificate_action(action)
+        success = self._certificate_valid(specification)
+        return Evidence(
+            action_id=action.id,
+            success=success,
+            observations=(
+                "service certificate SANs and key permissions are valid"
+                if success
+                else "service certificate SANs or key permissions are invalid",
+            ),
+            details={
+                "certificate": specification["certificate"],
+                "names": specification["names"],
+            },
+        )
+
+    def rollback(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        *,
+        purge_data: bool = False,
+        rollback_target: str = "rolled_back",
+    ) -> Evidence:
+        del purge_data
+        if rollback_target not in {"rolled_back", "uninstalled"}:
+            raise ValueError("invalid rollback target")
+        specification = _certificate_action(action)
+        _certificate_checkpoint(checkpoint, specification)
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("issued certificate and ACME webroots were preserved",),
+            details={"certificate": specification["certificate"]},
+        )
+
+    def reconcile_rollback(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        *,
+        purge_data: bool = False,
+        rollback_target: str = "rolled_back",
+    ) -> Evidence:
+        return self.rollback(
+            action,
+            checkpoint,
+            purge_data=purge_data,
+            rollback_target=rollback_target,
+        )
+
+    def _ensure_webroot(self, host_path: str) -> tuple[str, ...]:
+        challenge = f"{host_path}/.well-known/acme-challenge"
+        path = self._contained_path(challenge, allow_missing=True)
+        created: list[str] = []
+        cursor = self.root
+        for part in path.relative_to(self.root).parts:
+            cursor = cursor / part
+            if cursor.exists() or cursor.is_symlink():
+                if cursor.is_symlink() or not cursor.is_dir():
+                    raise TopologyError("certificate webroot is not a real directory")
+                continue
+            cursor.mkdir(mode=0o755)
+            cursor.chmod(0o755)
+            created.append("/" + str(cursor.relative_to(self.root)))
+        for required in (
+            self._contained_path(host_path, allow_missing=False),
+            self._contained_path(f"{host_path}/.well-known", allow_missing=False),
+            path,
+        ):
+            if stat.S_IMODE(required.stat().st_mode) != 0o755:
+                raise TopologyError("certificate webroot permissions are invalid")
+        return tuple(created)
+
+    def _certificate_valid(self, specification: Mapping[str, object]) -> bool:
+        certificate = str(specification["certificate"])
+        live = self._contained_path(
+            f"/etc/letsencrypt/live/{certificate}",
+            allow_missing=True,
+        )
+        key = live / "privkey.pem"
+        chain = live / "fullchain.pem"
+        try:
+            resolved_key = key.resolve(strict=True)
+            resolved_chain = chain.resolve(strict=True)
+            self._assert_contained(resolved_key)
+            self._assert_contained(resolved_chain)
+            metadata = resolved_key.stat()
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+                or (metadata.st_uid, metadata.st_gid) != self.expected_key_owner
+                or not resolved_chain.is_file()
+            ):
+                return False
+            result = self.runner.run(
+                (
+                    "openssl",
+                    "x509",
+                    "-in",
+                    str(chain),
+                    "-noout",
+                    "-ext",
+                    "subjectAltName",
+                )
+            )
+        except (OSError, RuntimeError, TopologyError):
+            return False
+        if result.returncode != 0:
+            return False
+        names = _certificate_sans(result.stdout)
+        return set(specification["names"]) <= names
+
+    def _contained_path(self, host_path: str, *, allow_missing: bool) -> Path:
+        normalized = _safe_host_path(host_path)
+        path = self.root / normalized.lstrip("/")
+        nearest = path
+        while not (nearest.exists() or nearest.is_symlink()):
+            if nearest == self.root:
+                return path
+            nearest = nearest.parent
+        try:
+            resolved = nearest.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise TopologyError("certificate path cannot be resolved") from exc
+        self._assert_contained(resolved)
+        if not allow_missing and not path.exists():
+            raise TopologyError("certificate path is missing")
+        return path
+
+    def _assert_contained(self, path: Path) -> None:
+        try:
+            path.relative_to(self.root)
+        except ValueError as exc:
+            raise TopologyError("certificate path escapes the supplied root") from exc
+
+    def _run_checked(self, argv: tuple[str, ...], message: str) -> None:
+        result = self.runner.run(argv)
+        if result.returncode != 0:
+            raise TopologyError(message)
+
+
+def _certificate_groups(
+    config: InstallerConfig,
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    groups: list[tuple[str, str, tuple[str, ...]]] = [
+        (
+            "proxy-control",
+            config.domains.mtproxy,
+            tuple(sorted((config.domains.mtproxy, config.domains.panel))),
+        )
+    ]
+    if config.profile.includes_naive:
+        if config.domains.naive is None:
+            raise TopologyError("Naive certificate domain is missing")
+        groups.append(("naive", config.domains.naive, (config.domains.naive,)))
+    if config.three_xui.mode.value == "managed-new":
+        if config.three_xui.panel_domain is not None:
+            groups.append(
+                (
+                    "three-xui-panel",
+                    config.three_xui.panel_domain,
+                    (config.three_xui.panel_domain,),
+                )
+            )
+        if config.three_xui.hysteria_domain is not None:
+            groups.append(
+                (
+                    "three-xui-hysteria",
+                    config.three_xui.hysteria_domain,
+                    (config.three_xui.hysteria_domain,),
+                )
+            )
+    return tuple(sorted(groups))
+
+
+def _validate_certificate_facts(
+    names: tuple[str, ...],
+    facts: AuditFacts,
+) -> None:
+    dns = facts.topology.get("dns")
+    certificates = facts.topology.get("certificates")
+    if not isinstance(dns, Mapping) or not isinstance(certificates, Mapping):
+        raise TopologyError("certificate domain preflight facts are missing")
+    for name in names:
+        observation = dns.get(name)
+        certificate = certificates.get(name)
+        if not isinstance(observation, Mapping) or not isinstance(
+            certificate,
+            Mapping,
+        ):
+            raise TopologyError(f"certificate domain preflight failed: {name}")
+        ipv4 = observation.get("a")
+        ipv6 = observation.get("aaaa")
+        caa = observation.get("caa")
+        caa_source = observation.get("caa_source")
+        if (
+            not _address_facts(ipv4, version=4, require_one=True)
+            or not _address_facts(ipv6, version=6, require_one=False)
+            or not isinstance(caa, (tuple, list))
+            or not (
+                caa_source is None
+                or isinstance(caa_source, str) and caa_source
+            )
+            or observation.get("a_matches_local") is not True
+            or observation.get("aaaa_handled") is not True
+            or observation.get("caa_compatible") is not True
+            or not isinstance(certificate.get("present"), bool)
+            or not isinstance(certificate.get("covers_domain"), bool)
+            or (
+                certificate["present"] is True
+                and certificate["covers_domain"] is not True
+            )
+        ):
+            raise TopologyError(f"certificate domain preflight failed: {name}")
+
+
+def _address_facts(
+    value: object,
+    *,
+    version: int,
+    require_one: bool,
+) -> bool:
+    if (
+        not isinstance(value, (tuple, list))
+        or require_one and not value
+        or any(not isinstance(address, str) for address in value)
+    ):
+        return False
+    try:
+        parsed = tuple(ipaddress.ip_address(address) for address in value)
+    except ValueError:
+        return False
+    return all(address.version == version for address in parsed)
+
+
+def _certificate_action(action: Action) -> dict[str, object]:
+    if action.adapter != "certificates" or not action.id.startswith("certificate."):
+        raise TopologyError("certificate action identity is invalid")
+    singular: dict[str, str] = {}
+    names: list[str] = []
+    webroots: list[str] = []
+    for mutation in action.mutations:
+        key, separator, value = mutation.partition("=")
+        if not separator:
+            raise TopologyError("certificate action is malformed")
+        if key == "name":
+            names.append(value)
+        elif key == "webroot":
+            webroots.append(value)
+        elif key in singular:
+            raise TopologyError("certificate action is malformed")
+        else:
+            singular[key] = value
+    if set(singular) != {"certificate", "email", "service"}:
+        raise TopologyError("certificate action is malformed")
+    service = singular["service"]
+    if (
+        action.id != f"certificate.{service}"
+        or action.owner != f"proxy-control:certificate:{service}"
+        or re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", service) is None
+        or not names
+        or tuple(names) != tuple(sorted(set(names)))
+        or len(webroots) != len(names)
+        or tuple(webroots) != tuple(f"/var/www/{name}" for name in names)
+        or singular["certificate"] not in names
+        or not singular["email"]
+        or any(
+            re.fullmatch(
+                r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+                r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z",
+                name,
+            )
+            is None
+            for name in names
+        )
+    ):
+        raise TopologyError("certificate action is malformed")
+    return {
+        "certificate": singular["certificate"],
+        "email": singular["email"],
+        "names": tuple(names),
+        "service": service,
+        "webroots": tuple(webroots),
+    }
+
+
+def _certificate_checkpoint(
+    checkpoint: Mapping[str, object],
+    specification: Mapping[str, object],
+) -> tuple[str, ...]:
+    if (
+        set(checkpoint)
+        != {"certificate", "created_webroots", "names", "owner", "ownership"}
+        or checkpoint["certificate"] != specification["certificate"]
+        or checkpoint["names"] != specification["names"]
+        or checkpoint["ownership"] != {}
+        or checkpoint["owner"]
+        != f"proxy-control:certificate:{specification['service']}"
+    ):
+        raise TopologyError("certificate checkpoint is invalid")
+    created = checkpoint["created_webroots"]
+    if not isinstance(created, (tuple, list)) or any(
+        not isinstance(path, str)
+        or not path.startswith("/")
+        or ".." in Path(path).parts
+        for path in created
+    ):
+        raise TopologyError("certificate checkpoint is invalid")
+    return tuple(sorted(set(created)))
+
+
+def _certificate_sans(text: str) -> set[str]:
+    names: set[str] = set()
+    for raw in re.findall(r"DNS:([^,\s]+)", text):
+        normalized = raw.lower().rstrip(".")
+        if re.fullmatch(
+            r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+            r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z",
+            normalized,
+        ):
+            names.add(normalized)
+    return names
+
+
 __all__ = [
+    "CertificatePlan",
     "NginxAdapter",
     "derive_owned_route_variable",
     "NginxTopology",
