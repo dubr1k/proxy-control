@@ -18,7 +18,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -855,8 +855,10 @@ INSTALL_PHASES = {
     "rollback_sites", "rollback_project", "rollback_packages", "rollback_complete",
 }
 UNINSTALL_PHASES = {
-    "started", "compose_down", "data_purging", "data_purged", "packages_purged",
-    "route_removed", "sites_removing", "sites_removed", "project_cleaned",
+    "started", "compose_stopping", "compose_down", "data_purging",
+    "data_purged", "route_removing", "route_removed", "sites_removing",
+    "sites_removed", "project_cleaning", "project_cleaned",
+    "packages_purging", "packages_purged",
 }
 
 
@@ -940,6 +942,92 @@ class CommandRunner:
             ).returncode == 0
         except OSError:
             return False
+
+    @staticmethod
+    def _query(argv: Sequence[str]) -> str:
+        command = [str(value) for value in argv]
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise InstallerConflict(
+                f"command query failed: {' '.join(command)}"
+            ) from exc
+        if completed.returncode:
+            detail = " ".join((completed.stderr or "").split())[-2000:]
+            suffix = f": {detail}" if detail else ""
+            raise InstallerConflict(
+                f"command query failed ({completed.returncode}): "
+                f"{' '.join(command)}{suffix}"
+            )
+        return completed.stdout or ""
+
+    def _compose_project_name(self, project_dir: str) -> str:
+        command = (
+            "docker",
+            "compose",
+            "--project-directory",
+            project_dir,
+            "config",
+            "--format",
+            "json",
+        )
+        try:
+            value = json.loads(self._query(command))
+        except json.JSONDecodeError as exc:
+            raise InstallerConflict(
+                "compose project identity is unreadable"
+            ) from exc
+        name = value.get("name") if isinstance(value, dict) else None
+        if not isinstance(name, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9_-]*",
+            name,
+        ):
+            raise InstallerConflict("compose project identity is invalid")
+        return name
+
+    def compose_project_present(self, project_dir: str) -> bool:
+        compose = (
+            "docker",
+            "compose",
+            "--project-directory",
+            project_dir,
+            "ps",
+            "-a",
+            "-q",
+        )
+        project = self._compose_project_name(project_dir)
+        networks = (
+            "docker",
+            "network",
+            "ls",
+            "--quiet",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+        )
+        return bool(
+            self._query(compose).strip()
+            or self._query(networks).strip()
+        )
+
+    def compose_project_volumes_present(self, project_dir: str) -> bool:
+        project = self._compose_project_name(project_dir)
+        command = (
+            "docker",
+            "volume",
+            "ls",
+            "--quiet",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+        )
+        return bool(self._query(command).strip())
 
     def run(self, argv, *, stdin_path: Path | None = None, env: dict[str, str] | None = None) -> None:
         stdin = stdin_path.open("rb") if stdin_path else subprocess.DEVNULL
@@ -1213,10 +1301,11 @@ class RuntimeInstaller:
             "managed_hashes", "project_created",
         }
         keys = frozenset(state)
+        uninstall_ownership = {"purge_data", "project_marker_sha256"}
         allowed_keys = {
             frozenset(required),
             frozenset(required | {"rollback_error"}),
-            frozenset(required | {"purge_data"}),
+            frozenset(required | uninstall_ownership),
         }
         if keys not in allowed_keys:
             raise InstallerConflict("runtime manifest schema is invalid")
@@ -1232,14 +1321,18 @@ class RuntimeInstaller:
         if status not in {"installing", "rollback_failed", "active", "uninstalling"}:
             raise InstallerConflict("runtime manifest status is invalid")
         if status == "uninstalling":
-            if "purge_data" not in state:
-                # Before data preservation became the default, every interrupted uninstall
-                # had already committed to deleting volumes.
-                state["purge_data"] = True
-            elif not isinstance(state["purge_data"], bool):
+            if not isinstance(state.get("purge_data"), bool):
                 raise InstallerConflict("runtime uninstall data policy is invalid")
-        elif "purge_data" in state:
-            raise InstallerConflict("runtime uninstall data policy is invalid")
+            marker_sha256 = state.get("project_marker_sha256")
+            if (
+                not isinstance(marker_sha256, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", marker_sha256)
+            ):
+                raise InstallerConflict(
+                    "runtime project ownership checkpoint is invalid"
+                )
+        elif uninstall_ownership & set(state):
+            raise InstallerConflict("runtime uninstall ownership is invalid")
         if state.get("plan") != self.plan.to_dict():
             raise InstallerConflict("runtime transaction belongs to another plan")
         packages = state.get("owned_packages")
@@ -1272,7 +1365,10 @@ class RuntimeInstaller:
                 if child.name not in {"secrets", ".mtproxy-owned"}:
                     _durable_remove(child)
 
-    def _validate_owned_project(self) -> None:
+    def _validate_owned_project(
+        self,
+        expected_marker_sha256: str | None = None,
+    ) -> str:
         project = _root_path(self.root, self.plan.project_dir)
         current = self.root
         for part in Path(self.plan.project_dir).parts[1:]:
@@ -1286,6 +1382,13 @@ class RuntimeInstaller:
             or not marker.is_file()
         ):
             raise InstallerConflict("runtime project ownership has drifted")
+        actual = self._path_hash(marker)
+        if (
+            expected_marker_sha256 is not None
+            and actual != expected_marker_sha256
+        ):
+            raise InstallerConflict("runtime project ownership has drifted")
+        return actual
 
     def _require_owned_packages(self, state: dict, *, installed: bool) -> None:
         mismatched = [
@@ -1298,6 +1401,31 @@ class RuntimeInstaller:
             raise InstallerConflict(
                 f"runtime owned packages are {condition}: {', '.join(mismatched)}"
             )
+
+    def _validate_uninstall_ownership(
+        self,
+        state: dict,
+        *,
+        packages_installed: bool | None = True,
+    ) -> None:
+        self._validate_owned_project(state["project_marker_sha256"])
+        if packages_installed is not None:
+            self._require_owned_packages(
+                state,
+                installed=packages_installed,
+            )
+
+    def _compose_project_present(self) -> bool:
+        return bool(
+            self.runner.compose_project_present(self.plan.project_dir)
+        )
+
+    def _compose_project_volumes_present(self) -> bool:
+        return bool(
+            self.runner.compose_project_volumes_present(
+                self.plan.project_dir
+            )
+        )
 
     def _rollback_runtime(self, state: dict) -> None:
         """Idempotently restore host routing while retaining generated credentials."""
@@ -1477,10 +1605,15 @@ class RuntimeInstaller:
                 self._rollback_runtime(state)
                 return
             if state["status"] == "active":
-                self._validate_owned_project()
+                marker_sha256 = self._validate_owned_project()
                 self._require_owned_packages(state, installed=True)
                 state["purge_data"] = purge_data
-                self._checkpoint(state, status="uninstalling", phase="started")
+                state["project_marker_sha256"] = marker_sha256
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="started",
+                )
             elif state["purge_data"] != purge_data:
                 required_flag = (
                     "with --purge-data"
@@ -1490,9 +1623,30 @@ class RuntimeInstaller:
                 raise InstallerConflict(
                     f"retry the interrupted uninstall {required_flag}"
                 )
+
             phase = state["phase"]
+            if phase == "packages_purged":
+                expected_packages: bool | None = False
+            elif phase == "packages_purging":
+                expected_packages = None
+            else:
+                expected_packages = True
+            self._validate_uninstall_ownership(
+                state,
+                packages_installed=expected_packages,
+            )
+
             if phase == "started":
-                self._compose("down", "--remove-orphans")
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="compose_stopping",
+                )
+                phase = "compose_stopping"
+            if phase == "compose_stopping":
+                self._validate_uninstall_ownership(state)
+                if self._compose_project_present():
+                    self._compose("down", "--remove-orphans")
                 self._checkpoint(
                     state,
                     status="uninstalling",
@@ -1500,6 +1654,7 @@ class RuntimeInstaller:
                 )
                 phase = "compose_down"
             if phase == "compose_down" and state["purge_data"]:
+                self._validate_uninstall_ownership(state)
                 self._checkpoint(
                     state,
                     status="uninstalling",
@@ -1507,7 +1662,13 @@ class RuntimeInstaller:
                 )
                 phase = "data_purging"
             if phase == "data_purging":
-                self._compose("down", "--remove-orphans", "--volumes")
+                self._validate_uninstall_ownership(state)
+                if self._compose_project_volumes_present():
+                    self._compose(
+                        "down",
+                        "--remove-orphans",
+                        "--volumes",
+                    )
                 self._checkpoint(
                     state,
                     status="uninstalling",
@@ -1515,6 +1676,15 @@ class RuntimeInstaller:
                 )
                 phase = "data_purged"
             if phase in {"compose_down", "data_purged"}:
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="route_removing",
+                )
+                phase = "route_removing"
+            if phase == "route_removing":
+                self._validate_uninstall_ownership(state)
                 _uninstall_installation_unlocked(
                     root=self.root,
                     validate=lambda: self._run("nginx", "-t"),
@@ -1527,6 +1697,7 @@ class RuntimeInstaller:
                 )
                 phase = "route_removed"
             if phase == "route_removed":
+                self._validate_uninstall_ownership(state)
                 # Validate the complete owned generation before making removal retryable.
                 for host_path, expected in state["managed_hashes"].items():
                     path = _root_path(self.root, host_path)
@@ -1544,6 +1715,7 @@ class RuntimeInstaller:
                 )
                 phase = "sites_removing"
             if phase == "sites_removing":
+                self._validate_uninstall_ownership(state)
                 self._remove_managed_files(
                     state,
                     check_hashes=True,
@@ -1557,7 +1729,15 @@ class RuntimeInstaller:
                 )
                 phase = "sites_removed"
             if phase == "sites_removed":
-                self._validate_owned_project()
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="project_cleaning",
+                )
+                phase = "project_cleaning"
+            if phase == "project_cleaning":
+                self._validate_uninstall_ownership(state)
                 self._clean_project_preserving_credentials()
                 self._checkpoint(
                     state,
@@ -1566,17 +1746,35 @@ class RuntimeInstaller:
                 )
                 phase = "project_cleaned"
             if phase == "project_cleaned":
-                if state["owned_packages"]:
-                    self._run(
-                        "apt-get",
-                        "purge",
-                        "-y",
-                        *state["owned_packages"],
-                    )
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="packages_purging",
+                )
+                phase = "packages_purging"
+            if phase == "packages_purging":
+                self._validate_uninstall_ownership(
+                    state,
+                    packages_installed=None,
+                )
+                remaining = [
+                    package
+                    for package in state["owned_packages"]
+                    if self.runner.package_installed(package)
+                ]
+                if remaining:
+                    self._run("apt-get", "purge", "-y", *remaining)
                 self._checkpoint(
                     state,
                     status="uninstalling",
                     phase="packages_purged",
+                )
+                phase = "packages_purged"
+            if phase == "packages_purged":
+                self._validate_uninstall_ownership(
+                    state,
+                    packages_installed=False,
                 )
             self.state_path.unlink()
             _fsync_dir(self.state_path.parent)

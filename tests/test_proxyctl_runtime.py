@@ -38,6 +38,8 @@ class FakeRunner:
         self.fail_once = fail_once
         self.failure = failure
         self.calls: list[tuple[tuple[str, ...], str | None]] = []
+        self.compose_present = False
+        self.volumes_present = False
 
     def package_installed(self, name: str) -> bool:
         return name in self.installed
@@ -51,6 +53,23 @@ class FakeRunner:
             raise self.failure("injected command failure")
         if command[:3] == ("apt-get", "install", "-y"):
             self.installed.update(command[3:])
+        elif command[:3] == ("apt-get", "purge", "-y"):
+            self.installed.difference_update(command[3:])
+        if "up" in command:
+            self.compose_present = True
+            self.volumes_present = True
+        elif "down" in command:
+            self.compose_present = False
+            if command[-1:] == ("--volumes",):
+                self.volumes_present = False
+
+    def compose_project_present(self, project_dir):
+        del project_dir
+        return self.compose_present
+
+    def compose_project_volumes_present(self, project_dir):
+        del project_dir
+        return self.volumes_present
 
     def capture(self, argv, *, max_chars) -> str:
         command = tuple(str(value) for value in argv)
@@ -77,6 +96,31 @@ def test_compose_discovery_reports_unavailable_when_docker_is_not_installed(monk
 
     monkeypatch.setattr(subprocess, "run", missing_docker)
     assert CommandRunner().compose_available() is False
+
+
+def test_compose_reconciliation_uses_declared_project_identity(monkeypatch):
+    runner = CommandRunner()
+    queries = []
+
+    def query(command):
+        command = tuple(command)
+        queries.append(command)
+        if command[-3:] == ("config", "--format", "json"):
+            return '{"name":"mtproxy"}'
+        if command[1:3] in {("network", "ls"), ("volume", "ls")}:
+            return "owned-resource\n"
+        return ""
+
+    monkeypatch.setattr(runner, "_query", query)
+
+    assert runner.compose_project_present("/opt/mtproxy-shared443")
+    assert runner.compose_project_volumes_present(
+        "/opt/mtproxy-shared443"
+    )
+    assert any(
+        "label=com.docker.compose.project=mtproxy" in command
+        for command in queries
+    )
 
 
 def test_compose_start_failure_reports_bounded_sanitized_diagnostics_and_rolls_back(tmp_path):
@@ -627,7 +671,7 @@ def test_uninstall_resumes_when_crash_hits_nested_ownership_uninstall_checkpoint
 
     runtime_state = json.loads((root / "var/lib/proxy-control/runtime.json").read_text())
     ownership_state = json.loads((root / "var/lib/proxy-control/ownership.json").read_text())
-    assert runtime_state["phase"] == "compose_down"
+    assert runtime_state["phase"] == "route_removing"
     assert ownership_state["status"] == "uninstalling"
 
     manager.uninstall()

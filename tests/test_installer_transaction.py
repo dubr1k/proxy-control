@@ -160,9 +160,12 @@ class RecordingAdapter:
 class RuntimeRunner:
     root: Path
     installed: set[str]
+    crash_after: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         self.calls: list[tuple[str, ...]] = []
+        self.compose_running = False
+        self.volumes_present = False
 
     def package_installed(self, name: str) -> bool:
         return name in self.installed
@@ -174,6 +177,14 @@ class RuntimeRunner:
     def compose_available(self) -> bool:
         return False
 
+    def compose_project_present(self, project_dir: str) -> bool:
+        del project_dir
+        return self.compose_running
+
+    def compose_project_volumes_present(self, project_dir: str) -> bool:
+        del project_dir
+        return self.volumes_present
+
     def run(self, argv, *, stdin_path=None, env=None) -> None:
         del stdin_path, env
         command = tuple(str(item) for item in argv)
@@ -182,9 +193,24 @@ class RuntimeRunner:
             self.installed.update(command[3:])
         elif command[:3] == ("apt-get", "purge", "-y"):
             self.installed.difference_update(command[3:])
-        if command[-3:] == ("down", "--remove-orphans", "--volumes"):
-            data = self.root / "var/lib/docker/volumes/proxy-data/_data/panel.sqlite3"
-            data.unlink(missing_ok=True)
+        if "up" in command:
+            self.compose_running = True
+            self.volumes_present = True
+        elif "down" in command:
+            self.compose_running = False
+            if command[-1:] == ("--volumes",):
+                self.volumes_present = False
+                data = (
+                    self.root
+                    / "var/lib/docker/volumes/proxy-data/_data/panel.sqlite3"
+                )
+                data.unlink(missing_ok=True)
+        if (
+            self.crash_after is not None
+            and command[: len(self.crash_after)] == self.crash_after
+        ):
+            self.crash_after = None
+            raise InjectedCrash("after command success")
 
     def capture(self, argv, *, max_chars: int) -> str:
         del argv, max_chars
@@ -751,6 +777,8 @@ def test_runtime_v2_import_acquires_lock_before_validation(tmp_path: Path) -> No
     managed.write_bytes(b"verified")
     legacy = {
         "schema": 2,
+
+
         "status": "active",
         "phase": "route_installed",
         "plan": {"project_dir": "/opt/mtproxy-shared443"},
@@ -769,6 +797,128 @@ def test_runtime_v2_import_acquires_lock_before_validation(tmp_path: Path) -> No
         managed.write_bytes(b"foreign")
         with pytest.raises(TransactionBusyError, match="another proxyctl operation"):
             import_runtime_v2(tmp_path, legacy)
+
+
+@pytest.mark.parametrize(
+    ("command", "purge_data", "in_progress_phase"),
+    [
+        (
+            (
+                "docker",
+                "compose",
+                "--project-directory",
+                "/opt/mtproxy-shared443",
+                "down",
+                "--remove-orphans",
+            ),
+            False,
+            "compose_stopping",
+        ),
+        (
+            (
+                "docker",
+                "compose",
+                "--project-directory",
+                "/opt/mtproxy-shared443",
+                "down",
+                "--remove-orphans",
+                "--volumes",
+            ),
+            True,
+            "data_purging",
+        ),
+        (("apt-get", "purge", "-y"), False, "packages_purging"),
+    ],
+)
+def test_runtime_v2_resume_does_not_replay_committed_external_mutation(
+    tmp_path: Path,
+    command: tuple[str, ...],
+    purge_data: bool,
+    in_progress_phase: str,
+) -> None:
+    root = tmp_path / "root"
+    legacy, runner, _original_route = installed_runtime_v2(root)
+    import_runtime_v2(root, legacy)
+    runner.crash_after = command
+    engine = TransactionEngine(
+        TransactionStore(root),
+        {"runtime-v2": RuntimeV2Adapter(root, runner=runner)},
+    )
+
+    with pytest.raises(InjectedCrash, match="after command success"):
+        engine.uninstall(purge_data=purge_data)
+
+    runtime_state = json.loads(
+        (root / "var/lib/proxy-control/runtime.json").read_text()
+    )
+    assert runtime_state["phase"] == in_progress_phase
+    count_after_crash = sum(
+        call[: len(command)] == command
+        for call in runner.calls
+    )
+    assert count_after_crash == 1
+
+    resumed = engine.resume()
+
+    assert resumed.status == "uninstalled"
+    assert sum(
+        call[: len(command)] == command
+        for call in runner.calls
+    ) == count_after_crash
+
+
+@pytest.mark.parametrize(
+    ("drift", "message"),
+    [
+        ("marker", "project ownership has drifted"),
+        ("marker_symlink", "project ownership has drifted"),
+        ("package", "owned packages are missing"),
+    ],
+)
+def test_runtime_v2_resume_revalidates_drift_before_next_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    drift: str,
+    message: str,
+) -> None:
+    root = tmp_path / "root"
+    legacy, runner, _original_route = installed_runtime_v2(root)
+    import_runtime_v2(root, legacy)
+    real_checkpoint = RuntimeInstaller._checkpoint
+    crashed = False
+
+    def crash_after_started(self, state, *, status=None, phase=None):
+        nonlocal crashed
+        real_checkpoint(self, state, status=status, phase=phase)
+        if phase == "started" and not crashed:
+            crashed = True
+            raise InjectedCrash("after started checkpoint")
+
+    monkeypatch.setattr(RuntimeInstaller, "_checkpoint", crash_after_started)
+    engine = TransactionEngine(
+        TransactionStore(root),
+        {"runtime-v2": RuntimeV2Adapter(root, runner=runner)},
+    )
+    with pytest.raises(InjectedCrash, match="started checkpoint"):
+        engine.uninstall(purge_data=False)
+
+    if drift == "marker":
+        marker = root / "opt/mtproxy-shared443/.mtproxy-owned"
+        marker.write_bytes(b"foreign marker\n")
+    elif drift == "marker_symlink":
+        marker = root / "opt/mtproxy-shared443/.mtproxy-owned"
+        marker.unlink()
+        outside = tmp_path / "foreign-marker"
+        outside.write_bytes(b"foreign marker\n")
+        marker.symlink_to(outside)
+    else:
+        runner.installed.remove(legacy["owned_packages"][0])
+    calls_before_resume = list(runner.calls)
+
+    with pytest.raises(InstallerConflict, match=message):
+        engine.resume()
+
+    assert runner.calls == calls_before_resume
 
 
 def test_runtime_v2_import_rejects_change_between_validation_and_capture(
