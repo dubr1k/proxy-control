@@ -29,6 +29,9 @@ _SOURCE_SECTION_MARKER = re.compile(
     r"^# configuration file (/[^:\r\n]+):(?:\r?\n|\Z)",
     re.MULTILINE,
 )
+_NGINX_PREFIX_ARG = re.compile(
+    r"(?:^|\s)--prefix=(?:\"([^\"\r\n]+)\"|'([^'\r\n]+)'|([^\s]+))"
+)
 
 
 class TopologyError(RuntimeError):
@@ -160,7 +163,6 @@ def _stream_context(
 ]:
     ranges: list[tuple[int, int]] = []
     patterns: set[str] = set()
-    prefix = _nginx_prefix(tokens)
     for index, token in enumerate(tokens[:-1]):
         if token.value != "stream" or tokens[index + 1].value != "{":
             continue
@@ -173,7 +175,9 @@ def _stream_context(
                 and cursor + 2 < close
                 and tokens[cursor + 2].value == ";"
             ):
-                patterns.add(_resolve_include(tokens[cursor + 1].value, prefix))
+                patterns.add(
+                    _normalize_include_pattern(tokens[cursor + 1].value)
+                )
                 cursor += 3
                 continue
             cursor += 1
@@ -187,7 +191,7 @@ def _stream_context(
         expanded = {
             source
             for source in sources
-            if any(_glob_path_matches(source, pattern) for pattern in patterns)
+            if any(_source_matches_include(source, pattern) for pattern in patterns)
         }
         new_sources = expanded - included
         if not new_sources:
@@ -201,36 +205,55 @@ def _stream_context(
                 and token.value == "include"
                 and tokens[index + 2].value == ";"
             ):
-                patterns.add(_resolve_include(tokens[index + 1].value, prefix))
+                patterns.add(
+                    _normalize_include_pattern(tokens[index + 1].value)
+                )
     return tuple(ranges), frozenset(included), tuple(sorted(patterns))
 
 
-def _nginx_prefix(tokens: tuple[_Token, ...]) -> str:
-    for token in tokens:
-        if token.source_file.endswith("/nginx.conf"):
-            return str(PurePosixPath(token.source_file).parent)
-    return "/etc/nginx"
+def _normalize_include_pattern(pattern: str) -> str:
+    absolute = pattern.startswith("/")
+    parts: list[str] = []
+    for part in PurePosixPath(pattern).parts:
+        if part in {"", "/", "."}:
+            continue
+        if part == "..":
+            if parts and parts[-1] != "..":
+                parts.pop()
+            elif absolute:
+                raise TopologyError("Nginx include escapes its prefix")
+            else:
+                parts.append(part)
+            continue
+        parts.append(part)
+    normalized = "/".join(parts)
+    return f"/{normalized}" if absolute else normalized
 
 
 def _resolve_include(pattern: str, prefix: str) -> str:
-    combined = (
-        PurePosixPath(pattern)
-        if pattern.startswith("/")
-        else PurePosixPath(prefix) / pattern
-    )
-    parts: list[str] = []
-    for part in combined.parts:
-        if part in {"", "/"}:
-            continue
-        if part == ".":
-            continue
-        if part == "..":
-            if not parts:
-                raise TopologyError("Nginx include escapes its prefix")
-            parts.pop()
-            continue
-        parts.append(part)
-    return "/" + "/".join(parts)
+    if pattern.startswith("/"):
+        return _normalize_include_pattern(pattern)
+    if not prefix.startswith("/"):
+        raise TopologyError("Nginx prefix is not absolute")
+    return _normalize_include_pattern(f"{prefix.rstrip('/')}/{pattern}")
+
+def _nginx_runtime_prefix(version_output: str) -> str:
+    prefixes = {
+        next(value for value in match.groups() if value is not None)
+        for match in _NGINX_PREFIX_ARG.finditer(version_output)
+    }
+    if len(prefixes) != 1:
+        raise TopologyError(
+            "fresh router path is not proven included by Nginx"
+        )
+    prefix = _normalize_include_pattern(next(iter(prefixes)))
+    if not prefix.startswith("/"):
+        raise TopologyError(
+            "fresh router path is not proven included by Nginx"
+        )
+    return prefix
+
+
 
 
 def _glob_path_matches(path: str, pattern: str) -> bool:
@@ -239,6 +262,24 @@ def _glob_path_matches(path: str, pattern: str) -> bool:
     return len(path_parts) == len(pattern_parts) and all(
         fnmatch.fnmatchcase(path_part, pattern_part)
         for path_part, pattern_part in zip(path_parts, pattern_parts, strict=True)
+    )
+
+def _source_matches_include(source: str, pattern: str) -> bool:
+    if pattern.startswith("/"):
+        return _glob_path_matches(source, pattern)
+    pattern_parts = PurePosixPath(pattern).parts
+    if not pattern_parts or ".." in pattern_parts:
+        return False
+    source_parts = PurePosixPath(source).parts
+    if len(source_parts) < len(pattern_parts):
+        return False
+    return all(
+        fnmatch.fnmatchcase(source_part, pattern_part)
+        for source_part, pattern_part in zip(
+            source_parts[-len(pattern_parts):],
+            pattern_parts,
+            strict=True,
+        )
     )
 
 
@@ -450,10 +491,7 @@ class NginxAdapter:
                 raise TopologyError(
                     "fresh mode cannot replace an active stream router"
                 )
-            if not any(
-                _glob_path_matches(self.fresh_path, pattern)
-                for pattern in topology.stream_includes
-            ):
+            if not self._fresh_path_is_included(topology):
                 raise TopologyError(
                     "fresh router path is not included by the stream context"
                 )
@@ -823,6 +861,31 @@ class NginxAdapter:
         if require_owned and not owned:
             raise TopologyError("owned route is not on the active 443 path")
 
+    def _fresh_path_is_included(self, topology: NginxTopology) -> bool:
+        relative: list[str] = []
+        for pattern in topology.stream_includes:
+            if pattern.startswith("/"):
+                if _glob_path_matches(self.fresh_path, pattern):
+                    return True
+            else:
+                relative.append(pattern)
+        if not relative:
+            return False
+        result = self.runner.run(("nginx", "-V"))
+        if result.returncode != 0:
+            raise TopologyError(
+                "fresh router path is not proven included by Nginx"
+            )
+        prefix = _nginx_runtime_prefix(f"{result.stdout}\n{result.stderr}")
+        return any(
+            _glob_path_matches(
+                self.fresh_path,
+                _resolve_include(pattern, prefix),
+            )
+            for pattern in relative
+        )
+
+
     def _authenticate_source(self, effective: str, source_file: str) -> None:
         sections = _effective_source_sections(effective).get(source_file, ())
         if len(sections) != 1:
@@ -842,7 +905,7 @@ class NginxAdapter:
                 "effective Nginx source marker is not authenticated"
             )
         try:
-            content = resolved.read_text(encoding="utf-8")
+            content = resolved.read_bytes().decode("utf-8")
         except (OSError, UnicodeError) as exc:
             raise TopologyError(
                 "effective Nginx source marker is not authenticated"

@@ -62,6 +62,7 @@ class RecordingExecutor:
     def __init__(self, effective: str, *, root: Path | None = None) -> None:
         self.effective = effective
         self.root = root
+        self.version_output = ""
         self.calls: list[tuple[str, ...]] = []
 
     def _render_effective(self) -> str:
@@ -97,7 +98,8 @@ class RecordingExecutor:
         command = tuple(argv)
         self.calls.append(command)
         stdout = self._render_effective() if command == ("nginx", "-T") else ""
-        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+        stderr = self.version_output if command == ("nginx", "-V") else ""
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=stderr)
 
 class FreshExecutor(RecordingExecutor):
     def __init__(self, effective: str, *, root: Path) -> None:
@@ -559,6 +561,35 @@ def test_balanced_source_marker_must_match_named_file_bytes(
         NginxAdapter(root=root, runner=runner).plan(config(), facts())
     assert route.read_bytes() == before
 
+def test_source_authentication_preserves_crlf_bytes(tmp_path: Path) -> None:
+    source_file = "/etc/nginx/stream.d/routes.conf"
+    source = (
+        "map $ssl_preread_server_name $backend {\r\n"
+        "    default 127.0.0.1:8443;\r\n"
+        "}\r\n"
+        "server {\r\n"
+        "    listen 443;\r\n"
+        "    ssl_preread on;\r\n"
+        "    proxy_pass $backend;\r\n"
+        "}\r\n"
+    )
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\r\n"
+        "events {}\r\n"
+        "stream { include /etc/nginx/stream.d/*.conf; }\r\n"
+        f"# configuration file {source_file}:\r\n"
+        f"{source}"
+    )
+    root = tmp_path / "root"
+    route = root / source_file.lstrip("/")
+    route.parent.mkdir(parents=True)
+    route.write_bytes(source.encode())
+    runner, _ = runner_for(effective)
+
+    action = NginxAdapter(root=root, runner=runner).plan(config(), facts())[0]
+
+    assert f"target={source_file}" in action.mutations
+
 
 def test_fresh_requires_included_path_and_proves_post_write_active_route(
     tmp_path: Path,
@@ -696,9 +727,33 @@ server { listen 443 ssl; }
 """
     topology = parse_effective_nginx(effective)
 
+
     assert len(topology.maps) == 1
     assert len(topology.servers) == 1
     assert select_route_target(topology).variable == "$stream_backend"
+def test_fresh_relative_include_uses_reported_nginx_prefix(
+    tmp_path: Path,
+) -> None:
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream { include stream.d/*.conf; }\n"
+    )
+    executor = RecordingExecutor(effective)
+    executor.version_output = (
+        "nginx version: nginx/1.26.0\n"
+        "configure arguments: --prefix=/opt/nginx "
+        "--conf-path=/etc/nginx/nginx.conf"
+    )
+    adapter = NginxAdapter(
+        root=tmp_path,
+        runner=CommandRunner(executor=executor),
+        fresh_path="/opt/nginx/stream.d/proxy-control.conf",
+    )
+
+    action = adapter.plan(config(HostMode.FRESH), facts())[0]
+
+    assert "target=/opt/nginx/stream.d/proxy-control.conf" in action.mutations
+    assert ("nginx", "-V") in executor.calls
 
 
 def test_patch_targets_sni_map_when_http_map_shares_destination_variable() -> None:
