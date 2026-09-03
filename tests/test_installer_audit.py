@@ -821,6 +821,8 @@ def test_caa_issuer_restrictions_are_strictly_evaluated(caa, mismatch):
         '0 issue "letsencrypt.org; validationmethods=http-01; '
         'validationmethods=dns-01"\n',
         '0 issue "letsencrypt.org; validationmethods"\n',
+        '0 issue "letsencrypt.org; '
+        'validationmethods=http-01,0123456789abcdef"\n',
         '0 issue "deadbeef-dead-beef-dead-beefdeadbeef"\n',
         '0 issue "0123456789abcdef"\n',
     ],

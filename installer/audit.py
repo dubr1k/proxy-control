@@ -33,6 +33,7 @@ _SAFE_ARCHITECTURES = {
     "arm64": "arm64",
     "x86_64": "amd64",
 }
+_CAA_VALIDATION_METHODS = frozenset({"dns-01", "http-01", "tls-alpn-01"})
 _SENSITIVE_KEY = re.compile(
     r"(?:authorization|auth|cookie|credential|password|passwd|secret|token|"
     r"private[_-]?key|short[_-]?ids?|panel(?:path|_path)|webbasepath|"
@@ -908,11 +909,10 @@ def _canonical_caa_record(flags: int, tag: str, value: str) -> dict[str, object]
             methods = tuple(
                 sorted(set(item.strip().lower() for item in parameter_value.split(",")))
             )
-            if not methods or any(
-                not method or not re.fullmatch(r"[a-z0-9-]{1,32}", method)
-                for method in methods
-            ):
+            if not methods:
                 raise AuditError("CAA issuer parameter is malformed")
+            if any(method not in _CAA_VALIDATION_METHODS for method in methods):
+                raise AuditError("CAA issuer parameter is unsupported")
             record["validation_methods"] = methods
         elif key == "accounturi":
             if (
