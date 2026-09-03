@@ -145,6 +145,70 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
     }
 
 
+def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
+    output = tmp_path / "localized.toml"
+    completed, transcript = _run_cli_in_pty(
+        tmp_path,
+        locale="ru_RU.UTF-8",
+        answers=[
+            "",
+            "bogus",
+            "fresh",
+            "core-mieru",
+            "none",
+            "not a domain",
+            "panel.example.com",
+            "relay.example.com",
+            "mieru.example.com",
+            "abc",
+            "46001",
+            "70000",
+            "46001",
+            "admin@example.com",
+            "owner",
+            "maybe",
+            "yes",
+            "save",
+        ],
+        output=output,
+    )
+
+    assert completed.returncode == 0, transcript
+    assert "Выберите одно из: fresh/coexist." in transcript
+    assert "Введите полное доменное имя." in transcript
+    assert "Введите один или несколько портов через запятую." in transcript
+    assert "Введите да или нет." in transcript
+    assert "Invalid choice" not in transcript
+    assert "Invalid value" not in transcript
+    assert "ports must" not in transcript
+    assert "fully-qualified domain" not in transcript
+
+
+def test_russian_integer_and_generic_string_feedback_hides_validator_details():
+    transcript = io.StringIO()
+    terminal = TerminalIO(
+        io.StringIO("abc\n70000\n46001\nbad\nok\n"),
+        transcript,
+    )
+    terminal.set_locale(Locale.RU)
+
+    port = terminal.integer("Порт")
+
+    def validator(value: str) -> str:
+        if value != "ok":
+            raise ValueError("internal English validator detail")
+        return value
+
+    value = terminal.validated("Значение", validator)
+
+    assert port == 46001
+    assert value == "ok"
+    assert "Введите целое число." in transcript.getvalue()
+    assert "Введите число от 1 до 65535." in transcript.getvalue()
+    assert "Введите допустимое значение." in transcript.getvalue()
+    assert "internal English validator detail" not in transcript.getvalue()
+
+
 def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
     output = tmp_path / "saved.toml"
     answers = [

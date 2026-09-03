@@ -33,6 +33,13 @@ _EMAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+\Z")
 _SAFE_NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 
 
+class PromptValidationError(ValueError):
+    def __init__(self, message_key: str, **values: object):
+        super().__init__(message_key)
+        self.message_key = message_key
+        self.values = values
+
+
 class WizardQuit(Exception):
     """The operator explicitly left the wizard before apply."""
 
@@ -48,6 +55,7 @@ class WizardSaved(WizardQuit):
 
 class WizardIO(Protocol):
     """Typed prompt boundary; implementations own all terminal echo handling."""
+    def set_locale(self, locale: Locale) -> None: ...
 
     def write(self, value: str = "") -> None: ...
 
@@ -95,9 +103,22 @@ class WizardIO(Protocol):
 class TerminalIO:
     """Line-oriented terminal implementation with echo controlled at this boundary."""
 
-    def __init__(self, input_stream: TextIO = sys.stdin, output_stream: TextIO = sys.stdout):
+    def __init__(
+        self,
+        input_stream: TextIO = sys.stdin,
+        output_stream: TextIO = sys.stdout,
+        *,
+        locale: Locale = Locale.EN,
+    ):
         self.input = input_stream
         self.output = output_stream
+        self.locale = locale
+
+    def set_locale(self, locale: Locale) -> None:
+        self.locale = locale
+
+    def _feedback(self, message_key: str, **values: object) -> None:
+        self.write(text(self.locale, message_key, **values))
 
     def write(self, value: str = "") -> None:
         self.output.write(value + "\n")
@@ -159,7 +180,7 @@ class TerminalIO:
             selected = by_value.get(raw)
             if selected is not None:
                 return selected
-            self.write(f"Invalid choice: {raw or '<empty>'}")
+            self._feedback("invalid_choice", choices=values)
 
     def validated(
         self,
@@ -178,8 +199,10 @@ class TerminalIO:
                 raw = default
             try:
                 return validator(raw)
-            except ValueError as exc:
-                self.write(f"Invalid value: {exc}")
+            except PromptValidationError as exc:
+                self._feedback(exc.message_key, **exc.values)
+            except ValueError:
+                self._feedback("invalid_value")
 
     def integer(
         self,
@@ -193,9 +216,13 @@ class TerminalIO:
             try:
                 parsed = int(value, 10)
             except ValueError as exc:
-                raise ValueError("an integer is required") from exc
+                raise PromptValidationError("invalid_integer") from exc
             if not minimum <= parsed <= maximum:
-                raise ValueError(f"must be between {minimum} and {maximum}")
+                raise PromptValidationError(
+                    "invalid_range",
+                    minimum=minimum,
+                    maximum=maximum,
+                )
             return str(parsed)
 
         rendered_default = str(default) if default is not None else None
@@ -207,17 +234,17 @@ class TerminalIO:
         def validate(value: str) -> str:
             parts = [part.strip() for part in value.split(",")]
             if not parts or any(not part for part in parts):
-                raise ValueError("one or more comma-separated ports are required")
+                raise PromptValidationError("invalid_ports")
             ports: list[int] = []
             for part in parts:
                 try:
                     port = int(part, 10)
                 except ValueError as exc:
-                    raise ValueError("ports must be integers") from exc
+                    raise PromptValidationError("invalid_ports") from exc
                 if not 1 <= port <= 65535:
-                    raise ValueError("ports must be between 1 and 65535")
+                    raise PromptValidationError("invalid_ports")
                 if port in ports:
-                    raise ValueError("ports must be unique")
+                    raise PromptValidationError("duplicate_ports")
                 ports.append(port)
             return ",".join(str(port) for port in ports)
 
@@ -226,7 +253,7 @@ class TerminalIO:
 
     def routes(self, prompt: str) -> tuple[tuple[str, int], ...]:
         routes: list[tuple[str, int]] = []
-        self.write(f"{prompt} (domain=port, blank to finish)")
+        self.write(f"{prompt}: {text(self.locale, 'invalid_route')}")
         while True:
             raw = self.read_line("> ")
             if not raw:
@@ -236,11 +263,14 @@ class TerminalIO:
                 normalized = _domain(domain)
                 port = int(raw_port, 10)
                 if not 1 <= port <= 65535:
-                    raise ValueError("port must be between 1 and 65535")
+                    raise PromptValidationError("invalid_route")
                 if normalized in {item[0] for item in routes}:
-                    raise ValueError("route domains must be unique")
-            except (ValueError, TypeError) as exc:
-                self.write(f"Invalid value: {exc}")
+                    raise PromptValidationError("duplicate_route")
+            except PromptValidationError as exc:
+                self._feedback(exc.message_key, **exc.values)
+                continue
+            except (ValueError, TypeError):
+                self._feedback("invalid_route")
                 continue
             routes.append((normalized, port))
 
@@ -256,7 +286,7 @@ class TerminalIO:
                 return True
             if raw in no:
                 return False
-            self.write(f"Invalid choice: {raw}")
+            self._feedback("invalid_yes_no")
 
 
 class ReviewAction(StrEnum):
@@ -303,20 +333,22 @@ class TerminalWizard:
         default_locale = self.locale or locale_from_environment(
             os.environ.get("LC_ALL") or os.environ.get("LANG")
         )
+        self.io.set_locale(default_locale)
         selected = self.io.choose_enum(
             text(default_locale, "language"),
             (Locale.EN, Locale.RU),
             default=default_locale,
         )
         self.locale = parse_locale(selected)
+        self.io.set_locale(self.locale)
         self.io.write(text(self.locale, "secrets_notice"))
         values = self._collect()
 
         while True:
             try:
                 config = self._config(values)
-            except ConfigError as exc:
-                self.io.write(text(self.locale, "invalid", error=exc))
+            except ConfigError:
+                self.io.write(text(self.locale, "invalid_config"))
                 self._edit(values)
                 continue
             self._review(config)
@@ -419,9 +451,9 @@ class TerminalWizard:
         def validate(value: str) -> str:
             domains = tuple(_domain(part) for part in value.split(",") if part.strip())
             if not domains:
-                raise ValueError("one or more domains are required")
+                raise PromptValidationError("invalid_domains")
             if len(domains) != len(set(domains)):
-                raise ValueError("domains must be unique")
+                raise PromptValidationError("duplicate_domains")
             return ",".join(domains)
 
         return tuple(self.io.validated(prompt, validate).split(","))
@@ -575,21 +607,21 @@ class TerminalWizard:
 def _domain(value: str) -> str:
     normalized = value.strip().lower().rstrip(".")
     if not _DOMAIN_RE.fullmatch(normalized):
-        raise ValueError("a plain fully-qualified domain name is required")
+        raise PromptValidationError("invalid_domain")
     return normalized
 
 
 def _email(value: str) -> str:
     normalized = value.strip()
     if not _EMAIL_RE.fullmatch(normalized):
-        raise ValueError("a valid email is required")
+        raise PromptValidationError("invalid_email")
     return normalized
 
 
 def _safe_name(value: str) -> str:
     normalized = value.strip()
     if not _SAFE_NAME_RE.fullmatch(normalized):
-        raise ValueError("letters, digits, underscore, or hyphen are required")
+        raise PromptValidationError("invalid_name")
     return normalized
 
 
