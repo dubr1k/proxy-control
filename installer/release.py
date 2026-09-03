@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import os
 import re
 import secrets
-import shutil
 import stat
 import tarfile
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
-from typing import Mapping
+from typing import BinaryIO, Mapping
 from urllib.parse import urlsplit
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -22,6 +22,20 @@ _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _SUPPORTED_ARCHITECTURES = frozenset({"amd64", "arm64"})
 _SUPPORTED_SPDX_LICENSES = frozenset({"GPL-3.0-only", "GPL-3.0-or-later"})
 _COPY_CHUNK_SIZE = 1024 * 1024
+_HARD_MAX_DECOMPRESSED_SIZE = 2 * 1024 * 1024 * 1024
+_HARD_MAX_METADATA_SIZE = 8 * 1024 * 1024
+_DEFAULT_MAX_DECOMPRESSED_SIZE = 1024 * 1024 * 1024
+_DEFAULT_MAX_METADATA_SIZE = 1024 * 1024
+_TAR_BLOCK_SIZE = 512
+_TAR_EXTENSION_TYPES = frozenset(
+    {
+        tarfile.XHDTYPE,
+        tarfile.XGLTYPE,
+        tarfile.SOLARIS_XHDTYPE,
+        tarfile.GNUTYPE_LONGNAME,
+        tarfile.GNUTYPE_LONGLINK,
+    }
+)
 
 
 class ReleaseError(ValueError):
@@ -124,8 +138,11 @@ class ArchiveEntry:
 @dataclass(frozen=True)
 class ArchiveManifest:
     entries: tuple[ArchiveEntry, ...]
+    archive_sha256: str
     max_entries: int = 10_000
     max_total_size: int = 1024 * 1024 * 1024
+    max_decompressed_size: int = _DEFAULT_MAX_DECOMPRESSED_SIZE
+    max_metadata_size: int = _DEFAULT_MAX_METADATA_SIZE
 
 
 @dataclass(frozen=True)
@@ -137,26 +154,42 @@ class _ValidatedMember:
     resolved_link_target: str | None = None
 
 
+@dataclass
+class _DestinationAnchor:
+    absolute: Path
+    components: tuple[str, ...]
+    descriptors: tuple[int, ...]
+    identities: tuple[tuple[int, int], ...]
+    destination_identity: tuple[int, int] | None
+
+    @property
+    def parent_fd(self) -> int:
+        return self.descriptors[-1]
+
+    @property
+    def destination_name(self) -> str:
+        return self.absolute.name
+
+    def close(self) -> None:
+        for descriptor in reversed(self.descriptors):
+            os.close(descriptor)
+
+
 def verify_artifact(path: Path, expected_sha256: str) -> None:
-    """Stream an artifact once and compare its exact reviewed SHA-256."""
+    """Stream one no-follow file descriptor and compare its reviewed SHA-256."""
 
     _require_sha256(expected_sha256, "expected artifact")
+    descriptor = _open_regular_file(path, "artifact")
     try:
-        metadata = path.lstat()
-    except OSError as exc:
-        raise ReleaseError(f"artifact is not a regular file: {path}") from exc
-    if not stat.S_ISREG(metadata.st_mode):
-        raise ReleaseError(f"artifact is not a regular file: {path}")
-
-    digest = hashlib.sha256()
-    try:
-        with path.open("rb") as source:
-            while chunk := source.read(_COPY_CHUNK_SIZE):
-                digest.update(chunk)
+        with os.fdopen(descriptor, "rb") as source:
+            descriptor = -1
+            actual = _digest_open_file(source)
     except OSError as exc:
         raise ReleaseError(f"could not read artifact: {path}") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
-    actual = digest.hexdigest()
     if not secrets.compare_digest(actual, expected_sha256):
         raise ReleaseError(
             f"artifact digest mismatch for {path.name}: expected "
@@ -169,37 +202,181 @@ def safe_extract_tar(
     destination: Path,
     manifest: ArchiveManifest,
 ) -> None:
-    """Validate an entire tar, then build and atomically install a fresh tree."""
+    """Verify and validate one opened archive before a dirfd-anchored install."""
 
     expected = _validate_archive_manifest(manifest)
-    stage: Path | None = None
+    anchor: _DestinationAnchor | None = None
+    stage_name: str | None = None
+    stage_fd = -1
+    descriptor = _open_regular_file(archive, "archive")
     try:
-        archive_metadata = archive.lstat()
-        if not stat.S_ISREG(archive_metadata.st_mode):
-            raise ReleaseError(f"archive is not a regular file: {archive}")
-
-        with archive.open("rb") as raw_archive:
-            with tarfile.open(fileobj=raw_archive, mode="r:*") as opened_archive:
-                members = _validate_tar(opened_archive, manifest, expected)
-                safe_destination = _validate_destination(destination)
-                stage = Path(
-                    tempfile.mkdtemp(
-                        prefix=f".{safe_destination.name}.stage-",
-                        dir=safe_destination.parent,
-                    )
+        with os.fdopen(descriptor, "rb") as raw_archive:
+            descriptor = -1
+            _verify_open_archive(raw_archive, manifest.archive_sha256, archive)
+            with tempfile.TemporaryFile(mode="w+b") as decoded_archive:
+                _decode_bounded_tar(
+                    raw_archive,
+                    decoded_archive,
+                    manifest.max_decompressed_size,
                 )
-                _extract_members(opened_archive, members, stage)
-                _replace_destination(stage, safe_destination)
-                stage = None
+                _scan_tar_records(decoded_archive, manifest.max_metadata_size)
+                decoded_archive.seek(0)
+                with tarfile.open(
+                    fileobj=decoded_archive, mode="r:"
+                ) as opened_archive:
+                    members = _validate_tar(opened_archive, manifest, expected)
+                    anchor = _validate_destination(destination)
+                    _revalidate_destination(anchor)
+                    stage_name, stage_fd = _create_private_stage(anchor)
+                    _extract_members(opened_archive, members, stage_fd)
+                    os.close(stage_fd)
+                    stage_fd = -1
+                    _revalidate_destination(anchor)
+                    _replace_destination(anchor, stage_name)
+                    stage_name = None
     except ReleaseError:
-        if stage is not None:
-            _remove_stage(stage)
+        if stage_fd >= 0:
+            os.close(stage_fd)
+            stage_fd = -1
+        if anchor is not None and stage_name is not None:
+            _best_effort_remove_tree_at(anchor.parent_fd, stage_name)
         raise
-    except (OSError, tarfile.TarError) as exc:
-        if stage is not None:
-            _remove_stage(stage)
+    except (OSError, tarfile.TarError, gzip.BadGzipFile) as exc:
+        if stage_fd >= 0:
+            os.close(stage_fd)
+            stage_fd = -1
+        if anchor is not None and stage_name is not None:
+            _best_effort_remove_tree_at(anchor.parent_fd, stage_name)
             raise ReleaseError(f"could not extract archive: {archive}") from exc
         raise ReleaseError(f"could not validate archive: {archive}") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if anchor is not None:
+            anchor.close()
+
+
+def _open_regular_file(path: Path, label: str) -> int:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise ReleaseError(f"{label} is not a regular file: {path}") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ReleaseError(f"{label} is not a regular file: {path}")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _digest_open_file(source: BinaryIO) -> str:
+    digest = hashlib.sha256()
+    while chunk := source.read(_COPY_CHUNK_SIZE):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _verify_open_archive(
+    source: BinaryIO, expected_sha256: str, archive_path: Path
+) -> None:
+    actual = _digest_open_file(source)
+    if not secrets.compare_digest(actual, expected_sha256):
+        raise ReleaseError(
+            f"archive digest mismatch for {archive_path.name}: expected "
+            f"{expected_sha256}, got {actual}"
+        )
+    source.seek(0)
+
+
+def _decode_bounded_tar(
+    raw_archive: BinaryIO,
+    decoded_archive: BinaryIO,
+    max_decompressed_size: int,
+) -> None:
+    raw_archive.seek(0)
+    magic = raw_archive.read(6)
+    raw_archive.seek(0)
+    if magic.startswith(b"\x1f\x8b"):
+        source: BinaryIO = gzip.GzipFile(fileobj=raw_archive, mode="rb")
+        close_source = True
+    elif magic.startswith((b"BZh", b"\xfd7zXZ\x00")):
+        raise ReleaseError("unsupported archive compression; use gzip or tar")
+    else:
+        source = raw_archive
+        close_source = False
+
+    total = 0
+    try:
+        while True:
+            chunk = source.read(min(_COPY_CHUNK_SIZE, max_decompressed_size - total + 1))
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_decompressed_size:
+                raise ReleaseError(
+                    "decompressed archive size limit exceeded: "
+                    f"{max_decompressed_size}"
+                )
+            decoded_archive.write(chunk)
+    finally:
+        if close_source:
+            source.close()
+    decoded_archive.flush()
+    decoded_archive.seek(0)
+
+
+def _scan_tar_records(source: BinaryIO, max_metadata_size: int) -> None:
+    source.seek(0, os.SEEK_END)
+    decompressed_size = source.tell()
+    source.seek(0)
+    offset = 0
+    metadata_size = 0
+
+    while offset + _TAR_BLOCK_SIZE <= decompressed_size:
+        header = source.read(_TAR_BLOCK_SIZE)
+        if len(header) != _TAR_BLOCK_SIZE:
+            raise ReleaseError("truncated tar header")
+        if not any(header):
+            source.seek(0)
+            return
+
+        payload_size = _parse_tar_size(header[124:136])
+        entry_type = header[156:157]
+        if entry_type in _TAR_EXTENSION_TYPES:
+            metadata_size += payload_size
+            if metadata_size > max_metadata_size:
+                raise ReleaseError(
+                    f"tar metadata limit exceeded: {max_metadata_size}"
+                )
+        elif entry_type not in {tarfile.REGTYPE, tarfile.AREGTYPE} and payload_size:
+            raise ReleaseError("payload-bearing non-regular tar entry")
+
+        padded_size = (
+            (payload_size + _TAR_BLOCK_SIZE - 1) // _TAR_BLOCK_SIZE
+        ) * _TAR_BLOCK_SIZE
+        offset += _TAR_BLOCK_SIZE + padded_size
+        if offset > decompressed_size:
+            raise ReleaseError("tar entry exceeds decompressed archive")
+        source.seek(offset)
+
+    raise ReleaseError("tar archive is missing a zero terminator")
+
+
+def _parse_tar_size(field: bytes) -> int:
+    if field[0] & 0x80:
+        raise ReleaseError("unsupported tar numeric encoding")
+    value = field.rstrip(b"\0 ").lstrip(b" ")
+    if not value:
+        return 0
+    if any(character not in b"01234567" for character in value):
+        raise ReleaseError("invalid tar size field")
+    return int(value, 8)
 
 
 def _load_json(data: bytes) -> object:
@@ -378,6 +555,12 @@ def _parse_platform_pin(
 def _validate_release_url(
     url: str, repository: str, tag: str, architecture: str
 ) -> None:
+    if not url.isascii():
+        raise ReleaseError("artifact URL must use canonical ASCII")
+    if any(character.isspace() or ord(character) < 0x20 or ord(character) == 0x7F
+           for character in url):
+        raise ReleaseError("artifact URL must not contain whitespace or control characters")
+
     parsed = urlsplit(url)
     if parsed.scheme != "https":
         raise ReleaseError("artifact URL must use HTTPS")
@@ -385,6 +568,9 @@ def _validate_release_url(
         raise ReleaseError("artifact URL must use the official GitHub host")
     if parsed.query or parsed.fragment:
         raise ReleaseError("artifact URL must not contain a query or fragment")
+    canonical = f"https://github.com{parsed.path}"
+    if url != canonical:
+        raise ReleaseError("artifact URL must use exact canonical form")
     if "latest" in parsed.path.lower():
         raise ReleaseError("artifact URL must be an immutable release URL")
     if "%" in parsed.path or "\\" in parsed.path:
@@ -423,6 +609,21 @@ def _validate_archive_manifest(
 ) -> dict[str, ArchiveEntry]:
     if type(manifest) is not ArchiveManifest:
         raise ReleaseError("archive manifest has an invalid type")
+    _require_sha256(manifest.archive_sha256, "archive")
+    if (
+        type(manifest.max_decompressed_size) is not int
+        or not 0 < manifest.max_decompressed_size <= _HARD_MAX_DECOMPRESSED_SIZE
+    ):
+        raise ReleaseError(
+            "archive max_decompressed_size must be within the hard safety bound"
+        )
+    if (
+        type(manifest.max_metadata_size) is not int
+        or not 0 <= manifest.max_metadata_size <= _HARD_MAX_METADATA_SIZE
+    ):
+        raise ReleaseError(
+            "archive max_metadata_size must be within the hard safety bound"
+        )
     if type(manifest.max_entries) is not int or manifest.max_entries <= 0:
         raise ReleaseError("archive max_entries must be a positive integer")
     if type(manifest.max_total_size) is not int or manifest.max_total_size < 0:
@@ -484,6 +685,8 @@ def _validate_tar(
             raise ReleaseError(f"archive entry has setuid or setgid mode: {path}")
         if info.size < 0:
             raise ReleaseError(f"archive entry has a negative size: {path}")
+        if kind != "file" and info.size:
+            raise ReleaseError(f"payload-bearing non-regular tar entry: {path}")
         if kind == "file":
             total_size += info.size
             if total_size > manifest.max_total_size:
@@ -610,44 +813,140 @@ def _verify_tar_member_digest(
         raise ReleaseError(f"archive member digest mismatch: {info.name}")
 
 
-def _validate_destination(destination: Path) -> Path:
-    if type(destination) is not Path:
-        destination = Path(destination)
-    absolute = destination.absolute()
+def _validate_destination(destination: Path) -> _DestinationAnchor:
+    absolute = Path(destination).absolute()
     if absolute.name in {"", ".", ".."}:
         raise ReleaseError("destination path is invalid")
 
-    current = Path(absolute.anchor)
-    for component in absolute.parent.parts[1:]:
-        current /= component
-        try:
-            metadata = current.lstat()
-        except FileNotFoundError as exc:
-            raise ReleaseError(f"destination parent does not exist: {current}") from exc
-        except OSError as exc:
-            raise ReleaseError(f"could not inspect destination parent: {current}") from exc
-        if stat.S_ISLNK(metadata.st_mode):
-            raise ReleaseError(f"destination parent is a symlink: {current}")
-        if not stat.S_ISDIR(metadata.st_mode):
-            raise ReleaseError(f"destination parent is not a directory: {current}")
-
+    components = tuple(absolute.parent.parts[1:])
+    descriptors: list[int] = []
+    identities: list[tuple[int, int]] = []
     try:
-        destination_metadata = absolute.lstat()
+        root_fd = os.open(absolute.anchor, _directory_open_flags())
+        descriptors.append(root_fd)
+        identities.append(_identity(os.fstat(root_fd)))
+
+        for component in components:
+            before = os.stat(component, dir_fd=descriptors[-1], follow_symlinks=False)
+            if stat.S_ISLNK(before.st_mode):
+                raise ReleaseError(
+                    f"destination parent is a symlink: {component}"
+                )
+            if not stat.S_ISDIR(before.st_mode):
+                raise ReleaseError(
+                    f"destination parent is not a directory: {component}"
+                )
+            child_fd = os.open(
+                component,
+                _directory_open_flags(),
+                dir_fd=descriptors[-1],
+            )
+            after = os.fstat(child_fd)
+            if _identity(before) != _identity(after):
+                os.close(child_fd)
+                raise ReleaseError("destination parent changed during validation")
+            descriptors.append(child_fd)
+            identities.append(_identity(after))
+
+        destination_identity = _destination_identity(
+            descriptors[-1], absolute.name
+        )
+        return _DestinationAnchor(
+            absolute=absolute,
+            components=components,
+            descriptors=tuple(descriptors),
+            identities=tuple(identities),
+            destination_identity=destination_identity,
+        )
+    except BaseException:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise
+
+
+def _directory_open_flags() -> int:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    return flags
+
+
+def _identity(metadata: os.stat_result) -> tuple[int, int]:
+    return metadata.st_dev, metadata.st_ino
+
+
+def _destination_identity(parent_fd: int, name: str) -> tuple[int, int] | None:
+    try:
+        metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
-        return absolute
-    except OSError as exc:
-        raise ReleaseError(f"could not inspect destination: {absolute}") from exc
-    if stat.S_ISLNK(destination_metadata.st_mode):
+        return None
+    if stat.S_ISLNK(metadata.st_mode):
         raise ReleaseError("destination must not be a symlink")
-    if not stat.S_ISDIR(destination_metadata.st_mode):
+    if not stat.S_ISDIR(metadata.st_mode):
         raise ReleaseError("destination must be a directory or absent")
-    return absolute
+    return _identity(metadata)
+
+
+def _revalidate_destination(anchor: _DestinationAnchor) -> None:
+    try:
+        for index, component in enumerate(anchor.components):
+            metadata = os.stat(
+                component,
+                dir_fd=anchor.descriptors[index],
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or _identity(metadata) != anchor.identities[index + 1]
+            ):
+                raise ReleaseError("destination parent changed before mutation")
+        current_destination = _destination_identity(
+            anchor.parent_fd, anchor.destination_name
+        )
+    except FileNotFoundError as exc:
+        raise ReleaseError("destination parent changed before mutation") from exc
+    except OSError as exc:
+        raise ReleaseError("could not revalidate destination parent") from exc
+
+    if current_destination != anchor.destination_identity:
+        raise ReleaseError("destination changed before mutation")
+
+
+def _create_private_stage(anchor: _DestinationAnchor) -> tuple[str, int]:
+    name = _reserve_directory_name(
+        anchor.parent_fd, f".{anchor.destination_name}.stage-"
+    )
+    try:
+        descriptor = os.open(
+            name,
+            _directory_open_flags(),
+            dir_fd=anchor.parent_fd,
+        )
+    except BaseException:
+        _best_effort_remove_tree_at(anchor.parent_fd, name)
+        raise
+    return name, descriptor
+
+
+def _reserve_directory_name(parent_fd: int, prefix: str) -> str:
+    for _attempt in range(32):
+        name = f"{prefix}{secrets.token_hex(16)}"
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            continue
+        return name
+    raise ReleaseError("could not reserve a private destination entry")
 
 
 def _extract_members(
     archive: tarfile.TarFile,
     members: tuple[_ValidatedMember, ...],
-    stage: Path,
+    stage_fd: int,
 ) -> None:
     directories = sorted(
         (member for member in members if member.kind == "directory"),
@@ -663,77 +962,205 @@ def _extract_members(
     )
 
     for member in directories:
-        target = stage.joinpath(*PurePosixPath(member.path).parts)
-        target.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if not target.is_dir() or target.is_symlink():
-            raise ReleaseError(f"could not create archive directory: {member.path}")
+        descriptor = _open_or_create_directory(
+            stage_fd, PurePosixPath(member.path).parts
+        )
+        os.close(descriptor)
 
     for member in files:
-        target = stage.joinpath(*PurePosixPath(member.path).parts)
-        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        _copy_regular_member(archive, member.info, target)
-        os.chmod(target, member.info.mode & 0o777, follow_symlinks=False)
+        parts = PurePosixPath(member.path).parts
+        parent_fd = _open_or_create_directory(stage_fd, parts[:-1])
+        try:
+            _copy_regular_member(
+                archive,
+                member.info,
+                parent_fd,
+                parts[-1],
+                member.expected.sha256,
+            )
+        finally:
+            os.close(parent_fd)
 
     for member in symlinks:
-        target = stage.joinpath(*PurePosixPath(member.path).parts)
-        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.symlink(member.info.linkname, target)
+        parts = PurePosixPath(member.path).parts
+        parent_fd = _open_or_create_directory(stage_fd, parts[:-1])
+        try:
+            os.symlink(member.info.linkname, parts[-1], dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
 
     for member in reversed(directories):
-        target = stage.joinpath(*PurePosixPath(member.path).parts)
-        os.chmod(target, member.info.mode & 0o777, follow_symlinks=False)
+        descriptor = _open_or_create_directory(
+            stage_fd, PurePosixPath(member.path).parts
+        )
+        try:
+            os.fchmod(descriptor, member.info.mode & 0o777)
+        finally:
+            os.close(descriptor)
+    os.fsync(stage_fd)
+
+
+def _open_or_create_directory(root_fd: int, parts: tuple[str, ...]) -> int:
+    current_fd = os.dup(root_fd)
+    try:
+        for component in parts:
+            try:
+                os.mkdir(component, 0o700, dir_fd=current_fd)
+            except FileExistsError:
+                pass
+            metadata = os.stat(
+                component, dir_fd=current_fd, follow_symlinks=False
+            )
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise ReleaseError(
+                    f"archive parent is not a directory: {component}"
+                )
+            child_fd = os.open(
+                component,
+                _directory_open_flags(),
+                dir_fd=current_fd,
+            )
+            if _identity(metadata) != _identity(os.fstat(child_fd)):
+                os.close(child_fd)
+                raise ReleaseError("archive directory changed while extracting")
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except BaseException:
+        os.close(current_fd)
+        raise
 
 
 def _copy_regular_member(
-    archive: tarfile.TarFile, info: tarfile.TarInfo, destination: Path
+    archive: tarfile.TarFile,
+    info: tarfile.TarInfo,
+    parent_fd: int,
+    name: str,
+    expected_sha256: str | None,
 ) -> None:
     source = archive.extractfile(info)
     if source is None:
         raise ReleaseError(f"could not read archive member: {info.name}")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
-    descriptor = os.open(destination, flags, 0o600)
+    descriptor = os.open(name, flags, 0o600, dir_fd=parent_fd)
     copied = 0
+    digest = hashlib.sha256() if expected_sha256 is not None else None
     try:
         with source, os.fdopen(descriptor, "wb") as output:
             descriptor = -1
             while chunk := source.read(_COPY_CHUNK_SIZE):
                 output.write(chunk)
                 copied += len(chunk)
+                if digest is not None:
+                    digest.update(chunk)
+            if copied != info.size:
+                raise ReleaseError(
+                    f"archive member size changed while extracting: {info.name}"
+                )
+            if (
+                digest is not None
+                and expected_sha256 is not None
+                and not secrets.compare_digest(
+                    digest.hexdigest(), expected_sha256
+                )
+            ):
+                raise ReleaseError(
+                    f"archive member changed while extracting: {info.name}"
+                )
+            os.fchmod(output.fileno(), info.mode & 0o777)
             output.flush()
             os.fsync(output.fileno())
     finally:
         if descriptor >= 0:
             os.close(descriptor)
-    if copied != info.size:
-        raise ReleaseError(
-            f"archive member size changed while extracting: {info.name}"
+
+
+def _replace_destination(
+    anchor: _DestinationAnchor,
+    stage_name: str,
+) -> None:
+    _revalidate_destination(anchor)
+    parent_fd = anchor.parent_fd
+    destination_name = anchor.destination_name
+    if anchor.destination_identity is None:
+        os.rename(
+            stage_name,
+            destination_name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
         )
-
-
-def _replace_destination(stage: Path, destination: Path) -> None:
-    if not destination.exists():
-        os.replace(stage, destination)
         return
 
-    backup = Path(
-        tempfile.mkdtemp(
-            prefix=f".{destination.name}.backup-", dir=destination.parent
-        )
+    backup_name = _reserve_directory_name(
+        parent_fd, f".{destination_name}.backup-"
     )
-    backup.rmdir()
-    os.replace(destination, backup)
     try:
-        os.replace(stage, destination)
-    except OSError:
-        os.replace(backup, destination)
+        os.rename(
+            destination_name,
+            backup_name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+    except BaseException:
+        _best_effort_remove_tree_at(parent_fd, backup_name)
         raise
-    shutil.rmtree(backup)
 
-
-def _remove_stage(stage: Path) -> None:
     try:
-        shutil.rmtree(stage)
+        os.rename(
+            stage_name,
+            destination_name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+    except OSError as replacement_error:
+        try:
+            os.rename(
+                backup_name,
+                destination_name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+            )
+        except OSError as restore_error:
+            raise ReleaseError(
+                "destination replacement and rollback both failed"
+            ) from restore_error
+        raise replacement_error
+
+    try:
+        _remove_tree_at(parent_fd, backup_name)
+    except OSError:
+        # The new destination is already committed. Leave the old tree under
+        # its unpredictable private quarantine name rather than report a
+        # false extraction failure or touch it through a pathname.
+        pass
+
+
+def _remove_tree_at(parent_fd: int, name: str) -> None:
+    try:
+        metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
+        return
+    if not stat.S_ISDIR(metadata.st_mode):
+        os.unlink(name, dir_fd=parent_fd)
+        return
+
+    descriptor = os.open(name, _directory_open_flags(), dir_fd=parent_fd)
+    try:
+        if _identity(metadata) != _identity(os.fstat(descriptor)):
+            raise OSError("directory changed during cleanup")
+        for child in os.listdir(descriptor):
+            _remove_tree_at(descriptor, child)
+    finally:
+        os.close(descriptor)
+    os.rmdir(name, dir_fd=parent_fd)
+
+
+def _best_effort_remove_tree_at(parent_fd: int, name: str) -> None:
+    try:
+        _remove_tree_at(parent_fd, name)
+    except OSError:
         pass

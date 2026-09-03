@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 import tarfile
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ from installer.release import (
     ArchiveManifest,
     ReleaseError,
     ReleaseManifest,
-    safe_extract_tar,
+    safe_extract_tar as _safe_extract_tar,
     verify_artifact,
 )
 
@@ -79,6 +79,7 @@ def _valid_archive_manifest(
     *, max_entries: int = 16, max_total_size: int = 1024
 ) -> ArchiveManifest:
     return ArchiveManifest(
+        archive_sha256="0" * 64,
         entries=(
             ArchiveEntry(path="pkg", kind="directory", mode=0o755),
             ArchiveEntry(
@@ -97,6 +98,19 @@ def _valid_archive_manifest(
         max_entries=max_entries,
         max_total_size=max_total_size,
     )
+
+
+def safe_extract_tar(
+    archive: Path,
+    destination: Path,
+    manifest: ArchiveManifest,
+) -> None:
+    if manifest.archive_sha256 == "0" * 64:
+        manifest = replace(
+            manifest,
+            archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        )
+    _safe_extract_tar(archive, destination, manifest)
 
 
 def _stage_paths(destination: Path) -> list[Path]:
@@ -312,6 +326,7 @@ def test_safe_extract_rejects_escaping_member(tmp_path, member):
     archive = _tar(tmp_path, [{"name": member, "data": b"hostile"}])
     destination = tmp_path / "stage"
     manifest = ArchiveManifest(
+        archive_sha256="0" * 64,
         entries=(ArchiveEntry(path="safe", kind="file"),),
         max_entries=4,
         max_total_size=1024,
@@ -353,6 +368,7 @@ def test_safe_extract_rejects_hardlinks_and_special_files(tmp_path, entry_type):
     member = {"name": "pkg/app", "type": entry_type, "linkname": "target"}
     archive = _tar(tmp_path, [member])
     manifest = ArchiveManifest(
+        archive_sha256="0" * 64,
         entries=(ArchiveEntry(path="pkg/app", kind="file"),),
         max_entries=2,
         max_total_size=1024,
@@ -366,6 +382,7 @@ def test_safe_extract_rejects_hardlinks_and_special_files(tmp_path, entry_type):
 def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
     archive = _tar(tmp_path, [{"name": "pkg/app", "data": b"x", "mode": mode}])
     manifest = ArchiveManifest(
+        archive_sha256="0" * 64,
         entries=(ArchiveEntry(path="pkg/app", kind="file"),),
         max_entries=2,
         max_total_size=1024,
@@ -384,6 +401,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
                 {"name": "./pkg/app", "data": b"two"},
             ],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(ArchiveEntry(path="pkg/app", kind="file"),),
                 max_entries=4,
                 max_total_size=1024,
@@ -396,6 +414,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
                 {"name": "pkg/extra", "data": b"x"},
             ],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(ArchiveEntry(path="pkg/app", kind="file"),),
                 max_entries=4,
                 max_total_size=1024,
@@ -405,6 +424,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
         (
             [{"name": "pkg/app", "data": b"x"}],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(
                     ArchiveEntry(path="pkg/app", kind="file"),
                     ArchiveEntry(path="pkg/required", kind="file"),
@@ -417,6 +437,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
         (
             [{"name": "pkg/app", "type": tarfile.DIRTYPE}],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(ArchiveEntry(path="pkg/app", kind="file"),),
                 max_entries=4,
                 max_total_size=1024,
@@ -426,6 +447,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
         (
             [{"name": "pkg/app", "data": b"0123456789"}],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(ArchiveEntry(path="pkg/app", kind="file"),),
                 max_entries=4,
                 max_total_size=4,
@@ -438,6 +460,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
                 {"name": "pkg/b", "data": b"b"},
             ],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(
                     ArchiveEntry(path="pkg/a", kind="file"),
                     ArchiveEntry(path="pkg/b", kind="file"),
@@ -453,6 +476,7 @@ def test_safe_extract_rejects_setuid_and_setgid_modes(tmp_path, mode):
                 {"name": "pkg/link/child", "data": b"hostile"},
             ],
             ArchiveManifest(
+                archive_sha256="0" * 64,
                 entries=(
                     ArchiveEntry(
                         path="pkg/link", kind="symlink", link_target="app"
@@ -480,6 +504,7 @@ def test_safe_extract_rejects_invalid_layout(tmp_path, members, manifest, match)
 def test_safe_extract_rejects_manifest_content_and_mode_mismatch(tmp_path):
     archive = _tar(tmp_path, _valid_members())
     wrong_digest = ArchiveManifest(
+        archive_sha256="0" * 64,
         entries=(
             ArchiveEntry(path="pkg", kind="directory", mode=0o755),
             ArchiveEntry(path="pkg/app", kind="file", mode=0o644, sha256="0" * 64),
@@ -498,6 +523,7 @@ def test_safe_extract_rejects_manifest_content_and_mode_mismatch(tmp_path):
         safe_extract_tar(archive, tmp_path / "stage", wrong_digest)
 
     wrong_digest = ArchiveManifest(
+        archive_sha256="0" * 64,
         entries=(
             ArchiveEntry(path="pkg", kind="directory", mode=0o755),
             ArchiveEntry(path="pkg/app", kind="file", mode=0o755, sha256="0" * 64),
@@ -631,3 +657,213 @@ def test_release_verify_cli_validates_fixture_manifest():
 
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout == "manifest: ok\n"
+
+
+def test_archive_path_swap_cannot_change_verified_bytes(tmp_path, monkeypatch):
+    archive = _tar(
+        tmp_path,
+        [{"name": "pkg/app", "data": b"reviewed"}],
+        filename="reviewed.tar.gz",
+    )
+    replacement = _tar(
+        tmp_path,
+        [{"name": "pkg/app", "data": b"substituted"}],
+        filename="substituted.tar.gz",
+    )
+    manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path="pkg/app", kind="file"),),
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        max_entries=4,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+    destination = tmp_path / "stage"
+    real_verify_open_archive = release_module._verify_open_archive
+    swapped = False
+
+    def swap_after_verification(source, expected_sha256, archive_path):
+        nonlocal swapped
+        real_verify_open_archive(source, expected_sha256, archive_path)
+        os.replace(replacement, archive)
+        swapped = True
+
+    monkeypatch.setattr(
+        release_module,
+        "_verify_open_archive",
+        swap_after_verification,
+    )
+
+    safe_extract_tar(archive, destination, manifest)
+
+    assert swapped
+    assert (destination / "pkg/app").read_bytes() == b"reviewed"
+
+
+def test_archive_digest_is_verified_before_tar_processing(tmp_path):
+    archive = _tar(tmp_path, [{"name": "pkg/app", "data": b"payload"}])
+    manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path="pkg/app", kind="file"),),
+        archive_sha256="0" * 64,
+        max_entries=4,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+    destination = tmp_path / "stage"
+
+    with pytest.raises(ReleaseError, match="archive digest mismatch"):
+        release_module.safe_extract_tar(archive, destination, manifest)
+
+    assert not destination.exists()
+
+
+def test_destination_parent_swap_is_detected_at_mutation_boundary(
+    tmp_path, monkeypatch
+):
+    archive = _tar(tmp_path, _valid_members())
+    parent = tmp_path / "parent"
+    parent.mkdir()
+    destination = parent / "stage"
+    displaced = tmp_path / "displaced-parent"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    manifest = ArchiveManifest(
+        entries=_valid_archive_manifest().entries,
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        max_entries=16,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+    real_validate_destination = release_module._validate_destination
+
+    def swap_after_validation(path):
+        anchor = real_validate_destination(path)
+        parent.rename(displaced)
+        parent.symlink_to(outside, target_is_directory=True)
+        return anchor
+
+    monkeypatch.setattr(
+        release_module,
+        "_validate_destination",
+        swap_after_validation,
+    )
+
+    with pytest.raises(ReleaseError, match="destination parent changed"):
+        safe_extract_tar(archive, destination, manifest)
+
+    assert list(outside.iterdir()) == []
+    assert list(displaced.iterdir()) == []
+
+
+def test_decompressed_tar_and_extension_metadata_are_bounded(tmp_path):
+    large_payload = _tar(
+        tmp_path,
+        [{"name": "pkg/app", "data": b"x" * 4096}],
+        filename="large.tar.gz",
+    )
+    large_manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path="pkg/app", kind="file"),),
+        archive_sha256=hashlib.sha256(large_payload.read_bytes()).hexdigest(),
+        max_entries=4,
+        max_total_size=8192,
+        max_decompressed_size=1024,
+        max_metadata_size=128,
+    )
+    with pytest.raises(ReleaseError, match="decompressed archive size limit"):
+        safe_extract_tar(large_payload, tmp_path / "large-stage", large_manifest)
+
+    long_name = f"pkg/{'a' * 600}"
+    extension_bomb = _tar(
+        tmp_path,
+        [{"name": long_name, "data": b"x"}],
+        filename="extension.tar.gz",
+    )
+    extension_manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path=long_name, kind="file"),),
+        archive_sha256=hashlib.sha256(extension_bomb.read_bytes()).hexdigest(),
+        max_entries=4,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=128,
+    )
+    with pytest.raises(ReleaseError, match="tar metadata limit"):
+        safe_extract_tar(
+            extension_bomb,
+            tmp_path / "extension-stage",
+            extension_manifest,
+        )
+
+
+def test_payload_bearing_nonregular_tar_entry_is_rejected(tmp_path):
+    archive = tmp_path / "payload-directory.tar.gz"
+    with tarfile.open(archive, "w:gz") as opened:
+        info = tarfile.TarInfo("pkg")
+        info.type = tarfile.DIRTYPE
+        info.mode = 0o755
+        info.size = 4
+        opened.addfile(info, io.BytesIO(b"data"))
+    manifest = ArchiveManifest(
+        entries=(ArchiveEntry(path="pkg", kind="directory", mode=0o755),),
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        max_entries=4,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+
+    with pytest.raises(ReleaseError, match="payload-bearing non-regular"):
+        safe_extract_tar(archive, tmp_path / "stage", manifest)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        " https://github.com/enfein/mieru/releases/download/"
+        "v3.36.0/mita_3.36.0_amd64.deb",
+        "https://github.com/enfein/mieru/releases/download/"
+        "v3.36.0/mita_3.36.0_amd64.deb ",
+        "https://github.com/enfein/mieru/releases/download/"
+        "v3.36.0/mita_3.36.0_amd64.deb\n",
+        "HTTPS://github.com/enfein/mieru/releases/download/"
+        "v3.36.0/mita_3.36.0_amd64.deb",
+    ],
+)
+def test_manifest_rejects_noncanonical_or_control_bearing_url(url):
+    data = _manifest_bytes(
+        lambda document: document["artifacts"][0]["platforms"]["amd64"].update(
+            {"url": url}
+        )
+    )
+
+    with pytest.raises(ReleaseError, match="canonical|whitespace|control"):
+        ReleaseManifest.from_bytes(data)
+
+
+def test_backup_cleanup_failure_does_not_report_failed_install(tmp_path, monkeypatch):
+    archive = _tar(tmp_path, _valid_members())
+    manifest = ArchiveManifest(
+        entries=_valid_archive_manifest().entries,
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        max_entries=16,
+        max_total_size=1024,
+        max_decompressed_size=32 * 1024,
+        max_metadata_size=1024,
+    )
+    destination = tmp_path / "stage"
+    destination.mkdir()
+    (destination / "old").write_text("trusted old tree", encoding="utf-8")
+    real_remove_tree_at = release_module._remove_tree_at
+
+    def fail_backup_cleanup(parent_fd, name):
+        if ".backup-" in name:
+            raise OSError("simulated post-commit cleanup failure")
+        return real_remove_tree_at(parent_fd, name)
+
+    monkeypatch.setattr(release_module, "_remove_tree_at", fail_backup_cleanup)
+
+    safe_extract_tar(archive, destination, manifest)
+
+    assert (destination / "pkg/app").read_bytes() == b"verified payload\n"
+    assert len(list(tmp_path.glob(".stage.backup-*"))) == 1
