@@ -177,7 +177,8 @@ class CommandRunner:
             raise AuditError("command returned malformed JSON") from None
 
     def resolve(self, domain: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        return _bounded_resolve(self._resolver, domain, self.timeout)
+        absolute_name = validate_domain(domain) + "."
+        return _bounded_resolve(self._resolver, absolute_name, self.timeout)
 
 
 def _validated_argv(argv: Sequence[str]) -> tuple[str, ...]:
@@ -270,13 +271,15 @@ def _resolver_worker(connection, resolver: Resolver, domain: str) -> None:
         answers = resolver(domain, 443, type=socket.SOCK_STREAM)
         observations: list[tuple[int, str]] = []
         for family, _kind, _proto, _canon, address in answers:
-            if len(observations) >= 256:
-                break
             if family not in {socket.AF_INET, socket.AF_INET6} or not address:
                 continue
             value = _canonical_ip(address[0])
-            if value is not None:
-                observations.append((family, value))
+            if value is None:
+                continue
+            if len(observations) >= 256:
+                connection.send(("result_limit", []))
+                return
+            observations.append((family, value))
         connection.send(("ok", observations))
     except socket.gaierror:
         connection.send(("resolver_error", []))
@@ -310,6 +313,8 @@ def _bounded_resolve(
         if process.is_alive():
             _stop_worker(process)
             raise AuditError("DNS resolution failed")
+        if status == "result_limit":
+            raise AuditError("DNS resolution result limit exceeded")
         if status != "ok":
             raise AuditError("DNS resolution failed")
     finally:
@@ -357,11 +362,15 @@ def _sanitize_error(text: str) -> str:
 def _safe_audit_error(text: str) -> str:
     if text in {
         "CAA alias loop detected",
-        "CAA alias result was ambiguous",
+        "CAA issuer is malformed",
+        "CAA issuer parameter is duplicated",
+        "CAA issuer parameter is malformed",
+        "CAA issuer parameter is unsupported",
         "CAA query failed",
         "CAA query limit exceeded",
         "CAA response was malformed",
         "DNS resolution failed",
+        "DNS resolution result limit exceeded",
         "DNS resolution timed out",
         "Nginx observation is malformed",
         "command could not be executed",
@@ -529,7 +538,10 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
     certificates: dict[str, object] = {}
     unhandled_aaaa: list[str] = []
     caa_mismatch: list[str] = []
-    caa_cache: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    caa_cache: dict[
+        str,
+        tuple[tuple[dict[str, object], ...], tuple[str, ...]],
+    ] = {}
     caa_queries = [0]
     for domain in domains:
         ipv4, ipv6 = runner.resolve(domain)
@@ -835,8 +847,10 @@ def _sni_map_blocks(text: str) -> tuple[tuple[int, int], ...]:
     return tuple(blocks)
 
 
-def _parse_caa_answer(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    records: set[str] = set()
+def _parse_caa_answer(
+    text: str,
+) -> tuple[tuple[dict[str, object], ...], tuple[str, ...]]:
+    records: dict[str, dict[str, object]] = {}
     aliases: list[str] = []
     pattern = re.compile(
         r'^\s*(\d{1,3})\s+(issue|issuewild|iodef)\s+"([^"\r\n]{0,255})"\s*$',
@@ -847,9 +861,12 @@ def _parse_caa_answer(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
             continue
         match = pattern.fullmatch(line)
         if match:
-            records.add(
-                f'{int(match.group(1))} {match.group(2).lower()} "{match.group(3)}"'
+            record = _canonical_caa_record(
+                int(match.group(1)),
+                match.group(2).lower(),
+                match.group(3),
             )
+            records[json.dumps(record, sort_keys=True)] = record
             continue
         try:
             alias = validate_domain(line)
@@ -857,15 +874,65 @@ def _parse_caa_answer(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
             raise AuditError("CAA response was malformed") from None
         if alias not in aliases:
             aliases.append(alias)
-    return tuple(sorted(records)), tuple(aliases)
+    return tuple(records[key] for key in sorted(records)), tuple(aliases)
+
+
+def _canonical_caa_record(flags: int, tag: str, value: str) -> dict[str, object]:
+    if not 0 <= flags <= 255:
+        raise AuditError("CAA response was malformed")
+    if tag == "iodef":
+        return {"configured": bool(value), "flags": flags, "tag": "iodef"}
+    parts = value.split(";")
+    raw_issuer = parts[0].strip()
+    if raw_issuer:
+        try:
+            issuer: str | None = validate_domain(raw_issuer)
+        except ValueError:
+            raise AuditError("CAA issuer is malformed") from None
+    else:
+        issuer = None
+    record: dict[str, object] = {"flags": flags, "issuer": issuer, "tag": tag}
+    parameters: set[str] = set()
+    for raw_parameter in parts[1:]:
+        parameter = raw_parameter.strip()
+        if not parameter:
+            continue
+        if parameter.count("=") != 1:
+            raise AuditError("CAA issuer parameter is malformed")
+        key, parameter_value = (item.strip() for item in parameter.split("=", 1))
+        key = key.lower()
+        if key in parameters:
+            raise AuditError("CAA issuer parameter is duplicated")
+        parameters.add(key)
+        if key == "validationmethods":
+            methods = tuple(
+                sorted(set(item.strip().lower() for item in parameter_value.split(",")))
+            )
+            if not methods or any(
+                not method or not re.fullmatch(r"[a-z0-9-]{1,32}", method)
+                for method in methods
+            ):
+                raise AuditError("CAA issuer parameter is malformed")
+            record["validation_methods"] = methods
+        elif key == "accounturi":
+            if (
+                not parameter_value.startswith(("http://", "https://"))
+                or len(parameter_value) > 255
+                or any(character.isspace() for character in parameter_value)
+            ):
+                raise AuditError("CAA issuer parameter is malformed")
+            record["account_restricted"] = True
+        else:
+            raise AuditError("CAA issuer parameter is unsupported")
+    return record
 
 
 def _applicable_caa(
     domain: str,
     runner: CommandRunner,
-    cache: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+    cache: dict[str, tuple[tuple[dict[str, object], ...], tuple[str, ...]]],
     query_count: list[int],
-) -> tuple[tuple[str, ...], str | None]:
+) -> tuple[tuple[dict[str, object], ...], str | None]:
     current = domain
     visited: set[str] = set()
     while current not in visited:
@@ -892,15 +959,19 @@ def _applicable_caa(
     raise AuditError("CAA alias loop detected")
 
 
-def _caa_compatible(records: Sequence[str]) -> bool:
-    authorities: list[str] = []
-    for record in records:
-        match = re.fullmatch(r'\d+ issue "([^\"]*)"', record, re.I)
-        if not match:
-            continue
-        authority = match.group(1).split(";", 1)[0].strip().lower().rstrip(".")
-        authorities.append(authority)
-    return not authorities or "letsencrypt.org" in authorities
+def _caa_compatible(records: Sequence[Mapping[str, object]]) -> bool:
+    issue_records = [record for record in records if record.get("tag") == "issue"]
+    if not issue_records:
+        return True
+    for record in issue_records:
+        methods = record.get("validation_methods")
+        if (
+            record.get("issuer") == "letsencrypt.org"
+            and record.get("account_restricted") is not True
+            and (methods is None or "http-01" in methods)
+        ):
+            return True
+    return False
 
 
 def _certificate_fact(domain: str, runner: CommandRunner) -> dict[str, object]:

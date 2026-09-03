@@ -28,6 +28,7 @@ from installer.audit import (
     parse_sni_routes,
     validate_domain,
 )
+from installer.model import HostMode
 
 from installer.transaction import (
     atomic_write as _atomic_write,
@@ -227,6 +228,7 @@ class InstallPlan:
         proxy_backend_port: int = 8445,
         panel_backend_port: int = 8787,
         require_domain_preflight: bool = True,
+        host_mode: HostMode = HostMode.COEXIST,
     ) -> "InstallPlan":
         proxy_domain, panel_domain = validate_domain(proxy_domain), validate_domain(panel_domain)
         if proxy_domain == panel_domain:
@@ -239,6 +241,13 @@ class InstallPlan:
         listeners = report.listeners
         ownership = report.ownership
         sni_routes = _audit_mapping(nginx.get("sni_routes"), "Nginx routes")
+        nginx_observation = nginx.get("observation")
+        if nginx_observation == "unknown":
+            raise InstallerConflict("Nginx topology is unknown")
+        if nginx_observation == "unavailable" and host_mode is not HostMode.FRESH:
+            raise InstallerConflict("Nginx is unavailable in coexist mode")
+        if nginx_observation not in {"observed", "unavailable"}:
+            raise InstallerConflict("Nginx audit facts are invalid")
         http_domains = nginx.get("http_domains", ())
         if not isinstance(http_domains, tuple):
             raise InstallerConflict("Nginx audit facts are invalid")

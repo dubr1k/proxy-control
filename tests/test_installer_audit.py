@@ -95,7 +95,7 @@ def resolver(records: dict[str, tuple[list[str], list[str]]]):
     ) -> list[tuple[int, int, int, str, tuple[object, ...]]]:
         assert port == 443
         assert type == socket.SOCK_STREAM
-        a, aaaa = records.get(host, ([], []))
+        a, aaaa = records.get(host.rstrip("."), ([], []))
         return [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 443))
             for address in a
@@ -341,7 +341,7 @@ def test_injected_dns_a_aaaa_and_caa_accept_local_addresses():
             "aaaa": (HOST_V6,),
             "a_matches_local": True,
             "aaaa_handled": True,
-            "caa": ('0 issue "letsencrypt.org"',),
+            "caa": ({"flags": 0, "issuer": "letsencrypt.org", "tag": "issue"},),
             "caa_compatible": True,
             "caa_source": domain,
         }
@@ -671,6 +671,31 @@ def test_command_runner_kills_descendants_after_leader_exit(tmp_path, overflow):
     assert not marker.exists()
 
 
+def test_dns_resolution_uses_absolute_name_and_rejects_oversized_results():
+    def absolute_name(host, port, *, type):
+        assert host == "panel.example.com."
+        assert port == 443
+        assert type == socket.SOCK_STREAM
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (HOST_V4, 443))]
+
+    runner = CommandRunner(resolver=absolute_name)
+    assert runner.resolve("panel.example.com") == ((HOST_V4,), ())
+
+    def oversized(host, port, *, type):
+        assert host.endswith(".")
+        assert port == 443
+        assert type == socket.SOCK_STREAM
+        return [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (HOST_V6, 443, 0, 0))
+            for _ in range(256)
+        ] + [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (FOREIGN_V6, 443, 0, 0))
+        ]
+
+    with pytest.raises(AuditError, match="DNS resolution result limit exceeded"):
+        CommandRunner(resolver=oversized).resolve("panel.example.com")
+
+
 def test_failed_caa_query_is_not_treated_as_empty_rrset():
     selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
     domains = selected.required_domains()
@@ -732,8 +757,13 @@ def test_caa_policy_is_inherited_from_first_parent_rrset(parent_caa, expected_co
     facts = audit_host(selected, runner)
 
     assert {stop.code for stop in facts.hard_stops} == expected_codes
-    assert all(facts.topology["dns"][domain]["caa_source"] == "example.com" for domain in domains)
-    dig_calls = [call for call in executor.calls if call[:3] == ("dig", "+short", "CAA")]
+    assert all(
+        facts.topology["dns"][domain]["caa_source"] == "example.com"
+        for domain in domains
+    )
+    dig_calls = [
+        call for call in executor.calls if call[:3] == ("dig", "+short", "CAA")
+    ]
     assert len(dig_calls) <= len(domains) + 1
 
 
@@ -756,6 +786,77 @@ def test_caa_alias_result_is_followed_within_the_query_bound():
 
     assert facts.topology["dns"][domains[0]]["caa_source"] == "caa-policy.example.net"
     assert not facts.hard_stops
+
+
+@pytest.mark.parametrize(
+    ("caa", "mismatch"),
+    [
+        ('0 issue "letsencrypt.org; validationmethods=dns-01"\n', True),
+        ('0 issue "letsencrypt.org; validationmethods=http-01"\n', False),
+        (
+            '0 issue "letsencrypt.org; '
+            'accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/12345"\n',
+            True,
+        ),
+    ],
+)
+def test_caa_issuer_restrictions_are_strictly_evaluated(caa, mismatch):
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    facts, _ = scripted_audit(
+        dns={domain: ([HOST_V4], [HOST_V6]) for domain in domains},
+        caa=caa,
+        host_config=selected,
+    )
+
+    assert ("dns.caa_mismatch" in {stop.code for stop in facts.hard_stops}) is mismatch
+    encoded = json.dumps(facts.stable_dict(), sort_keys=True)
+    assert "acme/acct/12345" not in encoded
+
+
+@pytest.mark.parametrize(
+    "caa",
+    [
+        '0 issue "letsencrypt.org; unknown=value"\n',
+        '0 issue "letsencrypt.org; validationmethods=http-01; '
+        'validationmethods=dns-01"\n',
+        '0 issue "letsencrypt.org; validationmethods"\n',
+        '0 issue "deadbeef-dead-beef-dead-beefdeadbeef"\n',
+        '0 issue "0123456789abcdef"\n',
+    ],
+)
+def test_unsafe_or_malformed_caa_issuer_policy_fails_closed(caa):
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+
+    with pytest.raises(AuditError, match="CAA issuer"):
+        scripted_audit(
+            dns={domain: ([HOST_V4], [HOST_V6]) for domain in domains},
+            caa=caa,
+            host_config=selected,
+        )
+
+
+def test_caa_facts_never_serialize_raw_iodef_values():
+    selected = config(profile=Profile.CORE, three_xui_mode=ThreeXuiMode.NONE)
+    domains = selected.required_domains()
+    facts, _ = scripted_audit(
+        dns={domain: ([HOST_V4], [HOST_V6]) for domain in domains},
+        caa=(
+            '0 issue "letsencrypt.org"\n'
+            '0 iodef "https://report.example/?token=caa-secret"\n'
+        ),
+        host_config=selected,
+    )
+
+    encoded = json.dumps(facts.stable_dict(), sort_keys=True)
+    assert "caa-secret" not in encoded
+    assert "https://report.example" not in encoded
+    assert all(
+        {record["tag"] for record in facts.topology["dns"][domain]["caa"]}
+        == {"iodef", "issue"}
+        for domain in domains
+    )
 
 
 @pytest.mark.parametrize(

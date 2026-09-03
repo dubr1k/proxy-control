@@ -11,6 +11,7 @@ from installer.audit import (
     parse_xray_inbounds,
     validate_domain,
 )
+from installer.model import HostMode
 
 from scripts.proxyctl import InstallPlan, InstallerConflict, patch_stream_map
 
@@ -149,6 +150,49 @@ def test_install_plan_rejects_domain_and_port_collisions(tmp_path):
         InstallPlan.from_audit(report, proxy_domain="vpn.example.com", panel_domain="new-panel.example.com")
     with pytest.raises(InstallerConflict, match="backend port 8445"):
         InstallPlan.from_audit(report, proxy_domain="proxy-new.example.com", panel_domain="new-panel.example.com")
+
+
+def test_install_plan_rejects_unknown_nginx_and_gates_unavailable_by_mode(tmp_path):
+    observed = facts_from_root(
+        tmp_path,
+        listening_ports=set(),
+        docker_available=True,
+    )
+
+    def with_observation(value: str) -> AuditFacts:
+        nginx = dict(observed.topology["nginx"])
+        nginx.update({"available": False, "observation": value})
+        topology = dict(observed.topology)
+        topology["nginx"] = nginx
+        return AuditFacts(
+            platform=observed.platform,
+            listeners=observed.listeners,
+            ownership=observed.ownership,
+            topology=topology,
+            prerequisites=observed.prerequisites,
+        )
+
+    arguments = {
+        "proxy_domain": "proxy-new.example.com",
+        "panel_domain": "new-panel.example.com",
+        "require_domain_preflight": False,
+    }
+    with pytest.raises(InstallerConflict, match="Nginx topology is unknown"):
+        InstallPlan.from_audit(with_observation("unknown"), **arguments)
+    with pytest.raises(InstallerConflict, match="Nginx is unavailable in coexist mode"):
+        InstallPlan.from_audit(
+            with_observation("unavailable"),
+            host_mode=HostMode.COEXIST,
+            **arguments,
+        )
+
+    plan = InstallPlan.from_audit(
+        with_observation("unavailable"),
+        host_mode=HostMode.FRESH,
+        **arguments,
+    )
+
+    assert plan.proxy_domain == "proxy-new.example.com"
 
 
 def test_stream_patch_is_owned_idempotent_and_preserves_unrelated_routes():
