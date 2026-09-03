@@ -731,6 +731,24 @@ server { listen 443 ssl; }
     assert len(topology.maps) == 1
     assert len(topology.servers) == 1
     assert select_route_target(topology).variable == "$stream_backend"
+
+
+def test_relative_include_with_multiple_possible_prefixes_fails_closed() -> None:
+    effective = """# configuration file /etc/nginx/nginx.conf:
+events {}
+stream { include stream.d/*.conf; }
+http { include /etc/http/stream.d/*.conf; }
+# configuration file /opt/nginx/stream.d/routes.conf:
+map $ssl_preread_server_name $stream_backend { default 127.0.0.1:8443; }
+server { listen 443; ssl_preread on; proxy_pass $stream_backend; }
+# configuration file /etc/http/stream.d/http.conf:
+map $host $http_backend { default 127.0.0.1:9000; }
+"""
+
+    with pytest.raises(TopologyError, match="prefix is ambiguous"):
+        parse_effective_nginx(effective)
+
+
 def test_fresh_relative_include_uses_reported_nginx_prefix(
     tmp_path: Path,
 ) -> None:

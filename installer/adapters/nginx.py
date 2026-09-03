@@ -163,9 +163,11 @@ def _stream_context(
 ]:
     ranges: list[tuple[int, int]] = []
     patterns: set[str] = set()
+    stream_sources: set[str] = set()
     for index, token in enumerate(tokens[:-1]):
         if token.value != "stream" or tokens[index + 1].value != "{":
             continue
+        stream_sources.add(token.source_file)
         close = _matching_close(tokens, index + 1)
         ranges.append((index + 2, close))
         cursor = index + 2
@@ -188,10 +190,21 @@ def _stream_context(
     }
     included: set[str] = set()
     while True:
+        relative_prefix = _relative_include_prefix(
+            sources - stream_sources,
+            patterns,
+        )
         expanded = {
             source
             for source in sources
-            if any(_source_matches_include(source, pattern) for pattern in patterns)
+            if any(
+                _source_matches_include(
+                    source,
+                    pattern,
+                    relative_prefix=relative_prefix,
+                )
+                for pattern in patterns
+            )
         }
         new_sources = expanded - included
         if not new_sources:
@@ -237,6 +250,7 @@ def _resolve_include(pattern: str, prefix: str) -> str:
         raise TopologyError("Nginx prefix is not absolute")
     return _normalize_include_pattern(f"{prefix.rstrip('/')}/{pattern}")
 
+
 def _nginx_runtime_prefix(version_output: str) -> str:
     prefixes = {
         next(value for value in match.groups() if value is not None)
@@ -254,8 +268,6 @@ def _nginx_runtime_prefix(version_output: str) -> str:
     return prefix
 
 
-
-
 def _glob_path_matches(path: str, pattern: str) -> bool:
     path_parts = PurePosixPath(path).parts
     pattern_parts = PurePosixPath(pattern).parts
@@ -264,30 +276,75 @@ def _glob_path_matches(path: str, pattern: str) -> bool:
         for path_part, pattern_part in zip(path_parts, pattern_parts, strict=True)
     )
 
-def _source_matches_include(source: str, pattern: str) -> bool:
-    if pattern.startswith("/"):
-        return _glob_path_matches(source, pattern)
+
+def _relative_include_prefix(
+    sources: set[str],
+    patterns: set[str],
+) -> str | None:
+    candidates = {
+        candidate
+        for pattern in patterns
+        if not pattern.startswith("/")
+        for source in sources
+        if (candidate := _relative_prefix_candidate(source, pattern)) is not None
+    }
+    if len(candidates) > 1:
+        raise TopologyError("relative Nginx include prefix is ambiguous")
+    return next(iter(candidates), None)
+
+
+def _relative_prefix_candidate(source: str, pattern: str) -> str | None:
     pattern_parts = PurePosixPath(pattern).parts
     if not pattern_parts or ".." in pattern_parts:
-        return False
+        return None
     source_parts = PurePosixPath(source).parts
-    if len(source_parts) < len(pattern_parts):
-        return False
-    return all(
+    if len(source_parts) <= len(pattern_parts):
+        return None
+    suffix = source_parts[-len(pattern_parts):]
+    if not all(
         fnmatch.fnmatchcase(source_part, pattern_part)
         for source_part, pattern_part in zip(
-            source_parts[-len(pattern_parts):],
+            suffix,
             pattern_parts,
             strict=True,
         )
+    ):
+        return None
+    return str(PurePosixPath(*source_parts[:-len(pattern_parts)]))
+
+
+def _source_matches_include(
+    source: str,
+    pattern: str,
+    *,
+    relative_prefix: str | None,
+) -> bool:
+    if pattern.startswith("/"):
+        return _glob_path_matches(source, pattern)
+    if relative_prefix is None:
+        return False
+    return _glob_path_matches(
+        source,
+        _resolve_include(pattern, relative_prefix),
     )
 
 
-def select_route_target(topology: NginxTopology, listener_port: int = 443) -> RouteTarget:
+def select_route_target(
+    topology: NginxTopology,
+    listener_port: int = 443,
+) -> RouteTarget:
     """Trace an active SSL-preread listener to its one effective map."""
-    if not isinstance(listener_port, int) or isinstance(listener_port, bool) or not 1 <= listener_port <= 65535:
+    if (
+        not isinstance(listener_port, int)
+        or isinstance(listener_port, bool)
+        or not 1 <= listener_port <= 65535
+    ):
         raise ValueError("listener port must be in 1..65535")
-    active = [server for server in topology.servers if listener_port in server.listener_ports]
+    active = [
+        server
+        for server in topology.servers
+        if listener_port in server.listener_ports
+    ]
     if not active:
         raise TopologyError(f"no effective stream listener on port {listener_port}")
     variables: set[str] = set()
@@ -301,10 +358,14 @@ def select_route_target(topology: NginxTopology, listener_port: int = 443) -> Ro
     if len(variables) != 1:
         raise TopologyError("more than one effective map feeds the active listener")
     variable = next(iter(variables))
-    matches = [mapping for mapping in topology.maps if mapping.variable == variable]
+    matches = [
+        mapping for mapping in topology.maps if mapping.variable == variable
+    ]
     if len(matches) != 1:
         if len(matches) > 1:
-            raise TopologyError("more than one effective map feeds the active listener")
+            raise TopologyError(
+                "more than one effective map feeds the active listener"
+            )
         raise TopologyError("active stream route is dynamic or unresolved")
     mapping = matches[0]
     if mapping.source_variable != "$ssl_preread_server_name":
