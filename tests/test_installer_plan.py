@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 
@@ -230,3 +230,107 @@ def test_secret_assignment_is_rejected_before_canonical_serialization():
 
     with pytest.raises(PlanError, match="secret material"):
         build_plan(config(), facts(), leaking, release())
+
+
+def test_reordered_topology_rules_make_plan_stale():
+    initial = facts()
+    planned = AuditFacts(
+        platform=initial.platform,
+        listeners=initial.listeners,
+        ownership=initial.ownership,
+        topology={"nginx_rules": ["route-a", "route-b"]},
+        prerequisites=initial.prerequisites,
+    )
+    reordered = AuditFacts(
+        platform=initial.platform,
+        listeners=initial.listeners,
+        ownership=initial.ownership,
+        topology={"nginx_rules": ["route-b", "route-a"]},
+        prerequisites=initial.prerequisites,
+    )
+    plan = build_plan(config(), planned, adapters(), release())
+
+    with pytest.raises(StalePlanError, match="topology facts changed"):
+        plan.assert_fresh(reordered)
+
+
+@pytest.mark.parametrize(
+    "leaked_mutation",
+    [
+        "bootstrap --password hunter2",
+        'write settings {\"token\":\"abc\"}',
+    ],
+)
+def test_secret_flag_and_quoted_key_forms_are_rejected(leaked_mutation: str):
+    leaking: tuple[Adapter, ...] = (
+        FakeAdapter("packages", leaked_mutation=leaked_mutation),
+    )
+
+    with pytest.raises(PlanError, match="secret material"):
+        build_plan(config(), facts(), leaking, release())
+
+
+def test_secret_words_in_innocent_prose_are_allowed():
+    harmless: tuple[Adapter, ...] = (
+        FakeAdapter(
+            "packages",
+            leaked_mutation="verify the password login mechanism is disabled",
+        ),
+    )
+
+    build_plan(config(), facts(), harmless, release())
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["mutations", "preconditions", "verification", "inverse"],
+)
+def test_action_operation_fields_reject_scalar_strings(field_name: str):
+    values = {
+        "id": "packages.install",
+        "adapter": "packages",
+        "owner": "proxy-control:packages",
+        "mutations": ("create packages state",),
+        "preconditions": ("packages state is absent",),
+        "verification": ("packages state is healthy",),
+        "inverse": ("remove packages state",),
+        "credentials_required": False,
+    }
+    values[field_name] = "not-a-sequence-of-operations"
+
+    with pytest.raises(PlanError, match="must be a non-string sequence"):
+        Action(**values)
+
+
+@pytest.mark.parametrize(
+    "nonfinite",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_nonfinite_stable_audit_facts_are_rejected(nonfinite: float):
+    with pytest.raises(PlanError, match="non-finite float"):
+        AuditFacts(topology={"capacity_ratio": nonfinite})
+
+
+@pytest.mark.parametrize(
+    "nonfinite",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_nonfinite_config_values_are_rejected(nonfinite: float):
+    unsafe_config = replace(config(), acme_email=nonfinite)
+
+    with pytest.raises(PlanError, match="non-finite float"):
+        build_plan(unsafe_config, facts(), adapters(), release())
+
+
+@pytest.mark.parametrize(
+    "nonfinite",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_nonfinite_adapter_evidence_is_rejected(nonfinite: float):
+    with pytest.raises(PlanError, match="non-finite float"):
+        Evidence(
+            action_id="packages.install",
+            success=True,
+            observations=("checked",),
+            details={"capacity_ratio": nonfinite},
+        )

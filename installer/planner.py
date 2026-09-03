@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import heapq
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass, field
@@ -17,9 +18,19 @@ if TYPE_CHECKING:
 
 
 PLAN_SCHEMA = 1
+_SECRET_NAME = (
+    r"(?:password|passwd|secret|token|private[_ -]?key|api[_ -]?key)"
+)
 _SECRET_ASSIGNMENT = re.compile(
-    r"\b(?:password|passwd|secret|token|private[_ -]?key|api[_ -]?key)\b\s*[:=]\s*\S+",
-    re.IGNORECASE,
+    rf"""
+    (?:
+        --{_SECRET_NAME}(?:=|\s+)(?:\"[^\"]*\"|'[^']*'|\S+)
+        |
+        [\"']?{_SECRET_NAME}[\"']?\s*[:=]\s*
+        (?:\"[^\"]*\"|'[^']*'|[^\s,\}}\]]+)
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 _SECRET_KEY_PARTS = frozenset(
     {"password", "passwd", "secret", "token", "privatekey", "apikey"}
@@ -88,7 +99,15 @@ class Action:
             if not _nonempty(getattr(self, name)):
                 raise PlanError(f"action {name} must be a non-empty string")
         for name in ("mutations", "preconditions", "verification", "inverse"):
-            values = tuple(getattr(self, name))
+            raw_values = getattr(self, name)
+            if not isinstance(raw_values, Sequence) or isinstance(
+                raw_values,
+                (str, bytes, bytearray),
+            ):
+                raise PlanError(
+                    f"action {self.id} {name} must be a non-string sequence"
+                )
+            values = tuple(raw_values)
             if not values or any(not _nonempty(value) for value in values):
                 raise PlanError(f"action {self.id} must declare non-empty {name}")
             object.__setattr__(self, name, values)
@@ -202,12 +221,17 @@ class InstallPlan:
         _assert_secret_free(self._canonical_dict())
 
     def to_canonical_json(self) -> bytes:
-        return json.dumps(
-            self._canonical_dict(),
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("utf-8")
+        try:
+            rendered = json.dumps(
+                self._canonical_dict(),
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        except (TypeError, ValueError) as exc:
+            raise PlanError("plan contains a non-canonical JSON value") from exc
+        return rendered.encode("utf-8")
 
     @property
     def digest(self) -> str:
@@ -341,6 +365,8 @@ def _freeze(value: Any) -> Any:
         return tuple(_freeze(item) for item in value)
     if isinstance(value, Enum):
         return value.value
+    if isinstance(value, float) and not math.isfinite(value):
+        raise PlanError("non-finite float is forbidden in canonical data")
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     raise PlanError(f"unsupported canonical value: {type(value).__name__}")
@@ -359,6 +385,8 @@ def _canonical_json_value(value: Any) -> Any:
         return [_canonical_json_value(item) for item in value]
     if isinstance(value, Enum):
         return value.value
+    if isinstance(value, float) and not math.isfinite(value):
+        raise PlanError("non-finite float is forbidden in canonical data")
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     raise PlanError(f"unsupported canonical value: {type(value).__name__}")
@@ -370,17 +398,28 @@ def _canonical_fact_value(value: Any) -> Any:
             str(key): _canonical_fact_value(item)
             for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
         }
-    if isinstance(value, (Set, Sequence)) and not isinstance(
+    if isinstance(value, Set) and not isinstance(value, (str, bytes, bytearray)):
+        items = [_canonical_fact_value(item) for item in value]
+        return sorted(items, key=_sort_key)
+    if isinstance(value, Sequence) and not isinstance(
         value,
         (str, bytes, bytearray),
     ):
-        items = [_canonical_fact_value(item) for item in value]
-        return sorted(items, key=_sort_key)
+        return [_canonical_fact_value(item) for item in value]
     return _canonical_json_value(value)
 
 
 def _sort_key(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    try:
+        return json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise PlanError("value cannot be ordered canonically") from exc
 
 
 def _assert_secret_free(value: object, *, path: str = "plan") -> None:
