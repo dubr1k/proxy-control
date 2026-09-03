@@ -389,6 +389,29 @@ def test_runtime_install_owns_complete_stack_and_never_exposes_password(tmp_path
     assert any(call[0][:2] == ("certbot", "certonly") and "panel.example.com" in call[0] for call in runner.calls)
     assert any(call[0][0] == "/usr/local/bin/mtproxy-respq-probe" for call in runner.calls)
 
+
+def test_rendered_proxyctl_loads_the_single_transaction_module_when_run_directly(tmp_path):
+    root, _route = runtime_root(tmp_path)
+    manager = RuntimeInstaller(
+        plan(Path(__file__).parents[1]),
+        root=root,
+        runner=FakeRunner(),
+    )
+    manager.install()
+    project = root / "opt/mtproxy-shared443"
+
+    completed = subprocess.run(
+        [sys.executable, str(project / "scripts/proxyctl.py"), "--help"],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": ""},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert (project / "installer/transaction.py").is_file()
+
 def test_runtime_install_public_webroots_ignore_restrictive_umask(tmp_path):
     root, _route = runtime_root(tmp_path)
     manager = RuntimeInstaller(

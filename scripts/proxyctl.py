@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
-import hashlib
 import json
 import os
 import re
@@ -15,11 +13,27 @@ import socket
 import ssl
 import stat
 import subprocess
+import sys
 import uuid
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Callable
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from installer.transaction import (
+    atomic_write as _atomic_write,
+    durable_copy2 as _durable_copy2,
+    durable_mkdir as _durable_mkdir,
+    durable_remove as _durable_remove,
+    durable_symlink as _durable_symlink,
+    fsync_directory as _fsync_dir,
+    fsync_tree as _fsync_tree,
+    operation_lock,
+    sha256 as _sha256,
+)
 
 OWNERSHIP_BEGIN = "# BEGIN PROXY-CONTROL ROUTES"
 OWNERSHIP_END = "# END PROXY-CONTROL ROUTES"
@@ -33,6 +47,9 @@ DOMAIN_RE = re.compile(
 
 class InstallerConflict(RuntimeError):
     """A condition that cannot be changed safely or unambiguously."""
+
+
+_operation_lock = partial(operation_lock, error_type=InstallerConflict)
 
 
 def validate_domain(value: str) -> str:
@@ -507,107 +524,6 @@ class InstallPlan:
         return cls(proxy_domain, panel_domain, route_file, proxy_backend_port, panel_backend_port)
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _fsync_dir(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _ensure_parent(path: Path) -> None:
-    missing = []
-    cursor = path.parent
-    while not cursor.exists():
-        missing.append(cursor)
-        cursor = cursor.parent
-    for directory in reversed(missing):
-        directory.mkdir()
-        _fsync_dir(directory.parent)
-
-
-def _durable_mkdir(path: Path, *, mode: int = 0o777) -> None:
-    missing = []
-    cursor = path
-    while not cursor.exists():
-        missing.append(cursor)
-        cursor = cursor.parent
-    if not cursor.is_dir():
-        raise NotADirectoryError(cursor)
-    for directory in reversed(missing):
-        directory.mkdir(mode=mode if directory == path else 0o777)
-        _fsync_dir(directory)
-        _fsync_dir(directory.parent)
-
-
-def _fsync_file(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _fsync_tree(path: Path) -> None:
-    """Persist a newly copied tree bottom-up before journaling its phase."""
-    for directory, names, files in os.walk(path, topdown=False):
-        current = Path(directory)
-        for name in files:
-            child = current / name
-            if not child.is_symlink() and child.is_file():
-                _fsync_file(child)
-        for name in names:
-            child = current / name
-            if not child.is_symlink() and child.is_dir():
-                _fsync_dir(child)
-        _fsync_dir(current)
-    _fsync_dir(path.parent)
-
-
-def _durable_copy2(source: Path, destination: Path) -> None:
-    _ensure_parent(destination)
-    shutil.copy2(source, destination)
-    _fsync_file(destination)
-    _fsync_dir(destination.parent)
-
-
-def _durable_symlink(target: str, path: Path) -> None:
-    _ensure_parent(path)
-    os.symlink(target, path)
-    _fsync_dir(path.parent)
-
-
-def _durable_remove(path: Path, *, missing_ok: bool = False) -> None:
-    if not path.exists() and not path.is_symlink():
-        if missing_ok:
-            return
-        raise FileNotFoundError(path)
-    if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path)
-    else:
-        path.unlink()
-    _fsync_dir(path.parent)
-
-
-def _atomic_write(path: Path, data: bytes, *, mode: int, owner: tuple[int, int] | None = None) -> None:
-    _ensure_parent(path)
-    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        with tmp.open("wb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fchmod(handle.fileno(), mode)
-            if owner is not None:
-                os.fchown(handle.fileno(), *owner)
-            os.fsync(handle.fileno())
-        os.replace(tmp, path)
-        _fsync_dir(path.parent)
-    finally:
-        tmp.unlink(missing_ok=True)
 
 
 def _state_path(root: Path) -> Path:
@@ -709,21 +625,6 @@ def _run_nginx_validate() -> None:
 def _run_nginx_reload() -> None:
     subprocess.run(["systemctl", "reload", "nginx"], check=True)
 
-
-@contextmanager
-def _operation_lock(root: Path):
-    lock_path = _root_path(root, "/run/lock/proxy-control.lock")
-    _ensure_parent(lock_path)
-    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
-    with os.fdopen(descriptor, "r+") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise InstallerConflict("another proxyctl operation is in progress") from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _apply_plan_unlocked(
@@ -1225,7 +1126,7 @@ class RuntimeInstaller:
         target_scripts = project / "scripts"
         _durable_mkdir(target_scripts)
         _durable_copy2(source / "scripts/proxyctl.py", target_scripts / "proxyctl.py")
-        for directory in ("docker", "panel"):
+        for directory in ("docker", "installer", "panel"):
             shutil.copytree(
                 source / directory, project / directory, dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc", "*.sqlite3*"),
