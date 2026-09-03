@@ -24,6 +24,7 @@
 - Existing 3x-ui databases, clients, generated Xray config, units, and binary trees remain foreign and unchanged during Proxy Control installation.
 - MSS clamping remains a separate explicit diagnostic action and is never enabled by a normal profile.
 - Every production behavior change follows red-green-refactor and completes the exact isolated verification named by its task.
+- Run repository Python tests with `PYTHONPATH=.`; Darwin is not an authoritative host for Linux-only `/proc`, systemd, Nginx, nftables, `ss`, or long Unix-socket contracts, so those gates run in the disposable Ubuntu lab.
 - The unrelated untracked `docker/Dockerfile.telemt` MUST remain untouched and uncommitted.
 
 ## Planned File Structure
