@@ -41,6 +41,7 @@ class Adapter(Protocol):
         checkpoint: Mapping[str, object],
         *,
         purge_data: bool = False,
+        rollback_target: str = "rolled_back",
     ) -> Evidence: ...
 
     def reconcile_rollback(
@@ -49,4 +50,5 @@ class Adapter(Protocol):
         checkpoint: Mapping[str, object],
         *,
         purge_data: bool = False,
+        rollback_target: str = "rolled_back",
     ) -> Evidence: ...

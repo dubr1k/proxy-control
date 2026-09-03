@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -186,7 +187,20 @@ def operation_lock(
 ) -> Iterator[None]:
     lock_path = _root_path(root, LOCK_PATH)
     ensure_parent(lock_path)
-    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    if lock_path.is_symlink():
+        raise OwnershipError("operation lock must be a contained regular file")
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError as exc:
+        if lock_path.is_symlink():
+            raise OwnershipError(
+                "operation lock must be a contained regular file"
+            ) from exc
+        raise
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise OwnershipError("operation lock must be a contained regular file")
     os.fchmod(descriptor, 0o600)
     with os.fdopen(descriptor, "r+") as handle:
         try:
@@ -460,6 +474,93 @@ class TransactionStore:
         return value
 
 
+class RuntimeV2Adapter:
+    """Lifecycle adapter for an explicitly imported runtime-v2 generation."""
+
+    name = "runtime-v2"
+    requires: frozenset[str] = frozenset()
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+
+    def prepare(self, action: Action) -> Mapping[str, object]:
+        del action
+        raise TransactionError("runtime-v2 is import-only")
+
+    def apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        del action, checkpoint
+        raise TransactionError("runtime-v2 is import-only")
+
+    def reconcile_apply(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        del action, checkpoint
+        raise TransactionError("runtime-v2 is import-only")
+
+    def verify(self, action: Action) -> Evidence:
+        state = TransactionStore(self.root).read_state()
+        validate_legacy_runtime_v2(self.root, _thaw(state.legacy))
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("runtime-v2 managed files verified",),
+        )
+
+    def rollback(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        *,
+        purge_data: bool = False,
+        rollback_target: str = "rolled_back",
+    ) -> Evidence:
+        del purge_data, rollback_target
+        legacy = checkpoint.get("legacy")
+        if not isinstance(legacy, Mapping):
+            raise TransactionError("runtime-v2 checkpoint is invalid")
+        managed_files = legacy.get("managed_files")
+        managed_hashes = legacy.get("managed_hashes")
+        if not isinstance(managed_files, Sequence) or not isinstance(
+            managed_hashes,
+            Mapping,
+        ):
+            raise TransactionError("runtime-v2 checkpoint is invalid")
+        for raw_path in reversed(managed_files):
+            host_path, path = _owned_path(self.root, raw_path)
+            if not path.exists() and not path.is_symlink():
+                continue
+            expected = managed_hashes.get(host_path)
+            if _path_identity(path)["sha256"] != expected:
+                raise OwnershipError(f"owned file drifted: {host_path}")
+            durable_remove(path)
+        return Evidence(
+            action_id=action.id,
+            success=True,
+            observations=("runtime-v2 managed files removed",),
+        )
+
+    def reconcile_rollback(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        *,
+        purge_data: bool = False,
+        rollback_target: str = "rolled_back",
+    ) -> Evidence:
+        return self.rollback(
+            action,
+            checkpoint,
+            purge_data=purge_data,
+            rollback_target=rollback_target,
+        )
+
+
 class TransactionEngine:
     """Checkpointed adapter executor with fail-closed ownership recovery."""
 
@@ -470,6 +571,7 @@ class TransactionEngine:
     ):
         self.store = store
         self.adapters = dict(adapters)
+        self.adapters.setdefault("runtime-v2", RuntimeV2Adapter(store.root))
 
     def apply(self, plan: InstallPlan, accepted_digest: str) -> TransactionState:
         if accepted_digest != plan.digest:
@@ -686,7 +788,7 @@ class TransactionEngine:
             )
             self._persist(state)
             by_action = {action.id: action for action in plan.actions}
-            purge_data = state.purge_data is True
+            purge_data = final_status == "rolled_back" or state.purge_data is True
             for checkpoint in reversed(state.checkpoints):
                 if checkpoint.phase == "rolled_back":
                     continue
@@ -718,6 +820,7 @@ class TransactionEngine:
                         action,
                         _thaw(checkpoint.data),
                         purge_data=purge_data,
+                        rollback_target=final_status,
                     )
                 elif checkpoint.phase in {"applying", "rollback_in_progress"}:
                     if checkpoint.phase == "applying":
@@ -727,6 +830,10 @@ class TransactionEngine:
                         )
                         state = self._with_checkpoint(state, checkpoint)
                         self._persist_checkpoint(state, checkpoint, action)
+                    self._assert_reconcile_safe(
+                        checkpoint.ownership,
+                        purge_data=purge_data,
+                    )
                     reconcile = getattr(adapter, "reconcile_rollback", None)
                     if not callable(reconcile):
                         raise TransactionError(
@@ -736,6 +843,7 @@ class TransactionEngine:
                         action,
                         _thaw(checkpoint.data),
                         purge_data=purge_data,
+                        rollback_target=final_status,
                     )
                 else:
                     continue
@@ -828,6 +936,27 @@ class TransactionEngine:
                 actual = _path_identity(path)
             except OwnershipError as exc:
                 raise OwnershipError(f"owned file drifted: {host_path}") from exc
+            if (
+                actual["kind"] != expected.get("kind")
+                or actual["sha256"] != expected.get("sha256")
+            ):
+                raise OwnershipError(f"owned file drifted: {host_path}")
+
+
+    def _assert_reconcile_safe(
+        self,
+        ownership: Mapping[str, Mapping[str, object]],
+        *,
+        purge_data: bool,
+    ) -> None:
+        for host_path, expected in ownership.items():
+            _normalized, path = _owned_path(self.store.root, host_path)
+            exists = path.exists() or path.is_symlink()
+            if not exists:
+                if expected.get("preserve") is True and not purge_data:
+                    raise OwnershipError(f"owned file drifted: {host_path}")
+                continue
+            actual = _path_identity(path)
             if (
                 actual["kind"] != expected.get("kind")
                 or actual["sha256"] != expected.get("sha256")
@@ -979,76 +1108,81 @@ def import_runtime_v2(
 ) -> TransactionState:
     """Persist a verified runtime-v2 import without touching managed host bytes."""
     root = Path(root)
-    validate_legacy_runtime_v2(root, legacy)
-    encoded = _canonical_json(legacy)
-    legacy_digest = sha256(encoded)
-    action = Action(
-        id="runtime-v2.import",
-        adapter="runtime-v2",
-        owner="proxy-control:runtime-v2",
-        mutations=("adopt verified runtime-v2 ownership",),
-        preconditions=("runtime-v2 journal is active and verified",),
-        verification=("runtime-v2 managed files retain their verified digests",),
-        inverse=("remove runtime-v2 managed files through its adapter",),
-        credentials_required=False,
-    )
-    plan = InstallPlan(
-        config={"legacy_runtime_schema": 2},
-        facts=AuditFacts(ownership={"imported_runtime": "v2"}),
-        release=ReleaseIdentity(
-            tag="runtime-v2",
-            commit=legacy_digest[:40],
-            manifest_sha256=legacy_digest,
-        ),
-        adapter_order=("runtime-v2",),
-        adapter_dependencies={"runtime-v2": ()},
-        actions=(action,),
-    )
-    managed_files = legacy["managed_files"]
-    ownership: dict[str, Mapping[str, object]] = {}
-    for host_path in managed_files:
-        normalized, path = _owned_path(root, host_path)
-        identity = _path_identity(path)
-        ownership[normalized] = MappingProxyType(
-            {
-                "action_id": action.id,
-                "adapter": action.adapter,
-                "kind": identity["kind"],
-                "preserve": False,
-                "sha256": identity["sha256"],
-            }
-        )
-    data = {
-        "legacy": _thaw(legacy),
-        "ownership": {
-            host_path: {
-                "preserve": False,
-                "sha256": entry["sha256"],
-            }
-            for host_path, entry in ownership.items()
-        },
-    }
-    checkpoint = TransactionCheckpoint(
-        action_id=action.id,
-        adapter=action.adapter,
-        phase="verified",
-        data=data,
-        ownership=ownership,
-        evidence={
-            "action_id": action.id,
-            "details": {},
-            "observations": ["runtime-v2 managed files verified"],
-            "success": True,
-        },
-    )
-    state = TransactionState.from_verified_legacy(legacy, plan, checkpoint)
     store = TransactionStore(root)
     with store.locked():
+        validate_legacy_runtime_v2(root, legacy)
         if store.state_path.exists():
             raise TransactionError("an installer transaction already exists")
+        encoded = _canonical_json(legacy)
+        legacy_digest = sha256(encoded)
+        action = Action(
+            id="runtime-v2.import",
+            adapter="runtime-v2",
+            owner="proxy-control:runtime-v2",
+            mutations=("adopt verified runtime-v2 ownership",),
+            preconditions=("runtime-v2 journal is active and verified",),
+            verification=("runtime-v2 managed files retain their verified digests",),
+            inverse=("remove runtime-v2 managed files through its adapter",),
+            credentials_required=False,
+        )
+        plan = InstallPlan(
+            config={"legacy_runtime_schema": 2},
+            facts=AuditFacts(ownership={"imported_runtime": "v2"}),
+            release=ReleaseIdentity(
+                tag="runtime-v2",
+                commit=legacy_digest[:40],
+                manifest_sha256=legacy_digest,
+            ),
+            adapter_order=("runtime-v2",),
+            adapter_dependencies={"runtime-v2": ()},
+            actions=(action,),
+        )
+        managed_files = legacy["managed_files"]
+        managed_hashes = legacy["managed_hashes"]
+        ownership: dict[str, Mapping[str, object]] = {}
+        for host_path in managed_files:
+            normalized, path = _owned_path(root, host_path)
+            identity = _path_identity(path)
+            if identity["sha256"] != managed_hashes[host_path]:
+                raise OwnershipError(
+                    f"legacy managed file drifted: {host_path}"
+                )
+            ownership[normalized] = MappingProxyType(
+                {
+                    "action_id": action.id,
+                    "adapter": action.adapter,
+                    "kind": identity["kind"],
+                    "preserve": False,
+                    "sha256": identity["sha256"],
+                }
+            )
+        data = {
+            "legacy": _thaw(legacy),
+            "ownership": {
+                host_path: {
+                    "preserve": False,
+                    "sha256": entry["sha256"],
+                }
+                for host_path, entry in ownership.items()
+            },
+        }
+        checkpoint = TransactionCheckpoint(
+            action_id=action.id,
+            adapter=action.adapter,
+            phase="verified",
+            data=data,
+            ownership=ownership,
+            evidence={
+                "action_id": action.id,
+                "details": {},
+                "observations": ["runtime-v2 managed files verified"],
+                "success": True,
+            },
+        )
+        state = TransactionState.from_verified_legacy(legacy, plan, checkpoint)
         store.write_plan(plan)
         TransactionEngine(store, {})._persist(state)
-    return state
+        return state
 
 
 def _path_identity(path: Path) -> dict[str, str]:
@@ -1218,6 +1352,7 @@ def _pretty_json(value: object) -> bytes:
 __all__ = [
     "AcceptedDigestError",
     "OwnershipError",
+    "RuntimeV2Adapter",
     "TransactionBusyError",
     "TransactionCheckpoint",
     "TransactionEngine",

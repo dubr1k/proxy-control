@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import installer.transaction as transaction_module
 
 from installer.planner import Action, AuditFacts, Evidence, InstallPlan, ReleaseIdentity
 from installer.transaction import (
@@ -15,6 +16,7 @@ from installer.transaction import (
     TransactionEngine,
     TransactionState,
     TransactionStore,
+    TransactionBusyError,
     import_runtime_v2,
 )
 
@@ -31,6 +33,7 @@ class RecordingAdapter:
     fail_apply: bool = False
     crash_during_apply: type[BaseException] | None = None
     crash_during_rollback: type[BaseException] | None = None
+    crash_before_rollback: bool = False
     preserve_data: bool = False
     log: list[str] | None = None
     requires: frozenset[str] = frozenset()
@@ -100,8 +103,13 @@ class RecordingAdapter:
         checkpoint: dict[str, object],
         *,
         purge_data: bool = False,
+        rollback_target: str = "rolled_back",
     ) -> Evidence:
         assert f"/{self.target.name}" in checkpoint["ownership"]
+        assert rollback_target in {"rolled_back", "uninstalled"}
+        if self.crash_before_rollback:
+            self.crash_before_rollback = False
+            raise InjectedCrash("before rollback deletion")
         if self.log is not None:
             self.log.append(f"rollback:{self.name}")
         self.target.unlink(missing_ok=True)
@@ -123,9 +131,15 @@ class RecordingAdapter:
         checkpoint: dict[str, object],
         *,
         purge_data: bool = False,
+        rollback_target: str = "rolled_back",
     ) -> Evidence:
         if self.target.exists() or (purge_data and self.data_path.exists()):
-            return self.rollback(action, checkpoint, purge_data=purge_data)
+            return self.rollback(
+                action,
+                checkpoint,
+                purge_data=purge_data,
+                rollback_target=rollback_target,
+            )
         return Evidence(
             action_id=action.id,
             success=True,
@@ -138,49 +152,6 @@ class RecordingAdapter:
             self.crash_after = None
             raise InjectedCrash(phase)
 
-
-@dataclass
-class LegacyRuntimeAdapter:
-    root: Path
-    name: str = "runtime-v2"
-    requires: frozenset[str] = frozenset()
-
-    def verify(self, action: Action) -> Evidence:
-        return Evidence(
-            action_id=action.id,
-            success=True,
-            observations=("legacy runtime verified",),
-        )
-
-    def rollback(
-        self,
-        action: Action,
-        checkpoint: dict[str, object],
-        *,
-        purge_data: bool = False,
-    ) -> Evidence:
-        del purge_data
-        legacy = checkpoint["legacy"]
-        for host_path in legacy["managed_files"]:
-            (self.root / host_path.lstrip("/")).unlink(missing_ok=True)
-        return Evidence(
-            action_id=action.id,
-            success=True,
-            observations=("legacy managed files removed",),
-        )
-
-    def reconcile_rollback(
-        self,
-        action: Action,
-        checkpoint: dict[str, object],
-        *,
-        purge_data: bool = False,
-    ) -> Evidence:
-        return self.rollback(
-            action,
-            checkpoint,
-            purge_data=purge_data,
-        )
 
 
 def action_for(name: str) -> Action:
@@ -314,6 +285,24 @@ def test_resume_reconciles_death_or_error_after_destructive_rollback(
     assert not adapter.target.exists()
 
 
+def test_rollback_reconciliation_refuses_foreign_edit_before_deletion(
+    tmp_path: Path,
+) -> None:
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+    adapter.crash_before_rollback = True
+    with pytest.raises(InjectedCrash, match="before rollback deletion"):
+        engine.uninstall(purge_data=False)
+    adapter.target.write_text("foreign edit")
+
+    with pytest.raises(OwnershipError, match="owned file drifted"):
+        engine_for(tmp_path, RecordingAdapter("core", tmp_path)).resume()
+
+    assert adapter.target.read_text() == "foreign edit"
+
+
 @pytest.mark.parametrize("purge_data", [False, True])
 def test_uninstall_routes_persisted_data_policy_to_adapter(
     tmp_path: Path,
@@ -328,6 +317,23 @@ def test_uninstall_routes_persisted_data_policy_to_adapter(
 
     assert state.status == "uninstalled"
     assert adapter.data_path.exists() is (not purge_data)
+
+
+def test_failed_install_removes_data_even_when_uninstall_would_preserve_it(
+    tmp_path: Path,
+) -> None:
+    first = RecordingAdapter("first", tmp_path, preserve_data=True)
+    second = RecordingAdapter("second", tmp_path, fail_apply=True)
+    plan = plan_for("first", "second")
+
+    with pytest.raises(RuntimeError, match="second failed"):
+        engine_for(tmp_path, first, second).apply(
+            plan,
+            accepted_digest=plan.digest,
+        )
+
+    assert not first.target.exists()
+    assert not first.data_path.exists()
 
 
 def test_terminal_resume_rebuilds_derived_journals_from_state(
@@ -433,6 +439,25 @@ def test_store_rejects_symlinked_parent_that_escapes_root(tmp_path: Path) -> Non
     assert not (outside / "lib").exists()
 
 
+def test_operation_lock_rejects_final_symlink_without_chmod_or_flock(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    lock_dir = root / "run/lock"
+    lock_dir.mkdir(parents=True)
+    outside = tmp_path / "outside.lock"
+    outside.write_text("outside")
+    outside.chmod(0o644)
+    (lock_dir / "proxy-control.lock").symlink_to(outside)
+
+    with pytest.raises(OwnershipError, match="operation lock"):
+        with TransactionStore(root).locked():
+            pytest.fail("symlinked lock was acquired")
+
+    assert outside.read_text() == "outside"
+    assert stat.S_IMODE(outside.stat().st_mode) == 0o644
+
+
 def test_legacy_import_rejects_symlinked_parent_that_escapes_root(
     tmp_path: Path,
 ) -> None:
@@ -527,10 +552,7 @@ def test_runtime_v2_import_is_explicit_and_preserves_managed_bytes(tmp_path: Pat
     assert state.origin == "runtime-v2"
     assert TransactionStore(tmp_path).state_path.is_file()
     assert {path: path.read_bytes() for path in fixtures} == before
-    engine = TransactionEngine(
-        TransactionStore(tmp_path),
-        {"runtime-v2": LegacyRuntimeAdapter(tmp_path)},
-    )
+    engine = TransactionEngine(TransactionStore(tmp_path), {})
 
     repaired = engine.repair()
 
@@ -545,6 +567,71 @@ def test_runtime_v2_import_is_explicit_and_preserves_managed_bytes(tmp_path: Pat
     assert nginx_route.read_bytes() == before[nginx_route]
     assert compose_data.read_bytes() == before[compose_data]
     assert json.loads(json.dumps(state.to_dict()))["origin"] == "runtime-v2"
+
+
+def test_runtime_v2_import_acquires_lock_before_validation(tmp_path: Path) -> None:
+    managed = tmp_path / "etc/nginx/sites-available/proxy-control-panel.conf"
+    managed.parent.mkdir(parents=True)
+    managed.write_bytes(b"verified")
+    legacy = {
+        "schema": 2,
+        "status": "active",
+        "phase": "route_installed",
+        "plan": {"project_dir": "/opt/mtproxy-shared443"},
+        "owned_packages": [],
+        "managed_files": ["/etc/nginx/sites-available/proxy-control-panel.conf"],
+        "managed_hashes": {
+            "/etc/nginx/sites-available/proxy-control-panel.conf": hashlib.sha256(
+                b"verified"
+            ).hexdigest(),
+        },
+        "project_created": False,
+    }
+    store = TransactionStore(tmp_path)
+
+    with store.locked():
+        managed.write_bytes(b"foreign")
+        with pytest.raises(TransactionBusyError, match="another proxyctl operation"):
+            import_runtime_v2(tmp_path, legacy)
+
+
+def test_runtime_v2_import_rejects_change_between_validation_and_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    managed = tmp_path / "etc/nginx/sites-available/proxy-control-panel.conf"
+    managed.parent.mkdir(parents=True)
+    managed.write_bytes(b"verified")
+    legacy = {
+        "schema": 2,
+        "status": "active",
+        "phase": "route_installed",
+        "plan": {"project_dir": "/opt/mtproxy-shared443"},
+        "owned_packages": [],
+        "managed_files": ["/etc/nginx/sites-available/proxy-control-panel.conf"],
+        "managed_hashes": {
+            "/etc/nginx/sites-available/proxy-control-panel.conf": hashlib.sha256(
+                b"verified"
+            ).hexdigest(),
+        },
+        "project_created": False,
+    }
+    validate = transaction_module.validate_legacy_runtime_v2
+
+    def mutate_after_validation(root: Path, state: dict[str, object]) -> None:
+        validate(root, state)
+        managed.write_bytes(b"changed after validation")
+
+    monkeypatch.setattr(
+        transaction_module,
+        "validate_legacy_runtime_v2",
+        mutate_after_validation,
+    )
+
+    with pytest.raises(OwnershipError, match="legacy managed file drifted"):
+        import_runtime_v2(tmp_path, legacy)
+
+    assert not TransactionStore(tmp_path).state_path.exists()
 
 
 def test_runtime_v2_import_rejects_managed_file_drift_without_writing(tmp_path: Path) -> None:
