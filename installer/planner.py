@@ -144,9 +144,19 @@ class Evidence:
             raise PlanError("evidence action_id must be a non-empty string")
         if not isinstance(self.success, bool):
             raise PlanError("evidence success must be a boolean")
-        observations = tuple(self.observations)
+        raw_observations = self.observations
+        if not isinstance(raw_observations, Sequence) or isinstance(
+            raw_observations,
+            (str, bytes, bytearray),
+        ):
+            raise PlanError(
+                "evidence observations must be a non-string sequence"
+            )
+        observations = tuple(raw_observations)
         if any(not _nonempty(item) for item in observations):
             raise PlanError("evidence observations must be non-empty strings")
+        if not isinstance(self.details, Mapping):
+            raise PlanError("evidence details must be a mapping")
         object.__setattr__(self, "observations", observations)
         object.__setattr__(self, "details", _freeze(self.details))
         _assert_secret_free(
@@ -364,7 +374,7 @@ def _freeze(value: Any) -> Any:
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return tuple(_freeze(item) for item in value)
     if isinstance(value, Enum):
-        return value.value
+        return _freeze(value.value)
     if isinstance(value, float) and not math.isfinite(value):
         raise PlanError("non-finite float is forbidden in canonical data")
     if value is None or isinstance(value, (bool, int, float, str)):

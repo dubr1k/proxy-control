@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import Enum
 
 import pytest
 
@@ -334,3 +335,52 @@ def test_nonfinite_adapter_evidence_is_rejected(nonfinite: float):
             observations=("checked",),
             details={"capacity_ratio": nonfinite},
         )
+
+
+def test_mutable_enum_values_are_frozen_in_audit_snapshot():
+    class MutableFact(Enum):
+        RULES = ["route-a", "route-b"]
+
+    audited = AuditFacts(topology={"nginx_rules": MutableFact.RULES})
+    plan = build_plan(config(), audited, adapters(), release())
+    canonical = plan.to_canonical_json()
+    digest = plan.digest
+
+    MutableFact.RULES.value.append("route-c")
+
+    assert plan.to_canonical_json() == canonical
+    assert plan.digest == digest
+
+
+def test_evidence_observations_reject_scalar_strings():
+    with pytest.raises(PlanError, match="observations must be a non-string sequence"):
+        Evidence(
+            action_id="packages.install",
+            success=True,
+            observations="healthy",
+        )
+
+
+def test_evidence_details_reject_non_mapping_values():
+    with pytest.raises(PlanError, match="details must be a mapping"):
+        Evidence(
+            action_id="packages.install",
+            success=True,
+            observations=("healthy",),
+            details=["not", "a", "mapping"],
+        )
+
+
+def test_evidence_normalizes_valid_observations_and_freezes_details():
+    details = {"checks": ["listener", "service"]}
+    evidence = Evidence(
+        action_id="packages.install",
+        success=True,
+        observations=["healthy"],
+        details=details,
+    )
+
+    details["checks"].append("foreign-change")
+
+    assert evidence.observations == ("healthy",)
+    assert evidence.details["checks"] == ("listener", "service")
