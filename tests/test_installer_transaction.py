@@ -15,10 +15,12 @@ from installer.transaction import (
     OwnershipError,
     TransactionEngine,
     TransactionState,
+    RuntimeV2Adapter,
     TransactionStore,
     TransactionBusyError,
     import_runtime_v2,
 )
+from scripts.proxyctl import InstallerConflict, RuntimeInstaller, RuntimePlan
 
 
 class InjectedCrash(BaseException):
@@ -151,6 +153,72 @@ class RecordingAdapter:
         if phase == self.crash_after:
             self.crash_after = None
             raise InjectedCrash(phase)
+
+
+
+@dataclass
+class RuntimeRunner:
+    root: Path
+    installed: set[str]
+
+    def __post_init__(self) -> None:
+        self.calls: list[tuple[str, ...]] = []
+
+    def package_installed(self, name: str) -> bool:
+        return name in self.installed
+
+    def command_available(self, name: str) -> bool:
+        del name
+        return False
+
+    def compose_available(self) -> bool:
+        return False
+
+    def run(self, argv, *, stdin_path=None, env=None) -> None:
+        del stdin_path, env
+        command = tuple(str(item) for item in argv)
+        self.calls.append(command)
+        if command[:3] == ("apt-get", "install", "-y"):
+            self.installed.update(command[3:])
+        elif command[:3] == ("apt-get", "purge", "-y"):
+            self.installed.difference_update(command[3:])
+        if command[-3:] == ("down", "--remove-orphans", "--volumes"):
+            data = self.root / "var/lib/docker/volumes/proxy-data/_data/panel.sqlite3"
+            data.unlink(missing_ok=True)
+
+    def capture(self, argv, *, max_chars: int) -> str:
+        del argv, max_chars
+        return ""
+
+
+def installed_runtime_v2(root: Path) -> tuple[dict[str, object], RuntimeRunner, bytes]:
+    route = root / "etc/nginx/stream.d/routes.conf"
+    route.parent.mkdir(parents=True)
+    (root / "etc/nginx/sites-enabled").mkdir(parents=True)
+    (root / "etc/nginx/nginx.conf").write_text(
+        "events {}\nhttp { include /etc/nginx/sites-enabled/*; }\n"
+        "stream { include /etc/nginx/stream.d/*.conf; }\n"
+    )
+    original = (
+        "map $ssl_preread_server_name $upstream_443 {\n"
+        "    default 127.0.0.1:9443;\n}\n"
+        "server { listen 443; ssl_preread on; proxy_pass $upstream_443; }\n"
+    ).encode()
+    route.write_bytes(original)
+    runtime_plan = RuntimePlan(
+        proxy_domain="proxy.example.com",
+        panel_domain="panel.example.com",
+        email="ops@example.com",
+        route_file="/etc/nginx/stream.d/routes.conf",
+        source_dir=str(Path(__file__).parents[1]),
+        protocol_probe="/bin/true",
+    )
+    runner = RuntimeRunner(root, {"ca-certificates", "python3"})
+    RuntimeInstaller(runtime_plan, root=root, runner=runner).install()
+    legacy = json.loads(
+        (root / "var/lib/proxy-control/runtime.json").read_text()
+    )
+    return legacy, runner, original
 
 
 
@@ -458,6 +526,25 @@ def test_operation_lock_rejects_final_symlink_without_chmod_or_flock(
     assert stat.S_IMODE(outside.stat().st_mode) == 0o644
 
 
+def test_operation_lock_rejects_hard_link_before_chmod_or_flock(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    lock_dir = root / "run/lock"
+    lock_dir.mkdir(parents=True)
+    outside = tmp_path / "outside.lock"
+    outside.write_text("outside")
+    outside.chmod(0o644)
+    (lock_dir / "proxy-control.lock").hardlink_to(outside)
+
+    with pytest.raises(OwnershipError, match="operation lock"):
+        with TransactionStore(root).locked():
+            pytest.fail("hard-linked lock was acquired")
+
+    assert outside.read_text() == "outside"
+    assert stat.S_IMODE(outside.stat().st_mode) == 0o644
+
+
 def test_legacy_import_rejects_symlinked_parent_that_escapes_root(
     tmp_path: Path,
 ) -> None:
@@ -487,6 +574,30 @@ def test_legacy_import_rejects_symlinked_parent_that_escapes_root(
         import_runtime_v2(root, legacy)
 
     assert managed.read_bytes() == b"outside"
+
+
+def test_legacy_import_rejects_noncanonical_managed_path(tmp_path: Path) -> None:
+    managed = tmp_path / "etc/nginx.conf"
+    managed.parent.mkdir(parents=True)
+    managed.write_bytes(b"verified")
+    legacy = {
+        "schema": 2,
+        "status": "active",
+        "phase": "route_installed",
+        "plan": {"project_dir": "/opt/mtproxy-shared443"},
+        "owned_packages": [],
+        "managed_files": ["/etc//nginx.conf"],
+        "managed_hashes": {
+            "/etc//nginx.conf": hashlib.sha256(b"verified").hexdigest(),
+        },
+        "project_created": False,
+    }
+
+    with pytest.raises(OwnershipError, match="canonical"):
+        import_runtime_v2(tmp_path, legacy)
+
+    assert managed.read_bytes() == b"verified"
+    assert not TransactionStore(tmp_path).state_path.exists()
 
 
 def test_apply_requires_the_complete_accepted_plan_digest(tmp_path: Path) -> None:
@@ -552,21 +663,86 @@ def test_runtime_v2_import_is_explicit_and_preserves_managed_bytes(tmp_path: Pat
     assert state.origin == "runtime-v2"
     assert TransactionStore(tmp_path).state_path.is_file()
     assert {path: path.read_bytes() for path in fixtures} == before
-    engine = TransactionEngine(TransactionStore(tmp_path), {})
 
-    repaired = engine.repair()
-
-    assert repaired.status == "active"
-    assert {path: path.read_bytes() for path in fixtures} == before
-
-    uninstalled = engine.uninstall(purge_data=False)
-
-    assert uninstalled.status == "uninstalled"
-    assert not nginx_site.exists()
-    assert credentials.read_bytes() == before[credentials]
-    assert nginx_route.read_bytes() == before[nginx_route]
-    assert compose_data.read_bytes() == before[compose_data]
     assert json.loads(json.dumps(state.to_dict()))["origin"] == "runtime-v2"
+
+
+@pytest.mark.parametrize("purge_data", [False, True])
+def test_runtime_v2_adapter_reverses_the_complete_legacy_lifecycle(
+    tmp_path: Path,
+    purge_data: bool,
+) -> None:
+    root = tmp_path / "root"
+    legacy, runner, original_route = installed_runtime_v2(root)
+    credentials = root / "opt/mtproxy-shared443/secrets/users.conf"
+    credential_bytes = b"keep-these-credentials\n"
+    credentials.write_bytes(credential_bytes)
+    compose_data = (
+        root / "var/lib/docker/volumes/proxy-data/_data/panel.sqlite3"
+    )
+    compose_data.parent.mkdir(parents=True)
+    compose_data.write_bytes(b"database")
+    managed_paths = [
+        root / str(path).lstrip("/")
+        for path in legacy["managed_files"]
+    ]
+
+    import_runtime_v2(root, legacy)
+    engine = TransactionEngine(
+        TransactionStore(root),
+        {"runtime-v2": RuntimeV2Adapter(root, runner=runner)},
+    )
+    state = engine.uninstall(purge_data=purge_data)
+
+    assert state.status == "uninstalled"
+    assert all(not path.exists() for path in managed_paths)
+    assert not (root / "var/lib/proxy-control/runtime.json").exists()
+    assert (
+        root / "etc/nginx/stream.d/routes.conf"
+    ).read_bytes() == original_route
+    assert credentials.read_bytes() == credential_bytes
+    assert compose_data.exists() is not purge_data
+    assert not set(legacy["owned_packages"]) & runner.installed
+    assert any(
+        command[:3] == ("apt-get", "purge", "-y")
+        for command in runner.calls
+    )
+
+
+@pytest.mark.parametrize(
+    ("drift", "message"),
+    [
+        ("project", "project ownership has drifted"),
+        ("package", "owned packages are missing"),
+    ],
+)
+def test_runtime_v2_adapter_fails_closed_before_lifecycle_drift(
+    tmp_path: Path,
+    drift: str,
+    message: str,
+) -> None:
+    root = tmp_path / "root"
+    legacy, runner, _original_route = installed_runtime_v2(root)
+    import_runtime_v2(root, legacy)
+    if drift == "project":
+        (root / "opt/mtproxy-shared443/.mtproxy-owned").unlink()
+    else:
+        runner.installed.remove(legacy["owned_packages"][0])
+    calls_before = list(runner.calls)
+    managed_paths = [
+        root / str(path).lstrip("/")
+        for path in legacy["managed_files"]
+    ]
+
+    engine = TransactionEngine(
+        TransactionStore(root),
+        {"runtime-v2": RuntimeV2Adapter(root, runner=runner)},
+    )
+    with pytest.raises(InstallerConflict, match=message):
+        engine.uninstall(purge_data=False)
+
+    assert runner.calls == calls_before
+    assert all(path.exists() or path.is_symlink() for path in managed_paths)
 
 
 def test_runtime_v2_import_acquires_lock_before_validation(tmp_path: Path) -> None:

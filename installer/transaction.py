@@ -198,7 +198,8 @@ def operation_lock(
                 "operation lock must be a contained regular file"
             ) from exc
         raise
-    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
         os.close(descriptor)
         raise OwnershipError("operation lock must be a contained regular file")
     os.fchmod(descriptor, 0o600)
@@ -480,8 +481,9 @@ class RuntimeV2Adapter:
     name = "runtime-v2"
     requires: frozenset[str] = frozenset()
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, runner: object | None = None):
         self.root = Path(root)
+        self.runner = runner
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         del action
@@ -505,11 +507,15 @@ class RuntimeV2Adapter:
 
     def verify(self, action: Action) -> Evidence:
         state = TransactionStore(self.root).read_state()
-        validate_legacy_runtime_v2(self.root, _thaw(state.legacy))
+        legacy = _thaw(state.legacy)
+        validate_legacy_runtime_v2(self.root, legacy)
+        manager = self._manager(legacy)
+        if manager._read_runtime_state() != legacy:
+            raise OwnershipError("runtime-v2 manifest has drifted")
         return Evidence(
             action_id=action.id,
             success=True,
-            observations=("runtime-v2 managed files verified",),
+            observations=("runtime-v2 lifecycle ownership verified",),
         )
 
     def rollback(
@@ -520,29 +526,22 @@ class RuntimeV2Adapter:
         purge_data: bool = False,
         rollback_target: str = "rolled_back",
     ) -> Evidence:
-        del purge_data, rollback_target
-        legacy = checkpoint.get("legacy")
-        if not isinstance(legacy, Mapping):
-            raise TransactionError("runtime-v2 checkpoint is invalid")
-        managed_files = legacy.get("managed_files")
-        managed_hashes = legacy.get("managed_hashes")
-        if not isinstance(managed_files, Sequence) or not isinstance(
-            managed_hashes,
-            Mapping,
-        ):
-            raise TransactionError("runtime-v2 checkpoint is invalid")
-        for raw_path in reversed(managed_files):
-            host_path, path = _owned_path(self.root, raw_path)
-            if not path.exists() and not path.is_symlink():
-                continue
-            expected = managed_hashes.get(host_path)
-            if _path_identity(path)["sha256"] != expected:
-                raise OwnershipError(f"owned file drifted: {host_path}")
-            durable_remove(path)
+        del rollback_target
+        legacy = self._legacy(checkpoint)
+        manager = self._manager(legacy)
+        if manager.state_path.exists():
+            runtime_state = manager._read_runtime_state()
+            if (
+                runtime_state.get("status") == "active"
+                and runtime_state != legacy
+            ):
+                raise OwnershipError("runtime-v2 manifest has drifted")
+        manager.uninstall(purge_data=purge_data, _locked=True)
+        self._verify_inverse(manager, legacy)
         return Evidence(
             action_id=action.id,
             success=True,
-            observations=("runtime-v2 managed files removed",),
+            observations=("runtime-v2 lifecycle completely removed",),
         )
 
     def reconcile_rollback(
@@ -559,6 +558,79 @@ class RuntimeV2Adapter:
             purge_data=purge_data,
             rollback_target=rollback_target,
         )
+
+    @staticmethod
+    def _legacy(
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        legacy = checkpoint.get("legacy")
+        if not isinstance(legacy, Mapping):
+            raise TransactionError("runtime-v2 checkpoint is invalid")
+        return legacy
+
+    def _manager(self, legacy: Mapping[str, object]) -> object:
+        from scripts.proxyctl import RuntimeInstaller, RuntimePlan
+
+        raw_plan = legacy.get("plan")
+        if not isinstance(raw_plan, Mapping):
+            raise TransactionError("runtime-v2 plan is invalid")
+        fields = set(RuntimePlan.__dataclass_fields__)
+        payload = {
+            key: _thaw(value)
+            for key, value in raw_plan.items()
+            if key in fields
+        }
+        if isinstance(payload.get("users"), list):
+            payload["users"] = tuple(payload["users"])
+        try:
+            plan = RuntimePlan(**payload)
+        except (TypeError, ValueError) as exc:
+            raise TransactionError("runtime-v2 plan is invalid") from exc
+        if plan.to_dict() != _thaw(raw_plan):
+            raise TransactionError("runtime-v2 plan is invalid")
+        return RuntimeInstaller(plan, root=self.root, runner=self.runner)
+
+    def _verify_inverse(
+        self,
+        manager: object,
+        legacy: Mapping[str, object],
+    ) -> None:
+        if manager.state_path.exists():
+            raise TransactionError("runtime-v2 manifest remains after rollback")
+        route_state = _root_path(
+            self.root,
+            "/var/lib/proxy-control/ownership.json",
+        )
+        if route_state.exists() or route_state.is_symlink():
+            raise TransactionError("runtime-v2 route ownership remains after rollback")
+        for raw_path in legacy["managed_files"]:
+            host_path, path = _owned_path(self.root, raw_path)
+            if path.exists() or path.is_symlink():
+                raise OwnershipError(f"owned file remains: {host_path}")
+        project = _root_path(
+            self.root,
+            str(legacy["plan"]["project_dir"]),
+        )
+        if project.is_dir():
+            unexpected = {
+                child.name
+                for child in project.iterdir()
+                if child.name not in {"secrets", ".mtproxy-owned"}
+            }
+            if unexpected:
+                raise TransactionError(
+                    "runtime-v2 project artifacts remain after rollback"
+                )
+        installed = [
+            package
+            for package in legacy["owned_packages"]
+            if manager.runner.package_installed(package)
+        ]
+        if installed:
+            raise TransactionError(
+                "runtime-v2 packages remain after rollback: "
+                + ", ".join(installed)
+            )
 
 
 class TransactionEngine:
@@ -1093,7 +1165,9 @@ def validate_legacy_runtime_v2(root: Path, legacy: Mapping[str, object]) -> None
         expected = managed_hashes[host_path]
         if not isinstance(expected, str) or not _HEX_64.fullmatch(expected):
             raise OwnershipError("legacy managed-file ownership is invalid")
-        _normalized, path = _owned_path(Path(root), host_path)
+        normalized, path = _owned_path(Path(root), host_path)
+        if host_path != normalized:
+            raise OwnershipError("legacy managed-file paths must be canonical")
         try:
             actual = _path_identity(path)["sha256"]
         except OwnershipError as exc:
@@ -1121,8 +1195,8 @@ def import_runtime_v2(
             owner="proxy-control:runtime-v2",
             mutations=("adopt verified runtime-v2 ownership",),
             preconditions=("runtime-v2 journal is active and verified",),
-            verification=("runtime-v2 managed files retain their verified digests",),
-            inverse=("remove runtime-v2 managed files through its adapter",),
+            verification=("runtime-v2 lifecycle retains its verified ownership",),
+            inverse=("reverse the complete runtime-v2 lifecycle through its manager",),
             credentials_required=False,
         )
         plan = InstallPlan(
@@ -1175,7 +1249,7 @@ def import_runtime_v2(
             evidence={
                 "action_id": action.id,
                 "details": {},
-                "observations": ["runtime-v2 managed files verified"],
+                "observations": ["runtime-v2 lifecycle ownership verified"],
                 "success": True,
             },
         )
