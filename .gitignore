@@ -20,6 +20,7 @@ Desktop.ini
 .gemini/
 .agent/
 
+.worktrees/
 # graphify knowledge graph: derived artefacts, rebuilt from source with
 # `graphify update .`. graph.json/graph.html run into megabytes and churn on
 # every build, so nothing under the output dir belongs in history.
