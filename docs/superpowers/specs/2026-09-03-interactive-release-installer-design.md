@@ -299,7 +299,7 @@ The installer downloads to a private staging directory, verifies the digest befo
 
 ### Installation and configuration
 
-The 3x-ui panel binds to loopback. Random admin credentials and web path are generated without entering argv, environment logs, terminal echo, or the secret-free plan. The official local CLI is used for supported panel settings.
+The 3x-ui panel binds to loopback. Bootstrap starts it inside a temporary network namespace with no non-loopback interface, uses only the upstream first-run local credential, replaces username/password/web path through the pinned authenticated API request body, verifies that the defaults no longer authenticate, and stops the bootstrap process before enabling the normal unit. Random admin credentials and web path never enter argv, environment logs, terminal echo, or the secret-free plan. Direct SQLite edits and generated-secret CLI flags are forbidden.
 
 The pinned local authenticated API creates:
 
