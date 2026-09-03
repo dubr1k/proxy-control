@@ -2,7 +2,6 @@
 """Proxy Control fail-closed host lifecycle and Nginx transaction manager."""
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
@@ -1786,146 +1785,11 @@ class RuntimeInstaller:
                 operation()
 
 
-def _add_runtime_arguments(command: argparse.ArgumentParser) -> None:
-    command.add_argument("--proxy-domain", required=True)
-    command.add_argument("--panel-domain", required=True)
-    command.add_argument("--email", required=True)
-    command.add_argument("--route-file", required=True)
-    command.add_argument("--project-dir", default="/opt/mtproxy-shared443")
-    command.add_argument("--users", default="default")
-    command.add_argument("--protocol-probe", required=True)
-    command.add_argument("--source-dir", default=str(Path(__file__).resolve().parents[1]))
-    command.add_argument("--json", action="store_true")
+def main(argv: Sequence[str] | None = None) -> int:
+    """Delegate command dispatch to the typed installer CLI."""
+    from installer.cli import main as installer_main
 
-
-def _runtime_plan_from_args(args) -> RuntimePlan:
-    return RuntimePlan(
-        proxy_domain=args.proxy_domain,
-        panel_domain=args.panel_domain,
-        email=args.email,
-        route_file=args.route_file,
-        source_dir=args.source_dir,
-        project_dir=args.project_dir,
-        users=tuple(part.strip() for part in args.users.split(",") if part.strip()),
-        protocol_probe=args.protocol_probe,
-    )
-
-
-def _runtime_plan_from_state(root: Path) -> RuntimePlan | None:
-    path = _root_path(root, RUNTIME_STATE_PATH)
-    if not path.is_file():
-        return None
-    try:
-        raw = json.loads(path.read_text())["plan"]
-        return RuntimePlan(**{key: raw[key] for key in (
-            "proxy_domain", "panel_domain", "email", "route_file", "source_dir", "project_dir",
-            "proxy_backend_port", "panel_app_port", "panel_tls_port", "protocol_probe",
-        )}, users=tuple(raw["users"]))
-    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as exc:
-        raise InstallerConflict("runtime manifest plan is invalid") from exc
-
-
-def _validate_runtime_preflight(report: AuditReport, plan: RuntimePlan) -> None:
-    known = set(report.nginx.sni_routes) | set(report.nginx.http_domains)
-    collision = known & {plan.proxy_domain, plan.panel_domain}
-    if collision:
-        raise InstallerConflict(f"domain already routed: {sorted(collision)[0]}")
-    if not report.nginx.stream_enabled or report.nginx.sni_map_count != 1:
-        raise InstallerConflict("exactly one existing Nginx SNI map is required")
-    if report.nginx.sni_map_files.get(plan.route_file) != 1:
-        raise InstallerConflict("route file is not the single audited SNI map file")
-    for port in (plan.proxy_backend_port, plan.panel_app_port):
-        if port in report.listening_ports:
-            raise InstallerConflict(f"backend port {port} is already listening")
-    checks = {item.domain: item for item in report.domains}
-    for domain in (plan.proxy_domain, plan.panel_domain):
-        check = checks.get(domain)
-        if check is None or not check.dns_matches_host:
-            raise InstallerConflict(f"DNS does not resolve to this host: {domain}")
-        if check.unhandled_aaaa:
-            raise InstallerConflict(f"unhandled AAAA record: {domain}")
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="proxyctl", description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path("/"), help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True)
-    audit = sub.add_parser("audit", help="read-only host audit")
-    audit.add_argument("--proxy-domain")
-    audit.add_argument("--panel-domain")
-    audit.add_argument("--json", action="store_true")
-    for name in ("plan", "install"):
-        command = sub.add_parser(name, help=f"{name} the complete MTProxy and panel runtime")
-        _add_runtime_arguments(command)
-    apply = sub.add_parser("apply", help="legacy route-only transaction")
-    apply.add_argument("--proxy-domain", required=True)
-    apply.add_argument("--panel-domain", required=True)
-    apply.add_argument("--route-file", required=True)
-    apply.add_argument("--json", action="store_true")
-    sub.add_parser("repair", help="validate and restart the complete owned runtime")
-    uninstall = sub.add_parser(
-        "uninstall",
-        help="remove the complete owned runtime, preserving credentials and named volumes",
-    )
-    uninstall.add_argument(
-        "--purge-data",
-        action="store_true",
-        help="also remove Compose named volumes (destructive; repeat when resuming)",
-    )
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    try:
-        if args.command in {"repair", "uninstall"}:
-            runtime_plan = _runtime_plan_from_state(args.root)
-            if runtime_plan is not None:
-                manager = RuntimeInstaller(runtime_plan, root=args.root)
-                if args.command == "repair":
-                    manager.repair()
-                else:
-                    manager.uninstall(purge_data=args.purge_data)
-            else:
-                function = repair_installation if args.command == "repair" else uninstall_installation
-                function(root=args.root)
-            return 0
-        requested = {
-            validate_domain(value)
-            for value in (getattr(args, "proxy_domain", None), getattr(args, "panel_domain", None))
-            if value
-        }
-        report = audit_host(root=args.root, domains=requested)
-        if args.command == "audit":
-            print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) if args.json else report)
-            return 0
-        if args.command in {"plan", "install"}:
-            runtime_plan = _runtime_plan_from_args(args)
-            existing_runtime = _runtime_plan_from_state(args.root)
-            if existing_runtime is not None:
-                if existing_runtime != runtime_plan:
-                    raise InstallerConflict("another runtime plan is already owned")
-                if args.command == "install":
-                    RuntimeInstaller(runtime_plan, root=args.root).install()
-                print(json.dumps(runtime_plan.to_dict(), indent=2, sort_keys=True) + "\n", end="")
-                return 0
-            _validate_runtime_preflight(report, runtime_plan)
-            if args.command == "install":
-                RuntimeInstaller(runtime_plan, root=args.root).install()
-            print(json.dumps(runtime_plan.to_dict(), indent=2, sort_keys=True) + "\n", end="")
-            return 0
-        plan = InstallPlan.from_audit(
-            report,
-            proxy_domain=args.proxy_domain,
-            panel_domain=args.panel_domain,
-            route_file=args.route_file,
-        )
-        apply_plan(plan, root=args.root)
-        print(plan.to_json(), end="")
-        return 0
-    except (InstallerConflict, ValueError, OSError, subprocess.SubprocessError) as exc:
-        print(f"BLOCKED: {exc}")
-        return 2
+    return installer_main(argv)
 
 
 if __name__ == "__main__":
