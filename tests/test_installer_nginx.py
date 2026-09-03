@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import hashlib
 import stat
+import re
 import subprocess
 from pathlib import Path
 from typing import Sequence
@@ -13,6 +14,7 @@ from installer.adapters.nginx import (
     NginxAdapter,
     TopologyError,
     parse_effective_nginx,
+    patch_owned_map,
     remove_owned_map_block,
     select_route_target,
 )
@@ -57,9 +59,32 @@ def facts(observation: str = "observed") -> AuditFacts:
 
 
 class RecordingExecutor:
-    def __init__(self, effective: str) -> None:
+    def __init__(self, effective: str, *, root: Path | None = None) -> None:
         self.effective = effective
+        self.root = root
         self.calls: list[tuple[str, ...]] = []
+
+    def _render_effective(self) -> str:
+        if self.root is None:
+            return self.effective
+        marker = re.compile(
+            r"^# configuration file (/[^:\r\n]+):(?:\r?\n|\Z)",
+            re.MULTILINE,
+        )
+        matches = tuple(marker.finditer(self.effective))
+        rendered = self.effective
+        for index in range(len(matches) - 1, -1, -1):
+            match = matches[index]
+            path = self.root / match.group(1).lstrip("/")
+            if not path.is_file():
+                continue
+            end = (
+                matches[index + 1].start()
+                if index + 1 < len(matches)
+                else len(rendered)
+            )
+            rendered = rendered[:match.end()] + path.read_text() + rendered[end:]
+        return rendered
 
     def __call__(
         self,
@@ -71,12 +96,35 @@ class RecordingExecutor:
         del timeout, max_output
         command = tuple(argv)
         self.calls.append(command)
-        stdout = self.effective if command == ("nginx", "-T") else ""
+        stdout = self._render_effective() if command == ("nginx", "-T") else ""
         return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
 
+class FreshExecutor(RecordingExecutor):
+    def __init__(self, effective: str, *, root: Path) -> None:
+        super().__init__(effective)
+        self.generated_root = root
 
-def runner_for(text: str) -> tuple[CommandRunner, RecordingExecutor]:
-    executor = RecordingExecutor(text)
+    def _render_effective(self) -> str:
+        generated = (
+            self.generated_root
+            / "etc/nginx/stream.d/proxy-control.conf"
+        )
+        if not generated.is_file():
+            return self.effective
+        return (
+            self.effective
+            + "# configuration file "
+            + "/etc/nginx/stream.d/proxy-control.conf:\n"
+            + generated.read_text()
+        )
+
+
+def runner_for(
+    text: str,
+    *,
+    root: Path | None = None,
+) -> tuple[CommandRunner, RecordingExecutor]:
+    executor = RecordingExecutor(text, root=root)
     return CommandRunner(executor=executor), executor
 
 
@@ -147,7 +195,7 @@ def test_coexist_owns_exact_marked_block_is_idempotent_and_preserves_adjacent_ro
     root = tmp_path / "root"
     route = materialize_route(root, effective)
     original = route.read_bytes()
-    runner, executor = runner_for(effective)
+    runner, executor = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     action = adapter.plan(config(), facts())[0]
     checkpoint = adapter.prepare(action)
@@ -174,7 +222,7 @@ def test_transaction_engine_allows_adjacent_foreign_route_and_removes_only_owned
     root = tmp_path / "root"
     route = materialize_route(root, effective)
     original = route.read_text()
-    runner, _ = runner_for(effective)
+    runner, _ = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     selected_config = config()
     selected_facts = facts()
@@ -222,7 +270,7 @@ def test_rollback_restores_mode_owner_content_and_symlink_identity(tmp_path: Pat
     before = target.read_bytes()
     before_stat = target.stat()
     link_target = os.readlink(link)
-    runner, _ = runner_for(effective)
+    runner, _ = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     action = adapter.plan(config(), facts())[0]
     checkpoint = adapter.prepare(action)
@@ -257,7 +305,7 @@ def test_validation_failure_restores_exact_bytes_without_reload(tmp_path: Path) 
                 return subprocess.CompletedProcess(tuple(argv), 1, stdout="private", stderr="secret")
             return result
 
-    executor = RejectingExecutor(effective)
+    executor = RejectingExecutor(effective, root=root)
     adapter = NginxAdapter(root=root, runner=CommandRunner(executor=executor))
     action = adapter.plan(config(), facts())[0]
     checkpoint = adapter.prepare(action)
@@ -273,9 +321,14 @@ def test_validation_failure_restores_exact_bytes_without_reload(tmp_path: Path) 
 
 def test_fresh_mode_owns_complete_generated_stream_router(tmp_path: Path) -> None:
     root = tmp_path / "root"
-    runner, executor = runner_for("")
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n"
+    )
+    executor = FreshExecutor(effective, root=root)
+    runner = CommandRunner(executor=executor)
     adapter = NginxAdapter(root=root, runner=runner)
-    action = adapter.plan(config(HostMode.FRESH), facts("unavailable"))[0]
+    action = adapter.plan(config(HostMode.FRESH), facts())[0]
     checkpoint = adapter.prepare(action)
 
     adapter.apply(action, checkpoint)
@@ -285,7 +338,7 @@ def test_fresh_mode_owns_complete_generated_stream_router(tmp_path: Path) -> Non
     assert text.startswith("# BEGIN PROXY-CONTROL GENERATED STREAM ROUTER\n")
     assert "listen 443;" in text
     assert "proxy_pass $proxy_control_backend;" in text
-    assert ("nginx", "-T") not in executor.calls
+    assert ("nginx", "-T") in executor.calls
     adapter.rollback(action, checkpoint)
     assert not generated.exists()
 
@@ -359,7 +412,7 @@ def test_reconcile_apply_replays_validation_reload_and_owns_backup(tmp_path: Pat
     effective = MULTI_MAP.read_text()
     root = tmp_path / "root"
     route = materialize_route(root, effective)
-    runner, executor = runner_for(effective)
+    runner, executor = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     action = adapter.plan(config(), facts())[0]
     prepared = adapter.prepare(action)
@@ -386,7 +439,7 @@ def test_reconcile_rollback_completes_validation_reload_and_backup_cleanup(
     effective = MULTI_MAP.read_text()
     root = tmp_path / "root"
     route = materialize_route(root, effective)
-    runner, executor = runner_for(effective)
+    runner, executor = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     action = adapter.plan(config(), facts())[0]
     applied = adapter.apply(action, adapter.prepare(action))
@@ -417,13 +470,15 @@ def test_verify_and_rollback_fail_when_active_route_target_changes(tmp_path: Pat
     effective = MULTI_MAP.read_text()
     root = tmp_path / "root"
     route = materialize_route(root, effective)
-    runner, executor = runner_for(effective)
+    runner, executor = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     action = adapter.plan(config(), facts())[0]
     applied = adapter.apply(action, adapter.prepare(action))
-    executor.effective = effective.replace(
-        'proxy_pass "$proxy_control_backend";',
-        "proxy_pass $unused_backend;",
+    route.write_text(
+        route.read_text().replace(
+            'proxy_pass "$proxy_control_backend";',
+            "proxy_pass $unused_backend;",
+        )
     )
     before = route.read_bytes()
 
@@ -437,7 +492,7 @@ def test_symlink_identity_drift_is_rejected_before_verify_or_rollback(tmp_path: 
     effective = MULTI_MAP.read_text()
     root = tmp_path / "root"
     link = materialize_route(root, effective, symlink=True)
-    runner, _ = runner_for(effective)
+    runner, _ = runner_for(effective, root=root)
     adapter = NginxAdapter(root=root, runner=runner)
     action = adapter.plan(config(), facts())[0]
     applied = adapter.apply(action, adapter.prepare(action))
@@ -477,8 +532,191 @@ def test_fresh_parent_symlink_escape_is_rejected(tmp_path: Path) -> None:
     outside.mkdir()
     (root / "etc/nginx").mkdir(parents=True)
     (root / "etc/nginx/stream.d").symlink_to(outside, target_is_directory=True)
-    runner, _ = runner_for("")
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n"
+    )
+    runner, _ = runner_for(effective)
     adapter = NginxAdapter(root=root, runner=runner)
     with pytest.raises(TopologyError, match="escapes"):
-        adapter.plan(config(HostMode.FRESH), facts("unavailable"))
+        adapter.plan(config(HostMode.FRESH), facts())
     assert list(outside.iterdir()) == []
+
+def test_balanced_source_marker_must_match_named_file_bytes(
+    tmp_path: Path,
+) -> None:
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    before = route.read_bytes()
+    spoofed = effective.replace(
+        '"vpn.example.com" "127.0.0.1:10443";',
+        '"spoof.example.com" "127.0.0.1:10443";',
+    )
+    runner, _ = runner_for(spoofed)
+
+    with pytest.raises(TopologyError, match="source marker"):
+        NginxAdapter(root=root, runner=runner).plan(config(), facts())
+    assert route.read_bytes() == before
+
+
+def test_fresh_requires_included_path_and_proves_post_write_active_route(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    effective = """# configuration file /etc/nginx/nginx.conf:
+events {}
+stream { include /etc/nginx/stream.d/*.conf; }
+"""
+
+    executor = FreshExecutor(effective, root=root)
+    adapter = NginxAdapter(
+        root=root,
+        runner=CommandRunner(executor=executor),
+    )
+    observed = AuditFacts(
+        topology={
+            "nginx": {
+                "observation": "observed",
+                "route_target": None,
+                "stream_enabled": True,
+            }
+        }
+    )
+    action = adapter.plan(config(HostMode.FRESH), observed)[0]
+    checkpoint = adapter.prepare(action)
+
+    adapter.apply(action, checkpoint)
+
+    assert executor.calls[-3:] == [
+        ("nginx", "-T"),
+        ("nginx", "-t"),
+        ("systemctl", "reload", "nginx"),
+    ]
+    assert adapter.verify(action).success is True
+
+def test_fresh_restores_file_when_generated_route_is_not_effective(
+    tmp_path: Path,
+) -> None:
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n"
+    )
+    runner, executor = runner_for(effective)
+    adapter = NginxAdapter(root=tmp_path, runner=runner)
+    action = adapter.plan(config(HostMode.FRESH), facts())[0]
+    checkpoint = adapter.prepare(action)
+
+    with pytest.raises(TopologyError, match="active 443 path"):
+        adapter.apply(action, checkpoint)
+
+    generated = tmp_path / "etc/nginx/stream.d/proxy-control.conf"
+    assert not generated.exists()
+    assert ("nginx", "-t") not in executor.calls
+
+
+@pytest.mark.parametrize(
+    ("observation", "effective"),
+    [
+        ("unavailable", ""),
+        (
+            "observed",
+            "# configuration file /etc/nginx/nginx.conf:\n"
+            "events {}\nstream {}\n",
+        ),
+    ],
+)
+def test_fresh_rejects_unproven_or_ignored_generated_path(
+    tmp_path: Path,
+    observation: str,
+    effective: str,
+) -> None:
+    runner, _ = runner_for(effective)
+    observed = AuditFacts(
+        topology={
+            "nginx": {
+                "observation": observation,
+                "route_target": None,
+                "stream_enabled": observation == "observed",
+            }
+        }
+    )
+    with pytest.raises(TopologyError, match="included"):
+        NginxAdapter(root=tmp_path, runner=runner).plan(
+            config(HostMode.FRESH),
+            observed,
+        )
+
+
+def test_embedded_source_marker_cannot_redirect_selected_mutation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    real = root / "etc/nginx/nginx.conf"
+    decoy = root / "tmp/decoy.conf"
+    real.parent.mkdir(parents=True)
+    decoy.parent.mkdir(parents=True)
+    real.write_text(
+        "events {}\nstream {\n"
+        "map $ssl_preread_server_name $backend { default 127.0.0.1:8443; }\n"
+        "server { listen 443; ssl_preread on; proxy_pass $backend; }\n"
+        "}\n"
+    )
+    decoy.write_text(
+        "map $ssl_preread_server_name $backend { default 127.0.0.1:8443; }\n"
+    )
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream {\n"
+        "# configuration file /tmp/decoy.conf:\n"
+        "map $ssl_preread_server_name $backend { default 127.0.0.1:8443; }\n"
+        "server { listen 443; ssl_preread on; proxy_pass $backend; }\n"
+        "}\n"
+    )
+    runner, _ = runner_for(effective)
+    before = decoy.read_bytes()
+
+    with pytest.raises(TopologyError, match="source marker"):
+        NginxAdapter(root=root, runner=runner).plan(config(), facts())
+    assert decoy.read_bytes() == before
+
+
+def test_stream_globs_are_segment_aware_and_relative_to_nginx_prefix() -> None:
+    effective = """# configuration file /etc/nginx/nginx.conf:
+events {}
+stream { include stream.d/*.conf; }
+http { include /etc/nginx/stream.d/nested/*.conf; }
+# configuration file /etc/nginx/stream.d/routes.conf:
+map $ssl_preread_server_name $stream_backend { default 127.0.0.1:8443; }
+server { listen 443; ssl_preread on; proxy_pass $stream_backend; }
+# configuration file /etc/nginx/stream.d/nested/http.conf:
+map $host $http_backend { default 127.0.0.1:9000; }
+server { listen 443 ssl; }
+"""
+    topology = parse_effective_nginx(effective)
+
+    assert len(topology.maps) == 1
+    assert len(topology.servers) == 1
+    assert select_route_target(topology).variable == "$stream_backend"
+
+
+def test_patch_targets_sni_map_when_http_map_shares_destination_variable() -> None:
+    text = """http {
+map $host $backend { default 127.0.0.1:9000; }
+}
+stream {
+map $ssl_preread_server_name $backend { default 127.0.0.1:8443; }
+server { listen 443; ssl_preread on; proxy_pass $backend; }
+}
+"""
+    changed = patch_owned_map(
+        text,
+        variable="$backend",
+        routes=(("mt.example.com", "127.0.0.1:8445"),),
+        ownership_id="selected",
+    )
+
+    http, stream = changed.split("stream {", 1)
+    assert "# BEGIN PROXY-CONTROL ROUTES" not in http
+    assert "# BEGIN PROXY-CONTROL ROUTES selected" in stream

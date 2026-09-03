@@ -7,7 +7,7 @@ import re
 import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from installer.model import HostMode, InstallerConfig
@@ -25,6 +25,10 @@ GENERATED_END = "# END PROXY-CONTROL GENERATED STREAM ROUTER"
 _DEFAULT_FRESH_PATH = "/etc/nginx/stream.d/proxy-control.conf"
 _VARIABLE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*\Z")
 _SOURCE_MARKER = re.compile(r"# configuration file (/[^:\r\n]+):(?:\r?\n|\Z)")
+_SOURCE_SECTION_MARKER = re.compile(
+    r"^# configuration file (/[^:\r\n]+):(?:\r?\n|\Z)",
+    re.MULTILINE,
+)
 
 
 class TopologyError(RuntimeError):
@@ -61,6 +65,7 @@ class NginxTopology:
     maps: tuple[NginxMap, ...]
     servers: tuple[StreamServer, ...]
     stream_enabled: bool
+    stream_includes: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -84,14 +89,24 @@ def parse_effective_nginx(text: str) -> NginxTopology:
     if not isinstance(text, str):
         raise TypeError("effective Nginx configuration must be text")
     tokens = _tokenize(text)
-    ranges, included_sources = _stream_context(tokens)
+    ranges, included_sources, include_patterns = _stream_context(tokens)
 
     def accepted(index: int) -> bool:
         return any(start <= index < end for start, end in ranges) or (
             tokens[index].source_file in included_sources
         )
 
-    return _parse_tokens(tokens, accepted=accepted, stream_enabled=bool(ranges))
+    parsed = _parse_tokens(
+        tokens,
+        accepted=accepted,
+        stream_enabled=bool(ranges),
+    )
+    return NginxTopology(
+        parsed.maps,
+        parsed.servers,
+        parsed.stream_enabled,
+        include_patterns,
+    )
 
 
 def _parse_file_nginx(text: str) -> NginxTopology:
@@ -133,14 +148,19 @@ def _parse_tokens(
             servers.append(server)
             continue
         index += 1
-    return NginxTopology(tuple(maps), tuple(servers), stream_enabled)
+    return NginxTopology(tuple(maps), tuple(servers), stream_enabled, ())
 
 
 def _stream_context(
     tokens: tuple[_Token, ...],
-) -> tuple[tuple[tuple[int, int], ...], frozenset[str]]:
+) -> tuple[
+    tuple[tuple[int, int], ...],
+    frozenset[str],
+    tuple[str, ...],
+]:
     ranges: list[tuple[int, int]] = []
     patterns: set[str] = set()
+    prefix = _nginx_prefix(tokens)
     for index, token in enumerate(tokens[:-1]):
         if token.value != "stream" or tokens[index + 1].value != "{":
             continue
@@ -153,7 +173,7 @@ def _stream_context(
                 and cursor + 2 < close
                 and tokens[cursor + 2].value == ";"
             ):
-                patterns.add(tokens[cursor + 1].value)
+                patterns.add(_resolve_include(tokens[cursor + 1].value, prefix))
                 cursor += 3
                 continue
             cursor += 1
@@ -167,7 +187,7 @@ def _stream_context(
         expanded = {
             source
             for source in sources
-            if any(fnmatch.fnmatchcase(source, pattern) for pattern in patterns)
+            if any(_glob_path_matches(source, pattern) for pattern in patterns)
         }
         new_sources = expanded - included
         if not new_sources:
@@ -181,8 +201,45 @@ def _stream_context(
                 and token.value == "include"
                 and tokens[index + 2].value == ";"
             ):
-                patterns.add(tokens[index + 1].value)
-    return tuple(ranges), frozenset(included)
+                patterns.add(_resolve_include(tokens[index + 1].value, prefix))
+    return tuple(ranges), frozenset(included), tuple(sorted(patterns))
+
+
+def _nginx_prefix(tokens: tuple[_Token, ...]) -> str:
+    for token in tokens:
+        if token.source_file.endswith("/nginx.conf"):
+            return str(PurePosixPath(token.source_file).parent)
+    return "/etc/nginx"
+
+
+def _resolve_include(pattern: str, prefix: str) -> str:
+    combined = (
+        PurePosixPath(pattern)
+        if pattern.startswith("/")
+        else PurePosixPath(prefix) / pattern
+    )
+    parts: list[str] = []
+    for part in combined.parts:
+        if part in {"", "/"}:
+            continue
+        if part == ".":
+            continue
+        if part == "..":
+            if not parts:
+                raise TopologyError("Nginx include escapes its prefix")
+            parts.pop()
+            continue
+        parts.append(part)
+    return "/" + "/".join(parts)
+
+
+def _glob_path_matches(path: str, pattern: str) -> bool:
+    path_parts = PurePosixPath(path).parts
+    pattern_parts = PurePosixPath(pattern).parts
+    return len(path_parts) == len(pattern_parts) and all(
+        fnmatch.fnmatchcase(path_part, pattern_part)
+        for path_part, pattern_part in zip(path_parts, pattern_parts, strict=True)
+    )
 
 
 def select_route_target(topology: NginxTopology, listener_port: int = 443) -> RouteTarget:
@@ -263,7 +320,12 @@ def patch_owned_map(
 ) -> str:
     """Insert or verify one exact owned block in a selected map destination."""
     topology = _parse_file_nginx(text)
-    matches = [mapping for mapping in topology.maps if mapping.variable == variable]
+    matches = [
+        mapping
+        for mapping in topology.maps
+        if mapping.variable == variable
+        and mapping.source_variable == "$ssl_preread_server_name"
+    ]
     if len(matches) != 1:
         raise TopologyError("selected route file does not contain exactly one effective map")
     mapping = matches[0]
@@ -378,12 +440,23 @@ class NginxAdapter:
             if domain in known_domains:
                 raise TopologyError(f"domain already routed: {domain}")
         if config.host_mode is HostMode.FRESH:
-            if observation not in {"observed", "unavailable"}:
-                raise TopologyError("Nginx observation is invalid")
-            if nginx.get("stream_enabled") is True or isinstance(
-                nginx.get("route_target"), Mapping
+            if observation != "observed":
+                raise TopologyError(
+                    "fresh router path is not proven included by Nginx"
+                )
+            effective = self.runner.capture(("nginx", "-T"))
+            topology = parse_effective_nginx(effective)
+            if any(443 in server.listener_ports for server in topology.servers):
+                raise TopologyError(
+                    "fresh mode cannot replace an active stream router"
+                )
+            if not any(
+                _glob_path_matches(self.fresh_path, pattern)
+                for pattern in topology.stream_includes
             ):
-                raise TopologyError("fresh mode cannot replace an active stream router")
+                raise TopologyError(
+                    "fresh router path is not included by the stream context"
+                )
             mode = "fresh"
             target_path = self.fresh_path
             variable = "$proxy_control_backend"
@@ -392,6 +465,7 @@ class NginxAdapter:
                 raise TopologyError("Nginx is unavailable in coexist mode")
             effective = self.runner.capture(("nginx", "-T"))
             target = select_route_target(parse_effective_nginx(effective))
+            self._authenticate_source(effective, target.source_file)
             mode = "coexist"
             target_path = _safe_host_path(target.source_file)
             variable = target.variable
@@ -478,12 +552,11 @@ class NginxAdapter:
             owner=(int(identity["uid"]), int(identity["gid"])),
         )
         try:
-            if specification["mode"] == "coexist":
-                self._assert_active_route(
-                    action,
-                    specification,
-                    require_owned=True,
-                )
+            self._assert_active_route(
+                action,
+                specification,
+                require_owned=True,
+            )
             self._run_checked(("nginx", "-t"), "nginx configuration test failed")
             self._run_checked(
                 ("systemctl", "reload", "nginx"),
@@ -521,13 +594,11 @@ class NginxAdapter:
                     action.id,
                 )
             if recognized:
-                self._validate_planned_path(specification, allow_created=True)
-                if specification["mode"] == "coexist":
-                    self._assert_active_route(
-                        action,
-                        specification,
-                        require_owned=True,
-                    )
+                self._assert_active_route(
+                    action,
+                    specification,
+                    require_owned=True,
+                )
                 backup = self._backup_path(action, identity)
                 if bool(identity["exists"]) and (
                     not backup.is_file()
@@ -557,12 +628,12 @@ class NginxAdapter:
                 specification,
                 allow_created=True,
             )
+            self._assert_active_route(
+                action,
+                specification,
+                require_owned=True,
+            )
             if specification["mode"] == "coexist":
-                self._assert_active_route(
-                    action,
-                    specification,
-                    require_owned=True,
-                )
                 success = _owned_block_in_selected_map(
                     path.read_bytes(),
                     specification,
@@ -597,16 +668,16 @@ class NginxAdapter:
         identity = _checkpoint_identity(checkpoint, specification)
         path = self._validate_planned_path(specification, allow_created=True)
         current = path.read_bytes()
+        self._assert_active_route(
+            action,
+            specification,
+            require_owned=True,
+        )
         if specification["mode"] == "fresh":
             if current != _render_fresh(specification):
                 raise TopologyError("owned route file has drifted")
             durable_remove(path, missing_ok=True)
         else:
-            self._assert_active_route(
-                action,
-                specification,
-                require_owned=True,
-            )
             restored = remove_owned_map_block(
                 current,
                 routes=specification["routes"],
@@ -725,9 +796,9 @@ class NginxAdapter:
         require_owned: bool,
     ) -> None:
         try:
-            target = select_route_target(
-                parse_effective_nginx(self.runner.capture(("nginx", "-T")))
-            )
+            effective = self.runner.capture(("nginx", "-T"))
+            target = select_route_target(parse_effective_nginx(effective))
+            self._authenticate_source(effective, target.source_file)
         except Exception:
             raise TopologyError(
                 "owned route is not on the active 443 path"
@@ -741,13 +812,45 @@ class NginxAdapter:
             specification,
             allow_created=True,
         )
-        owned = _owned_block_in_selected_map(
-            path.read_bytes(),
-            specification,
-            action.id,
-        )
+        if specification["mode"] == "fresh":
+            owned = path.read_bytes() == _render_fresh(specification)
+        else:
+            owned = _owned_block_in_selected_map(
+                path.read_bytes(),
+                specification,
+                action.id,
+            )
         if require_owned and not owned:
             raise TopologyError("owned route is not on the active 443 path")
+
+    def _authenticate_source(self, effective: str, source_file: str) -> None:
+        sections = _effective_source_sections(effective).get(source_file, ())
+        if len(sections) != 1:
+            raise TopologyError(
+                "effective Nginx source marker is not authenticated"
+            )
+        path = self._root_path(_safe_host_path(source_file))
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise TopologyError(
+                "effective Nginx source marker is not authenticated"
+            ) from exc
+        self._assert_contained(resolved)
+        if not resolved.is_file():
+            raise TopologyError(
+                "effective Nginx source marker is not authenticated"
+            )
+        try:
+            content = resolved.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise TopologyError(
+                "effective Nginx source marker is not authenticated"
+            ) from exc
+        if sections[0] != content:
+            raise TopologyError(
+                "effective Nginx source marker is not authenticated"
+            )
 
     def _planned_path_identity(
         self,
@@ -855,15 +958,35 @@ class NginxAdapter:
         )
 
 
+def _effective_source_sections(text: str) -> dict[str, tuple[str, ...]]:
+    markers = tuple(_SOURCE_SECTION_MARKER.finditer(text))
+    sections: dict[str, list[str]] = {}
+    for index, marker in enumerate(markers):
+        end = (
+            markers[index + 1].start()
+            if index + 1 < len(markers)
+            else len(text)
+        )
+        sections.setdefault(marker.group(1), []).append(
+            text[marker.end():end]
+        )
+    return {path: tuple(contents) for path, contents in sections.items()}
+
+
 def _tokenize(text: str) -> tuple[_Token, ...]:
     tokens: list[_Token] = []
     source_file = "<effective>"
     index = 0
     line_start = True
+    brace_depth = 0
     while index < len(text):
         if line_start and text.startswith("# configuration file ", index):
             marker = _SOURCE_MARKER.match(text, index)
             if marker is not None:
+                if brace_depth != 0:
+                    raise TopologyError(
+                        "Nginx source marker is embedded within a configuration block"
+                    )
                 source_file = marker.group(1)
                 index = marker.end()
                 line_start = True
@@ -883,6 +1006,12 @@ def _tokenize(text: str) -> tuple[_Token, ...]:
             continue
         line_start = False
         if character in "{};":
+            if character == "{":
+                brace_depth += 1
+            elif character == "}":
+                brace_depth -= 1
+                if brace_depth < 0:
+                    raise TopologyError("unbalanced Nginx configuration block")
             tokens.append(_Token(character, source_file, index, index + 1))
             index += 1
             continue
@@ -910,6 +1039,8 @@ def _tokenize(text: str) -> tuple[_Token, ...]:
         while index < len(text) and text[index] not in " \t\r\n{};#'\"":
             index += 1
         tokens.append(_Token(text[start:index], source_file, start, index))
+    if brace_depth != 0:
+        raise TopologyError("unbalanced Nginx configuration block")
     return tuple(tokens)
 
 
