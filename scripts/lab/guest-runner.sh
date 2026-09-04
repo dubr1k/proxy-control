@@ -4,6 +4,8 @@ set -Eeuo pipefail
 
 MODE=${1:-smoke}
 EXPECTED_ARCHIVE_SHA=${2:-}
+shift 2 2>/dev/null || true
+SCENARIO_FILTER=("$@")
 ROOT=/tmp/mtproxy-source
 FIXTURE=/tmp/proxyctl-host
 PROXY=proxy.lab.test
@@ -11,7 +13,23 @@ PANEL=panel.lab.test
 ROUTE=/etc/nginx/stream.d/routes.conf
 RESULTS_FAILED=0
 BASELINE=/tmp/lab-baseline.sha256
+RELEASE=/tmp/proxy-control-release.tar.gz
+RELEASE_SHA=/tmp/proxy-control-release.sha256
+RELEASE_ROOT=/tmp/proxy-control-release
+CONFIG=/tmp/lab-install.toml
+CREDENTIALS=/tmp/lab-credentials
+CLIENT_RESULTS=/tmp/lab-client-results
+FOREIGN_BASELINE=/tmp/lab-foreign.sha256
 declare -A CASE_STATUS=()
+
+selected() {
+  local name=$1 candidate
+  ((${#SCENARIO_FILTER[@]})) || return 0
+  for candidate in "${SCENARIO_FILTER[@]}"; do
+    [[ $candidate == "$name" ]] && return 0
+  done
+  return 1
+}
 
 emit() {
   local name=$1 status=$2 started=$3 message=${4:-}
@@ -31,6 +49,7 @@ PY
 case_run() {
   local name=$1 function=$2 started log rc message prerequisite
   shift 2
+  selected "$name" || return 0
   started=$(python3 -c 'import time; print(time.time())')
   for prerequisite in "$@"; do
     if [[ ${CASE_STATUS[$prerequisite]:-missing} != passed ]]; then
@@ -351,6 +370,258 @@ full_secrets_scan() {
   test "$(stat -c %a /opt/mtproxy-shared443/secrets 2>/dev/null || echo 700)" = 700
 }
 
+
+# ----------------------------------------------------------------------
+# release mode: drive the typed installer from an exact release archive
+# ----------------------------------------------------------------------
+
+installer_cmd() {
+  python3 -m installer.cli --root / "$@"
+}
+
+release_setup() {
+  setup_full_host
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get install -y -qq dpkg-dev iproute2 >/dev/null
+  install -d -m 0700 "$CREDENTIALS"
+  install -d -m 0755 "$CLIENT_RESULTS"
+  rm -rf "$RELEASE_ROOT"
+  install -d -m 0755 "$RELEASE_ROOT"
+  tar -xf "$RELEASE" -C "$RELEASE_ROOT"
+  test -f "$RELEASE_ROOT/release/release.json"
+  cat > "$CONFIG" <<TOML
+schema = 1
+host_mode = "fresh"
+profile = "full"
+acme_email = "lab@example.invalid"
+initial_user = "owner"
+
+[domains]
+panel = "$PANEL"
+mtproxy = "$PROXY"
+naive = "naive.lab.test"
+mieru = "mieru.lab.test"
+
+[mieru]
+tcp_ports = [46001]
+udp_ports = [46002]
+
+[three_xui]
+mode = "managed-new"
+panel_domain = "xui.lab.test"
+vless_tcp_domain = "vless.lab.test"
+vless_xhttp_domain = "xhttp.lab.test"
+hysteria_domain = "hy2.lab.test"
+warp = false
+warp_domains = []
+
+[firewall]
+manage_ufw = true
+TOML
+  printf '10.0.2.15 naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' >> /etc/hosts
+}
+
+release_environment_preflight() {
+  local started log script
+  started=$(python3 -c 'import time; print(time.time())')
+  log=$(mktemp)
+  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f add_hosts write_fake_certbot setup_full_host release_setup); release_setup"
+  if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
+    emit environment-preflight passed "$started"
+    rm -f "$log"
+    return 0
+  fi
+  emit environment-preflight failed "$started" "$(tail -n 5 "$log" | tr '\n' ' ')"
+  sed 's/^/environment-preflight: /' "$log" >&2
+  rm -f "$log"
+  return 1
+}
+
+release_artifact_integrity() {
+  # The release archive is the only source of the installer under test.
+  test -s "$RELEASE_SHA"
+  [[ $(sha256sum "$RELEASE" | cut -d' ' -f1) == "$(cat "$RELEASE_SHA")" ]]
+  test -f "$RELEASE_ROOT/install.sh"
+  test -f "$RELEASE_ROOT/installer/cli.py"
+  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['tag'] and d['commit'] and len(d['manifest_sha256'])==64" "$RELEASE_ROOT/release/release.json"
+}
+
+release_audit() {
+  cd "$RELEASE_ROOT"
+  installer_cmd plan --config "$CONFIG" --json >/tmp/plan.json
+  python3 - <<'AUDITPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+facts = plan['audit_facts']
+assert facts['topology']['nginx']['observation'] == 'observed'
+assert 'three_xui' in facts['topology']
+assert facts['prerequisites']['hard_stops'] == []
+AUDITPY
+}
+
+release_plan() {
+  cd "$RELEASE_ROOT"
+  python3 - <<'PLANPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+order = plan['adapter_order']
+assert order[:3] == ['packages', 'nginx', 'certificates'], order
+assert order[-1] == 'three_xui', order
+print("LAB_PLAN_DIGEST\t" + plan['digest'])
+PLANPY
+}
+
+release_install() {
+  cd "$RELEASE_ROOT"
+  local digest
+  digest=$(python3 -c "import json;print(json.load(open('/tmp/plan.json'))['digest'])")
+  run_captured /tmp/install.out installer_cmd install --config "$CONFIG" --accept-plan "$digest"
+  installer_cmd status --json >/tmp/status.json
+  python3 -c "import json;assert json.load(open('/tmp/status.json'))['status']=='active'"
+}
+
+release_fresh_full_xui() {
+  release_install
+  systemctl is-active nginx docker >/dev/null
+  test -d /opt/mtproxy-shared443
+  test "$(stat -c %a /opt/mtproxy-shared443/secrets)" = 700
+  ss -lnt | grep -q ':443 '
+}
+
+release_coexist_existing_xui() {
+  # A foreign 3x-ui must survive an installer run byte-for-byte.
+  bash "$ROOT/tests/lab/fixtures/three-xui-existing.sh" 3.7.0 >/dev/null
+  find /usr/local/x-ui /etc/x-ui -type f -print0 | sort -z | xargs -0 sha256sum > "$FOREIGN_BASELINE"
+  cd "$RELEASE_ROOT"
+  installer_cmd plan --config "$CONFIG" --json >/tmp/plan-coexist.json
+  python3 - <<'COEXISTPY'
+import json
+plan = json.load(open('/tmp/plan-coexist.json'))
+owners = {a['owner'] for a in plan['actions'] if a['adapter'] == 'three_xui'}
+assert owners <= {'nginx.routes.three_xui', 'proxy-control:three-xui'}, owners
+COEXISTPY
+  sha256sum -c "$FOREIGN_BASELINE" >/dev/null
+}
+
+release_nginx_multi_map() {
+  # An ambiguous multi-map topology must be resolved or refused, never guessed.
+  cp "$ROOT/tests/lab/fixtures/nginx-multi-map.conf" /etc/nginx/stream.d/multi-map.conf
+  nginx -t
+  systemctl reload nginx
+  cd "$RELEASE_ROOT"
+  if installer_cmd plan --config "$CONFIG" --json >/tmp/plan-multi.json 2>/tmp/plan-multi.err; then
+    python3 -c "import json;json.load(open('/tmp/plan-multi.json'))"
+  else
+    grep -q 'BLOCKED' /tmp/plan-multi.err
+  fi
+  rm -f /etc/nginx/stream.d/multi-map.conf
+  nginx -t
+  systemctl reload nginx
+}
+
+client_probe() {
+  local service=$1
+  LAB_CREDENTIALS=$CREDENTIALS LAB_RESULTS=$CLIENT_RESULTS docker compose -f "$ROOT/tests/lab/clients/compose.yaml" run --rm "$service"
+}
+
+release_telemt_client() { client_probe telemt; }
+release_naive_client() { client_probe naive; }
+release_mieru_client() { client_probe mieru; }
+release_vless_tcp_client() { client_probe vless-tcp; }
+release_vless_xhttp_client() { client_probe vless-xhttp; }
+release_hysteria_client() { client_probe hysteria2; }
+
+release_repair() {
+  cd "$RELEASE_ROOT"
+  installer_cmd repair --json >/tmp/repair.json
+  python3 -c "import json;assert json.load(open('/tmp/repair.json'))['status']=='active'"
+}
+
+release_idempotence() {
+  cd "$RELEASE_ROOT"
+  local before after digest
+  before=$(sha256sum /var/lib/proxy-control/transaction.json | cut -d' ' -f1)
+  digest=$(python3 -c "import json;print(json.load(open('/tmp/plan.json'))['digest'])")
+  run_captured /tmp/idempotent.out installer_cmd install --config "$CONFIG" --accept-plan "$digest"
+  after=$(sha256sum /var/lib/proxy-control/transaction.json | cut -d' ' -f1)
+  [[ $before == "$after" ]]
+}
+
+release_reboot_recovery() {
+  # A restart of every owned runtime must recover without a second mutation.
+  systemctl restart nginx docker
+  sleep 5
+  release_repair
+}
+
+release_crash_every_phase() {
+  # Interrupt each durable phase, then require resume to finish it exactly once.
+  cd "$RELEASE_ROOT"
+  local phase
+  for phase in prepared applied verified; do
+    python3 - "$phase" <<'CRASHPY'
+import json, sys
+from pathlib import Path
+state = Path('/var/lib/proxy-control/transaction.json')
+document = json.loads(state.read_text())
+document['status'] = 'applying'
+for checkpoint in document.get('checkpoints', []):
+    checkpoint['phase'] = sys.argv[1]
+state.write_text(json.dumps(document))
+CRASHPY
+    installer_cmd resume --json >/tmp/resume-"$phase".json
+    python3 -c "import json,sys;assert json.load(open(sys.argv[1]))['status']=='active'" /tmp/resume-"$phase".json
+  done
+}
+
+release_secrets_scan() {
+  ! grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' /tmp/*.json /tmp/*.out /tmp/*.log 2>/dev/null
+  test "$(stat -c %a /opt/mtproxy-shared443/secrets)" = 700
+  test "$(stat -c %a /etc/mieru-manager/token 2>/dev/null || echo 440)" = 440
+}
+
+release_dns_tls() {
+  python3 - <<'DNSPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+dns = plan['audit_facts']['topology']['dns']
+assert dns, 'no DNS facts were audited'
+for domain, fact in dns.items():
+    assert fact['a_matches_local'], domain
+    assert fact['aaaa_handled'], domain
+    assert fact['caa_compatible'], domain
+DNSPY
+}
+
+release_uninstall() {
+  cd "$RELEASE_ROOT"
+  installer_cmd uninstall --json >/tmp/uninstall.json
+  installer_cmd uninstall --json >/tmp/uninstall-again.json
+  test ! -e /opt/mtproxy-shared443/compose.yaml
+  sha256sum -c "$BASELINE" >/dev/null
+  dpkg-query -W nginx-full docker.io docker-compose-v2 certbot >/dev/null
+}
+
+release_uninstall_foreign_identity() {
+  # A foreign holder of a fixed identity blocks the install instead of being
+  # taken over, and the uninstall never removes an identity it did not create.
+  groupadd --system --gid 10004 foreign-accounting 2>/dev/null || true
+  cd "$RELEASE_ROOT"
+  if installer_cmd plan --config "$CONFIG" --json >/tmp/plan-foreign.json 2>/tmp/plan-foreign.err; then
+    ! grep -q '"adapter": "naive"' /tmp/plan-foreign.json
+  else
+    grep -qi 'collision' /tmp/plan-foreign.err
+  fi
+  getent group 10004 | grep -q foreign-accounting
+  groupdel foreign-accounting
+}
+
+release_coexistence() {
+  sha256sum -c "$BASELINE" >/dev/null
+  sha256sum -c "$FOREIGN_BASELINE" >/dev/null
+  systemctl is-active nginx lab-xray lab-warp lab-3x-ui >/dev/null
+}
+
 if [[ ${GUEST_RUNNER_LIB_ONLY:-0} == 1 ]]; then
   return 0 2>/dev/null || exit 0
 fi
@@ -381,6 +652,35 @@ elif [[ $MODE == full ]]; then
   case_run interrupted-install-recovery interrupt_install_recovery uninstall
   case_run interrupted-uninstall-recovery interrupt_uninstall_recovery interrupted-install-recovery
   case_run coexistence full_coexist interrupted-uninstall-recovery
+elif [[ $MODE == release-amd64 || $MODE == release-arm64 ]]; then
+  if ! release_environment_preflight; then
+    exit "$RESULTS_FAILED"
+  fi
+  CASE_STATUS[environment-preflight]=passed
+  case_run release-artifact-integrity release_artifact_integrity environment-preflight
+  case_run audit release_audit release-artifact-integrity
+  case_run plan release_plan audit
+  case_run fresh-full-xui release_fresh_full_xui plan
+  case_run coexist-existing-xui release_coexist_existing_xui fresh-full-xui
+  case_run nginx-multi-map release_nginx_multi_map fresh-full-xui
+  case_run telemt-official-client release_telemt_client fresh-full-xui
+  case_run naive-official-client release_naive_client fresh-full-xui
+  case_run mieru-official-client release_mieru_client fresh-full-xui
+  case_run vless-tcp-client release_vless_tcp_client fresh-full-xui
+  case_run vless-xhttp-client release_vless_xhttp_client fresh-full-xui
+  case_run hysteria2-client release_hysteria_client fresh-full-xui
+  case_run docker-build docker_build_check fresh-full-xui
+  case_run repair release_repair fresh-full-xui
+  case_run idempotence release_idempotence repair
+  case_run reboot-recovery release_reboot_recovery idempotence
+  case_run crash-every-phase release_crash_every_phase reboot-recovery
+  case_run secrets-scan release_secrets_scan crash-every-phase
+  case_run dns-tls-preflight release_dns_tls plan
+  case_run uninstall release_uninstall crash-every-phase
+  case_run uninstall-foreign-identity release_uninstall_foreign_identity uninstall
+  case_run interrupted-install-recovery interrupt_install_recovery uninstall
+  case_run interrupted-uninstall-recovery interrupt_uninstall_recovery interrupted-install-recovery
+  case_run coexistence release_coexistence interrupted-uninstall-recovery
 else
   printf 'unknown mode: %s\n' "$MODE" >&2
   exit 2

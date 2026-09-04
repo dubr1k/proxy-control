@@ -13,12 +13,42 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 STATE = REPO / ".lab-state"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "mtproxy-installer-lab"
+# Every scenario a release candidate must pass before it may be published.
+RELEASE_SCENARIOS = (
+    "environment-preflight",
+    "release-artifact-integrity",
+    "audit",
+    "plan",
+    "fresh-full-xui",
+    "coexist-existing-xui",
+    "nginx-multi-map",
+    "telemt-official-client",
+    "naive-official-client",
+    "mieru-official-client",
+    "vless-tcp-client",
+    "vless-xhttp-client",
+    "hysteria2-client",
+    "docker-build",
+    "repair",
+    "idempotence",
+    "reboot-recovery",
+    "crash-every-phase",
+    "secrets-scan",
+    "dns-tls-preflight",
+    "uninstall",
+    "uninstall-foreign-identity",
+    "interrupted-install-recovery",
+    "interrupted-uninstall-recovery",
+    "coexistence",
+)
+
 SCENARIOS = {
     "smoke": ("archive-integrity", "audit", "plan", "coexistence", "dns-tls-preflight", "secrets-scan"),
     "full": (
@@ -27,7 +57,75 @@ SCENARIOS = {
         "interrupted-install-recovery", "interrupted-uninstall-recovery",
         "coexistence",
     ),
+    "release-amd64": RELEASE_SCENARIOS,
+    "release-arm64": RELEASE_SCENARIOS,
 }
+RELEASE_MODES = ("release-amd64", "release-arm64")
+
+
+def release_scenarios() -> tuple[str, ...]:
+    """The complete release matrix; a filter never shrinks what a report needs."""
+    return RELEASE_SCENARIOS
+
+
+def mode_architecture(mode: str) -> str:
+    if mode in RELEASE_MODES:
+        return mode.split("-", 1)[1]
+    return "amd64"
+
+
+class ReportValidation:
+    """The verdict for one lab report; a missing result is a failure."""
+
+    __slots__ = ("exit_code", "missing", "failed")
+
+    def __init__(
+        self,
+        exit_code: int,
+        missing: tuple[str, ...] = (),
+        failed: tuple[str, ...] = (),
+    ) -> None:
+        self.exit_code = exit_code
+        self.missing = missing
+        self.failed = failed
+
+    @property
+    def ok(self) -> bool:
+        return self.exit_code == 0
+
+    def __repr__(self) -> str:
+        return (
+            f"ReportValidation(exit_code={self.exit_code}, "
+            f"missing={self.missing}, failed={self.failed})"
+        )
+
+
+def validate_report(report: dict, *, required: Sequence[str] | None = None) -> ReportValidation:
+    """Fail a report that is missing a required scenario, even on exit code 0."""
+    mode = str(report.get("mode", ""))
+    if required is not None:
+        expected = tuple(required)
+    elif report.get("filtered_scenarios"):
+        # A filtered run is explicitly partial and can never stand in for a
+        # full report, so on its own it is only valid against what it declared.
+        expected = tuple(report["filtered_scenarios"])
+    else:
+        expected = SCENARIOS.get(mode, ())
+    results = report.get("results", [])
+    observed = {
+        str(item.get("name")): str(item.get("status"))
+        for item in results
+        if isinstance(item, dict)
+    }
+    missing = tuple(name for name in expected if name not in observed)
+    failed = tuple(
+        name for name, status in sorted(observed.items()) if status != "passed"
+    )
+    return ReportValidation(
+        exit_code=1 if missing or failed else 0,
+        missing=missing,
+        failed=failed,
+    )
 
 
 def allocate_port() -> int:
@@ -97,8 +195,10 @@ def qemu_command(disk: Path, seed: Path, key: Path, port: int, pid: Path, serial
         raise ValueError(f"unsupported mode: {mode}")
     del key  # key is deliberately not attached to the VM; cloud-init gets only its public half.
     restrict = "on" if mode == "smoke" else "off"
+    image = metadata(mode_architecture(mode))
     return [
-        "qemu-system-x86_64", "-accel", "tcg", "-machine", "q35", "-cpu", "max",
+        image["qemu_binary"], "-accel", "tcg",
+        "-machine", image["machine"], "-cpu", image["cpu"],
         "-smp", "2", "-m", "3072", "-display", "none", "-daemonize",
         "-pidfile", str(pid), "-serial", f"file:{serial}",
         "-drive", f"file={disk},if=virtio,format=qcow2,discard=unmap",
@@ -140,8 +240,22 @@ def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(command, check=True, text=True, **kwargs)
 
 
-def metadata() -> dict:
-    return json.loads((HERE / "image.json").read_text())
+def metadata(architecture: str = "amd64") -> dict:
+    """Return one pinned image; an unpinned architecture fails closed."""
+    document = json.loads((HERE / "image.json").read_text())
+    images = document.get("images") if isinstance(document, dict) else None
+    if not isinstance(images, dict) or architecture not in images:
+        raise ValueError(f"no lab image is declared for {architecture}")
+    image = images[architecture]
+    if not isinstance(image.get("sha256"), str) or len(image["sha256"]) != 64:
+        raise ValueError(
+            f"the {architecture} lab image is not pinned; record its official "
+            "SHA-256 from source_checksums before booting it"
+        )
+    for key in ("url", "qemu_binary", "machine", "cpu"):
+        if not isinstance(image.get(key), str) or not image[key]:
+            raise ValueError(f"the {architecture} lab image is missing {key}")
+    return image
 
 
 def sha256(path: Path) -> str:
@@ -152,11 +266,11 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def prepare(force: bool = False) -> None:
+def prepare(force: bool = False, architecture: str = "amd64") -> None:
     STATE.mkdir(mode=0o700, exist_ok=True)
     CACHE.mkdir(mode=0o755, parents=True, exist_ok=True)
-    image = CACHE / "ubuntu-24.04-amd64.img"
-    info = metadata()
+    info = metadata(architecture)
+    image = CACHE / f"ubuntu-24.04-{architecture}.img"
     if not image.exists() or sha256(image) != info["sha256"]:
         image.unlink(missing_ok=True)
         partial = image.with_suffix(".partial")
@@ -245,7 +359,7 @@ def wait_for_readiness(timeout: int | float, probe_timeout: int | float = 10) ->
 def start(mode: str, timeout: int = 900) -> None:
     if mode not in SCENARIOS:
         raise ValueError(f"unsupported mode: {mode}")
-    prepare()
+    prepare(architecture=mode_architecture(mode))
     pid_file = STATE / "qemu.pid"
     mode_file = STATE / "disk-mode"
     if pid_file.exists():
@@ -308,25 +422,37 @@ def _archive() -> tuple[Path, str]:
     return archive, sha256(archive)
 
 
-def guest_remote(mode: str, archive_hash: str) -> str:
+def guest_remote(mode: str, archive_hash: str, only: Sequence[str] = ()) -> str:
+    for name in only:
+        if not re.fullmatch(r"[a-z0-9-]{1,64}", name):
+            raise ValueError(f"unknown scenario filter: {name}")
+    scenarios = " ".join(only)
     return (
         "set -eu; rm -rf /tmp/mtproxy-source; mkdir /tmp/mtproxy-source; "
         "tar -xf /tmp/mtproxy-source.tar -C /tmp/mtproxy-source; "
-        f"sudo bash /tmp/mtproxy-source/scripts/lab/guest-runner.sh {mode} {archive_hash}"
+        f"sudo bash /tmp/mtproxy-source/scripts/lab/guest-runner.sh {mode} "
+        f"{archive_hash} {scenarios}".rstrip()
     )
 
 
-def finalize_results(mode: str, results: list[dict], returncode: int, elapsed: float) -> list[dict]:
+def finalize_results(
+    mode: str,
+    results: list[dict],
+    returncode: int,
+    elapsed: float,
+    *,
+    expected: Sequence[str] | None = None,
+) -> list[dict]:
     if mode not in SCENARIOS:
         raise ValueError(f"unsupported mode: {mode}")
     finalized = list(results)
-    if mode == "full" and returncode != 0 and not finalized:
+    if mode != "smoke" and returncode != 0 and not finalized:
         finalized.append({
             "name": "environment-preflight", "status": "failed", "seconds": elapsed,
             "message": f"guest setup failed before scenarios (exit {returncode})",
         })
     seen = {item["name"] for item in finalized}
-    for name in SCENARIOS[mode]:
+    for name in tuple(expected) if expected is not None else SCENARIOS[mode]:
         if name not in seen:
             finalized.append({"name": name, "status": "failed", "seconds": 0,
                               "message": "result missing (guest runner failed closed)"})
@@ -336,34 +462,97 @@ def finalize_results(mode: str, results: list[dict], returncode: int, elapsed: f
     return finalized
 
 
-def run_scenarios(mode: str, output_dir: Path) -> list[dict]:
+def verify_release_archive(archive: Path, expected_sha256: str) -> str:
+    """Accept only the exact release archive the operator named."""
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256 or ""):
+        raise ValueError("a release run requires the complete archive SHA-256")
+    if archive.is_symlink() or not archive.is_file():
+        raise ValueError("the release archive must be a regular file")
+    actual = sha256(archive)
+    if actual != expected_sha256:
+        raise ValueError("release archive checksum mismatch")
+    return actual
+
+
+def run_scenarios(
+    mode: str,
+    output_dir: Path,
+    *,
+    release_archive: Path | None = None,
+    release_sha256: str | None = None,
+    only: Sequence[str] = (),
+) -> list[dict]:
     if mode not in SCENARIOS:
         raise ValueError(f"unsupported mode: {mode}")
+    release_hash = None
+    if mode in RELEASE_MODES:
+        if release_archive is None or release_sha256 is None:
+            raise ValueError(
+                "a release run requires --release-archive and --release-sha256"
+            )
+        release_hash = verify_release_archive(release_archive, release_sha256)
+    selected = tuple(only)
+    unknown = [name for name in selected if name not in SCENARIOS[mode]]
+    if unknown:
+        raise ValueError(f"unknown scenario filter: {unknown[0]}")
     start(mode)
     archive, archive_hash = _archive()
     remote_archive = "/tmp/mtproxy-source.tar"
     run(["scp", "-q", "-i", str(STATE / "ssh-key"), "-P", str(_state_port()),
          "-o", "StrictHostKeyChecking=no", "-o", f"UserKnownHostsFile={STATE / 'known_hosts'}",
          str(archive), f"lab@127.0.0.1:{remote_archive}"])
-    remote = guest_remote(mode, archive_hash)
+    if release_archive is not None and release_hash is not None:
+        run(["scp", "-q", "-i", str(STATE / "ssh-key"), "-P", str(_state_port()),
+             "-o", "StrictHostKeyChecking=no", "-o", f"UserKnownHostsFile={STATE / 'known_hosts'}",
+             str(release_archive), "lab@127.0.0.1:/tmp/proxy-control-release.tar.gz"])
+        digest_file = STATE / "release.sha256"
+        digest_file.write_text(release_hash + "\n")
+        run(["scp", "-q", "-i", str(STATE / "ssh-key"), "-P", str(_state_port()),
+             "-o", "StrictHostKeyChecking=no", "-o", f"UserKnownHostsFile={STATE / 'known_hosts'}",
+             str(digest_file), "lab@127.0.0.1:/tmp/proxy-control-release.sha256"])
+    remote = guest_remote(mode, archive_hash, selected)
     started = time.monotonic()
     completed = subprocess.run(ssh_command(remote), capture_output=True, text=True)
     elapsed = time.monotonic() - started
     log = sanitize(completed.stdout + completed.stderr)
     results = []
+    plan_digest = None
     for line in completed.stdout.splitlines():
+        if line.startswith("LAB_PLAN_DIGEST\t"):
+            candidate = line.split("\t", 1)[1].strip()
+            if re.fullmatch(r"[0-9a-f]{64}", candidate):
+                plan_digest = candidate
+            continue
         if not line.startswith("LAB_RESULT\t"):
             continue
         _prefix, name, status, seconds, message = (line.split("\t", 4) + [""])[:5]
         results.append({"name": name, "status": status, "seconds": float(seconds), "message": sanitize(message)})
-    results = finalize_results(mode, results, completed.returncode, elapsed)
+    results = finalize_results(
+        mode,
+        results,
+        completed.returncode,
+        elapsed,
+        expected=selected or None,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
-    payload = {"schema": 1, "mode": mode, "image": metadata(), "archive_sha256": archive_hash,
-               "elapsed_seconds": round(elapsed, 3), "results": results}
+    payload = {
+        "schema": 2,
+        "mode": mode,
+        "architecture": mode_architecture(mode),
+        "image": metadata(mode_architecture(mode)),
+        "archive_sha256": archive_hash,
+        "release_sha256": release_hash,
+        "plan_digest": plan_digest,
+        "elapsed_seconds": round(elapsed, 3),
+        "results": results,
+    }
+    if selected:
+        payload["filtered_scenarios"] = list(selected)
     (output_dir / "report.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     (output_dir / "report.xml").write_text(junit_xml(results))
     (output_dir / "guest.log").write_text(log)
-    if completed.returncode or any(item["status"] != "passed" for item in results):
+    verdict = validate_report(payload)
+    if completed.returncode or not verdict.ok:
         raise RuntimeError(f"{mode} lab failed; see {output_dir}")
     return results
 
@@ -387,6 +576,14 @@ def main(argv: list[str] | None = None) -> int:
     run_parser = sub.add_parser("run")
     run_parser.add_argument("--mode", choices=sorted(SCENARIOS), default="smoke")
     run_parser.add_argument("--output", type=Path, default=REPO / "lab-results")
+    run_parser.add_argument("--release-archive", type=Path)
+    run_parser.add_argument("--release-sha256")
+    run_parser.add_argument(
+        "--scenario",
+        action="append",
+        default=[],
+        help="run only these scenarios; a filtered report never counts as a full one",
+    )
     cleanup_parser = sub.add_parser("cleanup")
     cleanup_parser.add_argument("--purge-cache", action="store_true")
     args = parser.parse_args(argv)
@@ -400,7 +597,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "reset":
             reset()
         elif args.command == "run":
-            run_scenarios(args.mode, args.output)
+            run_scenarios(
+                args.mode,
+                args.output,
+                release_archive=args.release_archive,
+                release_sha256=args.release_sha256,
+                only=tuple(args.scenario),
+            )
         elif args.command == "cleanup":
             cleanup(args.purge_cache)
         return 0

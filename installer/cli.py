@@ -13,11 +13,15 @@ from typing import Protocol, TextIO
 from installer.config import ConfigError, load_config
 from installer.i18n import Locale, parse_locale, text
 from installer.model import InstallerConfig
+from installer.audit import CommandRunner, audit_host
 from installer.planner import (
     AuditFacts,
     Evidence,
     InstallPlan,
     PlanError,
+    ReleaseIdentity,
+    adapters_for,
+    build_plan,
     compose_file_list,
 )
 from installer.report import AcceptanceReport, ReportWriter
@@ -109,16 +113,53 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _default_services(root: Path) -> CliServices:
+def release_identity(source_dir: Path) -> ReleaseIdentity:
+    """Read the identity the release builder stamped into this tree."""
+    path = source_dir / "release" / "release.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise CliError(
+            "this tree carries no release identity; install from a built release"
+        ) from exc
+    try:
+        return ReleaseIdentity(
+            tag=str(document["tag"]),
+            commit=str(document["commit"]),
+            manifest_sha256=str(document["manifest_sha256"]),
+            components={
+                str(key): str(value)
+                for key, value in document.get("components", {}).items()
+            },
+            artifacts={
+                str(key): str(value)
+                for key, value in document.get("artifacts", {}).items()
+            },
+        )
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise CliError("the release identity is incomplete") from exc
+
+
+def _default_services(root: Path, source_dir: Path | None = None) -> CliServices:
     store = TransactionStore(root)
+    tree = source_dir or Path(__file__).resolve().parents[1]
+
     engine = TransactionEngine(store, {})
 
-    def unavailable_plan(_config: InstallerConfig, _facts: AuditFacts) -> InstallPlan:
-        raise CliError("profile adapters and release identity are not composed")
+    def audit(config: InstallerConfig | None) -> AuditFacts:
+        if config is None:
+            return AuditFacts()
+        return audit_host(config, CommandRunner())
+
+    def plan(config: InstallerConfig, facts: AuditFacts) -> InstallPlan:
+        adapters = adapters_for(config)
+        # The engine executes exactly the adapters this plan names.
+        engine.adapters.update({adapter.name: adapter for adapter in adapters})
+        return build_plan(config, facts, adapters, release_identity(tree))
 
     return CliServices(
-        audit=lambda _config: AuditFacts(),
-        plan=unavailable_plan,
+        audit=audit,
+        plan=plan,
         engine=engine,
         store=store,
         wizard=lambda io, locale, output: TerminalWizard(
