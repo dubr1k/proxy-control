@@ -71,6 +71,32 @@ class FirewallAdapter:
             self.ssh_ports = None
         self.runner = runner
 
+    def _authoritative_ipv6_enabled(self) -> bool:
+        from installer.audit import (
+            UFW_IPV6_CONFIG_COMMAND,
+            parse_ufw_ipv6_config,
+        )
+
+        try:
+            result = self.runner.run(UFW_IPV6_CONFIG_COMMAND)
+            if result.returncode != 0:
+                raise FirewallError("UFW IPv6 state is unknown")
+            observed = parse_ufw_ipv6_config(result.stdout)
+        except FirewallError:
+            raise
+        except Exception:
+            raise FirewallError("UFW IPv6 state is unknown") from None
+        if observed is None:
+            raise FirewallError("UFW IPv6 state is unknown")
+        return observed
+
+    def _assert_ipv6_mode(self, expected: bool) -> bool:
+        observed = self._authoritative_ipv6_enabled()
+        if observed is not expected:
+            raise FirewallError("UFW IPv6 configuration changed after audit")
+        return observed
+
+
     def plan(self, config: InstallerConfig, facts: AuditFacts) -> tuple[Action, ...]:
         if config.host_mode is not HostMode.FRESH or not config.firewall.manage_ufw:
             return ()
@@ -78,8 +104,9 @@ class FirewallAdapter:
             raise FirewallError("host audit contains blocking findings")
         self._validate_ownership(facts)
         ssh_port = self._ssh_port(facts)
-        rules = self._status()
         ipv6_enabled = _ipv6_enabled(facts)
+        self._assert_ipv6_mode(ipv6_enabled)
+        rules = self._status()
         _assert_ssh_preserved(rules, ssh_port, ipv6_enabled)
         desired = _selected_ports(config)
         return (
@@ -104,8 +131,10 @@ class FirewallAdapter:
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         desired = _action_rules(action)
+        ipv6_enabled = self._assert_ipv6_mode(
+            _action_ipv6_enabled(action)
+        )
         rules = self._status()
-        ipv6_enabled = _action_ipv6_enabled(action)
         _assert_ssh_preserved(rules, _action_ssh_port(action), ipv6_enabled)
         preexisting = tuple(
             key
@@ -126,12 +155,14 @@ class FirewallAdapter:
         checkpoint: Mapping[str, object],
     ) -> Mapping[str, object]:
         desired = _action_rules(action)
+        ipv6_enabled = self._assert_ipv6_mode(
+            _action_ipv6_enabled(action)
+        )
         initial, preexisting, recorded_added = _firewall_checkpoint(
             checkpoint,
             desired,
         )
         current = self._status()
-        ipv6_enabled = _action_ipv6_enabled(action)
         _assert_foreign_preserved(initial, current)
         _assert_ssh_preserved(
             current,
@@ -199,12 +230,14 @@ class FirewallAdapter:
         checkpoint: Mapping[str, object],
     ) -> Mapping[str, object]:
         desired = _action_rules(action)
+        ipv6_enabled = self._assert_ipv6_mode(
+            _action_ipv6_enabled(action)
+        )
         initial, preexisting, installer_added = _firewall_checkpoint(
             checkpoint,
             desired,
         )
         current = self._status()
-        ipv6_enabled = _action_ipv6_enabled(action)
         _assert_foreign_preserved(initial, current)
         _assert_owned_rules_recognized(current)
         _assert_ssh_preserved(
@@ -252,14 +285,15 @@ class FirewallAdapter:
             "installer_added": installer_added,
             "owner": action.owner,
             "ownership": {},
-            "preexisting": preexisting,
         }
 
     def verify(self, action: Action) -> Evidence:
         desired = _action_rules(action)
         try:
+            ipv6_enabled = self._assert_ipv6_mode(
+                _action_ipv6_enabled(action)
+            )
             current = self._status()
-            ipv6_enabled = _action_ipv6_enabled(action)
             _assert_owned_rules_recognized(current)
             _assert_ssh_preserved(
                 current,
@@ -295,6 +329,7 @@ class FirewallAdapter:
         if rollback_target not in {"rolled_back", "uninstalled"}:
             raise ValueError("invalid rollback target")
         desired = _action_rules(action)
+        self._assert_ipv6_mode(_action_ipv6_enabled(action))
         initial, _preexisting, installer_added = _firewall_checkpoint(
             checkpoint,
             desired,
@@ -345,6 +380,7 @@ class FirewallAdapter:
         rollback_target: str = "rolled_back",
     ) -> Evidence:
         desired = _action_rules(action)
+        self._assert_ipv6_mode(_action_ipv6_enabled(action))
         initial, preexisting, installer_added = _firewall_checkpoint(
             checkpoint,
             desired,

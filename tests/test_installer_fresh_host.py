@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 import pytest
+from installer.audit import UFW_IPV6_CONFIG_COMMAND
 
 from installer.adapters.firewall import FirewallAdapter, FirewallError, parse_ufw_status
 from installer.adapters.nginx import CertificatePlan, TopologyError
@@ -1001,6 +1002,13 @@ class UfwRunner:
     def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
         command = tuple(argv)
         self.calls.append(command)
+        if command == UFW_IPV6_CONFIG_COMMAND:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                f"IPV6={'yes' if self.ipv6_enabled else 'no'}\n",
+                "",
+            )
         if command == ("ufw", "status", "numbered"):
             return subprocess.CompletedProcess(
                 command,
@@ -1131,6 +1139,37 @@ def test_firewall_refuses_unknown_authoritative_ufw_ipv6_mode() -> None:
 
     with pytest.raises(FirewallError, match="IPv6 state is unknown"):
         adapter.plan(config(), facts)
+
+
+def test_firewall_apply_refuses_authoritative_ipv6_drift_after_prepare() -> None:
+    runner = UfwRunner(["22/tcp ALLOW IN Anywhere # operator:ssh"])
+    adapter = FirewallAdapter(runner=runner, ssh_ports={22})
+    action = adapter.plan(config(), firewall_facts())[0]
+    prepared = adapter.prepare(action)
+    runner.ipv6_enabled = True
+
+    with pytest.raises(FirewallError, match="configuration changed"):
+        adapter.apply(action, prepared)
+
+    assert not any(rule.startswith("80/tcp") for rule in runner.rules)
+
+
+def test_firewall_lifecycle_refuses_authoritative_ipv6_drift() -> None:
+    runner = UfwRunner(["22/tcp ALLOW IN Anywhere # operator:ssh"])
+    adapter = FirewallAdapter(runner=runner, ssh_ports={22})
+    action = adapter.plan(config(), firewall_facts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+    owned = "80/tcp ALLOW IN Anywhere # proxy-control:firewall:tcp:80"
+    assert owned in runner.rules
+    runner.ipv6_enabled = True
+
+    assert adapter.verify(action).success is False
+    with pytest.raises(FirewallError, match="configuration changed"):
+        adapter.repair(action, applied)
+    with pytest.raises(FirewallError, match="configuration changed"):
+        adapter.rollback(action, applied)
+
+    assert owned in runner.rules
 
 def test_firewall_accepts_explicit_audited_ssh_socket_port() -> None:
     runner = UfwRunner(["22/tcp ALLOW IN Anywhere # operator:ssh"])

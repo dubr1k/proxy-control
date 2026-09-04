@@ -16,6 +16,7 @@ from installer.audit import (
     HardStop,
     OperatorPrerequisite,
     audit_host,
+    UFW_IPV6_CONFIG_COMMAND,
 )
 from installer.model import (
     DomainConfig,
@@ -174,7 +175,7 @@ def host_responses(
             "--value",
             "--no-pager",
         ): (0, "[::]:22 (Stream)\n", ""),
-        ("cat", "/etc/default/ufw"): (0, "IPV6=yes\n", ""),
+        UFW_IPV6_CONFIG_COMMAND: (0, "IPV6=yes\n", ""),
         ("ufw", "status", "verbose"): (0, "Status: active\n22/tcp ALLOW IN Anywhere\n", ""),
     }
     for domain in domains:
@@ -360,7 +361,7 @@ def test_audit_uses_authoritative_ufw_ipv6_mode_not_observed_rules(
         for domain in selected.required_domains()
     }
     responses = host_responses(selected.required_domains())
-    responses[("cat", "/etc/default/ufw")] = config_response
+    responses[UFW_IPV6_CONFIG_COMMAND] = config_response
     responses[("ufw", "status", "verbose")] = (
         0,
         "Status: active\n22/tcp (v6) ALLOW IN Anywhere (v6)\n",

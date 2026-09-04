@@ -21,6 +21,12 @@ from installer.planner import AuditFacts as PlannerAuditFacts
 DEFAULT_TIMEOUT = 5.0
 DEFAULT_MAX_OUTPUT = 1024 * 1024
 _XRAY_CONFIG = "/usr/local/x-ui/bin/config.json"
+UFW_IPV6_CONFIG_COMMAND = (
+    "grep",
+    "-E",
+    "^IPV6=(yes|no)$",
+    "/etc/default/ufw",
+)
 _INSTALLER_STATE = "/var/lib/proxy-control/ownership.json"
 _DOMAIN_RE = re.compile(
     r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
@@ -537,7 +543,7 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
         ),
     )
     ufw_result, ufw_observation = _optional_run(runner, ("ufw", "status", "verbose"))
-    ufw_config_result, _ = _optional_run(runner, ("cat", "/etc/default/ufw"))
+    ufw_config_result, _ = _optional_run(runner, UFW_IPV6_CONFIG_COMMAND)
 
     xray_present = _required_run(runner, ("test", "-f", _XRAY_CONFIG)).returncode == 0
     xray = {
@@ -1116,22 +1122,22 @@ def _systemd_fact(
     }
 
 
-def _parse_ufw_ipv6_enabled(
-    result: subprocess.CompletedProcess[str] | None,
-) -> bool | None:
-    if result is None:
-        return None
-    assignments = [
-        line.strip()
-        for line in result.stdout.splitlines()
-        if line.strip().startswith("IPV6")
-    ]
+def parse_ufw_ipv6_config(text: str) -> bool | None:
+    assignments = [line.strip() for line in text.splitlines() if line.strip()]
     if len(assignments) != 1:
         return None
     match = re.fullmatch(r"IPV6=(yes|no)", assignments[0])
     if match is None:
         return None
     return match.group(1) == "yes"
+
+
+def _parse_ufw_ipv6_enabled(
+    result: subprocess.CompletedProcess[str] | None,
+) -> bool | None:
+    if result is None:
+        return None
+    return parse_ufw_ipv6_config(result.stdout)
 
 
 def _ufw_fact(
