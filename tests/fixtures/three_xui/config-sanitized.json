@@ -1,0 +1,46 @@
+{
+  "comment": "The only facts an existing-mode audit may publish. Clients, UUIDs, Reality private/public keys, short IDs, passwords, and raw settings blobs never appear here.",
+  "installed": true,
+  "client_total": 3,
+  "outbound_tags": ["blocked", "direct"],
+  "balancer_tags": ["balancer-a"],
+  "routing_selectors": [
+    "inboundTag=api",
+    "outboundTag=blocked",
+    "outboundTag=direct",
+    "protocol=bittorrent"
+  ],
+  "inbounds": [
+    {
+      "tag": "inbound-vless-tcp",
+      "protocol": "vless",
+      "listen": "127.0.0.1",
+      "port": 8449,
+      "network": "tcp",
+      "security": "reality",
+      "client_count": 2,
+      "reality_server_names": ["www.microsoft.com"],
+      "reality_target": "www.microsoft.com:443",
+      "tls_certificate_paths": [],
+      "sniffing_enabled": true,
+      "sniffing_dest_override": ["http", "tls"]
+    },
+    {
+      "tag": "inbound-hysteria",
+      "protocol": "hysteria2",
+      "listen": "0.0.0.0",
+      "port": 8452,
+      "network": "quic",
+      "security": "tls",
+      "client_count": 1,
+      "reality_server_names": [],
+      "reality_target": null,
+      "tls_certificate_paths": [
+        "/etc/letsencrypt/live/hysteria.example.com/fullchain.pem",
+        "/etc/letsencrypt/live/hysteria.example.com/privkey.pem"
+      ],
+      "sniffing_enabled": false,
+      "sniffing_dest_override": []
+    }
+  ]
+}

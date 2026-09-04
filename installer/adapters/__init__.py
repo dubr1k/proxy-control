@@ -12,6 +12,12 @@ if TYPE_CHECKING:
     from installer.adapters.naive import NaiveAcceptance, NaiveAdapter, NaivePaths
     from installer.adapters.nginx import CertificatePlan, NginxAdapter
     from installer.adapters.packages import PackagesAdapter
+    from installer.adapters.three_xui import (
+        ThreeXuiAdapter,
+        ThreeXuiAudit,
+        ThreeXuiInboundFact,
+        ThreeXuiPaths,
+    )
 
 
 _EXPORTS = {
@@ -28,6 +34,13 @@ _EXPORTS = {
     "NaivePaths": ("installer.adapters.naive", "NaivePaths"),
     "NginxAdapter": ("installer.adapters.nginx", "NginxAdapter"),
     "PackagesAdapter": ("installer.adapters.packages", "PackagesAdapter"),
+    "ThreeXuiAdapter": ("installer.adapters.three_xui", "ThreeXuiAdapter"),
+    "ThreeXuiAudit": ("installer.adapters.three_xui", "ThreeXuiAudit"),
+    "ThreeXuiInboundFact": (
+        "installer.adapters.three_xui",
+        "ThreeXuiInboundFact",
+    ),
+    "ThreeXuiPaths": ("installer.adapters.three_xui", "ThreeXuiPaths"),
 }
 
 
@@ -56,4 +69,8 @@ __all__ = [
     "NaivePaths",
     "NginxAdapter",
     "PackagesAdapter",
+    "ThreeXuiAdapter",
+    "ThreeXuiAudit",
+    "ThreeXuiInboundFact",
+    "ThreeXuiPaths",
 ]
