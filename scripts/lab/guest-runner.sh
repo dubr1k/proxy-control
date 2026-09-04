@@ -7,6 +7,9 @@ EXPECTED_ARCHIVE_SHA=${2:-}
 shift 2 2>/dev/null || true
 SCENARIO_FILTER=("$@")
 ROOT=/tmp/mtproxy-source
+if [[ ${MODE:-} == container ]]; then
+  ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+fi
 FIXTURE=/tmp/proxyctl-host
 PROXY=proxy.lab.test
 PANEL=panel.lab.test
@@ -16,6 +19,9 @@ BASELINE=/tmp/lab-baseline.sha256
 RELEASE=/tmp/proxy-control-release.tar.gz
 RELEASE_SHA=/tmp/proxy-control-release.sha256
 RELEASE_ROOT=/tmp/proxy-control-release
+if [[ ${MODE:-} == container ]]; then
+  RELEASE_ROOT=$ROOT
+fi
 CONFIG=/tmp/lab-install.toml
 CREDENTIALS=/tmp/lab-credentials
 CLIENT_RESULTS=/tmp/lab-client-results
@@ -467,7 +473,6 @@ plan = json.load(open('/tmp/plan.json'))
 order = plan['adapter_order']
 assert order[:3] == ['packages', 'nginx', 'certificates'], order
 assert order[-1] == 'three_xui', order
-print("LAB_PLAN_DIGEST\t" + plan['digest'])
 PLANPY
 }
 
@@ -507,7 +512,7 @@ release_nginx_multi_map() {
   # An ambiguous multi-map topology must be resolved or refused, never guessed.
   cp "$ROOT/tests/lab/fixtures/nginx-multi-map.conf" /etc/nginx/stream.d/multi-map.conf
   nginx -t
-  systemctl reload nginx
+  systemctl restart nginx
   cd "$RELEASE_ROOT"
   if installer_cmd plan --config "$CONFIG" --json >/tmp/plan-multi.json 2>/tmp/plan-multi.err; then
     python3 -c "import json;json.load(open('/tmp/plan-multi.json'))"
@@ -516,7 +521,7 @@ release_nginx_multi_map() {
   fi
   rm -f /etc/nginx/stream.d/multi-map.conf
   nginx -t
-  systemctl reload nginx
+  systemctl restart nginx
 }
 
 client_probe() {
@@ -622,6 +627,224 @@ release_coexistence() {
   systemctl is-active nginx lab-xray lab-warp lab-3x-ui >/dev/null
 }
 
+
+# ----------------------------------------------------------------------
+# container mode: the part of release acceptance a systemd container proves
+# ----------------------------------------------------------------------
+
+container_ip() {
+  ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -n 1
+}
+
+container_setup() {
+  local address
+  address=$(container_ip)
+  [[ -n $address ]]
+  printf '%s %s %s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' \
+    "$address" "$PROXY" "$PANEL" >> /etc/hosts
+
+  # A local resolver so the audit's mandatory CAA query answers instead of
+  # failing closed: the lab zone publishes no CAA, exactly like a fresh host.
+  printf 'no-resolv\nno-hosts\nlisten-address=127.0.0.1\nbind-interfaces\naddress=/lab.test/%s\n' \
+    "$address" > /etc/dnsmasq.d/lab.conf
+  systemctl restart dnsmasq
+  printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf
+  dig +short CAA "$PANEL" >/dev/null
+
+  mkdir -p /etc/nginx/stream.d /var/lib/lab-status
+  cat > /etc/nginx/nginx.conf <<'NGINX'
+load_module modules/ngx_stream_module.so;
+user www-data;
+pid /run/nginx.pid;
+events { worker_connections 256; }
+stream { include /etc/nginx/stream.d/*.conf; }
+http { include /etc/nginx/sites-enabled/*; }
+NGINX
+  cat > "$ROUTE" <<'ROUTES'
+map $ssl_preread_server_name $shared_backend {
+    old-xray.lab.test 127.0.0.1:9443;
+    default 127.0.0.1:9443;
+}
+server { listen 443; proxy_pass $shared_backend; ssl_preread on; }
+ROUTES
+  cat > /etc/systemd/system/lab-xray.service <<'UNIT'
+[Service]
+ExecStart=/usr/bin/socat TCP-LISTEN:9443,bind=127.0.0.1,reuseaddr,fork EXEC:/bin/cat
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now lab-xray nginx >/dev/null
+  nginx -t
+  write_fake_certbot /usr/local/bin/certbot
+  sha256sum "$ROUTE" > "$BASELINE"
+
+  # The controller already extracted the archive; this runner is the copy
+  # inside it, so the release root is simply its own parent.
+  test -f "$RELEASE_ROOT/release/release.json"
+
+  # A foreign 3x-ui is part of the coexistence topology, so it is present
+  # before the very first audit and is hashed straight away.
+  bash "$ROOT/tests/lab/fixtures/three-xui-existing.sh" 3.7.0 >/dev/null
+  find /usr/local/x-ui /etc/x-ui -type f -print0 | sort -z | xargs -0 sha256sum > "$FOREIGN_BASELINE"
+
+  container_write_configs
+}
+
+container_write_configs() {
+  # The container hosts the coexistence topology: an existing shared-443
+  # stream router and a foreign 3x-ui the installer must never touch.
+  cat > "$CONFIG" <<TOML
+schema = 1
+host_mode = "coexist"
+profile = "full"
+acme_email = "lab@example.invalid"
+initial_user = "owner"
+
+[domains]
+panel = "$PANEL"
+mtproxy = "$PROXY"
+naive = "naive.lab.test"
+mieru = "mieru.lab.test"
+
+[mieru]
+tcp_ports = [46001]
+udp_ports = [46002]
+
+[three_xui]
+mode = "existing"
+vless_tcp_domain = "vless.lab.test"
+
+[firewall]
+manage_ufw = false
+TOML
+}
+
+container_environment_preflight() {
+  local started log script
+  started=$(python3 -c 'import time; print(time.time())')
+  log=$(mktemp)
+  script="$(declare -p PROXY PANEL ROOT ROUTE BASELINE FOREIGN_BASELINE RELEASE RELEASE_ROOT CONFIG); $(declare -f container_ip write_fake_certbot container_write_configs container_setup); container_setup"
+  if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
+    emit environment-preflight passed "$started"
+    rm -f "$log"
+    return 0
+  fi
+  emit environment-preflight failed "$started" "$(tail -n 5 "$log" | tr '\n' ' ')"
+  sed 's/^/environment-preflight: /' "$log" >&2
+  rm -f "$log"
+  return 1
+}
+
+container_cmd() {
+  ( cd "$RELEASE_ROOT" && PYTHONPATH="$RELEASE_ROOT" python3 -m installer.cli --root / "$@" )
+}
+
+container_artifact_integrity() {
+  test -s "$RELEASE_SHA"
+  [[ $(sha256sum "$RELEASE" | cut -d' ' -f1) == "$(cat "$RELEASE_SHA")" ]]
+  test -f "$RELEASE_ROOT/install.sh"
+  test -f "$RELEASE_ROOT/installer/cli.py"
+  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['tag'] and d['commit'] and len(d['manifest_sha256'])==64" \
+    "$RELEASE_ROOT/release/release.json"
+  # The release is the only installer under test: nothing here comes from the
+  # working tree that produced it.
+  ! test -e "$RELEASE_ROOT/.git"
+}
+
+container_audit() {
+  container_cmd plan --config "$CONFIG" --json >/tmp/plan.json
+  python3 - <<'AUDITPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+facts = plan['audit_facts']
+assert facts['topology']['nginx']['observation'] == 'observed', facts['topology']['nginx']
+assert 'three_xui' in facts['topology']
+assert facts['prerequisites']['hard_stops'] == [], facts['prerequisites']['hard_stops']
+AUDITPY
+}
+
+container_plan() {
+  python3 - <<'PLANPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+order = plan['adapter_order']
+assert order[:3] == ['packages', 'nginx', 'certificates'], order
+assert order[-1] == 'three_xui', order
+assert 'naive' in order and 'mieru' in order, order
+PLANPY
+}
+
+container_nginx_multi_map() {
+  cp "$ROOT/tests/lab/fixtures/nginx-multi-map.conf" /etc/nginx/stream.d/multi-map.conf
+  nginx -t
+  systemctl restart nginx
+  ss -lnt | grep -q ':8443 '""
+  # An ambiguous topology is resolved or refused, never guessed.
+  if container_cmd plan --config "$CONFIG" --json >/tmp/plan-multi.json 2>/tmp/plan-multi.err; then
+    python3 -c "import json;json.load(open('/tmp/plan-multi.json'))"
+  else
+    grep -q 'BLOCKED' /tmp/plan-multi.err
+  fi
+  rm -f /etc/nginx/stream.d/multi-map.conf
+  nginx -t
+  systemctl restart nginx
+  ! ss -lnt | grep -q ':8443 '
+}
+
+container_coexist_existing_xui() {
+  # Existing mode plans only the owned shared-443 route for 3x-ui, and the
+  # foreign tree is byte-identical afterwards.
+  python3 - <<'COEXISTPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+owners = {a['owner'] for a in plan['actions'] if a['adapter'] == 'three_xui'}
+assert owners == {'nginx.routes.three_xui'}, owners
+mutations = [m for a in plan['actions'] if a['adapter'] == 'three_xui' for m in a['mutations']]
+assert any(m == 'route=vless.lab.test 127.0.0.1:9443' for m in mutations), mutations
+assert any(m == 'mode=existing' for m in mutations), mutations
+COEXISTPY
+  sha256sum -c "$FOREIGN_BASELINE" >/dev/null
+  sha256sum -c "$BASELINE" >/dev/null
+}
+
+container_uninstall_foreign_identity() {
+  groupadd --system --gid 10004 foreign-accounting
+  if container_cmd plan --config "$CONFIG" --json >/tmp/plan-foreign.json 2>/tmp/plan-foreign.err; then
+    ! grep -q '"adapter": "naive"' /tmp/plan-foreign.json
+  else
+    grep -qi 'collision' /tmp/plan-foreign.err
+  fi
+  # The foreign identity is still there: nothing took it over or removed it.
+  getent group 10004 | grep -q foreign-accounting
+  groupdel foreign-accounting
+}
+
+container_dns_tls() {
+  python3 - <<'DNSPY'
+import json
+plan = json.load(open('/tmp/plan.json'))
+dns = plan['audit_facts']['topology']['dns']
+assert dns, 'no DNS facts were audited'
+for domain, fact in dns.items():
+    assert fact['a_matches_local'], (domain, fact)
+    assert fact['aaaa_handled'], (domain, fact)
+    assert fact['caa_compatible'], (domain, fact)
+DNSPY
+}
+
+container_secrets_scan() {
+  ! grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
+    /tmp/plan*.json /tmp/plan*.err 2>/dev/null
+  ! grep -q 'FOREIGN-PRIVATE-KEY-NEVER-READ' /tmp/plan.json
+}
+
+emit_plan_digest() {
+  [[ -f /tmp/plan.json ]] || return 0
+  local digest
+  digest=$(python3 -c "import json;print(json.load(open('/tmp/plan.json'))['digest'])" 2>/dev/null || true)
+  [[ -n $digest ]] || return 0
+  printf 'LAB_PLAN_DIGEST\t%s\n' "$digest"
+}
+
 if [[ ${GUEST_RUNNER_LIB_ONLY:-0} == 1 ]]; then
   return 0 2>/dev/null || exit 0
 fi
@@ -660,6 +883,7 @@ elif [[ $MODE == release-amd64 || $MODE == release-arm64 ]]; then
   case_run release-artifact-integrity release_artifact_integrity environment-preflight
   case_run audit release_audit release-artifact-integrity
   case_run plan release_plan audit
+  emit_plan_digest
   case_run fresh-full-xui release_fresh_full_xui plan
   case_run coexist-existing-xui release_coexist_existing_xui fresh-full-xui
   case_run nginx-multi-map release_nginx_multi_map fresh-full-xui
@@ -681,6 +905,20 @@ elif [[ $MODE == release-amd64 || $MODE == release-arm64 ]]; then
   case_run interrupted-install-recovery interrupt_install_recovery uninstall
   case_run interrupted-uninstall-recovery interrupt_uninstall_recovery interrupted-install-recovery
   case_run coexistence release_coexistence interrupted-uninstall-recovery
+elif [[ $MODE == container ]]; then
+  if ! container_environment_preflight; then
+    exit "$RESULTS_FAILED"
+  fi
+  CASE_STATUS[environment-preflight]=passed
+  case_run release-artifact-integrity container_artifact_integrity environment-preflight
+  case_run audit container_audit release-artifact-integrity
+  case_run plan container_plan audit
+  emit_plan_digest
+  case_run nginx-multi-map container_nginx_multi_map plan
+  case_run coexist-existing-xui container_coexist_existing_xui plan
+  case_run uninstall-foreign-identity container_uninstall_foreign_identity plan
+  case_run dns-tls-preflight container_dns_tls plan
+  case_run secrets-scan container_secrets_scan coexist-existing-xui
 else
   printf 'unknown mode: %s\n' "$MODE" >&2
   exit 2

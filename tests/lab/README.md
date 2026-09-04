@@ -18,6 +18,8 @@ make lab-full       # all lifecycle, recovery, coexistence, Docker scenarios
 make lab-release RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz \
                  RELEASE_SHA256=<sha256> [LAB_ARCH=amd64|arm64] \
                  [LAB_SCENARIOS="audit plan"]
+make lab-container RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz \
+                   RELEASE_SHA256=<sha256> [LAB_SCENARIOS="audit plan"]
 make lab-stop
 make lab-clean      # remove all lab-created state; retain pinned base cache
 ```
@@ -49,3 +51,29 @@ The release matrix (`qemu_lab.release_scenarios()`) covers fresh full installs w
 - `tests/lab/fixtures/three-xui-existing.sh` materializes a foreign 3x-ui install - config with clients and a Reality private key, database, binary, and unit - which is hashed before and after the run to prove byte identity.
 - `tests/lab/fixtures/nginx-multi-map.conf` provides an ambiguous shared-443 topology with two candidate stream maps; the installer must resolve it or refuse, never guess.
 - `tests/lab/clients/compose.yaml` runs each protocol probe in its own read-only, capability-dropped container against the guest's synthetic DNS. Every probe image is a required pinned input, the ephemeral credentials are mounted read-only from the guest overlay, and only a status and a byte count are recorded.
+
+## Container acceptance
+
+`make lab-container` runs the part of the release matrix a disposable systemd
+container can prove, on any machine with Docker and no QEMU at all. The base
+image is pinned by digest, systemd is PID 1 so the installer drives real units,
+and the release archive is the only input: the controller verifies its checksum,
+extracts it inside the container, and runs the `guest-runner.sh` that ships
+*inside that release*, not the one in the working tree.
+
+It covers `environment-preflight`, `release-artifact-integrity`, `audit`,
+`plan`, `nginx-multi-map`, `coexist-existing-xui`, `uninstall-foreign-identity`,
+`dns-tls-preflight`, and `secrets-scan` against the coexistence topology: an
+existing shared-443 stream router, a foreign 3x-ui hashed before and after, a
+local resolver so the mandatory CAA query answers instead of failing closed, and
+a deterministic Certbot-compatible generator.
+
+It deliberately does not claim the scenarios that need nested Docker or public
+network access - the fresh full install, the real protocol clients, the Docker
+build, crash-every-phase, reboot recovery, and uninstall. Those stay with the
+QEMU release modes. The report records `filtered_scenarios`, so
+`qemu_lab.validate_report` treats a container run as the partial run it is: it
+can never stand in for a full release report.
+
+Reports go to ignored `lab-results-container/` in the same schema-2 shape as the
+QEMU modes, carrying the release digest and the plan digest the guest accepted.

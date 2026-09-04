@@ -984,7 +984,10 @@ class NginxAdapter:
             raise TopologyError(
                 "effective Nginx source marker is not authenticated"
             ) from exc
-        if sections[0] != content:
+        # `nginx -T` prints the file verbatim and then one blank line before
+        # the next marker, so the separator it adds is the only difference the
+        # comparison tolerates; everything else must be byte-identical.
+        if sections[0] not in {content, content + "\n"}:
             raise TopologyError(
                 "effective Nginx source marker is not authenticated"
             )

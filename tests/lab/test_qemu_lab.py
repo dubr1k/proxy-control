@@ -471,12 +471,15 @@ class ReleaseFixtureTests(unittest.TestCase):
         self.assertIn("/etc/x-ui/x-ui.db", fixture)
         self.assertIn("FOREIGN-PRIVATE-KEY-NEVER-READ", fixture)
 
-    def test_multi_map_fixture_declares_more_than_one_candidate_map(self):
+    def test_multi_map_fixture_adds_a_second_candidate_map_and_listener(self):
+        """It is added beside the shared 443 router, so it must not reuse 443."""
         fixture = (
             Path(__file__).parent / "fixtures" / "nginx-multi-map.conf"
         ).read_text()
-        self.assertEqual(fixture.count("map $ssl_preread_server_name"), 2)
-        self.assertIn("listen 443;", fixture)
+        self.assertEqual(fixture.count("map $ssl_preread_server_name"), 1)
+        self.assertIn("$legacy_backend", fixture)
+        self.assertIn("listen 8443;", fixture)
+        self.assertNotIn("listen 443;", fixture)
 
 if __name__ == "__main__":
     unittest.main()

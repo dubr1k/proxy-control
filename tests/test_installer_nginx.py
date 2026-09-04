@@ -793,3 +793,44 @@ server { listen 443; ssl_preread on; proxy_pass $backend; }
     http, stream = changed.split("stream {", 1)
     assert "# BEGIN PROXY-CONTROL ROUTES" not in http
     assert "# BEGIN PROXY-CONTROL ROUTES selected" in stream
+
+
+def test_source_authentication_tolerates_only_the_separator_nginx_adds(
+    tmp_path: Path,
+) -> None:
+    """`nginx -T` prints a blank line after each file; nothing else may differ."""
+    source_file = "/etc/nginx/stream.d/routes.conf"
+    body = (
+        "map $ssl_preread_server_name $shared_backend {\n"
+        "    old-xray.lab.test 127.0.0.1:9443;\n"
+        "    default 127.0.0.1:9443;\n"
+        "}\n"
+        "server { listen 443; proxy_pass $shared_backend; ssl_preread on; }\n"
+    )
+    root = tmp_path / "root"
+    route = root / source_file.lstrip("/")
+    route.parent.mkdir(parents=True)
+    route.write_text(body)
+
+    def effective(section: str) -> str:
+        return (
+            "# configuration file /etc/nginx/nginx.conf:\n"
+            "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n"
+            "\n"
+            f"# configuration file {source_file}:\n"
+            f"{section}"
+            "# configuration file /etc/nginx/sites-enabled/default:\n"
+            "server { listen 8080; }\n"
+        )
+
+    adapter = NginxAdapter(root=root, runner=runner_for(effective(body + "\n"))[0])
+    adapter._authenticate_source(effective(body + "\n"), source_file)
+    adapter._authenticate_source(effective(body), source_file)
+
+    with pytest.raises(TopologyError, match="source marker"):
+        adapter._authenticate_source(effective(body + "\n\n"), source_file)
+    with pytest.raises(TopologyError, match="source marker"):
+        adapter._authenticate_source(
+            effective(body.replace("9443", "9444") + "\n"),
+            source_file,
+        )

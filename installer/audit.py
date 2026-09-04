@@ -13,6 +13,7 @@ import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Protocol
 
 from installer.model import HostMode, InstallerConfig
@@ -491,6 +492,39 @@ def audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
         raise AuditError(_sanitize_error(str(exc))) from None
 
 
+# Identities the protocol adapters reserve. A foreign holder of one of these
+# must stop a plan, not surprise an apply half-way through.
+RESERVED_IDENTITIES: Mapping[str, tuple[int, ...]] = MappingProxyType(
+    {
+        "uid": (10002, 10003, 10005),
+        "gid": (101, 10004, 10005),
+    }
+)
+
+
+def _identity_facts(runner: CommandRunner) -> dict[str, dict[str, str]]:
+    """Name the current holder of every reserved identity, if any."""
+    databases = {"uid": "passwd", "gid": "group"}
+    observed: dict[str, dict[str, str]] = {}
+    for kind, identifiers in RESERVED_IDENTITIES.items():
+        holders: dict[str, str] = {}
+        for identifier in identifiers:
+            result, _observation = _optional_run(
+                runner,
+                ("getent", databases[kind], str(identifier)),
+            )
+            if result is None or result.returncode != 0:
+                continue
+            lines = result.stdout.strip().splitlines()
+            if not lines:
+                continue
+            name = lines[0].split(":", 1)[0]
+            if name and _safe_text(name, 64):
+                holders[str(identifier)] = name
+        observed[kind] = holders
+    return observed
+
+
 def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
     domains = tuple(validate_domain(domain) for domain in config.required_domains())
 
@@ -635,6 +669,7 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
             "three_xui": xray,
         },
         ownership={
+            "identities": _identity_facts(runner),
             "compose": _version_fact(
                 compose_result,
                 compose_observation,

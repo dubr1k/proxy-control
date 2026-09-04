@@ -326,11 +326,13 @@ def test_audit_facts_cover_all_categories_and_are_deterministic():
     assert set(first.ownership) == {
         "compose",
         "docker",
+        "identities",
         "installer",
         "systemd",
         "three_xui",
         "ufw",
     }
+    assert set(first.ownership["identities"]) == {"uid", "gid"}
     assert first.ownership["ufw"]["ipv6_enabled"] is True
     assert all(isinstance(stop, HardStop) for stop in first.hard_stops)
     assert all(
@@ -951,3 +953,32 @@ def test_no_legacy_audit_model_or_proxyctl_collector_remains():
     assert not hasattr(audit_module, "AuditReport")
     assert not hasattr(audit_module, "legacy_audit_host")
     assert not hasattr(proxyctl, "audit_host")
+
+
+def test_audit_names_a_foreign_holder_of_every_reserved_identity():
+    """A foreign holder must be a planning fact, not an apply-time surprise."""
+    from installer.audit import RESERVED_IDENTITIES, _identity_facts
+
+    holders = {
+        ("passwd", "10003"): "foreign-service",
+        ("group", "10004"): "foreign-accounting",
+    }
+
+    class Runner:
+        def run(self, argv):
+            _getent, database, identifier = argv
+            name = holders.get((database, identifier))
+            if name is None:
+                return subprocess.CompletedProcess(argv, 2, "", "")
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                f"{name}:x:{identifier}:{identifier}::/nonexistent:/usr/sbin/nologin\n",
+                "",
+            )
+
+    facts = _identity_facts(Runner())
+
+    assert set(facts) == set(RESERVED_IDENTITIES)
+    assert facts["uid"] == {"10003": "foreign-service"}
+    assert facts["gid"] == {"10004": "foreign-accounting"}
