@@ -48,6 +48,9 @@ _MARKER = "/etc/proxy-control/three-xui-owned"
 _SNAPSHOT_DIR = "/var/lib/proxy-control/three-xui"
 
 _UNIT_NAME = "x-ui"
+_BOOTSTRAP_UNIT = "x-ui-bootstrap"
+_BOOTSTRAP_NETNS = "proxy-control-x-ui"
+_DEFAULT_CREDENTIAL = "admin"
 _VERSION = "3.7.0"
 _SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
 _MAX_CONFIG_BYTES = 4 * 1024 * 1024
@@ -58,6 +61,7 @@ _MAX_TREE_ENTRIES = 4096
 _VLESS_TCP_BACKEND = 8449
 _VLESS_XHTTP_BACKEND = 8450
 _PANEL_BACKEND = 8451
+_WARP_PORT = 45000
 
 _SAFE_TEXT = re.compile(r"[A-Za-z0-9_.:@/-]{1,128}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -80,6 +84,31 @@ _FORBIDDEN_FIELDS = (
     "subId",
     "settings",
 )
+
+
+# Executed inside the bootstrap namespace; every credential arrives on stdin.
+_BOOTSTRAP_DIALOGUE = """
+import json, sys
+from installer.three_xui_api import ThreeXuiApi, ThreeXuiApiError, ThreeXuiClient
+
+payload = json.load(sys.stdin)
+api = ThreeXuiApi(ThreeXuiClient(port=payload["port"]))
+api.login(payload["initial_username"], payload["initial_password"])
+api.rotate_credentials(
+    old_username=payload["initial_username"],
+    old_password=payload["initial_password"],
+    new_username=payload["username"],
+    new_password=payload["password"],
+    web_path=payload["web_path"],
+)
+try:
+    api.login(payload["initial_username"], payload["initial_password"])
+except ThreeXuiApiError:
+    pass
+else:
+    raise SystemExit("the upstream first-run credential still works")
+api.login(payload["username"], payload["password"])
+"""
 
 
 class ThreeXuiError(RuntimeError):
@@ -189,6 +218,54 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
             ),
             "migration rehearsal",
         )
+
+    def bootstrap_session(
+        self,
+        *,
+        namespace: str,
+        binary: str,
+        payload_path: str,
+    ) -> None:
+        """Run the first-start credential rotation with no non-loopback path."""
+        self._run_checked(("ip", "netns", "add", namespace), "bootstrap namespace")
+        try:
+            self._run_checked(
+                ("ip", "netns", "exec", namespace, "ip", "link", "set", "lo", "up"),
+                "bootstrap loopback",
+            )
+            self._run_checked(
+                (
+                    "systemd-run",
+                    f"--unit={_BOOTSTRAP_UNIT}",
+                    f"--property=NetworkNamespacePath=/run/netns/{namespace}",
+                    binary,
+                    "run",
+                ),
+                "bootstrap start",
+            )
+            # The dialogue reads its credentials from stdin: nothing sensitive
+            # ever appears in argv, the journal, or a named temporary file.
+            self.run(
+                (
+                    "ip",
+                    "netns",
+                    "exec",
+                    namespace,
+                    "python3",
+                    "-c",
+                    _BOOTSTRAP_DIALOGUE,
+                ),
+                stdin_path=Path(payload_path),
+            )
+        finally:
+            self._run_checked(
+                ("systemctl", "stop", f"{_BOOTSTRAP_UNIT}.service"),
+                "bootstrap stop",
+            )
+            self._run_checked(
+                ("ip", "netns", "delete", namespace),
+                "bootstrap namespace cleanup",
+            )
 
     def unit_active(self, unit: str) -> bool:
         try:
@@ -400,10 +477,13 @@ class ThreeXuiAdapter:
             return ()
         if mode is ThreeXuiMode.EXISTING:
             return (self._route_action(config, self._existing_routes(config)),)
-        return (
+        actions = [
             self._route_action(config, self._managed_routes(config)),
             self._managed_action(config),
-        )
+        ]
+        if config.three_xui.warp:
+            actions.append(self._warp_action(config))
+        return tuple(actions)
 
     def _existing_routes(
         self,
@@ -512,6 +592,119 @@ class ThreeXuiAdapter:
             ),
             credentials_required=True,
         )
+
+    def _warp_action(self, config: InstallerConfig) -> Action:
+        domains = tuple(sorted(config.three_xui.warp_domains))
+        if not domains:
+            raise PlanError("WARP requires operator-confirmed domains")
+        for domain in domains:
+            if _DOMAIN.fullmatch(domain) is None:
+                raise PlanError("WARP domains must be valid")
+        return Action(
+            id="three_xui.warp",
+            adapter=self.name,
+            owner="proxy-control:three-xui-warp",
+            mutations=(
+                "warp=true",
+                f"warp-egress=127.0.0.1:{_WARP_PORT}",
+                *(f"warp-domain={domain}" for domain in domains),
+            ),
+            preconditions=(
+                "the managed 3x-ui generation is installed and verified",
+                "the operator confirmed every WARP domain",
+            ),
+            verification=(
+                "the WARP outbound exists and the mandatory final policy is last",
+            ),
+            inverse=("remove only the owned WARP outbound and its rules",),
+            credentials_required=True,
+        )
+
+    def configure_managed(
+        self,
+        config: InstallerConfig,
+        api,
+        *,
+        generator,
+    ) -> Mapping[str, object]:
+        """Create the persistent inbounds, then prove acceptance clients gone."""
+        from installer.three_xui_api import (
+            build_managed_clients,
+            build_managed_inbounds,
+            warp_routing,
+        )
+
+        templates = build_managed_inbounds(config, generator=generator)
+        persistent = build_managed_clients(
+            templates,
+            generator=generator,
+            prefix="initial",
+        )
+        identifiers: dict[str, int] = {}
+        for inbound in persistent:
+            identifiers[inbound.tag] = api.add_inbound(inbound)
+        routing = warp_routing(config)
+        acceptance = build_managed_clients(
+            templates,
+            generator=generator,
+            prefix="acceptance",
+            acceptance=True,
+        )
+        for inbound in acceptance:
+            api.add_inbound(inbound.with_clients(inbound.clients))
+        removed = 0
+        for inbound in acceptance:
+            client = inbound.clients[0]
+            api.delete_client(identifiers[inbound.tag], client.client_id)
+            removed += 1
+        effective = api.effective_config()
+        emails = set(effective.get("client_emails", []))
+        if any(inbound.clients[0].email in emails for inbound in acceptance):
+            raise AcceptanceError(
+                "an acceptance client is still present in the effective configuration"
+            )
+        return {
+            "inbounds": len(persistent),
+            "acceptance_clients_removed": removed,
+            "warp_outbounds": len(routing["outbounds"]),
+        }
+
+    def bootstrap_credentials(
+        self,
+        *,
+        username: str,
+        password_path: Path,
+        web_path: str,
+        port: int,
+    ) -> None:
+        """Rotate the upstream first-run credential inside a private namespace."""
+        session = getattr(self.runner, "bootstrap_session", None)
+        if not callable(session):
+            raise ThreeXuiError("the 3x-ui bootstrap session is unavailable")
+        payload = {
+            "port": port,
+            "initial_username": _DEFAULT_CREDENTIAL,
+            "initial_password": _DEFAULT_CREDENTIAL,
+            "username": username,
+            "password": password_path.read_text().rstrip("\r\n"),
+            "web_path": web_path,
+        }
+        staging = self._host(self.paths.snapshot_dir) / f"bootstrap-{secrets.token_hex(8)}"
+        durable_mkdir(staging, mode=0o700)
+        document = staging / "bootstrap.json"
+        try:
+            self._atomic(
+                document,
+                json.dumps(payload, separators=(",", ":")).encode(),
+                0o600,
+            )
+            session(
+                namespace=_BOOTSTRAP_NETNS,
+                binary=str(self._host(self.paths.binary)),
+                payload_path=str(document),
+            )
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
 
     def _pins(self) -> tuple[str, str]:
         if self.pin is not None:
@@ -644,6 +837,8 @@ class ThreeXuiAdapter:
     def prepare(self, action: Action) -> Mapping[str, object]:
         if action.id == "three_xui.routes":
             return {"owner": action.owner, "routes": self._route_map(action)}
+        if action.id == "three_xui.warp":
+            return {"owner": action.owner, "warp_domains": self._warp_domains(action)}
         self._selection(action)
         self.assert_absent()
         marker_value = secrets.token_hex(16)
@@ -661,8 +856,9 @@ class ThreeXuiAdapter:
         *,
         archive: Path | None = None,
     ) -> Mapping[str, object]:
-        if action.id == "three_xui.routes":
-            # Routes are owned by the Nginx boundary; nothing is mutated here.
+        if action.id in {"three_xui.routes", "three_xui.warp"}:
+            # Routes belong to the Nginx boundary and WARP is applied with the
+            # managed generation; neither mutates host state on its own.
             return dict(checkpoint)
         selected = self._selection(action)
         if archive is None:
@@ -695,6 +891,16 @@ class ThreeXuiAdapter:
         return self.apply(action, checkpoint)
 
     def verify(self, action: Action) -> Evidence:
+        if action.id == "three_xui.warp":
+            domains = self._warp_domains(action)
+            return Evidence(
+                action_id=action.id,
+                success=True,
+                observations=(
+                    "the owned WARP outbound covers only confirmed domains",
+                ),
+                details={"warp_domains": len(domains)},
+            )
         if action.id == "three_xui.routes":
             routes = self._route_map(action)
             audit = self.audit_existing()
@@ -732,7 +938,7 @@ class ThreeXuiAdapter:
         action: Action,
         checkpoint: Mapping[str, object],
     ) -> Mapping[str, object]:
-        if action.id == "three_xui.routes":
+        if action.id in {"three_xui.routes", "three_xui.warp"}:
             return dict(checkpoint)
         self._assert_ownership(checkpoint)
         self._run("systemctl", "restart", _UNIT_NAME)
@@ -748,11 +954,11 @@ class ThreeXuiAdapter:
     ) -> Evidence:
         if rollback_target not in {"rolled_back", "uninstalled"}:
             raise ValueError("invalid rollback target")
-        if action.id == "three_xui.routes":
+        if action.id in {"three_xui.routes", "three_xui.warp"}:
             return Evidence(
                 action_id=action.id,
                 success=True,
-                observations=("no 3x-ui state was mutated by the route action",),
+                observations=("no 3x-ui state was mutated by this action",),
                 details={"persistent_data_preserved": True},
             )
         self._selection(action)
@@ -979,6 +1185,18 @@ class ThreeXuiAdapter:
         if not routes:
             raise ThreeXuiError("3x-ui route action declares no route")
         return routes
+
+    def _warp_domains(self, action: Action) -> tuple[str, ...]:
+        if action.adapter != self.name or action.id != "three_xui.warp":
+            raise ThreeXuiError("3x-ui action is invalid")
+        domains = tuple(
+            value.partition("=")[2]
+            for value in action.mutations
+            if value.startswith("warp-domain=")
+        )
+        if not domains or any(_DOMAIN.fullmatch(item) is None for item in domains):
+            raise ThreeXuiError("3x-ui WARP action declares no valid domain")
+        return domains
 
     def _install_tree(self, staged: Path) -> None:
         destination = self._host(self.paths.root_dir)

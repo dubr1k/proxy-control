@@ -1,0 +1,40 @@
+{
+  "comment": "Pinned local 3x-ui 3.7.0 HTTP contract. Every request this installer makes is listed here; anything outside this table is refused before a socket is opened.",
+  "version": "3.7.0",
+  "endpoints": {
+    "login": {"method": "POST", "path": "/login", "encoding": "form"},
+    "update_user": {
+      "method": "POST",
+      "path": "/panel/setting/updateUser",
+      "encoding": "form"
+    },
+    "update_settings": {
+      "method": "POST",
+      "path": "/panel/setting/update",
+      "encoding": "form"
+    },
+    "add_inbound": {
+      "method": "POST",
+      "path": "/panel/api/inbounds/add",
+      "encoding": "json"
+    },
+    "del_client": {
+      "method": "POST",
+      "path": "/panel/api/inbounds/{inbound_id}/delClient/{client_id}",
+      "encoding": "empty"
+    },
+    "list_inbounds": {
+      "method": "GET",
+      "path": "/panel/api/inbounds/list",
+      "encoding": "empty"
+    }
+  },
+  "response_schema": {
+    "required": ["success"],
+    "optional": ["msg", "obj"]
+  },
+  "limits": {
+    "max_response_bytes": 4194304,
+    "timeout_seconds": 30
+  }
+}

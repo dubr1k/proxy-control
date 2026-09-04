@@ -194,6 +194,20 @@ class FakeThreeXuiRunner:
         del unit
         return self._unit_active
 
+    def bootstrap_session(self, *, namespace, binary, payload_path):
+        self.calls.append(("ip", "netns", "add", namespace))
+        self.calls.append(
+            (
+                "systemd-run",
+                f"--property=NetworkNamespacePath=/run/netns/{namespace}",
+                binary,
+                "run",
+            )
+        )
+        self.calls.append(("bootstrap-dialogue", payload_path))
+        self.calls.append(("systemctl", "stop", "x-ui-bootstrap.service"))
+        self.calls.append(("ip", "netns", "delete", namespace))
+
     def migration_rehearsal(self, binary, database):
         del binary
         self.rehearsals.append(database)
@@ -637,3 +651,134 @@ def test_upgrade_restore_fails_closed_when_identity_cannot_be_restored(tmp_path)
 
     with pytest.raises(ThreeXuiError, match="byte-identical"):
         instance.restore_upgrade(snapshot, audit)
+
+
+# ----------------------------------------------------------------------
+# managed inbounds, WARP, and acceptance clients
+# ----------------------------------------------------------------------
+
+
+class FakeApi:
+    """Records the managed dialogue without opening a socket."""
+
+    def __init__(self, *, keep_acceptance: bool = False) -> None:
+        self.added: list[str] = []
+        self.deleted: list[tuple[int, str]] = []
+        self.emails: list[str] = []
+        self.keep_acceptance = keep_acceptance
+        self._next_id = 1
+
+    def add_inbound(self, inbound, client=None):
+        del client
+        self.added.append(inbound.tag)
+        for item in inbound.clients:
+            self.emails.append(item.email)
+        identifier = self._next_id
+        self._next_id += 1
+        return identifier
+
+    def delete_client(self, inbound_id, client_id):
+        self.deleted.append((inbound_id, client_id))
+        if not self.keep_acceptance:
+            self.emails = [
+                email for email in self.emails if not email.startswith("acceptance-")
+            ]
+
+    def effective_config(self):
+        return {"inbounds": [], "client_emails": sorted(set(self.emails))}
+
+
+class SequentialSecrets:
+    def __init__(self) -> None:
+        self._counter = 0
+
+    def _next(self, label: str) -> str:
+        self._counter += 1
+        return f"{label}-{self._counter}"
+
+    def client_id(self) -> str:
+        self._counter += 1
+        return f"00000000-0000-4000-8000-{self._counter:012d}"
+
+    def password(self) -> str:
+        return self._next("password")
+
+    def reality_keypair(self) -> tuple[str, str]:
+        return self._next("private"), self._next("public")
+
+    def short_id(self) -> str:
+        return self._next("shortid")
+
+
+def test_managed_configuration_removes_every_acceptance_client(tmp_path):
+    api = FakeApi()
+    report = adapter(tmp_path).configure_managed(
+        managed_config(),
+        api,
+        generator=SequentialSecrets(),
+    )
+    assert report["inbounds"] == 3
+    assert report["acceptance_clients_removed"] == 3
+    assert len(api.deleted) == 3
+    assert not any(email.startswith("acceptance-") for email in api.emails)
+
+
+def test_managed_configuration_fails_closed_on_a_surviving_acceptance_client(tmp_path):
+    api = FakeApi(keep_acceptance=True)
+    with pytest.raises(AcceptanceError, match="acceptance client is still present"):
+        adapter(tmp_path).configure_managed(
+            managed_config(),
+            api,
+            generator=SequentialSecrets(),
+        )
+
+
+def test_warp_is_a_separate_opt_in_action(tmp_path):
+    without = adapter(tmp_path).plan(managed_config(), AuditFacts())
+    assert not any(action.id == "three_xui.warp" for action in without)
+
+    config = managed_config(warp=True)
+    with_warp = InstallerConfig(
+        **{
+            **{name: getattr(config, name) for name in config.__dataclass_fields__},
+            "three_xui": ThreeXuiConfig(
+                mode=ThreeXuiMode.MANAGED_NEW,
+                panel_domain="xui.example.com",
+                vless_tcp_domain="vless.example.com",
+                vless_xhttp_domain="xhttp.example.com",
+                hysteria_domain="hysteria.example.com",
+                warp=True,
+                warp_domains=("openai.com",),
+            ),
+        }
+    )
+    actions = adapter(tmp_path).plan(with_warp, AuditFacts())
+    warp = next(action for action in actions if action.id == "three_xui.warp")
+    assert warp.owner == "proxy-control:three-xui-warp"
+    assert "warp-domain=openai.com" in warp.mutations
+    assert adapter(tmp_path).verify(warp).success
+
+
+def test_warp_requires_confirmed_domains(tmp_path):
+    with pytest.raises(PlanError, match="operator-confirmed domains"):
+        adapter(tmp_path).plan(managed_config(warp=True), AuditFacts())
+
+
+def test_bootstrap_rotates_credentials_inside_a_private_namespace(tmp_path):
+    runner = FakeThreeXuiRunner()
+    instance = adapter(tmp_path, runner)
+    password = tmp_path / "password"
+    password.write_text("generated-password\n")
+
+    instance.bootstrap_credentials(
+        username="operator",
+        password_path=password,
+        web_path="/managed/",
+        port=8451,
+    )
+
+    joined = [" ".join(call) for call in runner.calls]
+    assert any("ip netns add" in call for call in joined)
+    assert any("NetworkNamespacePath" in call for call in joined)
+    assert any("systemctl stop x-ui-bootstrap.service" in call for call in joined)
+    assert not any("generated-password" in call for call in joined)
