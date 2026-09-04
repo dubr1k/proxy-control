@@ -1290,6 +1290,11 @@ def test_transaction_repair_restores_only_missing_owned_ufw_rule_family(
             "# proxy-control:firewall:tcp:80"
         ) in runner.rules
 
+    uninstalled = engine.uninstall(purge_data=False)
+
+    assert uninstalled.status == "uninstalled"
+    assert runner.rules == ssh_rules
+
 
 
 @pytest.mark.parametrize(

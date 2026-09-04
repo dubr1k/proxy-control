@@ -285,6 +285,7 @@ class FirewallAdapter:
             "installer_added": installer_added,
             "owner": action.owner,
             "ownership": {},
+            "preexisting": preexisting,
         }
 
     def verify(self, action: Action) -> Evidence:
