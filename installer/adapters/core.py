@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import http.cookiejar
 import json
@@ -19,6 +20,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from installer.audit import CommandRunner as AuditCommandRunner
+from installer.audit import parse_nginx_observation
 from installer.model import InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence
 from installer.transaction import (
@@ -117,16 +120,16 @@ class _DefaultCoreRunner:
             output = f"exit={completed.returncode} {output}"
         return output[-limit:]
 
-    def compose_project_present(self, project_dir: str) -> bool:
+    def compose_project_present(self, _project_dir: str) -> bool:
         containers = self._capture_checked(
             (
                 "docker",
-                "compose",
-                "--project-directory",
-                project_dir,
-                "ps",
-                "-a",
-                "-q",
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--filter",
+                "label=com.docker.compose.project=mtproxy",
             )
         )
         networks = self._capture_checked(
@@ -275,6 +278,7 @@ class _DefaultCoreRunner:
         )
         if expected != configured_credentials + 1:
             raise AcceptanceError("Core acceptance failed: resPQ")
+        self._verify_adjacent_routes(adjacent_sni)
         for domain, _backend in adjacent_sni:
             self._run_checked(
                 (
@@ -345,6 +349,52 @@ class _DefaultCoreRunner:
         if set(states) != expected or healthy != len(expected):
             raise AcceptanceError("Core acceptance failed: Compose health checks")
         return healthy
+
+    def _capture_effective_nginx(self) -> str:
+        try:
+            result = AuditCommandRunner(
+                timeout=min(self.timeout, 30.0),
+                max_output=1024 * 1024,
+            ).run(("nginx", "-T"))
+        except Exception as exc:
+            raise AcceptanceError(
+                "Core acceptance failed: adjacent SNI mapping"
+            ) from exc
+        if result.returncode:
+            raise AcceptanceError(
+                "Core acceptance failed: adjacent SNI mapping"
+            )
+        return result.stdout + result.stderr
+
+    def _verify_adjacent_routes(
+        self,
+        expected: Sequence[tuple[str, str]],
+    ) -> None:
+        if not expected:
+            return
+        try:
+            observed = parse_nginx_observation(self._capture_effective_nginx())
+        except Exception as exc:
+            raise AcceptanceError(
+                "Core acceptance failed: adjacent SNI mapping"
+            ) from exc
+        routes = observed.get("sni_routes")
+        if not isinstance(routes, Mapping):
+            raise AcceptanceError(
+                "Core acceptance failed: adjacent SNI mapping"
+            )
+        if any(
+            routes.get(domain) != backend
+            for domain, backend in expected
+            if backend != "audited"
+        ) or any(
+            domain not in routes
+            for domain, backend in expected
+            if backend == "audited"
+        ):
+            raise AcceptanceError(
+                "Core acceptance failed: adjacent SNI mapping"
+            )
 
     def cleanup_core_acceptance(
         self,
@@ -920,34 +970,44 @@ class CoreAdapter:
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         self._selection(action)
-        self.render(action)
         project = self._host(self.paths.project_dir)
         kind = self._project_kind(project)
+        acceptance_name = self._existing_acceptance_name(project)
+        if acceptance_name is None:
+            acceptance_name = _ACCEPTANCE_PREFIX + secrets.token_hex(8)
+        marker_value = secrets.token_hex(16) if kind == "absent" else None
+        marker_sha256 = (
+            hashlib.sha256((marker_value + "\n").encode()).hexdigest()
+            if marker_value is not None
+            else self.marker_sha256()
+        )
         source_probe = self.source_dir / "probe" / "mtproxy-respq-probe"
         if not source_probe.is_file():
             raise CoreError("pinned TDLib probe sources are unavailable")
         expected_probe = _file_sha256(source_probe)
         probe = self._host(self.paths.probe_path)
         probe_preexisting = probe.exists() or probe.is_symlink()
-        if probe_preexisting and (
-            probe.is_symlink()
-            or not probe.is_file()
-            or _file_sha256(probe) != expected_probe
-        ):
-            raise CoreError("pre-existing protocol probe is not installer-owned")
+        if probe_preexisting:
+            self._validate_probe(probe, expected_probe)
         image_preexisting = self._probe_image_identity()
         if image_preexisting is not None and not self._probe_image_compatible():
             raise CoreError("pre-existing probe image is not safely adoptable")
         return {
-            "acceptance_name": _ACCEPTANCE_PREFIX + secrets.token_hex(8),
+            "acceptance_name": acceptance_name,
             "adoption": kind,
             "owner": action.owner,
             "ownership": {},
+            "planned_ownership": self._planned_ownership(
+                action,
+                acceptance_name=acceptance_name,
+                marker_sha256=marker_sha256,
+            ),
             "probe_expected_sha256": expected_probe,
             "probe_image_owner": secrets.token_hex(16),
             "probe_image_preexisting": image_preexisting,
             "probe_preexisting": probe_preexisting,
             "project_created": kind == "absent",
+            "project_marker_value": marker_value,
         }
 
     def apply(
@@ -958,13 +1018,33 @@ class CoreAdapter:
         selected = self._selection(action)
         prepared = self._checkpoint(checkpoint, action)
         self._install_probe(prepared)
-        self._write_generation(selected, recovery=True)
+        self._write_generation(
+            selected,
+            recovery=True,
+            marker_value=prepared["project_marker_value"],
+        )
         self._write_acceptance_owner(str(prepared["acceptance_name"]))
         self._compose("config", "-q")
         self._compose("pull", "-q")
         self._compose_start()
         self._bootstrap_panel(selected)
-        ownership = self._ownership(include_probe=not prepared["probe_preexisting"])
+        ownership = self._ownership(
+            probe_preserve=bool(prepared["probe_preexisting"]),
+        )
+        planned = prepared["planned_ownership"]
+        if not isinstance(planned, Mapping):
+            raise CoreError("Core checkpoint is invalid")
+        for host_path, entry in planned.items():
+            if not isinstance(host_path, str) or not isinstance(entry, Mapping):
+                raise CoreError("Core checkpoint is invalid")
+            if host_path.startswith(self.paths.project_dir + "/"):
+                continue
+            path = self._host(host_path)
+            if (
+                (path.exists() or path.is_symlink())
+                and _path_sha256(path) == entry["sha256"]
+            ):
+                ownership[host_path] = dict(entry)
         return {
             **prepared,
             "ownership": ownership,
@@ -1063,6 +1143,7 @@ class CoreAdapter:
         prepared = self._checkpoint(checkpoint, action, applied=True)
         destructive_purge = rollback_target == "uninstalled" and purge_data
         pending = self._host(self.paths.acceptance_pending_path)
+        cleanup_pending = False
         if pending.exists() or pending.is_symlink():
             try:
                 self._cleanup_acceptance(
@@ -1070,8 +1151,11 @@ class CoreAdapter:
                     str(prepared["acceptance_name"]),
                 )
             except Exception:
-                pass
-            durable_remove(pending, missing_ok=True)
+                cleanup_pending = not destructive_purge
+            else:
+                durable_remove(pending, missing_ok=True)
+            if destructive_purge:
+                durable_remove(pending, missing_ok=True)
         if self._compose_present():
             self._compose("down", "--remove-orphans")
         if destructive_purge and self._volumes_present():
@@ -1079,6 +1163,7 @@ class CoreAdapter:
         self._remove_generation(
             prepared,
             preserve_credentials=not destructive_purge,
+            preserve_acceptance=cleanup_pending,
         )
         self._remove_owned_probe(prepared)
         self._remove_owned_probe_image(prepared)
@@ -1093,7 +1178,10 @@ class CoreAdapter:
                     else "persistent data was preserved"
                 ),
             ),
-            details={"persistent_data_preserved": not destructive_purge},
+            details={
+                "persistent_data_preserved": not destructive_purge,
+                "temporary_cleanup_pending": cleanup_pending,
+            },
         )
 
     def reconcile_rollback(
@@ -1228,11 +1316,13 @@ class CoreAdapter:
             "adoption",
             "owner",
             "ownership",
+            "planned_ownership",
             "probe_expected_sha256",
             "probe_image_owner",
             "probe_image_preexisting",
             "probe_preexisting",
             "project_created",
+            "project_marker_value",
         }
         if set(checkpoint) != required:
             raise CoreError("Core checkpoint is invalid")
@@ -1240,6 +1330,8 @@ class CoreAdapter:
         adoption = checkpoint.get("adoption")
         owner = checkpoint.get("owner")
         created = checkpoint.get("project_created")
+        marker_value = checkpoint.get("project_marker_value")
+        planned_ownership = checkpoint.get("planned_ownership")
         probe_expected = checkpoint.get("probe_expected_sha256")
         probe_image_owner = checkpoint.get("probe_image_owner")
         probe_image_preexisting = checkpoint.get("probe_image_preexisting")
@@ -1256,6 +1348,15 @@ class CoreAdapter:
             or owner != action.owner
             or not isinstance(created, bool)
             or created != (adoption == "absent")
+            or (
+                (adoption == "absent" and (
+                    not isinstance(marker_value, str)
+                    or re.fullmatch(r"[0-9a-f]{32}", marker_value) is None
+                ))
+                or (adoption == "recovery" and marker_value is not None)
+            )
+            or not isinstance(planned_ownership, Mapping)
+            or not planned_ownership
             or not isinstance(probe_expected, str)
             or re.fullmatch(r"[0-9a-f]{64}", probe_expected) is None
             or not isinstance(probe_image_owner, str)
@@ -1276,6 +1377,7 @@ class CoreAdapter:
             or (not applied and ownership)
         ):
             raise CoreError("Core checkpoint is invalid")
+        _validate_ownership_mapping(planned_ownership)
         if applied:
             _validate_ownership_mapping(ownership)
         return {
@@ -1283,30 +1385,89 @@ class CoreAdapter:
             "adoption": adoption,
             "owner": owner,
             "ownership": dict(ownership),
+            "planned_ownership": dict(planned_ownership),
             "probe_expected_sha256": probe_expected,
             "probe_image_owner": probe_image_owner,
             "probe_image_preexisting": probe_image_preexisting,
             "probe_preexisting": probe_preexisting,
             "project_created": created,
+            "project_marker_value": marker_value,
         }
 
     def _project_kind(self, project: Path) -> str:
         if not project.exists():
             return "absent"
         if project.is_symlink() or not project.is_dir():
-            raise CoreError("pre-existing project requires explicit migration; refusing overwrite")
+            raise CoreError(
+                "pre-existing project requires explicit migration; refusing overwrite"
+            )
         names = {entry.name for entry in project.iterdir()}
         if not names:
             return "absent"
-        if self.paths.marker_name not in names or not names <= {self.paths.marker_name, "secrets"}:
-            raise CoreError("pre-existing project requires explicit migration; refusing overwrite")
+        allowed = {
+            self.paths.marker_name,
+            self.paths.bootstrap_marker_name,
+            self.paths.acceptance_owner_name,
+            self.paths.acceptance_pending_name,
+            "secrets",
+        }
+        if self.paths.marker_name not in names or not names <= allowed:
+            raise CoreError(
+                "pre-existing project requires explicit migration; refusing overwrite"
+            )
         self.marker_sha256()
+        bootstrap_marker = project / self.paths.bootstrap_marker_name
+        if bootstrap_marker.exists() or bootstrap_marker.is_symlink():
+            if (
+                bootstrap_marker.is_symlink()
+                or not bootstrap_marker.is_file()
+                or stat.S_IMODE(bootstrap_marker.stat().st_mode) != 0o600
+                or re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    bootstrap_marker.read_text().strip(),
+                )
+                is None
+            ):
+                raise CoreError("panel bootstrap ownership has drifted")
+        self._existing_acceptance_name(project)
         secret_dir = project / "secrets"
-        if secret_dir.exists() and (secret_dir.is_symlink() or not secret_dir.is_dir()):
+        if secret_dir.exists() and (
+            secret_dir.is_symlink() or not secret_dir.is_dir()
+        ):
             raise CoreError("pre-existing project credentials are unsafe")
         if secret_dir.is_dir():
             self._validate_existing_credentials(secret_dir)
         return "recovery"
+
+    def _existing_acceptance_name(self, project: Path) -> str | None:
+        owner = project / self.paths.acceptance_owner_name
+        pending = project / self.paths.acceptance_pending_name
+        if not (owner.exists() or owner.is_symlink()):
+            if pending.exists() or pending.is_symlink():
+                raise CoreError("temporary-user ownership has drifted")
+            return None
+        if (
+            owner.is_symlink()
+            or not owner.is_file()
+            or stat.S_IMODE(owner.stat().st_mode) != 0o600
+            or (
+                self.root == Path("/")
+                and (owner.stat().st_uid, owner.stat().st_gid) != (0, 0)
+            )
+        ):
+            raise CoreError("temporary-user ownership has drifted")
+        value = owner.read_text().strip()
+        if re.fullmatch(r"proxy-control-acceptance-[0-9a-f]{16}", value) is None:
+            raise CoreError("temporary-user ownership has drifted")
+        if pending.exists() or pending.is_symlink():
+            if (
+                pending.is_symlink()
+                or not pending.is_file()
+                or stat.S_IMODE(pending.stat().st_mode) != 0o600
+                or pending.read_text().strip() != value
+            ):
+                raise CoreError("temporary-user ownership has drifted")
+        return value
 
     def _validate_existing_credentials(self, secret_dir: Path) -> None:
         metadata = secret_dir.stat()
@@ -1344,16 +1505,99 @@ class CoreAdapter:
             if not validator(value):
                 raise CoreError("pre-existing project credentials are unsafe")
 
-    def _write_generation(self, selected: Mapping[str, object], *, recovery: bool) -> None:
+    def _planned_ownership(
+        self,
+        action: Action,
+        *,
+        acceptance_name: str,
+        marker_sha256: str,
+    ) -> dict[str, dict[str, object]]:
+        rendered = self.render(action)
+        project = self._host(self.paths.project_dir)
+        planned: dict[str, dict[str, object]] = {}
+
+        def add(path: Path, sha256: str, *, preserve: bool = False) -> None:
+            planned[self._host_name(path)] = {
+                "preserve": preserve,
+                "sha256": sha256,
+            }
+
+        add(
+            project / self.paths.marker_name,
+            marker_sha256,
+            preserve=True,
+        )
+        add(
+            project / self.paths.acceptance_owner_name,
+            hashlib.sha256((acceptance_name + "\n").encode()).hexdigest(),
+        )
+        add(
+            project / ".env",
+            hashlib.sha256(rendered.env_text.encode()).hexdigest(),
+        )
+        selected = self._selection(action)
+        for domain, title in (
+            (selected["proxy_domain"], "Welcome"),
+            (selected["panel_domain"], "Workspace"),
+        ):
+            cover = self._host(f"/var/www/{domain}/index.html")
+            if not (cover.exists() or cover.is_symlink()):
+                body = (
+                    f"<!doctype html><title>{title}</title>"
+                    f"<h1>{title}</h1>\n"
+                ).encode()
+                add(cover, hashlib.sha256(body).hexdigest())
+        for relative in _COPY_FILES:
+            source = self.source_dir / relative
+            if not source.is_file():
+                raise CoreError("installer source generation is incomplete")
+            add(project / relative, _path_sha256(source))
+        for directory in _COPY_DIRECTORIES:
+            source_root = self.source_dir / directory
+            if not source_root.is_dir():
+                raise CoreError("installer source generation is incomplete")
+            for source in sorted(source_root.rglob("*")):
+                relative = source.relative_to(source_root)
+                if (
+                    any(part in {"tests", "__pycache__"} for part in relative.parts)
+                    or fnmatch.fnmatch(source.name, "*.pyc")
+                    or fnmatch.fnmatch(source.name, "*.sqlite3*")
+                    or (not source.is_file() and not source.is_symlink())
+                ):
+                    continue
+                add(
+                    project / directory / relative,
+                    _path_sha256(source),
+                )
+        return planned
+
+
+    def _write_generation(
+        self,
+        selected: Mapping[str, object],
+        *,
+        recovery: bool,
+        marker_value: object | None = None,
+    ) -> None:
         rendered = self.render(self._action_from_selection(selected))
         project = self._host(self.paths.project_dir)
-        if project.exists() and self._project_kind_for_apply(project, recovery) == "foreign":
-            raise CoreError("pre-existing project requires explicit migration; refusing overwrite")
+        if (
+            project.exists()
+            and self._project_kind_for_apply(project, recovery) == "foreign"
+        ):
+            raise CoreError(
+                "pre-existing project requires explicit migration; refusing overwrite"
+            )
         durable_mkdir(project)
         self._assert_safe_project_tree(project)
         marker = project / self.paths.marker_name
         if not marker.exists():
-            self._atomic(marker, (secrets.token_hex(16) + "\n").encode(), 0o600)
+            value = (
+                marker_value
+                if isinstance(marker_value, str)
+                else secrets.token_hex(16)
+            )
+            self._atomic(marker, (value + "\n").encode(), 0o600)
         source = self.source_dir
         if not source.is_dir():
             raise CoreError("installer source directory does not exist")
@@ -1474,6 +1718,18 @@ class CoreAdapter:
             credentials_required=True,
         )
 
+    def _validate_probe(self, path: Path, expected_sha256: str) -> None:
+        if path.is_symlink() or not path.is_file():
+            raise CoreError("pre-existing protocol probe is not installer-owned")
+        metadata = path.stat()
+        if stat.S_IMODE(metadata.st_mode) != 0o750 or (
+            self.root == Path("/") and (metadata.st_uid, metadata.st_gid) != (0, 0)
+        ):
+            raise CoreError("protocol probe metadata is not root-owned mode 0750")
+        if _file_sha256(path) != expected_sha256:
+            raise CoreError("pre-existing protocol probe is not installer-owned")
+
+
     def _install_probe(
         self,
         checkpoint: Mapping[str, object] | None = None,
@@ -1493,12 +1749,7 @@ class CoreAdapter:
         if preexisting_image is not None and current_image != preexisting_image:
             raise CoreError("pre-existing probe image identity has drifted")
         if destination.exists() or destination.is_symlink():
-            if (
-                destination.is_symlink()
-                or not destination.is_file()
-                or _file_sha256(destination) != expected
-            ):
-                raise CoreError("pre-existing protocol probe is not installer-owned")
+            self._validate_probe(destination, expected)
             if current_image is not None:
                 if (
                     preexisting_image is None
@@ -1528,13 +1779,8 @@ class CoreAdapter:
                 durable_copy2(source, destination)
             if checkpoint is not None and self._probe_image_owner() != owner:
                 raise CoreError("probe image ownership label is missing")
-        if (
-            destination.is_symlink()
-            or not destination.is_file()
-            or _file_sha256(destination) != expected
-        ):
-            raise CoreError("pinned TDLib probe installation failed")
         os.chmod(destination, 0o750)
+        self._validate_probe(destination, expected)
 
     def _probe_image_identity(self) -> str | None:
         method = getattr(self.runner, "probe_image_identity", None)
@@ -1879,7 +2125,7 @@ class CoreAdapter:
         self,
         *,
         existing_only: bool = False,
-        include_probe: bool = True,
+        probe_preserve: bool = False,
     ) -> dict[str, dict[str, object]]:
         project = self._host(self.paths.project_dir)
         ownership: dict[str, dict[str, object]] = {}
@@ -1888,15 +2134,18 @@ class CoreAdapter:
                 if not path.is_file() and not path.is_symlink():
                     continue
                 relative = path.relative_to(project).as_posix()
-                preserve = relative in _PRESERVED_CREDENTIALS or relative == self.paths.marker_name
+                preserve = (
+                    relative in _PRESERVED_CREDENTIALS
+                    or relative == self.paths.marker_name
+                )
                 ownership[self._host_name(path)] = {
                     "preserve": preserve,
                     "sha256": _path_sha256(path),
                 }
         probe = self._host(self.paths.probe_path)
-        if include_probe and (probe.exists() or probe.is_symlink()):
+        if probe.exists() or probe.is_symlink():
             ownership[self.paths.probe_path] = {
-                "preserve": False,
+                "preserve": probe_preserve,
                 "sha256": _path_sha256(probe),
             }
         if not existing_only and not ownership:
@@ -1911,41 +2160,91 @@ class CoreAdapter:
             if not isinstance(host_path, str) or not isinstance(entry, Mapping):
                 raise CoreError("Core checkpoint is invalid")
             path = self._host(host_path)
-            if not (path.exists() or path.is_symlink()) or _path_sha256(path) != entry["sha256"]:
+            if (
+                not (path.exists() or path.is_symlink())
+                or _path_sha256(path) != entry["sha256"]
+            ):
                 raise CoreError(f"Core owned file has drifted: {host_path}")
+            if host_path == self.paths.probe_path:
+                self._validate_probe(
+                    path,
+                    str(checkpoint["probe_expected_sha256"]),
+                )
 
     def _remove_generation(
         self,
         checkpoint: Mapping[str, object],
         *,
         preserve_credentials: bool,
+        preserve_acceptance: bool = False,
     ) -> None:
         ownership = checkpoint.get("ownership", {})
-        if not isinstance(ownership, Mapping):
+        planned = checkpoint.get("planned_ownership", {})
+        if not isinstance(ownership, Mapping) or not isinstance(planned, Mapping):
             raise CoreError("Core checkpoint is invalid")
+        using_planned = not ownership
+        entries = planned if using_planned else ownership
         owned_directories: set[Path] = set()
         project = self._host(self.paths.project_dir)
-        for host_path, entry in sorted(ownership.items(), reverse=True):
+        marker_host = f"{self.paths.project_dir}/{self.paths.marker_name}"
+        marker_entry = entries.get(marker_host)
+        marker = self._host(marker_host)
+        owned_generation = (
+            isinstance(marker_entry, Mapping)
+            and (marker.exists() or marker.is_symlink())
+            and _path_sha256(marker) == marker_entry.get("sha256")
+        )
+        for host_path, entry in sorted(entries.items(), reverse=True):
             if host_path == self.paths.probe_path:
                 continue
             if not isinstance(entry, Mapping):
                 raise CoreError("Core checkpoint is invalid")
             path = self._host(host_path)
-            if project == path or project not in path.parents:
+            in_project = project in path.parents
+            safe_cover = re.fullmatch(
+                r"/var/www/[A-Za-z0-9.-]+/index[.]html",
+                host_path,
+            ) is not None
+            if project == path or (not in_project and not safe_cover):
                 raise CoreError("Core checkpoint ownership escapes the project")
-            cursor = path.parent
-            while cursor == project or project in cursor.parents:
-                owned_directories.add(cursor)
-                if cursor == project:
-                    break
-                cursor = cursor.parent
+            if in_project:
+                cursor = path.parent
+                while cursor == project or project in cursor.parents:
+                    owned_directories.add(cursor)
+                    if cursor == project:
+                        break
+                    cursor = cursor.parent
             if preserve_credentials and entry.get("preserve") is True:
+                continue
+            if (
+                preserve_acceptance
+                and host_path == self.paths.acceptance_owner_path
+            ):
                 continue
             if not (path.exists() or path.is_symlink()):
                 continue
             if _path_sha256(path) != entry.get("sha256"):
+                if using_planned:
+                    continue
                 raise CoreError(f"Core owned file has drifted: {host_path}")
             durable_remove(path)
+        if not preserve_credentials and owned_generation:
+            purge_paths = (
+                *_PRESERVED_CREDENTIALS,
+                self.paths.bootstrap_marker_name,
+                self.paths.acceptance_owner_name,
+                self.paths.acceptance_pending_name,
+            )
+            for relative in purge_paths:
+                path = project / relative
+                if path.exists() or path.is_symlink():
+                    durable_remove(path)
+                cursor = path.parent
+                while cursor == project or project in cursor.parents:
+                    owned_directories.add(cursor)
+                    if cursor == project:
+                        break
+                    cursor = cursor.parent
         for directory in sorted(
             owned_directories,
             key=lambda value: len(value.parts),

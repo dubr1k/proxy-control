@@ -560,3 +560,115 @@ def test_preexisting_unowned_acceptance_collision_is_not_deleted(tmp_path):
         adapter.verify(action)
 
     assert runner.cleanup_calls == 0
+
+
+def test_applying_rollback_removes_matching_generation_only(tmp_path):
+    project = "/opt/mtproxy-shared443"
+    runner = FakeRunner(
+        fail_on=(
+            "docker",
+            "compose",
+            "--project-directory",
+            project,
+            "config",
+        )
+    )
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    checkpoint = adapter.prepare(action)
+
+    with pytest.raises(RuntimeError, match="injected failure"):
+        adapter.apply(action, checkpoint)
+    project_path = tmp_path / project.lstrip("/")
+    foreign = project_path / "operator-note.txt"
+    foreign.write_text("preserve me\n")
+
+    adapter.rollback(action, checkpoint, rollback_target="rolled_back")
+
+    assert not (project_path / "compose.yaml").exists()
+    assert (project_path / "secrets/users.conf").is_file()
+    assert (project_path / ".mtproxy-owned").is_file()
+    assert not (tmp_path / "var/www/proxy.example.com/index.html").exists()
+    assert not (tmp_path / "var/www/panel.example.com/index.html").exists()
+    assert foreign.read_text() == "preserve me\n"
+
+
+def test_compose_presence_query_uses_only_fixed_project_labels(monkeypatch):
+    runner = _DefaultCoreRunner()
+    calls: list[tuple[str, ...]] = []
+
+    def capture(argv):
+        calls.append(tuple(argv))
+        return "container-id\n" if argv[:3] == ("docker", "container", "ls") else ""
+
+    monkeypatch.setattr(runner, "_capture_checked", capture)
+
+    assert runner.compose_project_present("/missing/project")
+    assert all("compose" not in call for call in calls)
+    assert all("/missing/project" not in call for call in calls)
+
+
+def test_failed_rollback_cleanup_retains_tombstone_until_later_success(tmp_path):
+    runner = FakeRunner(cleanup_fails=True)
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    project = tmp_path / "opt/mtproxy-shared443"
+    pending = project / ".core-acceptance-pending"
+    pending.write_text(str(applied["acceptance_name"]) + "\n")
+    pending.chmod(0o600)
+
+    adapter.rollback(action, applied, rollback_target="rolled_back")
+
+    assert pending.is_file()
+    assert (project / ".core-acceptance-owner").is_file()
+
+    runner.cleanup_fails = False
+    adapter.reconcile_rollback(action, applied, rollback_target="rolled_back")
+    assert not pending.exists()
+    assert not (project / ".core-acceptance-owner").exists()
+
+
+def test_preexisting_probe_requires_owned_metadata_and_is_repair_checked(tmp_path):
+    probe = tmp_path / "usr/local/libexec/mtproxy-respq-probe"
+    probe.parent.mkdir(parents=True)
+    probe.write_bytes((ROOT / "probe/mtproxy-respq-probe").read_bytes())
+    probe.chmod(0o755)
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+
+    with pytest.raises(CoreError, match="metadata"):
+        adapter.prepare(action)
+
+    probe.chmod(0o750)
+    applied = adapter.apply(action, adapter.prepare(action))
+    entry = applied["ownership"]["/usr/local/libexec/mtproxy-respq-probe"]
+    assert entry["preserve"] is True
+
+    probe.chmod(0o755)
+    with pytest.raises(CoreError, match="probe"):
+        adapter.repair(action, applied)
+
+
+def test_adjacent_sni_mapping_must_still_match_audited_backend(monkeypatch):
+    runner = _DefaultCoreRunner()
+    effective = """
+stream {
+    map $ssl_preread_server_name $backend {
+        vpn.example.com 127.0.0.1:10443;
+        default 127.0.0.1:8443;
+    }
+    server {
+        listen 443;
+        ssl_preread on;
+        proxy_pass $backend;
+    }
+}
+"""
+    monkeypatch.setattr(runner, "_capture_effective_nginx", lambda: effective)
+
+    with pytest.raises(AcceptanceError, match="adjacent SNI mapping"):
+        runner._verify_adjacent_routes(
+            (("vpn.example.com", "127.0.0.1:11443"),)
+        )
