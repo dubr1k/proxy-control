@@ -526,6 +526,11 @@ class NginxAdapter:
             (config.domains.mtproxy, "127.0.0.1:8445"),
             (config.domains.panel, "127.0.0.1:8787"),
         )
+        if config.profile.includes_naive:
+            if config.domains.naive is None:
+                raise TopologyError("Naive route domain is missing")
+            # The private Caddy listener never competes for TCP/443 itself.
+            routes += ((config.domains.naive, "127.0.0.1:4443"),)
         known_domains: set[str] = set()
         observed_routes = nginx.get("sni_routes", {})
         if isinstance(observed_routes, Mapping):

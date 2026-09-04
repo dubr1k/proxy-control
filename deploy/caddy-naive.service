@@ -7,6 +7,10 @@ Wants=network-online.target
 Type=notify
 User=naive-caddy
 Group=naive-accounting
+# Keep Caddy storage inside the private runtime directory: the service has
+# no home and ProtectSystem=strict leaves no other writable location.
+Environment=XDG_DATA_HOME=/run/caddy-naive
+Environment=XDG_CONFIG_HOME=/run/caddy-naive
 ExecStartPre=/usr/local/libexec/check-naive-caddy-build
 RuntimeDirectory=caddy-naive
 RuntimeDirectoryMode=0700
