@@ -380,7 +380,7 @@ def test_automatic_rollback_never_purges_volumes_or_credentials(tmp_path):
     assert not any("--volumes" in call for call, _stdin in runner.calls)
 
 
-def test_rollback_is_best_effort_when_acceptance_cleanup_is_unavailable(tmp_path):
+def test_rollback_cleanup_failure_remains_retryable(tmp_path):
     runner = FakeRunner(cleanup_fails=True)
     adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
     action = core_action()
@@ -390,14 +390,15 @@ def test_rollback_is_best_effort_when_acceptance_cleanup_is_unavailable(tmp_path
     pending.write_text(str(checkpoint["acceptance_name"]) + "\n")
     pending.chmod(0o600)
 
-    evidence = adapter.rollback(
-        action,
-        checkpoint,
-        purge_data=False,
-        rollback_target="rolled_back",
-    )
+    with pytest.raises(CoreError, match="cleanup"):
+        adapter.rollback(
+            action,
+            checkpoint,
+            purge_data=False,
+            rollback_target="rolled_back",
+        )
 
-    assert evidence.success
+    assert pending.is_file()
     assert runner.cleanup_calls == 1
 
 
@@ -618,15 +619,19 @@ def test_failed_rollback_cleanup_retains_tombstone_until_later_success(tmp_path)
     pending.write_text(str(applied["acceptance_name"]) + "\n")
     pending.chmod(0o600)
 
-    adapter.rollback(action, applied, rollback_target="rolled_back")
+    with pytest.raises(CoreError, match="cleanup"):
+        adapter.rollback(action, applied, rollback_target="rolled_back")
 
     assert pending.is_file()
     assert (project / ".core-acceptance-owner").is_file()
+    assert (project / "compose.yaml").is_file()
+    assert runner.compose_present
 
     runner.cleanup_fails = False
     adapter.reconcile_rollback(action, applied, rollback_target="rolled_back")
     assert not pending.exists()
     assert not (project / ".core-acceptance-owner").exists()
+    assert not runner.compose_present
 
 
 def test_preexisting_probe_requires_owned_metadata_and_is_repair_checked(tmp_path):
@@ -672,3 +677,59 @@ stream {
         runner._verify_adjacent_routes(
             (("vpn.example.com", "127.0.0.1:11443"),)
         )
+
+
+@pytest.mark.parametrize(
+    ("relative", "mode"),
+    [
+        ("secrets", 0o755),
+        ("secrets/users.conf", 0o644),
+        ("secrets/telemt-api-token", 0o644),
+        ("secrets/panel-bootstrap-password", 0o644),
+    ],
+)
+def test_repair_revalidates_credential_metadata(tmp_path, relative, mode):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    target = tmp_path / "opt/mtproxy-shared443" / relative
+    target.chmod(mode)
+
+    with pytest.raises(CoreError, match="credentials"):
+        adapter.repair(action, applied)
+
+
+def test_absent_filesystem_adoption_refuses_active_fixed_label_resources(tmp_path):
+    runner = FakeRunner()
+    runner.compose_present = True
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+
+    with pytest.raises(CoreError, match="active mtproxy"):
+        adapter.prepare(core_action())
+
+    runner.compose_present = False
+    runner.volumes_present = True
+    checkpoint = adapter.prepare(core_action())
+    assert checkpoint["adoption"] == "absent"
+
+
+def test_explicit_purge_can_discard_failed_temporary_cleanup(tmp_path):
+    runner = FakeRunner(cleanup_fails=True)
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    pending = tmp_path / "opt/mtproxy-shared443/.core-acceptance-pending"
+    pending.write_text(str(applied["acceptance_name"]) + "\n")
+    pending.chmod(0o600)
+
+    evidence = adapter.rollback(
+        action,
+        applied,
+        purge_data=True,
+        rollback_target="uninstalled",
+    )
+
+    assert evidence.success
+    assert not pending.exists()
+    assert not runner.volumes_present

@@ -972,6 +972,10 @@ class CoreAdapter:
         self._selection(action)
         project = self._host(self.paths.project_dir)
         kind = self._project_kind(project)
+        if kind == "absent" and self._compose_present():
+            raise CoreError(
+                "active mtproxy resources require a proven owned recovery generation"
+            )
         acceptance_name = self._existing_acceptance_name(project)
         if acceptance_name is None:
             acceptance_name = _ACCEPTANCE_PREFIX + secrets.token_hex(8)
@@ -1126,6 +1130,10 @@ class CoreAdapter:
     ) -> Mapping[str, object]:
         prepared = self._checkpoint(checkpoint, action, applied=True)
         self._assert_checkpoint_ownership(prepared)
+        self._validate_existing_credentials(
+            self._host(f"{self.paths.project_dir}/secrets"),
+            require_all=True,
+        )
         self._compose_start()
         return prepared
 
@@ -1150,8 +1158,15 @@ class CoreAdapter:
                     selected,
                     str(prepared["acceptance_name"]),
                 )
-            except Exception:
-                cleanup_pending = not destructive_purge
+            except Exception as exc:
+                if not destructive_purge:
+                    self._write_acceptance_owner(
+                        str(prepared["acceptance_name"])
+                    )
+                    raise CoreError(
+                        "temporary-user cleanup remains pending"
+                    ) from exc
+                cleanup_pending = False
             else:
                 durable_remove(pending, missing_ok=True)
             if destructive_purge:
@@ -1469,29 +1484,43 @@ class CoreAdapter:
                 raise CoreError("temporary-user ownership has drifted")
         return value
 
-    def _validate_existing_credentials(self, secret_dir: Path) -> None:
+    def _validate_existing_credentials(
+        self,
+        secret_dir: Path,
+        *,
+        require_all: bool = False,
+    ) -> None:
+        if secret_dir.is_symlink() or not secret_dir.is_dir():
+            raise CoreError("pre-existing project credentials are unsafe")
         metadata = secret_dir.stat()
         if stat.S_IMODE(metadata.st_mode) != 0o700 or (
             self.root == Path("/") and (metadata.st_uid, metadata.st_gid) != (0, 0)
         ):
             raise CoreError("pre-existing project credentials are unsafe")
         allowed = {Path(value).name for value in _PRESERVED_CREDENTIALS}
-        if {entry.name for entry in secret_dir.iterdir()} - allowed:
+        names = {entry.name for entry in secret_dir.iterdir()}
+        if names - allowed or (require_all and names != allowed):
             raise CoreError("pre-existing project credentials are unsafe")
         validators = {
             "users.conf": _valid_users_file,
-            "telemt-api-token": lambda data: _BEARER.fullmatch(data.rstrip("\n")) is not None,
-            "panel-bootstrap-password": lambda data: bool(data.rstrip("\n")) and "\n" not in data.rstrip("\n"),
+            "telemt-api-token": lambda data: (
+                _BEARER.fullmatch(data.rstrip("\n")) is not None
+            ),
+            "panel-bootstrap-password": lambda data: (
+                bool(data.rstrip("\n")) and "\n" not in data.rstrip("\n")
+            ),
         }
         for name, validator in validators.items():
             path = secret_dir / name
-            if not path.exists():
+            if not (path.exists() or path.is_symlink()):
+                if require_all:
+                    raise CoreError("pre-existing project credentials are unsafe")
                 continue
+            if path.is_symlink() or not path.is_file():
+                raise CoreError("pre-existing project credentials are unsafe")
             metadata = path.stat()
             if (
-                path.is_symlink()
-                or not path.is_file()
-                or stat.S_IMODE(metadata.st_mode) != 0o600
+                stat.S_IMODE(metadata.st_mode) != 0o600
                 or (
                     self.root == Path("/")
                     and (metadata.st_uid, metadata.st_gid) != (0, 0)
