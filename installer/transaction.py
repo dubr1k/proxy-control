@@ -716,17 +716,30 @@ class TransactionEngine:
                     raise TransactionError("resume the interrupted transaction before repair")
                 return state
             self._assert_all_owned(state)
-            checkpoints: list[TransactionCheckpoint] = []
             by_id = {item.action_id: item for item in state.checkpoints}
             for action in plan.actions:
                 checkpoint = by_id.get(action.id)
                 if checkpoint is None or checkpoint.phase != "verified":
                     raise TransactionError("active transaction has incomplete checkpoints")
+                adapter = self._adapter(action)
+                repair = getattr(adapter, "repair", None)
+                if callable(repair):
+                    raw_checkpoint = repair(action, _thaw(checkpoint.data))
+                    data = _checkpoint_data(raw_checkpoint, action.adapter)
+                    checkpoint = replace(
+                        checkpoint,
+                        data=data,
+                        ownership=self._capture_ownership(action, data),
+                    )
                 evidence = self._verify(action)
-                checkpoints.append(
-                    replace(checkpoint, evidence=_evidence_to_dict(evidence))
+                checkpoint = replace(
+                    checkpoint,
+                    evidence=_evidence_to_dict(evidence),
                 )
-            state = replace(state, checkpoints=tuple(checkpoints), error=None)
+                state = self._with_checkpoint(state, checkpoint)
+                self._persist_checkpoint(state, checkpoint, action)
+                by_id[action.id] = checkpoint
+            state = replace(state, error=None)
             self._persist(state)
             return state
 

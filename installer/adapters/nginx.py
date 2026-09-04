@@ -1503,7 +1503,7 @@ def _sha256(content: bytes) -> str:
 
 
 class CertificatePlan:
-    """Plan and verify service-scoped webroot HTTP-01 certificates."""
+    """Own HTTP-01 routing and verify service-scoped Certbot lineages."""
 
     name = "certificates"
     requires = frozenset({"nginx", "packages"})
@@ -1518,7 +1518,7 @@ class CertificatePlan:
         if runner is None:
             from installer.audit import CommandRunner
 
-            runner = CommandRunner()
+            runner = CommandRunner(timeout=600.0)
         self.root = root.resolve()
         self.runner = runner
         self.expected_key_owner = expected_key_owner or (os.getuid(), os.getgid())
@@ -1555,10 +1555,13 @@ class CertificatePlan:
                     "strict local A, handled AAAA, and HTTP-01 CAA facts pass",
                 ),
                 verification=(
-                    "certificate SANs and private key owner/mode are exact",
-                    "Certbot renewal dry run succeeds without random sleep",
+                    "owned port-80 HTTP-01 vhosts are active",
+                    "certificate validity, trust, exact SANs, and key pair pass",
+                    "Certbot renewal dry run succeeds for the exact lineage",
                 ),
-                inverse=("preserve issued certificate and public ACME webroots",),
+                inverse=(
+                    "remove only the exact owned HTTP-01 vhost and preserve ACME data",
+                ),
                 credentials_required=False,
             )
             for service, certificate, names in groups
@@ -1566,12 +1569,23 @@ class CertificatePlan:
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         specification = _certificate_action(action)
+        vhost_name = _certificate_vhost_path(specification)
+        vhost = self._contained_path(vhost_name, allow_missing=True)
+        if vhost.exists() or vhost.is_symlink():
+            raise TopologyError("certificate HTTP-01 vhost path is already occupied")
+        live = self._contained_path(
+            f"/etc/letsencrypt/live/{specification['certificate']}",
+            allow_missing=True,
+        )
         return {
             "certificate": specification["certificate"],
             "created_webroots": (),
+            "lineage_preexisting": live.exists() or live.is_symlink(),
             "names": specification["names"],
             "owner": action.owner,
             "ownership": {},
+            "vhost": vhost_name,
+            "vhost_sha256": None,
         }
 
     def apply(
@@ -1580,10 +1594,53 @@ class CertificatePlan:
         checkpoint: Mapping[str, object],
     ) -> Mapping[str, object]:
         specification = _certificate_action(action)
-        created = set(_certificate_checkpoint(checkpoint, specification))
+        saved = _certificate_checkpoint(checkpoint, specification)
+        lineage = self._contained_path(
+            f"/etc/letsencrypt/live/{specification['certificate']}",
+            allow_missing=True,
+        )
+        lineage_exists = lineage.exists() or lineage.is_symlink()
+        lineage_valid = self._certificate_valid(specification)
+        if saved["lineage_preexisting"] and not lineage_exists:
+            raise TopologyError("pre-existing certificate lineage identity changed")
+        if lineage_exists and not lineage_valid:
+            raise TopologyError(
+                "pre-existing certificate lineage is invalid or out of scope"
+            )
+        created = set(saved["created_webroots"])
         for webroot in specification["webroots"]:
             created.update(self._ensure_webroot(webroot))
-        if not self._certificate_valid(specification):
+
+        vhost_name = str(saved["vhost"])
+        vhost = self._contained_path(vhost_name, allow_missing=True)
+        desired_vhost = _render_certificate_vhost(action, specification)
+        desired_hash = _sha256(desired_vhost)
+        if vhost.exists() or vhost.is_symlink():
+            if (
+                vhost.is_symlink()
+                or not vhost.is_file()
+                or vhost.read_bytes() != desired_vhost
+            ):
+                raise TopologyError("owned certificate HTTP-01 vhost has drifted")
+        else:
+            atomic_write(
+                vhost,
+                desired_vhost,
+                mode=0o644,
+                owner=(os.getuid(), os.getgid()),
+            )
+        self._run_checked(("nginx", "-t"), "Nginx HTTP-01 vhost test failed")
+        self._run_checked(
+            ("systemctl", "reload", "nginx"),
+            "Nginx HTTP-01 vhost reload failed",
+        )
+        self._assert_vhost_effective(vhost_name, desired_vhost)
+
+        if not lineage_valid:
+            if lineage.exists() or lineage.is_symlink():
+                raise TopologyError(
+                    "pre-existing certificate lineage is invalid or out of scope"
+                )
             argv: list[str] = [
                 "certbot",
                 "certonly",
@@ -1604,12 +1661,14 @@ class CertificatePlan:
             self._run_checked(tuple(argv), "certificate issuance failed")
         if not self._certificate_valid(specification):
             raise TopologyError(
-                "certificate SANs or private key permissions are invalid"
+                "certificate validity, trust, SANs, or private key are invalid"
             )
         self._run_checked(
             (
                 "certbot",
                 "renew",
+                "--cert-name",
+                specification["certificate"],
                 "--dry-run",
                 "--no-random-sleep-on-renew",
             ),
@@ -1618,9 +1677,12 @@ class CertificatePlan:
         return {
             "certificate": specification["certificate"],
             "created_webroots": tuple(sorted(created)),
+            "lineage_preexisting": saved["lineage_preexisting"],
             "names": specification["names"],
             "owner": action.owner,
-            "ownership": {},
+            "ownership": {vhost_name: {"sha256": desired_hash}},
+            "vhost": vhost_name,
+            "vhost_sha256": desired_hash,
         }
 
     def reconcile_apply(
@@ -1632,14 +1694,16 @@ class CertificatePlan:
 
     def verify(self, action: Action) -> Evidence:
         specification = _certificate_action(action)
-        success = self._certificate_valid(specification)
+        success = self._vhost_valid(action, specification) and (
+            self._certificate_valid(specification)
+        )
         return Evidence(
             action_id=action.id,
             success=success,
             observations=(
-                "service certificate SANs and key permissions are valid"
+                "owned HTTP-01 vhost and service certificate are valid"
                 if success
-                else "service certificate SANs or key permissions are invalid",
+                else "owned HTTP-01 vhost or service certificate is invalid",
             ),
             details={
                 "certificate": specification["certificate"],
@@ -1659,11 +1723,44 @@ class CertificatePlan:
         if rollback_target not in {"rolled_back", "uninstalled"}:
             raise ValueError("invalid rollback target")
         specification = _certificate_action(action)
-        _certificate_checkpoint(checkpoint, specification)
+        saved = _certificate_checkpoint(checkpoint, specification)
+        vhost = self._contained_path(str(saved["vhost"]), allow_missing=True)
+        desired = _render_certificate_vhost(action, specification)
+        removed = False
+        if vhost.exists() or vhost.is_symlink():
+            if (
+                vhost.is_symlink()
+                or not vhost.is_file()
+                or vhost.read_bytes() != desired
+            ):
+                raise TopologyError("owned certificate HTTP-01 vhost has drifted")
+            durable_remove(vhost)
+            removed = True
+        if removed:
+            try:
+                self._run_checked(
+                    ("nginx", "-t"),
+                    "Nginx HTTP-01 rollback test failed",
+                )
+                self._run_checked(
+                    ("systemctl", "reload", "nginx"),
+                    "Nginx HTTP-01 rollback reload failed",
+                )
+                self._assert_vhost_absent(str(saved["vhost"]))
+            except BaseException:
+                atomic_write(
+                    vhost,
+                    desired,
+                    mode=0o644,
+                    owner=(os.getuid(), os.getgid()),
+                )
+                raise
         return Evidence(
             action_id=action.id,
             success=True,
-            observations=("issued certificate and ACME webroots were preserved",),
+            observations=(
+                "owned HTTP-01 vhost removed; certificate and webroots preserved",
+            ),
             details={"certificate": specification["certificate"]},
         )
 
@@ -1711,27 +1808,83 @@ class CertificatePlan:
             f"/etc/letsencrypt/live/{certificate}",
             allow_missing=True,
         )
-        key = live / "privkey.pem"
-        chain = live / "fullchain.pem"
+        paths = {
+            name: live / name
+            for name in ("cert.pem", "chain.pem", "fullchain.pem", "privkey.pem")
+        }
         try:
-            resolved_key = key.resolve(strict=True)
-            resolved_chain = chain.resolve(strict=True)
-            self._assert_contained(resolved_key)
-            self._assert_contained(resolved_chain)
-            metadata = resolved_key.stat()
+            resolved = {
+                name: path.resolve(strict=True) for name, path in paths.items()
+            }
+            for path in resolved.values():
+                self._assert_contained(path)
+                if not path.is_file():
+                    return False
+            metadata = resolved["privkey.pem"].stat()
             if (
                 not stat.S_ISREG(metadata.st_mode)
                 or stat.S_IMODE(metadata.st_mode) != 0o600
                 or (metadata.st_uid, metadata.st_gid) != self.expected_key_owner
-                or not resolved_chain.is_file()
             ):
                 return False
-            result = self.runner.run(
+            key_public = self.runner.run(
+                (
+                    "openssl",
+                    "pkey",
+                    "-in",
+                    str(paths["privkey.pem"]),
+                    "-pubout",
+                )
+            )
+            leaf_public = self.runner.run(
                 (
                     "openssl",
                     "x509",
                     "-in",
-                    str(chain),
+                    str(paths["cert.pem"]),
+                    "-pubkey",
+                    "-noout",
+                )
+            )
+            if (
+                key_public.returncode != 0
+                or leaf_public.returncode != 0
+                or not key_public.stdout.strip()
+                or key_public.stdout.strip() != leaf_public.stdout.strip()
+            ):
+                return False
+            checkend = self.runner.run(
+                (
+                    "openssl",
+                    "x509",
+                    "-in",
+                    str(paths["cert.pem"]),
+                    "-noout",
+                    "-checkend",
+                    "0",
+                )
+            )
+            if checkend.returncode != 0:
+                return False
+            trust = self.runner.run(
+                (
+                    "openssl",
+                    "verify",
+                    "-CApath",
+                    "/etc/ssl/certs",
+                    "-untrusted",
+                    str(paths["chain.pem"]),
+                    str(paths["cert.pem"]),
+                )
+            )
+            if trust.returncode != 0:
+                return False
+            sans = self.runner.run(
+                (
+                    "openssl",
+                    "x509",
+                    "-in",
+                    str(paths["cert.pem"]),
                     "-noout",
                     "-ext",
                     "subjectAltName",
@@ -1739,10 +1892,54 @@ class CertificatePlan:
             )
         except (OSError, RuntimeError, TopologyError):
             return False
-        if result.returncode != 0:
+        return sans.returncode == 0 and _certificate_sans(sans.stdout) == set(
+            specification["names"]
+        )
+
+    def _vhost_valid(
+        self,
+        action: Action,
+        specification: Mapping[str, object],
+    ) -> bool:
+        path = self._contained_path(
+            _certificate_vhost_path(specification),
+            allow_missing=True,
+        )
+        try:
+            return (
+                not path.is_symlink()
+                and path.is_file()
+                and path.read_bytes()
+                == _render_certificate_vhost(action, specification)
+            )
+        except OSError:
             return False
-        names = _certificate_sans(result.stdout)
-        return set(specification["names"]) <= names
+
+    def _assert_vhost_effective(
+        self,
+        host_path: str,
+        desired: bytes,
+    ) -> None:
+        result = self.runner.run(("nginx", "-T"))
+        if result.returncode != 0:
+            raise TopologyError("effective Nginx HTTP-01 inspection failed")
+        try:
+            rendered = desired.decode()
+        except UnicodeDecodeError as exc:
+            raise TopologyError("owned HTTP-01 vhost is not UTF-8") from exc
+        if _effective_source_sections(result.stdout).get(host_path) != (rendered,):
+            raise TopologyError(
+                "owned HTTP-01 vhost is absent from effective Nginx"
+            )
+
+    def _assert_vhost_absent(self, host_path: str) -> None:
+        result = self.runner.run(("nginx", "-T"))
+        if result.returncode != 0:
+            raise TopologyError("effective Nginx HTTP-01 inspection failed")
+        if host_path in _effective_source_sections(result.stdout):
+            raise TopologyError(
+                "owned HTTP-01 vhost remains in effective Nginx"
+            )
 
     def _contained_path(self, host_path: str, *, allow_missing: bool) -> Path:
         normalized = _safe_host_path(host_path)
@@ -1897,7 +2094,12 @@ def _certificate_action(action: Action) -> dict[str, object]:
         or len(webroots) != len(names)
         or tuple(webroots) != tuple(f"/var/www/{name}" for name in names)
         or singular["certificate"] not in names
-        or not singular["email"]
+        or re.fullmatch(
+            r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@"
+            r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?",
+            singular["email"],
+        )
+        is None
         or any(
             re.fullmatch(
                 r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
@@ -1918,18 +2120,64 @@ def _certificate_action(action: Action) -> dict[str, object]:
     }
 
 
+def _certificate_vhost_path(specification: Mapping[str, object]) -> str:
+    return (
+        "/etc/nginx/conf.d/proxy-control-acme-"
+        f"{specification['service']}.conf"
+    )
+
+
+def _render_certificate_vhost(
+    action: Action,
+    specification: Mapping[str, object],
+) -> bytes:
+    lines = [f"# BEGIN PROXY-CONTROL ACME {action.id}"]
+    for name, webroot in zip(
+        specification["names"],
+        specification["webroots"],
+        strict=True,
+    ):
+        lines.extend(
+            (
+                "server {",
+                "    listen 80;",
+                "    listen [::]:80;",
+                f"    server_name {name};",
+                "    location ^~ /.well-known/acme-challenge/ {",
+                f"        root {webroot};",
+                "        try_files $uri =404;",
+                "    }",
+                "    location / { return 404; }",
+                "}",
+            )
+        )
+    lines.extend((f"# END PROXY-CONTROL ACME {action.id}", ""))
+    return "\n".join(lines).encode()
+
+
 def _certificate_checkpoint(
     checkpoint: Mapping[str, object],
     specification: Mapping[str, object],
-) -> tuple[str, ...]:
+) -> dict[str, object]:
+    required = {
+        "certificate",
+        "created_webroots",
+        "lineage_preexisting",
+        "names",
+        "owner",
+        "ownership",
+        "vhost",
+        "vhost_sha256",
+    }
+    expected_vhost = _certificate_vhost_path(specification)
     if (
-        set(checkpoint)
-        != {"certificate", "created_webroots", "names", "owner", "ownership"}
+        set(checkpoint) != required
         or checkpoint["certificate"] != specification["certificate"]
         or checkpoint["names"] != specification["names"]
-        or checkpoint["ownership"] != {}
         or checkpoint["owner"]
         != f"proxy-control:certificate:{specification['service']}"
+        or checkpoint["vhost"] != expected_vhost
+        or not isinstance(checkpoint["lineage_preexisting"], bool)
     ):
         raise TopologyError("certificate checkpoint is invalid")
     created = checkpoint["created_webroots"]
@@ -1940,19 +2188,47 @@ def _certificate_checkpoint(
         for path in created
     ):
         raise TopologyError("certificate checkpoint is invalid")
-    return tuple(sorted(set(created)))
+    created_paths = tuple(sorted(set(created)))
+    if tuple(created) != created_paths:
+        raise TopologyError("certificate checkpoint is invalid")
+    vhost_hash = checkpoint["vhost_sha256"]
+    if vhost_hash is not None and (
+        not isinstance(vhost_hash, str)
+        or re.fullmatch(r"[0-9a-f]{64}", vhost_hash) is None
+    ):
+        raise TopologyError("certificate checkpoint is invalid")
+    ownership = checkpoint["ownership"]
+    if not isinstance(ownership, Mapping):
+        raise TopologyError("certificate checkpoint is invalid")
+    expected_ownership: Mapping[str, object] = (
+        {}
+        if vhost_hash is None
+        else {expected_vhost: {"sha256": vhost_hash}}
+    )
+    if dict(ownership) != expected_ownership:
+        raise TopologyError("certificate checkpoint is invalid")
+    return {
+        "created_webroots": created_paths,
+        "lineage_preexisting": checkpoint["lineage_preexisting"],
+        "vhost": expected_vhost,
+        "vhost_sha256": vhost_hash,
+    }
 
 
 def _certificate_sans(text: str) -> set[str]:
+    if re.search(r"(?:IP Address|URI|email|othername):", text, re.IGNORECASE):
+        return set()
     names: set[str] = set()
-    for raw in re.findall(r"DNS:([^,\s]+)", text):
+    raw_names = re.findall(r"DNS:([^,\s]+)", text)
+    for raw in raw_names:
         normalized = raw.lower().rstrip(".")
         if re.fullmatch(
             r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
             r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z",
             normalized,
-        ):
-            names.add(normalized)
+        ) is None:
+            return set()
+        names.add(normalized)
     return names
 
 

@@ -35,6 +35,12 @@ class Adapter(Protocol):
 
     def verify(self, action: Action) -> Evidence: ...
 
+    def repair(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]: ...
+
     def rollback(
         self,
         action: Action,

@@ -15,9 +15,8 @@ DEFAULT_PACKAGES = (
     "ca-certificates",
     "certbot",
     "curl",
-    "docker-ce",
-    "docker-ce-cli",
-    "docker-compose-plugin",
+    "docker-compose-v2",
+    "docker.io",
     "nginx-full",
     "openssl",
     "python3",
@@ -45,8 +44,7 @@ class PackagesAdapter:
     ) -> None:
         if runner is None:
             from installer.audit import CommandRunner
-
-            runner = CommandRunner()
+            runner = CommandRunner(timeout=900.0)
         normalized = tuple(sorted(set(packages)))
         if not normalized or any(
             not isinstance(package, str) or _PACKAGE.fullmatch(package) is None
@@ -224,6 +222,44 @@ class PackagesAdapter:
             rollback_target=rollback_target,
         )
 
+    def repair(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        packages = _action_packages(action)
+        preexisting, installer_added = _checkpoint_packages(checkpoint, packages)
+        current = self._statuses(packages)
+        _assert_preexisting_unchanged(preexisting, current)
+        missing: list[str] = []
+        for package, version in installer_added.items():
+            observed = current[package]
+            if observed is None:
+                missing.append(f"{package}={version}")
+            elif observed != version:
+                raise PackageError("installer-owned package version drift")
+        if missing:
+            self._run_checked(
+                (
+                    "apt-get",
+                    "install",
+                    "--yes",
+                    "--no-install-recommends",
+                    "--no-upgrade",
+                    *missing,
+                ),
+                "package repair failed",
+            )
+        after = self._statuses(packages)
+        _assert_preexisting_unchanged(preexisting, after)
+        _assert_added_unchanged(installer_added, after)
+        return {
+            "installer_added": installer_added,
+            "owner": action.owner,
+            "ownership": {},
+            "preexisting": preexisting,
+        }
+
     def _assert_selected(self, packages: tuple[str, ...]) -> None:
         if packages != self.packages:
             raise PackageError("package action does not match this adapter")
@@ -243,14 +279,15 @@ class PackagesAdapter:
         if len(lines) != 1:
             raise PackageError("package status response is malformed")
         fields = lines[0].split("\t")
+        status = fields[1] if len(fields) == 3 else ""
         if (
             len(fields) != 3
             or fields[0] != package
-            or fields[1] != "ii "
+            or re.fullmatch(r"[uihrp][ncHUFWti][ R]", status) is None
             or _VERSION.fullmatch(fields[2]) is None
         ):
             raise PackageError("package status response is malformed")
-        return fields[2]
+        return fields[2] if status[1] == "i" else None
 
     def _run_checked(self, argv: tuple[str, ...], message: str) -> None:
         result = self.runner.run(argv)

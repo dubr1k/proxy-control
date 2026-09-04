@@ -166,6 +166,14 @@ def host_responses(
             "--no-legend",
             "--no-pager",
         ): (0, "nginx.service enabled\nssh.service enabled\nx-ui.service enabled\n", ""),
+        (
+            "systemctl",
+            "show",
+            "ssh.socket",
+            "--property=Listen",
+            "--value",
+            "--no-pager",
+        ): (0, "[::]:22 (Stream)\n", ""),
         ("ufw", "status", "verbose"): (0, "Status: active\n22/tcp ALLOW IN Anywhere\n", ""),
     }
     for domain in domains:
@@ -304,7 +312,14 @@ def test_audit_facts_cover_all_categories_and_are_deterministic():
 
     assert first.stable_dict() == second.stable_dict()
     assert set(first.platform) == {"addresses", "architecture", "disks", "memory", "os"}
-    assert set(first.listeners) == {"owners", "ports", "tcp", "udp"}
+    assert set(first.listeners) == {
+        "owners",
+        "ports",
+        "ssh_socket_tcp",
+        "tcp",
+        "udp",
+    }
+    assert first.listeners["ssh_socket_tcp"] == (22,)
     assert set(first.topology) == {"certificates", "dns", "nginx", "three_xui"}
     assert set(first.ownership) == {
         "compose",

@@ -497,6 +497,22 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
     addresses = _parse_addresses(_required_json(runner, ("ip", "-j", "address")))
     local_addresses = {item["address"] for item in addresses}
     listeners = _parse_listeners(_required_capture(runner, ("ss", "-H", "-lntup")))
+    ssh_socket_result, _ssh_socket_observation = _optional_run(
+        runner,
+        (
+            "systemctl",
+            "show",
+            "ssh.socket",
+            "--property=Listen",
+            "--value",
+            "--no-pager",
+        ),
+    )
+    listeners["ssh_socket_tcp"] = (
+        _parse_ssh_socket_ports(ssh_socket_result.stdout)
+        if ssh_socket_result is not None
+        else ()
+    )
 
     nginx_result, nginx_observation = _optional_run(runner, ("nginx", "-T"))
     nginx = (
@@ -766,6 +782,24 @@ def _parse_listeners(text: str) -> dict[str, object]:
         "tcp": tuple(sorted(tcp)),
         "udp": tuple(sorted(udp)),
     }
+
+def _parse_ssh_socket_ports(text: str) -> tuple[int, ...]:
+    ports: set[int] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = re.fullmatch(
+            r"(?:(?:0\.0\.0\.0|\[::\]|\*):)?([1-9][0-9]{0,4}) \(Stream\)",
+            line,
+        )
+        if match is not None and 1 <= int(match.group(1)) <= 65535:
+            ports.add(int(match.group(1)))
+            continue
+        if re.fullmatch(r"/[^\x00\r\n ]+ \(Stream\)", line) is not None:
+            continue
+        return ()
+    return tuple(sorted(ports))
 
 
 def _empty_nginx(observation: str) -> dict[str, object]:
@@ -1087,6 +1121,7 @@ def _ufw_fact(
     return {
         "active": active,
         "available": result is not None,
+        "ipv6_enabled": result is not None and "(v6)" in result.stdout,
         "mode": "managed"
         if config.host_mode is HostMode.FRESH and config.firewall.manage_ufw
         else "read_only",

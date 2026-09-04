@@ -61,7 +61,7 @@ class FirewallAdapter:
         if runner is None:
             from installer.audit import CommandRunner
 
-            runner = CommandRunner()
+            runner = CommandRunner(timeout=30.0)
         if ssh_ports is not None:
             _validate_ports(ssh_ports)
             if len(ssh_ports) != 1:
@@ -79,7 +79,8 @@ class FirewallAdapter:
         self._validate_ownership(facts)
         ssh_port = self._ssh_port(facts)
         rules = self._status()
-        _assert_ssh_preserved(rules, ssh_port)
+        ipv6_enabled = _ipv6_enabled(facts, rules)
+        _assert_ssh_preserved(rules, ssh_port, ipv6_enabled)
         desired = _selected_ports(config)
         return (
             Action(
@@ -88,6 +89,7 @@ class FirewallAdapter:
                 owner="proxy-control:firewall",
                 mutations=(
                     f"ssh={ssh_port}",
+                    f"ipv6={'true' if ipv6_enabled else 'false'}",
                     *(f"rule={key}" for key in desired),
                 ),
                 preconditions=(
@@ -103,9 +105,12 @@ class FirewallAdapter:
     def prepare(self, action: Action) -> Mapping[str, object]:
         desired = _action_rules(action)
         rules = self._status()
-        _assert_ssh_preserved(rules, _action_ssh_port(action))
+        ipv6_enabled = _action_ipv6_enabled(action)
+        _assert_ssh_preserved(rules, _action_ssh_port(action), ipv6_enabled)
         preexisting = tuple(
-            key for key in desired if _is_covered(rules, *_split_key(key))
+            key
+            for key in desired
+            if _is_covered(rules, *_split_key(key), ipv6_enabled)
         )
         return {
             "initial_fingerprints": _fingerprints(rules),
@@ -126,12 +131,17 @@ class FirewallAdapter:
             desired,
         )
         current = self._status()
+        ipv6_enabled = _action_ipv6_enabled(action)
         _assert_foreign_preserved(initial, current)
-        _assert_ssh_preserved(current, _action_ssh_port(action))
+        _assert_ssh_preserved(
+            current,
+            _action_ssh_port(action),
+            ipv6_enabled,
+        )
         _assert_owned_rules_recognized(current)
         for key in desired:
             protocol, port = _split_key(key)
-            if _is_covered(current, protocol, port):
+            if _is_covered(current, protocol, port, ipv6_enabled):
                 continue
             self._run_checked(
                 (
@@ -163,7 +173,10 @@ class FirewallAdapter:
         )
         if recorded_added and not set(recorded_added) <= set(installer_added):
             raise FirewallError("owned UFW rule has drifted")
-        if any(not _is_covered(after, *_split_key(key)) for key in desired):
+        if any(
+            not _is_covered(after, *_split_key(key), ipv6_enabled)
+            for key in desired
+        ):
             raise FirewallError("selected-profile UFW rule is absent")
         return {
             "initial_fingerprints": initial,
@@ -184,10 +197,16 @@ class FirewallAdapter:
         desired = _action_rules(action)
         try:
             current = self._status()
+            ipv6_enabled = _action_ipv6_enabled(action)
             _assert_owned_rules_recognized(current)
-            _assert_ssh_preserved(current, _action_ssh_port(action))
+            _assert_ssh_preserved(
+                current,
+                _action_ssh_port(action),
+                ipv6_enabled,
+            )
             success = all(
-                _is_covered(current, *_split_key(key)) for key in desired
+                _is_covered(current, *_split_key(key), ipv6_enabled)
+                for key in desired
             )
         except FirewallError:
             success = False
@@ -303,6 +322,7 @@ class FirewallAdapter:
 
     def _ssh_port(self, facts: AuditFacts) -> int:
         tcp = _fact_ports(facts.listeners.get("tcp", ()))
+        socket_ports = _fact_ports(facts.listeners.get("ssh_socket_tcp", ()))
         owners = facts.listeners.get("owners")
         if not isinstance(owners, Mapping):
             raise FirewallError("active SSH listener is not observed")
@@ -311,9 +331,11 @@ class FirewallAdapter:
             raw_names = owners.get(str(port), ())
             if not isinstance(raw_names, (tuple, list)):
                 continue
-            if any(
-                isinstance(name, str) and name.lower() in {"ssh", "sshd"}
-                for name in raw_names
+            names = {
+                name.lower() for name in raw_names if isinstance(name, str)
+            }
+            if names & {"ssh", "sshd"} or (
+                port in socket_ports and "systemd" in names
             ):
                 discovered.add(port)
         selected = set(self.ssh_ports) if self.ssh_ports is not None else discovered
@@ -441,19 +463,42 @@ def _fact_ports(value: object) -> set[int]:
     return ports if len(ports) == len(value) else set()
 
 
-def _assert_ssh_preserved(rules: tuple[UfwRule, ...], port: int) -> None:
-    candidates = {
-        (rule.port, rule.protocol, rule.action, rule.source, rule.comment)
-        for rule in rules
-        if rule.port == port
-        and rule.protocol == "tcp"
-        and rule.action == "ALLOW IN"
-        and rule.source == "Anywhere"
-    }
-    if not candidates:
-        raise FirewallError("active SSH listener has no preserving UFW rule")
-    if len(candidates) != 1:
-        raise FirewallError("SSH listener preservation is ambiguous")
+def _ipv6_enabled(
+    facts: AuditFacts,
+    rules: tuple[UfwRule, ...],
+) -> bool:
+    ufw = facts.ownership.get("ufw")
+    if not isinstance(ufw, Mapping):
+        raise FirewallError("active managed UFW ownership is not established")
+    observed = ufw.get("ipv6_enabled")
+    if observed is None:
+        return any(rule.ipv6 for rule in rules)
+    if not isinstance(observed, bool):
+        raise FirewallError("UFW IPv6 state is unknown")
+    return observed
+
+def _assert_ssh_preserved(
+    rules: tuple[UfwRule, ...],
+    port: int,
+    ipv6_enabled: bool,
+) -> None:
+    for family in (False, True) if ipv6_enabled else (False,):
+        candidates = {
+            (rule.port, rule.protocol, rule.action, rule.source, rule.comment)
+            for rule in rules
+            if rule.port == port
+            and rule.protocol == "tcp"
+            and rule.action == "ALLOW IN"
+            and rule.source == "Anywhere"
+            and rule.ipv6 is family
+        }
+        if not candidates:
+            label = "IPv6" if family else "IPv4"
+            raise FirewallError(
+                f"active SSH listener has no preserving {label} UFW rule"
+            )
+        if len(candidates) != 1:
+            raise FirewallError("SSH listener preservation is ambiguous")
 
 
 def _action_rules(action: Action) -> tuple[str, ...]:
@@ -461,6 +506,7 @@ def _action_rules(action: Action) -> tuple[str, ...]:
         raise FirewallError("firewall action is invalid")
     values: list[str] = []
     ssh_seen = False
+    ipv6_seen = False
     for mutation in action.mutations:
         key, separator, value = mutation.partition("=")
         if separator != "=":
@@ -469,11 +515,15 @@ def _action_rules(action: Action) -> tuple[str, ...]:
             ssh_seen = True
             _parse_port(value)
             continue
+        if key == "ipv6" and not ipv6_seen:
+            ipv6_seen = True
+            _parse_boolean(value)
+            continue
         if key != "rule":
             raise FirewallError("firewall action is invalid")
         _split_key(value)
         values.append(value)
-    if not ssh_seen:
+    if not ssh_seen or not ipv6_seen:
         raise FirewallError("firewall action is invalid")
     normalized = tuple(sorted(set(values), key=lambda item: _split_key(item)))
     if tuple(values) != normalized:
@@ -492,6 +542,25 @@ def _action_ssh_port(action: Action) -> int:
     if len(values) != 1:
         raise FirewallError("firewall action is invalid")
     return _parse_port(values[0])
+
+def _action_ipv6_enabled(action: Action) -> bool:
+    if action.adapter != "firewall" or action.id != "firewall.ufw":
+        raise FirewallError("firewall action is invalid")
+    values = [
+        mutation.partition("=")[2]
+        for mutation in action.mutations
+        if mutation.partition("=")[0] == "ipv6"
+        and mutation.partition("=")[1] == "="
+    ]
+    if len(values) != 1:
+        raise FirewallError("firewall action is invalid")
+    return _parse_boolean(values[0])
+
+
+def _parse_boolean(value: str) -> bool:
+    if value not in {"false", "true"}:
+        raise FirewallError("firewall action is invalid")
+    return value == "true"
 
 
 def _parse_port(value: str) -> int:
@@ -521,14 +590,17 @@ def _is_covered(
     rules: tuple[UfwRule, ...],
     protocol: str,
     port: int,
+    ipv6_enabled: bool,
 ) -> bool:
-    return any(
-        rule.port == port
+    families = {
+        rule.ipv6
+        for rule in rules
+        if rule.port == port
         and rule.protocol == protocol
         and rule.action == "ALLOW IN"
         and rule.source == "Anywhere"
-        for rule in rules
-    )
+    }
+    return False in families and (not ipv6_enabled or True in families)
 
 
 def _has_exact_owned(rules: tuple[UfwRule, ...], key: str) -> bool:

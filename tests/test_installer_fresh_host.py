@@ -10,7 +10,11 @@ import pytest
 
 from installer.adapters.firewall import FirewallAdapter, FirewallError, parse_ufw_status
 from installer.adapters.nginx import CertificatePlan, TopologyError
-from installer.adapters.packages import PackageError, PackagesAdapter
+from installer.adapters.packages import (
+    DEFAULT_PACKAGES,
+    PackageError,
+    PackagesAdapter,
+)
 from installer.model import (
     DomainConfig,
     FirewallConfig,
@@ -21,7 +25,8 @@ from installer.model import (
     ThreeXuiConfig,
     ThreeXuiMode,
 )
-from installer.planner import AuditFacts
+from installer.planner import AuditFacts, InstallPlan, ReleaseIdentity
+from installer.transaction import TransactionEngine, TransactionStore
 
 
 def config(
@@ -76,8 +81,12 @@ class AptRunner:
             "--no-install-recommends",
             "--no-upgrade",
         ):
-            for package in command[5:]:
-                self.installed.setdefault(package, "1.0")
+            for specification in command[5:]:
+                package, separator, version = specification.partition("=")
+                self.installed.setdefault(
+                    package,
+                    version if separator else "1.0",
+                )
             return subprocess.CompletedProcess(command, 0, "installed details", "")
         if command[:3] == ("apt-get", "purge", "--yes"):
             for package in command[3:]:
@@ -181,6 +190,88 @@ def test_package_status_must_name_exact_installed_package() -> None:
 
 
 
+
+def test_default_packages_exist_in_ubuntu_2404_repositories() -> None:
+    assert "docker.io" in DEFAULT_PACKAGES
+    assert "docker-compose-v2" in DEFAULT_PACKAGES
+    assert not {"docker-ce", "docker-ce-cli", "docker-compose-plugin"} & set(
+        DEFAULT_PACKAGES
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "preexisting"),
+    [("hi ", True), ("rc ", False)],
+)
+def test_dpkg_valid_held_and_residual_states_are_handled(
+    status: str,
+    preexisting: bool,
+) -> None:
+    class StateRunner(AptRunner):
+        def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            command = tuple(argv)
+            if command[:2] == ("dpkg-query", "--show") and not any(
+                call[:2] == ("apt-get", "install") for call in self.calls
+            ):
+                self.calls.append(command)
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    f"curl\t{status}\t8.0\n",
+                    "",
+                )
+            return super().run(argv)
+
+    runner = StateRunner({"curl": "8.0"})
+    adapter = PackagesAdapter(runner=runner, packages=("curl",))
+    action = package_action(adapter)
+    prepared = adapter.prepare(action)
+
+    assert ("curl" in prepared["preexisting"]) is preexisting
+    if not preexisting:
+        adapter.apply(action, prepared)
+        assert any(call[:2] == ("apt-get", "install") for call in runner.calls)
+
+
+def test_mutation_runners_have_operation_length_timeouts(tmp_path: Path) -> None:
+    assert PackagesAdapter().runner.timeout >= 300
+    assert CertificatePlan(root=tmp_path).runner.timeout >= 300
+
+
+def test_transaction_repair_reinstalls_only_missing_owned_package(
+    tmp_path: Path,
+) -> None:
+    runner = AptRunner({"curl": "8.0"})
+    adapter = PackagesAdapter(runner=runner, packages=("curl", "nginx-full"))
+    selected_config = config()
+    selected_facts = AuditFacts()
+    action = package_action(adapter, selected_config)
+    plan = InstallPlan(
+        config=selected_config.canonical_dict(),
+        facts=selected_facts,
+        release=ReleaseIdentity(
+            tag="v1.0.0",
+            commit="1" * 40,
+            manifest_sha256="2" * 64,
+        ),
+        adapter_order=("packages",),
+        adapter_dependencies={"packages": ()},
+        actions=(action,),
+    )
+    engine = TransactionEngine(TransactionStore(tmp_path), {"packages": adapter})
+    assert engine.apply(plan, accepted_digest=plan.digest).status == "active"
+    runner.installed.pop("nginx-full")
+
+    repaired = engine.repair()
+
+    assert repaired.status == "active"
+    assert runner.installed == {"curl": "8.0", "nginx-full": "1.0"}
+    repair_install = [
+        call for call in runner.calls if call[:2] == ("apt-get", "install")
+    ][-1]
+    assert "curl" not in repair_install
+    assert "nginx-full=1.0" in repair_install
+
 def test_coexist_emits_no_package_action() -> None:
     runner = AptRunner({})
     adapter = PackagesAdapter(runner=runner, packages=("curl",))
@@ -215,27 +306,84 @@ class CertRunner:
         self.root = root
         self.calls: list[tuple[str, ...]] = []
         self.groups: dict[str, tuple[str, ...]] = {}
+        self.dates_valid = True
+        self.key_valid = True
+        self.key_matches = True
+        self.chain_valid = True
+        self.effective_vhost = True
 
     def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
         command = tuple(argv)
         self.calls.append(command)
         if command[:2] == ("certbot", "certonly"):
             cert_name = command[command.index("--cert-name") + 1]
-            names = tuple(command[index + 1] for index, part in enumerate(command) if part == "-d")
+            names = tuple(
+                command[index + 1]
+                for index, part in enumerate(command)
+                if part == "-d"
+            )
             self.groups[cert_name] = names
             live = self.root / "etc/letsencrypt/live" / cert_name
             live.mkdir(parents=True, exist_ok=True)
             key = live / "privkey.pem"
             key.write_text("not-a-real-key")
             key.chmod(0o600)
-            (live / "fullchain.pem").write_text("not-a-real-certificate")
+            for name in ("cert.pem", "chain.pem", "fullchain.pem"):
+                (live / name).write_text("not-a-real-certificate")
             return subprocess.CompletedProcess(command, 0, "certificate details", "")
+        if command[:2] == ("openssl", "pkey"):
+            return subprocess.CompletedProcess(
+                command,
+                0 if self.key_valid else 1,
+                "PUBLIC-KEY\n" if self.key_matches else "OTHER-PUBLIC-KEY\n",
+                "",
+            )
         if command[:2] == ("openssl", "x509"):
+            if "-checkend" in command:
+                return subprocess.CompletedProcess(
+                    command,
+                    0 if self.dates_valid else 1,
+                    "",
+                    "",
+                )
+            if "-pubkey" in command:
+                return subprocess.CompletedProcess(command, 0, "PUBLIC-KEY\n", "")
             cert_name = Path(command[command.index("-in") + 1]).parent.name
             names = self.groups.get(cert_name, ())
             sans = ", ".join(f"DNS:{name}" for name in names)
-            return subprocess.CompletedProcess(command, 0, f"X509v3 Subject Alternative Name:\n    {sans}\n", "")
-        if command == ("certbot", "renew", "--dry-run", "--no-random-sleep-on-renew"):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                f"X509v3 Subject Alternative Name:\n    {sans}\n",
+                "",
+            )
+        if command[:2] == ("openssl", "verify"):
+            return subprocess.CompletedProcess(
+                command,
+                0 if self.chain_valid else 1,
+                "verified\n",
+                "",
+            )
+        if command == ("nginx", "-T"):
+            rendered = "# configuration file /etc/nginx/nginx.conf:\nevents {}\n"
+            if self.effective_vhost:
+                confd = self.root / "etc/nginx/conf.d"
+                for path in sorted(confd.glob("proxy-control-acme-*.conf")):
+                    rendered += (
+                        f"# configuration file /etc/nginx/conf.d/{path.name}:\n"
+                        + path.read_text()
+                    )
+            return subprocess.CompletedProcess(command, 0, rendered, "")
+        if command in {
+            ("nginx", "-t"),
+            ("systemctl", "reload", "nginx"),
+        }:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if (
+            len(command) >= 2
+            and command[:2] == ("certbot", "renew")
+            and "--dry-run" in command
+        ):
             return subprocess.CompletedProcess(command, 0, "renewal details", "")
         raise AssertionError(command)
 
@@ -267,6 +415,8 @@ def test_certificate_plan_groups_service_names_and_uses_webroot(tmp_path: Path) 
     assert runner.calls[-1] == (
         "certbot",
         "renew",
+        "--cert-name",
+        "mt.example.com",
         "--dry-run",
         "--no-random-sleep-on-renew",
     )
@@ -332,6 +482,8 @@ def test_certificate_renewal_dry_run_is_mandatory_and_output_is_suppressed(
             if command == (
                 "certbot",
                 "renew",
+                "--cert-name",
+                "mt.example.com",
                 "--dry-run",
                 "--no-random-sleep-on-renew",
             ):
@@ -357,6 +509,121 @@ def test_certificate_renewal_dry_run_is_mandatory_and_output_is_suppressed(
 
     assert "must-not-escape" not in str(caught.value)
 
+def test_certificate_owns_http01_vhost_before_certbot_and_removes_only_it(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    foreign = tmp_path / "etc/nginx/conf.d/foreign.conf"
+    foreign.parent.mkdir(parents=True)
+    foreign.write_text("server { listen 80; server_name foreign.example.com; }\n")
+
+    applied = adapter.apply(action, adapter.prepare(action))
+
+    owned = tmp_path / "etc/nginx/conf.d/proxy-control-acme-proxy-control.conf"
+    assert owned.is_file()
+    assert "server_name mt.example.com;" in owned.read_text()
+    assert "server_name panel.example.com;" in owned.read_text()
+    assert runner.calls.index(("systemctl", "reload", "nginx")) < next(
+        index
+        for index, call in enumerate(runner.calls)
+        if call[:2] == ("certbot", "certonly")
+    )
+
+    adapter.rollback(action, applied)
+    assert not owned.exists()
+    assert foreign.is_file()
+
+def test_certificate_refuses_when_owned_vhost_is_absent_from_effective_nginx(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    runner.effective_vhost = False
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+
+    with pytest.raises(TopologyError, match="effective Nginx"):
+        adapter.apply(action, adapter.prepare(action))
+
+    assert not any(call[:2] == ("certbot", "certonly") for call in runner.calls)
+
+
+
+def test_certificate_refuses_to_modify_preexisting_invalid_lineage(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    live = tmp_path / "etc/letsencrypt/live/mt.example.com"
+    live.mkdir(parents=True)
+    key = live / "privkey.pem"
+    key.write_text("existing-key")
+    key.chmod(0o600)
+    for name in ("cert.pem", "chain.pem", "fullchain.pem"):
+        (live / name).write_text("existing-certificate")
+    runner.groups["mt.example.com"] = ("mt.example.com",)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+
+    with pytest.raises(TopologyError, match="pre-existing certificate lineage"):
+        adapter.apply(action, adapter.prepare(action))
+
+    assert not any(call[:2] == ("certbot", "certonly") for call in runner.calls)
+
+
+def test_certificate_validation_requires_exact_sans_dates_key_pair_and_chain(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    adapter.apply(action, adapter.prepare(action))
+    certificate = "mt.example.com"
+
+    assert any(call[:2] == ("openssl", "pkey") for call in runner.calls)
+    assert any(
+        call[:2] == ("openssl", "x509") and "-checkend" in call
+        for call in runner.calls
+    )
+    assert any(call[:2] == ("openssl", "verify") for call in runner.calls)
+
+    runner.groups[certificate] = (
+        "extra.example.com",
+        "mt.example.com",
+        "panel.example.com",
+    )
+    assert adapter.verify(action).success is False
+    runner.groups[certificate] = ("mt.example.com", "panel.example.com")
+
+    runner.dates_valid = False
+    assert adapter.verify(action).success is False
+    runner.dates_valid = True
+    runner.key_valid = False
+    assert adapter.verify(action).success is False
+    runner.key_valid = True
+    runner.key_matches = False
+    assert adapter.verify(action).success is False
+    runner.key_matches = True
+    runner.chain_valid = False
+    assert adapter.verify(action).success is False
+
+
 
 
 def canonical_ufw(*rules: str, active: bool = True) -> str:
@@ -374,9 +641,16 @@ def canonical_ufw(*rules: str, active: bool = True) -> str:
 
 
 class UfwRunner:
-    def __init__(self, rules: list[str], *, active: bool = True) -> None:
+    def __init__(
+        self,
+        rules: list[str],
+        *,
+        active: bool = True,
+        ipv6_enabled: bool = False,
+    ) -> None:
         self.rules = list(rules)
         self.active = active
+        self.ipv6_enabled = ipv6_enabled
         self.calls: list[tuple[str, ...]] = []
 
     def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -396,6 +670,12 @@ class UfwRunner:
             rendered = f"{port}/{protocol} ALLOW IN Anywhere # {comment}"
             if rendered not in self.rules:
                 self.rules.append(rendered)
+            if self.ipv6_enabled:
+                rendered_v6 = (
+                    f"{port}/{protocol} (v6) ALLOW IN Anywhere (v6) # {comment}"
+                )
+                if rendered_v6 not in self.rules:
+                    self.rules.append(rendered_v6)
             return subprocess.CompletedProcess(command, 0, "rule details", "")
         if command[:4] == ("ufw", "--force", "delete", "allow"):
             protocol = command[command.index("proto") + 1]
@@ -403,22 +683,35 @@ class UfwRunner:
             comment = command[command.index("comment") + 1]
             rendered = f"{port}/{protocol} ALLOW IN Anywhere # {comment}"
             self.rules.remove(rendered)
+            rendered_v6 = (
+                f"{port}/{protocol} (v6) ALLOW IN Anywhere (v6) # {comment}"
+            )
+            if rendered_v6 in self.rules:
+                self.rules.remove(rendered_v6)
             return subprocess.CompletedProcess(command, 0, "rule details", "")
         raise AssertionError(command)
 
 
-def firewall_facts(*, ssh_ports: tuple[int, ...] = (22,)) -> AuditFacts:
+def firewall_facts(
+    *,
+    ssh_ports: tuple[int, ...] = (22,),
+    owner: str = "sshd",
+    ssh_socket_tcp: tuple[int, ...] = (),
+    ipv6_enabled: bool = False,
+) -> AuditFacts:
     return AuditFacts(
         listeners={
             "tcp": ssh_ports,
             "udp": (),
             "ports": ssh_ports,
-            "owners": {str(port): ("sshd",) for port in ssh_ports},
+            "owners": {str(port): (owner,) for port in ssh_ports},
+            "ssh_socket_tcp": ssh_socket_tcp,
         },
         ownership={
             "ufw": {
                 "active": True,
                 "available": True,
+                "ipv6_enabled": ipv6_enabled,
                 "mode": "managed",
                 "observation": "observed",
             }
@@ -440,6 +733,58 @@ def test_fresh_ufw_rules_preserve_ssh_and_are_exactly_reversible() -> None:
     mutations = [call for call in runner.calls if call != ("ufw", "status", "numbered")]
     assert all("reset" not in call and "default" not in call for call in mutations)
     assert all("operator:ssh" not in call for call in mutations)
+
+def test_ufw_lone_ipv6_rule_does_not_cover_required_ipv4() -> None:
+    runner = UfwRunner(
+        [
+            "22/tcp ALLOW IN Anywhere # operator:ssh",
+            "80/tcp (v6) ALLOW IN Anywhere (v6) # foreign:web6",
+        ]
+    )
+    adapter = FirewallAdapter(runner=runner, ssh_ports={22})
+    action = adapter.plan(config(), firewall_facts())[0]
+
+    applied = adapter.apply(action, adapter.prepare(action))
+
+    assert "tcp:80" in applied["installer_added"]
+    assert (
+        "80/tcp ALLOW IN Anywhere # proxy-control:firewall:tcp:80"
+        in runner.rules
+    )
+
+
+def test_ufw_requires_both_families_when_ipv6_is_enabled() -> None:
+    runner = UfwRunner(
+        [
+            "22/tcp ALLOW IN Anywhere # operator:ssh",
+            "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
+        ],
+        ipv6_enabled=True,
+    )
+    adapter = FirewallAdapter(runner=runner, ssh_ports={22})
+    action = adapter.plan(config(), firewall_facts(ipv6_enabled=True))[0]
+
+    applied = adapter.apply(action, adapter.prepare(action))
+
+    assert "ipv6=true" in action.mutations
+    assert "tcp:80" in applied["installer_added"]
+    assert any(
+        rule.startswith("80/tcp (v6)") for rule in runner.rules
+    )
+
+
+def test_firewall_accepts_explicit_audited_ssh_socket_port() -> None:
+    runner = UfwRunner(["22/tcp ALLOW IN Anywhere # operator:ssh"])
+    adapter = FirewallAdapter(runner=runner)
+    facts = firewall_facts(
+        owner="systemd",
+        ssh_socket_tcp=(22,),
+    )
+
+    action = adapter.plan(config(), facts)[0]
+
+    assert "ssh=22" in action.mutations
+
 
 
 def test_ufw_duplicate_or_preexisting_rule_is_not_claimed_or_deleted() -> None:
