@@ -79,7 +79,7 @@ class FirewallAdapter:
         self._validate_ownership(facts)
         ssh_port = self._ssh_port(facts)
         rules = self._status()
-        ipv6_enabled = _ipv6_enabled(facts, rules)
+        ipv6_enabled = _ipv6_enabled(facts)
         _assert_ssh_preserved(rules, ssh_port, ipv6_enabled)
         desired = _selected_ports(config)
         return (
@@ -192,6 +192,68 @@ class FirewallAdapter:
         checkpoint: Mapping[str, object],
     ) -> Mapping[str, object]:
         return self.apply(action, checkpoint)
+
+    def repair(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        desired = _action_rules(action)
+        initial, preexisting, installer_added = _firewall_checkpoint(
+            checkpoint,
+            desired,
+        )
+        current = self._status()
+        ipv6_enabled = _action_ipv6_enabled(action)
+        _assert_foreign_preserved(initial, current)
+        _assert_owned_rules_recognized(current)
+        _assert_ssh_preserved(
+            current,
+            _action_ssh_port(action),
+            ipv6_enabled,
+        )
+        for key in installer_added:
+            protocol, port = _split_key(key)
+            if _is_covered(current, protocol, port, ipv6_enabled):
+                continue
+            self._run_checked(
+                (
+                    "ufw",
+                    "allow",
+                    "proto",
+                    protocol,
+                    "from",
+                    "any",
+                    "to",
+                    "any",
+                    "port",
+                    str(port),
+                    "comment",
+                    _owned_comment(key),
+                ),
+                "UFW rule repair failed",
+            )
+            current = self._status()
+            _assert_foreign_preserved(initial, current)
+            if not _has_exact_owned(current, key) or not _is_covered(
+                current,
+                protocol,
+                port,
+                ipv6_enabled,
+            ):
+                raise FirewallError("owned UFW rule was not repaired exactly")
+        if any(
+            not _is_covered(current, *_split_key(key), ipv6_enabled)
+            for key in desired
+        ):
+            raise FirewallError("selected-profile UFW rule is absent")
+        return {
+            "initial_fingerprints": initial,
+            "installer_added": installer_added,
+            "owner": action.owner,
+            "ownership": {},
+            "preexisting": preexisting,
+        }
 
     def verify(self, action: Action) -> Evidence:
         desired = _action_rules(action)
@@ -463,16 +525,11 @@ def _fact_ports(value: object) -> set[int]:
     return ports if len(ports) == len(value) else set()
 
 
-def _ipv6_enabled(
-    facts: AuditFacts,
-    rules: tuple[UfwRule, ...],
-) -> bool:
+def _ipv6_enabled(facts: AuditFacts) -> bool:
     ufw = facts.ownership.get("ufw")
     if not isinstance(ufw, Mapping):
         raise FirewallError("active managed UFW ownership is not established")
     observed = ufw.get("ipv6_enabled")
-    if observed is None:
-        return any(rule.ipv6 for rule in rules)
     if not isinstance(observed, bool):
         raise FirewallError("UFW IPv6 state is unknown")
     return observed

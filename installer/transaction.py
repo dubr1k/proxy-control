@@ -518,6 +518,16 @@ class RuntimeV2Adapter:
             observations=("runtime-v2 lifecycle ownership verified",),
         )
 
+    def repair(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        self._legacy(checkpoint)
+        self.verify(action)
+        return checkpoint
+
+
     def rollback(
         self,
         action: Action,
@@ -715,22 +725,22 @@ class TransactionEngine:
                 if state.status in {"applying", "rolling_back", "rollback_failed", "uninstalling"}:
                     raise TransactionError("resume the interrupted transaction before repair")
                 return state
-            self._assert_all_owned(state)
             by_id = {item.action_id: item for item in state.checkpoints}
             for action in plan.actions:
                 checkpoint = by_id.get(action.id)
                 if checkpoint is None or checkpoint.phase != "verified":
                     raise TransactionError("active transaction has incomplete checkpoints")
                 adapter = self._adapter(action)
-                repair = getattr(adapter, "repair", None)
-                if callable(repair):
-                    raw_checkpoint = repair(action, _thaw(checkpoint.data))
-                    data = _checkpoint_data(raw_checkpoint, action.adapter)
-                    checkpoint = replace(
-                        checkpoint,
-                        data=data,
-                        ownership=self._capture_ownership(action, data),
-                    )
+                raw_checkpoint = adapter.repair(
+                    action,
+                    _thaw(checkpoint.data),
+                )
+                data = _checkpoint_data(raw_checkpoint, action.adapter)
+                checkpoint = replace(
+                    checkpoint,
+                    data=data,
+                    ownership=self._capture_ownership(action, data),
+                )
                 evidence = self._verify(action)
                 checkpoint = replace(
                     checkpoint,
@@ -1126,7 +1136,11 @@ class TransactionEngine:
 
     def _validate_adapters(self, plan: InstallPlan) -> None:
         for action in plan.actions:
-            self._adapter(action)
+            adapter = self._adapter(action)
+            if not callable(getattr(adapter, "repair", None)):
+                raise TransactionError(
+                    f"adapter does not implement repair: {action.adapter}"
+                )
 
     def _adapter(self, action: Action) -> Adapter:
         adapter = self.adapters.get(action.adapter)

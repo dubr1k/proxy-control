@@ -721,6 +721,13 @@ class NginxAdapter:
                 )
         return self.apply(action, checkpoint)
 
+    def repair(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        return self.reconcile_apply(action, checkpoint)
+
     def verify(self, action: Action) -> Evidence:
         specification = _action_specification(action)
         try:
@@ -1573,14 +1580,13 @@ class CertificatePlan:
         vhost = self._contained_path(vhost_name, allow_missing=True)
         if vhost.exists() or vhost.is_symlink():
             raise TopologyError("certificate HTTP-01 vhost path is already occupied")
-        live = self._contained_path(
-            f"/etc/letsencrypt/live/{specification['certificate']}",
-            allow_missing=True,
-        )
+        lineage_state = self._lineage_state(specification)
+        if lineage_state == "incomplete":
+            raise TopologyError("pre-existing certificate lineage is incomplete")
         return {
             "certificate": specification["certificate"],
             "created_webroots": (),
-            "lineage_preexisting": live.exists() or live.is_symlink(),
+            "lineage_preexisting": lineage_state == "complete",
             "names": specification["names"],
             "owner": action.owner,
             "ownership": {},
@@ -1593,97 +1599,7 @@ class CertificatePlan:
         action: Action,
         checkpoint: Mapping[str, object],
     ) -> Mapping[str, object]:
-        specification = _certificate_action(action)
-        saved = _certificate_checkpoint(checkpoint, specification)
-        lineage = self._contained_path(
-            f"/etc/letsencrypt/live/{specification['certificate']}",
-            allow_missing=True,
-        )
-        lineage_exists = lineage.exists() or lineage.is_symlink()
-        lineage_valid = self._certificate_valid(specification)
-        if saved["lineage_preexisting"] and not lineage_exists:
-            raise TopologyError("pre-existing certificate lineage identity changed")
-        if lineage_exists and not lineage_valid:
-            raise TopologyError(
-                "pre-existing certificate lineage is invalid or out of scope"
-            )
-        created = set(saved["created_webroots"])
-        for webroot in specification["webroots"]:
-            created.update(self._ensure_webroot(webroot))
-
-        vhost_name = str(saved["vhost"])
-        vhost = self._contained_path(vhost_name, allow_missing=True)
-        desired_vhost = _render_certificate_vhost(action, specification)
-        desired_hash = _sha256(desired_vhost)
-        if vhost.exists() or vhost.is_symlink():
-            if (
-                vhost.is_symlink()
-                or not vhost.is_file()
-                or vhost.read_bytes() != desired_vhost
-            ):
-                raise TopologyError("owned certificate HTTP-01 vhost has drifted")
-        else:
-            atomic_write(
-                vhost,
-                desired_vhost,
-                mode=0o644,
-                owner=(os.getuid(), os.getgid()),
-            )
-        self._run_checked(("nginx", "-t"), "Nginx HTTP-01 vhost test failed")
-        self._run_checked(
-            ("systemctl", "reload", "nginx"),
-            "Nginx HTTP-01 vhost reload failed",
-        )
-        self._assert_vhost_effective(vhost_name, desired_vhost)
-
-        if not lineage_valid:
-            if lineage.exists() or lineage.is_symlink():
-                raise TopologyError(
-                    "pre-existing certificate lineage is invalid or out of scope"
-                )
-            argv: list[str] = [
-                "certbot",
-                "certonly",
-                "--non-interactive",
-                "--agree-tos",
-                "--email",
-                specification["email"],
-                "--cert-name",
-                specification["certificate"],
-                "--webroot",
-            ]
-            for name, webroot in zip(
-                specification["names"],
-                specification["webroots"],
-                strict=True,
-            ):
-                argv.extend(("-w", webroot, "-d", name))
-            self._run_checked(tuple(argv), "certificate issuance failed")
-        if not self._certificate_valid(specification):
-            raise TopologyError(
-                "certificate validity, trust, SANs, or private key are invalid"
-            )
-        self._run_checked(
-            (
-                "certbot",
-                "renew",
-                "--cert-name",
-                specification["certificate"],
-                "--dry-run",
-                "--no-random-sleep-on-renew",
-            ),
-            "certificate renewal dry run failed",
-        )
-        return {
-            "certificate": specification["certificate"],
-            "created_webroots": tuple(sorted(created)),
-            "lineage_preexisting": saved["lineage_preexisting"],
-            "names": specification["names"],
-            "owner": action.owner,
-            "ownership": {vhost_name: {"sha256": desired_hash}},
-            "vhost": vhost_name,
-            "vhost_sha256": desired_hash,
-        }
+        return self._activate(action, checkpoint, repair_renewal=False)
 
     def reconcile_apply(
         self,
@@ -1692,11 +1608,30 @@ class CertificatePlan:
     ) -> Mapping[str, object]:
         return self.apply(action, checkpoint)
 
+    def repair(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        return self._activate(action, checkpoint, repair_renewal=True)
+
     def verify(self, action: Action) -> Evidence:
-        specification = _certificate_action(action)
-        success = self._vhost_valid(action, specification) and (
-            self._certificate_valid(specification)
-        )
+        try:
+            specification = _certificate_action(action)
+            vhost_name = _certificate_vhost_path(specification)
+            desired = _render_certificate_vhost(action, specification)
+            if not self._vhost_valid(action, specification):
+                raise TopologyError("owned HTTP-01 vhost is invalid")
+            self._assert_vhost_effective(vhost_name, desired)
+            if self._lineage_state(specification) != "complete":
+                raise TopologyError("certificate lineage is incomplete")
+            if not self._certificate_valid(specification):
+                raise TopologyError("certificate lineage is invalid")
+            self._run_renewal(specification)
+            success = True
+        except Exception:
+            success = False
+            specification = _certificate_action(action)
         return Evidence(
             action_id=action.id,
             success=success,
@@ -1736,30 +1671,37 @@ class CertificatePlan:
                 raise TopologyError("owned certificate HTTP-01 vhost has drifted")
             durable_remove(vhost)
             removed = True
-        if removed:
-            try:
-                self._run_checked(
-                    ("nginx", "-t"),
-                    "Nginx HTTP-01 rollback test failed",
-                )
-                self._run_checked(
-                    ("systemctl", "reload", "nginx"),
-                    "Nginx HTTP-01 rollback reload failed",
-                )
-                self._assert_vhost_absent(str(saved["vhost"]))
-            except BaseException:
+        try:
+            self._run_checked(
+                ("nginx", "-t"),
+                "Nginx HTTP-01 rollback test failed",
+            )
+            self._run_checked(
+                ("systemctl", "reload", "nginx"),
+                "Nginx HTTP-01 rollback reload failed",
+            )
+            self._assert_vhost_absent(str(saved["vhost"]))
+        except BaseException:
+            if removed:
                 atomic_write(
                     vhost,
                     desired,
                     mode=0o644,
                     owner=(os.getuid(), os.getgid()),
                 )
-                raise
+            raise
+        if not saved["lineage_preexisting"]:
+            lineage_state = self._lineage_state(specification)
+            if lineage_state == "incomplete" or (
+                lineage_state == "complete"
+                and not self._certificate_valid(specification)
+            ):
+                self._remove_action_lineage(specification)
         return Evidence(
             action_id=action.id,
             success=True,
             observations=(
-                "owned HTTP-01 vhost removed; certificate and webroots preserved",
+                "owned HTTP-01 vhost removed; valid certificates and webroots preserved",
             ),
             details={"certificate": specification["certificate"]},
         )
@@ -1778,6 +1720,216 @@ class CertificatePlan:
             purge_data=purge_data,
             rollback_target=rollback_target,
         )
+
+    def _activate(
+        self,
+        action: Action,
+        checkpoint: Mapping[str, object],
+        *,
+        repair_renewal: bool,
+    ) -> Mapping[str, object]:
+        specification = _certificate_action(action)
+        saved = _certificate_checkpoint(checkpoint, specification)
+        vhost_name = str(saved["vhost"])
+        desired_vhost = _render_certificate_vhost(action, specification)
+        if (
+            not saved["lineage_preexisting"]
+            and saved["vhost_sha256"] is None
+            and self._lineage_state(specification) != "absent"
+            and not self._vhost_valid(action, specification)
+        ):
+            raise TopologyError("certificate lineage appeared after prepare")
+        created = set(saved["created_webroots"])
+        for webroot in specification["webroots"]:
+            created.update(self._ensure_webroot(webroot))
+        desired_hash = _sha256(desired_vhost)
+        self._ensure_vhost(vhost_name, desired_vhost)
+        self._run_checked(("nginx", "-t"), "Nginx HTTP-01 vhost test failed")
+        self._run_checked(
+            ("systemctl", "reload", "nginx"),
+            "Nginx HTTP-01 vhost reload failed",
+        )
+        self._assert_vhost_effective(vhost_name, desired_vhost)
+        self._ensure_lineage(
+            specification,
+            preexisting=bool(saved["lineage_preexisting"]),
+            repair_renewal=repair_renewal,
+        )
+        return {
+            "certificate": specification["certificate"],
+            "created_webroots": tuple(sorted(created)),
+            "lineage_preexisting": saved["lineage_preexisting"],
+            "names": specification["names"],
+            "owner": action.owner,
+            "ownership": {vhost_name: {"sha256": desired_hash}},
+            "vhost": vhost_name,
+            "vhost_sha256": desired_hash,
+        }
+
+    def _ensure_vhost(self, host_path: str, desired: bytes) -> None:
+        vhost = self._contained_path(host_path, allow_missing=True)
+        if vhost.exists() or vhost.is_symlink():
+            if (
+                vhost.is_symlink()
+                or not vhost.is_file()
+                or vhost.read_bytes() != desired
+            ):
+                raise TopologyError("owned certificate HTTP-01 vhost has drifted")
+            return
+        atomic_write(
+            vhost,
+            desired,
+            mode=0o644,
+            owner=(os.getuid(), os.getgid()),
+        )
+
+    def _ensure_lineage(
+        self,
+        specification: Mapping[str, object],
+        *,
+        preexisting: bool,
+        repair_renewal: bool,
+    ) -> None:
+        lineage_state = self._lineage_state(specification)
+        if preexisting:
+            if lineage_state != "complete" or not self._certificate_valid(
+                specification
+            ):
+                raise TopologyError(
+                    "pre-existing certificate lineage identity changed or is invalid"
+                )
+        elif lineage_state != "complete" or not self._certificate_valid(
+            specification
+        ):
+            if lineage_state != "absent":
+                self._remove_action_lineage(specification)
+            self._issue_certificate(specification)
+            if self._lineage_state(specification) != "complete" or not (
+                self._certificate_valid(specification)
+            ):
+                raise TopologyError(
+                    "certificate validity, trust, SANs, or private key are invalid"
+                )
+        try:
+            self._run_renewal(specification)
+        except TopologyError:
+            if preexisting or not repair_renewal:
+                raise
+            self._remove_action_lineage(specification)
+            self._issue_certificate(specification)
+            if self._lineage_state(specification) != "complete" or not (
+                self._certificate_valid(specification)
+            ):
+                raise TopologyError(
+                    "certificate validity, trust, SANs, or private key are invalid"
+                )
+            self._run_renewal(specification)
+
+    def _issue_certificate(self, specification: Mapping[str, object]) -> None:
+        argv: list[str] = [
+            "certbot",
+            "certonly",
+            "--non-interactive",
+            "--agree-tos",
+            "--email",
+            str(specification["email"]),
+            "--cert-name",
+            str(specification["certificate"]),
+            "--webroot",
+        ]
+        for name, webroot in zip(
+            specification["names"],
+            specification["webroots"],
+            strict=True,
+        ):
+            argv.extend(("-w", webroot, "-d", name))
+        self._run_checked(tuple(argv), "certificate issuance failed")
+
+    def _run_renewal(self, specification: Mapping[str, object]) -> None:
+        self._run_checked(
+            (
+                "certbot",
+                "renew",
+                "--cert-name",
+                str(specification["certificate"]),
+                "--dry-run",
+                "--no-random-sleep-on-renew",
+            ),
+            "certificate renewal dry run failed",
+        )
+
+    def _lineage_state(self, specification: Mapping[str, object]) -> str:
+        certificate = str(specification["certificate"])
+        live = self._contained_path(
+            f"/etc/letsencrypt/live/{certificate}",
+            allow_missing=True,
+        )
+        archive = self._contained_path(
+            f"/etc/letsencrypt/archive/{certificate}",
+            allow_missing=True,
+        )
+        renewal = self._contained_path(
+            f"/etc/letsencrypt/renewal/{certificate}.conf",
+            allow_missing=True,
+        )
+        paths = (live, archive, renewal)
+        present = tuple(path.exists() or path.is_symlink() for path in paths)
+        if not any(present):
+            return "absent"
+        if not all(present):
+            return "incomplete"
+        if (
+            live.is_symlink()
+            or not live.is_dir()
+            or archive.is_symlink()
+            or not archive.is_dir()
+            or renewal.is_symlink()
+            or not renewal.is_file()
+        ):
+            return "incomplete"
+        return "complete"
+
+    def _remove_action_lineage(
+        self,
+        specification: Mapping[str, object],
+    ) -> None:
+        certificate = str(specification["certificate"])
+        paths = (
+            (
+                self._contained_path(
+                    f"/etc/letsencrypt/renewal/{certificate}.conf",
+                    allow_missing=True,
+                ),
+                "file",
+            ),
+            (
+                self._contained_path(
+                    f"/etc/letsencrypt/live/{certificate}",
+                    allow_missing=True,
+                ),
+                "directory",
+            ),
+            (
+                self._contained_path(
+                    f"/etc/letsencrypt/archive/{certificate}",
+                    allow_missing=True,
+                ),
+                "directory",
+            ),
+        )
+        for path, kind in paths:
+            if not (path.exists() or path.is_symlink()):
+                continue
+            if path.is_symlink() or (
+                kind == "file" and not path.is_file()
+            ) or (
+                kind == "directory" and not path.is_dir()
+            ):
+                raise TopologyError(
+                    "action-created certificate lineage has unsafe path types"
+                )
+        for path, _kind in paths:
+            durable_remove(path, missing_ok=True)
 
     def _ensure_webroot(self, host_path: str) -> tuple[str, ...]:
         challenge = f"{host_path}/.well-known/acme-challenge"
@@ -2170,10 +2322,12 @@ def _certificate_checkpoint(
         "vhost_sha256",
     }
     expected_vhost = _certificate_vhost_path(specification)
+    names = checkpoint.get("names")
     if (
         set(checkpoint) != required
         or checkpoint["certificate"] != specification["certificate"]
-        or checkpoint["names"] != specification["names"]
+        or not isinstance(names, (tuple, list))
+        or tuple(names) != specification["names"]
         or checkpoint["owner"]
         != f"proxy-control:certificate:{specification['service']}"
         or checkpoint["vhost"] != expected_vhost

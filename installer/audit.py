@@ -537,6 +537,7 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
         ),
     )
     ufw_result, ufw_observation = _optional_run(runner, ("ufw", "status", "verbose"))
+    ufw_config_result, _ = _optional_run(runner, ("cat", "/etc/default/ufw"))
 
     xray_present = _required_run(runner, ("test", "-f", _XRAY_CONFIG)).returncode == 0
     xray = {
@@ -637,7 +638,12 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
             "installer": {"present": installer_present},
             "systemd": _systemd_fact(systemd_result, systemd_observation),
             "three_xui": {"mode": config.three_xui.mode.value, "present": xray_present},
-            "ufw": _ufw_fact(config, ufw_result, ufw_observation),
+            "ufw": _ufw_fact(
+                config,
+                ufw_result,
+                ufw_observation,
+                _parse_ufw_ipv6_enabled(ufw_config_result),
+            ),
         },
         prerequisites=prerequisite_facts,
         hard_stops=tuple(hard_stops),
@@ -1110,10 +1116,29 @@ def _systemd_fact(
     }
 
 
+def _parse_ufw_ipv6_enabled(
+    result: subprocess.CompletedProcess[str] | None,
+) -> bool | None:
+    if result is None:
+        return None
+    assignments = [
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.strip().startswith("IPV6")
+    ]
+    if len(assignments) != 1:
+        return None
+    match = re.fullmatch(r"IPV6=(yes|no)", assignments[0])
+    if match is None:
+        return None
+    return match.group(1) == "yes"
+
+
 def _ufw_fact(
     config: InstallerConfig,
     result: subprocess.CompletedProcess[str] | None,
     observation: str,
+    ipv6_enabled: bool | None,
 ) -> dict[str, object]:
     active = result is not None and bool(
         re.search(r"(?im)^Status:\s+active\s*$", result.stdout)
@@ -1121,7 +1146,7 @@ def _ufw_fact(
     return {
         "active": active,
         "available": result is not None,
-        "ipv6_enabled": result is not None and "(v6)" in result.stdout,
+        "ipv6_enabled": ipv6_enabled,
         "mode": "managed"
         if config.host_mode is HostMode.FRESH and config.firewall.manage_ufw
         else "read_only",

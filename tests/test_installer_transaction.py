@@ -14,6 +14,7 @@ from installer.transaction import (
     AcceptedDigestError,
     OwnershipError,
     TransactionEngine,
+    TransactionError,
     TransactionState,
     RuntimeV2Adapter,
     TransactionStore,
@@ -88,6 +89,27 @@ class RecordingAdapter:
         if self.target.exists():
             return checkpoint
         return self.apply(action, checkpoint)
+
+    def repair(
+        self,
+        action: Action,
+        checkpoint: dict[str, object],
+    ) -> dict[str, object]:
+        expected = f"owned by {action.owner}\n".encode()
+        if self.target.exists() and self.target.read_bytes() != expected:
+            raise OwnershipError("owned file drifted")
+        if not self.target.exists():
+            self.target.write_bytes(expected)
+        if self.preserve_data:
+            if (
+                self.data_path.exists()
+                and self.data_path.read_bytes() != b"persistent data\n"
+            ):
+                raise OwnershipError("owned data drifted")
+            if not self.data_path.exists():
+                self.data_path.write_bytes(b"persistent data\n")
+        return checkpoint
+
 
     def verify(self, action: Action) -> Evidence:
         valid = self.target.read_bytes() == f"owned by {action.owner}\n".encode()
@@ -650,6 +672,19 @@ def test_repair_refuses_owned_file_drift_before_adapter_verification(tmp_path: P
 
     with pytest.raises(OwnershipError, match="owned file drifted"):
         engine.repair()
+
+def test_apply_rejects_adapter_without_checkpoint_aware_repair(
+    tmp_path: Path,
+) -> None:
+    adapter = RecordingAdapter("core", tmp_path)
+    setattr(adapter, "repair", None)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+
+    with pytest.raises(TransactionError, match="does not implement repair"):
+        engine.apply(plan, accepted_digest=plan.digest)
+
+    assert not TransactionStore(tmp_path).state_path.exists()
 
 
 def test_runtime_v2_import_is_explicit_and_preserves_managed_bytes(tmp_path: Path) -> None:

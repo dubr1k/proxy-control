@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Sequence
@@ -311,6 +312,9 @@ class CertRunner:
         self.key_matches = True
         self.chain_valid = True
         self.effective_vhost = True
+        self.renewal_valid = True
+        self.nginx_test_valid = True
+        self.reload_valid = True
 
     def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
         command = tuple(argv)
@@ -330,6 +334,11 @@ class CertRunner:
             key.chmod(0o600)
             for name in ("cert.pem", "chain.pem", "fullchain.pem"):
                 (live / name).write_text("not-a-real-certificate")
+            archive = self.root / "etc/letsencrypt/archive" / cert_name
+            archive.mkdir(parents=True, exist_ok=True)
+            renewal = self.root / "etc/letsencrypt/renewal" / f"{cert_name}.conf"
+            renewal.parent.mkdir(parents=True, exist_ok=True)
+            renewal.write_text("authenticator = webroot\n")
             return subprocess.CompletedProcess(command, 0, "certificate details", "")
         if command[:2] == ("openssl", "pkey"):
             return subprocess.CompletedProcess(
@@ -374,17 +383,31 @@ class CertRunner:
                         + path.read_text()
                     )
             return subprocess.CompletedProcess(command, 0, rendered, "")
-        if command in {
-            ("nginx", "-t"),
-            ("systemctl", "reload", "nginx"),
-        }:
-            return subprocess.CompletedProcess(command, 0, "", "")
+        if command == ("nginx", "-t"):
+            return subprocess.CompletedProcess(
+                command,
+                0 if self.nginx_test_valid else 1,
+                "",
+                "",
+            )
+        if command == ("systemctl", "reload", "nginx"):
+            return subprocess.CompletedProcess(
+                command,
+                0 if self.reload_valid else 1,
+                "",
+                "",
+            )
         if (
             len(command) >= 2
             and command[:2] == ("certbot", "renew")
             and "--dry-run" in command
         ):
-            return subprocess.CompletedProcess(command, 0, "renewal details", "")
+            return subprocess.CompletedProcess(
+                command,
+                0 if self.renewal_valid else 1,
+                "renewal details",
+                "",
+            )
         raise AssertionError(command)
 
 
@@ -538,6 +561,323 @@ def test_certificate_owns_http01_vhost_before_certbot_and_removes_only_it(
     adapter.rollback(action, applied)
     assert not owned.exists()
     assert foreign.is_file()
+    assert (tmp_path / "etc/letsencrypt/live/mt.example.com").is_dir()
+    assert (tmp_path / "etc/letsencrypt/archive/mt.example.com").is_dir()
+    assert (
+        tmp_path / "etc/letsencrypt/renewal/mt.example.com.conf"
+    ).is_file()
+
+
+def test_certificate_rollback_reloads_when_owned_vhost_was_already_removed(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+    owned = tmp_path / "etc/nginx/conf.d/proxy-control-acme-proxy-control.conf"
+    owned.unlink()
+    runner.calls.clear()
+
+    evidence = adapter.reconcile_rollback(action, applied)
+
+    assert evidence.success is True
+    assert runner.calls[:3] == [
+        ("nginx", "-t"),
+        ("systemctl", "reload", "nginx"),
+        ("nginx", "-T"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("already_absent", "restored"),
+    [(False, True), (True, False)],
+)
+def test_certificate_rollback_restores_vhost_only_when_this_attempt_removed_it(
+    tmp_path: Path,
+    already_absent: bool,
+    restored: bool,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+    owned = tmp_path / "etc/nginx/conf.d/proxy-control-acme-proxy-control.conf"
+    if already_absent:
+        owned.unlink()
+    runner.reload_valid = False
+
+    with pytest.raises(TopologyError, match="rollback reload failed"):
+        adapter.reconcile_rollback(action, applied)
+
+    assert owned.exists() is restored
+
+
+def test_certificate_verify_checks_effective_vhost_and_scoped_renewal(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    adapter.apply(action, adapter.prepare(action))
+
+    runner.effective_vhost = False
+    assert adapter.verify(action).success is False
+    runner.effective_vhost = True
+    runner.renewal_valid = False
+    evidence = adapter.verify(action)
+    assert evidence.success is False
+    assert "renewal details" not in str(evidence.details)
+
+
+@pytest.mark.parametrize("component", ["live", "archive", "renewal"])
+def test_certificate_prepare_refuses_incomplete_foreign_lineage(
+    tmp_path: Path,
+    component: str,
+) -> None:
+    runner = CertRunner(tmp_path)
+    if component == "renewal":
+        occupied = tmp_path / "etc/letsencrypt/renewal/mt.example.com.conf"
+        occupied.parent.mkdir(parents=True)
+        occupied.write_text("foreign renewal")
+    else:
+        occupied = tmp_path / f"etc/letsencrypt/{component}/mt.example.com"
+        occupied.mkdir(parents=True)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+
+    with pytest.raises(TopologyError, match="incomplete"):
+        adapter.prepare(action)
+
+    assert occupied.exists()
+
+
+def test_certificate_apply_refuses_lineage_that_appeared_after_prepare(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    prepared = adapter.prepare(action)
+    renewal = tmp_path / "etc/letsencrypt/renewal/mt.example.com.conf"
+    renewal.parent.mkdir(parents=True)
+    renewal.write_text("foreign renewal")
+
+    with pytest.raises(TopologyError, match="appeared after prepare"):
+        adapter.apply(action, prepared)
+
+    assert renewal.read_text() == "foreign renewal"
+    assert not (
+        tmp_path / "etc/nginx/conf.d/proxy-control-acme-proxy-control.conf"
+    ).exists()
+    assert not any(call[:2] == ("certbot", "certonly") for call in runner.calls)
+
+
+
+
+def test_certificate_rollback_cleans_incomplete_action_created_lineage(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    prepared = adapter.prepare(action)
+    live = tmp_path / "etc/letsencrypt/live/mt.example.com"
+    archive = tmp_path / "etc/letsencrypt/archive/mt.example.com"
+    renewal = tmp_path / "etc/letsencrypt/renewal/mt.example.com.conf"
+    live.mkdir(parents=True)
+    archive.mkdir(parents=True)
+    renewal.parent.mkdir(parents=True)
+    (live / "partial").write_text("partial")
+    (archive / "partial").write_text("partial")
+    renewal.write_text("partial")
+
+    evidence = adapter.reconcile_rollback(action, prepared)
+
+    assert evidence.success is True
+    assert not live.exists()
+    assert not archive.exists()
+    assert not renewal.exists()
+
+
+def test_certificate_reconcile_apply_preserves_completed_crash_issuance(
+    tmp_path: Path,
+) -> None:
+    class IssuanceCrash(BaseException):
+        pass
+
+    class CrashAfterIssuanceRunner(CertRunner):
+        crashed = False
+
+        def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            result = super().run(argv)
+            if tuple(argv)[:2] == ("certbot", "certonly") and not self.crashed:
+                self.crashed = True
+                raise IssuanceCrash("issuance completed")
+            return result
+
+    runner = CrashAfterIssuanceRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    prepared = adapter.prepare(action)
+
+    with pytest.raises(IssuanceCrash, match="issuance completed"):
+        adapter.apply(action, prepared)
+
+    reconciled = adapter.reconcile_apply(action, prepared)
+
+    assert reconciled["lineage_preexisting"] is False
+    assert sum(call[:2] == ("certbot", "certonly") for call in runner.calls) == 1
+    assert adapter.verify(action).success is True
+
+
+def test_certificate_reconcile_apply_replaces_partial_crash_lineage(
+    tmp_path: Path,
+) -> None:
+    class IssuanceCrash(BaseException):
+        pass
+
+    class CrashDuringIssuanceRunner(CertRunner):
+        crashed = False
+
+        def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            command = tuple(argv)
+            if command[:2] == ("certbot", "certonly") and not self.crashed:
+                self.calls.append(command)
+                self.crashed = True
+                live = self.root / "etc/letsencrypt/live/mt.example.com"
+                live.mkdir(parents=True)
+                (live / "partial").write_text("partial")
+                raise IssuanceCrash("issuance interrupted")
+            return super().run(argv)
+
+    runner = CrashDuringIssuanceRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    prepared = adapter.prepare(action)
+
+    with pytest.raises(IssuanceCrash, match="issuance interrupted"):
+        adapter.apply(action, prepared)
+
+    reconciled = adapter.reconcile_apply(action, prepared)
+
+    assert reconciled["lineage_preexisting"] is False
+    assert sum(call[:2] == ("certbot", "certonly") for call in runner.calls) == 2
+    assert not (
+        tmp_path / "etc/letsencrypt/live/mt.example.com/partial"
+    ).exists()
+    assert adapter.verify(action).success is True
+
+
+def test_certificate_rollback_refuses_unsafe_lineage_path_without_deleting_peers(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    action = adapter.plan(config(), dns_facts())[0]
+    prepared = adapter.prepare(action)
+    live = tmp_path / "etc/letsencrypt/live/mt.example.com"
+    live.mkdir(parents=True)
+    (live / "partial").write_text("partial")
+    foreign = tmp_path / "foreign-archive"
+    foreign.mkdir()
+    archive = tmp_path / "etc/letsencrypt/archive/mt.example.com"
+    archive.parent.mkdir(parents=True)
+    archive.symlink_to(foreign, target_is_directory=True)
+
+    with pytest.raises(TopologyError, match="unsafe path types"):
+        adapter.reconcile_rollback(action, prepared)
+
+    assert (live / "partial").read_text() == "partial"
+    assert archive.is_symlink()
+    assert foreign.is_dir()
+
+
+def test_transaction_repair_restores_owned_certificate_and_vhost(
+    tmp_path: Path,
+) -> None:
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    selected_config = config()
+    selected_facts = dns_facts()
+    action = adapter.plan(selected_config, selected_facts)[0]
+    plan = InstallPlan(
+        config=selected_config.canonical_dict(),
+        facts=selected_facts,
+        release=ReleaseIdentity(
+            tag="v1.0.0",
+            commit="1" * 40,
+            manifest_sha256="2" * 64,
+        ),
+        adapter_order=("certificates",),
+        adapter_dependencies={"certificates": ()},
+        actions=(action,),
+    )
+    engine = TransactionEngine(
+        TransactionStore(tmp_path),
+        {"certificates": adapter},
+    )
+    assert engine.apply(plan, accepted_digest=plan.digest).status == "active"
+    (tmp_path / "etc/nginx/conf.d/proxy-control-acme-proxy-control.conf").unlink()
+    shutil.rmtree(tmp_path / "etc/letsencrypt/live/mt.example.com")
+    shutil.rmtree(tmp_path / "etc/letsencrypt/archive/mt.example.com")
+    (tmp_path / "etc/letsencrypt/renewal/mt.example.com.conf").unlink()
+    runner.calls.clear()
+
+    repaired = engine.repair()
+    repair_calls = tuple(runner.calls)
+
+    assert repaired.status == "active"
+    assert ("nginx", "-T") in repair_calls
+    assert (
+        "certbot",
+        "renew",
+        "--cert-name",
+        "mt.example.com",
+        "--dry-run",
+        "--no-random-sleep-on-renew",
+    ) in repair_calls
+    assert adapter.verify(action).success is True
 
 def test_certificate_refuses_when_owned_vhost_is_absent_from_effective_nginx(
     tmp_path: Path,
@@ -577,6 +917,11 @@ def test_certificate_refuses_to_modify_preexisting_invalid_lineage(
     )
     action = adapter.plan(config(), dns_facts())[0]
 
+    archive = tmp_path / "etc/letsencrypt/archive/mt.example.com"
+    archive.mkdir(parents=True)
+    renewal = tmp_path / "etc/letsencrypt/renewal/mt.example.com.conf"
+    renewal.parent.mkdir(parents=True, exist_ok=True)
+    renewal.write_text("authenticator = webroot\n")
     with pytest.raises(TopologyError, match="pre-existing certificate lineage"):
         adapter.apply(action, adapter.prepare(action))
 
@@ -773,6 +1118,20 @@ def test_ufw_requires_both_families_when_ipv6_is_enabled() -> None:
     )
 
 
+def test_firewall_refuses_unknown_authoritative_ufw_ipv6_mode() -> None:
+    runner = UfwRunner(["22/tcp ALLOW IN Anywhere # operator:ssh"])
+    adapter = FirewallAdapter(runner=runner, ssh_ports={22})
+    base = firewall_facts()
+    ufw = dict(base.ownership["ufw"])
+    ufw["ipv6_enabled"] = None
+    facts = AuditFacts(
+        listeners=base.listeners,
+        ownership={"ufw": ufw},
+    )
+
+    with pytest.raises(FirewallError, match="IPv6 state is unknown"):
+        adapter.plan(config(), facts)
+
 def test_firewall_accepts_explicit_audited_ssh_socket_port() -> None:
     runner = UfwRunner(["22/tcp ALLOW IN Anywhere # operator:ssh"])
     adapter = FirewallAdapter(runner=runner)
@@ -841,6 +1200,56 @@ def test_ufw_crash_rollback_recovers_unjournaled_owned_rule() -> None:
 
     assert evidence.success is True
     assert runner.rules == ["22/tcp ALLOW IN Anywhere # operator:ssh"]
+
+@pytest.mark.parametrize("ipv6_enabled", [False, True])
+def test_transaction_repair_restores_only_missing_owned_ufw_rule_family(
+    tmp_path: Path,
+    ipv6_enabled: bool,
+) -> None:
+    ssh_rules = ["22/tcp ALLOW IN Anywhere # operator:ssh"]
+    if ipv6_enabled:
+        ssh_rules.append(
+            "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh"
+        )
+    runner = UfwRunner(ssh_rules, ipv6_enabled=ipv6_enabled)
+    adapter = FirewallAdapter(runner=runner, ssh_ports={22})
+    selected_config = config()
+    selected_facts = firewall_facts(ipv6_enabled=ipv6_enabled)
+    action = adapter.plan(selected_config, selected_facts)[0]
+    plan = InstallPlan(
+        config=selected_config.canonical_dict(),
+        facts=selected_facts,
+        release=ReleaseIdentity(
+            tag="v1.0.0",
+            commit="1" * 40,
+            manifest_sha256="2" * 64,
+        ),
+        adapter_order=("firewall",),
+        adapter_dependencies={"firewall": ()},
+        actions=(action,),
+    )
+    engine = TransactionEngine(TransactionStore(tmp_path), {"firewall": adapter})
+    assert engine.apply(plan, accepted_digest=plan.digest).status == "active"
+    missing = (
+        "80/tcp (v6) ALLOW IN Anywhere (v6) "
+        "# proxy-control:firewall:tcp:80"
+        if ipv6_enabled
+        else "80/tcp ALLOW IN Anywhere # proxy-control:firewall:tcp:80"
+    )
+    runner.rules.remove(missing)
+
+    repaired = engine.repair()
+
+    assert repaired.status == "active"
+    assert (
+        "80/tcp ALLOW IN Anywhere # proxy-control:firewall:tcp:80"
+        in runner.rules
+    )
+    if ipv6_enabled:
+        assert (
+            "80/tcp (v6) ALLOW IN Anywhere (v6) "
+            "# proxy-control:firewall:tcp:80"
+        ) in runner.rules
 
 
 

@@ -174,6 +174,7 @@ def host_responses(
             "--value",
             "--no-pager",
         ): (0, "[::]:22 (Stream)\n", ""),
+        ("cat", "/etc/default/ufw"): (0, "IPV6=yes\n", ""),
         ("ufw", "status", "verbose"): (0, "Status: active\n22/tcp ALLOW IN Anywhere\n", ""),
     }
     for domain in domains:
@@ -329,6 +330,7 @@ def test_audit_facts_cover_all_categories_and_are_deterministic():
         "three_xui",
         "ufw",
     }
+    assert first.ownership["ufw"]["ipv6_enabled"] is True
     assert all(isinstance(stop, HardStop) for stop in first.hard_stops)
     assert all(
         isinstance(item, OperatorPrerequisite)
@@ -338,6 +340,38 @@ def test_audit_facts_cover_all_categories_and_are_deterministic():
         "cloud_firewall.reachability"
     }
     assert first.operator_prerequisites[0].status == "operator_required"
+
+
+@pytest.mark.parametrize(
+    ("config_response", "expected"),
+    [
+        ((0, "IPV6=no\n", ""), False),
+        ((0, "IPV6=maybe\n", ""), None),
+        ((1, "", "permission denied"), None),
+    ],
+)
+def test_audit_uses_authoritative_ufw_ipv6_mode_not_observed_rules(
+    config_response: tuple[int, str, str],
+    expected: bool | None,
+) -> None:
+    selected = config()
+    records = {
+        domain: ([HOST_V4], [HOST_V6])
+        for domain in selected.required_domains()
+    }
+    responses = host_responses(selected.required_domains())
+    responses[("cat", "/etc/default/ufw")] = config_response
+    responses[("ufw", "status", "verbose")] = (
+        0,
+        "Status: active\n22/tcp (v6) ALLOW IN Anywhere (v6)\n",
+        "",
+    )
+    executor = ScriptedExecutor(responses)
+    runner = CommandRunner(executor=executor, resolver=resolver(records))
+
+    facts = audit_host(selected, runner)
+
+    assert facts.ownership["ufw"]["ipv6_enabled"] is expected
 
 
 def test_injected_dns_a_aaaa_and_caa_accept_local_addresses():
