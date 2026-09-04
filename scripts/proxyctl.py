@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import secrets
 import signal
 import shutil
 import stat
@@ -21,6 +20,7 @@ from typing import Callable, Sequence
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from installer.adapters.core import CoreAdapter, CoreError, CorePaths
 from installer.adapters.nginx import (
     OWNERSHIP_BEGIN,
     OWNERSHIP_END,
@@ -39,12 +39,10 @@ from installer.model import HostMode
 
 from installer.transaction import (
     atomic_write as _atomic_write,
-    durable_copy2 as _durable_copy2,
     durable_mkdir as _durable_mkdir,
     durable_remove as _durable_remove,
     durable_symlink as _durable_symlink,
     fsync_directory as _fsync_dir,
-    fsync_tree as _fsync_tree,
     operation_lock,
     sha256 as _sha256,
 )
@@ -865,7 +863,23 @@ class RuntimeInstaller:
         self.root = root
         self.runner = runner or CommandRunner()
         self.state_path = _root_path(root, RUNTIME_STATE_PATH)
-
+        self.core = CoreAdapter(
+            root=root,
+            runner=self.runner,
+            source_dir=Path(plan.source_dir),
+            paths=CorePaths(
+                project_dir=plan.project_dir,
+                probe_path=plan.protocol_probe,
+            ),
+            users=plan.users,
+        )
+        self.core_action = self.core.action(
+            proxy_domain=plan.proxy_domain,
+            panel_domain=plan.panel_domain,
+            users=plan.users,
+            proxy_backend_port=plan.proxy_backend_port,
+            panel_app_port=plan.panel_app_port,
+        )
     def _run(self, *argv: str, stdin_path: Path | None = None) -> None:
         self.runner.run(argv, stdin_path=stdin_path)
 
@@ -874,44 +888,13 @@ class RuntimeInstaller:
 
     @staticmethod
     def _sanitize_diagnostic(value: str, *, max_chars: int = 4096) -> str:
-        clean = " ".join(value.split())
-        clean = re.sub(r"(?i)\bBearer\s+\S+", "Bearer [REDACTED]", clean)
-        clean = re.sub(
-            r"(?i)\b(password|secret|token|authorization)(\s*[=:]\s*|\s+)\S+",
-            lambda match: f"{match.group(1)}{match.group(2)}[REDACTED]",
-            clean,
-        )
-        return clean[-max_chars:]
+        return CoreAdapter.sanitize_diagnostic(value, max_chars=max_chars)
 
     def _compose_start(self) -> None:
         try:
-            self._compose("up", "-d", "--wait")
-        except InstallerConflict as original:
-            compose = ("docker", "compose", "--project-directory", self.plan.project_dir)
-
-            def capture(command: tuple[str, ...], limit: int) -> str:
-                try:
-                    value = self.runner.capture(command, max_chars=limit)
-                except Exception as exc:
-                    value = f"diagnostic unavailable: {type(exc).__name__}"
-                return self._sanitize_diagnostic(value, max_chars=limit)
-
-            container = capture(compose + ("ps", "-q", "panel"), 256).strip().splitlines()
-            if container and re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", container[-1]):
-                health = capture(
-                    ("docker", "inspect", "--format", "{{json .State.Health}}", container[-1]),
-                    2400,
-                )
-            else:
-                health = "container id unavailable"
-            diagnostics = (
-                ("panel health", health),
-                ("panel logs", capture(compose + ("logs", "--no-color", "--tail", "80", "panel"), 600)),
-                ("compose ps", capture(compose + ("ps",), 400)),
-            )
-            summary = self._sanitize_diagnostic(str(original), max_chars=300)
-            detail = "; ".join(f"{label}: {value or '(empty)'}" for label, value in diagnostics)
-            raise InstallerConflict(f"compose startup failed: {summary}; startup diagnostics: {detail}") from original
+            self.core.start()
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def _managed_paths(self) -> list[str]:
         return [
@@ -989,65 +972,13 @@ class RuntimeInstaller:
         _durable_symlink("../sites-available/proxy-control-panel.conf", enabled / "proxy-control-panel.conf")
 
     def _render_project(self, *, recovery: bool = False) -> bool:
-        project = _root_path(self.root, self.plan.project_dir)
-        marker = project / ".mtproxy-owned"
-        created = not project.exists()
-        if project.exists() and any(project.iterdir()):
-            names = {entry.name for entry in project.iterdir()}
-            if not recovery or ".mtproxy-owned" not in names or not names <= {".mtproxy-owned", "secrets"}:
-                raise InstallerConflict("pre-existing project requires explicit migration; refusing overwrite")
-        _durable_mkdir(project)
-        if not marker.exists():
-            _atomic_write(marker, (uuid.uuid4().hex + "\n").encode(), mode=0o600)
-        source = Path(self.plan.source_dir)
-        if not source.is_dir():
-            raise InstallerConflict("installer source directory does not exist")
-        for name in ("compose.yaml", "uninstall.sh"):
-            _durable_copy2(source / name, project / name)
-        target_scripts = project / "scripts"
-        _durable_mkdir(target_scripts)
-        _durable_copy2(source / "scripts/proxyctl.py", target_scripts / "proxyctl.py")
-        for directory in ("docker", "installer", "panel"):
-            shutil.copytree(
-                source / directory, project / directory, dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc", "*.sqlite3*"),
+        try:
+            return self.core.render_to_disk(
+                self.core_action,
+                recovery=recovery,
             )
-            _fsync_tree(project / directory)
-        secret_dir = project / "secrets"
-        _durable_mkdir(secret_dir, mode=0o700)
-        users_file = secret_dir / "users.conf"
-        existing: dict[str, str] = {}
-        if users_file.is_file():
-            for line in users_file.read_text().splitlines():
-                if "=" in line:
-                    name, value = line.split("=", 1)
-                    if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name) and re.fullmatch(r"[0-9a-f]{32}", value):
-                        existing[name] = value
-        _atomic_write(users_file, "".join(
-            f"{name}={existing.get(name, secrets.token_hex(16))}\n" for name in self.plan.users
-        ).encode(), mode=0o600)
-        token = secret_dir / "telemt-api-token"
-        if not token.exists():
-            _atomic_write(token, ("Bearer " + secrets.token_urlsafe(48) + "\n").encode(), mode=0o600)
-        password = secret_dir / "panel-bootstrap-password"
-        if not password.exists():
-            _atomic_write(password, (secrets.token_urlsafe(32) + "\n").encode(), mode=0o600)
-        env = (
-            f"MTPROXY_DOMAIN={self.plan.proxy_domain}\n"
-            f"MTPROXY_BACKEND_PORT={self.plan.proxy_backend_port}\n"
-            f"MTPROXY_COVER_ROOT=/var/www/{self.plan.proxy_domain}\n"
-            "MTPROXY_LETSENCRYPT_ROOT=/etc/letsencrypt\n"
-            f"PANEL_ALLOWED_HOSTS={self.plan.panel_domain}\n"
-            f"PANEL_HEALTHCHECK_HOST={self.plan.panel_domain}\n"
-        )
-        _atomic_write(project / ".env", env.encode(), mode=0o600)
-        cover = _root_path(self.root, f"/var/www/{self.plan.proxy_domain}/index.html")
-        if not cover.exists():
-            _atomic_write(cover, b"<!doctype html><title>Welcome</title><h1>Welcome</h1>\n", mode=0o644)
-        panel_cover = _root_path(self.root, f"/var/www/{self.plan.panel_domain}/index.html")
-        if not panel_cover.exists():
-            _atomic_write(panel_cover, b"<!doctype html><title>Workspace</title><h1>Secure workspace</h1>\n", mode=0o644)
-        return created
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def _remove_managed_files(self, state: dict, *, check_hashes: bool, allow_missing: bool = False) -> None:
         hashes = state.get("managed_hashes", {})
@@ -1165,36 +1096,19 @@ class RuntimeInstaller:
             os.kill(os.getpid(), signal.SIGKILL)
 
     def _clean_project_preserving_credentials(self) -> None:
-        project = _root_path(self.root, self.plan.project_dir)
-        if project.is_dir():
-            for child in list(project.iterdir()):
-                if child.name not in {"secrets", ".mtproxy-owned"}:
-                    _durable_remove(child)
+        try:
+            self.core.clean_preserving_credentials()
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def _validate_owned_project(
         self,
         expected_marker_sha256: str | None = None,
     ) -> str:
-        project = _root_path(self.root, self.plan.project_dir)
-        current = self.root
-        for part in Path(self.plan.project_dir).parts[1:]:
-            current /= part
-            if current.is_symlink():
-                raise InstallerConflict("runtime project ownership has drifted")
-        marker = project / ".mtproxy-owned"
-        if (
-            not project.is_dir()
-            or marker.is_symlink()
-            or not marker.is_file()
-        ):
-            raise InstallerConflict("runtime project ownership has drifted")
-        actual = self._path_hash(marker)
-        if (
-            expected_marker_sha256 is not None
-            and actual != expected_marker_sha256
-        ):
-            raise InstallerConflict("runtime project ownership has drifted")
-        return actual
+        try:
+            return self.core.marker_sha256(expected_marker_sha256)
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def _require_owned_packages(self, state: dict, *, installed: bool) -> None:
         mismatched = [
@@ -1222,16 +1136,10 @@ class RuntimeInstaller:
             )
 
     def _compose_project_present(self) -> bool:
-        return bool(
-            self.runner.compose_project_present(self.plan.project_dir)
-        )
+        return self.core.compose_project_present()
 
     def _compose_project_volumes_present(self) -> bool:
-        return bool(
-            self.runner.compose_project_volumes_present(
-                self.plan.project_dir
-            )
-        )
+        return self.core.compose_project_volumes_present()
 
     def _rollback_runtime(self, state: dict) -> None:
         """Idempotently restore host routing while retaining generated credentials."""
@@ -1271,16 +1179,10 @@ class RuntimeInstaller:
         self._run("systemctl", "reload", "nginx")
 
     def _health_and_protocol(self) -> None:
-        self._compose("config", "-q")
-        self._compose("ps", "--status", "running")
-        self._run(
-            "curl", "-fsS", "-H", f"Host: {self.plan.panel_domain}",
-            f"http://127.0.0.1:{self.plan.panel_app_port}/healthz",
-        )
-        self._run(
-            self.plan.protocol_probe, "--domain", self.plan.proxy_domain,
-            "--secrets-file", f"{self.plan.project_dir}/secrets/users.conf",
-        )
+        try:
+            self.core.health_and_protocol(self.core_action)
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def install(self) -> Path:
         with _operation_lock(self.root):
