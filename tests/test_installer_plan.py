@@ -168,7 +168,8 @@ def test_apply_rejects_changed_relevant_fact():
         plan.assert_fresh(facts(free_ports=set()))
 
 
-def test_adapter_dependencies_are_topologically_sorted_with_stable_ties():
+def test_adapter_dependencies_are_topologically_sorted_in_declared_order():
+    """Ties follow the caller's declared order so the profile order survives."""
     unordered: tuple[Adapter, ...] = (
         FakeAdapter("core", frozenset({"nginx", "firewall"})),
         FakeAdapter("nginx", frozenset({"packages"})),
@@ -178,8 +179,21 @@ def test_adapter_dependencies_are_topologically_sorted_with_stable_ties():
 
     plan = build_plan(config(), facts(), unordered, release())
 
-    assert plan.adapter_order == ("packages", "firewall", "nginx", "core")
+    assert plan.adapter_order == ("packages", "nginx", "firewall", "core")
     assert tuple(item.adapter for item in plan.actions) == plan.adapter_order
+
+    reordered: tuple[Adapter, ...] = (
+        unordered[2],
+        unordered[3],
+        unordered[1],
+        unordered[0],
+    )
+    assert build_plan(config(), facts(), reordered, release()).adapter_order == (
+        "packages",
+        "firewall",
+        "nginx",
+        "core",
+    )
 
 
 def test_adapter_dependency_cycle_fails_closed():

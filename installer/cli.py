@@ -13,7 +13,14 @@ from typing import Protocol, TextIO
 from installer.config import ConfigError, load_config
 from installer.i18n import Locale, parse_locale, text
 from installer.model import InstallerConfig
-from installer.planner import AuditFacts, InstallPlan, PlanError
+from installer.planner import (
+    AuditFacts,
+    Evidence,
+    InstallPlan,
+    PlanError,
+    compose_file_list,
+)
+from installer.report import AcceptanceReport, ReportWriter
 from installer.transaction import (
     OwnershipError,
     TransactionEngine,
@@ -88,6 +95,14 @@ def _parser() -> argparse.ArgumentParser:
         command = subcommands.add_parser(name, help=f"{name} the owned transaction")
         command.add_argument("--json", action="store_true")
 
+    report = subcommands.add_parser(
+        "report",
+        help="write the public acceptance report and the root-only handoff",
+    )
+    report.add_argument("--config", type=Path, required=True)
+    report.add_argument("--output", type=Path, required=True)
+    report.add_argument("--json", action="store_true")
+
     uninstall = subcommands.add_parser("uninstall", help="remove the owned transaction")
     uninstall.add_argument("--purge-data", action="store_true")
     uninstall.add_argument("--json", action="store_true")
@@ -133,6 +148,8 @@ def run(
             return 0
         if args.command == "install":
             return _automated_install(args, composed, stdout)
+        if args.command == "report":
+            return _write_reports(args, composed, stdout)
         if args.command == "status":
             _write_status(
                 _read_status(composed, args.root),
@@ -229,6 +246,52 @@ def _automated_install(
         raise CliError("accepted plan digest does not match")
     state = services.engine.apply(plan, accepted_digest=accepted)
     _write_status(state, json_output=args.json, output=output)
+    return 0
+
+
+def _write_reports(
+    args: argparse.Namespace,
+    services: CliServices,
+    output: TextIO,
+) -> int:
+    """Aggregate only named evidence from the durable transaction journal."""
+    config = load_config(args.config)
+    state = _read_status(services, args.root)
+    if state.status != "active":
+        raise CliError("a report requires a completed installation")
+    evidence = []
+    for checkpoint in state.checkpoints:
+        recorded = checkpoint.evidence
+        if not isinstance(recorded, Mapping):
+            continue
+        details = recorded.get("details")
+        evidence.append(
+            Evidence(
+                action_id=checkpoint.action_id,
+                success=bool(recorded.get("success")),
+                observations=tuple(
+                    str(item) for item in recorded.get("observations", ())
+                )
+                or ("no observation was recorded",),
+                details=dict(details) if isinstance(details, Mapping) else {},
+            )
+        )
+    report = AcceptanceReport.from_evidence(
+        profile=config.profile.value,
+        release_tag=state.origin,
+        release_digest=state.plan_digest,
+        evidence=evidence,
+        operator_notes=(
+            "compose files: " + " ".join(compose_file_list(config)),
+        ),
+    )
+    writer = ReportWriter(args.output)
+    public = writer.write_public(report)
+    if args.json:
+        output.write(json.dumps({"report": str(public)}, sort_keys=True) + "\n")
+    else:
+        output.write(f"Wrote the public acceptance report to {public}\n")
+    output.flush()
     return 0
 
 

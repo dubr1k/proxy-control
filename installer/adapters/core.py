@@ -802,7 +802,7 @@ class CoreAdapter:
     """Own the existing Telemt, panel, Compose, and TDLib probe lifecycle."""
 
     name = "core"
-    requires = frozenset({"nginx"})
+    requires = frozenset({"certificates"})
 
     def __init__(
         self,

@@ -282,6 +282,102 @@ class InstallPlan:
         }
 
 
+# The documented full-profile order; every profile is a prefix-preserving
+# subset of it.
+_PROFILE_ORDER = (
+    "packages",
+    "nginx",
+    "certificates",
+    "firewall",
+    "core",
+    "naive",
+    "mieru",
+    "three_xui",
+)
+
+
+def adapters_for(
+    config: InstallerConfig,
+    **overrides: object,
+) -> tuple[Adapter, ...]:
+    """Select exactly the adapters one configuration needs, in order.
+
+    Unsupported combinations are rejected instead of silently dropping a
+    component, so a profile can never be installed half-way.
+    """
+    from installer.adapters.core import CoreAdapter
+    from installer.adapters.firewall import FirewallAdapter
+    from installer.adapters.mieru import MieruAdapter
+    from installer.adapters.naive import NaiveAdapter
+    from installer.adapters.nginx import CertificatePlan, NginxAdapter
+    from installer.adapters.packages import PackagesAdapter
+    from installer.adapters.three_xui import ThreeXuiAdapter
+
+    if config.profile.includes_naive and config.domains.naive is None:
+        raise PlanError("the selected profile requires a NaiveProxy domain")
+    if config.profile.includes_mieru and (
+        config.domains.mieru is None or config.mieru is None
+    ):
+        raise PlanError("the selected profile requires Mieru listeners and a host")
+    if not config.profile.includes_mieru and config.mieru is not None:
+        raise PlanError("Mieru listeners are configured outside a Mieru profile")
+    if config.three_xui.mode.value == "managed-new" and config.host_mode.value != "fresh":
+        raise PlanError("managed 3x-ui requires a fresh host")
+
+    factories = {
+        "packages": PackagesAdapter,
+        "nginx": NginxAdapter,
+        "certificates": CertificatePlan,
+        "firewall": FirewallAdapter,
+        "core": CoreAdapter,
+        "naive": NaiveAdapter,
+        "mieru": MieruAdapter,
+        "three_xui": ThreeXuiAdapter,
+    }
+    selected = ["packages", "nginx", "certificates"]
+    if config.host_mode.value == "fresh" and config.firewall.manage_ufw:
+        selected.append("firewall")
+    selected.append("core")
+    if config.profile.includes_naive:
+        selected.append("naive")
+    if config.profile.includes_mieru:
+        selected.append("mieru")
+    if config.three_xui.mode.value != "none":
+        selected.append("three_xui")
+    ordered = [name for name in _PROFILE_ORDER if name in set(selected)]
+    return tuple(
+        overrides.get(name) or factories[name]()  # type: ignore[misc]
+        for name in ordered
+    )
+
+
+def compose_file_list(config: InstallerConfig) -> tuple[str, ...]:
+    """The one canonical Compose file list for a profile."""
+    files = ["compose.yaml"]
+    if config.profile.includes_naive:
+        files.append("compose.naive.yaml")
+    if config.profile.includes_mieru:
+        files.append("compose.mieru.yaml")
+    return tuple(files)
+
+
+def profile_environment(config: InstallerConfig) -> str:
+    """Root-only, non-secret environment rendered once, never exported by hand."""
+    lines = [
+        f"COMPOSE_FILE={':'.join(compose_file_list(config))}",
+        f"PROXY_CONTROL_PROFILE={config.profile.value}",
+        f"PANEL_ALLOWED_HOSTS={config.domains.panel}",
+        f"MTPROXY_DOMAIN={config.domains.mtproxy}",
+    ]
+    if config.profile.includes_naive and config.domains.naive is not None:
+        lines.append(f"NAIVE_PUBLIC_HOST={config.domains.naive}")
+    if config.profile.includes_mieru and config.domains.mieru is not None:
+        lines.append(f"MIERU_PUBLIC_HOST={config.domains.mieru}")
+    rendered = "\n".join(lines) + "\n"
+    _assert_secret_free({"environment": rendered})
+    return rendered
+
+
 def build_plan(
     config: InstallerConfig,
     facts: AuditFacts,
@@ -343,16 +439,23 @@ def _topologically_sorted_adapters(
         for requirement in requires:
             dependents[requirement].append(name)
 
-    ready = [name for name, count in indegree.items() if count == 0]
+    # Prefer the caller's declared order among ready adapters so the documented
+    # profile order survives planning; fall back to the name for a stable tie.
+    position = {adapter.name: index for index, adapter in enumerate(adapters)}
+    ready = [
+        (position[name], name)
+        for name, count in indegree.items()
+        if count == 0
+    ]
     heapq.heapify(ready)
     ordered: list[Adapter] = []
     while ready:
-        name = heapq.heappop(ready)
+        _index, name = heapq.heappop(ready)
         ordered.append(by_name[name])
         for dependent in sorted(dependents[name]):
             indegree[dependent] -= 1
             if indegree[dependent] == 0:
-                heapq.heappush(ready, dependent)
+                heapq.heappush(ready, (position[dependent], dependent))
 
     if len(ordered) != len(by_name):
         cyclic = ", ".join(sorted(name for name, count in indegree.items() if count))

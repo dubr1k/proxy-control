@@ -281,7 +281,7 @@ class ThreeXuiAdapter:
     """Read an existing 3x-ui install, or own one staged pinned generation."""
 
     name = "three_xui"
-    requires = frozenset({"nginx"})
+    requires = frozenset({"certificates"})
 
     def __init__(
         self,
