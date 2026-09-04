@@ -673,3 +673,40 @@ def test_state_preparer_refuses_a_symlinked_boundary(tmp_path):
 def test_state_preparer_requires_root():
     module = _preparer()
     assert module.main(["prepare", "--state-dir", "/var/lib/naive-manager"]) == 1
+
+
+def test_naive_sends_every_tunnel_through_warp_when_it_is_enabled():
+    """Unlike Xray, Naive has no per-domain split: WARP takes everything."""
+    config = full_config()
+    with_warp = InstallerConfig(
+        **{
+            **{
+                field: getattr(config, field)
+                for field in config.__dataclass_fields__
+            },
+            "three_xui": ThreeXuiConfig(
+                mode=ThreeXuiMode.MANAGED_NEW,
+                panel_domain="xui.example.com",
+                vless_tcp_domain="vless.example.com",
+                vless_xhttp_domain="xhttp.example.com",
+                hysteria_domain="hy2.example.com",
+                warp=True,
+                warp_domains=("openai.com",),
+            ),
+        }
+    )
+    action = NaiveAdapter(source_dir=ROOT).plan(with_warp, AuditFacts())[0]
+    assert "egress=proxy" in action.mutations
+
+    rendered = NaiveAdapter(source_dir=ROOT).render(action)
+    assert "upstream socks5://127.0.0.1:45000" in rendered.caddyfile_template
+    # The upstream belongs inside the single managed forward_proxy block.
+    forward = rendered.caddyfile_template.split("forward_proxy {", 1)[1]
+    assert "upstream socks5://127.0.0.1:45000" in forward.split("}", 1)[0]
+
+
+def test_naive_stays_direct_without_warp():
+    action = naive_action()
+    assert "egress=direct" in action.mutations
+    rendered = NaiveAdapter(source_dir=ROOT).render(action)
+    assert "upstream" not in rendered.caddyfile_template

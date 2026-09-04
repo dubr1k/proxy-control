@@ -75,6 +75,10 @@ _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _MANAGED_MARKER = "NAIVE-MANAGER USERS"
 _BOOTSTRAP_USERNAME = "__PROXY_CONTROL_BOOTSTRAP_USERNAME__"
 _BOOTSTRAP_PASSWORD = "__PROXY_CONTROL_BOOTSTRAP_PASSWORD__"
+# WARP is one loopback SOCKS5 endpoint. Unlike Xray, which routes only the
+# selected domains through it, NaiveProxy sends every tunnelled connection
+# through WARP once it is enabled.
+_WARP_EGRESS = "socks5://127.0.0.1:45000"
 _ACCOUNTING_TIMEOUT = 120.0
 _ACCOUNTING_INTERVAL = 5.0
 
@@ -683,6 +687,7 @@ class NaiveAdapter:
                     f"manager-uid={_MANAGER_UID}",
                     f"manager-gid={_MANAGER_GID}",
                     f"adjacent-sni={_encode_adjacent_routes(adjacent)}",
+                    f"egress={'proxy' if config.three_xui.warp else 'direct'}",
                 ),
                 preconditions=(
                     "the Core runtime and the Naive certificate are verified",
@@ -767,6 +772,12 @@ class NaiveAdapter:
     def render(self, action: Action) -> RenderedNaive:
         selected = self._selection(action)
         domain = str(selected["naive_domain"])
+        # Every tunnelled connection leaves through WARP when it is enabled.
+        upstream = (
+            f"            upstream {_WARP_EGRESS}\n"
+            if selected["egress"] == "proxy"
+            else ""
+        )
         caddyfile = (
             "{\n"
             f"    admin 127.0.0.1:{_ADMIN_PORT}\n"
@@ -788,6 +799,7 @@ class NaiveAdapter:
             f"            basic_auth {_BOOTSTRAP_USERNAME} {_BOOTSTRAP_PASSWORD}\n"
             "            hide_ip\n"
             "            hide_via\n"
+            f"{upstream}"
             "        }\n"
             f"        file_server {{ root /var/www/{domain} }}\n"
             "    }\n"
@@ -1114,6 +1126,7 @@ class NaiveAdapter:
             "manager-uid",
             "manager-gid",
             "adjacent-sni",
+            "egress",
         }
         if set(values) != required:
             raise NaiveError("Naive action is invalid")
@@ -1132,12 +1145,14 @@ class NaiveAdapter:
             or _DOMAIN.fullmatch(values["naive-domain"]) is None
             or _DOMAIN.fullmatch(values["panel-domain"]) is None
             or values["naive-domain"] == values["panel-domain"]
+            or values["egress"] not in {"proxy", "direct"}
         ):
             raise NaiveError("Naive action is invalid")
         return {
             "naive_domain": values["naive-domain"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "adjacent_sni": _decode_adjacent_routes(values["adjacent-sni"]),
+            "egress": values["egress"],
         }
 
     def _checkpoint(
@@ -1586,6 +1601,7 @@ class NaiveAdapter:
                 + _encode_adjacent_routes(
                     tuple(selected.get("adjacent_sni", ()))  # type: ignore[arg-type]
                 ),
+                f"egress={selected.get('egress', 'direct')}",
             ),
             preconditions=("owned Naive generation",),
             verification=("Naive acceptance",),
