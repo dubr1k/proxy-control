@@ -1,6 +1,16 @@
-.PHONY: lab-test lab-prepare lab-start lab-reset lab-smoke lab-full lab-release lab-stop lab-clean
+.PHONY: release-candidate verify-release lab-test lab-prepare lab-start lab-reset lab-smoke lab-full lab-release lab-stop lab-clean
 
 LAB = python3 scripts/lab/qemu_lab.py
+DIST ?= dist
+
+# Build one reproducible release candidate from the committed tree.
+release-candidate:
+	@test -n "$(VERSION)" || { echo "set VERSION=<x.y.z>" >&2; exit 2; }
+	python3 release/build.py --source . --output $(DIST) --version $(VERSION)
+
+# Re-check every digest a built release published.
+verify-release:
+	python3 release/build.py --verify $(DIST)
 
 lab-test:
 	python3 -m unittest -v tests/lab/test_qemu_lab.py

@@ -64,6 +64,33 @@ jobs:
           systemd-analyze verify deploy/*.service
           git diff --check
 
+  reproducible-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Two builds of this commit are byte-identical
+        run: |
+          version=$(cat VERSION)
+          python3 release/build.py --source . --output dist --version "$version" --allow-dirty
+          python3 release/build.py --source . --output dist-again --version "$version" --allow-dirty
+          cmp dist/proxy-control-v"$version".tar.gz dist-again/proxy-control-v"$version".tar.gz
+          cmp dist/release-manifest.json dist-again/release-manifest.json
+          cmp dist/sbom.spdx.json dist-again/sbom.spdx.json
+          python3 release/build.py --verify dist
+      - name: The archive excludes private and lab state
+        run: |
+          version=$(cat VERSION)
+          ! tar -tzf dist/proxy-control-v"$version".tar.gz | grep -E \
+            '^proxy-control/(\.git/|\.env|secrets/|\.lab-state/|lab-results/|dist/)'
+      - name: The bootstrap verifies before it dispatches
+        run: |
+          bash -n install-bootstrap
+          shellcheck install-bootstrap
+
   compose-and-images:
     runs-on: ubuntu-24.04
     timeout-minutes: 40

@@ -833,7 +833,7 @@ class NaiveAdapter:
     # ------------------------------------------------------------------
 
     def prepare(self, action: Action) -> Mapping[str, object]:
-        selected = self._selection(action)
+        self._selection(action)
         self._assert_live_identities()
         marker = self._host(self.paths.marker)
         adoption = self._adoption_kind(marker)

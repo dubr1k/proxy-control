@@ -1,0 +1,208 @@
+name: Release
+
+# A release is only published after the same bytes were built twice, passed the
+# isolated lab on both architectures, and were attested. No job in this file has
+# SSH access or touches a production environment.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version to build, without the leading v
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || '' }}
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Python environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r panel/requirements-dev.txt
+      - name: Ruff and installer tests
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/python -m pytest -q tests/test_installer_*.py \
+            tests/test_three_xui_api.py tests/test_release_build.py
+      - name: Tag, VERSION, and manifest agree
+        run: |
+          version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
+          test "$(cat VERSION)" = "$version"
+          test "${GITHUB_REF_TYPE}" != "tag" || test "${GITHUB_REF_NAME}" = "v$version"
+          .venv/bin/python release/verify.py manifest release/external-artifacts.json
+
+  build-twice-and-compare:
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      archive-sha256: ${{ steps.build.outputs.archive-sha256 }}
+      version: ${{ steps.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build the release twice and require identical bytes
+        id: build
+        run: |
+          version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
+          python3 release/build.py --source . --output dist --version "$version"
+          python3 release/build.py --source . --output dist-again --version "$version"
+          first=$(sha256sum dist/proxy-control-v"$version".tar.gz | cut -d' ' -f1)
+          second=$(sha256sum dist-again/proxy-control-v"$version".tar.gz | cut -d' ' -f1)
+          test "$first" = "$second"
+          cmp dist/release-manifest.json dist-again/release-manifest.json
+          cmp dist/sbom.spdx.json dist-again/sbom.spdx.json
+          python3 release/build.py --verify dist
+          echo "archive-sha256=$first" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  lab-amd64:
+    needs: build-twice-and-compare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: release-dist
+          path: dist
+      - name: Lab prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils cloud-image-utils shellcheck
+      - name: Release acceptance on amd64
+        run: |
+          make lab-release \
+            LAB_ARCH=amd64 \
+            RELEASE_ARCHIVE=dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz \
+            RELEASE_SHA256=${{ needs.build-twice-and-compare.outputs.archive-sha256 }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: lab-amd64
+          path: lab-results/
+          if-no-files-found: error
+          retention-days: 7
+
+  lab-arm64:
+    needs: build-twice-and-compare
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: release-dist
+          path: dist
+      - name: Lab prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-arm qemu-utils cloud-image-utils shellcheck
+      - name: Release acceptance on arm64
+        run: |
+          make lab-release \
+            LAB_ARCH=arm64 \
+            RELEASE_ARCHIVE=dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz \
+            RELEASE_SHA256=${{ needs.build-twice-and-compare.outputs.archive-sha256 }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: lab-arm64
+          path: lab-results/
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    needs: [build-twice-and-compare, lab-amd64, lab-arm64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: release-dist
+          path: dist
+      - name: The attested archive is the one the lab accepted
+        run: |
+          test "$(sha256sum dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz | cut -d' ' -f1)" \
+            = "${{ needs.build-twice-and-compare.outputs.archive-sha256 }}"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz
+
+  draft-release:
+    needs: [attest, build-twice-and-compare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: release-dist
+          path: dist
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
+        with:
+          draft: true
+          tag_name: v${{ needs.build-twice-and-compare.outputs.version }}
+          files: |
+            dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz
+            dist/release-manifest.json
+            dist/sbom.spdx.json
+            dist/SHA256SUMS
+
+  publish:
+    needs: [draft-release, build-twice-and-compare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Publishing waits for a human reviewer on this protected environment.
+    environment:
+      name: release-publish
+    permissions:
+      contents: write
+    steps:
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
+        with:
+          draft: false
+          tag_name: v${{ needs.build-twice-and-compare.outputs.version }}

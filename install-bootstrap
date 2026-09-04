@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Verify a downloaded Proxy Control release, then hand it to the installer.
+#
+# Everything this script checks happens without privilege: ownership, mode,
+# the archive checksum, the release manifest identity, and a safe extraction
+# into a private directory. Only after all of that does it dispatch through
+# sudo. It never downloads and executes in one step, and it never selects a
+# prerelease.
+set -Eeuo pipefail
+
+ARCHIVE=
+CHECKSUM=
+MANIFEST=
+PROVENANCE=
+DESTINATION=
+
+usage() {
+    cat >&2 <<'USAGE'
+usage: install-bootstrap --archive FILE --checksum FILE --manifest FILE
+                        [--provenance FILE] [--destination DIR] [-- ARGS...]
+
+  --archive     the release tar.gz to verify
+  --checksum    the SHA256SUMS file published beside it
+  --manifest    release-manifest.json published beside it
+  --provenance  an already verified provenance marker (optional)
+  --destination where to extract; defaults to a private mktemp directory
+USAGE
+    exit 2
+}
+
+fail() {
+    printf 'install-bootstrap: %s\n' "$*" >&2
+    exit 1
+}
+
+while (($#)); do
+    case $1 in
+        --archive) ARCHIVE=${2:?}; shift 2 ;;
+        --checksum) CHECKSUM=${2:?}; shift 2 ;;
+        --manifest) MANIFEST=${2:?}; shift 2 ;;
+        --provenance) PROVENANCE=${2:?}; shift 2 ;;
+        --destination) DESTINATION=${2:?}; shift 2 ;;
+        --) shift; break ;;
+        *) usage ;;
+    esac
+done
+[[ -n $ARCHIVE && -n $CHECKSUM && -n $MANIFEST ]] || usage
+
+[[ ${EUID:-$(id -u)} -ne 0 ]] || fail "run the verification as an unprivileged user"
+
+check_file() {
+    local path=$1 label=$2 owner mode
+    [[ -f $path && ! -L $path ]] || fail "$label must be a regular file: $path"
+    owner=$(stat -c '%u' -- "$path" 2>/dev/null || stat -f '%u' -- "$path")
+    mode=$(stat -c '%a' -- "$path" 2>/dev/null || stat -f '%Lp' -- "$path")
+    [[ $owner == "${EUID:-$(id -u)}" ]] || fail "$label must be owned by you: $path"
+    (( (8#$mode & 0022) == 0 )) || fail "$label must not be group/other-writable: $path"
+}
+
+check_file "$ARCHIVE" "the release archive"
+check_file "$CHECKSUM" "the checksum file"
+check_file "$MANIFEST" "the release manifest"
+[[ -z $PROVENANCE ]] || check_file "$PROVENANCE" "the provenance marker"
+
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum -- "$1" | cut -d' ' -f1
+    else
+        shasum -a 256 -- "$1" | cut -d' ' -f1
+    fi
+}
+
+archive_name=$(basename -- "$ARCHIVE")
+expected=$(awk -v name="$archive_name" '$2 == name || $2 == "*"name {print $1}' "$CHECKSUM" | head -n 1)
+[[ -n $expected ]] || fail "the checksum file does not name $archive_name"
+actual=$(sha256_of "$ARCHIVE")
+[[ $actual == "$expected" ]] || fail "archive checksum mismatch"
+
+python3 - "$MANIFEST" "$archive_name" "$actual" <<'PYEOF'
+import json, sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+if manifest.get("archive") != sys.argv[2]:
+    raise SystemExit("the manifest names a different archive")
+if manifest.get("archive_sha256") != sys.argv[3]:
+    raise SystemExit("the manifest records a different archive digest")
+version = str(manifest.get("version", ""))
+if manifest.get("tag") != f"v{version}":
+    raise SystemExit("the manifest tag and version disagree")
+if any(marker in version for marker in ("-rc", "-alpha", "-beta", "-dev")):
+    raise SystemExit("this bootstrap installs stable releases only")
+PYEOF
+
+if [[ -z $DESTINATION ]]; then
+    DESTINATION=$(mktemp -d "${TMPDIR:-/tmp}/proxy-control-release.XXXXXX")
+fi
+[[ -d $DESTINATION && ! -L $DESTINATION ]] || fail "the destination must be a real directory"
+chmod 0700 -- "$DESTINATION"
+
+tar -tzf "$ARCHIVE" | python3 -c '
+import sys
+for line in sys.stdin:
+    name = line.rstrip("\n")
+    if name.startswith("/") or ".." in name.split("/"):
+        raise SystemExit(f"unsafe member in the release archive: {name}")
+    if not name.startswith("proxy-control/"):
+        raise SystemExit(f"member outside the release prefix: {name}")
+' || fail "the release archive failed its extraction preflight"
+
+tar -xzf "$ARCHIVE" -C "$DESTINATION"
+root=$DESTINATION/proxy-control
+[[ -f $root/install.sh && -f $root/release/release.json ]] || fail "the extracted release is incomplete"
+
+printf 'verified %s (%s)\n' "$archive_name" "$actual"
+printf 'extracted to %s\n' "$root"
+exec sudo -- bash "$root/install.sh" "$@"
