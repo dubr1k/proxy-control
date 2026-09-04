@@ -8,6 +8,7 @@ from installer.adapters.base import Adapter
 if TYPE_CHECKING:
     from installer.adapters.core import CoreAcceptance, CoreAdapter, CorePaths
     from installer.adapters.firewall import FirewallAdapter
+    from installer.adapters.mieru import MieruAcceptance, MieruAdapter, MieruPaths
     from installer.adapters.naive import NaiveAcceptance, NaiveAdapter, NaivePaths
     from installer.adapters.nginx import CertificatePlan, NginxAdapter
     from installer.adapters.packages import PackagesAdapter
@@ -19,6 +20,9 @@ _EXPORTS = {
     "CoreAdapter": ("installer.adapters.core", "CoreAdapter"),
     "CorePaths": ("installer.adapters.core", "CorePaths"),
     "FirewallAdapter": ("installer.adapters.firewall", "FirewallAdapter"),
+    "MieruAcceptance": ("installer.adapters.mieru", "MieruAcceptance"),
+    "MieruAdapter": ("installer.adapters.mieru", "MieruAdapter"),
+    "MieruPaths": ("installer.adapters.mieru", "MieruPaths"),
     "NaiveAcceptance": ("installer.adapters.naive", "NaiveAcceptance"),
     "NaiveAdapter": ("installer.adapters.naive", "NaiveAdapter"),
     "NaivePaths": ("installer.adapters.naive", "NaivePaths"),
@@ -44,6 +48,9 @@ __all__ = [
     "CoreAdapter",
     "CorePaths",
     "FirewallAdapter",
+    "MieruAcceptance",
+    "MieruAdapter",
+    "MieruPaths",
     "NaiveAcceptance",
     "NaiveAdapter",
     "NaivePaths",

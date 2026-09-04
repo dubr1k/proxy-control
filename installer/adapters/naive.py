@@ -68,7 +68,6 @@ _FORWARD_PROXY_MODULE = "http.handlers.forward_proxy"
 _ADMIN_PORT = 2019
 _PRIVATE_PORT = 4443
 _PUBLIC_PORT = 443
-_BACKEND = f"127.0.0.1:{_PRIVATE_PORT}"
 _ACCEPTANCE_PREFIX = "proxy-control-naive-"
 _ACCEPTANCE_NAME = re.compile(r"proxy-control-naive-[0-9a-f]{16}\Z")
 _HEX_16 = re.compile(r"[0-9a-f]{32}\Z")
@@ -86,14 +85,6 @@ _HELPERS: tuple[tuple[str, str, int], ...] = (
     ("scripts/prepare-naive-state.py", _STATE_PREPARER, 0o755),
     ("deploy/caddy-naive.service", _UNIT, 0o644),
 )
-
-# Credentials and manager state that survive a non-destructive rollback.
-_PRESERVED = (
-    f"{_PROJECT}/secrets/naive-manager-token",
-    f"{_DATA_DIR}/manager-token",
-    f"{_DATA_DIR}/Caddyfile",
-)
-
 
 class NaiveError(RuntimeError):
     """The NaiveProxy ownership boundary cannot be changed safely."""
