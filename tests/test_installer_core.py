@@ -12,6 +12,8 @@ from installer.adapters.core import (
     CoreAdapter,
     CoreError,
     CorePaths,
+    _DefaultCoreRunner,
+    _AcceptanceCollision,
 )
 from installer.model import (
     DomainConfig,
@@ -63,6 +65,10 @@ class FakeRunner:
         adjacent_sni: bool = True,
         sensitive_scan: bool = True,
         api_internal: bool = True,
+        compose_health: bool = True,
+        image_id: str | None = None,
+        image_compatible: bool = True,
+        cleanup_fails: bool = False,
         fail_on: tuple[str, ...] | None = None,
     ) -> None:
         self.respq = respq
@@ -71,6 +77,10 @@ class FakeRunner:
         self.adjacent_sni = adjacent_sni
         self.sensitive_scan = sensitive_scan
         self.api_internal = api_internal
+        self.compose_health = compose_health
+        self.image_id = image_id
+        self.image_compatible = image_compatible
+        self.cleanup_fails = cleanup_fails
         self.fail_on = fail_on
         self.calls: list[tuple[tuple[str, ...], str | None]] = []
         self.compose_present = False
@@ -78,6 +88,8 @@ class FakeRunner:
         self.probe_present = False
         self.temporary_present = False
         self.cleanup_calls = 0
+        self.acceptance_names: list[str] = []
+        self.image_owner: str | None = None
 
     def run(self, argv, *, stdin_path=None, env=None):
         del env
@@ -92,8 +104,14 @@ class FakeRunner:
             self.compose_present = False
             if "--volumes" in command:
                 self.volumes_present = False
-        if command and command[-1].endswith("probe/install.sh"):
+        if any(value.endswith("probe/install.sh") for value in command):
             self.probe_present = True
+            self.image_id = "sha256:created-probe-image"
+            owner_index = command.index("--owner-id") + 1
+            self.image_owner = command[owner_index]
+        if command[:3] == ("docker", "image", "rm"):
+            self.image_owner = None
+            self.image_id = None
 
     def compose_project_present(self, _project_dir):
         return self.compose_present
@@ -101,23 +119,36 @@ class FakeRunner:
     def compose_project_volumes_present(self, _project_dir):
         return self.volumes_present
 
-    def core_acceptance(self, **_kwargs):
+    def probe_image_identity(self, _image):
+        return self.image_id
+
+    def core_acceptance(self, **kwargs):
         self.temporary_present = True
+        self.acceptance_names.append(kwargs["acceptance_name"])
+        expected = kwargs["configured_credentials"] + 1
         return {
             "compose_config_ok": True,
-            "healthy_services": 3,
+            "healthy_services": 3 if self.compose_health else 0,
             "expected_services": 3,
             "panel_health_ok": self.panel_health,
             "panel_login_ok": self.panel_login,
             "telemt_api_internal": self.api_internal,
-            "respq_verified": 1 if self.respq else 0,
-            "respq_expected": 1,
+            "respq_verified": expected if self.respq else expected - 1,
+            "respq_expected": expected,
             "adjacent_sni_ok": self.adjacent_sni,
             "sensitive_scan_ok": self.sensitive_scan,
         }
 
+    def probe_image_compatible(self, _image):
+        return self.image_compatible
+
+    def probe_image_owner(self, _image):
+        return self.image_owner
+
     def cleanup_core_acceptance(self, **_kwargs):
         self.cleanup_calls += 1
+        if self.cleanup_fails:
+            raise RuntimeError("cleanup failed")
         self.temporary_present = False
 
 
@@ -157,7 +188,7 @@ def test_core_apply_preserves_modes_and_secrets_on_replay(tmp_path):
     assert stat.S_IMODE(users.stat().st_mode) == 0o600
     assert stat.S_IMODE(token.stat().st_mode) == 0o600
     assert applied["ownership"] == replayed["ownership"]
-    install_calls = [call for call, _stdin in runner.calls if call and call[-1].endswith("probe/install.sh")]
+    install_calls = [call for call, _stdin in runner.calls if any(value.endswith("probe/install.sh") for value in call)]
     assert len(install_calls) == 1
 
 
@@ -220,6 +251,7 @@ def test_core_rollback_and_uninstall_preserve_data_unless_purged(tmp_path):
         ({"api_internal": False}, "Telemt API isolation"),
         ({"adjacent_sni": False}, "adjacent SNI"),
         ({"sensitive_scan": False}, "sensitive scan"),
+        ({"compose_health": False}, "Compose health checks"),
     ],
 )
 def test_core_acceptance_fails_closed_and_always_cleans_temporary_state(
@@ -330,5 +362,201 @@ def test_core_runs_through_transaction_apply_repair_and_uninstall(tmp_path):
 
     assert applied.status == repaired.status == "active"
     assert removed.status == "uninstalled"
-    assert runner.cleanup_calls == 3
+    assert runner.cleanup_calls == 2
+
+
+def test_automatic_rollback_never_purges_volumes_or_credentials(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    users = tmp_path / "opt/mtproxy-shared443/secrets/users.conf"
+    before = users.read_bytes()
+
+    adapter.rollback(action, applied, purge_data=True, rollback_target="rolled_back")
+
+    assert users.read_bytes() == before
     assert runner.volumes_present
+    assert not any("--volumes" in call for call, _stdin in runner.calls)
+
+
+def test_rollback_is_best_effort_when_acceptance_cleanup_is_unavailable(tmp_path):
+    runner = FakeRunner(cleanup_fails=True)
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    checkpoint = adapter.prepare(action)
+    pending = tmp_path / "opt/mtproxy-shared443/.core-acceptance-pending"
+    pending.parent.mkdir(parents=True)
+    pending.write_text(str(checkpoint["acceptance_name"]) + "\n")
+    pending.chmod(0o600)
+
+    evidence = adapter.rollback(
+        action,
+        checkpoint,
+        purge_data=False,
+        rollback_target="rolled_back",
+    )
+
+    assert evidence.success
+    assert runner.cleanup_calls == 1
+
+
+def test_rollback_preserves_foreign_project_additions(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    foreign = tmp_path / "opt/mtproxy-shared443/operator-note.txt"
+    foreign.write_text("preserve me\n")
+
+    adapter.rollback(action, applied, rollback_target="uninstalled")
+
+    assert foreign.read_text() == "preserve me\n"
+
+
+def test_explicit_uninstall_purge_removes_credentials_marker_and_empty_project(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+
+    evidence = adapter.rollback(
+        action,
+        applied,
+        purge_data=True,
+        rollback_target="uninstalled",
+    )
+
+    assert evidence.details["persistent_data_preserved"] is False
+    assert not (tmp_path / "opt/mtproxy-shared443").exists()
+    assert not runner.volumes_present
+
+
+def test_preexisting_identical_probe_and_image_are_preserved(tmp_path):
+    probe = tmp_path / "usr/local/libexec/mtproxy-respq-probe"
+    probe.parent.mkdir(parents=True)
+    probe.write_bytes((ROOT / "probe/mtproxy-respq-probe").read_bytes())
+    probe.chmod(0o750)
+    runner = FakeRunner(image_id="sha256:preexisting")
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+
+    checkpoint = adapter.prepare(action)
+    applied = adapter.apply(action, checkpoint)
+    adapter.rollback(action, applied, rollback_target="uninstalled")
+
+    assert probe.is_file()
+    assert runner.image_id == "sha256:preexisting"
+
+
+def test_applying_checkpoint_removes_only_probe_and_image_created_after_prepare(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    checkpoint = adapter.prepare(action)
+    probe = tmp_path / "usr/local/libexec/mtproxy-respq-probe"
+    probe.parent.mkdir(parents=True)
+    probe.write_bytes((ROOT / "probe/mtproxy-respq-probe").read_bytes())
+    probe.chmod(0o750)
+    runner.image_id = "sha256:created-probe-image"
+    runner.image_owner = str(checkpoint["probe_image_owner"])
+
+    adapter.reconcile_rollback(
+        action,
+        checkpoint,
+        rollback_target="rolled_back",
+    )
+
+    assert not probe.exists()
+    assert runner.image_id is None
+
+
+def test_plan_persists_audited_adjacent_sni_routes():
+    facts = AuditFacts(
+        topology={
+            "nginx": {
+                "sni_routes": {
+                    "vpn.example.com": "127.0.0.1:10443",
+                    "proxy.example.com": "127.0.0.1:9999",
+                }
+            }
+        }
+    )
+
+    action = CoreAdapter(source_dir=ROOT).plan(config(), facts)[0]
+
+    assert "adjacent-sni=vpn.example.com|127.0.0.1:10443" in action.mutations
+    assert not any("9999" in mutation for mutation in action.mutations)
+
+
+def test_acceptance_uses_transaction_unique_name_and_all_configured_credentials(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(
+        root=tmp_path,
+        source_dir=ROOT,
+        runner=runner,
+        users=("owner", "phone"),
+    )
+    action = adapter.plan(config(), AuditFacts())[0]
+    applied = adapter.apply(action, adapter.prepare(action))
+
+    evidence = adapter.verify(action)
+
+    assert runner.acceptance_names[0].startswith("proxy-control-acceptance-")
+    assert evidence.details["respq_expected"] == 3
+    assert evidence.details["respq_verified"] == 3
+    assert applied["acceptance_name"] in runner.acceptance_names
+
+
+def test_verification_fails_when_final_temporary_cleanup_fails(tmp_path):
+    runner = FakeRunner(cleanup_fails=True)
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    adapter.apply(action, adapter.prepare(action))
+
+    with pytest.raises(AcceptanceError, match="cleanup"):
+        adapter.verify(action)
+
+
+def test_default_runner_rejects_running_but_unhealthy_compose_service(monkeypatch):
+    runner = _DefaultCoreRunner()
+    output = json.dumps(
+        [
+            {"Service": "mask", "State": "running", "Health": "healthy"},
+            {"Service": "mtproxy", "State": "running", "Health": "unhealthy"},
+            {"Service": "panel", "State": "running", "Health": "healthy"},
+        ]
+    )
+    monkeypatch.setattr(runner, "_capture_checked", lambda _argv: output)
+
+    with pytest.raises(AcceptanceError, match="Compose health checks"):
+        runner._healthy_compose_services(("docker", "compose"))
+
+
+def test_prepare_refuses_unlabeled_preexisting_probe_image(tmp_path):
+    runner = FakeRunner(
+        image_id="sha256:foreign",
+        image_compatible=False,
+    )
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+
+    with pytest.raises(CoreError, match="not safely adoptable"):
+        adapter.prepare(core_action())
+
+
+def test_preexisting_unowned_acceptance_collision_is_not_deleted(tmp_path):
+    class CollisionRunner(FakeRunner):
+        def core_acceptance(self, **_kwargs):
+            raise _AcceptanceCollision(
+                "Core acceptance failed: temporary-user collision"
+            )
+
+    runner = CollisionRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    adapter.apply(action, adapter.prepare(action))
+
+    with pytest.raises(AcceptanceError, match="collision"):
+        adapter.verify(action)
+
+    assert runner.cleanup_calls == 0

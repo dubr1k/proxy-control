@@ -26,6 +26,7 @@ from installer.transaction import (
     durable_copy2,
     durable_mkdir,
     durable_remove,
+    fsync_directory,
     fsync_tree,
 )
 
@@ -51,6 +52,10 @@ _PRESERVED_CREDENTIALS = (
     "secrets/telemt-api-token",
     "secrets/panel-bootstrap-password",
 )
+_ACCEPTANCE_PREFIX = "proxy-control-acceptance-"
+_SAFE_BACKEND = re.compile(
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})\Z"
+)
 
 
 class CoreError(RuntimeError):
@@ -59,6 +64,11 @@ class CoreError(RuntimeError):
 
 class AcceptanceError(CoreError):
     """The Core runtime failed an end-to-end acceptance requirement."""
+
+class _AcceptanceCollision(AcceptanceError):
+    """A temporary acceptance username exists without installer ownership."""
+
+
 
 class _DefaultCoreRunner:
     """Bounded, non-logging host and HTTPS acceptance boundary."""
@@ -145,6 +155,80 @@ class _DefaultCoreRunner:
             ).strip()
         )
 
+    def probe_image_identity(self, image: str) -> str | None:
+        try:
+            completed = subprocess.run(
+                ("docker", "image", "inspect", "--format", "{{.Id}}", image),
+                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=min(self.timeout, 30.0),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CoreError("probe image query failed") from exc
+        if completed.returncode:
+            return None
+        value = completed.stdout.strip()
+        if re.fullmatch(r"[A-Za-z0-9:_.-]{1,128}", value) is None:
+            raise CoreError("probe image identity is invalid")
+        return value
+
+    def probe_image_compatible(self, image: str) -> bool:
+        return (
+            self._probe_image_label(
+                image,
+                "org.proxy-control.respq-probe.version",
+            )
+            == "1.0.0"
+            and self._probe_image_label(
+                image,
+                "org.proxy-control.respq-probe.tdlib",
+            )
+            == _TDLIB_PIN
+            and self._probe_image_label(
+                image,
+                "org.proxy-control.respq-probe.tdl",
+            )
+            == "8.1.0"
+        )
+
+    def probe_image_owner(self, image: str) -> str | None:
+        return self._probe_image_label(
+            image,
+            "org.proxy-control.respq-probe.owner",
+        )
+
+    def _probe_image_label(self, image: str, label: str) -> str | None:
+        try:
+            completed = subprocess.run(
+                (
+                    "docker",
+                    "image",
+                    "inspect",
+                    "--format",
+                    f'{{{{ index .Config.Labels "{label}" }}}}',
+                    image,
+                ),
+                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=min(self.timeout, 30.0),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CoreError("probe image query failed") from exc
+        if completed.returncode:
+            return None
+        value = completed.stdout.strip()
+        if not value or value == "<no value>":
+            return None
+        if re.fullmatch(r"[A-Za-z0-9:_.-]{1,128}", value) is None:
+            raise CoreError("probe image label is invalid")
+        return value
+
     def core_acceptance(
         self,
         *,
@@ -153,8 +237,11 @@ class _DefaultCoreRunner:
         panel_domain: str,
         users_file: str,
         probe_path: str,
-        adjacent_sni: Sequence[str],
+        adjacent_sni: Sequence[tuple[str, str]],
         bootstrap_credential_file: str,
+        acceptance_name: str,
+        configured_credentials: int,
+        recover_existing: bool,
         sensitive_scan_ok: bool,
         telemt_api_internal: bool,
     ) -> Mapping[str, object]:
@@ -165,12 +252,7 @@ class _DefaultCoreRunner:
             project_dir,
         )
         self._run_checked(compose + ("config", "-q"), "Compose config")
-        running = self._capture_checked(
-            compose + ("ps", "--status", "running", "-q")
-        )
-        healthy = len([line for line in running.splitlines() if line.strip()])
-        if healthy != 3:
-            raise AcceptanceError("Core acceptance failed: Compose health checks")
+        healthy = self._healthy_compose_services(compose)
         request = urllib.request.Request(
             "http://127.0.0.1:8787/healthz",
             headers={"Host": panel_domain},
@@ -179,24 +261,21 @@ class _DefaultCoreRunner:
             with urllib.request.urlopen(request, timeout=15) as response:
                 body = response.read(65537)
                 if response.status != 200 or len(body) > 65536:
-                    raise AcceptanceError(
-                        "Core acceptance failed: panel health"
-                    )
+                    raise AcceptanceError("Core acceptance failed: panel health")
         except (OSError, urllib.error.URLError) as exc:
-            raise AcceptanceError(
-                "Core acceptance failed: panel health"
-            ) from exc
-        self.cleanup_core_acceptance(
-            panel_domain=panel_domain,
-            bootstrap_credential_file=bootstrap_credential_file,
-        )
-        verified = self._panel_and_respq(
+            raise AcceptanceError("Core acceptance failed: panel health") from exc
+        verified, expected = self._panel_and_respq(
             panel_domain=panel_domain,
             proxy_domain=proxy_domain,
+            users_file=users_file,
             probe_path=probe_path,
             bootstrap_credential_file=bootstrap_credential_file,
+            acceptance_name=acceptance_name,
+            recover_existing=recover_existing,
         )
-        for domain in adjacent_sni:
+        if expected != configured_credentials + 1:
+            raise AcceptanceError("Core acceptance failed: resPQ")
+        for domain, _backend in adjacent_sni:
             self._run_checked(
                 (
                     "openssl",
@@ -205,6 +284,9 @@ class _DefaultCoreRunner:
                     "127.0.0.1:443",
                     "-servername",
                     domain,
+                    "-verify_hostname",
+                    domain,
+                    "-verify_return_error",
                     "-brief",
                 ),
                 "adjacent SNI",
@@ -216,18 +298,60 @@ class _DefaultCoreRunner:
             "healthy_services": healthy,
             "panel_health_ok": True,
             "panel_login_ok": True,
-            "respq_expected": 1,
+            "respq_expected": expected,
             "respq_verified": verified,
             "sensitive_scan_ok": sensitive_scan_ok,
             "telemt_api_internal": telemt_api_internal,
             "temporary_state_removed": True,
         }
 
+    def _healthy_compose_services(self, compose: tuple[str, ...]) -> int:
+        output = self._capture_checked(compose + ("ps", "--format", "json"))
+        try:
+            parsed = json.loads(output)
+            records = parsed if isinstance(parsed, list) else [parsed]
+        except json.JSONDecodeError:
+            try:
+                records = [json.loads(line) for line in output.splitlines() if line]
+            except json.JSONDecodeError as exc:
+                raise AcceptanceError(
+                    "Core acceptance failed: Compose health checks"
+                ) from exc
+        expected = {"mask", "mtproxy", "panel"}
+        states: dict[str, tuple[str, str]] = {}
+        for record in records:
+            if not isinstance(record, Mapping):
+                raise AcceptanceError(
+                    "Core acceptance failed: Compose health checks"
+                )
+            service = record.get("Service")
+            state = record.get("State")
+            health = record.get("Health")
+            if (
+                not isinstance(service, str)
+                or not isinstance(state, str)
+                or not isinstance(health, str)
+                or service in states
+            ):
+                raise AcceptanceError(
+                    "Core acceptance failed: Compose health checks"
+                )
+            states[service] = (state.lower(), health.lower())
+        healthy = sum(
+            state == "running" and health == "healthy"
+            for service, (state, health) in states.items()
+            if service in expected
+        )
+        if set(states) != expected or healthy != len(expected):
+            raise AcceptanceError("Core acceptance failed: Compose health checks")
+        return healthy
+
     def cleanup_core_acceptance(
         self,
         *,
         panel_domain: str,
         bootstrap_credential_file: str,
+        acceptance_name: str,
         **_ignored: object,
     ) -> None:
         password = Path(bootstrap_credential_file).read_text().rstrip("\r\n")
@@ -237,13 +361,13 @@ class _DefaultCoreRunner:
             rows = users.get("items", []) if isinstance(users, Mapping) else []
             if any(
                 isinstance(row, Mapping)
-                and row.get("username") == "proxy-control-acceptance"
+                and row.get("username") == acceptance_name
                 for row in rows
             ):
                 self._json_request(
                     opener,
                     panel_domain,
-                    "/api/users/proxy-control-acceptance",
+                    f"/api/users/{acceptance_name}",
                     method="DELETE",
                     csrf=csrf,
                 )
@@ -255,9 +379,29 @@ class _DefaultCoreRunner:
         *,
         panel_domain: str,
         proxy_domain: str,
+        users_file: str,
         probe_path: str,
         bootstrap_credential_file: str,
-    ) -> int:
+        acceptance_name: str,
+        recover_existing: bool,
+    ) -> tuple[int, int]:
+        try:
+            configured = Path(users_file).read_text()
+        except (OSError, UnicodeError) as exc:
+            raise AcceptanceError("Core acceptance failed: resPQ") from exc
+        if not _valid_users_file(configured):
+            raise AcceptanceError("Core acceptance failed: resPQ")
+        configured_count = len(configured.splitlines())
+        self._run_checked(
+            (
+                probe_path,
+                "--domain",
+                proxy_domain,
+                "--secrets-file",
+                users_file,
+            ),
+            "resPQ",
+        )
         password = Path(bootstrap_credential_file).read_text().rstrip("\r\n")
         opener, csrf = self._login(panel_domain, "owner", password)
         temporary: Path | None = None
@@ -266,12 +410,31 @@ class _DefaultCoreRunner:
             me = self._json_request(opener, panel_domain, "/api/auth/me")
             if not isinstance(me, Mapping) or me.get("username") != "owner":
                 raise AcceptanceError("Core acceptance failed: panel login")
+            current = self._json_request(opener, panel_domain, "/api/users")
+            rows = current.get("items", []) if isinstance(current, Mapping) else []
+            collision = any(
+                isinstance(row, Mapping)
+                and row.get("username") == acceptance_name
+                for row in rows
+            )
+            if collision and not recover_existing:
+                raise _AcceptanceCollision(
+                    "Core acceptance failed: temporary-user collision"
+                )
+            if collision:
+                self._json_request(
+                    opener,
+                    panel_domain,
+                    f"/api/users/{acceptance_name}",
+                    method="DELETE",
+                    csrf=csrf,
+                )
             created_value = self._json_request(
                 opener,
                 panel_domain,
                 "/api/users",
                 method="POST",
-                payload={"username": "proxy-control-acceptance"},
+                payload={"username": acceptance_name},
                 csrf=csrf,
             )
             created = True
@@ -295,7 +458,7 @@ class _DefaultCoreRunner:
             try:
                 os.fchmod(descriptor, 0o600)
                 with os.fdopen(descriptor, "w") as handle:
-                    handle.write(f"proxy-control-acceptance={value}\n")
+                    handle.write(f"{acceptance_name}={value}\n")
                     handle.flush()
                     os.fsync(handle.fileno())
             except BaseException:
@@ -311,23 +474,29 @@ class _DefaultCoreRunner:
                 ),
                 "resPQ",
             )
-            return 1
+            return configured_count + 1, configured_count + 1
         finally:
+            cleanup_failure: BaseException | None = None
             if created:
                 try:
                     self._json_request(
                         opener,
                         panel_domain,
-                        "/api/users/proxy-control-acceptance",
+                        f"/api/users/{acceptance_name}",
                         method="DELETE",
                         csrf=csrf,
                     )
-                except BaseException:
-                    pass
-            self._logout(opener, panel_domain, csrf)
+                except BaseException as exc:
+                    cleanup_failure = exc
+            try:
+                self._logout(opener, panel_domain, csrf)
+            except BaseException as exc:
+                if cleanup_failure is None:
+                    cleanup_failure = exc
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
-
+            if cleanup_failure is not None:
+                raise cleanup_failure
     def _login(
         self,
         domain: str,
@@ -339,37 +508,48 @@ class _DefaultCoreRunner:
             urllib.request.HTTPSHandler(context=ssl.create_default_context()),
             urllib.request.HTTPCookieProcessor(jar),
         )
-        self._json_request(opener, domain, "/login", expect_json=False)
-        csrf = next(
-            (
-                cookie.value
-                for cookie in jar
-                if cookie.name == "panel_csrf"
-            ),
-            "",
-        )
-        if not csrf:
-            raise AcceptanceError("Core acceptance failed: panel login")
-        self._json_request(
-            opener,
-            domain,
-            "/api/auth/login",
-            method="POST",
-            payload={"username": username, "password": password},
-            csrf=csrf,
-            expect_json=False,
-        )
-        csrf = next(
-            (
-                cookie.value
-                for cookie in jar
-                if cookie.name == "panel_csrf"
-            ),
-            "",
-        )
-        if not csrf:
-            raise AcceptanceError("Core acceptance failed: panel login")
-        return opener, csrf
+        csrf = ""
+        try:
+            self._json_request(opener, domain, "/login", expect_json=False)
+            csrf = next(
+                (
+                    cookie.value
+                    for cookie in jar
+                    if cookie.name == "panel_csrf"
+                ),
+                "",
+            )
+            if not csrf:
+                raise AcceptanceError("Core acceptance failed: panel login")
+            self._json_request(
+                opener,
+                domain,
+                "/api/auth/login",
+                method="POST",
+                payload={"username": username, "password": password},
+                csrf=csrf,
+                expect_json=False,
+            )
+            csrf = next(
+                (
+                    cookie.value
+                    for cookie in jar
+                    if cookie.name == "panel_csrf"
+                ),
+                "",
+            )
+            if not csrf:
+                raise AcceptanceError("Core acceptance failed: panel login")
+            return opener, csrf
+        except BaseException:
+            if csrf:
+                try:
+                    self._logout(opener, domain, csrf)
+                except BaseException as exc:
+                    raise AcceptanceError(
+                        "Core acceptance failed: session cleanup"
+                    ) from exc
+            raise
 
     def _logout(
         self,
@@ -377,17 +557,14 @@ class _DefaultCoreRunner:
         domain: str,
         csrf: str,
     ) -> None:
-        try:
-            self._json_request(
-                opener,
-                domain,
-                "/api/auth/logout",
-                method="POST",
-                csrf=csrf,
-                expect_json=False,
-            )
-        except BaseException:
-            pass
+        self._json_request(
+            opener,
+            domain,
+            "/api/auth/logout",
+            method="POST",
+            csrf=csrf,
+            expect_json=False,
+        )
 
     @staticmethod
     def _json_request(
@@ -461,7 +638,8 @@ class CorePaths:
     probe_path: str = _PROBE
     marker_name: str = ".mtproxy-owned"
     bootstrap_marker_name: str = ".panel-bootstrapped"
-
+    acceptance_owner_name: str = ".core-acceptance-owner"
+    acceptance_pending_name: str = ".core-acceptance-pending"
     def __post_init__(self) -> None:
         for value, label in (
             (self.project_dir, "project directory"),
@@ -469,7 +647,12 @@ class CorePaths:
         ):
             if not value.startswith("/") or ".." in Path(value).parts:
                 raise ValueError(f"{label} must be a normalized absolute path")
-        for value in (self.marker_name, self.bootstrap_marker_name):
+        for value in (
+            self.marker_name,
+            self.bootstrap_marker_name,
+            self.acceptance_owner_name,
+            self.acceptance_pending_name,
+        ):
             if "/" in value or value in {"", ".", ".."}:
                 raise ValueError("project marker name is invalid")
 
@@ -492,6 +675,14 @@ class CorePaths:
     @property
     def bootstrap_marker_path(self) -> str:
         return f"{self.project_dir}/{self.bootstrap_marker_name}"
+
+    @property
+    def acceptance_owner_path(self) -> str:
+        return f"{self.project_dir}/{self.acceptance_owner_name}"
+
+    @property
+    def acceptance_pending_path(self) -> str:
+        return f"{self.project_dir}/{self.acceptance_pending_name}"
 
 
 @dataclass(frozen=True)
@@ -590,6 +781,7 @@ class CoreAdapter:
             raise CoreError("host audit contains blocking findings")
         selected_users = self.users or (config.initial_user,)
         _validate_users(selected_users)
+        adjacent_routes = self._audited_adjacent_routes(config, facts)
         mutations = (
             f"project={self.paths.project_dir}",
             f"proxy-domain={config.domains.mtproxy}",
@@ -600,6 +792,7 @@ class CoreAdapter:
             f"probe={self.paths.probe_path}",
             f"probe-image={_PROBE_IMAGE}",
             f"prebuilt-tdlib={_TDLIB_PIN}",
+            f"adjacent-sni={_encode_adjacent_routes(adjacent_routes)}",
         )
         return (
             Action(
@@ -627,6 +820,34 @@ class CoreAdapter:
             ),
         )
 
+    def _audited_adjacent_routes(
+        self,
+        config: InstallerConfig,
+        facts: AuditFacts,
+    ) -> tuple[tuple[str, str], ...]:
+        if self.adjacent_sni:
+            return tuple((name, "audited") for name in self.adjacent_sni)
+        topology = facts.topology if isinstance(facts.topology, Mapping) else {}
+        nginx = topology.get("nginx", {})
+        routes = nginx.get("sni_routes", {}) if isinstance(nginx, Mapping) else {}
+        if not isinstance(routes, Mapping):
+            raise CoreError("audited adjacent SNI routes are invalid")
+        owned = {config.domains.mtproxy.lower(), config.domains.panel.lower()}
+        adjacent: list[tuple[str, str]] = []
+        for domain, backend in routes.items():
+            if not isinstance(domain, str) or not isinstance(backend, str):
+                raise CoreError("audited adjacent SNI routes are invalid")
+            normalized = domain.lower()
+            if normalized in owned:
+                continue
+            if (
+                _DOMAIN.fullmatch(normalized) is None
+                or not _valid_adjacent_backend(backend)
+            ):
+                raise CoreError("audited adjacent SNI routes are invalid")
+            adjacent.append((normalized, backend))
+        return tuple(sorted(adjacent))
+
     def action(
         self,
         *,
@@ -639,6 +860,7 @@ class CoreAdapter:
         """Build the same secret-free action for compatibility coordinators."""
         selected_users = tuple(users)
         _validate_users(selected_users)
+        adjacent_routes = tuple((name, "audited") for name in self.adjacent_sni)
         return Action(
             id="core.runtime",
             adapter=self.name,
@@ -653,6 +875,7 @@ class CoreAdapter:
                 f"probe={self.paths.probe_path}",
                 f"probe-image={_PROBE_IMAGE}",
                 f"prebuilt-tdlib={_TDLIB_PIN}",
+                f"adjacent-sni={_encode_adjacent_routes(adjacent_routes)}",
             ),
             preconditions=("owned Core generation",),
             verification=("Core acceptance",),
@@ -690,30 +913,39 @@ class CoreAdapter:
                 "secrets/users.conf": 0o600,
                 "secrets/telemt-api-token": 0o600,
                 "secrets/panel-bootstrap-password": 0o600,
+                self.paths.acceptance_owner_name: 0o600,
+                self.paths.acceptance_pending_name: 0o600,
             },
         )
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         self._selection(action)
-        rendered = self.render(action)
-        del rendered
+        self.render(action)
         project = self._host(self.paths.project_dir)
         kind = self._project_kind(project)
+        source_probe = self.source_dir / "probe" / "mtproxy-respq-probe"
+        if not source_probe.is_file():
+            raise CoreError("pinned TDLib probe sources are unavailable")
+        expected_probe = _file_sha256(source_probe)
         probe = self._host(self.paths.probe_path)
         probe_preexisting = probe.exists() or probe.is_symlink()
-        if probe_preexisting:
-            source_probe = self.source_dir / "probe" / "mtproxy-respq-probe"
-            if (
-                probe.is_symlink()
-                or not probe.is_file()
-                or not source_probe.is_file()
-                or _file_sha256(probe) != _file_sha256(source_probe)
-            ):
-                raise CoreError("pre-existing protocol probe is not installer-owned")
+        if probe_preexisting and (
+            probe.is_symlink()
+            or not probe.is_file()
+            or _file_sha256(probe) != expected_probe
+        ):
+            raise CoreError("pre-existing protocol probe is not installer-owned")
+        image_preexisting = self._probe_image_identity()
+        if image_preexisting is not None and not self._probe_image_compatible():
+            raise CoreError("pre-existing probe image is not safely adoptable")
         return {
+            "acceptance_name": _ACCEPTANCE_PREFIX + secrets.token_hex(8),
             "adoption": kind,
             "owner": action.owner,
             "ownership": {},
+            "probe_expected_sha256": expected_probe,
+            "probe_image_owner": secrets.token_hex(16),
+            "probe_image_preexisting": image_preexisting,
             "probe_preexisting": probe_preexisting,
             "project_created": kind == "absent",
         }
@@ -725,8 +957,9 @@ class CoreAdapter:
     ) -> Mapping[str, object]:
         selected = self._selection(action)
         prepared = self._checkpoint(checkpoint, action)
-        self._install_probe()
+        self._install_probe(prepared)
         self._write_generation(selected, recovery=True)
+        self._write_acceptance_owner(str(prepared["acceptance_name"]))
         self._compose("config", "-q")
         self._compose("pull", "-q")
         self._compose_start()
@@ -746,30 +979,56 @@ class CoreAdapter:
 
     def verify(self, action: Action) -> Evidence:
         selected = self._selection(action)
+        acceptance_name = self._read_acceptance_owner()
+        pending = self._host(self.paths.acceptance_pending_path)
+        recover_existing = pending.exists() or pending.is_symlink()
+        if recover_existing:
+            if (
+                pending.is_symlink()
+                or not pending.is_file()
+                or stat.S_IMODE(pending.stat().st_mode) != 0o600
+                or pending.read_text().strip() != acceptance_name
+            ):
+                raise AcceptanceError("temporary-user ownership has drifted")
+        else:
+            self._atomic(pending, (acceptance_name + "\n").encode(), 0o600)
         result: CoreAcceptance | None = None
         cleanup_ok = False
         failure: Exception | None = None
         try:
-            raw = self._run_acceptance(selected)
+            raw = self._run_acceptance(
+                selected,
+                acceptance_name=acceptance_name,
+                recover_existing=recover_existing,
+            )
             result = _acceptance_value(raw)
             self._require_acceptance(result)
         except Exception as exc:
             failure = exc
         finally:
             try:
-                self._cleanup_acceptance(selected)
-                cleanup_ok = True
+                if isinstance(failure, _AcceptanceCollision) and not recover_existing:
+                    cleanup_ok = True
+                else:
+                    self._cleanup_acceptance(selected, acceptance_name)
+                    cleanup_ok = True
             except Exception as exc:
                 if failure is None:
-                    failure = AcceptanceError("temporary-user and session cleanup failed")
+                    failure = AcceptanceError(
+                        "temporary-user and session cleanup failed"
+                    )
                     failure.__cause__ = exc
+            if cleanup_ok:
+                durable_remove(pending, missing_ok=True)
         if failure is not None:
             if isinstance(failure, AcceptanceError):
                 raise failure
             raise AcceptanceError("Core acceptance execution failed") from failure
         if result is None or not cleanup_ok:
             raise AcceptanceError("temporary-user and session cleanup failed")
-        result = CoreAcceptance(**{**result.details(), "temporary_state_removed": True})
+        result = CoreAcceptance(
+            **{**result.details(), "temporary_state_removed": True}
+        )
         return Evidence(
             action_id=action.id,
             success=True,
@@ -802,21 +1061,39 @@ class CoreAdapter:
             raise ValueError("invalid rollback target")
         selected = self._selection(action)
         prepared = self._checkpoint(checkpoint, action, applied=True)
-        self._cleanup_acceptance(selected)
+        destructive_purge = rollback_target == "uninstalled" and purge_data
+        pending = self._host(self.paths.acceptance_pending_path)
+        if pending.exists() or pending.is_symlink():
+            try:
+                self._cleanup_acceptance(
+                    selected,
+                    str(prepared["acceptance_name"]),
+                )
+            except Exception:
+                pass
+            durable_remove(pending, missing_ok=True)
         if self._compose_present():
             self._compose("down", "--remove-orphans")
-        if purge_data and self._volumes_present():
+        if destructive_purge and self._volumes_present():
             self._compose("down", "--remove-orphans", "--volumes")
-        self._remove_generation(prepared, preserve_credentials=True)
+        self._remove_generation(
+            prepared,
+            preserve_credentials=not destructive_purge,
+        )
         self._remove_owned_probe(prepared)
+        self._remove_owned_probe_image(prepared)
         return Evidence(
             action_id=action.id,
             success=True,
             observations=(
                 "Core runtime was removed",
-                "persistent data was purged" if purge_data else "persistent data was preserved",
+                (
+                    "persistent data was purged"
+                    if destructive_purge
+                    else "persistent data was preserved"
+                ),
             ),
-            details={"persistent_data_preserved": not purge_data},
+            details={"persistent_data_preserved": not destructive_purge},
         )
 
     def reconcile_rollback(
@@ -884,7 +1161,11 @@ class CoreAdapter:
         return self._volumes_present()
 
     def _selection(self, action: Action) -> dict[str, object]:
-        if action.adapter != self.name or action.id != "core.runtime" or action.owner != "proxy-control:core":
+        if (
+            action.adapter != self.name
+            or action.id != "core.runtime"
+            or action.owner != "proxy-control:core"
+        ):
             raise CoreError("Core action is invalid")
         values: dict[str, str] = {}
         for mutation in action.mutations:
@@ -902,6 +1183,7 @@ class CoreAdapter:
             "probe",
             "probe-image",
             "prebuilt-tdlib",
+            "adjacent-sni",
         }
         if set(values) != required:
             raise CoreError("Core action is invalid")
@@ -917,6 +1199,7 @@ class CoreAdapter:
             raise CoreError("Core action is invalid")
         selected_users = tuple(values["users"].split(","))
         _validate_users(selected_users)
+        adjacent_routes = _decode_adjacent_routes(values["adjacent-sni"])
         try:
             proxy_port = int(values["proxy-backend-port"])
             panel_port = int(values["panel-app-port"])
@@ -930,6 +1213,7 @@ class CoreAdapter:
             "users": selected_users,
             "proxy_backend_port": proxy_port,
             "panel_app_port": panel_port,
+            "adjacent_sni": adjacent_routes,
         }
 
     def _checkpoint(
@@ -940,24 +1224,53 @@ class CoreAdapter:
         applied: bool = False,
     ) -> dict[str, object]:
         required = {
+            "acceptance_name",
             "adoption",
             "owner",
             "ownership",
+            "probe_expected_sha256",
+            "probe_image_owner",
+            "probe_image_preexisting",
             "probe_preexisting",
             "project_created",
         }
         if set(checkpoint) != required:
             raise CoreError("Core checkpoint is invalid")
+        acceptance_name = checkpoint.get("acceptance_name")
         adoption = checkpoint.get("adoption")
         owner = checkpoint.get("owner")
         created = checkpoint.get("project_created")
+        probe_expected = checkpoint.get("probe_expected_sha256")
+        probe_image_owner = checkpoint.get("probe_image_owner")
+        probe_image_preexisting = checkpoint.get("probe_image_preexisting")
         probe_preexisting = checkpoint.get("probe_preexisting")
         ownership = checkpoint.get("ownership")
         if (
-            adoption not in {"absent", "recovery"}
+            not isinstance(acceptance_name, str)
+            or re.fullmatch(
+                r"proxy-control-acceptance-[0-9a-f]{16}",
+                acceptance_name,
+            )
+            is None
+            or adoption not in {"absent", "recovery"}
             or owner != action.owner
             or not isinstance(created, bool)
             or created != (adoption == "absent")
+            or not isinstance(probe_expected, str)
+            or re.fullmatch(r"[0-9a-f]{64}", probe_expected) is None
+            or not isinstance(probe_image_owner, str)
+            or re.fullmatch(r"[0-9a-f]{32}", probe_image_owner) is None
+            or (
+                probe_image_preexisting is not None
+                and (
+                    not isinstance(probe_image_preexisting, str)
+                    or re.fullmatch(
+                        r"[A-Za-z0-9:_.-]{1,128}",
+                        probe_image_preexisting,
+                    )
+                    is None
+                )
+            )
             or not isinstance(probe_preexisting, bool)
             or not isinstance(ownership, Mapping)
             or (not applied and ownership)
@@ -966,9 +1279,13 @@ class CoreAdapter:
         if applied:
             _validate_ownership_mapping(ownership)
         return {
+            "acceptance_name": acceptance_name,
             "adoption": adoption,
             "owner": owner,
             "ownership": dict(ownership),
+            "probe_expected_sha256": probe_expected,
+            "probe_image_owner": probe_image_owner,
+            "probe_image_preexisting": probe_image_preexisting,
             "probe_preexisting": probe_preexisting,
             "project_created": created,
         }
@@ -1122,6 +1439,8 @@ class CoreAdapter:
         allowed = {
             self.paths.marker_name,
             self.paths.bootstrap_marker_name,
+            self.paths.acceptance_owner_name,
+            self.paths.acceptance_pending_name,
             "secrets",
             ".env",
             *(Path(value).parts[0] for value in _COPY_FILES),
@@ -1147,6 +1466,7 @@ class CoreAdapter:
                 f"probe={self.paths.probe_path}",
                 f"probe-image={_PROBE_IMAGE}",
                 f"prebuilt-tdlib={_TDLIB_PIN}",
+                f"adjacent-sni={_encode_adjacent_routes(selected['adjacent_sni'])}",
             ),
             preconditions=("owned Core generation",),
             verification=("Core acceptance",),
@@ -1154,24 +1474,122 @@ class CoreAdapter:
             credentials_required=True,
         )
 
-    def _install_probe(self) -> None:
+    def _install_probe(
+        self,
+        checkpoint: Mapping[str, object] | None = None,
+    ) -> None:
         destination = self._host(self.paths.probe_path)
         source = self.source_dir / "probe" / "mtproxy-respq-probe"
         installer = self.source_dir / "probe" / "install.sh"
         if not source.is_file() or not installer.is_file():
             raise CoreError("pinned TDLib probe sources are unavailable")
         expected = _file_sha256(source)
+        preexisting_image = (
+            checkpoint.get("probe_image_preexisting")
+            if checkpoint is not None
+            else None
+        )
+        current_image = self._probe_image_identity()
+        if preexisting_image is not None and current_image != preexisting_image:
+            raise CoreError("pre-existing probe image identity has drifted")
         if destination.exists() or destination.is_symlink():
-            if destination.is_symlink() or not destination.is_file() or _file_sha256(destination) != expected:
+            if (
+                destination.is_symlink()
+                or not destination.is_file()
+                or _file_sha256(destination) != expected
+            ):
                 raise CoreError("pre-existing protocol probe is not installer-owned")
-            return
-        self._run(str(installer))
-        if not destination.exists() and self.root != Path("/"):
+            if current_image is not None:
+                if (
+                    preexisting_image is None
+                    and checkpoint is not None
+                    and self._probe_image_owner()
+                    != checkpoint["probe_image_owner"]
+                ):
+                    raise CoreError("Core owned probe image has drifted")
+                return
+        if preexisting_image is not None:
             durable_copy2(source, destination)
-            os.chmod(destination, 0o750)
-        if destination.is_symlink() or not destination.is_file() or _file_sha256(destination) != expected:
+        elif current_image is not None:
+            if (
+                checkpoint is None
+                or self._probe_image_owner() != checkpoint["probe_image_owner"]
+            ):
+                raise CoreError("probe image ownership is ambiguous")
+            durable_copy2(source, destination)
+        else:
+            owner = (
+                str(checkpoint["probe_image_owner"])
+                if checkpoint is not None
+                else secrets.token_hex(16)
+            )
+            self._run(str(installer), "--owner-id", owner)
+            if not destination.exists() and self.root != Path("/"):
+                durable_copy2(source, destination)
+            if checkpoint is not None and self._probe_image_owner() != owner:
+                raise CoreError("probe image ownership label is missing")
+        if (
+            destination.is_symlink()
+            or not destination.is_file()
+            or _file_sha256(destination) != expected
+        ):
             raise CoreError("pinned TDLib probe installation failed")
         os.chmod(destination, 0o750)
+
+    def _probe_image_identity(self) -> str | None:
+        method = getattr(self.runner, "probe_image_identity", None)
+        if not callable(method):
+            return None
+        value = method(_PROBE_IMAGE)
+        if value is None:
+            return None
+        if not isinstance(value, str) or re.fullmatch(
+            r"[A-Za-z0-9:_.-]{1,128}",
+            value,
+        ) is None:
+            raise CoreError("probe image identity is invalid")
+        return value
+
+    def _probe_image_compatible(self) -> bool:
+        method = getattr(self.runner, "probe_image_compatible", None)
+        return bool(method(_PROBE_IMAGE)) if callable(method) else False
+
+    def _probe_image_owner(self) -> str | None:
+        method = getattr(self.runner, "probe_image_owner", None)
+        if not callable(method):
+            return None
+        value = method(_PROBE_IMAGE)
+        if value is None:
+            return None
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{32}", value) is None:
+            raise CoreError("probe image owner is invalid")
+        return value
+
+    def _write_acceptance_owner(self, acceptance_name: str) -> None:
+        path = self._host(self.paths.acceptance_owner_path)
+        if path.exists() or path.is_symlink():
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or stat.S_IMODE(path.stat().st_mode) != 0o600
+                or path.read_text().strip() != acceptance_name
+            ):
+                raise CoreError("temporary-user ownership has drifted")
+            return
+        self._atomic(path, (acceptance_name + "\n").encode(), 0o600)
+
+    def _read_acceptance_owner(self) -> str:
+        path = self._host(self.paths.acceptance_owner_path)
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or stat.S_IMODE(path.stat().st_mode) != 0o600
+        ):
+            raise AcceptanceError("temporary-user ownership is unavailable")
+        value = path.read_text().strip()
+        if re.fullmatch(r"proxy-control-acceptance-[0-9a-f]{16}", value) is None:
+            raise AcceptanceError("temporary-user ownership has drifted")
+        return value
 
     def _bootstrap_panel(self, selected: Mapping[str, object]) -> None:
         marker = self._host(self.paths.bootstrap_marker_path)
@@ -1324,8 +1742,15 @@ class CoreAdapter:
         if returncode:
             raise CoreError("Core command failed")
 
-    def _run_acceptance(self, selected: Mapping[str, object]) -> object:
+    def _run_acceptance(
+        self,
+        selected: Mapping[str, object],
+        *,
+        acceptance_name: str,
+        recover_existing: bool,
+    ) -> object:
         method = getattr(self.runner, "core_acceptance", None)
+        configured_credentials = len(selected["users"])
         if callable(method):
             return method(
                 project_dir=self.paths.project_dir,
@@ -1333,8 +1758,11 @@ class CoreAdapter:
                 panel_domain=selected["panel_domain"],
                 users_file=self.paths.users_file,
                 probe_path=self.paths.probe_path,
-                adjacent_sni=self.adjacent_sni,
+                adjacent_sni=selected["adjacent_sni"],
                 bootstrap_credential_file=self.paths.bootstrap_credential_file,
+                acceptance_name=acceptance_name,
+                configured_credentials=configured_credentials,
+                recover_existing=recover_existing,
                 sensitive_scan_ok=self._bounded_sensitive_scan(),
                 telemt_api_internal=not _compose_publishes_telemt_api(
                     (self.source_dir / "compose.yaml").read_text()
@@ -1344,6 +1772,7 @@ class CoreAdapter:
             hasattr(self.runner, name)
             for name in ("respq", "panel_health", "panel_login")
         ):
+            expected = configured_credentials + 1
             return CoreAcceptance(
                 compose_config_ok=bool(
                     getattr(self.runner, "compose_config", True)
@@ -1358,9 +1787,9 @@ class CoreAdapter:
                     getattr(self.runner, "api_internal", True)
                 ),
                 respq_verified=(
-                    1 if bool(getattr(self.runner, "respq")) else 0
+                    expected if bool(getattr(self.runner, "respq")) else expected - 1
                 ),
-                respq_expected=1,
+                respq_expected=expected,
                 adjacent_sni_ok=bool(
                     getattr(self.runner, "adjacent_sni", True)
                 ),
@@ -1368,55 +1797,22 @@ class CoreAdapter:
                     getattr(self.runner, "sensitive_scan", True)
                 ),
             )
-        self._compose("config", "-q")
-        self._compose("ps", "--status", "running")
-        self._run(
-            "curl",
-            "-fsS",
-            "-H",
-            f"Host: {selected['panel_domain']}",
-            f"http://127.0.0.1:{selected['panel_app_port']}/healthz",
-        )
-        self._run(
-            self.paths.probe_path,
-            "--domain",
-            str(selected["proxy_domain"]),
-            "--secrets-file",
-            self.paths.users_file,
-        )
-        for domain in self.adjacent_sni:
-            self._run(
-                "openssl",
-                "s_client",
-                "-connect",
-                "127.0.0.1:443",
-                "-servername",
-                domain,
-                "-brief",
-            )
-        scan_ok = self._bounded_sensitive_scan()
-        return CoreAcceptance(
-            compose_config_ok=True,
-            healthy_services=3,
-            expected_services=3,
-            panel_health_ok=True,
-            panel_login_ok=True,
-            telemt_api_internal=not _compose_publishes_telemt_api(
-                (self.source_dir / "compose.yaml").read_text()
-            ),
-            respq_verified=len(selected["users"]),
-            respq_expected=len(selected["users"]),
-            adjacent_sni_ok=True,
-            sensitive_scan_ok=scan_ok,
+        raise AcceptanceError(
+            "Core acceptance runner lacks the authenticated acceptance boundary"
         )
 
-    def _cleanup_acceptance(self, selected: Mapping[str, object]) -> None:
+    def _cleanup_acceptance(
+        self,
+        selected: Mapping[str, object],
+        acceptance_name: str,
+    ) -> None:
         method = getattr(self.runner, "cleanup_core_acceptance", None)
         if callable(method):
             method(
                 project_dir=self.paths.project_dir,
                 panel_domain=selected["panel_domain"],
                 bootstrap_credential_file=self.paths.bootstrap_credential_file,
+                acceptance_name=acceptance_name,
             )
 
     @staticmethod
@@ -1527,36 +1923,70 @@ class CoreAdapter:
         ownership = checkpoint.get("ownership", {})
         if not isinstance(ownership, Mapping):
             raise CoreError("Core checkpoint is invalid")
+        owned_directories: set[Path] = set()
+        project = self._host(self.paths.project_dir)
         for host_path, entry in sorted(ownership.items(), reverse=True):
             if host_path == self.paths.probe_path:
                 continue
             if not isinstance(entry, Mapping):
                 raise CoreError("Core checkpoint is invalid")
+            path = self._host(host_path)
+            if project == path or project not in path.parents:
+                raise CoreError("Core checkpoint ownership escapes the project")
+            cursor = path.parent
+            while cursor == project or project in cursor.parents:
+                owned_directories.add(cursor)
+                if cursor == project:
+                    break
+                cursor = cursor.parent
             if preserve_credentials and entry.get("preserve") is True:
                 continue
-            path = self._host(host_path)
             if not (path.exists() or path.is_symlink()):
                 continue
             if _path_sha256(path) != entry.get("sha256"):
                 raise CoreError(f"Core owned file has drifted: {host_path}")
             durable_remove(path)
-        project = self._host(self.paths.project_dir)
-        if project.is_dir():
-            for child in tuple(project.iterdir()):
-                if child.name not in {"secrets", self.paths.marker_name}:
-                    durable_remove(child, missing_ok=True)
+        for directory in sorted(
+            owned_directories,
+            key=lambda value: len(value.parts),
+            reverse=True,
+        ):
+            if directory.is_symlink() or not directory.is_dir():
+                continue
+            try:
+                directory.rmdir()
+            except OSError:
+                continue
+            fsync_directory(directory.parent)
 
     def _remove_owned_probe(self, checkpoint: Mapping[str, object]) -> None:
-        ownership = checkpoint.get("ownership", {})
-        if not isinstance(ownership, Mapping):
-            raise CoreError("Core checkpoint is invalid")
-        entry = ownership.get(self.paths.probe_path)
+        if checkpoint.get("probe_preexisting") is True:
+            return
+        expected = checkpoint.get("probe_expected_sha256")
         probe = self._host(self.paths.probe_path)
         if not (probe.exists() or probe.is_symlink()):
             return
-        if not isinstance(entry, Mapping) or _path_sha256(probe) != entry.get("sha256"):
+        if (
+            not isinstance(expected, str)
+            or probe.is_symlink()
+            or not probe.is_file()
+            or _file_sha256(probe) != expected
+        ):
             raise CoreError("Core owned protocol probe has drifted")
         durable_remove(probe)
+
+    def _remove_owned_probe_image(self, checkpoint: Mapping[str, object]) -> None:
+        preexisting = checkpoint.get("probe_image_preexisting")
+        current = self._probe_image_identity()
+        if preexisting is not None:
+            if current != preexisting:
+                raise CoreError("pre-existing probe image identity has drifted")
+            return
+        if current is not None:
+            expected_owner = checkpoint.get("probe_image_owner")
+            if self._probe_image_owner() != expected_owner:
+                raise CoreError("Core owned probe image has drifted")
+            self._run("docker", "image", "rm", _PROBE_IMAGE)
 
     def _host(self, absolute: str) -> Path:
         if not absolute.startswith("/") or ".." in Path(absolute).parts:
@@ -1583,11 +2013,35 @@ class CoreAdapter:
         atomic_write(path, data, mode=mode, owner=owner)
 
 
+def _encode_adjacent_routes(routes: Sequence[tuple[str, str]]) -> str:
+    if not routes:
+        return "none"
+    return ";".join(f"{domain}|{backend}" for domain, backend in routes)
+
+
+def _decode_adjacent_routes(value: str) -> tuple[tuple[str, str], ...]:
+    if value == "none":
+        return ()
+    routes: list[tuple[str, str]] = []
+    for encoded in value.split(";"):
+        domain, separator, backend = encoded.partition("|")
+        if (
+            separator != "|"
+            or _DOMAIN.fullmatch(domain) is None
+            or not _valid_adjacent_backend(backend)
+        ):
+            raise CoreError("Core action has invalid adjacent SNI routes")
+        routes.append((domain.lower(), backend))
+    if len(routes) != len({domain for domain, _backend in routes}):
+        raise CoreError("Core action has duplicate adjacent SNI routes")
+    return tuple(sorted(routes))
+
+
 def _validate_users(users: Sequence[str]) -> None:
     if not users or len(set(users)) != len(users) or any(
         not isinstance(name, str)
         or _SAFE_NAME.fullmatch(name) is None
-        or name == "proxy-control-acceptance"
+        or name.startswith(_ACCEPTANCE_PREFIX)
         for name in users
     ):
         raise CoreError("Core users must be unique safe names")
@@ -1596,7 +2050,11 @@ def _validate_users(users: Sequence[str]) -> None:
 def _read_existing_users(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
-    if path.is_symlink() or not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o600:
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or stat.S_IMODE(path.stat().st_mode) != 0o600
+    ):
         raise CoreError("existing Core credentials are unsafe")
     try:
         text = path.read_text()
@@ -1605,6 +2063,23 @@ def _read_existing_users(path: Path) -> dict[str, str]:
     if not _valid_users_file(text):
         raise CoreError("existing Core credentials are invalid")
     return dict(line.split("=", 1) for line in text.splitlines())
+
+
+def _valid_adjacent_backend(value: str) -> bool:
+    if value == "audited":
+        return True
+    if value.startswith("unix:/"):
+        path = value.removeprefix("unix:")
+        return (
+            path.startswith("/")
+            and ".." not in Path(path).parts
+            and "\x00" not in value
+            and not any(character.isspace() for character in value)
+            and "|" not in value
+            and ";" not in value
+        )
+    match = _SAFE_BACKEND.fullmatch(value)
+    return match is not None and 1 <= int(match.group(1)) <= 65535
 
 
 def _valid_users_file(text: str) -> bool:
