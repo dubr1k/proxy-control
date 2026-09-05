@@ -18,7 +18,10 @@ RESULTS_FAILED=0
 BASELINE=/tmp/lab-baseline.sha256
 RELEASE=/tmp/proxy-control-release.tar.gz
 RELEASE_SHA=/tmp/proxy-control-release.sha256
-RELEASE_ROOT=/tmp/proxy-control-release
+# The archive carries a "proxy-control/" prefix, so the tree the installer runs
+# from is one level below where it is unpacked.
+RELEASE_STAGE=/tmp/proxy-control-release
+RELEASE_ROOT=$RELEASE_STAGE/proxy-control
 INSTALLER_STATE=/var/lib/proxy-control/installer/state.json
 if [[ ${MODE:-} == container || ${MODE:-} == host ]]; then
   RELEASE_ROOT=$ROOT
@@ -362,6 +365,9 @@ full_environment_preflight() {
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
   script="$(declare -p PROXY PANEL ROUTE BASELINE); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host); setup_full_host"
+  # `set -e` kills the composed script silently when a `test` or a `read` fails,
+  # and the report then carries whatever apt printed last. Name the command.
+  script="trap 'printf \"PREFLIGHT FAILED: %s\\n\" \"\$BASH_COMMAND\" >&2' ERR; $script"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
@@ -509,9 +515,9 @@ release_setup() {
   apt-get install -y -qq dpkg-dev iproute2 >/dev/null
   install -d -m 0700 "$CREDENTIALS"
   install -d -m 0755 "$CLIENT_RESULTS"
-  rm -rf "$RELEASE_ROOT"
-  install -d -m 0755 "$RELEASE_ROOT"
-  tar -xf "$RELEASE" -C "$RELEASE_ROOT"
+  rm -rf "$RELEASE_STAGE"
+  install -d -m 0755 "$RELEASE_STAGE"
+  tar -xf "$RELEASE" -C "$RELEASE_STAGE"
   test -f "$RELEASE_ROOT/release/release.json"
   cat > "$CONFIG" <<TOML
 schema = 1
@@ -550,7 +556,10 @@ release_environment_preflight() {
   local started log script
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host stage_mita_package release_setup); release_setup"
+  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_STAGE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host stage_mita_package release_setup); release_setup"
+  # `set -e` kills the composed script silently when a `test` or a `read` fails,
+  # and the report then carries whatever apt printed last. Name the command.
+  script="trap 'printf \"PREFLIGHT FAILED: %s\\n\" \"\$BASH_COMMAND\" >&2' ERR; $script"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
@@ -891,6 +900,9 @@ container_environment_preflight() {
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
   script="$(declare -p PROXY PANEL ROOT ROUTE BASELINE FOREIGN_BASELINE RELEASE RELEASE_ROOT CONFIG); $(declare -f host_ip write_fake_certbot container_write_configs container_setup); container_setup"
+  # `set -e` kills the composed script silently when a `test` or a `read` fails,
+  # and the report then carries whatever apt printed last. Name the command.
+  script="trap 'printf \"PREFLIGHT FAILED: %s\\n\" \"\$BASH_COMMAND\" >&2' ERR; $script"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
@@ -1087,6 +1099,9 @@ host_environment_preflight() {
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
   script="export LAB_RESET=${LAB_RESET:-0}; $(declare -p PROXY PANEL ROOT ROUTE BASELINE FOREIGN_BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS INSTALLER_STATE); $(declare -f host_ip write_fake_certbot container_write_configs container_setup host_setup); host_setup"
+  # `set -e` kills the composed script silently when a `test` or a `read` fails,
+  # and the report then carries whatever apt printed last. Name the command.
+  script="trap 'printf \"PREFLIGHT FAILED: %s\\n\" \"\$BASH_COMMAND\" >&2' ERR; $script"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"

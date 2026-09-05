@@ -614,3 +614,48 @@ class Aarch64Firmware(unittest.TestCase):
         self.assertIn("-bios", command)
         self.assertEqual(command[command.index("-bios") + 1], str(firmware))
         self.assertLess(command.index("-bios"), command.index("-machine"))
+
+
+class ReleaseRootLayout(unittest.TestCase):
+    """The archive carries a prefix; the tree the installer runs from is inside
+    it. Getting this wrong killed the preflight through `set -e` with no
+    message at all."""
+
+    RUNNER = MODULE.parent / "guest-runner.sh"
+
+    def test_release_root_accounts_for_the_archive_prefix(self):
+        text = self.RUNNER.read_text()
+        build = (MODULE.parents[2] / "release" / "build.py").read_text()
+        prefix = re.search(r'ARCHIVE_PREFIX = "([^"]+)"', build).group(1)
+        root = re.search(r"^RELEASE_ROOT=(\S+)$", text, re.MULTILINE).group(1)
+        self.assertEqual(root, f"$RELEASE_STAGE/{prefix}")
+        self.assertIn('tar -xf "$RELEASE" -C "$RELEASE_STAGE"', text)
+
+    def test_every_preflight_names_the_command_that_failed(self):
+        text = self.RUNNER.read_text()
+        composed = text.count('if bash -Eeuo pipefail -c "$script"')
+        self.assertGreaterEqual(composed, 4)
+        self.assertEqual(text.count("PREFLIGHT FAILED"), composed)
+
+    def test_every_composed_script_declares_the_variables_it_reads(self):
+        text = self.RUNNER.read_text()
+        defined = set(re.findall(r"^([a-z_][a-z0-9_]*)\(\) \{", text, re.MULTILINE))
+        globals_ = set(re.findall(r"^([A-Z][A-Z0-9_]*)=", text, re.MULTILINE))
+        for match in re.finditer(
+            r"declare -p ([A-Z0-9_ ]+)\); \$\(declare -f ([a-z_0-9 ]+)\)", text
+        ):
+            declared_vars = set(match.group(1).split())
+            functions = match.group(2).split()
+            for name in functions:
+                start = text.index(f"\n{name}() {{")
+                body = text[start:text.index("\n}\n", start)]
+                used = {
+                    variable
+                    for variable in re.findall(r"\$\{?([A-Z][A-Z0-9_]*)\b", body)
+                    if variable in globals_
+                }
+                missing = used - declared_vars
+                self.assertEqual(
+                    missing, set(), f"{name} needs {sorted(missing)}"
+                )
+            self.assertTrue(set(functions) <= defined)
