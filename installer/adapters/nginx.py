@@ -1325,6 +1325,16 @@ def _literal_backend(value: str) -> bool:
     return match is not None and 1 <= int(match.group(1)) <= 65535
 
 
+def _sanitize_diagnostic(value: str, *, max_chars: int = 800) -> str:
+    """Keep a bounded diagnostic with any credential assignment redacted."""
+    redacted = re.sub(
+        r"(?i)((?:password|token|secret)[=:\s]+)\S+",
+        r"\1[REDACTED]",
+        value,
+    )
+    return redacted[-max_chars:].replace("\n", " ").strip()
+
+
 def _safe_host_path(path: str) -> str:
     if (
         not isinstance(path, str)
@@ -1783,10 +1793,15 @@ class CertificatePlan:
             created.update(self._ensure_webroot(webroot))
         desired_hash = _sha256(desired_vhost)
         self._ensure_vhost(vhost_name, desired_vhost)
-        self._run_checked(("nginx", "-t"), "Nginx HTTP-01 vhost test failed")
+        self._run_checked(
+            ("nginx", "-t"),
+            "Nginx HTTP-01 vhost test failed",
+            include_output=True,
+        )
         self._run_checked(
             ("systemctl", "reload", "nginx"),
             "Nginx HTTP-01 vhost reload failed",
+            include_output=True,
         )
         self._assert_vhost_effective(vhost_name, desired_vhost)
         self._ensure_lineage(
@@ -2159,10 +2174,27 @@ class CertificatePlan:
         except ValueError as exc:
             raise TopologyError("certificate path escapes the supplied root") from exc
 
-    def _run_checked(self, argv: tuple[str, ...], message: str) -> None:
+    def _run_checked(
+        self,
+        argv: tuple[str, ...],
+        message: str,
+        *,
+        include_output: bool = False,
+    ) -> None:
+        """Run one command; `include_output` is opt-in and never set for ACME.
+
+        Certbot's output can carry credentials, so it stays suppressed. Nginx's
+        own test and reload say only why the configuration was rejected, and
+        without that an operator is told a reload failed and nothing about why.
+        """
         result = self.runner.run(argv)
         if result.returncode != 0:
-            raise TopologyError(message)
+            detail = (
+                _sanitize_diagnostic(f"{result.stderr}\n{result.stdout}")
+                if include_output
+                else ""
+            )
+            raise TopologyError(f"{message}: {detail}" if detail else message)
 
 
 def _certificate_groups(

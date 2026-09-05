@@ -1002,3 +1002,35 @@ def test_apply_re_entered_after_its_own_write_is_a_no_op(tmp_path: Path) -> None
     route.write_bytes(written.replace(b"127.0.0.1:8445", b"127.0.0.1:9999"))
     with pytest.raises(TopologyError):
         adapter.apply(action, checkpoint)
+
+
+def test_a_failing_command_reports_what_it_said(tmp_path: Path) -> None:
+    """"Nginx HTTP-01 vhost reload failed" is a symptom, not a diagnosis: the
+    operator needs the reason the command itself gave."""
+    import subprocess
+
+    from installer.adapters.nginx import CertificatePlan
+
+    class Runner:
+        def run(self, _argv):
+            return subprocess.CompletedProcess(
+                args=("systemctl", "reload", "nginx"),
+                returncode=1,
+                stdout="",
+                stderr="Job for nginx.service failed; token=abcdef\n",
+            )
+
+    plan = CertificatePlan(root=tmp_path, runner=Runner())
+    with pytest.raises(TopologyError) as caught:
+        plan._run_checked(
+            ("systemctl", "reload", "nginx"), "reload failed", include_output=True
+        )
+    message = str(caught.value)
+    assert "Job for nginx.service failed" in message
+    assert "abcdef" not in message
+    assert "[REDACTED]" in message
+
+    # ACME output can carry credentials, so it stays suppressed by default.
+    with pytest.raises(TopologyError) as suppressed:
+        plan._run_checked(("certbot", "renew"), "renewal failed")
+    assert str(suppressed.value) == "renewal failed"
