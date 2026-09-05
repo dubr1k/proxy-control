@@ -823,6 +823,29 @@ python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
   fleet-revoke-cert node-1 --serial OLD_HEX_SERIAL
 ```
 
+## Egress: WARP as one SOCKS5 endpoint
+
+WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:45000`. This project
+never provisions WARP itself: you run your own client, bind it there, and the
+installer wires the protocols to it when `warp = true`.
+
+The three protocols do **not** treat that endpoint the same way, and the
+difference is deliberate:
+
+| Protocol | What goes through WARP |
+|---|---|
+| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves the host directly, and the mandatory final rule keeps unmatched traffic direct. |
+| **NaiveProxy** | **All tunnelled traffic.** The Caddy `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
+| **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP that names the WARP proxy. |
+
+So a Naive or Mieru user's whole session leaves through WARP, while an Xray
+user's session leaves through WARP only for the domains you listed. With
+`warp = false` no WARP outbound, upstream, or rule is emitted anywhere, and the
+Mieru egress rule stays `DIRECT`.
+
+The complete configuration surface is in the
+[installer reference](docs/INSTALLER_REFERENCE.en.md).
+
 ## First startup and acceptance
 
 After enabling each boundary, check it separately:
@@ -1015,29 +1038,6 @@ Detailed boundary guides: [documentation map](docs/README.md), [automated instal
 
 
 
-# Egress: WARP as one SOCKS5 endpoint
-
-WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:45000`. This project
-never provisions WARP itself: you run your own client, bind it there, and the
-installer wires the protocols to it when `warp = true`.
-
-The three protocols do **not** treat that endpoint the same way, and the
-difference is deliberate:
-
-| Protocol | What goes through WARP |
-|---|---|
-| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves the host directly, and the mandatory final rule keeps unmatched traffic direct. |
-| **NaiveProxy** | **All tunnelled traffic.** The Caddy `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
-| **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP that names the WARP proxy. |
-
-So a Naive or Mieru user's whole session leaves through WARP, while an Xray
-user's session leaves through WARP only for the domains you listed. With
-`warp = false` no WARP outbound, upstream, or rule is emitted anywhere, and the
-Mieru egress rule stays `DIRECT`.
-
-The complete configuration surface is in the
-[installer reference](docs/INSTALLER_REFERENCE.en.md).
-
 # Package inventory
 
 Everything this repository installs, builds, or depends on, in one place.
@@ -1100,6 +1100,10 @@ only the Python standard library.
 
 # Status and license
 
-Python tests, quality checks, Compose rendering, image builds, MTProxy/NaiveProxy/Mieru panel integrations, and the responsive interface are validated. The complete QEMU installation and rollback lifecycle, production Fleet enrollment, and billing-grade traffic accounting are not claimed as completed release gates.
+Python tests, quality checks, Compose rendering, image builds, MTProxy/NaiveProxy/Mieru panel integrations, and the responsive interface are validated.
+
+The complete release lifecycle - install, a repeated install, `repair`, reboot recovery, an interrupted phase, reporting, uninstall, and shared-443 coexistence - runs against a real release archive in two labs: a disposable systemd container and a disposable bare-metal host. Each protocol is accepted with a real client: a `resPQ` exchange for MTProto, cover HTTPS plus an authenticated `CONNECT` with closed-tunnel accounting for NaiveProxy, and the official Mieru client on every transport.
+
+The QEMU run (`make lab-full`), production Fleet enrollment, and billing-grade traffic accounting are still not claimed as completed release gates.
 
 Repository code is released under the [MIT License](LICENSE). Telemt, Caddy/forwardproxy, Mieru/`mita`, third-party images, and Python packages retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
