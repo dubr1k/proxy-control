@@ -167,8 +167,31 @@ def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
             raise RuntimeError(
                 f"Chromium DevTools endpoint did not become ready: {tail or 'no output'}"
             )
-        targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5))
-        target_url = next(target["webSocketDebuggerUrl"] for target in targets if target["type"] == "page")
+        # DevTools answers before it has published a page target, so the first
+        # listing on a slow runner can legitimately be empty.
+        deadline = time.monotonic() + 30
+        target_url = None
+        while target_url is None and time.monotonic() < deadline:
+            try:
+                targets = json.load(
+                    urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/json/list", timeout=5
+                    )
+                )
+            except OSError:
+                targets = []
+            target_url = next(
+                (
+                    target["webSocketDebuggerUrl"]
+                    for target in targets
+                    if target.get("type") == "page"
+                ),
+                None,
+            )
+            if target_url is None:
+                time.sleep(0.1)
+        if target_url is None:
+            raise RuntimeError("Chromium published no page target to drive")
         devtools = DevTools(target_url)
         try:
             devtools.call(
