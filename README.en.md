@@ -211,9 +211,11 @@ This project deliberately never offers "download and run in one command".
 
 ### Step 2. Answer the wizard
 
-With no arguments the installer starts a bilingual wizard. It asks about the
-profile, domains, certificate email, and 3x-ui mode, and writes a configuration
-file — ordinary TOML you can read and edit by hand.
+There is no separate command to run: once the archive checks out,
+`install-bootstrap` hands over to the installer, which with no arguments opens a
+bilingual wizard. It asks about the profile, domains, certificate email, and
+3x-ui mode, and writes a configuration file — ordinary TOML you can read and
+edit by hand.
 
 Profiles:
 
@@ -295,9 +297,10 @@ described in [PANEL.en.md](PANEL.en.md) (NaiveProxy) and
 
 ## First login
 
-The initial owner password is in `secrets/panel-bootstrap-password` with mode
-`0600`. Read it through a secure console, log in at
-`https://panel.example.com/login` immediately, and change it.
+The initial owner password is in
+`/opt/mtproxy-shared443/secrets/panel-bootstrap-password` with mode `0600`. Read
+it through a secure console, log in at `https://panel.example.com/login`
+immediately, and change it.
 
 Never copy that file into `.env`, Git, tickets, logs, or shared backups.
 
@@ -436,13 +439,17 @@ Mieru egress rule stays `DIRECT`.
 ### Health checks
 
 ```bash
+cd /opt/mtproxy-shared443
 docker compose ps
-curl -fsS http://127.0.0.1:8787/healthz
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 sudo nginx -t
 ss -lntup
 systemctl is-active nginx docker
 systemctl is-active caddy-naive mita
 ```
+
+The `Host` header is required: the panel accepts only its own public name and
+rejects a request with `Host: 127.0.0.1`. Expect `{"status":"ok"}`.
 
 Before showing this output to anyone, strip passwords, full access URLs, QR
 payloads, tokens, cookies, certificates, and private keys.

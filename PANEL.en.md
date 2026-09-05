@@ -136,7 +136,7 @@ Karing's current source accepts `karing://install-config?url=...` and imports si
 Back up volumes `panel-data` and `telemt-config`, `${NAIVE_DATA_DIR}` when the Naive integration is enabled, and secret files separately with mode `0600`. `users.conf` is imported only when `telemt-config/config.toml` is first created. Telemt then becomes the source of truth and atomically persists API mutations. Deleting `telemt-config` causes the original `users.conf` to be imported again.
 
 ```sh
-curl -fsS http://127.0.0.1:8787/healthz
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 docker compose ps
 docker compose logs panel mtproxy   # output must contain no secrets
 ```

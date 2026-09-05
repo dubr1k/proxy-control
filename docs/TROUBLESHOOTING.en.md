@@ -8,7 +8,7 @@ Isolate one boundary first. Restarting everything destroys evidence and can wide
 
 ```bash
 docker compose ps
-curl -fsS http://127.0.0.1:8787/healthz || true
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz || true
 sudo nginx -t
 ss -lntup
 systemctl is-active nginx docker caddy-naive mita 2>/dev/null || true

@@ -140,7 +140,7 @@ One-time dialog разделяет форматы по клиентам:
 Резервируйте volumes `panel-data` и `telemt-config`, каталог `${NAIVE_DATA_DIR}` при включённой Naive-интеграции, а также secret-файлы отдельно с режимом `0600`. `users.conf` импортируется только при первом создании `telemt-config/config.toml`; далее источник истины — конфигурация Telemt, которую его API меняет атомарно. Удаление `telemt-config` приводит к повторному импорту исходного `users.conf`.
 
 ```sh
-curl -fsS http://127.0.0.1:8787/healthz
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 docker compose ps
 docker compose logs panel mtproxy   # вывод не должен содержать secrets
 ```

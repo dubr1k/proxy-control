@@ -325,6 +325,17 @@ def test_readme_lists_every_host_package_the_installer_requires(language):
     assert not missing, missing
 
 
+def test_every_documented_panel_health_check_sends_a_host_header():
+    """The installer sets PANEL_ALLOWED_HOSTS to the panel domain alone, so a
+    health check aimed at 127.0.0.1 without a Host header is rejected."""
+    offenders = []
+    for path in (*documented_files(), *INSTALL_GUIDES.values()):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "8787/healthz" in line and "Host:" not in line:
+                offenders.append(f"{path.name}: {line.strip()}")
+    assert not offenders, offenders
+
+
 # ----------------------------------------------------------------------
 # cross-document consistency
 # ----------------------------------------------------------------------

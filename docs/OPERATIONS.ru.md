@@ -29,7 +29,7 @@ COMPOSE_FILE=compose.yaml:compose.naive.yaml:compose.mieru.yaml
 
 ```bash
 docker compose ps
-curl -fsS http://127.0.0.1:8787/healthz
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 sudo nginx -t
 systemctl --no-pager --full status nginx
 ```

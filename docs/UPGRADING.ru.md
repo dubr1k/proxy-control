@@ -61,7 +61,7 @@ Panel Compose должен монтировать `/run/proxy-control` и зад
 
 ```bash
 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml ps
-curl --fail http://127.0.0.1:8787/healthz
+curl --fail -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 sudo nginx -t
 sudo systemctl is-active version-agent caddy-naive mita
 sudo journalctl -u version-agent --since=-15min --no-pager

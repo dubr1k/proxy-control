@@ -126,7 +126,7 @@ It never changes UFW/nftables/iptables, DNS, Xray/3x-ui, unrelated containers, o
 
 ```bash
 docker compose -f /opt/mtproxy-shared443/compose.yaml ps
-curl -fsS http://127.0.0.1:8787/healthz
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 sudo nginx -t
 ss -lntup
 ```
