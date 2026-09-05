@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -1038,3 +1038,62 @@ def test_runtime_v2_import_rejects_managed_file_drift_without_writing(tmp_path: 
         import_runtime_v2(tmp_path, legacy)
 
     assert managed.read_bytes() == before
+
+
+def test_reapplying_the_same_plan_is_a_no_op(tmp_path: Path) -> None:
+    """Running the installer twice with the same approved plan must change
+    nothing, not refuse with an existing-transaction error."""
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    first = engine.apply(plan, accepted_digest=plan.digest)
+    mutations = adapter.counter.read_text()
+
+    again = engine.apply(plan, accepted_digest=plan.digest)
+
+    assert again.transaction_id == first.transaction_id
+    assert again.status == "active"
+    assert adapter.counter.read_text() == mutations
+
+
+def test_reapplying_a_different_plan_still_refuses(tmp_path: Path) -> None:
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+
+    other = plan_for("core", "core")
+    with pytest.raises(TransactionError, match="already exists"):
+        engine.apply(other, accepted_digest=other.digest)
+
+
+def test_reapplying_over_drifted_ownership_refuses(tmp_path: Path) -> None:
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+    adapter.target.write_text("foreign edit")
+
+    with pytest.raises(OwnershipError, match="owned file drifted"):
+        engine.apply(plan, accepted_digest=plan.digest)
+
+
+def test_reapplying_the_same_intent_after_the_host_changed_is_a_no_op(
+    tmp_path: Path,
+) -> None:
+    """The first install is exactly what changes the host, so the second plan's
+    audit necessarily differs: intent, not the snapshot, identifies it."""
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    first = engine.apply(plan, accepted_digest=plan.digest)
+    mutations = adapter.counter.read_text()
+
+    replanned = replace(plan, facts=AuditFacts(platform={"os": "test", "changed": "1"}))
+    assert replanned.digest != plan.digest
+    assert replanned.intent_digest == plan.intent_digest
+
+    again = engine.apply(replanned, accepted_digest=replanned.digest)
+
+    assert again.transaction_id == first.transaction_id
+    assert adapter.counter.read_text() == mutations

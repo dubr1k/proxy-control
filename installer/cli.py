@@ -20,6 +20,7 @@ from installer.planner import (
     InstallPlan,
     PlanError,
     ReleaseIdentity,
+    adapter_factories,
     adapters_for,
     build_plan,
     compose_file_list,
@@ -144,7 +145,13 @@ def _default_services(root: Path, source_dir: Path | None = None) -> CliServices
     store = TransactionStore(root)
     tree = source_dir or Path(__file__).resolve().parents[1]
 
-    engine = TransactionEngine(store, {})
+    # repair, resume, uninstall and rollback run without composing a plan
+    # first, and the engine executes only the actions its stored plan names, so
+    # every known adapter is registered up front rather than left unavailable.
+    engine = TransactionEngine(
+        store,
+        {name: factory() for name, factory in adapter_factories().items()},
+    )
 
     def audit(config: InstallerConfig | None) -> AuditFacts:
         if config is None:

@@ -365,3 +365,15 @@ def test_wrappers_and_proxyctl_dispatch_to_the_unified_cli(monkeypatch):
     monkeypatch.setattr(cli, "main", lambda argv=None: calls.append(argv) or 17)
     assert proxyctl.main(["status"]) == 17
     assert calls == [["status"]]
+
+
+def test_repair_has_every_adapter_without_composing_a_plan(tmp_path):
+    """repair, resume and uninstall never build a plan, so the engine must
+    already know each adapter the stored plan can name."""
+    from installer.cli import _default_services
+    from installer.planner import adapter_factories
+
+    services = _default_services(tmp_path)
+    assert set(adapter_factories()) <= set(services.engine.adapters)
+    for name, adapter in services.engine.adapters.items():
+        assert adapter.name == name

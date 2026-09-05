@@ -1062,12 +1062,17 @@ class NaiveAdapter:
 
     def verify(self, action: Action) -> Evidence:
         selected = self._selection(action)
-        acceptance_name = self._read_acceptance_owner()
         pending = self._host(self.paths.acceptance_pending)
         recover_existing = pending.exists() or pending.is_symlink()
         if recover_existing:
+            acceptance_name = self._read_acceptance_owner()
             self._assert_pending(pending, acceptance_name)
         else:
+            # The manager tombstones every deleted user so its accounting can
+            # never be re-attributed, which makes a name single-use. Each run
+            # therefore mints its own and records it before creating anything.
+            acceptance_name = _ACCEPTANCE_PREFIX + secrets.token_hex(8)
+            self._write_acceptance_owner(acceptance_name)
             self._atomic(pending, (acceptance_name + "\n").encode(), 0o600)
         result: NaiveAcceptance | None = None
         cleanup_ok = False
@@ -1440,9 +1445,13 @@ class NaiveAdapter:
             if path.exists() or path.is_symlink():
                 ownership[host_path] = {
                     "preserve": preserve,
-                    # The manager rewrites the Caddyfile on every credential
-                    # change, so its digest is never foreign drift.
-                    "mutable": host_path == self.paths.caddyfile,
+                    # The Caddyfile is rewritten by the manager on every
+                    # credential change, and the acceptance owner by every
+                    # acceptance run, so neither digest is foreign drift.
+                    "mutable": host_path in {
+                        self.paths.caddyfile,
+                        self.paths.acceptance_owner,
+                    },
                     "sha256": _path_sha256(path),
                 }
         caddy = self._host(self.paths.caddy_binary)
@@ -1463,9 +1472,11 @@ class NaiveAdapter:
             if not isinstance(host_path, str) or not isinstance(entry, Mapping):
                 raise NaiveError("Naive checkpoint is invalid")
             path = self._host(host_path)
-            if (
-                not (path.exists() or path.is_symlink())
-                or _path_sha256(path) != entry["sha256"]
+            if not (path.exists() or path.is_symlink()):
+                raise NaiveError(f"Naive owned file has drifted: {host_path}")
+            # A file a service rewrites carries no stable digest to compare.
+            if entry.get("mutable") is not True and (
+                _path_sha256(path) != entry["sha256"]
             ):
                 raise NaiveError(f"Naive owned file has drifted: {host_path}")
 
@@ -1498,7 +1509,11 @@ class NaiveAdapter:
             directories.add(path.parent)
             if not (path.exists() or path.is_symlink()):
                 continue
-            if _path_sha256(path) != entry.get("sha256"):
+            # A file a service rewrites carries no stable digest to compare,
+            # but it is still this generation's file and still comes out.
+            if entry.get("mutable") is not True and (
+                _path_sha256(path) != entry.get("sha256")
+            ):
                 if using_planned:
                     continue
                 raise NaiveError(f"Naive owned file has drifted: {host_path}")

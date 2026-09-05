@@ -689,11 +689,19 @@ release_crash_every_phase() {
     python3 - "$phase" <<'CRASHPY'
 import json, sys
 from pathlib import Path
+
+phase = sys.argv[1]
 state = Path('/var/lib/proxy-control/installer/state.json')
 document = json.loads(state.read_text())
 document['status'] = 'applying'
-for checkpoint in document.get('checkpoints', []):
-    checkpoint['phase'] = sys.argv[1]
+# A crash interrupts exactly one action: every earlier one stays verified.
+# Rewinding all of them at once would forge a journal the engine can never
+# produce, and the installer is right to refuse that.
+checkpoint = document['checkpoints'][-1]
+checkpoint['phase'] = phase
+if phase == 'prepared' and isinstance(checkpoint['data'].get('ownership'), dict):
+    # A checkpoint that has not applied yet claims nothing.
+    checkpoint['data']['ownership'] = {}
 state.write_text(json.dumps(document))
 CRASHPY
     installer_cmd resume --json >/tmp/resume-"$phase".json
@@ -1129,11 +1137,19 @@ host_crash_every_phase() {
     python3 - "$phase" <<'CRASHPY'
 import json, sys
 from pathlib import Path
+
+phase = sys.argv[1]
 state = Path('/var/lib/proxy-control/installer/state.json')
 document = json.loads(state.read_text())
 document['status'] = 'applying'
-for checkpoint in document.get('checkpoints', []):
-    checkpoint['phase'] = sys.argv[1]
+# A crash interrupts exactly one action: every earlier one stays verified.
+# Rewinding all of them at once would forge a journal the engine can never
+# produce, and the installer is right to refuse that.
+checkpoint = document['checkpoints'][-1]
+checkpoint['phase'] = phase
+if phase == 'prepared' and isinstance(checkpoint['data'].get('ownership'), dict):
+    # A checkpoint that has not applied yet claims nothing.
+    checkpoint['data']['ownership'] = {}
 state.write_text(json.dumps(document))
 CRASHPY
     container_cmd resume --json >/tmp/resume-"$phase".json

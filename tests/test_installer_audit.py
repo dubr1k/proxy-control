@@ -716,7 +716,9 @@ def test_command_runner_kills_descendants_after_leader_exit(tmp_path, overflow):
             "os._exit(0)",
         )
     )
-    runner = CommandRunner(timeout=0.03, max_output=64)
+    # The overflow case must trip on the output limit, so it gets a timeout no
+    # interpreter start-up can exhaust first; the timeout case keeps a short one.
+    runner = CommandRunner(timeout=5.0 if overflow else 0.03, max_output=64)
 
     with pytest.raises(AuditError, match="output limit" if overflow else "timed out"):
         runner.capture((sys.executable, "-c", script))

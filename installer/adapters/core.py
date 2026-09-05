@@ -71,6 +71,11 @@ _PRESERVED_CREDENTIALS = (
     "secrets/telemt-api-token",
     "secrets/panel-bootstrap-password",
 )
+# Compose secrets another adapter owns inside the shared project. Core must
+# leave them alone, but it must not read them as foreign residue either.
+_ADJACENT_CREDENTIALS = ("secrets/naive-manager-token",)
+# Compose services other adapters add to the shared project.
+_ADJACENT_SERVICES = ("naive-manager", "mieru-manager")
 _PANEL_VHOST = "/etc/nginx/conf.d/proxy-control-panel.conf"
 # The shared 443 router forwards raw TLS, so the panel needs a TLS listener of
 # its own: the panel application itself speaks plain HTTP on its app port.
@@ -359,7 +364,14 @@ class _DefaultCoreRunner:
             for service, (state, health) in states.items()
             if service in expected
         )
-        if set(states) != expected or healthy != len(expected):
+        # Naive and Mieru extend the shared project with services of their own,
+        # and a repair re-verifies Core while they are running. Core requires
+        # its own services and refuses anything it cannot account for.
+        if (
+            not expected <= set(states)
+            or set(states) - (expected | set(_ADJACENT_SERVICES))
+            or healthy != len(expected)
+        ):
             raise AcceptanceError("Core acceptance failed: Compose health checks")
         return healthy
 
@@ -1561,9 +1573,10 @@ class CoreAdapter:
             self.root == Path("/") and (metadata.st_uid, metadata.st_gid) != (0, 0)
         ):
             raise CoreError("pre-existing project credentials are unsafe")
-        allowed = {Path(value).name for value in _PRESERVED_CREDENTIALS}
+        owned = {Path(value).name for value in _PRESERVED_CREDENTIALS}
+        adjacent = {Path(value).name for value in _ADJACENT_CREDENTIALS}
         names = {entry.name for entry in secret_dir.iterdir()}
-        if names - allowed or (require_all and names != allowed):
+        if names - (owned | adjacent) or (require_all and not owned <= names):
             raise CoreError("pre-existing project credentials are unsafe")
         validators = {
             "users.conf": _valid_users_file,

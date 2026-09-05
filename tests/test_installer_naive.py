@@ -991,3 +991,36 @@ def test_naive_acceptance_tunnels_a_real_inner_tls_session(tmp_path, monkeypatch
     assert panel_ok is True
     assert closed is True
     assert connect_bytes > 0
+
+
+def test_naive_verify_mints_a_fresh_temporary_user_each_run(tmp_path):
+    """The manager tombstones a deleted user, so re-creating the same name
+    always conflicts: every acceptance run must own a new one."""
+    instance = adapter(tmp_path)
+    action = naive_action()
+    applied(instance, action)
+
+    instance.verify(action)
+    first = host(tmp_path, PATHS.acceptance_owner).read_text().strip()
+    instance.verify(action)
+    second = host(tmp_path, PATHS.acceptance_owner).read_text().strip()
+
+    assert first != second
+    assert {first, second} <= set(instance.runner.acceptance_names)
+    assert not host(tmp_path, PATHS.acceptance_pending).exists()
+
+
+def test_naive_purge_removes_a_service_rewritten_file(tmp_path):
+    """The manager rewrites the Caddyfile, so it never matches the digest the
+    installer recorded; a purge must still take it out."""
+    instance = adapter(tmp_path)
+    action = naive_action()
+    checkpoint = applied(instance, action)
+    caddyfile = host(tmp_path, PATHS.caddyfile)
+    caddyfile.write_text("# rewritten by the manager\n")
+
+    instance.rollback(
+        action, checkpoint, purge_data=True, rollback_target="uninstalled"
+    )
+
+    assert not caddyfile.exists()

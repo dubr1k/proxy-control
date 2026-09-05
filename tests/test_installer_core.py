@@ -540,6 +540,30 @@ def test_default_runner_rejects_running_but_unhealthy_compose_service(monkeypatc
         runner._healthy_compose_services(("docker", "compose"))
 
 
+def test_default_runner_accepts_the_adjacent_protocol_services(monkeypatch):
+    """A repair re-verifies Core while Naive and Mieru run in the same shared
+    project, so their services must not read as a failed health check."""
+    runner = _DefaultCoreRunner()
+    healthy = [
+        {"Service": name, "State": "running", "Health": "healthy"}
+        for name in ("mask", "mtproxy", "panel", "naive-manager", "mieru-manager")
+    ]
+    monkeypatch.setattr(runner, "_capture_checked", lambda _argv: json.dumps(healthy))
+    assert runner._healthy_compose_services(("docker", "compose")) == 3
+
+    foreign = healthy + [
+        {"Service": "someone-elses", "State": "running", "Health": "healthy"}
+    ]
+    monkeypatch.setattr(runner, "_capture_checked", lambda _argv: json.dumps(foreign))
+    with pytest.raises(AcceptanceError, match="Compose health checks"):
+        runner._healthy_compose_services(("docker", "compose"))
+
+    missing = [row for row in healthy if row["Service"] != "panel"]
+    monkeypatch.setattr(runner, "_capture_checked", lambda _argv: json.dumps(missing))
+    with pytest.raises(AcceptanceError, match="Compose health checks"):
+        runner._healthy_compose_services(("docker", "compose"))
+
+
 def test_prepare_refuses_unlabeled_preexisting_probe_image(tmp_path):
     runner = FakeRunner(
         image_id="sha256:foreign",
@@ -883,3 +907,35 @@ def test_panel_client_accepts_a_full_reveal_payload():
         _DefaultCoreRunner._json_request(
             _HugeOpener(), "panel.example.com", "/api/reveal/token"
         )
+
+
+def test_core_tolerates_the_naive_compose_secret_in_the_shared_project(tmp_path):
+    """Naive owns its manager token inside the shared project's secrets
+    directory, so Core must not read it as foreign residue."""
+    from installer.adapters.core import _ADJACENT_CREDENTIALS, _PRESERVED_CREDENTIALS
+
+    instance = CoreAdapter(root=tmp_path, source_dir=ROOT)
+    secrets = tmp_path / "opt/mtproxy-shared443/secrets"
+    secrets.mkdir(parents=True)
+    secrets.chmod(0o700)
+    written = {
+        "users.conf": "acceptance=" + "0" * 32 + "\n",
+        "telemt-api-token": "Bearer " + "a" * 43 + "\n",
+        "panel-bootstrap-password": "bootstrap-password\n",
+        **{Path(value).name: "0" * 64 + "\n" for value in _ADJACENT_CREDENTIALS},
+    }
+    for name, body in written.items():
+        path = secrets / name
+        path.write_text(body)
+        path.chmod(0o600)
+
+    instance._validate_existing_credentials(secrets, require_all=True)
+
+    (secrets / "unexpected").write_text("residue\n")
+    with pytest.raises(CoreError, match="credentials are unsafe"):
+        instance._validate_existing_credentials(secrets, require_all=True)
+
+    (secrets / "unexpected").unlink()
+    (secrets / Path(_PRESERVED_CREDENTIALS[0]).name).unlink()
+    with pytest.raises(CoreError, match="credentials are unsafe"):
+        instance._validate_existing_credentials(secrets, require_all=True)

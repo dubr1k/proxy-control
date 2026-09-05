@@ -247,6 +247,34 @@ class InstallPlan:
     def digest(self) -> str:
         return hashlib.sha256(self.to_canonical_json()).hexdigest()
 
+    @property
+    def intent_digest(self) -> str:
+        """Identify the installation, independent of the observed host.
+
+        Installing the same configuration from the same release twice is one
+        installation even though the second audit necessarily differs: the
+        first install is exactly what changed the host. The plan digest keeps
+        binding an approval to one host snapshot; this identifies what the
+        operator asked for.
+        """
+        payload = {
+            "adapter_order": list(self.adapter_order),
+            "config": _canonical_json_value(self.config),
+            "release": self.release.to_dict(),
+            "schema": self.schema,
+        }
+        try:
+            rendered = json.dumps(
+                payload,
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        except (TypeError, ValueError) as exc:
+            raise PlanError("plan contains a non-canonical JSON value") from exc
+        return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+
     def assert_fresh(self, current: AuditFacts) -> None:
         expected = self.facts.stable_dict()
         observed = current.stable_dict()
@@ -296,14 +324,10 @@ _PROFILE_ORDER = (
 )
 
 
-def adapters_for(
-    config: InstallerConfig,
-    **overrides: object,
-) -> tuple[Adapter, ...]:
-    """Select exactly the adapters one configuration needs, in order.
+def adapter_factories() -> dict[str, type]:
+    """Every adapter the installer knows, by the name its actions carry.
 
-    Unsupported combinations are rejected instead of silently dropping a
-    component, so a profile can never be installed half-way.
+    Imported lazily: the adapters import the planner for their action types.
     """
     from installer.adapters.core import CoreAdapter
     from installer.adapters.firewall import FirewallAdapter
@@ -313,6 +337,27 @@ def adapters_for(
     from installer.adapters.packages import PackagesAdapter
     from installer.adapters.three_xui import ThreeXuiAdapter
 
+    return {
+        "packages": PackagesAdapter,
+        "nginx": NginxAdapter,
+        "certificates": CertificatePlan,
+        "firewall": FirewallAdapter,
+        "core": CoreAdapter,
+        "naive": NaiveAdapter,
+        "mieru": MieruAdapter,
+        "three_xui": ThreeXuiAdapter,
+    }
+
+
+def adapters_for(
+    config: InstallerConfig,
+    **overrides: object,
+) -> tuple[Adapter, ...]:
+    """Select exactly the adapters one configuration needs, in order.
+
+    Unsupported combinations are rejected instead of silently dropping a
+    component, so a profile can never be installed half-way.
+    """
     if config.profile.includes_naive and config.domains.naive is None:
         raise PlanError("the selected profile requires a NaiveProxy domain")
     if config.profile.includes_mieru and (
@@ -324,16 +369,7 @@ def adapters_for(
     if config.three_xui.mode.value == "managed-new" and config.host_mode.value != "fresh":
         raise PlanError("managed 3x-ui requires a fresh host")
 
-    factories = {
-        "packages": PackagesAdapter,
-        "nginx": NginxAdapter,
-        "certificates": CertificatePlan,
-        "firewall": FirewallAdapter,
-        "core": CoreAdapter,
-        "naive": NaiveAdapter,
-        "mieru": MieruAdapter,
-        "three_xui": ThreeXuiAdapter,
-    }
+    factories = adapter_factories()
     selected = ["packages", "nginx", "certificates"]
     if config.host_mode.value == "fresh" and config.firewall.manage_ufw:
         selected.append("firewall")

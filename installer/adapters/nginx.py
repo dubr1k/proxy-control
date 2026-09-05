@@ -547,9 +547,27 @@ class NginxAdapter:
             known_domains.update(
                 domain for domain in http_domains if isinstance(domain, str)
             )
-        for domain, _backend in routes:
-            if domain in known_domains:
-                raise TopologyError(f"domain already routed: {domain}")
+        # A second install of the same generation observes the router this
+        # adapter itself generated. That is this installation, not a foreign
+        # one, so its own routes and its own listener are not conflicts.
+        route_target = nginx.get("route_target")
+        owned_router = (
+            isinstance(route_target, Mapping)
+            and route_target.get("source_file") == self.fresh_path
+        )
+        observed_backends = (
+            dict(observed_routes) if isinstance(observed_routes, Mapping) else {}
+        )
+        for domain, backend in routes:
+            if domain not in known_domains:
+                continue
+            # A domain already routed to exactly the backend this generation
+            # installs is this installation, so a repeated install stays a
+            # no-op. Anything else - a different backend, or an HTTP server
+            # name with no route of ours behind it - is foreign.
+            if observed_backends.get(domain) == backend:
+                continue
+            raise TopologyError(f"domain already routed: {domain}")
         if config.host_mode is HostMode.FRESH:
             if observation != "observed":
                 raise TopologyError(
@@ -557,7 +575,9 @@ class NginxAdapter:
                 )
             effective = self.runner.capture(("nginx", "-T"))
             topology = parse_effective_nginx(effective)
-            if any(443 in server.listener_ports for server in topology.servers):
+            if not owned_router and any(
+                443 in server.listener_ports for server in topology.servers
+            ):
                 raise TopologyError(
                     "fresh mode cannot replace an active stream router"
                 )
@@ -583,7 +603,7 @@ class NginxAdapter:
                     raise TopologyError(f"domain already routed: {domain}")
         planned_identity = self._planned_path_identity(
             target_path,
-            must_be_missing=mode == "fresh",
+            must_be_missing=mode == "fresh" and not owned_router,
         )
         mutations = (
             f"mode={mode}",
@@ -646,11 +666,16 @@ class NginxAdapter:
         path = self._validate_planned_path(specification, allow_created=False)
         original = path.read_bytes() if bool(identity["exists"]) else b""
         original_hash = identity["original_sha256"]
-        if bool(identity["exists"]) and _sha256(original) != original_hash:
-            raise TopologyError("selected route file changed after planning")
         desired = _desired_content(specification, original)
+        # A resume can re-enter apply after the write already landed. The file
+        # then holds exactly this action's own output - patching it again is a
+        # no-op - which is this transaction's work, not foreign drift.
+        reentered = bool(identity["exists"]) and _sha256(original) != original_hash
+        if reentered and desired != original:
+            raise TopologyError("selected route file changed after planning")
         backup = self._backup_path(action, identity)
-        if bool(identity["exists"]):
+        if bool(identity["exists"]) and not reentered:
+            # Only the first apply sees the content rollback must restore.
             atomic_write(backup, original, mode=0o600)
         self._validate_planned_path(specification, allow_created=False)
         atomic_write(

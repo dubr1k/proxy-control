@@ -660,6 +660,18 @@ class TransactionEngine:
             raise AcceptedDigestError("accepted plan digest does not match")
         with self.store.locked():
             if self.store.state_path.exists():
+                existing = self.store.read_state()
+                # Re-running the same approved plan against a completed
+                # installation must change nothing rather than refuse: an
+                # installer is expected to be safe to run twice. Ownership is
+                # still proven, so drift is reported instead of ignored.
+                if existing.status == "active" and (
+                    self._read_matching_plan(existing).intent_digest
+                    == plan.intent_digest
+                ):
+                    self._validate_adapters(plan)
+                    self._assert_all_owned(existing)
+                    return existing
                 raise TransactionError("an installer transaction already exists")
             self._validate_adapters(plan)
             self.store.write_plan(plan)

@@ -906,3 +906,49 @@ def test_mieru_apply_refuses_an_unpinned_client_executable(tmp_path):
     action = staged_action(tmp_path)
     with pytest.raises(ArtifactError, match="client executable digest"):
         applied(instance, action)
+
+
+def test_mieru_verify_mints_a_fresh_temporary_user_each_run(tmp_path):
+    """The manager refuses a name it has already retired, so reusing one makes
+    every repair fail with a conflict."""
+    instance = adapter(tmp_path)
+    action = staged_action(tmp_path)
+    applied(instance, action)
+
+    instance.verify(action)
+    first = host(tmp_path, PATHS.acceptance_owner).read_text().strip()
+    instance.verify(action)
+    second = host(tmp_path, PATHS.acceptance_owner).read_text().strip()
+
+    assert first != second
+    assert not host(tmp_path, PATHS.acceptance_pending).exists()
+
+
+def test_mieru_replanning_accepts_ports_its_own_server_already_holds():
+    """A repeated install of the same generation observes mita on its own
+    listeners; only another process holding them is a collision."""
+    instance = MieruAdapter()
+    transports = (("TCP", 46001), ("UDP", 46002))
+
+    mine = AuditFacts(
+        listeners={
+            "tcp": (46001,),
+            "udp": (46002,),
+            "owners": {"46001": ("mita",), "46002": ("mita",)},
+        }
+    )
+    instance._assert_free_listeners(mine, transports)
+
+    foreign = AuditFacts(
+        listeners={
+            "tcp": (46001,),
+            "udp": (),
+            "owners": {"46001": ("someone-else",)},
+        }
+    )
+    with pytest.raises(PlanError, match="already claimed"):
+        instance._assert_free_listeners(foreign, transports)
+
+    unattributed = AuditFacts(listeners={"tcp": (46001,), "udp": (), "owners": {}})
+    with pytest.raises(PlanError, match="already claimed"):
+        instance._assert_free_listeners(unattributed, transports)

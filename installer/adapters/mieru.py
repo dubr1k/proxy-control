@@ -74,6 +74,7 @@ _MANAGER_GID = 10005
 _WARP_EGRESS = ("127.0.0.1", 45000)
 _WARP_PROXY_NAME = "warp"
 _RUNNING = 'mita server status is "RUNNING"'
+_MITA_PROCESS = "mita"
 _MITA_VERSION = "3.36.0"
 _SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
 
@@ -770,10 +771,22 @@ class MieruAdapter:
             observed = listeners.get(protocol.lower())
             if not isinstance(observed, Sequence) or isinstance(observed, (str, bytes)):
                 continue
-            if port in {int(value) for value in observed if isinstance(value, int)}:
-                raise PlanError(
-                    f"{protocol} port {port} is already claimed by another listener"
-                )
+            if port not in {int(value) for value in observed if isinstance(value, int)}:
+                continue
+            # mita itself holds these ports once a generation is installed, so
+            # a repeated install of the same generation is not a collision.
+            owners = listeners.get("owners")
+            holders = owners.get(str(port)) if isinstance(owners, Mapping) else None
+            if (
+                isinstance(holders, Sequence)
+                and not isinstance(holders, (str, bytes))
+                and holders
+                and set(holders) <= {_MITA_PROCESS}
+            ):
+                continue
+            raise PlanError(
+                f"{protocol} port {port} is already claimed by another listener"
+            )
 
     # ------------------------------------------------------------------
     # artifact staging
@@ -975,12 +988,16 @@ class MieruAdapter:
 
     def verify(self, action: Action) -> Evidence:
         selected = self._selection(action)
-        acceptance_name = self._read_acceptance_owner()
         pending = self._host(self.paths.acceptance_pending)
         recover_existing = pending.exists() or pending.is_symlink()
         if recover_existing:
+            acceptance_name = self._read_acceptance_owner()
             self._assert_pending(pending, acceptance_name)
         else:
+            # The manager refuses to re-create a name it has already retired,
+            # so every acceptance run mints its own and records it first.
+            acceptance_name = _ACCEPTANCE_PREFIX + secrets.token_hex(8)
+            self._write_acceptance_owner(acceptance_name)
             self._atomic(pending, (acceptance_name + "\n").encode(), 0o600)
         result: MieruAcceptance | None = None
         cleanup_ok = False
@@ -1389,8 +1406,10 @@ class MieruAdapter:
                 ownership[host_path] = {
                     "preserve": preserve,
                     # mita rewrites its own server config whenever a user
-                    # changes, so its digest is never foreign drift.
-                    "mutable": host_path in _MUTABLE_PATHS,
+                    # changes, and every acceptance run rewrites the owner
+                    # record, so neither digest is foreign drift.
+                    "mutable": host_path in _MUTABLE_PATHS
+                    or host_path == self.paths.acceptance_owner,
                     "sha256": _path_sha256(path),
                 }
         binary = self._host(self.paths.binary)
@@ -1411,9 +1430,11 @@ class MieruAdapter:
             if not isinstance(host_path, str) or not isinstance(entry, Mapping):
                 raise MieruError("Mieru checkpoint is invalid")
             path = self._host(host_path)
-            if (
-                not (path.exists() or path.is_symlink())
-                or _path_sha256(path) != entry["sha256"]
+            if not (path.exists() or path.is_symlink()):
+                raise MieruError(f"Mieru owned file has drifted: {host_path}")
+            # A file a service rewrites carries no stable digest to compare.
+            if entry.get("mutable") is not True and (
+                _path_sha256(path) != entry["sha256"]
             ):
                 raise MieruError(f"Mieru owned file has drifted: {host_path}")
 
@@ -1446,7 +1467,11 @@ class MieruAdapter:
             directories.add(path.parent)
             if not (path.exists() or path.is_symlink()):
                 continue
-            if _path_sha256(path) != entry.get("sha256"):
+            # A file a service rewrites carries no stable digest to compare,
+            # but it is still this generation's file and still comes out.
+            if entry.get("mutable") is not True and (
+                _path_sha256(path) != entry.get("sha256")
+            ):
                 if using_planned:
                     continue
                 raise MieruError(f"Mieru owned file has drifted: {host_path}")
