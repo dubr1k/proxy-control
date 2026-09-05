@@ -71,6 +71,49 @@ def clean_facts() -> AuditFacts:
     return AuditFacts()
 
 
+_CLIENT_PACKAGE_BYTES = b"fake-mieru-client\n"
+_CLIENT_BINARY_BYTES = b"pinned-mieru\n"
+_CLIENT_PACKAGE_DIGEST = hashlib.sha256(_CLIENT_PACKAGE_BYTES).hexdigest()
+_CLIENT_BINARY_DIGEST = hashlib.sha256(_CLIENT_BINARY_BYTES).hexdigest()
+
+
+@pytest.fixture(autouse=True)
+def pinned_client(monkeypatch):
+    """Pin the acceptance client to the stand-in package these tests stage."""
+    from types import MappingProxyType
+
+    from installer.adapters import mieru as mieru_module
+
+    pins = MappingProxyType(
+        {
+            architecture: (
+                f"https://example.invalid/mieru_{architecture}.deb",
+                _CLIENT_PACKAGE_DIGEST,
+                _CLIENT_BINARY_DIGEST,
+            )
+            for architecture in ("amd64", "arm64")
+        }
+    )
+    monkeypatch.setattr(mieru_module, "_MIERU_CLIENT_PINS", pins)
+
+
+def stage_client_package(root: Path) -> Path:
+    """Stage the client package an operator supplies next to the server one."""
+    package = root / f"var/lib/proxy-control/mieru_{_MITA_VERSION}_amd64.deb"
+    package.parent.mkdir(parents=True, exist_ok=True)
+    package.write_bytes(_CLIENT_PACKAGE_BYTES)
+    package.with_suffix(".digests").write_text(
+        json.dumps(
+            {
+                "package": _CLIENT_PACKAGE_DIGEST,
+                "executable": _CLIENT_BINARY_DIGEST,
+                "binary": _CLIENT_BINARY_BYTES.hex(),
+            }
+        )
+    )
+    return package
+
+
 def fake_deb(
     tmp_path: Path,
     *,
@@ -215,7 +258,8 @@ class FakeMieruRunner:
             Path(package).with_suffix(".digests").read_text()
         )
         root = Path(destination)
-        binary = root / "usr/bin/mita"
+        name = "mieru" if Path(package).name.startswith("mieru_") else "mita"
+        binary = root / "usr/bin" / name
         binary.parent.mkdir(parents=True, exist_ok=True)
         binary.write_bytes(bytes.fromhex(digests["binary"]))
         license_path = root / "usr/share/doc/mita/copyright"
@@ -269,6 +313,7 @@ class FakeMieruRunner:
 
 
 def adapter(tmp_path: Path, runner: FakeMieruRunner | None = None) -> MieruAdapter:
+    stage_client_package(tmp_path)
     return MieruAdapter(
         root=tmp_path,
         source_dir=ROOT,
@@ -824,3 +869,40 @@ def test_mieru_acceptance_deletes_with_a_compare_and_set_revision():
             "expect_json": False,
         }
     ]
+
+
+def test_mieru_apply_builds_the_pinned_client_image(tmp_path):
+    """The acceptance runs the official client, so the installer must build its
+    harness from the pinned client package instead of pulling an image."""
+    instance = adapter(tmp_path)
+    action = staged_action(tmp_path)
+    applied(instance, action)
+    builds = [
+        argv for argv in instance.runner.calls
+        if tuple(argv[:2]) == ("docker", "build")
+    ]
+    assert len(builds) == 1
+    assert f"proxy-control-mieru-client:{_MITA_VERSION}" in builds[0]
+    context = Path(builds[0][-1])
+    # The context is removed with the staging tree once the build completes.
+    assert not context.exists()
+
+
+def test_mieru_apply_refuses_an_unpinned_client_package(tmp_path):
+    instance = adapter(tmp_path)
+    package = tmp_path / f"var/lib/proxy-control/mieru_{_MITA_VERSION}_amd64.deb"
+    package.write_bytes(b"tampered\n")
+    action = staged_action(tmp_path)
+    with pytest.raises(ArtifactError, match="client package digest"):
+        applied(instance, action)
+
+
+def test_mieru_apply_refuses_an_unpinned_client_executable(tmp_path):
+    instance = adapter(tmp_path)
+    package = tmp_path / f"var/lib/proxy-control/mieru_{_MITA_VERSION}_amd64.deb"
+    digests = json.loads(package.with_suffix(".digests").read_text())
+    digests["binary"] = b"other-client\n".hex()
+    package.with_suffix(".digests").write_text(json.dumps(digests))
+    action = staged_action(tmp_path)
+    with pytest.raises(ArtifactError, match="client executable digest"):
+        applied(instance, action)

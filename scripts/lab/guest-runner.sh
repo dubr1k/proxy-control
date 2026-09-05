@@ -479,25 +479,28 @@ installer_cmd() {
 }
 
 stage_mita_package() {
-  # The installer deliberately never downloads mita, so the operator stages the
-  # pinned package by hand. The lab performs exactly that documented step, and
-  # reads the pin from the release under test instead of keeping a second copy.
-  local architecture url digest name cache
+  # The installer deliberately never downloads the mita server or the official
+  # client, so the operator stages both pinned packages by hand. The lab
+  # performs exactly that documented step and reads the pins from the release
+  # under test instead of keeping a second copy of them.
+  local architecture name cache line url digest
   architecture=$(dpkg --print-architecture)
-  read -r url digest < <(PYTHONPATH="$RELEASE_ROOT" python3 -c '
-import sys
-from installer.adapters.mieru import _MITA_PINS
-url, package_digest, _executable_digest = _MITA_PINS[sys.argv[1]]
-print(url, package_digest)
-' "$architecture")
-  name=${url##*/}
-  cache=/root/lab-artifacts/$name
   install -d -m 0755 /root/lab-artifacts /var/lib/proxy-control
-  if ! printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status 2>/dev/null; then
-    curl --fail --silent --show-error --location --output "$cache" "$url"
-    printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status
-  fi
-  install -m 0644 "$cache" "/var/lib/proxy-control/$name"
+  while read -r url digest; do
+    name=${url##*/}
+    cache=/root/lab-artifacts/$name
+    if ! printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status 2>/dev/null; then
+      curl --fail --silent --show-error --location --output "$cache" "$url"
+      printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status
+    fi
+    install -m 0644 "$cache" "/var/lib/proxy-control/$name"
+  done < <(PYTHONPATH="$RELEASE_ROOT" python3 -c '
+import sys
+from installer.adapters.mieru import _MIERU_CLIENT_PINS, _MITA_PINS
+for pins in (_MITA_PINS, _MIERU_CLIENT_PINS):
+    url, package_digest, _executable_digest = pins[sys.argv[1]]
+    print(url, package_digest)
+' "$architecture")
 }
 
 release_setup() {

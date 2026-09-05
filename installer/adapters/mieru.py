@@ -97,6 +97,28 @@ _MITA_PINS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
     }
 )
 
+# Pinned upstream mieru 3.36.0 client packages and the executable each carries.
+# The acceptance runs the official client, so the client is pinned exactly like
+# the server: the operator stages the package and the installer proves it.
+_MIERU_CLIENT_PINS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
+    {
+        "amd64": (
+            "https://github.com/enfein/mieru/releases/download/v3.36.0/"
+            "mieru_3.36.0_amd64.deb",
+            "49da700a7ce80aa46486313d61ecb83825a99e27a1dab9dda726241cbb85cb90",
+            "acbf1b6ea9d48a6f88af9397fa9f1897cdb0f5f6ec456608b55307d7f1dcbdfc",
+        ),
+        "arm64": (
+            "https://github.com/enfein/mieru/releases/download/v3.36.0/"
+            "mieru_3.36.0_arm64.deb",
+            "8049bdacbd36d936eb502525425ef93004913f99ac4178e66bebfb29c82f0378",
+            "23031932aaf4b46567a7882c3971cb22f439a138f38fe17c633c65c9f4411da9",
+        ),
+    }
+)
+_CLIENT_IMAGE = f"proxy-control-mieru-client:{_MITA_VERSION}"
+_CLIENT_CONTEXT = "deploy/mieru-client"
+
 _ACCEPTANCE_PREFIX = "proxy-control-mieru-"
 _ACCEPTANCE_NAME = re.compile(r"proxy-control-mieru-[0-9a-f]{16}\Z")
 _HEX_32 = re.compile(r"[0-9a-f]{32}\Z")
@@ -431,7 +453,7 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
                     "host",
                     "--volume",
                     f"{configuration}:/etc/mieru/client.json:ro",
-                    f"proxy-control-mieru-client:{_MITA_VERSION}",
+                    _CLIENT_IMAGE,
                 ),
                 "client probe",
             )
@@ -924,6 +946,7 @@ class MieruAdapter:
             shutil.rmtree(staged.binary.parents[2], ignore_errors=True)
         # 2. Service identity and the stable socket boundary.
         identities = self._ensure_identities()
+        self._build_client_image(str(selected["architecture"]))
         self._install_helpers()
         self._run("systemd-tmpfiles", "--create", self.paths.tmpfiles)
         self._prepare_mita_state()
@@ -1195,6 +1218,56 @@ class MieruAdapter:
 
     def _default_package(self, architecture: str) -> str:
         return f"/var/lib/proxy-control/mita_{_MITA_VERSION}_{architecture}.deb"
+
+    def _default_client_package(self, architecture: str) -> str:
+        return f"/var/lib/proxy-control/mieru_{_MITA_VERSION}_{architecture}.deb"
+
+    def _build_client_image(self, architecture: str) -> None:
+        """Build the acceptance harness from the pinned official client.
+
+        The image is never pulled: the client package is staged by the operator
+        exactly like the server package, verified against its pin, and only its
+        executable enters the build context.
+        """
+        if architecture not in _MIERU_CLIENT_PINS:
+            raise ArtifactError("mieru client is not pinned for this architecture")
+        _url, package_digest, executable_digest = _MIERU_CLIENT_PINS[architecture]
+        package = self._host(self._default_client_package(architecture))
+        try:
+            verify_artifact(package, package_digest)
+        except Exception as exc:
+            raise ArtifactError(
+                "mieru client package digest does not match"
+            ) from exc
+        extract = getattr(self.runner, "dpkg_extract", None)
+        if not callable(extract):
+            raise ArtifactError("package extraction is unavailable")
+        staging = Path(tempfile.mkdtemp(prefix="proxy-control-mieru-client-"))
+        try:
+            os.chmod(staging, 0o700)
+            extracted = staging / "package"
+            extract(str(package), str(extracted))
+            binary = extracted / "usr/bin/mieru"
+            if binary.is_symlink() or not binary.is_file():
+                raise ArtifactError(
+                    "mieru client executable is missing from the package"
+                )
+            if _file_sha256(binary) != executable_digest:
+                raise ArtifactError(
+                    "mieru client executable digest does not match"
+                )
+            context = staging / "context"
+            context.mkdir(mode=0o700)
+            shutil.copyfile(binary, context / "mieru")
+            os.chmod(context / "mieru", 0o755)
+            for name in ("Dockerfile", "probe.py"):
+                source = self.source_dir / _CLIENT_CONTEXT / name
+                if not source.is_file():
+                    raise ArtifactError("installer source generation is incomplete")
+                shutil.copyfile(source, context / name)
+            self._run("docker", "build", "--tag", _CLIENT_IMAGE, str(context))
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
 
     def _checkpoint(
         self,
