@@ -50,7 +50,10 @@ def _recv_exact(connection: socket.socket, size: int) -> bytes:
 class DevTools:
     def __init__(self, url: str) -> None:
         parsed = urllib.parse.urlsplit(url)
-        self.connection = socket.create_connection((parsed.hostname, parsed.port), timeout=10)
+        # Every DevTools read inherits this timeout. A busy CI runner can take
+        # far longer than ten seconds to answer while Chromium is still warming
+        # up, and the render loop below already bounds the wait.
+        self.connection = socket.create_connection((parsed.hostname, parsed.port), timeout=60)
         key = base64.b64encode(os.urandom(16)).decode()
         target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
         request = (
@@ -161,7 +164,7 @@ def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
                 {"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True},
             )
             devtools.call("Page.navigate", {"url": page.as_uri()})
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
                 result = devtools.call(
                     "Runtime.evaluate",
