@@ -26,7 +26,7 @@ class ContainerScenarioTests(unittest.TestCase):
         """Nested Docker and public network scenarios are never claimed."""
         container = set(lab.CONTAINER_SCENARIOS)
         for name in (
-            "fresh-full-xui",
+            "install-full-xui",
             "telemt-official-client",
             "naive-official-client",
             "mieru-official-client",
@@ -55,7 +55,7 @@ class ContainerScenarioTests(unittest.TestCase):
             required=lab.qemu_lab.release_scenarios(),
         )
         self.assertEqual(verdict.exit_code, 1)
-        self.assertIn("fresh-full-xui", verdict.missing)
+        self.assertIn("install-full-xui", verdict.missing)
 
     def test_a_missing_container_result_fails_the_report(self):
         report = {

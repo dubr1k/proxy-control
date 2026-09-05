@@ -26,7 +26,7 @@ RELEASE_SCENARIOS = (
     "release-artifact-integrity",
     "audit",
     "plan",
-    "fresh-full-xui",
+    "install-full-xui",
     "coexist-existing-xui",
     "nginx-multi-map",
     "telemt-official-client",

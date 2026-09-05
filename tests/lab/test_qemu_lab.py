@@ -376,7 +376,7 @@ class ReleaseMatrixTests(unittest.TestCase):
         self.assertLessEqual(REQUIRED_RELEASE_SCENARIOS, names)
         self.assertLessEqual(
             {
-                "fresh-full-xui",
+                "install-full-xui",
                 "coexist-existing-xui",
                 "crash-every-phase",
                 "uninstall-foreign-identity",
@@ -659,3 +659,32 @@ class ReleaseRootLayout(unittest.TestCase):
                     missing, set(), f"{name} needs {sorted(missing)}"
                 )
             self.assertTrue(set(functions) <= defined)
+
+
+class ReleaseConfigMatchesItsFixture(unittest.TestCase):
+    """The release fixture builds a shared-443 stream router and a foreign
+    3x-ui. `fresh` is refused against an active router, and `managed-new`
+    requires `fresh`, so that pair could never plan on this host."""
+
+    RUNNER = MODULE.parent / "guest-runner.sh"
+
+    def _config(self, function: str) -> str:
+        text = self.RUNNER.read_text()
+        start = text.index(f"\n{function}() {{")
+        body = text[start:text.index("\n}\n", start)]
+        return body[body.index('cat > "$CONFIG" <<TOML'):body.index("\nTOML")]
+
+    def test_the_release_lab_describes_a_coexisting_host(self):
+        config = self._config("release_setup")
+        self.assertIn('host_mode = "coexist"', config)
+        self.assertNotIn('mode = "managed-new"', config)
+
+    def test_the_fixture_really_installs_a_stream_router(self):
+        text = self.RUNNER.read_text()
+        start = text.index("\nsetup_full_host() {")
+        # Stop at the next top-level function: a heredoc in the body contains
+        # closing braces of its own.
+        following = re.search(r"\n[a-z_][a-z0-9_]*\(\) \{", text[start + 1:])
+        body = text[start:start + 1 + following.start()]
+        self.assertIn("ssl_preread", body)
+        self.assertIn('cat > "$ROUTE"', body)

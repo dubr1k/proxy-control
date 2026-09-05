@@ -519,9 +519,14 @@ release_setup() {
   install -d -m 0755 "$RELEASE_STAGE"
   tar -xf "$RELEASE" -C "$RELEASE_STAGE"
   test -f "$RELEASE_ROOT/release/release.json"
+  # setup_full_host builds the coexistence topology - an existing shared-443
+  # stream router and a foreign 3x-ui - so the configuration has to describe
+  # that host. `fresh` is refused against an active stream router, and
+  # `managed-new` requires `fresh`, which is why this combination could never
+  # have planned.
   cat > "$CONFIG" <<TOML
 schema = 1
-host_mode = "fresh"
+host_mode = "coexist"
 profile = "full"
 acme_email = "lab@example.invalid"
 initial_user = "owner"
@@ -537,16 +542,13 @@ tcp_ports = [46001]
 udp_ports = [46002]
 
 [three_xui]
-mode = "managed-new"
-panel_domain = "xui.lab.test"
+mode = "existing"
 vless_tcp_domain = "vless.lab.test"
-vless_xhttp_domain = "xhttp.lab.test"
-hysteria_domain = "hy2.lab.test"
 warp = false
 warp_domains = []
 
 [firewall]
-manage_ufw = true
+manage_ufw = false
 TOML
   printf '%s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' "$(host_ip)" >> /etc/hosts
   stage_mita_package
@@ -616,7 +618,7 @@ release_install() {
   python3 -c "import json;assert json.load(open('/tmp/status.json'))['status']=='active'"
 }
 
-release_fresh_full_xui() {
+release_install_full_xui() {
   release_install
   systemctl is-active nginx docker >/dev/null
   test -d /opt/mtproxy-shared443
@@ -1252,17 +1254,17 @@ elif [[ $MODE == release-amd64 || $MODE == release-arm64 ]]; then
   case_run audit release_audit release-artifact-integrity
   case_run plan release_plan audit
   emit_plan_digest
-  case_run fresh-full-xui release_fresh_full_xui plan
-  case_run coexist-existing-xui release_coexist_existing_xui fresh-full-xui
-  case_run nginx-multi-map release_nginx_multi_map fresh-full-xui
-  case_run telemt-official-client release_telemt_client fresh-full-xui
-  case_run naive-official-client release_naive_client fresh-full-xui
-  case_run mieru-official-client release_mieru_client fresh-full-xui
-  case_run vless-tcp-client release_vless_tcp_client fresh-full-xui
-  case_run vless-xhttp-client release_vless_xhttp_client fresh-full-xui
-  case_run hysteria2-client release_hysteria_client fresh-full-xui
-  case_run docker-build docker_build_check fresh-full-xui
-  case_run repair release_repair fresh-full-xui
+  case_run install-full-xui release_install_full_xui plan
+  case_run coexist-existing-xui release_coexist_existing_xui install-full-xui
+  case_run nginx-multi-map release_nginx_multi_map install-full-xui
+  case_run telemt-official-client release_telemt_client install-full-xui
+  case_run naive-official-client release_naive_client install-full-xui
+  case_run mieru-official-client release_mieru_client install-full-xui
+  case_run vless-tcp-client release_vless_tcp_client install-full-xui
+  case_run vless-xhttp-client release_vless_xhttp_client install-full-xui
+  case_run hysteria2-client release_hysteria_client install-full-xui
+  case_run docker-build docker_build_check install-full-xui
+  case_run repair release_repair install-full-xui
   case_run idempotence release_idempotence repair
   case_run reboot-recovery release_reboot_recovery idempotence
   case_run crash-every-phase release_crash_every_phase reboot-recovery
