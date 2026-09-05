@@ -9,6 +9,7 @@ import pytest
 
 from installer.adapters.mieru import (
     _MANAGER_UID,
+    _MIERU_CLIENT_PINS as REAL_CLIENT_PINS,
     _MITA_PINS,
     _MITA_VERSION,
     _RUNNING,
@@ -417,10 +418,29 @@ def test_mieru_stage_leaves_no_extraction_directory_on_failure(tmp_path):
 
 
 def test_mieru_pins_match_the_documented_release():
-    for architecture, (url, package, executable) in _MITA_PINS.items():
-        assert f"v{_MITA_VERSION}" in url
-        assert architecture in url
-        assert len(package) == 64 and len(executable) == 64
+    import json
+
+    # Bound at import, before the fixture pins the stand-in package.
+    for pins in (_MITA_PINS, REAL_CLIENT_PINS):
+        for architecture, (url, package, executable) in pins.items():
+            assert f"v{_MITA_VERSION}" in url
+            assert architecture in url
+            assert len(package) == 64 and len(executable) == 64
+
+    # The adapter and the reviewed manifest must never disagree about what an
+    # operator is told to stage.
+    manifest = json.loads(
+        (ROOT / "release/external-artifacts.json").read_text(encoding="utf-8")
+    )
+    reviewed = {entry["name"]: entry for entry in manifest["artifacts"]}
+    for name, pins in (("mita", _MITA_PINS), ("mieru", REAL_CLIENT_PINS)):
+        entry = reviewed[name]
+        assert entry["version"] == _MITA_VERSION
+        for architecture, (url, package, executable) in pins.items():
+            platform = entry["platforms"][architecture]
+            assert platform["url"] == url
+            assert platform["sha256"] == package
+            assert platform["executable_sha256"] == executable
 
 
 # ----------------------------------------------------------------------

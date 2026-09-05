@@ -259,7 +259,9 @@ def python_requirements() -> set[str]:
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
+            # `-r other.txt` includes another file this loop already reads,
+            # and option lines name no package at all.
+            if not stripped or stripped.startswith(("#", "-")):
                 continue
             names.add(re.split(r"[=<>\[;]", stripped, maxsplit=1)[0].strip())
     return names

@@ -1015,6 +1015,88 @@ git diff --check
 
 
 
+# Egress: WARP как одна точка SOCKS5
+
+WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:45000`. Проект сам WARP
+не разворачивает: вы запускаете собственный клиент, привязываете его к этому
+адресу, а установщик подключает к нему протоколы при `warp = true`.
+
+Три протокола обращаются с этой точкой **по-разному**, и это сделано намеренно:
+
+| Протокол | Что уходит через WARP |
+|---|---|
+| **Xray / 3x-ui** | **Только выбранный трафик.** Правила маршрутизации привязаны к `warp_domains`; всё остальное уходит с хоста напрямую, а обязательное финальное правило оставляет несовпавший трафик прямым. |
+| **NaiveProxy** | **Весь туннелируемый трафик.** В блоке Caddy `forward_proxy` стоит один `upstream socks5://127.0.0.1:45000`, у которого нет подоменной формы. |
+| **Mieru** | **Весь трафик** — одним egress-правилом на все домены и все IP, называющим прокси WARP. |
+
+То есть сессия пользователя Naive или Mieru целиком уходит через WARP, а сессия
+пользователя Xray — только для перечисленных вами доменов. При `warp = false`
+нигде не появляется ни outbound, ни upstream, ни правило WARP, а egress-правило
+Mieru остаётся `DIRECT`.
+
+Полная поверхность конфигурации — в
+[справочнике установщика](docs/INSTALLER_REFERENCE.ru.md).
+
+# Состав пакетов
+
+Всё, что репозиторий ставит, собирает или от чего зависит, в одном месте.
+
+## Пакеты хоста
+
+Адаптер `packages` ставит ровно эти пакеты и никакие другие:
+`ca-certificates`, `certbot`, `curl`, `docker-compose-v2`, `docker.io`,
+`nginx-full`, `openssl`, `python3`.
+
+## Пинованные внешние артефакты
+
+Их публикуют другие проекты под собственными лицензиями. Установщик никогда не
+скачивает их за вас: вы размещаете пакет сами, и установщик отказывается
+продолжать, если его digest не совпадает с пином.
+
+| Артефакт | Версия | Лицензия | Назначение |
+|---|---|---|---|
+| `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | Сервер Mieru. Устанавливается только исполняемый файл и уведомление о лицензии; сам пакет — никогда. |
+| `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | Официальный клиент Mieru: из него собирается образ приёмки, который доказывает, что каждый транспорт реально пропускает трафик. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.7.0 | GPL-3.0-only | Панель 3x-ui и её ядро Xray для VLESS Reality TCP, VLESS Reality XHTTP и Hysteria2. |
+
+Caddy `v2.11.4` с `http.handlers.forward_proxy` собирается по пинованному
+рецепту `docker/Dockerfile.caddy-naive`, а не скачивается бинарником. Все URL,
+digest и идентификаторы SPDX лежат в
+[`release/external-artifacts.json`](release/external-artifacts.json), который
+сборка релиза встраивает в SBOM.
+
+## Образы контейнеров
+
+| Dockerfile | Образ |
+|---|---|
+| `panel/Dockerfile` | API и интерфейс панели. |
+| `naive_manager/Dockerfile` | Менеджер доступов и учёта NaiveProxy. |
+| `mieru_manager/Dockerfile` | Менеджер доступов и квот Mieru. |
+| `probe/Dockerfile` | Приёмочная проба MTProto. |
+| `docker/Dockerfile.caddy-naive` | Пинованная сборка Caddy с `forward_proxy`. |
+| `deploy/Dockerfile.agent` | Агент узла Fleet. |
+| `deploy/Dockerfile.ingress` | mTLS-ingress Fleet. |
+| `deploy/mieru-client/Dockerfile` | Пинованный официальный клиент Mieru для приёмки. |
+| `scripts/lab/Dockerfile.acceptance` | Одноразовый systemd-контейнер, в который ставится релиз на стенде. |
+
+Все они собираются из `python:3.13.5-slim`, пинованного по digest.
+
+## Зависимости Python
+
+Рантайм (`panel/requirements.txt`): `fastapi`, `starlette`, `pydantic`,
+`pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
+`httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
+`argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
+`qrcode`.
+
+Только для разработки (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`,
+`iniconfig`, `packaging`, `pluggy`, `Pygments`, `ruff`.
+
+Все версии пинованы точно. Сам установщик и оба менеджера используют только
+стандартную библиотеку Python.
+
+
+
 # Статус и лицензия
 
 Подтверждены тесты Python, проверки качества, рендеринг Compose-конфигураций, сборка образов, панели MTProxy/NaiveProxy/Mieru и адаптивный интерфейс. Полный цикл установки и отката в QEMU, регистрация Fleet в боевой среде и бухгалтерская точность учёта трафика не заявляются как завершённые этапы выпуска.

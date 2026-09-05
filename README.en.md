@@ -1015,6 +1015,89 @@ Detailed boundary guides: [documentation map](docs/README.md), [automated instal
 
 
 
+# Egress: WARP as one SOCKS5 endpoint
+
+WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:45000`. This project
+never provisions WARP itself: you run your own client, bind it there, and the
+installer wires the protocols to it when `warp = true`.
+
+The three protocols do **not** treat that endpoint the same way, and the
+difference is deliberate:
+
+| Protocol | What goes through WARP |
+|---|---|
+| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves the host directly, and the mandatory final rule keeps unmatched traffic direct. |
+| **NaiveProxy** | **All tunnelled traffic.** The Caddy `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
+| **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP that names the WARP proxy. |
+
+So a Naive or Mieru user's whole session leaves through WARP, while an Xray
+user's session leaves through WARP only for the domains you listed. With
+`warp = false` no WARP outbound, upstream, or rule is emitted anywhere, and the
+Mieru egress rule stays `DIRECT`.
+
+The complete configuration surface is in the
+[installer reference](docs/INSTALLER_REFERENCE.en.md).
+
+# Package inventory
+
+Everything this repository installs, builds, or depends on, in one place.
+
+## Host packages
+
+The `packages` adapter installs exactly these, and nothing else:
+`ca-certificates`, `certbot`, `curl`, `docker-compose-v2`, `docker.io`,
+`nginx-full`, `openssl`, `python3`.
+
+## Pinned external artifacts
+
+These are published by other projects under their own licenses. The installer
+never downloads them for you: you stage the package, and the installer refuses
+to continue unless its digest matches the pin.
+
+| Artifact | Version | License | Purpose |
+|---|---|---|---|
+| `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The Mieru server. Only the executable and a license notice are installed; the package itself never is. |
+| `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The official Mieru client, used to build the acceptance harness image that proves each transport carries traffic. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.7.0 | GPL-3.0-only | The 3x-ui panel and its Xray core for VLESS Reality TCP, VLESS Reality XHTTP, and Hysteria2. |
+
+Caddy `v2.11.4` with `http.handlers.forward_proxy` is built from the pinned
+recipe in `docker/Dockerfile.caddy-naive` rather than downloaded as a binary.
+Every URL, digest, and SPDX identifier lives in
+[`release/external-artifacts.json`](release/external-artifacts.json), which the
+release build embeds in the SBOM.
+
+## Container images
+
+| Dockerfile | Image |
+|---|---|
+| `panel/Dockerfile` | The panel API and UI. |
+| `naive_manager/Dockerfile` | The NaiveProxy credential and accounting manager. |
+| `mieru_manager/Dockerfile` | The Mieru credential and quota manager. |
+| `probe/Dockerfile` | The MTProto acceptance probe. |
+| `docker/Dockerfile.caddy-naive` | The pinned Caddy build that carries `forward_proxy`. |
+| `deploy/Dockerfile.agent` | The Fleet node agent. |
+| `deploy/Dockerfile.ingress` | The Fleet mTLS ingress. |
+| `deploy/mieru-client/Dockerfile` | The pinned official Mieru client used by the acceptance. |
+| `scripts/lab/Dockerfile.acceptance` | The disposable systemd container the release lab installs into. |
+
+Every one of them builds from `python:3.13.5-slim`, pinned by digest.
+
+## Python dependencies
+
+Runtime (`panel/requirements.txt`): `fastapi`, `starlette`, `pydantic`,
+`pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
+`httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
+`argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
+`qrcode`.
+
+Development only (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`,
+`iniconfig`, `packaging`, `pluggy`, `Pygments`, `ruff`.
+
+Every version is pinned exactly. The installer itself and both managers use
+only the Python standard library.
+
+
+
 # Status and license
 
 Python tests, quality checks, Compose rendering, image builds, MTProxy/NaiveProxy/Mieru panel integrations, and the responsive interface are validated. The complete QEMU installation and rollback lifecycle, production Fleet enrollment, and billing-grade traffic accounting are not claimed as completed release gates.

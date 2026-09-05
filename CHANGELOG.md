@@ -50,6 +50,54 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 - Ubuntu 24.04 QEMU lifecycle and production fleet enrollment remain pending; Telemt, NaiveProxy and Mieru have passed live operator-controlled protocol probes.
 
+## [0.1.0]
+
+The first packaged release: a transactional installer that takes a clean
+Ubuntu 24.04 host from nothing to a verified deployment, and a release
+acceptance lab that proves it on real hardware.
+
+### Added
+
+- A transactional release **installer** (`installer/`) with a durable journal
+  and an explicit `prepare → apply → verify` lifecycle per adapter. Nothing is
+  applied until the operator confirms the plan digest, every mutation is owned
+  by exactly one adapter, and an interrupted run resumes or rolls back instead
+  of leaving a half-installed host.
+- A bilingual interactive wizard, and the `wizard`, `plan`, `install`, `status`,
+  `resume`, `repair`, `report`, and `uninstall` subcommands.
+- Profiles `core`, `core-naive`, `core-mieru`, and `full`, selecting exactly the
+  adapters a configuration needs: `packages`, `nginx`, `certificates`,
+  `firewall`, `core`, `naive`, `mieru`, `three_xui`.
+- Per-protocol acceptance that proves the deployment works rather than that it
+  started: a real `resPQ` exchange for MTProto, cover HTTPS plus an
+  authenticated `CONNECT` with closed-tunnel accounting for NaiveProxy, and the
+  pinned official client carrying traffic over each transport for Mieru.
+- Reproducible release builds, an SPDX SBOM, build provenance, and
+  `install-bootstrap`, which verifies the archive, its checksum, and its
+  manifest before its single `exec sudo` and never downloads and executes in one
+  step.
+- A release acceptance lab that installs a real release archive into a
+  disposable systemd container and onto a disposable bare-metal host, covering
+  install, repair, a repeated install, reboot recovery, an interrupted phase,
+  reporting, secret scanning, uninstall, and shared-443 coexistence.
+- Pinned upstream artifacts with URLs, digests, and SPDX licences in
+  `release/external-artifacts.json`: the `mita` server, the official `mieru`
+  client used by the acceptance, and the 3x-ui panel with its Xray core.
+- [Installer reference](docs/INSTALLER_REFERENCE.ru.md) /
+  [installer reference](docs/INSTALLER_REFERENCE.en.md), and a documentation
+  contract that runs every documented command through the shipped argument
+  parser so the documentation cannot drift from the CLI.
+
+### Changed
+
+- WARP is documented and wired as one loopback SOCKS5 endpoint at
+  `127.0.0.1:45000`, with the per-protocol split stated explicitly: Xray routes
+  only `warp_domains` through it, while NaiveProxy and Mieru route all traffic
+  through it.
+- The NaiveProxy site listens on a port-only address and enables probe
+  resistance, so a tunnelled `CONNECT` reaches `forward_proxy` and an
+  unauthenticated request is served the cover site instead of `407`.
+
 ## [1.3.0] - 2026-08-11
 
 ### New Features
