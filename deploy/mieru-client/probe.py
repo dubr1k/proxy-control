@@ -11,20 +11,32 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
 _DEADLINE_SECONDS = 20.0
 _INTERVAL_SECONDS = 0.4
 
 
-def _run(*arguments: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ("mieru", *arguments),
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+def _run(*arguments: str) -> tuple[int, str]:
+    """Run one client command without inheriting a pipe to its daemon.
+
+    `mieru start` leaves a background process behind, and that child keeps a
+    captured pipe open, so reading one would block until the daemon exits.
+    Output goes to a temporary file instead, which the daemon may inherit
+    harmlessly.
+    """
+    with tempfile.TemporaryFile() as sink:
+        completed = subprocess.run(
+            ("mieru", *arguments),
+            stdin=subprocess.DEVNULL,
+            stdout=sink,
+            stderr=subprocess.STDOUT,
+            timeout=30,
+            check=False,
+        )
+        sink.seek(0)
+        return completed.returncode, sink.read().decode("utf-8", "replace")
 
 
 def _endpoint(value: str) -> tuple[str, int]:
@@ -96,13 +108,13 @@ def main() -> int:
     expected = int(os.environ["MIERU_PROBE_STATUS"])
     url = os.environ["MIERU_PROBE_URL"]
     proxy = _endpoint(os.environ["MIERU_PROBE_SOCKS"])
-    applied = _run("apply", "config", os.environ["MIERU_PROBE_CONFIG"])
-    if applied.returncode != 0:
-        sys.stderr.write("mieru could not apply the client configuration\n")
+    code, output = _run("apply", "config", os.environ["MIERU_PROBE_CONFIG"])
+    if code != 0:
+        sys.stderr.write(f"mieru could not apply the client configuration: {output}\n")
         return 1
-    started = _run("start")
-    if started.returncode != 0:
-        sys.stderr.write("mieru client did not start\n")
+    code, output = _run("start")
+    if code != 0:
+        sys.stderr.write(f"mieru client did not start: {output}\n")
         return 1
     try:
         deadline = time.monotonic() + _DEADLINE_SECONDS
