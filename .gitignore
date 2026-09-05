@@ -44,6 +44,12 @@ panel/*.sqlite3*
 lab-results/
 lab-results-container/
 
+# Release build outputs. The documented build runs twice into sibling
+# directories inside the checkout and compares the bytes, so both must be
+# invisible to the clean-tree check the second build performs.
+dist/
+dist-again/
+
 # Runtime version-agent state is host-specific and may reference local images.
 version-overrides/compose.versions.yaml
 

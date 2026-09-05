@@ -147,6 +147,37 @@ def test_two_release_builds_are_byte_identical(tmp_path):
     assert first.sbom_bytes == second.sbom_bytes
 
 
+def test_the_release_builds_twice_into_the_checkout_the_way_ci_does(tmp_path):
+    """The published build runs twice into `dist/` and `dist-again/` inside the
+    checkout and compares the bytes. The second build re-checks that the tree is
+    clean, so the first build's output must be ignored or it refuses itself."""
+    source = clean_checkout(tmp_path)
+    (source / ".gitignore").write_text(
+        (source / ".gitignore").read_text() + "dist/\ndist-again/\n"
+    )
+    git(source, "add", ".gitignore")
+    git(source, "commit", "-qm", "ignore release outputs")
+
+    first = build_release(
+        source / "dist", source=source, version=VERSION, epoch=FIXED_EPOCH
+    )
+    second = build_release(
+        source / "dist-again", source=source, version=VERSION, epoch=FIXED_EPOCH
+    )
+
+    assert sha256(first.archive) == sha256(second.archive)
+
+
+def test_the_repository_ignores_its_own_release_outputs():
+    """The same property, on the real .gitignore rather than a fixture."""
+    for name in ("dist", "dist-again"):
+        completed = subprocess.run(
+            ("git", "-C", str(ROOT), "check-ignore", "-q", f"{name}/"),
+            capture_output=True,
+        )
+        assert completed.returncode == 0, name
+
+
 def test_release_excludes_untracked_ignored_private_and_lab_state(tmp_path):
     source = checkout_with_private_files(tmp_path)
     archive = build(tmp_path, "dist", source).archive
