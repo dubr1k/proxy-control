@@ -146,6 +146,10 @@ class FakeNaiveRunner:
     def compose_project_present(self, _project_dir):
         return self.compose_present
 
+    def compose_service_present(self, service):
+        assert service == "naive-manager"
+        return self.compose_present
+
     # -- acceptance ------------------------------------------------------
 
     def naive_acceptance(self, **kwargs):
@@ -266,12 +270,49 @@ def test_naive_render_stages_a_private_listener_without_managed_markers():
     assert "bind 127.0.0.1" in rendered.caddyfile_template
     assert "NAIVE-MANAGER USERS" not in rendered.caddyfile_template
     assert rendered.caddyfile_template.count("forward_proxy {") == 1
+    # Without this the cover site answers 407 and fingerprints the tunnel.
+    assert "probe_resistance" in rendered.caddyfile_template
+    # A named site address would install a Host matcher, and a tunnelled
+    # CONNECT carries the destination as its Host, so it would never reach
+    # forward_proxy.
+    assert "https://:443 {" in rendered.caddyfile_template
+    assert "https://naive.example.com {" not in rendered.caddyfile_template
     assert "__PROXY_CONTROL_BOOTSTRAP_PASSWORD__" in rendered.caddyfile_template
     assert rendered.mode(PATHS.manager_token) == 0o400
     assert rendered.mode(PATHS.caddyfile) == 0o640
     assert rendered.mode(PATHS.secret_token) == 0o600
     assert "NAIVE_PUBLIC_HOST=naive.example.com" in rendered.env_text
     assert "password" not in rendered.env_text
+
+
+def _file_writer_options(text: str, path: str) -> set[str]:
+    """Collect the options of every `output file <path> { ... }` block."""
+    options: set[str] = set()
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() != f"output file {path} {{":
+            continue
+        for entry in lines[index + 1:]:
+            if entry.strip() == "}":
+                break
+            options.add(entry.strip())
+    return options
+
+
+def test_naive_bootstrap_log_matches_the_manager_accounting_writer():
+    """Caddy shares one writer per filename: mismatched options lock the
+    accounting group out of the log and gzip the rotations the manager reads."""
+    from naive_manager.service import NaiveCredentialManager
+
+    rendered = NaiveAdapter(source_dir=ROOT).render(naive_action())
+    bootstrap = _file_writer_options(rendered.caddyfile_template, PATHS.access_log)
+    accounting = _file_writer_options(
+        "\n".join(NaiveCredentialManager._accounting_lines("    ")), PATHS.access_log
+    )
+    assert bootstrap, "bootstrap Caddyfile must open the accounting log"
+    assert accounting, "manager accounting block must open the accounting log"
+    assert bootstrap == accounting
+    assert "mode 0640" in bootstrap
 
 
 # ----------------------------------------------------------------------
@@ -392,6 +433,19 @@ def test_naive_apply_orders_artifact_identities_bootstrap_and_overlay(tmp_path):
     assert index("systemctl enable") < index("--bootstrap-only")
     assert index("--bootstrap-only") < index("systemctl reload")
     assert index("systemctl reload") < index("up -d --build --wait")
+
+
+def test_naive_apply_seeds_a_cover_page_without_replacing_one(tmp_path):
+    instance = adapter(tmp_path)
+    action = naive_action()
+    applied(instance, action)
+    cover = host(tmp_path, "/var/www/naive.example.com/index.html")
+    assert cover.is_file()
+    assert oct(cover.stat().st_mode & 0o777) == "0o644"
+
+    cover.write_bytes(b"operator page\n")
+    applied(instance, action)
+    assert cover.read_bytes() == b"operator page\n"
 
 
 def test_naive_apply_installs_root_owned_helpers_and_pin(tmp_path):
@@ -591,14 +645,18 @@ def test_naive_rollback_cleanup_failure_remains_retryable(tmp_path):
     pending.write_text(str(checkpoint["acceptance_name"]) + "\n")
     pending.chmod(0o600)
 
-    with pytest.raises(NaiveError, match="cleanup"):
-        instance.rollback(action, checkpoint)
+    evidence = instance.rollback(action, checkpoint)
 
-    assert pending.is_file()
+    # The rollback completes and records the pending cleanup instead of
+    # trapping the host in a half-installed state.
+    assert evidence.success
+    assert evidence.details["temporary_cleanup_pending"] is True
+    # The owner tombstone survives so a later run retries the cleanup.
     assert host(tmp_path, PATHS.acceptance_owner).is_file()
 
     runner.cleanup_fails = False
-    instance.rollback(action, checkpoint)
+    evidence = instance.rollback(action, checkpoint)
+    assert evidence.details["temporary_cleanup_pending"] is False
     assert not pending.exists()
 
 
@@ -710,3 +768,226 @@ def test_naive_stays_direct_without_warp():
     assert "egress=direct" in action.mutations
     rendered = NaiveAdapter(source_dir=ROOT).render(action)
     assert "upstream" not in rendered.caddyfile_template
+
+
+def test_a_failed_identity_lookup_is_not_a_collision():
+    """`getent` reports a missing entry as diagnostic text, not as a holder."""
+    from installer.adapters.naive import _identity_from_entry
+
+    assert _identity_from_entry("exit=2 ", 10003) is None
+    assert _identity_from_entry("diagnostic unavailable: OSError", 10003) is None
+    assert _identity_from_entry("", 10003) is None
+    assert (
+        _identity_from_entry(
+            "naive-caddy:x:10003:10004::/nonexistent:/usr/sbin/nologin\n",
+            10003,
+        )
+        == "naive-caddy"
+    )
+    # A line for another identifier is never taken as this one's holder.
+    assert (
+        _identity_from_entry("other:x:10009:10009::/nonexistent:/bin/false\n", 10003)
+        is None
+    )
+
+
+def test_the_shared_core_project_is_not_mistaken_for_naive_resources(tmp_path):
+    """Core owns the `mtproxy` project; only the Naive manager blocks adoption."""
+
+    class CoreOnlyRunner(FakeNaiveRunner):
+        def compose_project_present(self, _project_dir):
+            return True  # Core is already installed in the shared project.
+
+        def compose_service_present(self, service):
+            assert service == "naive-manager"
+            return False
+
+    instance = adapter(tmp_path, CoreOnlyRunner())
+    checkpoint = instance.prepare(naive_action())
+    assert checkpoint["adoption"] == "absent"
+
+
+def test_the_rendered_caddyfile_uses_valid_block_syntax():
+    """Caddy rejects a block whose directives share the opening brace's line."""
+    rendered = NaiveAdapter(source_dir=ROOT).render(naive_action())
+    for line in rendered.caddyfile_template.splitlines():
+        stripped = line.strip()
+        if stripped.endswith("{"):
+            continue
+        assert "{" not in stripped or stripped.startswith("#"), stripped
+    assert "root * /var/www/naive.example.com" in rendered.caddyfile_template
+    assert "        file_server\n" in rendered.caddyfile_template
+
+
+def test_the_renewal_hook_publishes_only_this_keypair_for_caddy(tmp_path):
+    """The Certbot tree stays root-only; Caddy reads one published keypair."""
+    from installer.adapters.naive import _TLS_DIR, _deploy_hook_text
+
+    hook = _deploy_hook_text("naive.example.com")
+    assert "/etc/letsencrypt/live/naive.example.com" in hook
+    assert _TLS_DIR in hook
+    assert "install -d -m 0750 -o root -g naive-accounting" in hook
+    assert "install -m 0640 -o root -g naive-accounting" in hook
+    # It never widens the Certbot tree itself.
+    assert "chmod 0750 /etc/letsencrypt" not in hook
+    assert "chgrp" not in hook
+
+    rendered = NaiveAdapter(source_dir=ROOT).render(naive_action())
+    assert f"tls {_TLS_DIR}/fullchain.pem {_TLS_DIR}/privkey.pem" in (
+        rendered.caddyfile_template
+    )
+    assert "/etc/letsencrypt" not in rendered.caddyfile_template
+
+
+def test_publishing_the_keypair_fails_closed(tmp_path):
+    from installer.adapters.naive import _DEPLOY_HOOK
+
+    # The fake host path is prefixed by the adapter root.
+    runner = FakeNaiveRunner(fail_on=(str(tmp_path / _DEPLOY_HOOK.lstrip("/")),))
+    instance = adapter(tmp_path, runner)
+    with pytest.raises(NaiveError, match="command failed"):
+        applied(instance, naive_action())
+
+
+def test_naive_acceptance_reads_the_url_from_the_native_client_entry():
+    """The panel publishes the proxy URL inside the Native client config, not
+    as a top-level reveal field."""
+    from installer.adapters.naive import _DefaultNaiveRunner
+
+    revealed = {
+        "service": "naive",
+        "username": "pc-acceptance-abcd",
+        "clients": {
+            "native": {
+                "config": {
+                    "listen": "socks://127.0.0.1:1080",
+                    "proxy": "https://pc-acceptance-abcd:secret@naive.example.com",
+                }
+            }
+        },
+    }
+    assert (
+        _DefaultNaiveRunner._native_proxy_url(revealed)
+        == "https://pc-acceptance-abcd:secret@naive.example.com"
+    )
+
+    for broken in ({}, {"proxy_url": "https://u:p@naive.example.com"}, {"clients": {}}):
+        with pytest.raises(AcceptanceError, match="access"):
+            _DefaultNaiveRunner._native_proxy_url(broken)
+
+
+def test_naive_acceptance_tunnels_a_real_inner_tls_session(tmp_path, monkeypatch):
+    """The inner panel session runs inside the CONNECT tunnel. Wrapping the
+    outer SSLSocket again would send the inner ClientHello in the clear and the
+    peer would answer UNEXPECTED_MESSAGE."""
+    import socket as socket_module
+    import ssl as ssl_module
+    import subprocess
+    import threading
+
+    from installer.adapters import naive as naive_module
+    from installer.adapters.naive import _DefaultNaiveRunner
+
+    key = tmp_path / "key.pem"
+    certificate = tmp_path / "cert.pem"
+    completed = subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+            "-keyout", str(key), "-out", str(certificate), "-days", "1",
+            "-subj", "/CN=naive.example.com",
+            "-addext", "subjectAltName=DNS:naive.example.com,DNS:panel.example.com",
+        ],
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        pytest.skip("openssl is unavailable")
+
+    server_context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
+    server_context.load_cert_chain(certificate, key)
+    listener = socket_module.socket()
+    listener.setsockopt(socket_module.SOL_SOCKET, socket_module.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+    seen: dict[str, object] = {}
+
+    def serve() -> None:
+        raw, _address = listener.accept()
+        outer = server_context.wrap_socket(raw, server_side=True)
+        header = b""
+        while b"\r\n\r\n" not in header:
+            chunk = outer.recv(1024)
+            if not chunk:
+                return
+            header += chunk
+        seen["connect"] = header.split(b"\r\n", 1)[0]
+        seen["authorized"] = b"Proxy-Authorization: Basic " in header
+        outer.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+
+        incoming = ssl_module.MemoryBIO()
+        outgoing = ssl_module.MemoryBIO()
+        inner = server_context.wrap_bio(incoming, outgoing, server_side=True)
+
+        def relay(operation):
+            while True:
+                try:
+                    result = operation()
+                except ssl_module.SSLWantReadError:
+                    pending = outgoing.read()
+                    if pending:
+                        outer.sendall(pending)
+                    data = outer.recv(65536)
+                    if not data:
+                        incoming.write_eof()
+                        raise
+                    incoming.write(data)
+                    continue
+                pending = outgoing.read()
+                if pending:
+                    outer.sendall(pending)
+                return result
+
+        relay(inner.do_handshake)
+        seen["request"] = relay(lambda: inner.read(65536))
+        relay(lambda: inner.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"))
+        try:
+            inner.unwrap()
+        except ssl_module.SSLWantReadError:
+            pass  # close_notify sent; the peer's reply is not awaited here.
+        pending = outgoing.read()
+        if pending:
+            outer.sendall(pending)
+        outer.close()
+
+    def permissive_context():
+        context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl_module.CERT_NONE
+        return context
+
+    monkeypatch.setattr(naive_module.ssl, "create_default_context", permissive_context)
+    connect = socket_module.create_connection
+    monkeypatch.setattr(
+        naive_module.socket,
+        "create_connection",
+        lambda _address, timeout=None: connect(("127.0.0.1", port), timeout=timeout),
+    )
+
+    worker = threading.Thread(target=serve, daemon=True)
+    worker.start()
+    try:
+        connect_bytes, closed, panel_ok = _DefaultNaiveRunner()._authenticated_connect(
+            "https://user:secret@naive.example.com",
+            naive_domain="naive.example.com",
+            panel_domain="panel.example.com",
+        )
+    finally:
+        worker.join(timeout=10)
+        listener.close()
+
+    assert seen["connect"] == b"CONNECT panel.example.com:443 HTTP/1.1"
+    assert seen["authorized"] is True
+    assert seen["request"].startswith(b"GET /healthz HTTP/1.1")
+    assert panel_ok is True
+    assert closed is True
+    assert connect_bytes > 0

@@ -20,6 +20,7 @@ from installer.adapters.core import (
     _file_sha256,
     _path_sha256,
 )
+from installer.adapters.naive import _identity_from_entry
 from installer.model import InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, verify_artifact
@@ -37,8 +38,21 @@ if TYPE_CHECKING:
 _PROJECT = "/opt/mtproxy-shared443"
 _MITA_BINARY = "/usr/bin/mita"
 _MITA_LICENSE = "/usr/share/doc/mita/copyright"
+_MITA_LICENSE_NOTICE = (
+    b"Upstream-Name: mieru / mita\n"
+    b"Source: https://github.com/enfein/mieru\n"
+    b"License: GPL-3.0-or-later\n"
+    b"\n"
+    b"The mita executable installed next to this notice is unmodified upstream\n"
+    b"software distributed under the GNU General Public License version 3 or\n"
+    b"later. Its complete source and licence text are published at the address\n"
+    b"above. Proxy Control installs only the executable and this notice; the\n"
+    b"package itself is never installed.\n"
+)
 _MITA_STATE = "/var/lib/mita"
 _MITA_CONFIG = "/var/lib/mita/server_config.json"
+# Files a service rewrites after the installer creates them.
+_MUTABLE_PATHS = frozenset({_MITA_CONFIG})
 _MITA_BOOTSTRAP = "/var/lib/mita/bootstrap-input.json"
 _MITA_UNIT = "/etc/systemd/system/mita.service"
 _MITA_TMPFILES = "/etc/tmpfiles.d/mita.conf"
@@ -96,6 +110,18 @@ _HELPERS: tuple[tuple[str, str, int], ...] = (
     ("deploy/mita.tmpfiles.conf", _MITA_TMPFILES, 0o644),
 )
 
+def _command_failure(argv: Sequence[str]) -> str:
+    """Name the failing program and subcommand without echoing any argument."""
+    program = Path(str(argv[0])).name if argv else "command"
+    subcommand = ""
+    for value in list(argv)[1:3]:
+        rendered = str(value)
+        if rendered.startswith("-") or "/" in rendered:
+            break
+        subcommand += f" {rendered}"
+    return f"Mieru command failed: {program}{subcommand}"
+
+
 class MieruError(RuntimeError):
     """The Mieru ownership boundary cannot be changed safely."""
 
@@ -116,6 +142,12 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
     """Real host commands and acceptance probes for the Mieru boundary."""
 
     def identity_owner(self, kind: str, identifier: int) -> str | None:
+        """Name the holder of a fixed identity, or None when it is free.
+
+        `capture` reports a failed lookup as diagnostic text rather than
+        raising, so only a well-formed database line for this exact identifier
+        counts as a holder: anything else would invent a collision.
+        """
         database = "passwd" if kind == "uid" else "group"
         try:
             output = self.capture(
@@ -124,10 +156,46 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
             )
         except Exception:
             return None
-        lines = output.strip().splitlines()
-        if not lines:
+        return _identity_from_entry(output, identifier)
+
+    def service_identity(self, name: str) -> tuple[int, int] | None:
+        """Return the numeric (uid, gid) of one service account, if it exists."""
+        try:
+            output = self.capture(("getent", "passwd", name), max_chars=512)
+        except Exception:
             return None
-        return lines[0].split(":", 1)[0] or None
+        for line in output.strip().splitlines():
+            fields = line.split(":")
+            if len(fields) < 4 or fields[0] != name:
+                continue
+            if fields[2].isdigit() and fields[3].isdigit():
+                return int(fields[2]), int(fields[3])
+        return None
+
+    def compose_service_present(self, service: str) -> bool:
+        """Report only this protocol's own Compose service, not the project.
+
+        Core owns the shared `mtproxy` project, so a project-wide check would
+        see Core's containers and refuse a first install of this protocol.
+        """
+        output = self.capture(
+            (
+                "docker",
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--filter",
+                "label=com.docker.compose.project=mtproxy",
+                "--filter",
+                f"label=com.docker.compose.service={service}",
+            ),
+            max_chars=512,
+        )
+        stripped = output.strip()
+        if not stripped or stripped.startswith(("exit=", "diagnostic ")):
+            return False
+        return True
 
     def dpkg_extract(self, package: str, destination: str) -> None:
         self._run_checked(
@@ -185,24 +253,37 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
                 raise _AcceptanceCollision(
                     "Mieru acceptance failed: temporary-user collision"
                 )
+            revision = self._service_revision(listed)
             if collision:
-                self._json_request(
-                    opener,
-                    panel_domain,
-                    f"/api/mieru/users/{acceptance_name}",
-                    method="DELETE",
-                    csrf=csrf,
-                    expect_json=False,
+                # Every mutation is a compare-and-set, so a delete carries the
+                # revision the manager last reported and re-reads the new one.
+                self._delete_acceptance_user(
+                    opener, panel_domain, acceptance_name, csrf, revision
                 )
+                listed = self._json_request(
+                    opener, panel_domain, "/api/mieru/users"
+                )
+                revision = self._service_revision(listed)
+            # The managed create is a compare-and-set against the revision the
+            # manager just reported.
             created_value = self._json_request(
                 opener,
                 panel_domain,
                 "/api/mieru/users",
                 method="POST",
-                payload={"username": acceptance_name},
+                payload={
+                    "username": acceptance_name,
+                    "quotas": [],
+                    "expected_revision": revision,
+                },
                 csrf=csrf,
             )
             created = True
+            revision = self._revision_value(
+                created_value.get("revision")
+                if isinstance(created_value, Mapping)
+                else None
+            )
             reveal = (
                 created_value.get("reveal_token")
                 if isinstance(created_value, Mapping)
@@ -226,13 +307,8 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
             failure: BaseException | None = None
             if created:
                 try:
-                    self._json_request(
-                        opener,
-                        panel_domain,
-                        f"/api/mieru/users/{acceptance_name}",
-                        method="DELETE",
-                        csrf=csrf,
-                        expect_json=False,
+                    self._delete_acceptance_user(
+                        opener, panel_domain, acceptance_name, csrf, revision
                     )
                 except BaseException as exc:
                     failure = exc
@@ -285,6 +361,37 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
                 )
         finally:
             self._logout(opener, panel_domain, csrf)
+
+    def _service_revision(self, listed: object) -> str:
+        service = listed.get("service") if isinstance(listed, Mapping) else None
+        return self._revision_value(
+            service.get("revision") if isinstance(service, Mapping) else None
+        )
+
+    @staticmethod
+    def _revision_value(value: object) -> str:
+        if not isinstance(value, str) or not value:
+            raise AcceptanceError("Mieru acceptance failed: manager health")
+        return value
+
+    def _delete_acceptance_user(
+        self,
+        opener,
+        panel_domain: str,
+        acceptance_name: str,
+        csrf: str,
+        revision: str,
+    ) -> None:
+        """Remove the temporary user with the compare-and-set the panel requires."""
+        self._json_request(
+            opener,
+            panel_domain,
+            f"/api/mieru/users/{acceptance_name}",
+            method="DELETE",
+            payload={"expected_revision": revision},
+            csrf=csrf,
+            expect_json=False,
+        )
 
     @staticmethod
     def _native_client_config(revealed: object) -> Mapping[str, object]:
@@ -677,8 +784,15 @@ class MieruAdapter:
             if version.split()[-1] != _MITA_VERSION:
                 raise ArtifactError("mita executable reports an unpinned version")
             license_path = staging / "usr/share/doc/mita/copyright"
-            if license_path.is_symlink() or not license_path.is_file():
-                raise ArtifactError("mita license material is missing")
+            if license_path.is_symlink():
+                raise ArtifactError("mita license material is unsafe")
+            if not license_path.is_file():
+                # Upstream publishes mita without a Debian copyright file, so
+                # the installer records the attribution itself: the binary is
+                # external GPL-3.0-or-later code and must stay attributed on
+                # the host next to the executable it belongs to.
+                license_path.parent.mkdir(parents=True, exist_ok=True)
+                license_path.write_bytes(_MITA_LICENSE_NOTICE)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)
             raise
@@ -812,6 +926,7 @@ class MieruAdapter:
         identities = self._ensure_identities()
         self._install_helpers()
         self._run("systemd-tmpfiles", "--create", self.paths.tmpfiles)
+        self._prepare_mita_state()
         self._run("systemctl", "daemon-reload")
         # 3. One valid generation applied through the local UDS.
         self._bootstrap_generation(selected, prepared)
@@ -928,6 +1043,7 @@ class MieruAdapter:
         selected = self._selection(action)
         prepared = self._checkpoint(checkpoint, action, applied=True)
         destructive_purge = rollback_target == "uninstalled" and purge_data
+        cleanup_pending = False
         pending = self._host(self.paths.acceptance_pending)
         if pending.exists() or pending.is_symlink():
             try:
@@ -935,18 +1051,23 @@ class MieruAdapter:
                     selected,
                     str(prepared["acceptance_name"]),
                 )
-            except Exception as exc:
-                if not destructive_purge:
+            except Exception:
+                # A rollback is never blocked by an unreachable runtime: the
+                # pending temporary user stays recorded in the tombstone so a
+                # later repair or uninstall retries it.
+                cleanup_pending = not destructive_purge
+                if cleanup_pending:
                     self._write_acceptance_owner(str(prepared["acceptance_name"]))
-                    raise MieruError(
-                        "temporary-user cleanup remains pending"
-                    ) from exc
             durable_remove(pending, missing_ok=True)
         if self._unit_present():
             self._run_best_effort("systemctl", "disable", "--now", _MITA_UNIT_NAME)
         if self._compose_service_present():
             self._compose("rm", "--stop", "--force", "mieru-manager")
-        self._remove_generation(prepared, preserve_credentials=not destructive_purge)
+        self._remove_generation(
+            prepared,
+            preserve_credentials=not destructive_purge,
+            preserve_acceptance=cleanup_pending,
+        )
         self._remove_owned_binary(prepared)
         self._run_best_effort("systemctl", "daemon-reload")
         if destructive_purge:
@@ -966,6 +1087,7 @@ class MieruAdapter:
             details={
                 "persistent_data_preserved": not destructive_purge,
                 "identities_removed": destructive_purge,
+                "temporary_cleanup_pending": cleanup_pending,
             },
         )
 
@@ -1193,6 +1315,9 @@ class MieruAdapter:
             if path.exists() or path.is_symlink():
                 ownership[host_path] = {
                     "preserve": preserve,
+                    # mita rewrites its own server config whenever a user
+                    # changes, so its digest is never foreign drift.
+                    "mutable": host_path in _MUTABLE_PATHS,
                     "sha256": _path_sha256(path),
                 }
         binary = self._host(self.paths.binary)
@@ -1224,6 +1349,7 @@ class MieruAdapter:
         checkpoint: Mapping[str, object],
         *,
         preserve_credentials: bool,
+        preserve_acceptance: bool = False,
     ) -> None:
         ownership = checkpoint.get("ownership", {})
         planned = checkpoint.get("planned_ownership", {})
@@ -1240,6 +1366,8 @@ class MieruAdapter:
             if not isinstance(entry, Mapping) or host_path not in allowed:
                 raise MieruError("Mieru checkpoint ownership escapes the boundary")
             if preserve_credentials and entry.get("preserve") is True:
+                continue
+            if preserve_acceptance and host_path == self.paths.acceptance_owner:
                 continue
             path = self._host(host_path)
             directories.add(path.parent)
@@ -1405,6 +1533,14 @@ class MieruAdapter:
             json.dumps(document, separators=(",", ":")).encode() + b"\n",
             0o600,
         )
+        # mita reads its own bootstrap input as the service user.
+        if self.root == Path("/") and os.geteuid() == 0:
+            os.chown(bootstrap, *self._mita_identity())
+        # A transient unit left in the failed state by an interrupted attempt
+        # makes systemd-run refuse the name, so resume would never start.
+        self._run_best_effort(
+            "systemctl", "reset-failed", f"{_MITA_BOOTSTRAP_UNIT}.service"
+        )
         try:
             self._run(
                 "systemd-run",
@@ -1427,6 +1563,11 @@ class MieruAdapter:
                 "stop",
                 f"{_MITA_BOOTSTRAP_UNIT}.service",
             )
+            self._run_best_effort(
+                "systemctl",
+                "reset-failed",
+                f"{_MITA_BOOTSTRAP_UNIT}.service",
+            )
             durable_remove(bootstrap, missing_ok=True)
 
     def _mita(self, *arguments: str) -> None:
@@ -1446,6 +1587,31 @@ class MieruAdapter:
             raise MieruError("mita status verification is unavailable")
         if str(status()).strip() != _RUNNING:
             raise MieruError("mita did not reach the exact RUNNING status")
+
+    def _mita_identity(self) -> tuple[int, int]:
+        lookup = getattr(self.runner, "service_identity", None)
+        identity = lookup(_MITA_USER) if callable(lookup) else None
+        if (
+            not isinstance(identity, tuple)
+            or len(identity) != 2
+            or not all(isinstance(value, int) and value > 0 for value in identity)
+        ):
+            raise MieruError("mita service identity is unavailable")
+        return identity
+
+    def _prepare_mita_state(self) -> None:
+        """Own the state directory the upstream package postinst would create.
+
+        Only the executable is installed, never the package, so nothing else
+        creates this directory and mita cannot write its own server config.
+        """
+        state = self._host(self.paths.state_dir)
+        if state.is_symlink() or (state.exists() and not state.is_dir()):
+            raise MieruError("mita state path is occupied")
+        durable_mkdir(state, mode=0o700)
+        os.chmod(state, 0o700)
+        if self.root == Path("/") and os.geteuid() == 0:
+            os.chown(state, *self._mita_identity())
 
     def _socket_group(self) -> int:
         lookup = getattr(self.runner, "socket_group", None)
@@ -1551,8 +1717,12 @@ class MieruAdapter:
         return unit.exists() or unit.is_symlink()
 
     def _compose_service_present(self) -> bool:
+        """Only the Mieru manager counts; Core owns the shared project."""
+        method = getattr(self.runner, "compose_service_present", None)
+        if callable(method):
+            return bool(method("mieru-manager"))
         method = getattr(self.runner, "compose_project_present", None)
-        return bool(method(self.paths.project_dir)) if callable(method) else True
+        return bool(method(self.paths.project_dir)) if callable(method) else False
 
     def _service_present(self) -> bool:
         return self._unit_present() or self._compose_service_present()
@@ -1583,9 +1753,9 @@ class MieruAdapter:
         except MieruError:
             raise
         except Exception as exc:
-            raise MieruError("Mieru command failed") from exc
+            raise MieruError(_command_failure(argv)) from exc
         if getattr(result, "returncode", 0):
-            raise MieruError("Mieru command failed")
+            raise MieruError(_command_failure(argv))
 
     def _run_best_effort(self, *argv: str) -> None:
         try:
@@ -1688,8 +1858,13 @@ def _validate_ownership_mapping(value: Mapping[object, object]) -> None:
             not isinstance(host_path, str)
             or not host_path.startswith("/")
             or not isinstance(entry, Mapping)
-            or set(entry) != {"preserve", "sha256"}
+            or not {"preserve", "sha256"} <= set(entry) <= {
+                "preserve",
+                "mutable",
+                "sha256",
+            }
             or not isinstance(entry["preserve"], bool)
+            or not isinstance(entry.get("mutable", False), bool)
             or not isinstance(entry["sha256"], str)
             or _SHA256.fullmatch(entry["sha256"]) is None
         ):

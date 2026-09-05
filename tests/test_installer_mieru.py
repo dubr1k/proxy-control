@@ -204,6 +204,9 @@ class FakeMieruRunner:
     def identity_owner(self, kind, identifier):
         return self.identities.get((kind, identifier))
 
+    def service_identity(self, name):
+        return (996, 988) if name == "mita" else None
+
     def identity_named(self, database, name):
         return self.named.get((database, name))
 
@@ -232,6 +235,10 @@ class FakeMieruRunner:
         return self.socket_gid
 
     def compose_project_present(self, _project_dir):
+        return self.compose_present
+
+    def compose_service_present(self, service):
+        assert service == "mieru-manager"
         return self.compose_present
 
     def mieru_acceptance(self, **kwargs):
@@ -304,6 +311,48 @@ def test_mieru_rejects_an_executable_reporting_an_unpinned_version(tmp_path):
     instance = adapter(tmp_path, FakeMieruRunner(version="mita 3.35.0"))
     with pytest.raises(ArtifactError, match="unpinned version"):
         instance.stage(staged_action(tmp_path))
+
+
+def test_mieru_bootstrap_clears_a_failed_transient_unit(tmp_path):
+    """systemd-run refuses a unit name left in the failed state, so an
+    interrupted attempt would make every resume fail the same way."""
+    instance = adapter(tmp_path)
+    action = staged_action(tmp_path)
+    instance.apply(action, instance.prepare(action))
+    resets = [
+        argv for argv in instance.runner.calls
+        if tuple(argv[:2]) == ("systemctl", "reset-failed")
+        and argv[-1] == "mita-bootstrap.service"
+    ]
+    assert len(resets) >= 2
+
+
+def test_mieru_apply_owns_the_mita_state_directory(tmp_path):
+    """mita writes its server config itself, and only the executable is
+    installed, so nothing else creates this directory."""
+    instance = adapter(tmp_path)
+    action = staged_action(tmp_path)
+    instance.apply(action, instance.prepare(action))
+    state = host(tmp_path, PATHS.state_dir)
+    assert state.is_dir()
+    assert oct(state.stat().st_mode & 0o777) == "0o700"
+
+
+def test_mieru_stage_carries_the_notice_upstream_does_not_ship(tmp_path):
+    """The pinned mita package contains only the unit and the executable, so a
+    staged install must supply the GPL attribution itself."""
+    instance = adapter(tmp_path)
+    extract = instance.runner.dpkg_extract
+
+    def without_copyright(package, destination):
+        extract(package, destination)
+        (Path(destination) / "usr/share/doc/mita/copyright").unlink()
+
+    instance.runner.dpkg_extract = without_copyright
+    staged = instance.stage(staged_action(tmp_path))
+    notice = staged.license.read_text()
+    assert "GPL-3.0-or-later" in notice
+    assert "github.com/enfein/mieru" in notice
 
 
 def test_mieru_stage_returns_the_verified_binary_and_license(tmp_path):
@@ -727,12 +776,17 @@ def test_mieru_rollback_cleanup_failure_remains_retryable(tmp_path):
     pending.write_text(str(checkpoint["acceptance_name"]) + "\n")
     pending.chmod(0o600)
 
-    with pytest.raises(MieruError, match="cleanup"):
-        instance.rollback(action, checkpoint)
+    evidence = instance.rollback(action, checkpoint)
 
-    assert pending.is_file()
+    # The rollback completes and records the pending cleanup instead of
+    # trapping the host in a half-installed state.
+    assert evidence.success
+    assert evidence.details["temporary_cleanup_pending"] is True
+    # The owner tombstone survives so a later run retries the cleanup.
+    assert host(tmp_path, PATHS.acceptance_owner).is_file()
     runner.cleanup_fails = False
-    instance.rollback(action, checkpoint)
+    evidence = instance.rollback(action, checkpoint)
+    assert evidence.details["temporary_cleanup_pending"] is False
     assert not pending.exists()
 
 
@@ -743,3 +797,30 @@ def test_mieru_rollback_rejects_an_unknown_target(tmp_path):
 
     with pytest.raises(ValueError):
         instance.rollback(action, checkpoint, rollback_target="deleted")
+
+
+def test_mieru_acceptance_deletes_with_a_compare_and_set_revision():
+    """The panel's delete route requires an expected_revision body; without it
+    every temporary acceptance user is left behind on a 422."""
+    from installer.adapters.mieru import _DefaultMieruRunner
+
+    calls: list[dict] = []
+
+    class _Runner(_DefaultMieruRunner):
+        def _json_request(self, opener, domain, path, **kwargs):
+            calls.append({"path": path, **kwargs})
+            return {}
+
+    _Runner()._delete_acceptance_user(
+        object(), "panel.example.com", "proxy-control-mieru-0123456789abcdef",
+        "csrf", "rev-7",
+    )
+    assert calls == [
+        {
+            "path": "/api/mieru/users/proxy-control-mieru-0123456789abcdef",
+            "method": "DELETE",
+            "payload": {"expected_revision": "rev-7"},
+            "csrf": "csrf",
+            "expect_json": False,
+        }
+    ]

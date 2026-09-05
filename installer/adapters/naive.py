@@ -51,6 +51,10 @@ _STATE_PREPARER = "/usr/local/libexec/prepare-naive-state"
 _UNIT = "/etc/systemd/system/caddy-naive.service"
 _PIN = "/etc/proxy-control/caddy-naive.pin"
 _DEPLOY_HOOK = "/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy"
+# Caddy runs unprivileged and cannot traverse the root-only Certbot tree, so
+# the renewal hook publishes just this one keypair for it.
+_TLS_DIR = "/var/lib/naive-caddy/tls"
+_COVER_INDEX = b"<!doctype html><title>Welcome</title><h1>Welcome</h1>\n"
 _MARKER = "/etc/proxy-control/naive-owned"
 _ACCEPTANCE_OWNER = "/etc/proxy-control/naive-acceptance-owner"
 _ACCEPTANCE_PENDING = "/etc/proxy-control/naive-acceptance-pending"
@@ -90,6 +94,28 @@ _HELPERS: tuple[tuple[str, str, int], ...] = (
     ("deploy/caddy-naive.service", _UNIT, 0o644),
 )
 
+def _sanitize_diagnostic(value: str, *, max_chars: int = 1200) -> str:
+    """Keep a bounded diagnostic with any credential assignment redacted."""
+    redacted = re.sub(
+        r"(?i)((?:password|token|secret)[=:\s]+)\S+",
+        r"\1[REDACTED]",
+        value,
+    )
+    return redacted[-max_chars:].replace("\n", " ").strip()
+
+
+def _command_failure(argv: Sequence[str]) -> str:
+    """Name the failing program and subcommand without echoing any argument."""
+    program = Path(str(argv[0])).name if argv else "command"
+    subcommand = ""
+    for value in list(argv)[1:3]:
+        rendered = str(value)
+        if rendered.startswith("-") or "/" in rendered:
+            break
+        subcommand += f" {rendered}"
+    return f"Naive command failed: {program}{subcommand}"
+
+
 class NaiveError(RuntimeError):
     """The NaiveProxy ownership boundary cannot be changed safely."""
 
@@ -103,33 +129,55 @@ class _AcceptanceCollision(AcceptanceError):
 
 
 def _deploy_hook_text(domain: str) -> str:
-    """Root-owned Certbot deploy hook keeping the lineage Caddy-readable."""
+    """Root-owned Certbot deploy hook publishing one keypair for Caddy.
+
+    The Certbot tree stays root-only. After every issuance and renewal this
+    hook copies exactly the certificate and key this site needs into a
+    directory the unprivileged Caddy identity can read, and nothing else.
+    """
     return (
         "#!/bin/sh\n"
-        "# Managed by proxy-control: keep the Naive lineage readable by the\n"
-        "# unprivileged Caddy identity after every renewal.\n"
+        "# Managed by proxy-control: publish the Naive keypair for the\n"
+        "# unprivileged Caddy identity after every issuance and renewal.\n"
         "set -eu\n"
         f'lineage="/etc/letsencrypt/live/{domain}"\n'
-        f'archive="/etc/letsencrypt/archive/{domain}"\n'
+        f'target="{_TLS_DIR}"\n'
         '[ "${RENEWED_LINEAGE:-$lineage}" = "$lineage" ] || exit 0\n'
-        '[ -d "$archive" ] || exit 0\n'
-        "for directory in /etc/letsencrypt/live /etc/letsencrypt/archive "
-        '"$lineage" "$archive"; do\n'
-        f'    chgrp {_ACCOUNTING_GROUP} "$directory"\n'
-        '    chmod 0750 "$directory"\n'
-        "done\n"
-        'for key in "$archive"/privkey*.pem; do\n'
-        '    [ -e "$key" ] || continue\n'
-        f'    chgrp {_ACCOUNTING_GROUP} "$key"\n'
-        '    chmod 0640 "$key"\n'
-        "done\n"
+        '[ -r "$lineage/fullchain.pem" ] || exit 1\n'
+        '[ -r "$lineage/privkey.pem" ] || exit 1\n'
+        'install -d -m 0750 -o root -g ' + _ACCOUNTING_GROUP + ' "$target"\n'
+        'install -m 0640 -o root -g ' + _ACCOUNTING_GROUP
+        + ' "$lineage/fullchain.pem" "$target/fullchain.pem"\n'
+        'install -m 0640 -o root -g ' + _ACCOUNTING_GROUP
+        + ' "$lineage/privkey.pem" "$target/privkey.pem"\n'
     )
+
+
+def _identity_from_entry(output: str, identifier: int) -> str | None:
+    """Parse one getent passwd/group line for the given numeric identifier."""
+    for line in output.strip().splitlines():
+        fields = line.split(":")
+        if len(fields) < 3:
+            continue
+        name, _password, number = fields[0], fields[1], fields[2]
+        if not name or number != str(identifier):
+            continue
+        if re.fullmatch(r"[A-Za-z0-9._-]{1,64}", name) is None:
+            continue
+        return name
+    return None
 
 
 class _DefaultNaiveRunner(_DefaultCoreRunner):
     """Real host commands and acceptance probes for the Naive boundary."""
 
     def identity_owner(self, kind: str, identifier: int) -> str | None:
+        """Name the holder of a fixed identity, or None when it is free.
+
+        `capture` reports a failed lookup as diagnostic text rather than
+        raising, so only a well-formed database line for this exact identifier
+        counts as a holder: anything else would invent a collision.
+        """
         database = "passwd" if kind == "uid" else "group"
         try:
             output = self.capture(
@@ -138,11 +186,32 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
             )
         except Exception:
             return None
-        line = output.strip().splitlines()
-        if not line:
-            return None
-        name = line[0].split(":", 1)[0]
-        return name or None
+        return _identity_from_entry(output, identifier)
+
+    def compose_service_present(self, service: str) -> bool:
+        """Report only this protocol's own Compose service, not the project.
+
+        Core owns the shared `mtproxy` project, so a project-wide check would
+        see Core's containers and refuse a first install of this protocol.
+        """
+        output = self.capture(
+            (
+                "docker",
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--filter",
+                "label=com.docker.compose.project=mtproxy",
+                "--filter",
+                f"label=com.docker.compose.service={service}",
+            ),
+            max_chars=512,
+        )
+        stripped = output.strip()
+        if not stripped or stripped.startswith(("exit=", "diagnostic ")):
+            return False
+        return True
 
     def build_caddy(self, source_dir: str, destination: str) -> None:
         """Build the pinned forward-proxy Caddy and install it atomically."""
@@ -299,6 +368,22 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
         except Exception:
             return False
 
+    @staticmethod
+    def _native_proxy_url(revealed: object) -> str:
+        """Read the proxy URL where the panel actually publishes it.
+
+        A reveal carries one entry per client, and only the official-client
+        Native configuration holds the plain `https://` proxy URL; the panel
+        never exposes it as a top-level field.
+        """
+        clients = revealed.get("clients") if isinstance(revealed, Mapping) else None
+        native = clients.get("native") if isinstance(clients, Mapping) else None
+        config = native.get("config") if isinstance(native, Mapping) else None
+        proxy_url = config.get("proxy") if isinstance(config, Mapping) else None
+        if not isinstance(proxy_url, str) or not proxy_url:
+            raise AcceptanceError("Naive acceptance failed: access")
+        return proxy_url
+
     def _connect_and_account(
         self,
         *,
@@ -359,11 +444,7 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                 panel_domain,
                 f"/api/reveal/{reveal}",
             )
-            proxy_url = (
-                revealed.get("proxy_url") if isinstance(revealed, Mapping) else None
-            )
-            if not isinstance(proxy_url, str):
-                raise AcceptanceError("Naive acceptance failed: access")
+            proxy_url = self._native_proxy_url(revealed)
             connect_bytes, closed, panel_ok = self._authenticated_connect(
                 proxy_url,
                 naive_domain=naive_domain,
@@ -443,21 +524,56 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                 raise AcceptanceError(
                     "Naive acceptance failed: authenticated CONNECT"
                 )
-            inner = context.wrap_socket(outer, server_hostname=panel_domain)
-            try:
-                inner.sendall(request)
-                sent = len(request)
-                body = b""
+            # Python cannot wrap an SSLSocket in a second TLS layer: wrap_socket
+            # reuses the raw descriptor, so the inner ClientHello would leave
+            # outside the outer session and the peer would reject it. The inner
+            # session runs on memory BIOs and its records are relayed by hand.
+            incoming = ssl.MemoryBIO()
+            outgoing = ssl.MemoryBIO()
+            inner = context.wrap_bio(
+                incoming, outgoing, server_hostname=panel_domain
+            )
+
+            def relay(operation):
                 while True:
-                    chunk = inner.recv(65536)
-                    if not chunk:
-                        closed = True
-                        break
-                    received += len(chunk)
-                    body += chunk[: 65536 - len(body)]
-                panel_ok = body.startswith(b"HTTP/1.1 200")
-            finally:
-                inner.close()
+                    try:
+                        result = operation()
+                    except ssl.SSLWantReadError:
+                        pending = outgoing.read()
+                        if pending:
+                            outer.sendall(pending)
+                        chunk = outer.recv(65536)
+                        if not chunk:
+                            incoming.write_eof()
+                            raise AcceptanceError(
+                                "Naive acceptance failed: tunnel"
+                            )
+                        incoming.write(chunk)
+                        continue
+                    pending = outgoing.read()
+                    if pending:
+                        outer.sendall(pending)
+                    return result
+
+            relay(inner.do_handshake)
+            sent = relay(lambda: inner.write(request))
+            body = b""
+            while True:
+                try:
+                    chunk = relay(lambda: inner.read(65536))
+                except ssl.SSLZeroReturnError:
+                    # close_notify: the tunnel ended cleanly, which is the
+                    # only close that lets Caddy account the transfer.
+                    closed = True
+                    break
+                except ssl.SSLEOFError:
+                    break
+                if not chunk:
+                    closed = True
+                    break
+                received += len(chunk)
+                body += chunk[: 65536 - len(body)]
+            panel_ok = body.startswith(b"HTTP/1.1 200")
         finally:
             outer.close()
         return sent + received, closed, panel_ok
@@ -783,25 +899,45 @@ class NaiveAdapter:
             f"    admin 127.0.0.1:{_ADMIN_PORT}\n"
             "    auto_https disable_redirects\n"
             "}\n"
-            f"https://{domain} {{\n"
+            # A named site address installs a Host matcher, and a tunnelled
+            # CONNECT carries the *destination* as its Host: such a request
+            # would miss the site, skip forward_proxy and be answered as an
+            # ordinary page. The listener is therefore port-only, exactly as
+            # the upstream NaiveProxy recipe publishes it, and the explicit
+            # `tls` keypair below still pins the certificate this port serves.
+            f"# NaiveProxy cover site and forward proxy for {domain}.\n"
+            "https://:443 {\n"
             "    bind 127.0.0.1\n"
-            f"    tls /etc/letsencrypt/live/{domain}/fullchain.pem"
-            f" /etc/letsencrypt/live/{domain}/privkey.pem\n"
+            "    tls /var/lib/naive-caddy/tls/fullchain.pem /var/lib/naive-caddy/tls/privkey.pem\n"
+            # Caddy shares one file writer per filename, so this bootstrap log
+            # must declare exactly the file options the manager's accounting
+            # block uses. A bare block would create the log 0600 and gzip its
+            # rotations, locking the accounting group out and hiding rotated
+            # records from the manager's rotation matcher.
             "    log {\n"
             f"        output file {self.paths.access_log} {{\n"
+            "            mode 0640\n"
             "            roll_size 10MiB\n"
             "            roll_keep 10\n"
+            "            roll_keep_for 168h\n"
+            "            roll_uncompressed\n"
             "        }\n"
             "        format json\n"
             "    }\n"
+            f"    root * /var/www/{domain}\n"
             "    route {\n"
             "        forward_proxy {\n"
             f"            basic_auth {_BOOTSTRAP_USERNAME} {_BOOTSTRAP_PASSWORD}\n"
             "            hide_ip\n"
             "            hide_via\n"
+            # Without probe resistance every unauthenticated request answers
+            # 407, which both fingerprints the tunnel to a passive prober and
+            # keeps the cover site unreachable. With it, such requests fall
+            # through to file_server and the domain looks like a plain site.
+            "            probe_resistance\n"
             f"{upstream}"
             "        }\n"
-            f"        file_server {{ root /var/www/{domain} }}\n"
+            "        file_server\n"
             "    }\n"
             "}\n"
         )
@@ -902,6 +1038,7 @@ class NaiveAdapter:
         self._prepare_state()
         self._write_generation(selected, prepared)
         self._install_deploy_hook(selected)
+        self._install_cover_site(selected)
         # 4. Host Caddy with a proven private listener.
         self._run("systemctl", "daemon-reload")
         self._run("systemctl", "enable", "--now", _UNIT_NAME)
@@ -1021,6 +1158,7 @@ class NaiveAdapter:
         selected = self._selection(action)
         prepared = self._checkpoint(checkpoint, action, applied=True)
         destructive_purge = rollback_target == "uninstalled" and purge_data
+        cleanup_pending = False
         pending = self._host(self.paths.acceptance_pending)
         if pending.exists() or pending.is_symlink():
             try:
@@ -1028,18 +1166,23 @@ class NaiveAdapter:
                     selected,
                     str(prepared["acceptance_name"]),
                 )
-            except Exception as exc:
-                if not destructive_purge:
+            except Exception:
+                # A rollback is never blocked by an unreachable runtime: the
+                # pending temporary user stays recorded in the tombstone so a
+                # later repair or uninstall retries it.
+                cleanup_pending = not destructive_purge
+                if cleanup_pending:
                     self._write_acceptance_owner(str(prepared["acceptance_name"]))
-                    raise NaiveError(
-                        "temporary-user cleanup remains pending"
-                    ) from exc
             durable_remove(pending, missing_ok=True)
         if self._unit_present():
             self._run_best_effort("systemctl", "disable", "--now", _UNIT_NAME)
         if self._compose_service_present():
             self._compose("rm", "--stop", "--force", "naive-manager")
-        self._remove_generation(prepared, preserve_credentials=not destructive_purge)
+        self._remove_generation(
+            prepared,
+            preserve_credentials=not destructive_purge,
+            preserve_acceptance=cleanup_pending,
+        )
         self._remove_owned_caddy(prepared)
         self._run_best_effort("systemctl", "daemon-reload")
         if destructive_purge:
@@ -1059,6 +1202,7 @@ class NaiveAdapter:
             details={
                 "persistent_data_preserved": not destructive_purge,
                 "identities_removed": destructive_purge,
+                "temporary_cleanup_pending": cleanup_pending,
             },
         )
 
@@ -1237,6 +1381,8 @@ class NaiveAdapter:
             (self.paths.deploy_hook, False),
             (self.paths.env_overlay, False),
             (self.paths.acceptance_owner, False),
+            (_TLS_DIR + "/fullchain.pem", False),
+            (_TLS_DIR + "/privkey.pem", False),
             (self.paths.secret_token, True),
             (self.paths.manager_token, True),
             (self.paths.caddyfile, True),
@@ -1294,6 +1440,9 @@ class NaiveAdapter:
             if path.exists() or path.is_symlink():
                 ownership[host_path] = {
                     "preserve": preserve,
+                    # The manager rewrites the Caddyfile on every credential
+                    # change, so its digest is never foreign drift.
+                    "mutable": host_path == self.paths.caddyfile,
                     "sha256": _path_sha256(path),
                 }
         caddy = self._host(self.paths.caddy_binary)
@@ -1325,6 +1474,7 @@ class NaiveAdapter:
         checkpoint: Mapping[str, object],
         *,
         preserve_credentials: bool,
+        preserve_acceptance: bool = False,
     ) -> None:
         ownership = checkpoint.get("ownership", {})
         planned = checkpoint.get("planned_ownership", {})
@@ -1341,6 +1491,8 @@ class NaiveAdapter:
             if not isinstance(entry, Mapping) or host_path not in allowed:
                 raise NaiveError("Naive checkpoint ownership escapes the boundary")
             if preserve_credentials and entry.get("preserve") is True:
+                continue
+            if preserve_acceptance and host_path == self.paths.acceptance_owner:
                 continue
             path = self._host(host_path)
             directories.add(path.parent)
@@ -1498,7 +1650,21 @@ class NaiveAdapter:
             _deploy_hook_text(str(selected["naive_domain"])).encode(),
             0o755,
         )
-        self._run_best_effort(str(hook))
+        # Publish immediately: the unit cannot start without the keypair.
+        self._run(str(hook))
+
+    def _install_cover_site(self, selected: Mapping[str, object]) -> None:
+        """Seed the cover root so an unauthenticated request answers 200.
+
+        The root belongs to the operator, so an existing page is never
+        replaced and uninstall never removes what is written here.
+        """
+        domain = str(selected["naive_domain"])
+        cover = self._host(f"/var/www/{domain}/index.html")
+        if cover.exists() or cover.is_symlink():
+            return
+        durable_mkdir(cover.parent)
+        self._atomic(cover, _COVER_INDEX, 0o644)
 
     def _prepare_state(self) -> None:
         self._run(
@@ -1688,8 +1854,12 @@ class NaiveAdapter:
         return unit.exists() or unit.is_symlink()
 
     def _compose_service_present(self) -> bool:
+        """Only the Naive manager counts; Core owns the shared project."""
+        method = getattr(self.runner, "compose_service_present", None)
+        if callable(method):
+            return bool(method("naive-manager"))
         method = getattr(self.runner, "compose_project_present", None)
-        return bool(method(self.paths.project_dir)) if callable(method) else True
+        return bool(method(self.paths.project_dir)) if callable(method) else False
 
     def _service_present(self) -> bool:
         return self._unit_present() or self._compose_service_present()
@@ -1702,6 +1872,40 @@ class NaiveAdapter:
             raise NaiveError("Caddy Admin API and private listener must stay loopback")
 
     def _compose(self, *args: str) -> None:
+        """Run one Compose command and keep its diagnostic on failure.
+
+        A Compose failure is otherwise invisible: the runner discards output,
+        and the operator is left with a bare "command failed".
+        """
+        argv = (
+            "docker",
+            "compose",
+            "--project-directory",
+            self.paths.project_dir,
+            "--env-file",
+            f"{self.paths.project_dir}/.env",
+            "--env-file",
+            self.paths.env_overlay,
+            "-f",
+            f"{self.paths.project_dir}/compose.yaml",
+            "-f",
+            self.paths.compose_overlay,
+            *args,
+        )
+        capture = getattr(self.runner, "capture", None)
+        if callable(capture):
+            try:
+                output = str(capture(argv, max_chars=1200))
+            except Exception as exc:
+                raise NaiveError(_command_failure(argv)) from exc
+            if output.startswith("exit="):
+                raise NaiveError(
+                    f"{_command_failure(argv)}; {_sanitize_diagnostic(output)}"
+                )
+            return
+        self._run_compose(*args)
+
+    def _run_compose(self, *args: str) -> None:
         self._run(
             "docker",
             "compose",
@@ -1727,9 +1931,9 @@ class NaiveAdapter:
         except NaiveError:
             raise
         except Exception as exc:
-            raise NaiveError("Naive command failed") from exc
+            raise NaiveError(_command_failure(argv)) from exc
         if getattr(result, "returncode", 0):
-            raise NaiveError("Naive command failed")
+            raise NaiveError(_command_failure(argv))
 
     def _run_best_effort(self, *argv: str) -> None:
         try:
@@ -1795,8 +1999,13 @@ def _validate_ownership_mapping(value: Mapping[object, object]) -> None:
             not isinstance(host_path, str)
             or not host_path.startswith("/")
             or not isinstance(entry, Mapping)
-            or set(entry) != {"preserve", "sha256"}
+            or not {"preserve", "sha256"} <= set(entry) <= {
+                "preserve",
+                "mutable",
+                "sha256",
+            }
             or not isinstance(entry["preserve"], bool)
+            or not isinstance(entry.get("mutable", False), bool)
             or not isinstance(entry["sha256"], str)
             or _SHA256.fullmatch(entry["sha256"]) is None
         ):

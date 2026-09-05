@@ -146,6 +146,10 @@ def test_mita_systemd_unit_keeps_socket_directory_stable_and_config_mutable():
     assert "RuntimeDirectory=mita" not in unit
     assert "MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json" in unit
     assert "ExecStartPost=" in unit and "/usr/bin/mita start" in unit
+    # The transient bootstrap run leaves its socket file behind; without this
+    # ExecStartPost sees the stale socket and starts against a dead daemon.
+    assert "ExecStartPre=-/bin/rm -f /run/mita/mita.sock" in unit
+    assert unit.index("ExecStartPre=") < unit.index("ExecStart=/usr/bin/mita run")
     assert "d /run/mita 0770 mita mita -" in tmpfiles
 
 

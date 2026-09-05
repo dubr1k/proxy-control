@@ -217,6 +217,10 @@ def _verify_log_dir(log_dir: Path) -> None:
             )
         if stat.S_IMODE(metadata.st_mode) & (stat.S_IWGRP | stat.S_IRWXO):
             _fail(f"access log must stay group read-only: {entry}")
+        if not stat.S_IMODE(metadata.st_mode) & stat.S_IRGRP:
+            # Without group read the manager cannot consume its own accounting
+            # log, so a 0600 log is a boundary failure, not a hardening win.
+            _fail(f"access log must stay group readable: {entry}")
 
 
 def prepare(state_dir: Path, log_dir: Path) -> tuple[bool, bool]:
