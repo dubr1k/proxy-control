@@ -131,7 +131,9 @@ def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
             "about:blank",
         ],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        # Chromium's own reason for not starting is the only useful evidence
+        # when the readiness wait expires, so keep it instead of discarding it.
+        stderr=subprocess.PIPE,
     )
     try:
         # A cold Chromium on a loaded CI runner regularly needs more than the
@@ -154,7 +156,17 @@ def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
                 raise RuntimeError(f"Chromium exited before DevTools was ready: {process.returncode}")
             time.sleep(0.05)
         if port is None:
-            raise RuntimeError("Chromium DevTools endpoint did not become ready")
+            process.terminate()
+            try:
+                complaint = (process.communicate(timeout=5)[1] or b"").decode(
+                    "utf-8", "replace"
+                )
+            except subprocess.TimeoutExpired:
+                complaint = ""
+            tail = " | ".join(complaint.strip().splitlines()[-5:])
+            raise RuntimeError(
+                f"Chromium DevTools endpoint did not become ready: {tail or 'no output'}"
+            )
         targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5))
         target_url = next(target["webSocketDebuggerUrl"] for target in targets if target["type"] == "page")
         devtools = DevTools(target_url)

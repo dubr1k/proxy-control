@@ -196,10 +196,14 @@ async def test_agent_journal_prevents_reexecution_after_restart_and_rejects_sequ
             return {"username": "alice", "enabled": False, "telemt_revision": "rev-8"}
 
     journal_path = tmp_path / "agent.sqlite3"
+    # The replay must be the same command object: rebuilding it would move
+    # `expires_at` whenever the calls straddle a second, and the journal would
+    # reject a different digest instead of recognising the replay.
+    applied = command()
     first = NodeAgent("edge-01", AgentJournal(journal_path), Executor())
-    result = await first.apply(command())
+    result = await first.apply(applied)
     restarted = NodeAgent("edge-01", AgentJournal(journal_path), Executor())
-    replay = await restarted.apply(command())
+    replay = await restarted.apply(applied)
     assert replay == result
     assert calls == [1]
     with pytest.raises(ProtocolError, match="sequence gap"):
@@ -259,10 +263,13 @@ async def test_concurrent_duplicate_does_not_corrupt_inflight_execution(tmp_path
             return {"username": "alice", "enabled": False, "telemt_revision": "rev-8"}
 
     agent = NodeAgent("edge-01", AgentJournal(tmp_path / "agent.sqlite3"), Executor())
-    running = asyncio.create_task(agent.apply(command()))
+    # One command delivered twice; a rebuilt copy would trip the digest check
+    # before ever reaching the in-flight check this test is about.
+    duplicate = command()
+    running = asyncio.create_task(agent.apply(duplicate))
     await entered.wait()
     with pytest.raises(ProtocolError, match="already executing"):
-        await agent.apply(command())
+        await agent.apply(duplicate)
     release.set()
     assert (await running)["status"] == "succeeded"
 
@@ -282,14 +289,18 @@ async def test_uncertain_transport_outcome_is_durable_indeterminate(tmp_path):
 
 async def test_exclusive_startup_recovery_marks_crash_residue_without_reexecution(tmp_path):
     journal = AgentJournal(tmp_path / "agent.sqlite3")
-    journal.begin(command())
+    # One command, replayed. Building it twice would give the second copy a
+    # later `expires_at` whenever the calls straddle a second, and the journal
+    # would rightly reject the different digest as a mismatched replay.
+    interrupted = command()
+    journal.begin(interrupted)
     assert journal.recover_interrupted() == 1
 
     class MustNotRun:
         async def execute(self, _item):
             raise AssertionError("recovered command was re-executed")
 
-    replay = await NodeAgent("edge-01", journal, MustNotRun()).apply(command())
+    replay = await NodeAgent("edge-01", journal, MustNotRun()).apply(interrupted)
     assert replay["status"] == "indeterminate"
 
 
