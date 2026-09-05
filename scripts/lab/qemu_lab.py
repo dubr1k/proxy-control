@@ -196,8 +196,22 @@ def qemu_command(disk: Path, seed: Path, key: Path, port: int, pid: Path, serial
     del key  # key is deliberately not attached to the VM; cloud-init gets only its public half.
     restrict = "on" if mode == "smoke" else "off"
     image = metadata(mode_architecture(mode))
+    # x86 carries its firmware inside QEMU; the aarch64 "virt" machine has none
+    # and boots to nothing without one, which surfaces only as an SSH readiness
+    # timeout. Fail closed on the missing file and name the package instead.
+    firmware: list[str] = []
+    declared = image.get("firmware")
+    if isinstance(declared, str) and declared:
+        if not Path(declared).is_file():
+            package = image.get("firmware_package") or "the UEFI firmware package"
+            raise ValueError(
+                f"{image['architecture']} needs UEFI firmware at {declared}; "
+                f"install {package}"
+            )
+        firmware = ["-bios", declared]
     return [
         image["qemu_binary"], "-accel", "tcg",
+        *firmware,
         "-machine", image["machine"], "-cpu", image["cpu"],
         "-smp", "2", "-m", "3072", "-display", "none", "-daemonize",
         "-pidfile", str(pid), "-serial", f"file:{serial}",

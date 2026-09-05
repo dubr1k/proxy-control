@@ -135,7 +135,8 @@ jobs:
       - name: Lab prerequisites
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-system-arm qemu-utils cloud-image-utils shellcheck
+          # The aarch64 "virt" machine has no built-in firmware.
+          sudo apt-get install -y -qq qemu-system-arm qemu-efi-aarch64 qemu-utils cloud-image-utils shellcheck
       - name: Release acceptance on arm64
         run: |
           make lab-release \

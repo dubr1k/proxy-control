@@ -4,6 +4,7 @@ import importlib.util
 import inspect
 import json
 import os
+import re
 import socket
 import subprocess
 import tempfile
@@ -528,3 +529,88 @@ class ReleaseFixtureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuestRunnerPreflightScripts(unittest.TestCase):
+    """Each preflight runs in a fresh shell built from `declare -f`.
+
+    A helper the listed functions call but the list omits is not a syntax
+    error: the subshell only fails at run time with "command not found",
+    which is how the release lab broke without any local check noticing.
+    """
+
+    RUNNER = MODULE.parent / "guest-runner.sh"
+
+    def setUp(self):
+        self.text = self.RUNNER.read_text()
+        self.defined = set(
+            re.findall(r"^([a-z_][a-z0-9_]*)\(\) \{", self.text, re.MULTILINE)
+        )
+        self.assertIn("host_ip", self.defined)
+
+    def _body(self, name: str) -> str:
+        start = self.text.index(f"\n{name}() {{")
+        end = self.text.index("\n}\n", start)
+        return self.text[start:end]
+
+    def test_every_composed_script_carries_the_helpers_it_calls(self):
+        lists = re.findall(r"declare -f ([a-z_0-9 ]+)\)", self.text)
+        self.assertGreaterEqual(len(lists), 4)
+        for group in lists:
+            declared = set(group.split())
+            missing = {}
+            for name in declared:
+                body = self._body(name)
+                for candidate in self.defined:
+                    if candidate in declared:
+                        continue
+                    if re.search(rf"(^|[^\w-]){re.escape(candidate)}(\s|$|\))", body, re.M):
+                        missing.setdefault(candidate, []).append(name)
+            self.assertEqual(missing, {}, f"declare -f {group}")
+
+
+class Aarch64Firmware(unittest.TestCase):
+    """`qemu-system-aarch64 -machine virt` has no built-in firmware.
+
+    Without one the guest boots to nothing, and the only symptom is an SSH
+    readiness timeout that names neither the cause nor the missing package.
+    """
+
+    def test_arm64_declares_firmware_and_amd64_does_not(self):
+        document = json.loads((MODULE.parent / "image.json").read_text())
+        self.assertIsNone(document["images"]["amd64"]["firmware"])
+        arm64 = document["images"]["arm64"]
+        self.assertTrue(arm64["firmware"].startswith("/"))
+        self.assertTrue(arm64["firmware_package"])
+
+    def test_a_missing_firmware_fails_closed_and_names_the_package(self):
+        with self.assertRaises(ValueError) as caught:
+            lab.qemu_command(
+                Path("disk"), Path("seed"), Path("key"), 2222,
+                Path("pid"), Path("serial"), "release-arm64",
+            )
+        message = str(caught.exception)
+        self.assertIn("qemu-efi-aarch64", message)
+        self.assertIn("UEFI firmware", message)
+
+    def test_the_release_workflow_installs_that_package(self):
+        workflow = (MODULE.parents[2] / ".github/workflows/release.yml").read_text()
+        document = json.loads((MODULE.parent / "image.json").read_text())
+        self.assertIn(document["images"]["arm64"]["firmware_package"], workflow)
+
+    def test_firmware_precedes_the_machine_it_boots(self):
+        document = json.loads((MODULE.parent / "image.json").read_text())
+        firmware = Path(self.enterContext(tempfile.TemporaryDirectory())) / "efi.fd"
+        firmware.write_bytes(b"firmware")
+        document["images"]["arm64"]["firmware"] = str(firmware)
+        path = firmware.parent / "image.json"
+        path.write_text(json.dumps(document))
+        with mock.patch.object(lab, "HERE", path.parent):
+            command = lab.qemu_command(
+                Path("disk"), Path("seed"), Path("key"), 2222,
+                Path("pid"), Path("serial"), "release-arm64",
+            )
+        self.assertEqual(command[0], "qemu-system-aarch64")
+        self.assertIn("-bios", command)
+        self.assertEqual(command[command.index("-bios") + 1], str(firmware))
+        self.assertLess(command.index("-bios"), command.index("-machine"))

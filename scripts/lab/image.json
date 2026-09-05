@@ -9,7 +9,8 @@
       "qemu_binary": "qemu-system-x86_64",
       "machine": "q35",
       "cpu": "max",
-      "minimum_qemu": "8.2"
+      "minimum_qemu": "8.2",
+      "firmware": null
     },
     "arm64": {
       "architecture": "arm64",
@@ -19,7 +20,9 @@
       "qemu_binary": "qemu-system-aarch64",
       "machine": "virt",
       "cpu": "max",
-      "minimum_qemu": "8.2"
+      "minimum_qemu": "8.2",
+      "firmware": "/usr/share/AAVMF/AAVMF_CODE.fd",
+      "firmware_package": "qemu-efi-aarch64"
     }
   }
 }

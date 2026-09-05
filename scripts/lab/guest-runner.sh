@@ -361,7 +361,7 @@ full_environment_preflight() {
   local started log script
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROUTE BASELINE); $(declare -f add_hosts write_fake_certbot setup_full_host); setup_full_host"
+  script="$(declare -p PROXY PANEL ROUTE BASELINE); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host); setup_full_host"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
@@ -550,7 +550,7 @@ release_environment_preflight() {
   local started log script
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f add_hosts write_fake_certbot setup_full_host stage_mita_package release_setup); release_setup"
+  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host stage_mita_package release_setup); release_setup"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
