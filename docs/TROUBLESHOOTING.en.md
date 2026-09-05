@@ -63,7 +63,7 @@ Accounting appears only after a **successful CONNECT closes**. Close the client 
 
 ```bash
 systemctl status mita --no-pager
-MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
+sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
 export MIERU_MITA_GID="$(getent group mita | cut -d: -f3)"
 : "${MIERU_MITA_GID:?mita group is missing}"
 sudo ./scripts/prepare-mieru-token.sh verify /etc/mieru-manager/token

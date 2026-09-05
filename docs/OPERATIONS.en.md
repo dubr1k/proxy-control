@@ -38,7 +38,7 @@ For enabled host runtimes:
 
 ```bash
 systemctl is-active caddy-naive mita
-MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
+sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
 ```
 
 Accept only anchored mita status output of this exact form:

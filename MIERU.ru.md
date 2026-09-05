@@ -69,7 +69,7 @@ sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita stop
 sudo systemctl stop mita-bootstrap.service
 sudo rm -f /var/lib/mita/bootstrap-input.json
 sudo systemctl enable --now mita
-MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
+sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
 ```
 
 Принимайте только exact output `mita server status is "RUNNING"`. Manager импортирует persisted hashed generation; временные acceptance users удаляются отдельно, а bootstrap user сохраняется, чтобы не получить zero-user failure.
@@ -95,7 +95,7 @@ sudo env MIERU_MITA_GID="$MIERU_MITA_GID" ./scripts/prepare-mieru-state.sh prepa
 ```bash
 export MIERU_PUBLIC_HOST=mieru.example.com
 export MIERU_MITA_BIN=/usr/bin/mita
-export MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31
+export MIERU_MITA_SHA256=38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170
 export MIERU_MITA_GID="$(stat -c %g /run/mita/mita.sock)"
 export MIERU_MANAGER_STATE_DIR=/var/lib/mieru-manager
 export MIERU_MANAGER_TOKEN_FILE=/etc/mieru-manager/token

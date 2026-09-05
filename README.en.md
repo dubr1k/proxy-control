@@ -178,8 +178,10 @@ months later when the certificate quietly expires.
 
 ### Check your domains in advance
 
-You do not have to wait for the installation. The plan shows the same thing and
-changes nothing:
+You do not have to wait for the installation: the plan checks all of this and
+changes nothing. Run it from the unpacked release — it does not work from a Git
+clone, which has no `release/release.json`, and the installer refuses to run
+without a release identity.
 
 ```bash installer-check
 python3 -m installer.cli plan --config examples/installer/core.toml --json

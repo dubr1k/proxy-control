@@ -10,7 +10,10 @@ The deployment renderer creates `secrets/telemt-api-token` with mode `0600`; it 
 
 ```sh
 read -rsp 'New password: ' PANEL_INITIAL_PASSWORD; echo
-printf '%s\n' "$PANEL_INITIAL_PASSWORD" | docker compose run --rm -T panel \
+# exec, not run: the image entrypoint ignores the container command and always
+# starts uvicorn, so `run` would simply bring up a second server.
+docker compose up -d panel
+printf '%s\n' "$PANEL_INITIAL_PASSWORD" | docker compose exec -T panel \
   python -m panel.cli create-admin --username owner --role owner --password-stdin
 unset PANEL_INITIAL_PASSWORD
 docker compose up -d
@@ -93,6 +96,12 @@ done
 chown -h 10002:101 "${NAIVE_DATA_DIR}/Caddyfile" "${NAIVE_DATA_DIR}/manager-token"
 chmod 0640 "${NAIVE_DATA_DIR}/Caddyfile"
 chmod 0400 "${NAIVE_DATA_DIR}/manager-token"
+# The unit runs /usr/local/bin/caddy and checks that build before starting, so
+# the pinned binary has to be installed first:
+#   docker buildx build --file docker/Dockerfile.caddy-naive \
+#     --output type=local,dest=/tmp/pc-caddy .
+#   install -o root -g root -m 0755 /tmp/pc-caddy/caddy /usr/local/bin/caddy
+test -x /usr/local/bin/caddy
 install -o root -g root -m 0755 scripts/check-naive-caddy-build.sh /usr/local/libexec/check-naive-caddy-build
 install -o root -g root -m 0755 scripts/caddy-naive-adapt /usr/local/libexec/caddy-naive-adapt
 install -o root -g root -m 0644 deploy/caddy-naive.service /etc/systemd/system/caddy-naive.service

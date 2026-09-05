@@ -10,7 +10,10 @@
 
 ```sh
 read -rsp 'Новый пароль: ' PANEL_INITIAL_PASSWORD; echo
-printf '%s\n' "$PANEL_INITIAL_PASSWORD" | docker compose run --rm -T panel \
+# Именно exec, а не run: entrypoint образа игнорирует команду контейнера и
+# всегда запускает uvicorn, поэтому `run` просто поднял бы ещё один сервер.
+docker compose up -d panel
+printf '%s\n' "$PANEL_INITIAL_PASSWORD" | docker compose exec -T panel \
   python -m panel.cli create-admin --username owner --role owner --password-stdin
 unset PANEL_INITIAL_PASSWORD
 docker compose up -d
@@ -97,6 +100,12 @@ done
 chown -h 10002:101 "${NAIVE_DATA_DIR}/Caddyfile" "${NAIVE_DATA_DIR}/manager-token"
 chmod 0640 "${NAIVE_DATA_DIR}/Caddyfile"
 chmod 0400 "${NAIVE_DATA_DIR}/manager-token"
+# Служба запускает /usr/local/bin/caddy и до этого проверяет его сборку,
+# поэтому зафиксированный бинарник должен быть установлен заранее:
+#   docker buildx build --file docker/Dockerfile.caddy-naive \
+#     --output type=local,dest=/tmp/pc-caddy .
+#   install -o root -g root -m 0755 /tmp/pc-caddy/caddy /usr/local/bin/caddy
+test -x /usr/local/bin/caddy
 install -o root -g root -m 0755 scripts/check-naive-caddy-build.sh /usr/local/libexec/check-naive-caddy-build
 install -o root -g root -m 0755 scripts/caddy-naive-adapt /usr/local/libexec/caddy-naive-adapt
 install -o root -g root -m 0644 deploy/caddy-naive.service /etc/systemd/system/caddy-naive.service

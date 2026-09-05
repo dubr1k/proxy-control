@@ -62,67 +62,82 @@ Disable CDN/proxying for the raw MTProto hostname. Unhandled AAAA, NAT mismatch,
 
 Use restrictive `umask 077` only inside a secret/backup subshell. Restore `022` before Git clone, Docker build contexts, and APT; public ACME roots and `.well-known/acme-challenge` must be mode `0755`. If the proxy/panel certificate is pre-issued, use `/var/www/<proxy-domain>` and `/var/www/<panel-domain>` in its renewal map from the first issuance.
 
-## Build and install the external TDLib probe
+## The external MTProto probe
 
-From the checked-out repository, build the pinned Docker image and install the root-only hook before planning:
+MTProxy acceptance runs a real TDLib probe. You do not build or install it by
+hand: the installer takes it from the `probe/` directory inside the release,
+verifies its digest, and installs it itself at the fixed path
+`/usr/local/libexec/mtproxy-respq-probe` with mode `0750`.
 
-```bash
-sudo ./probe/install.sh
+The probe accepts exactly `--domain DOMAIN --secrets-file PATH`, mounts the
+secrets file read-only at `/run/mtproxy/users.conf`, and asks TDLib to
+`addProxy` then `pingProxy` once for every secret. Individual secrets never
+enter the installer's argv, the Docker argv, shell history, or probe output. The
+container has a read-only root filesystem, a dedicated tmpfs for TDLib state,
+dropped capabilities, and `no-new-privileges`. A failure on any secret stops the
+installation.
+
+## 1. Audit and plan
+
+There is no separate `audit` subcommand: the audit happens inside `plan`, which
+changes nothing and prints both the observed facts and the complete list of
+actions to come.
+
+Every command below runs from the unpacked release — the directory
+`install-bootstrap` printed. They do not work from a Git clone, which has no
+`release/release.json`, and the installer refuses to run without a release
+identity.
+
+```bash installer-check
+python3 -m installer.cli plan --config examples/installer/core.toml --json
 ```
 
-It installs `/usr/local/libexec/mtproxy-respq-probe` with mode `0750`. The hook accepts exactly `--domain DOMAIN --secrets-file PATH`; it validates both inputs, binds the file read-only at `/run/mtproxy/users.conf`, and asks TDLib to `addProxy` then `pingProxy` once for every configured secret. The image base is pinned by digest and its Node dependencies are locked in `probe/package-lock.json`.
+Point it at your own file instead of the example — the one the wizard wrote.
 
-The installer supplies only the domain and secret-file path. Individual secrets never enter its argv, the Docker command argv, shell history, or probe output. The container has a read-only root filesystem, a dedicated tmpfs for TDLib state, dropped capabilities, and no-new-privileges. Its only success output is the verified-secret count; any failed secret makes the hook fail closed.
+Review the output: the owner of TCP/443 and the Nginx topology, DNS and CAA for
+every domain, free local ports, identity collisions, project paths, the package
+list, certificate names, and the routes that will be added.
 
-## 1. Read-only audit
+The plan contains no passwords, tokens, user secrets, or access links, and
+cannot.
 
-```bash
-sudo python3 scripts/proxyctl.py audit \
-  --proxy-domain proxy.example.com \
-  --panel-domain panel.example.com \
-  --json
+## 2. Rollback readiness
+
+Before installing, save:
+
+- the selected Nginx route file and its includes, with owner and mode;
+- `nginx -T` into a private artifact;
+- active listeners and unit files;
+- the current Docker/Compose state;
+- adjacent SNI acceptance results.
+
+The installer keeps its own ownership journal and exact backups, but that is not
+a substitute for an independent host backup.
+
+## 3. Install
+
+The plan has a digest, and installation does not start until you approve that
+exact digest:
+
+```bash installer-check
+sudo python3 -m installer.cli install --config examples/installer/core.toml --accept-plan DIGEST
 ```
 
-Audit installs no package and mutates no file/service. Review listener ownership, DNS, Nginx topology, platform, and collisions.
+The installer:
 
-## 2. Deterministic plan
+1. installs only the missing Ubuntu packages;
+2. issues certificates grouped by service and immediately proves renewal with
+   `certbot renew --dry-run`;
+3. creates mode-restricted secrets;
+4. renders the `mtproxy` Compose project;
+5. bootstraps the panel owner through stdin without printing the password;
+6. adds only its own Nginx routes in a validated transaction;
+7. waits for services to be ready and runs the acceptance for every protocol.
 
-```bash
-sudo python3 scripts/proxyctl.py plan \
-  --proxy-domain proxy.example.com \
-  --panel-domain panel.example.com \
-  --email admin@example.com \
-  --route-file /etc/nginx/stream.d/routes.conf \
-  --project-dir /opt/mtproxy-shared443 \
-  --users owner,phone \
-  --protocol-probe /usr/local/bin/mtproxy-respq-probe \
-  --json
-```
+It does not touch DNS, WARP, Fleet, foreign containers, or foreign Nginx routes.
+It manages UFW rules and 3x-ui only when your configuration says so.
 
-Plan contains no passwords, tokens, user secrets, or access links. Verify managed paths, package ownership, certificate names, loopback ports, route change, and probe path.
-
-## 3. Backup readiness
-
-Before installation preserve the selected Nginx route and includes with metadata, private `nginx -T`, active listeners/units, existing Docker state, and adjacent SNI acceptance results. Installer-owned backups do not replace an independent host backup.
-
-## 4. Install
-
-```bash
-sudo ./install.sh \
-  --proxy-domain proxy.example.com \
-  --panel-domain panel.example.com \
-  --email admin@example.com \
-  --route-file /etc/nginx/stream.d/routes.conf \
-  --project-dir /opt/mtproxy-shared443 \
-  --users owner,phone \
-  --protocol-probe /usr/local/bin/mtproxy-respq-probe
-```
-
-The installer installs only missing packages, obtains a two-name certificate, creates mode-restricted secrets, deploys Compose project `mtproxy`, bootstraps owner through stdin, applies minimal Nginx routes transactionally, waits for health, and runs the required external probe.
-
-It never changes UFW/nftables/iptables, DNS, Xray/3x-ui, unrelated containers, or unrelated Nginx routes.
-
-## 5. Acceptance
+## 4. Acceptance
 
 ```bash
 docker compose -f /opt/mtproxy-shared443/compose.yaml ps
@@ -131,33 +146,50 @@ sudo nginx -t
 ss -lntup
 ```
 
-Also run external `resPQ` for each user secret, a real Telegram client test, panel HTTPS/login, adjacent SNI regression, SQLite integrity/backup checksum, and confirm Telemt API is not host-published.
+Then do these by hand:
 
-After adding Naive or another adjacent SNI route, run `sudo python3 scripts/proxyctl.py repair`. Current `main` validates only the ownership-marker block and uninstall removes only that block, preserving routes added later. Upgrade deployments that still hash the whole route file before expanding the map.
+- a real Telegram client test;
+- an HTTPS login to the panel;
+- an adjacent SNI regression check;
+- SQLite integrity and a backup checksum;
+- a check that the Telemt API is not published on the host.
 
-After every renewal hook is installed, run `sudo certbot renew --dry-run --no-random-sleep-on-renew`; initial issuance does not verify the future renewal webroot map.
+## 5. Status, resume, and repair
 
-## 6. Repair
-
-```bash
-sudo python3 scripts/proxyctl.py repair
+```bash installer-check
+sudo python3 -m installer.cli status --json
+sudo python3 -m installer.cli resume --json
+sudo python3 -m installer.cli repair --json
 ```
 
-`repair` loads `/var/lib/proxy-control/runtime.json`, completes interrupted recovery, validates owned files, and restarts the recorded runtime. It intentionally accepts no arbitrary paths.
+`resume` continues an interrupted installation from its recorded phase. `repair`
+reads the private ownership journal at
+`/var/lib/proxy-control/installer/state.json`, completes an interrupted
+recovery, checks for foreign drift, and restarts only its own services. Neither
+command accepts arbitrary paths.
 
-## 7. Uninstall
+## 6. Uninstall
 
-```bash
-sudo ./uninstall.sh
-# Destructive: remove Compose named volumes as a separate journaled phase.
-sudo ./uninstall.sh --purge-data
+```bash installer-check
+sudo python3 -m installer.cli uninstall --json
+sudo python3 -m installer.cli uninstall --purge-data --json
 ```
 
-Uninstall durable-checkpoints phases, removes only owned routes/files/packages, and preserves Compose named volumes, credential backup, certificates, and cover roots by default. Repeated execution resumes safely; an interrupted data-purging uninstall must be resumed with `--purge-data`. Use that flag only after verifying an independent volume backup. Revalidate Nginx/listeners/adjacent SNI afterward.
+Uninstall checkpoints its phases, removes only installer-owned routes, files,
+and packages, and by default preserves Compose volumes, the credential backup,
+certificates, and cover roots until a separate ownership review. Re-running is
+safe; an interrupted data purge must be continued with the same `--purge-data`.
+Use that flag only after verifying an independent copy of the volumes.
+
+Afterwards check `nginx -t`, the public listeners, and adjacent SNI routes
+again.
 
 ## Interrupted SSH
 
-SSH exit `255` proves transport failure only. Inspect durable manifest phase/status, owned files, services, and protocol probe on the target host. Never blindly rerun installation over an active generation.
+An SSH exit code of `255` proves only that the transport dropped. On the target
+host check `sudo python3 -m installer.cli status --json`, the phase, the
+installer-owned files, the services, and the acceptance result. Do not blindly
+re-run the installation.
 
 ## Next integrations
 

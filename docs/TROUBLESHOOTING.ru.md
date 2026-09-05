@@ -65,7 +65,7 @@ Accounting появляется только после **успешного з�
 
    ```bash
    systemctl status mita --no-pager
-   MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
+   sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status
    ```
 
 2. Проверьте стабильный `/run/mita/mita.sock`, ownership/mode и отсутствие inode replacement после restart.

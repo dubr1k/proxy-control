@@ -96,9 +96,16 @@ git diff --check
 
 ## Проверка всех Compose-моделей и образов
 
-В изолированной копии с синтетическими значениями, а не в production:
+В изолированной копии с синтетическими значениями, а не в production. Сначала
+задайте обязательные переменные — без них `compose config` падает по `:?`, как
+и в CI:
 
 ```bash
+export MTPROXY_DOMAIN=proxy.example.com MTPROXY_BACKEND_PORT=18445
+export MTPROXY_COVER_ROOT=/tmp/cover MTPROXY_LETSENCRYPT_ROOT=/tmp/letsencrypt
+export MIERU_MANAGER_TOKEN_FILE="$PWD/secrets/mieru-manager-token"
+mkdir -p /tmp/cover /tmp/letsencrypt
+
 docker compose -f compose.yaml config -q
 NAIVE_PUBLIC_HOST=naive.example.com \
   docker compose -f compose.yaml -f compose.naive.yaml config -q
@@ -310,10 +317,16 @@ assumption.
 
 ## Validate every Compose model and image
 
-In an isolated checkout with synthetic values — not in production — render every
-supported Compose model:
+In an isolated checkout with synthetic values — not in production. Set the
+required variables first; without them `compose config` fails on its `:?`
+defaults, exactly as it would in CI:
 
 ```bash
+export MTPROXY_DOMAIN=proxy.example.com MTPROXY_BACKEND_PORT=18445
+export MTPROXY_COVER_ROOT=/tmp/cover MTPROXY_LETSENCRYPT_ROOT=/tmp/letsencrypt
+export MIERU_MANAGER_TOKEN_FILE="$PWD/secrets/mieru-manager-token"
+mkdir -p /tmp/cover /tmp/letsencrypt
+
 docker compose -f compose.yaml config -q
 NAIVE_PUBLIC_HOST=naive.example.com \
   docker compose -f compose.yaml -f compose.naive.yaml config -q
