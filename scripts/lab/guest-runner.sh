@@ -7,7 +7,7 @@ EXPECTED_ARCHIVE_SHA=${2:-}
 shift 2 2>/dev/null || true
 SCENARIO_FILTER=("$@")
 ROOT=/tmp/mtproxy-source
-if [[ ${MODE:-} == container ]]; then
+if [[ ${MODE:-} == container || ${MODE:-} == host ]]; then
   ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 fi
 FIXTURE=/tmp/proxyctl-host
@@ -19,7 +19,8 @@ BASELINE=/tmp/lab-baseline.sha256
 RELEASE=/tmp/proxy-control-release.tar.gz
 RELEASE_SHA=/tmp/proxy-control-release.sha256
 RELEASE_ROOT=/tmp/proxy-control-release
-if [[ ${MODE:-} == container ]]; then
+INSTALLER_STATE=/var/lib/proxy-control/installer/state.json
+if [[ ${MODE:-} == container || ${MODE:-} == host ]]; then
   RELEASE_ROOT=$ROOT
 fi
 CONFIG=/tmp/lab-install.toml
@@ -95,8 +96,11 @@ run_captured() {
 }
 
 add_hosts() {
+  local address
+  address=$(host_ip)
+  [[ -n $address ]] || address=127.0.0.1
   if ! grep -q "$PROXY" /etc/hosts; then
-    printf '10.0.2.15 %s %s\n' "$PROXY" "$PANEL" >> /etc/hosts
+    printf '%s %s %s\n' "$address" "$PROXY" "$PANEL" >> /etc/hosts
   fi
 }
 
@@ -187,29 +191,114 @@ secrets_scan() {
 
 write_fake_certbot() {
   local destination=$1
-  cat > "$destination" <<'EOF'
+  # A deterministic, offline Certbot-compatible generator. The lab never talks
+  # to ACME, but it must produce a complete lineage the installer accepts: a
+  # locally trusted CA, a leaf with the exact SANs, cert/chain/fullchain, a
+  # 0600 private key, an archive, and a renewal configuration.
+  cat > "$destination" <<'CERTBOT'
 #!/bin/bash
 set -eu
-name= domains=()
+
+name=
+domains=()
+subcommand=
 while (($#)); do
-  case $1 in --cert-name) name=$2; shift 2;; -d) domains+=("$2"); shift 2;; *) shift;; esac
+  case $1 in
+    certonly|renew) subcommand=$1; shift ;;
+    --cert-name) name=$2; shift 2 ;;
+    -d) domains+=("$2"); shift 2 ;;
+    *) shift ;;
+  esac
 done
 test -n "$name"
-live_root=${LETSENCRYPT_LIVE_ROOT:-/etc/letsencrypt/live}
-dir=$live_root/$name
-mkdir -p "$dir"
-test "${#domains[@]}" -eq 2
-san="DNS:${domains[0]},DNS:${domains[1]}"
-openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$name" -addext "subjectAltName=$san" -keyout "$dir/privkey.pem" -out "$dir/fullchain.pem" >/dev/null 2>&1
+
+letsencrypt_root=${LETSENCRYPT_ROOT:-/etc/letsencrypt}
+live_root=${LETSENCRYPT_LIVE_ROOT:-$letsencrypt_root/live}
+archive_root=${LETSENCRYPT_ARCHIVE_ROOT:-$letsencrypt_root/archive}
+renewal_root=${LETSENCRYPT_RENEWAL_ROOT:-$letsencrypt_root/renewal}
+ca_dir=${LETSENCRYPT_LAB_CA_DIR:-$letsencrypt_root/lab-ca}
+
+if [[ $subcommand == renew ]]; then
+  # A dry run only proves the lineage is renewable; it issues nothing.
+  test -f "$renewal_root/$name.conf"
+  test -e "$live_root/$name/cert.pem"
+  test -e "$live_root/$name/privkey.pem"
+  exit 0
+fi
+test "${#domains[@]}" -ge 1
+
+umask 077
+mkdir -p "$ca_dir"
+if [[ ! -f $ca_dir/ca.crt ]]; then
+  openssl req -x509 -newkey rsa:2048 -nodes -days 30     -subj "/CN=Proxy Control lab CA"     -addext "basicConstraints=critical,CA:TRUE,pathlen:0"     -addext "keyUsage=critical,keyCertSign,cRLSign"     -keyout "$ca_dir/ca.key" -out "$ca_dir/ca.crt" >/dev/null 2>&1
+  if [[ $(id -u) -eq 0 && -d /usr/local/share/ca-certificates ]]; then
+    install -m 0644 "$ca_dir/ca.crt" /usr/local/share/ca-certificates/proxy-control-lab-ca.crt
+    update-ca-certificates >/dev/null 2>&1
+  fi
+fi
+
+san=""
+for domain in "${domains[@]}"; do
+  if [[ -z $san ]]; then san="DNS:$domain"; else san="$san,DNS:$domain"; fi
+done
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+openssl req -newkey rsa:2048 -nodes -subj "/CN=${domains[0]}"   -keyout "$work/privkey.pem" -out "$work/leaf.csr" >/dev/null 2>&1
+{
+  printf 'subjectAltName=%s
+' "$san"
+  printf 'basicConstraints=critical,CA:FALSE
+'
+  printf 'keyUsage=critical,digitalSignature,keyEncipherment
+'
+  printf 'extendedKeyUsage=serverAuth
+'
+} > "$work/leaf.ext"
+openssl x509 -req -in "$work/leaf.csr" -CA "$ca_dir/ca.crt" -CAkey "$ca_dir/ca.key"   -CAcreateserial -days 2 -extfile "$work/leaf.ext" -out "$work/cert.pem" >/dev/null 2>&1
+
+version=1
+mkdir -p "$archive_root/$name"
+while [[ -f $archive_root/$name/cert$version.pem ]]; do
+  version=$((version + 1))
+done
+install -m 0644 "$work/cert.pem" "$archive_root/$name/cert$version.pem"
+install -m 0644 "$ca_dir/ca.crt" "$archive_root/$name/chain$version.pem"
+cat "$work/cert.pem" "$ca_dir/ca.crt" > "$archive_root/$name/fullchain$version.pem"
+chmod 0644 "$archive_root/$name/fullchain$version.pem"
+install -m 0600 "$work/privkey.pem" "$archive_root/$name/privkey$version.pem"
+
+publish() {
+  local target=$1
+  mkdir -p "$target"
+  ln -sfn "$archive_root/$name/cert$version.pem" "$target/cert.pem"
+  ln -sfn "$archive_root/$name/chain$version.pem" "$target/chain.pem"
+  ln -sfn "$archive_root/$name/fullchain$version.pem" "$target/fullchain.pem"
+  ln -sfn "$archive_root/$name/privkey$version.pem" "$target/privkey.pem"
+}
+publish "$live_root/$name"
 for domain in "${domains[@]}"; do
   if [[ $domain != "$name" ]]; then
-    target=$live_root/$domain
-    mkdir -p "$target"
-    cp -p "$dir/fullchain.pem" "$target/fullchain.pem"
-    cp -p "$dir/privkey.pem" "$target/privkey.pem"
+    publish "$live_root/$domain"
   fi
 done
-EOF
+
+mkdir -p "$renewal_root"
+{
+  printf 'version = 2.11.0
+'
+  printf 'archive_dir = %s/%s
+' "$archive_root" "$name"
+  printf 'cert = %s/%s/cert.pem
+' "$live_root" "$name"
+  printf 'privkey = %s/%s/privkey.pem
+' "$live_root" "$name"
+  printf 'chain = %s/%s/chain.pem
+' "$live_root" "$name"
+  printf 'fullchain = %s/%s/fullchain.pem
+' "$live_root" "$name"
+} > "$renewal_root/$name.conf"
+CERTBOT
   chmod 755 "$destination"
 }
 
@@ -225,7 +314,11 @@ user www-data;
 pid /run/nginx.pid;
 events { worker_connections 256; }
 stream { include /etc/nginx/stream.d/*.conf; }
-http { include /etc/nginx/sites-enabled/*; }
+http {
+    include /etc/nginx/mime.types;
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
 EOF
   cat > "$ROUTE" <<'EOF'
 map $ssl_preread_server_name $shared_backend {
@@ -385,6 +478,28 @@ installer_cmd() {
   python3 -m installer.cli --root / "$@"
 }
 
+stage_mita_package() {
+  # The installer deliberately never downloads mita, so the operator stages the
+  # pinned package by hand. The lab performs exactly that documented step, and
+  # reads the pin from the release under test instead of keeping a second copy.
+  local architecture url digest name cache
+  architecture=$(dpkg --print-architecture)
+  read -r url digest < <(PYTHONPATH="$RELEASE_ROOT" python3 -c '
+import sys
+from installer.adapters.mieru import _MITA_PINS
+url, package_digest, _executable_digest = _MITA_PINS[sys.argv[1]]
+print(url, package_digest)
+' "$architecture")
+  name=${url##*/}
+  cache=/root/lab-artifacts/$name
+  install -d -m 0755 /root/lab-artifacts /var/lib/proxy-control
+  if ! printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status 2>/dev/null; then
+    curl --fail --silent --show-error --location --output "$cache" "$url"
+    printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status
+  fi
+  install -m 0644 "$cache" "/var/lib/proxy-control/$name"
+}
+
 release_setup() {
   setup_full_host
   export DEBIAN_FRONTEND=noninteractive
@@ -424,14 +539,15 @@ warp_domains = []
 [firewall]
 manage_ufw = true
 TOML
-  printf '10.0.2.15 naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' >> /etc/hosts
+  printf '%s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' "$(host_ip)" >> /etc/hosts
+  stage_mita_package
 }
 
 release_environment_preflight() {
   local started log script
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f add_hosts write_fake_certbot setup_full_host release_setup); release_setup"
+  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f add_hosts write_fake_certbot setup_full_host stage_mita_package release_setup); release_setup"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
@@ -478,6 +594,9 @@ PLANPY
 
 release_install() {
   cd "$RELEASE_ROOT"
+  # An earlier uninstall scenario purges /var/lib/proxy-control, so re-stage the
+  # operator-supplied package the same way before every install.
+  stage_mita_package
   local digest
   digest=$(python3 -c "import json;print(json.load(open('/tmp/plan.json'))['digest'])")
   run_captured /tmp/install.out installer_cmd install --config "$CONFIG" --accept-plan "$digest"
@@ -545,10 +664,10 @@ release_repair() {
 release_idempotence() {
   cd "$RELEASE_ROOT"
   local before after digest
-  before=$(sha256sum /var/lib/proxy-control/transaction.json | cut -d' ' -f1)
+  before=$(sha256sum "$INSTALLER_STATE" | cut -d' ' -f1)
   digest=$(python3 -c "import json;print(json.load(open('/tmp/plan.json'))['digest'])")
   run_captured /tmp/idempotent.out installer_cmd install --config "$CONFIG" --accept-plan "$digest"
-  after=$(sha256sum /var/lib/proxy-control/transaction.json | cut -d' ' -f1)
+  after=$(sha256sum "$INSTALLER_STATE" | cut -d' ' -f1)
   [[ $before == "$after" ]]
 }
 
@@ -567,7 +686,7 @@ release_crash_every_phase() {
     python3 - "$phase" <<'CRASHPY'
 import json, sys
 from pathlib import Path
-state = Path('/var/lib/proxy-control/transaction.json')
+state = Path('/var/lib/proxy-control/installer/state.json')
 document = json.loads(state.read_text())
 document['status'] = 'applying'
 for checkpoint in document.get('checkpoints', []):
@@ -632,21 +751,32 @@ release_coexistence() {
 # container mode: the part of release acceptance a systemd container proves
 # ----------------------------------------------------------------------
 
-container_ip() {
+host_ip() {
   ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -n 1
 }
 
 container_setup() {
   local address
-  address=$(container_ip)
+  address=$(host_ip)
   [[ -n $address ]]
   printf '%s %s %s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' \
     "$address" "$PROXY" "$PANEL" >> /etc/hosts
 
   # A local resolver so the audit's mandatory CAA query answers instead of
   # failing closed: the lab zone publishes no CAA, exactly like a fresh host.
-  printf 'no-resolv\nno-hosts\nlisten-address=127.0.0.1\nbind-interfaces\naddress=/lab.test/%s\n' \
-    "$address" > /etc/dnsmasq.d/lab.conf
+  # Everything outside the lab zone keeps going to the upstream resolvers this
+  # host already used, so image pulls and package downloads still work.
+  local upstreams
+  upstreams=$(awk '/^nameserver/ && $2 !~ /^127\./ {print "server=" $2}' /etc/resolv.conf | sort -u)
+  {
+    printf 'no-resolv\nno-hosts\nlisten-address=127.0.0.1\nbind-interfaces\n'
+    printf 'address=/lab.test/%s\n' "$address"
+    if [[ -n $upstreams ]]; then
+      printf '%s\n' "$upstreams"
+    else
+      printf 'server=1.1.1.1\nserver=8.8.8.8\n'
+    fi
+  } > /etc/dnsmasq.d/lab.conf
   systemctl restart dnsmasq
   printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf
   dig +short CAA "$PANEL" >/dev/null
@@ -658,7 +788,11 @@ user www-data;
 pid /run/nginx.pid;
 events { worker_connections 256; }
 stream { include /etc/nginx/stream.d/*.conf; }
-http { include /etc/nginx/sites-enabled/*; }
+http {
+    include /etc/nginx/mime.types;
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
 NGINX
   cat > "$ROUTE" <<'ROUTES'
 map $ssl_preread_server_name $shared_backend {
@@ -667,14 +801,32 @@ map $ssl_preread_server_name $shared_backend {
 }
 server { listen 443; proxy_pass $shared_backend; ssl_preread on; }
 ROUTES
+  # The adjacent site must be a real TLS server: acceptance performs a verified
+  # handshake through the shared router, not a bare TCP probe. Nginx presents
+  # exactly the leaf it is given, which is what a real adjacent site does.
+  write_fake_certbot /usr/local/bin/certbot
+  /usr/local/bin/certbot certonly --cert-name old-xray.lab.test -d old-xray.lab.test
+  cat > /etc/nginx/conf.d/lab-adjacent.conf <<'ADJACENT'
+server {
+    listen 127.0.0.1:9443 ssl;
+    server_name old-xray.lab.test;
+    ssl_certificate /etc/letsencrypt/live/old-xray.lab.test/cert.pem;
+    ssl_certificate_key /etc/letsencrypt/live/old-xray.lab.test/privkey.pem;
+    location / { return 200 "adjacent\n"; }
+}
+ADJACENT
   cat > /etc/systemd/system/lab-xray.service <<'UNIT'
+[Unit]
+Description=foreign adjacent service marker
 [Service]
-ExecStart=/usr/bin/socat TCP-LISTEN:9443,bind=127.0.0.1,reuseaddr,fork EXEC:/bin/cat
+ExecStart=/usr/bin/sleep infinity
 UNIT
   systemctl daemon-reload
-  systemctl enable --now lab-xray nginx >/dev/null
+  systemctl enable lab-xray nginx >/dev/null
+  systemctl restart lab-xray
   nginx -t
-  write_fake_certbot /usr/local/bin/certbot
+  systemctl restart nginx
+  ss -lnt | grep -q ':9443 '
   sha256sum "$ROUTE" > "$BASELINE"
 
   # The controller already extracted the archive; this runner is the copy
@@ -722,7 +874,7 @@ container_environment_preflight() {
   local started log script
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROOT ROUTE BASELINE FOREIGN_BASELINE RELEASE RELEASE_ROOT CONFIG); $(declare -f container_ip write_fake_certbot container_write_configs container_setup); container_setup"
+  script="$(declare -p PROXY PANEL ROOT ROUTE BASELINE FOREIGN_BASELINE RELEASE RELEASE_ROOT CONFIG); $(declare -f host_ip write_fake_certbot container_write_configs container_setup); container_setup"
   if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
     emit environment-preflight passed "$started"
     rm -f "$log"
@@ -845,6 +997,177 @@ emit_plan_digest() {
   printf 'LAB_PLAN_DIGEST\t%s\n' "$digest"
 }
 
+
+# ----------------------------------------------------------------------
+# host mode: the same acceptance on a disposable bare-metal host, with
+# stub domains and a deterministic certificate generator instead of ACME
+# ----------------------------------------------------------------------
+
+host_setup() {
+  # A host acceptance run starts from a pristine host. An existing installer
+  # transaction is refused rather than silently adopted; LAB_RESET=1 is the
+  # explicit opt-in that clears installer-owned state on a disposable host.
+  local residue=0 candidate
+  for candidate in "$INSTALLER_STATE" /opt/mtproxy-shared443 /etc/proxy-control \
+      /etc/letsencrypt/live; do
+    [[ -e $candidate ]] && residue=1
+  done
+  compgen -G '/etc/nginx/conf.d/proxy-control-*.conf' >/dev/null && residue=1
+  if [[ ${LAB_RESET:-0} == 1 ]]; then
+    # Disposable host only: return it to a pristine state so a rerun measures
+    # the installer, not the residue of the previous attempt.
+    ( cd "$RELEASE_ROOT" && PYTHONPATH="$RELEASE_ROOT" python3 -m installer.cli --root / \
+        uninstall --purge-data >/dev/null 2>&1 ) || true
+    # Remove the Compose project the same way the installer detects it: by
+    # label, not by container name.
+    local label=label=com.docker.compose.project=mtproxy
+    docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
+    docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
+    docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+    systemctl disable --now caddy-naive mita >/dev/null 2>&1 || true
+    rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt \
+      /etc/proxy-control /var/lib/naive-manager /var/log/naive-proxy \
+      /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita
+    rm -f /etc/systemd/system/caddy-naive.service /etc/systemd/system/mita.service \
+      /etc/tmpfiles.d/mita.conf /usr/local/bin/caddy /usr/bin/mita \
+      /usr/local/libexec/check-naive-caddy-build /usr/local/libexec/caddy-naive-adapt \
+      /usr/local/libexec/prepare-naive-state /usr/local/libexec/prepare-mieru-state \
+      /usr/local/libexec/prepare-mieru-token \
+      /etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy
+    # A stray process keeps its identity alive, and userdel then refuses.
+    pkill -KILL -u naive-caddy >/dev/null 2>&1 || true
+    pkill -KILL -u mita >/dev/null 2>&1 || true
+    sleep 1
+    userdel naive-caddy >/dev/null 2>&1 || true
+    groupdel naive-accounting >/dev/null 2>&1 || true
+    userdel mita >/dev/null 2>&1 || true
+    groupdel mita >/dev/null 2>&1 || true
+    systemctl daemon-reload
+    rm -f /etc/nginx/conf.d/proxy-control-*.conf
+    # The identity-collision scenario creates this group; a previous run that
+    # stopped early can leave it behind and block the next audit.
+    groupdel foreign-accounting >/dev/null 2>&1 || true
+    rm -f /tmp/plan*.json /tmp/status.json /tmp/resume-*.json /tmp/*.out
+  elif ((residue)); then
+    printf 'installer state already exists; run uninstall or set LAB_RESET=1\n' >&2
+    return 1
+  fi
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq nginx-full libnginx-mod-stream docker.io docker-compose-v2 \
+    certbot openssl socat jq dnsmasq dnsutils dpkg-dev iproute2 >/dev/null
+  container_setup
+  install -d -m 0700 "$CREDENTIALS"
+  install -d -m 0755 "$CLIENT_RESULTS"
+  systemctl enable --now docker >/dev/null 2>&1 || true
+}
+
+host_environment_preflight() {
+  local started log script
+  started=$(python3 -c 'import time; print(time.time())')
+  log=$(mktemp)
+  script="export LAB_RESET=${LAB_RESET:-0}; $(declare -p PROXY PANEL ROOT ROUTE BASELINE FOREIGN_BASELINE RELEASE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS INSTALLER_STATE); $(declare -f host_ip write_fake_certbot container_write_configs container_setup host_setup); host_setup"
+  if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
+    emit environment-preflight passed "$started"
+    rm -f "$log"
+    return 0
+  fi
+  emit environment-preflight failed "$started" "$(tail -n 5 "$log" | tr '\n' ' ')"
+  sed 's/^/environment-preflight: /' "$log" >&2
+  rm -f "$log"
+  return 1
+}
+
+host_install() {
+  local digest
+  # An earlier uninstall scenario purges /var/lib/proxy-control, so re-stage the
+  # operator-supplied package the same way before every install.
+  stage_mita_package
+  # Derive the plan immediately before applying it: an approved digest is only
+  # meaningful for the host as it is right now.
+  container_cmd plan --config "$CONFIG" --json >/tmp/plan-install.json
+  digest=$(python3 -c "import json;print(json.load(open('/tmp/plan-install.json'))['digest'])")
+  run_captured /tmp/install.out container_cmd install --config "$CONFIG" --accept-plan "$digest"
+  container_cmd status --json >/tmp/status.json
+  python3 -c "import json;assert json.load(open('/tmp/status.json'))['status']=='active'"
+  test -d /opt/mtproxy-shared443
+  test "$(stat -c %a /opt/mtproxy-shared443/secrets)" = 700
+}
+
+host_docker_build() {
+  docker image inspect mtproxy-panel >/dev/null 2>&1 \
+    || docker image ls --format '{{.Repository}}' | grep -qx mtproxy-panel
+}
+
+host_repair() {
+  container_cmd repair --json >/tmp/repair.json
+  python3 -c "import json;assert json.load(open('/tmp/repair.json'))['status']=='active'"
+}
+
+host_idempotence() {
+  local before after digest
+  before=$(sha256sum "$INSTALLER_STATE" | cut -d' ' -f1)
+  container_cmd plan --config "$CONFIG" --json >/tmp/plan-idempotent.json
+  digest=$(python3 -c "import json;print(json.load(open('/tmp/plan-idempotent.json'))['digest'])")
+  run_captured /tmp/idempotent.out container_cmd install --config "$CONFIG" --accept-plan "$digest"
+  after=$(sha256sum "$INSTALLER_STATE" | cut -d' ' -f1)
+  [[ $before == "$after" ]]
+}
+
+host_reboot_recovery() {
+  systemctl restart nginx docker
+  sleep 5
+  host_repair
+}
+
+host_crash_every_phase() {
+  local phase
+  for phase in prepared applied verified; do
+    python3 - "$phase" <<'CRASHPY'
+import json, sys
+from pathlib import Path
+state = Path('/var/lib/proxy-control/installer/state.json')
+document = json.loads(state.read_text())
+document['status'] = 'applying'
+for checkpoint in document.get('checkpoints', []):
+    checkpoint['phase'] = sys.argv[1]
+state.write_text(json.dumps(document))
+CRASHPY
+    container_cmd resume --json >/tmp/resume-"$phase".json
+    python3 -c "import json,sys;assert json.load(open(sys.argv[1]))['status']=='active'" /tmp/resume-"$phase".json
+  done
+}
+
+host_report() {
+  container_cmd report --config "$CONFIG" --output /var/lib/proxy-control/reports --json >/tmp/report.out
+  test -f /var/lib/proxy-control/reports/report.json
+  test "$(stat -c %a /var/lib/proxy-control/reports/report.json)" = 644
+  # The public report must never name or carry a credential.
+  ! grep -Eiq '(password|token|secret|privateKey)' /var/lib/proxy-control/reports/report.json
+}
+
+host_uninstall() {
+  container_cmd uninstall --json >/tmp/uninstall.json
+  container_cmd uninstall --json >/tmp/uninstall-again.json
+  test ! -e /opt/mtproxy-shared443/compose.yaml
+  # The foreign topology and the foreign 3x-ui are byte-identical afterwards.
+  sha256sum -c "$BASELINE" >/dev/null
+  sha256sum -c "$FOREIGN_BASELINE" >/dev/null
+  dpkg-query -W nginx-full docker.io docker-compose-v2 certbot >/dev/null
+}
+
+host_secrets_scan() {
+  ! grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
+    /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json 2>/dev/null
+  test "$(stat -c %a /opt/mtproxy-shared443/secrets 2>/dev/null || echo 700)" = 700
+}
+
+host_coexistence() {
+  sha256sum -c "$BASELINE" >/dev/null
+  sha256sum -c "$FOREIGN_BASELINE" >/dev/null
+  systemctl is-active nginx lab-xray >/dev/null
+}
+
 if [[ ${GUEST_RUNNER_LIB_ONLY:-0} == 1 ]]; then
   return 0 2>/dev/null || exit 0
 fi
@@ -919,6 +1242,30 @@ elif [[ $MODE == container ]]; then
   case_run uninstall-foreign-identity container_uninstall_foreign_identity plan
   case_run dns-tls-preflight container_dns_tls plan
   case_run secrets-scan container_secrets_scan coexist-existing-xui
+elif [[ $MODE == host ]]; then
+  if ! host_environment_preflight; then
+    exit "$RESULTS_FAILED"
+  fi
+  CASE_STATUS[environment-preflight]=passed
+  case_run release-artifact-integrity container_artifact_integrity environment-preflight
+  case_run audit container_audit release-artifact-integrity
+  case_run plan container_plan audit
+  emit_plan_digest
+  # Everything that asserts the untouched host runs before the install.
+  case_run nginx-multi-map container_nginx_multi_map plan
+  case_run coexist-existing-xui container_coexist_existing_xui plan
+  case_run uninstall-foreign-identity container_uninstall_foreign_identity plan
+  case_run dns-tls-preflight container_dns_tls plan
+  case_run install host_install dns-tls-preflight
+  case_run docker-build host_docker_build install
+  case_run repair host_repair install
+  case_run idempotence host_idempotence repair
+  case_run reboot-recovery host_reboot_recovery idempotence
+  case_run crash-every-phase host_crash_every_phase reboot-recovery
+  case_run report host_report crash-every-phase
+  case_run secrets-scan host_secrets_scan report
+  case_run uninstall host_uninstall secrets-scan
+  case_run coexistence host_coexistence uninstall
 else
   printf 'unknown mode: %s\n' "$MODE" >&2
   exit 2

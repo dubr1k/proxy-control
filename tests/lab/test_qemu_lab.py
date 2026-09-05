@@ -39,7 +39,7 @@ class QemuLabTests(unittest.TestCase):
         self.assertIn("\"https://$PANEL/healthz\"", runner)
         self.assertIn("jq -e '.status == \"ok\"'", runner)
 
-    def test_fake_certbot_avoids_self_copy_and_populates_each_san_with_source_permissions(self):
+    def test_fake_certbot_issues_a_complete_locally_trusted_lineage(self):
         runner = MODULE.parent / "guest-runner.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -60,12 +60,12 @@ class QemuLabTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                env={**os.environ, "LETSENCRYPT_LIVE_ROOT": str(root / "live")},
+                env={**os.environ, "LETSENCRYPT_ROOT": str(root / "letsencrypt")},
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
 
-            source = root / "live" / "proxy.lab.test"
-            panel = root / "live" / "panel.lab.test"
+            source = root / "letsencrypt" / "live" / "proxy.lab.test"
+            panel = root / "letsencrypt" / "live" / "panel.lab.test"
             for filename in ("fullchain.pem", "privkey.pem"):
                 self.assertTrue((source / filename).is_file())
                 self.assertEqual((source / filename).read_bytes(), (panel / filename).read_bytes())
@@ -81,6 +81,38 @@ class QemuLabTests(unittest.TestCase):
             )
             self.assertIn("DNS:proxy.lab.test", certificate.stdout)
             self.assertIn("DNS:panel.lab.test", certificate.stdout)
+
+            # The installer requires a complete Certbot-shaped lineage.
+            for filename in ("cert.pem", "chain.pem", "fullchain.pem", "privkey.pem"):
+                self.assertTrue((source / filename).is_file(), filename)
+            self.assertEqual((source / "privkey.pem").stat().st_mode & 0o777, 0o600)
+            self.assertTrue(
+                (root / "letsencrypt" / "renewal" / "proxy.lab.test.conf").is_file()
+            )
+            self.assertTrue(
+                (root / "letsencrypt" / "archive" / "proxy.lab.test").is_dir()
+            )
+            # The leaf verifies against the lab CA, so trust checks pass.
+            verified = subprocess.run(
+                [
+                    "openssl", "verify",
+                    "-CAfile", str(root / "letsencrypt" / "lab-ca" / "ca.crt"),
+                    "-untrusted", str(source / "chain.pem"),
+                    str(source / "cert.pem"),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            # The key belongs to the leaf.
+            key_public = subprocess.run(
+                ["openssl", "pkey", "-in", str(source / "privkey.pem"), "-pubout"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            leaf_public = subprocess.run(
+                ["openssl", "x509", "-in", str(source / "cert.pem"), "-pubkey", "-noout"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            self.assertEqual(key_public.strip(), leaf_public.strip())
 
     def test_case_run_preserves_failure_output_and_does_not_swallow_early_failure(self):
         runner = MODULE.parent / "guest-runner.sh"
