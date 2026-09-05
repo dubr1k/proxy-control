@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "name": "mieru",
+      "version": "3.36.0",
+      "tag": "v3.36.0",
+      "repository": "enfein/mieru",
+      "spdx_license": "GPL-3.0-or-later",
+      "platforms": {
+        "amd64": {
+          "architecture": "amd64",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.36.0/mieru_3.36.0_amd64.deb",
+          "sha256": "49da700a7ce80aa46486313d61ecb83825a99e27a1dab9dda726241cbb85cb90",
+          "executable_path": "usr/bin/mieru",
+          "executable_sha256": "acbf1b6ea9d48a6f88af9397fa9f1897cdb0f5f6ec456608b55307d7f1dcbdfc"
+        },
+        "arm64": {
+          "architecture": "arm64",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.36.0/mieru_3.36.0_arm64.deb",
+          "sha256": "8049bdacbd36d936eb502525425ef93004913f99ac4178e66bebfb29c82f0378",
+          "executable_path": "usr/bin/mieru",
+          "executable_sha256": "23031932aaf4b46567a7882c3971cb22f439a138f38fe17c633c65c9f4411da9"
+        }
+      }
+    },
+    {
+      "name": "mita",
+      "version": "3.36.0",
+      "tag": "v3.36.0",
+      "repository": "enfein/mieru",
+      "spdx_license": "GPL-3.0-or-later",
+      "platforms": {
+        "amd64": {
+          "architecture": "amd64",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb",
+          "sha256": "44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a",
+          "executable_path": "usr/bin/mita",
+          "executable_sha256": "38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170"
+        },
+        "arm64": {
+          "architecture": "arm64",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_arm64.deb",
+          "sha256": "a43dbc4d75dcb18978ea79b924ce859e2485af8b776dfc981b29a7b60644157c",
+          "executable_path": "usr/bin/mita",
+          "executable_sha256": "5105cf47ae85cfa885922fe8384f53f1977ea230259eb066130b7232ce0847b0"
+        }
+      }
+    },
+    {
+      "name": "three_xui",
+      "version": "3.7.0",
+      "tag": "v3.7.0",
+      "repository": "MHSanaei/3x-ui",
+      "spdx_license": "GPL-3.0-only",
+      "platforms": {
+        "amd64": {
+          "architecture": "amd64",
+          "url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-amd64.tar.gz",
+          "sha256": "0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5"
+        },
+        "arm64": {
+          "architecture": "arm64",
+          "url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-arm64.tar.gz",
+          "sha256": "3caf1db1e8b10bb1fa1324c945522690bcf01c533ee75b377268f1c01a3ce896"
+        }
+      }
+    }
+  ]
+}

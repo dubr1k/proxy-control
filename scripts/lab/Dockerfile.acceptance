@@ -1,0 +1,32 @@
+# Container host for the release acceptance lab.
+#
+# The base image is pinned by digest, systemd is PID 1 so the installer's real
+# unit lifecycle runs, and nothing from the developer's machine is copied in:
+# the release archive is the only input, and it arrives at run time.
+FROM ubuntu@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    container=docker \
+    LANG=C.UTF-8
+
+RUN apt-get update -qq \
+    && apt-get install -y -qq --no-install-recommends \
+        ca-certificates \
+        curl \
+        dbus \
+        dnsmasq \
+        dnsutils \
+        dpkg-dev \
+        iproute2 \
+        jq \
+        libnginx-mod-stream \
+        nginx-full \
+        openssl \
+        python3 \
+        socat \
+        systemd \
+        systemd-sysv \
+    && rm -rf /var/lib/apt/lists/*
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

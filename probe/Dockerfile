@@ -5,6 +5,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --omit=dev
 
 FROM node@sha256:048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e34
+LABEL org.proxy-control.respq-probe.version="1.0.0" \
+      org.proxy-control.respq-probe.tdlib="0.1008066.0" \
+      org.proxy-control.respq-probe.tdl="8.1.0"
 
 WORKDIR /app
 ENV NODE_ENV=production

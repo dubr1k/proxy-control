@@ -1,0 +1,58 @@
+name: proxy-control-lab-clients
+
+# Real protocol clients, each pinned and isolated. Every probe records only a
+# status and a byte count; the ephemeral credentials it reads are mounted from
+# the guest overlay and disappear with it.
+x-probe: &probe
+  network_mode: host
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: "no"
+  volumes:
+    - ${LAB_CREDENTIALS:-/tmp/lab-credentials}:/credentials:ro
+    - ${LAB_RESULTS:-/tmp/lab-client-results}:/results
+
+services:
+  telemt:
+    <<: *probe
+    image: ${LAB_TELEMT_IMAGE:?set the pinned Telemt/TDLib probe image}
+    command: ["--domain", "${LAB_PROXY_DOMAIN:?}", "--secrets-file", "/credentials/users.conf"]
+
+  naive:
+    <<: *probe
+    image: ${LAB_NAIVE_IMAGE:?set the pinned Naive client image}
+    command: ["--profile", "/credentials/naive.json", "--expect-status", "204"]
+
+  mieru:
+    <<: *probe
+    image: ${LAB_MIERU_IMAGE:?set the pinned official Mieru client image}
+    command: ["--config", "/credentials/mieru-client.json", "--expect-status", "204"]
+
+  vless-tcp:
+    <<: *probe
+    image: ${LAB_XRAY_IMAGE:?set the pinned Xray client image}
+    command: ["--config", "/credentials/vless-tcp.json", "--expect-status", "204"]
+
+  vless-xhttp:
+    <<: *probe
+    image: ${LAB_XRAY_IMAGE:?set the pinned Xray client image}
+    command: ["--config", "/credentials/vless-xhttp.json", "--expect-status", "204"]
+
+  hysteria2:
+    <<: *probe
+    image: ${LAB_HYSTERIA_IMAGE:?set the pinned Hysteria2 client image}
+    command: ["--config", "/credentials/hysteria2.json", "--expect-status", "204"]
+
+  https-cover:
+    <<: *probe
+    image: ${LAB_CURL_IMAGE:?set the pinned curl image}
+    command:
+      - "--fail"
+      - "--silent"
+      - "--show-error"
+      - "--output"
+      - "/results/cover.out"
+      - "--write-out"
+      - "%{http_code} %{size_download}"
+      - "https://${LAB_NAIVE_DOMAIN:?}/"

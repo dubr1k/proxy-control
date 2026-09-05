@@ -8,11 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from installer.audit import AuditFacts, parse_nginx_observation
+
 from scripts.proxyctl import (
     InstallPlan,
     InstallerConflict,
     apply_plan,
-    audit_host,
     repair_installation,
     uninstall_installation,
 )
@@ -36,8 +37,89 @@ def host_root(tmp_path: Path) -> tuple[Path, Path]:
     return root, route
 
 
+def facts_from_root(
+    root: Path,
+    *,
+    listening_ports: set[int],
+    listener_owners: dict[int, list[str]] | None = None,
+    docker_available: bool,
+    dns_records: dict[str, dict[str, list[str]]] | None = None,
+    local_addresses: set[str] | None = None,
+    tls_names: set[str] | None = None,
+) -> AuditFacts:
+    candidates: list[Path] = [root / "etc/nginx/nginx.conf"]
+    for relative in (
+        "etc/nginx/stream.d",
+        "etc/nginx/stream-conf.d",
+        "etc/nginx/conf.d",
+        "etc/nginx/sites-enabled",
+    ):
+        directory = root / relative
+        if directory.is_dir():
+            candidates.extend(sorted(directory.iterdir()))
+    chunks: list[str] = []
+    seen: set[tuple[int, int]] = set()
+    for candidate in candidates:
+        if not candidate.is_file():
+            continue
+        metadata = candidate.stat()
+        identity = (metadata.st_dev, metadata.st_ino)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        canonical = candidate.resolve()
+        chunks.append(
+            f"# configuration file /{canonical.relative_to(root.resolve())}:\n"
+            + canonical.read_text()
+        )
+    local = local_addresses or set()
+    dns: dict[str, object] = {}
+    certificates: dict[str, object] = {}
+    for domain, record in sorted((dns_records or {}).items()):
+        ipv4 = tuple(sorted(set(record.get("A", []))))
+        ipv6 = tuple(sorted(set(record.get("AAAA", []))))
+        dns[domain] = {
+            "a": ipv4,
+            "aaaa": ipv6,
+            "a_matches_local": bool(set(ipv4) & local),
+            "aaaa_handled": not ipv6 or set(ipv6) <= local,
+            "caa": (),
+            "caa_compatible": True,
+            "caa_source": None,
+        }
+        covered = domain in (tls_names or set())
+        certificates[domain] = {"covers_domain": covered, "present": covered}
+    nginx = parse_nginx_observation("".join(chunks))
+    map_files = nginx["sni_map_files"]
+    assert isinstance(map_files, dict)
+    for candidate in candidates:
+        if not candidate.is_symlink():
+            continue
+        canonical_name = "/" + str(candidate.resolve().relative_to(root.resolve()))
+        if map_files.get(canonical_name) == 1:
+            map_files["/" + str(candidate.relative_to(root))] = 1
+    return AuditFacts(
+        listeners={
+            "owners": {
+                str(port): tuple(sorted(names))
+                for port, names in sorted((listener_owners or {}).items())
+            },
+            "ports": tuple(sorted(listening_ports)),
+            "tcp": tuple(sorted(listening_ports)),
+            "udp": (),
+        },
+        ownership={"docker": {"available": docker_available}},
+        topology={
+            "certificates": certificates,
+            "dns": dns,
+            "nginx": nginx,
+            "three_xui": {"installed": False, "inbounds": ()},
+        },
+    )
+
+
 def make_plan(root: Path, route: Path) -> InstallPlan:
-    report = audit_host(
+    report = facts_from_root(
         root=root,
         listening_ports={80, 443, 10443},
         docker_available=True,
@@ -58,7 +140,7 @@ def make_plan(root: Path, route: Path) -> InstallPlan:
 
 def test_audit_domain_checks_are_sorted_secret_safe_and_detect_dns_tls_failures(tmp_path):
     root, _ = host_root(tmp_path)
-    report = audit_host(
+    report = facts_from_root(
         root=root,
         listening_ports={443},
         docker_available=True,
@@ -70,12 +152,14 @@ def test_audit_domain_checks_are_sorted_secret_safe_and_detect_dns_tls_failures(
         tls_names={"a.example.com"},
     )
 
-    encoded = json.dumps(report.to_dict(), sort_keys=True)
-    assert [item.domain for item in report.domains] == ["a.example.com", "z.example.com"]
-    assert report.domains[0].dns_matches_host is True
-    assert report.domains[0].tls_certificate_present is True
-    assert report.domains[1].dns_matches_host is False
-    assert report.domains[1].unhandled_aaaa is True
+    encoded = json.dumps(report.stable_dict(), sort_keys=True)
+    dns = report.topology["dns"]
+    certificates = report.topology["certificates"]
+    assert list(dns) == ["a.example.com", "z.example.com"]
+    assert dns["a.example.com"]["a_matches_local"] is True
+    assert certificates["a.example.com"]["covers_domain"] is True
+    assert dns["z.example.com"]["a_matches_local"] is False
+    assert dns["z.example.com"]["aaaa_handled"] is False
     assert "secret" not in encoded.lower()
     assert "private" not in encoded.lower()
 
@@ -97,10 +181,11 @@ def test_plan_is_deterministic_and_blocks_failed_domain_preflight(tmp_path):
         "proxy_backend": "127.0.0.1:8445",
         "proxy_domain": "mt.example.com",
         "route_file": "/etc/nginx/stream.d/routes.conf",
+        "route_variable": "$upstream_443",
         "schema": 1,
     }
 
-    failed = audit_host(
+    failed = facts_from_root(
         root=root,
         listening_ports={443},
         docker_available=True,
@@ -119,7 +204,7 @@ def test_plan_is_deterministic_and_blocks_failed_domain_preflight(tmp_path):
             route_file="/etc/nginx/stream.d/routes.conf",
         )
 
-    empty = audit_host(root=root, listening_ports={443}, docker_available=True)
+    empty = facts_from_root(root=root, listening_ports={443}, docker_available=True)
     with pytest.raises(InstallerConflict, match="domain preflight evidence is incomplete"):
         InstallPlan.from_audit(
             empty,
@@ -129,13 +214,30 @@ def test_plan_is_deterministic_and_blocks_failed_domain_preflight(tmp_path):
         )
 
 
-def test_plan_fails_closed_on_ambiguous_map_and_direct_443_listener(tmp_path):
+def test_plan_selects_active_map_and_fails_closed_on_ambiguous_paths_and_direct_listener(tmp_path):
     root, route = host_root(tmp_path)
-    route.write_text(route.read_text() + "\nmap $ssl_preread_server_name $other { default 127.0.0.1:9; }\n")
-    report = audit_host(root=root, listening_ports={443}, docker_available=True)
-    with pytest.raises(InstallerConflict, match="exactly one SNI map"):
+    route.write_text(
+        route.read_text()
+        + "\nmap $ssl_preread_server_name $other { default 127.0.0.1:9; }\n"
+    )
+    report = facts_from_root(root=root, listening_ports={443}, docker_available=True)
+    selected = InstallPlan.from_audit(
+        report,
+        proxy_domain="mt.example.com",
+        panel_domain="panel-mt.example.com",
+        route_file="/etc/nginx/stream.d/routes.conf",
+        require_domain_preflight=False,
+    )
+    assert selected.route_variable == "$upstream_443"
+
+    route.write_text(
+        route.read_text()
+        + "server { listen 443; ssl_preread on; proxy_pass $other; }\n"
+    )
+    ambiguous = facts_from_root(root=root, listening_ports={443}, docker_available=True)
+    with pytest.raises(InstallerConflict, match="more than one effective map"):
         InstallPlan.from_audit(
-            report,
+            ambiguous,
             proxy_domain="mt.example.com",
             panel_domain="panel-mt.example.com",
             route_file="/etc/nginx/stream.d/routes.conf",
@@ -144,7 +246,7 @@ def test_plan_fails_closed_on_ambiguous_map_and_direct_443_listener(tmp_path):
 
     root2 = tmp_path / "direct"
     root2.mkdir()
-    direct = audit_host(root=root2, listening_ports={443}, docker_available=True)
+    direct = facts_from_root(root=root2, listening_ports={443}, docker_available=True)
     with pytest.raises(InstallerConflict, match="occupied without an Nginx stream router"):
         InstallPlan.from_audit(
             direct,
@@ -156,7 +258,7 @@ def test_plan_fails_closed_on_ambiguous_map_and_direct_443_listener(tmp_path):
 
 
     root3, _ = host_root(tmp_path / "stale")
-    stale = audit_host(
+    stale = facts_from_root(
         root=root3,
         listening_ports={443},
         listener_owners={443: ["xray"]},
@@ -175,16 +277,18 @@ def test_plan_fails_closed_on_ambiguous_map_and_direct_443_listener(tmp_path):
     route4.write_text(route4.read_text().replace(
         "    default", "    vpn.example.com 127.0.0.1:10443;\n    default"
     ))
-    duplicate = audit_host(root=root4, listening_ports={443}, docker_available=True)
-    assert duplicate.nginx.duplicate_sni_domains == ["vpn.example.com"]
+    duplicate = facts_from_root(root=root4, listening_ports={443}, docker_available=True)
+    assert duplicate.topology["nginx"]["duplicate_sni_domains"] == (
+        "vpn.example.com",
+    )
 
     root5, _ = host_root(tmp_path / "foreign")
     foreign = root5 / "tmp/foreign.conf"
     foreign.parent.mkdir()
     foreign.write_text("map $ssl_preread_server_name $x { default 127.0.0.1:9; }\n")
-    with pytest.raises(InstallerConflict, match="audited SNI map file"):
+    with pytest.raises(InstallerConflict, match="active audited SNI map file"):
         InstallPlan.from_audit(
-            audit_host(root=root5, listening_ports={443}, docker_available=True),
+            facts_from_root(root=root5, listening_ports={443}, docker_available=True),
             proxy_domain="mt.example.com",
             panel_domain="panel-mt.example.com",
             route_file="/tmp/foreign.conf",
@@ -274,6 +378,7 @@ def test_repair_and_uninstall_are_idempotent_and_refuse_foreign_drift(tmp_path):
     root, route = host_root(tmp_path)
     original = route.read_text()
     plan = make_plan(root, route)
+
     apply_plan(plan, root=root, validate=lambda: None, reload=lambda: None)
 
     repair_installation(root=root, validate=lambda: None, reload=lambda: None)
@@ -292,6 +397,26 @@ def test_repair_and_uninstall_are_idempotent_and_refuse_foreign_drift(tmp_path):
     uninstall_installation(root=root, validate=lambda: None, reload=lambda: None)
     assert route.read_text() == original
     assert not (root / "var/lib/proxy-control/ownership.json").exists()
+
+def test_repair_durably_migrates_legacy_schema_one_manifest(tmp_path):
+    root, route = host_root(tmp_path)
+    plan = make_plan(root, route)
+    apply_plan(plan, root=root, validate=lambda: None, reload=lambda: None)
+    manifest = root / "var/lib/proxy-control/ownership.json"
+    legacy = json.loads(manifest.read_text())
+    legacy["plan"].pop("route_variable")
+    manifest.write_text(json.dumps(legacy))
+    calls: list[str] = []
+
+    repair_installation(
+        root=root,
+        validate=lambda: calls.append("validate"),
+        reload=lambda: calls.append("reload"),
+    )
+
+    migrated = json.loads(manifest.read_text())
+    assert migrated["plan"]["route_variable"] == "$upstream_443"
+    assert calls == ["validate"]
 
 def test_repair_and_uninstall_preserve_foreign_routes_added_after_install(tmp_path):
     root, route = host_root(tmp_path)
@@ -413,7 +538,7 @@ def test_symlink_route_is_canonicalized_but_symlink_survives(tmp_path):
     root, route = host_root(tmp_path)
     alias = root / "etc/nginx/stream.d/current.conf"
     alias.symlink_to(route.name)
-    report = audit_host(root=root, listening_ports={443}, docker_available=True)
+    report = facts_from_root(root=root, listening_ports={443}, docker_available=True)
     plan = InstallPlan.from_audit(
         report,
         proxy_domain="mt.example.com",

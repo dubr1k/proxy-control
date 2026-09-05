@@ -42,6 +42,7 @@ __pycache__/
 panel/*.sqlite3*
 .lab-state/
 lab-results/
+lab-results-container/
 
 # Runtime version-agent state is host-specific and may reference local images.
 version-overrides/compose.versions.yaml

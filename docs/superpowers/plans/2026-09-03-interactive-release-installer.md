@@ -24,6 +24,7 @@
 - Existing 3x-ui databases, clients, generated Xray config, units, and binary trees remain foreign and unchanged during Proxy Control installation.
 - MSS clamping remains a separate explicit diagnostic action and is never enabled by a normal profile.
 - Every production behavior change follows red-green-refactor and completes the exact isolated verification named by its task.
+- Run repository Python tests with `PYTHONPATH=.`; Darwin is not an authoritative host for Linux-only `/proc`, systemd, Nginx, nftables, `ss`, or long Unix-socket contracts, so those gates run in the disposable Ubuntu lab.
 - The unrelated untracked `docker/Dockerfile.telemt` MUST remain untouched and uncommitted.
 
 ## Planned File Structure
@@ -1124,6 +1125,30 @@ git commit -m "ci(release): build and attest installer releases"
 **Interfaces:**
 - Documents only commands and examples exercised by Tasks 1–16.
 - `tests/test_installer_docs.py` extracts command blocks marked `installer-check` and runs them against the built release or a no-mutation parser mode.
+
+**Operator requirements recorded for this task (from the maintainer, 2026-09-04):**
+
+- The READMEs must be brought up to date with everything Tasks 9-16 changed;
+  they still describe the manual NaiveProxy and Mieru procedures as the only
+  path.
+- WARP must be documented and installed as a **SOCKS5** endpoint on
+  `127.0.0.1:45000`, which is what every consumer already expects.
+- The egress split must be stated explicitly and per protocol:
+  - **Xray / 3x-ui** routes **only the selected traffic** through WARP - the
+    `warp_domains` rules - and everything else stays direct, with the mandatory
+    final policy untouched.
+  - **NaiveProxy and Mieru** send **all** of their traffic through WARP when it
+    is enabled; there is no per-domain split on those two paths. The Mieru
+    adapter already encodes this as one all-domain/all-IP egress rule
+    (`egress=proxy`), and the documentation must say so rather than implying a
+    selective route.
+- The README must list **every package the repository uses** - host packages,
+  Python dependencies, container base images, and the pinned external artifacts
+  - so an operator can see the whole dependency surface in one place. The SBOM
+  produced by Task 16 (`release/sbom.py`) is the machine-readable counterpart
+  and must agree with the list.
+
+
 
 - [ ] **Step 1: Write failing documentation-contract tests**
 

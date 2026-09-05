@@ -4,14 +4,17 @@ import json
 from pathlib import Path
 
 import pytest
+from installer.adapters.nginx import TopologyError, patch_owned_map
 
-from scripts.proxyctl import (
-    InstallPlan,
-    InstallerConflict,
-    audit_host,
-    patch_stream_map,
+from installer.audit import (
+    AuditFacts,
+    parse_nginx_observation,
+    parse_xray_inbounds,
     validate_domain,
 )
+from installer.model import HostMode
+
+from scripts.proxyctl import InstallPlan, InstallerConflict
 
 
 def fixture_root(tmp_path: Path) -> Path:
@@ -41,22 +44,79 @@ def fixture_root(tmp_path: Path) -> Path:
     return root
 
 
+def facts_from_root(
+    root: Path,
+    *,
+    listening_ports: set[int],
+    listener_owners: dict[int, list[str]] | None = None,
+    docker_available: bool,
+) -> AuditFacts:
+    chunks: list[str] = []
+    for relative in (
+        "etc/nginx/nginx.conf",
+        "etc/nginx/stream.d",
+        "etc/nginx/stream-conf.d",
+        "etc/nginx/conf.d",
+        "etc/nginx/sites-enabled",
+    ):
+        path = root / relative
+        files = [path] if path.is_file() else sorted(path.iterdir()) if path.is_dir() else []
+        for config_file in files:
+            if config_file.is_file():
+                chunks.append(
+                    f"# configuration file /{config_file.relative_to(root)}:\n"
+                    + config_file.read_text()
+                )
+    xray_path = root / "usr/local/x-ui/bin/config.json"
+    inbounds = parse_xray_inbounds(json.loads(xray_path.read_text())) if xray_path.is_file() else ()
+    return AuditFacts(
+        listeners={
+            "owners": {
+                str(port): tuple(sorted(names))
+                for port, names in sorted((listener_owners or {}).items())
+            },
+            "ports": tuple(sorted(listening_ports)),
+            "tcp": tuple(sorted(listening_ports)),
+            "udp": (),
+        },
+        ownership={"docker": {"available": docker_available}},
+        topology={
+            "certificates": {},
+            "dns": {},
+            "nginx": parse_nginx_observation("".join(chunks)),
+            "three_xui": {"installed": xray_path.is_file(), "inbounds": inbounds},
+        },
+    )
+
+
 def test_audit_reports_existing_shared_443_without_dumping_secrets(tmp_path):
     root = fixture_root(tmp_path)
-    report = audit_host(root=root, listening_ports={22, 80, 443, 10443, 45000}, docker_available=False)
+    report = facts_from_root(
+        root,
+        listening_ports={22, 80, 443, 10443, 45000},
+        docker_available=False,
+    )
 
-    assert report.nginx.stream_enabled is True
-    assert report.nginx.sni_routes == {"vpn.example.com": "127.0.0.1:10443"}
-    assert report.xray.inbounds == [{
-        "tag": "in-443-tcp", "protocol": "vless", "listen": "127.0.0.1", "port": 10443,
-        "security": "reality", "server_names": ["vpn.example.com"],
-    }]
-    assert report.docker_available is False
-    assert report.listening_ports == [22, 80, 443, 10443, 45000]
-    assert "privateKey" not in json.dumps(report.to_dict())
+    assert report.topology["nginx"]["stream_enabled"] is True
+    assert report.topology["nginx"]["sni_routes"] == {
+        "vpn.example.com": "127.0.0.1:10443"
+    }
+    assert report.topology["three_xui"]["inbounds"] == (
+        {
+            "tag": "in-443-tcp",
+            "protocol": "vless",
+            "listen": "127.0.0.1",
+            "port": 10443,
+            "transport_security": "reality",
+            "reality_server_names": ("vpn.example.com",),
+        },
+    )
+    assert report.ownership["docker"]["available"] is False
+    assert report.listeners["ports"] == (22, 80, 443, 10443, 45000)
+    assert "privateKey" not in json.dumps(report.stable_dict())
 
 
-def test_audit_discovers_stream_conf_d_routes(tmp_path, monkeypatch):
+def test_audit_discovers_stream_conf_d_routes(tmp_path):
     root = tmp_path / "root"
     (root / "etc/nginx/stream-conf.d").mkdir(parents=True)
     (root / "etc/nginx/nginx.conf").write_text(
@@ -67,25 +127,74 @@ def test_audit_discovers_stream_conf_d_routes(tmp_path, monkeypatch):
         "    relay.example.com 127.0.0.1:8445;\n"
         "    default 127.0.0.1:8443;\n"
         "}\n"
+        "server { listen 443; ssl_preread on; proxy_pass $backend; }\n"
     )
-    monkeypatch.setattr("scripts.proxyctl._listener_inventory", lambda: (set(), {}))
 
-    report = audit_host(
-        root=root,
+    report = facts_from_root(
+        root,
         listening_ports={443},
         docker_available=True,
-        local_addresses={"127.0.0.1"},
     )
 
-    assert report.nginx.sni_routes == {"relay.example.com": "127.0.0.1:8445"}
+    assert report.topology["nginx"]["sni_routes"] == {
+        "relay.example.com": "127.0.0.1:8445"
+    }
+
 
 def test_install_plan_rejects_domain_and_port_collisions(tmp_path):
-    report = audit_host(root=fixture_root(tmp_path), listening_ports={443, 8445, 8787}, docker_available=True)
+    report = facts_from_root(
+        fixture_root(tmp_path),
+        listening_ports={443, 8445, 8787},
+        docker_available=True,
+    )
 
     with pytest.raises(InstallerConflict, match="domain already routed"):
         InstallPlan.from_audit(report, proxy_domain="vpn.example.com", panel_domain="new-panel.example.com")
     with pytest.raises(InstallerConflict, match="backend port 8445"):
         InstallPlan.from_audit(report, proxy_domain="proxy-new.example.com", panel_domain="new-panel.example.com")
+
+
+def test_install_plan_rejects_unknown_nginx_and_gates_unavailable_by_mode(tmp_path):
+    observed = facts_from_root(
+        tmp_path,
+        listening_ports=set(),
+        docker_available=True,
+    )
+
+    def with_observation(value: str) -> AuditFacts:
+        nginx = dict(observed.topology["nginx"])
+        nginx.update({"available": False, "observation": value})
+        topology = dict(observed.topology)
+        topology["nginx"] = nginx
+        return AuditFacts(
+            platform=observed.platform,
+            listeners=observed.listeners,
+            ownership=observed.ownership,
+            topology=topology,
+            prerequisites=observed.prerequisites,
+        )
+
+    arguments = {
+        "proxy_domain": "proxy-new.example.com",
+        "panel_domain": "new-panel.example.com",
+        "require_domain_preflight": False,
+    }
+    with pytest.raises(InstallerConflict, match="Nginx topology is unknown"):
+        InstallPlan.from_audit(with_observation("unknown"), **arguments)
+    with pytest.raises(InstallerConflict, match="Nginx is unavailable in coexist mode"):
+        InstallPlan.from_audit(
+            with_observation("unavailable"),
+            host_mode=HostMode.COEXIST,
+            **arguments,
+        )
+
+    plan = InstallPlan.from_audit(
+        with_observation("unavailable"),
+        host_mode=HostMode.FRESH,
+        **arguments,
+    )
+
+    assert plan.proxy_domain == "proxy-new.example.com"
 
 
 def test_stream_patch_is_owned_idempotent_and_preserves_unrelated_routes():
@@ -94,38 +203,45 @@ def test_stream_patch_is_owned_idempotent_and_preserves_unrelated_routes():
         "    vpn.example.com 127.0.0.1:10443;\n"
         "    default 127.0.0.1:8443;\n}\n"
     )
-    changed = patch_stream_map(
+    changed = patch_owned_map(
         original,
-        proxy_domain="mt.example.com",
-        panel_domain="panel-mt.example.com",
-        proxy_backend="127.0.0.1:8445",
-        panel_backend="127.0.0.1:8443",
+        variable="$upstream_443",
+        routes=(
+            ("mt.example.com", "127.0.0.1:8445"),
+            ("panel-mt.example.com", "127.0.0.1:8443"),
+        ),
+        ownership_id="test",
     )
 
     assert changed.count("# BEGIN PROXY-CONTROL ROUTES") == 1
     assert "vpn.example.com 127.0.0.1:10443;" in changed
     assert changed.index("mt.example.com") < changed.index("default")
-    assert patch_stream_map(
+    assert patch_owned_map(
         changed,
-        proxy_domain="mt.example.com",
-        panel_domain="panel-mt.example.com",
-        proxy_backend="127.0.0.1:8445",
-        panel_backend="127.0.0.1:8443",
+        variable="$upstream_443",
+        routes=(
+            ("mt.example.com", "127.0.0.1:8445"),
+            ("panel-mt.example.com", "127.0.0.1:8443"),
+        ),
+        ownership_id="test",
     ) == changed
 
 
 def test_stream_patch_rejects_ambiguous_or_foreign_owned_input():
-    with pytest.raises(InstallerConflict, match="exactly one SNI map"):
-        patch_stream_map(
-            "map $ssl_preread_server_name $a { default x; }\nmap $ssl_preread_server_name $b { default y; }",
-            proxy_domain="mt.example.com", panel_domain="panel.example.com",
-            proxy_backend="127.0.0.1:8445", panel_backend="127.0.0.1:8443",
+    with pytest.raises(TopologyError, match="exactly one effective map"):
+        patch_owned_map(
+            "map $ssl_preread_server_name $a { default x; }\n"
+            "map $ssl_preread_server_name $a { default y; }",
+            variable="$a",
+            routes=(("mt.example.com", "127.0.0.1:8445"),),
+            ownership_id="test",
         )
-    with pytest.raises(InstallerConflict, match="domain already routed"):
-        patch_stream_map(
+    with pytest.raises(TopologyError, match="domain already routed"):
+        patch_owned_map(
             "map $ssl_preread_server_name $upstream_443 { mt.example.com 127.0.0.1:9999; default 127.0.0.1:8443; }",
-            proxy_domain="mt.example.com", panel_domain="panel.example.com",
-            proxy_backend="127.0.0.1:8445", panel_backend="127.0.0.1:8443",
+            variable="$upstream_443",
+            routes=(("mt.example.com", "127.0.0.1:8445"),),
+            ownership_id="test",
         )
 
 

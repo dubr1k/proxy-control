@@ -1,0 +1,27 @@
+schema = 1
+host_mode = "fresh"
+profile = "full"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+naive = "edge.example.com"
+mieru = "mieru.example.com"
+
+[mieru]
+tcp_ports = [46001]
+udp_ports = [46001]
+
+[three_xui]
+mode = "managed-new"
+panel_domain = "xui.example.com"
+vless_tcp_domain = "vless.example.com"
+vless_xhttp_domain = "xhttp.example.com"
+hysteria_domain = "hy2.example.com"
+warp = false
+warp_domains = []
+
+[firewall]
+manage_ufw = true

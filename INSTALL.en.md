@@ -10,6 +10,42 @@ audit → plan → install → repair → uninstall
 
 The complete installer deploys Telemt/MTProxy and the panel. NaiveProxy, Mieru, and fleet are separate integrations applied only after core acceptance.
 
+## The primary install path: a verified release
+
+This is the supported way to install Proxy Control. It replaces the manual
+`scripts/proxyctl.py` sequence below, which stays documented for an existing
+deployment and for reviewing what the installer does.
+
+Download the archive, its `SHA256SUMS`, and `release-manifest.json` from the
+release page, then verify provenance **before** anything runs with privilege:
+
+```bash installer-check
+gh attestation verify proxy-control-v0.1.0.tar.gz --repo dubr1k/proxy-control
+sha256sum --check --ignore-missing SHA256SUMS
+./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+```
+
+The order matters: the attestation is checked first, and only then is anything
+handed to `sudo`. `install-bootstrap` refuses to run as root, verifies that
+every input is a regular file you own that is not group- or other-writable,
+compares the archive against the published checksum, requires the manifest to
+name the same archive and digest, refuses a prerelease version, and preflights
+the archive for absolute or escaping members before its single `exec sudo`.
+Nothing is ever downloaded and executed in one step.
+
+With no further arguments the installer starts a bilingual wizard that writes a
+configuration file, shows a plan, and applies nothing until you confirm the plan
+digest. The complete surface - profiles, every configuration field, ownership
+boundaries, per-protocol acceptance, WARP and egress, recovery, and reports -
+is in the [installer reference](docs/INSTALLER_REFERENCE.en.md).
+
+Before installing a profile that includes Mieru, stage both pinned upstream
+packages for your architecture in `/var/lib/proxy-control/`:
+`mita_3.36.0_<arch>.deb` (the server) and `mieru_3.36.0_<arch>.deb` (the
+official client the acceptance runs). The installer never downloads them and
+refuses to continue unless each digest matches its pin; the URLs and digests are
+in [`release/external-artifacts.json`](release/external-artifacts.json).
+
 ## Requirements
 
 - Ubuntu 24.04 with systemd;

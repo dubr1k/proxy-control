@@ -10,8 +10,9 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 1. [Обзор продукта и быстрый старт](../README.md)
 2. [Автоматическая установка на Ubuntu 24.04](../INSTALL.ru.md)
-3. [Полный installer/auditor](../INSTALLER_AUDITOR.ru.md)
-4. [Архитектура](ARCHITECTURE.md) и [compatibility contracts](COMPATIBILITY.md)
+3. [Справочник установщика релиза](INSTALLER_REFERENCE.ru.md)
+4. [Полный installer/auditor](../INSTALLER_AUDITOR.ru.md)
+5. [Архитектура](ARCHITECTURE.md) и [compatibility contracts](COMPATIBILITY.md)
 
 ### Протоколы и панель
 
@@ -37,8 +38,9 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 1. [Product overview and quick start](../README.en.md)
 2. [Automated installation on Ubuntu 24.04](../INSTALL.en.md)
-3. [Complete installer/auditor](../INSTALLER_AUDITOR.md)
-4. [Architecture](ARCHITECTURE.md) and [compatibility contracts](COMPATIBILITY.md)
+3. [Release installer reference](INSTALLER_REFERENCE.en.md)
+4. [Complete installer/auditor](../INSTALLER_AUDITOR.md)
+5. [Architecture](ARCHITECTURE.md) and [compatibility contracts](COMPATIBILITY.md)
 
 ### Protocols and panel
 

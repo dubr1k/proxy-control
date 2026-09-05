@@ -1539,3 +1539,52 @@ def test_exact_local_caddy_accepts_managed_accounting_config_when_forwardproxy_m
         ["/usr/local/bin/caddy", "version"], check=True, capture_output=True, text=True,
     ).stdout
     assert version.startswith("v2.11.4 ")
+
+
+def test_cover_probe_accepts_a_locally_untrusted_cover_certificate(tmp_path):
+    """The probe talks to a loopback process, so a private or self-signed chain
+    must not make the manager permanently unhealthy while the tunnel works."""
+    import socket as socket_module
+    import ssl as ssl_module
+    import threading as threading_module
+
+    from naive_manager.server import https_probe
+
+    key = tmp_path / "key.pem"
+    cert = tmp_path / "cert.pem"
+    completed = subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+            "-keyout", str(key), "-out", str(cert), "-days", "1",
+            "-subj", "/CN=naive.example.com",
+            "-addext", "subjectAltName=DNS:naive.example.com",
+        ],
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        pytest.skip("openssl is unavailable")
+
+    context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    listener = socket_module.socket()
+    listener.setsockopt(socket_module.SOL_SOCKET, socket_module.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+
+    def serve() -> None:
+        try:
+            raw, _address = listener.accept()
+            with context.wrap_socket(raw, server_side=True) as tls:
+                tls.recv(4096)
+                tls.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+        except OSError:
+            pass
+
+    server = threading_module.Thread(target=serve, daemon=True)
+    server.start()
+    try:
+        https_probe("naive.example.com", port=port)
+    finally:
+        server.join(timeout=5)
+        listener.close()

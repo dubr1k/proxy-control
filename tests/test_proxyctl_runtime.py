@@ -38,6 +38,8 @@ class FakeRunner:
         self.fail_once = fail_once
         self.failure = failure
         self.calls: list[tuple[tuple[str, ...], str | None]] = []
+        self.compose_present = False
+        self.volumes_present = False
 
     def package_installed(self, name: str) -> bool:
         return name in self.installed
@@ -51,6 +53,23 @@ class FakeRunner:
             raise self.failure("injected command failure")
         if command[:3] == ("apt-get", "install", "-y"):
             self.installed.update(command[3:])
+        elif command[:3] == ("apt-get", "purge", "-y"):
+            self.installed.difference_update(command[3:])
+        if "up" in command:
+            self.compose_present = True
+            self.volumes_present = True
+        elif "down" in command:
+            self.compose_present = False
+            if command[-1:] == ("--volumes",):
+                self.volumes_present = False
+
+    def compose_project_present(self, project_dir):
+        del project_dir
+        return self.compose_present
+
+    def compose_project_volumes_present(self, project_dir):
+        del project_dir
+        return self.volumes_present
 
     def capture(self, argv, *, max_chars) -> str:
         command = tuple(str(value) for value in argv)
@@ -77,6 +96,31 @@ def test_compose_discovery_reports_unavailable_when_docker_is_not_installed(monk
 
     monkeypatch.setattr(subprocess, "run", missing_docker)
     assert CommandRunner().compose_available() is False
+
+
+def test_compose_reconciliation_uses_declared_project_identity(monkeypatch):
+    runner = CommandRunner()
+    queries = []
+
+    def query(command):
+        command = tuple(command)
+        queries.append(command)
+        if command[-3:] == ("config", "--format", "json"):
+            return '{"name":"mtproxy"}'
+        if command[1:3] in {("network", "ls"), ("volume", "ls")}:
+            return "owned-resource\n"
+        return ""
+
+    monkeypatch.setattr(runner, "_query", query)
+
+    assert runner.compose_project_present("/opt/mtproxy-shared443")
+    assert runner.compose_project_volumes_present(
+        "/opt/mtproxy-shared443"
+    )
+    assert any(
+        "label=com.docker.compose.project=mtproxy" in command
+        for command in queries
+    )
 
 
 def test_compose_start_failure_reports_bounded_sanitized_diagnostics_and_rolls_back(tmp_path):
@@ -180,12 +224,17 @@ def runtime_root(tmp_path: Path) -> tuple[Path, Path]:
     return root, route
 
 
-def plan(repo: Path) -> RuntimePlan:
+def plan(
+    repo: Path,
+    *,
+    route_variable: str = "$upstream_443",
+) -> RuntimePlan:
     return RuntimePlan(
         proxy_domain="proxy.example.com",
         panel_domain="panel.example.com",
         email="ops@example.com",
         route_file="/etc/nginx/stream.d/routes.conf",
+        route_variable=route_variable,
         source_dir=str(repo),
         project_dir="/opt/mtproxy-shared443",
         users=("owner",),
@@ -195,7 +244,8 @@ def plan(repo: Path) -> RuntimePlan:
 
 def test_generated_acme_and_panel_sites_pass_native_nginx_syntax_check(tmp_path):
     nginx = shutil.which("nginx")
-    assert nginx is not None, "native nginx is required for generated-site syntax validation"
+    if nginx is None:
+        pytest.skip("native nginx is unavailable")
     runtime_plan = plan(Path(__file__).parents[1])
     manager = RuntimeInstaller(runtime_plan, root=tmp_path, runner=FakeRunner())
     acme_site = manager._acme_site_content()
@@ -238,7 +288,8 @@ def test_generated_acme_and_panel_sites_pass_native_nginx_syntax_check(tmp_path)
 
 def test_generated_panel_site_serves_cover_at_root_and_proxies_panel_paths(tmp_path):
     nginx = shutil.which("nginx")
-    assert nginx is not None, "native nginx is required for generated-site behavior validation"
+    if nginx is None:
+        pytest.skip("native nginx is unavailable")
     runtime_plan = plan(Path(__file__).parents[1])
     manager = RuntimeInstaller(runtime_plan, root=tmp_path, runner=FakeRunner())
     panel_site = manager._panel_site_content()
@@ -388,6 +439,47 @@ def test_runtime_install_owns_complete_stack_and_never_exposes_password(tmp_path
     assert bootstrap[1] == str(password_file)
     assert any(call[0][:2] == ("certbot", "certonly") and "panel.example.com" in call[0] for call in runner.calls)
     assert any(call[0][0] == "/usr/local/bin/mtproxy-respq-probe" for call in runner.calls)
+
+
+def test_runtime_install_propagates_selected_route_variable(tmp_path):
+    root, route = runtime_root(tmp_path)
+    route.write_text(route.read_text().replace("$upstream_443", "$chosen"))
+    selected = plan(
+        Path(__file__).parents[1],
+        route_variable="$chosen",
+    )
+    manager = RuntimeInstaller(selected, root=root, runner=FakeRunner())
+
+    manager.install()
+
+    assert "proxy.example.com 127.0.0.1:8445;" in route.read_text()
+    state = json.loads(
+        (root / "var/lib/proxy-control/runtime.json").read_text()
+    )
+    assert state["plan"]["route_variable"] == "$chosen"
+
+
+def test_rendered_proxyctl_loads_the_single_transaction_module_when_run_directly(tmp_path):
+    root, _route = runtime_root(tmp_path)
+    manager = RuntimeInstaller(
+        plan(Path(__file__).parents[1]),
+        root=root,
+        runner=FakeRunner(),
+    )
+    manager.install()
+    project = root / "opt/mtproxy-shared443"
+
+    completed = subprocess.run(
+        [sys.executable, str(project / "scripts/proxyctl.py"), "--help"],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": ""},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert (project / "installer/transaction.py").is_file()
 
 def test_runtime_install_public_webroots_ignore_restrictive_umask(tmp_path):
     root, _route = runtime_root(tmp_path)
@@ -604,7 +696,7 @@ def test_uninstall_resumes_when_crash_hits_nested_ownership_uninstall_checkpoint
 
     runtime_state = json.loads((root / "var/lib/proxy-control/runtime.json").read_text())
     ownership_state = json.loads((root / "var/lib/proxy-control/ownership.json").read_text())
-    assert runtime_state["phase"] == "compose_down"
+    assert runtime_state["phase"] == "route_removing"
     assert ownership_state["status"] == "uninstalling"
 
     manager.uninstall()
@@ -616,6 +708,8 @@ def test_uninstall_resumes_when_crash_hits_nested_ownership_uninstall_checkpoint
 
 def test_runtime_phase_checkpoints_follow_durable_filesystem_mutations(tmp_path, monkeypatch):
     """Copied trees, symlinks, mkdirs, and removals must reach disk before their phase journals."""
+    if not Path("/proc/self/fd").is_dir():
+        pytest.skip("descriptor paths require procfs")
     root, _ = runtime_root(tmp_path)
     manager = RuntimeInstaller(plan(Path(__file__).parents[1]), root=root, runner=FakeRunner())
     real_fsync = os.fsync

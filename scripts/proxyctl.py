@@ -2,86 +2,60 @@
 """Proxy Control fail-closed host lifecycle and Nginx transaction manager."""
 from __future__ import annotations
 
-import argparse
-import fcntl
-import hashlib
 import json
 import os
 import re
-import secrets
 import signal
 import shutil
-import socket
-import ssl
 import stat
 import subprocess
+import sys
 import uuid
-from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
-OWNERSHIP_BEGIN = "# BEGIN PROXY-CONTROL ROUTES"
-OWNERSHIP_END = "# END PROXY-CONTROL ROUTES"
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from installer.adapters.core import CoreAdapter, CoreError, CorePaths
+from installer.adapters.nginx import (
+    OWNERSHIP_BEGIN,
+    OWNERSHIP_END,
+    TopologyError,
+    derive_owned_route_variable,
+    patch_owned_map,
+    remove_owned_map_block,
+)
+from installer.audit import (
+    AuditFacts,
+    CommandRunner as AuditCommandRunner,
+    listener_inventory,
+    validate_domain,
+)
+from installer.model import HostMode
+
+from installer.transaction import (
+    atomic_write as _atomic_write,
+    durable_mkdir as _durable_mkdir,
+    durable_remove as _durable_remove,
+    durable_symlink as _durable_symlink,
+    fsync_directory as _fsync_dir,
+    operation_lock,
+    sha256 as _sha256,
+)
+
 STATE_PATH = "/var/lib/proxy-control/ownership.json"
 STATE_SCHEMA = 1
-DOMAIN_RE = re.compile(
-    r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
-    r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z"
-)
 
 
 class InstallerConflict(RuntimeError):
     """A condition that cannot be changed safely or unambiguously."""
 
 
-def validate_domain(value: str) -> str:
-    normalized = value.strip().lower().rstrip(".")
-    if not DOMAIN_RE.fullmatch(normalized):
-        raise ValueError("a plain fully-qualified domain name is required")
-    return normalized
-
-
-@dataclass(frozen=True)
-class DomainAudit:
-    domain: str
-    a_records: list[str]
-    aaaa_records: list[str]
-    dns_matches_host: bool
-    unhandled_aaaa: bool
-    tls_certificate_present: bool
-
-
-@dataclass(frozen=True)
-class NginxAudit:
-    installed: bool
-    stream_enabled: bool
-    sni_routes: dict[str, str]
-    http_domains: list[str]
-    config_files: list[str]
-    sni_map_count: int = 0
-    sni_map_files: dict[str, int] = field(default_factory=dict)
-    duplicate_sni_domains: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class XrayAudit:
-    installed: bool
-    inbounds: list[dict]
-    outbound_tags: list[str]
-
-
-@dataclass(frozen=True)
-class AuditReport:
-    nginx: NginxAudit
-    xray: XrayAudit
-    docker_available: bool
-    listening_ports: list[int]
-    listener_owners: dict[int, list[str]] = field(default_factory=dict)
-    domains: list[DomainAudit] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return asdict(self)
+_operation_lock = partial(operation_lock, error_type=InstallerConflict)
 
 
 def _root_path(root: Path, absolute: str) -> Path:
@@ -104,290 +78,10 @@ def _read_text(path: Path) -> str:
         return ""
 
 
-def _nginx_files(root: Path) -> list[Path]:
-    candidates = [_root_path(root, "/etc/nginx/nginx.conf")]
-    for directory in (
-        "/etc/nginx/stream.d",
-        "/etc/nginx/stream-conf.d",
-        "/etc/nginx/conf.d",
-        "/etc/nginx/sites-enabled",
-    ):
-        folder = _root_path(root, directory)
-        if folder.is_dir():
-            candidates.extend(sorted(path for path in folder.iterdir() if path.is_file()))
-    unique: list[Path] = []
-    seen: set[tuple[int, int]] = set()
-    for path in candidates:
-        if not path.is_file():
-            continue
-        metadata = path.stat()
-        identity = (metadata.st_dev, metadata.st_ino)
-        if identity not in seen:
-            seen.add(identity)
-            unique.append(path)
-    return unique
-
-
-def _parse_sni_entries(text: str) -> list[tuple[str, str]]:
-    return [
-        (domain.lower(), backend)
-        for domain, backend in re.findall(
-            r"(?<![A-Za-z0-9_.-])([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)\s+"
-            r"((?:127\.0\.0\.1|\[?::1\]?):\d+)\s*;",
-            text,
-        )
-    ]
-
-
-def _parse_sni_routes(text: str) -> dict[str, str]:
-    return dict(_parse_sni_entries(text))
-
-
-def _parse_http_domains(text: str) -> set[str]:
-    domains: set[str] = set()
-    for match in re.finditer(r"(?m)^\s*server_name\s+([^;]+);", text):
-        for value in match.group(1).split():
-            try:
-                domains.add(validate_domain(value))
-            except ValueError:
-                continue
-    return domains
-
-
-def _xray_audit(root: Path) -> XrayAudit:
-    path = _root_path(root, "/usr/local/x-ui/bin/config.json")
-    if not path.is_file():
-        return XrayAudit(False, [], [])
-    try:
-        config = json.loads(path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return XrayAudit(True, [], [])
-    inbounds = []
-    for inbound in config.get("inbounds", []):
-        if not isinstance(inbound, dict):
-            continue
-        stream = inbound.get("streamSettings") if isinstance(inbound.get("streamSettings"), dict) else {}
-        reality = stream.get("realitySettings") if isinstance(stream.get("realitySettings"), dict) else {}
-        names = reality.get("serverNames") if isinstance(reality.get("serverNames"), list) else []
-        inbounds.append({
-            "tag": inbound.get("tag"),
-            "protocol": inbound.get("protocol"),
-            "listen": inbound.get("listen"),
-            "port": inbound.get("port"),
-            "security": stream.get("security"),
-            "server_names": sorted(name for name in names if isinstance(name, str)),
-        })
-    tags = [item.get("tag") for item in config.get("outbounds", []) if isinstance(item, dict)]
-    return XrayAudit(True, inbounds, sorted(tag for tag in tags if isinstance(tag, str)))
-
-
-def _resolve_domain(domain: str) -> dict[str, list[str]]:
-    records = {"A": set(), "AAAA": set()}
-    try:
-        answers = socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)
-    except socket.gaierror:
-        answers = []
-    for family, _kind, _proto, _canon, address in answers:
-        if family == socket.AF_INET:
-            records["A"].add(address[0])
-        elif family == socket.AF_INET6:
-            records["AAAA"].add(address[0])
-    return {key: sorted(value) for key, value in records.items()}
-
-
-def _local_addresses() -> set[str]:
-    addresses: set[str] = set()
-    result = subprocess.run(["ip", "-j", "address"], capture_output=True, text=True, check=False)
-    try:
-        links = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return addresses
-    for link in links:
-        for item in link.get("addr_info", []):
-            if item.get("scope") in {"global", "host"} and isinstance(item.get("local"), str):
-                addresses.add(item["local"])
-    return addresses
-
-
-def _certificate_names(root: Path, domains: set[str]) -> set[str]:
-    present = set()
-    for domain in domains:
-        cert = _root_path(root, f"/etc/letsencrypt/live/{domain}/fullchain.pem")
-        if not cert.is_file():
-            continue
-        try:
-            decoded = ssl._ssl._test_decode_cert(str(cert))  # noqa: SLF001
-        except (OSError, ssl.SSLError, ValueError):
-            continue
-        names = {value.lower() for kind, value in decoded.get("subjectAltName", []) if kind == "DNS"}
-        if domain in names:
-            present.add(domain)
-    return present
-
-
-def audit_host(
-    *,
-    root: Path = Path("/"),
-    listening_ports: set[int] | None = None,
-    listener_owners: dict[int, list[str]] | None = None,
-    docker_available: bool | None = None,
-    dns_records: dict[str, dict[str, list[str]]] | None = None,
-    local_addresses: set[str] | None = None,
-    tls_names: set[str] | None = None,
-    domains: set[str] | None = None,
-) -> AuditReport:
-    """Collect facts only. No file, service, package, firewall, or DNS mutation occurs."""
-    files = _nginx_files(root)
-    texts = {path: _read_text(path) for path in files}
-    nginx_main = _read_text(_root_path(root, "/etc/nginx/nginx.conf"))
-    route_values: dict[str, set[str]] = {}
-    route_counts: dict[str, int] = {}
-    http_domains: set[str] = set()
-    map_files: dict[str, int] = {}
-    for path, text in texts.items():
-        count = len(_map_blocks(text))
-        if count:
-            map_files[_host_path(root, path)] = count
-        for domain, backend in _parse_sni_entries(text):
-            route_values.setdefault(domain, set()).add(backend)
-            route_counts[domain] = route_counts.get(domain, 0) + 1
-        http_domains.update(_parse_http_domains(text))
-    routes = {domain: sorted(backends)[0] for domain, backends in route_values.items()}
-    duplicates = sorted(domain for domain, count in route_counts.items() if count > 1)
-    if listening_ports is None or listener_owners is None:
-        detected_ports, detected_owners = _listener_inventory()
-        if listening_ports is None:
-            listening_ports = detected_ports
-        if listener_owners is None:
-            listener_owners = detected_owners
-    if docker_available is None:
-        docker_available = shutil.which("docker") is not None
-
-    requested = set(domains or ()) | set((dns_records or {}).keys())
-    records = dns_records if dns_records is not None else {name: _resolve_domain(name) for name in requested}
-    local = _local_addresses() if local_addresses is None else local_addresses
-    cert_names = _certificate_names(root, requested) if tls_names is None else tls_names
-    domain_audits = []
-    for domain in sorted(validate_domain(name) for name in requested):
-        record = records.get(domain, {})
-        a_records = sorted(set(record.get("A", [])))
-        aaaa_records = sorted(set(record.get("AAAA", [])))
-        domain_audits.append(DomainAudit(
-            domain=domain,
-            a_records=a_records,
-            aaaa_records=aaaa_records,
-            dns_matches_host=bool(set(a_records) & local),
-            unhandled_aaaa=bool(aaaa_records and not set(aaaa_records) <= local),
-            tls_certificate_present=domain in cert_names,
-        ))
-
-    return AuditReport(
-        nginx=NginxAudit(
-            installed=bool(files),
-            stream_enabled=bool(re.search(r"(?m)^\s*stream\s*\{", nginx_main)),
-            sni_routes=dict(sorted(routes.items())),
-            http_domains=sorted(http_domains),
-            config_files=[_host_path(root, path) for path in files],
-            sni_map_count=sum(map_files.values()),
-            sni_map_files=dict(sorted(map_files.items())),
-            duplicate_sni_domains=duplicates,
-        ),
-        xray=_xray_audit(root),
-        docker_available=docker_available,
-        listening_ports=sorted(listening_ports),
-        listener_owners={port: sorted(set(names)) for port, names in sorted(listener_owners.items())},
-        domains=domain_audits,
-    )
-
-
-def _listener_inventory() -> tuple[set[int], dict[int, list[str]]]:
-    result = subprocess.run(["ss", "-H", "-lntp"], capture_output=True, text=True, check=False)
-    ports: set[int] = set()
-    owners: dict[int, list[str]] = {}
-    for line in result.stdout.splitlines():
-        fields = line.split()
-        endpoint = fields[3] if len(fields) > 3 else ""
-        match = re.search(r":(\d+)$", endpoint)
-        if match:
-            port = int(match.group(1))
-            ports.add(port)
-            names = re.findall(r'users:\(\("([^"\\]+)"', line)
-            if names:
-                owners.setdefault(port, []).extend(names)
-    return ports, owners
-
-
 def _listening_ports() -> set[int]:
-    return _listener_inventory()[0]
+    return listener_inventory(AuditCommandRunner())[0]
 
 
-def _map_blocks(text: str) -> list[tuple[int, int]]:
-    blocks = []
-    pattern = re.compile(r"map\s+\$ssl_preread_server_name\s+\$[A-Za-z0-9_]+\s*\{")
-    for match in pattern.finditer(text):
-        depth = 0
-        for index in range(match.end() - 1, len(text)):
-            if text[index] == "{":
-                depth += 1
-            elif text[index] == "}":
-                depth -= 1
-                if depth == 0:
-                    blocks.append((match.start(), index + 1))
-                    break
-        else:
-            raise InstallerConflict("unterminated SNI map")
-    return blocks
-
-
-def patch_stream_map(
-    text: str,
-    *,
-    proxy_domain: str,
-    panel_domain: str,
-    proxy_backend: str,
-    panel_backend: str,
-    ownership_id: str | None = None,
-) -> str:
-    proxy_domain, panel_domain = validate_domain(proxy_domain), validate_domain(panel_domain)
-    if proxy_domain == panel_domain:
-        raise InstallerConflict("proxy and panel domains must differ")
-    blocks = _map_blocks(text)
-    if len(blocks) != 1:
-        raise InstallerConflict("exactly one SNI map is required")
-    start, end = blocks[0]
-    block = text[start:end]
-    wanted = {proxy_domain: proxy_backend, panel_domain: panel_backend}
-    existing = _parse_sni_routes(block)
-    for domain, backend in wanted.items():
-        if domain in existing and backend != existing[domain]:
-            raise InstallerConflict(f"domain already routed: {domain}")
-    suffix = f" {ownership_id}" if ownership_id else ""
-    begin, finish = OWNERSHIP_BEGIN + suffix, OWNERSHIP_END + suffix
-    managed = (
-        f"    {begin}\n"
-        f"    {proxy_domain} {proxy_backend};\n"
-        f"    {panel_domain} {panel_backend};\n"
-        f"    {finish}\n"
-    )
-    begins, ends = block.count(OWNERSHIP_BEGIN), block.count(OWNERSHIP_END)
-    if (begins, ends) == (1, 1):
-        marker_start = block.index(OWNERSHIP_BEGIN)
-        marker_end = block.index("\n", block.index(OWNERSHIP_END, marker_start))
-        current = block[marker_start:marker_end]
-        expected = managed.strip()
-        def normalize(value: str) -> str:
-            return "\n".join(line.strip() for line in value.splitlines())
-
-        if normalize(current) != normalize(expected):
-            raise InstallerConflict("owned route block differs from requested configuration")
-        return text
-    if (begins, ends) != (0, 0):
-        raise InstallerConflict("malformed ownership markers")
-    default_match = re.search(r"(?m)^\s*default\s+[^;]+;", block)
-    if default_match is None:
-        raise InstallerConflict("SNI map has no default route")
-    insert_at = start + default_match.start()
-    return text[:insert_at] + managed + text[insert_at:]
 
 def _owned_route_marker(state: dict, *, end: bool = False) -> str:
     prefix = OWNERSHIP_END if end else OWNERSHIP_BEGIN
@@ -395,28 +89,24 @@ def _owned_route_marker(state: dict, *, end: bool = False) -> str:
 
 
 def _remove_owned_route_block(current: bytes, state: dict) -> bytes:
-    try:
-        text = current.decode()
-    except UnicodeDecodeError as exc:
-        raise InstallerConflict("owned route file has drifted") from exc
-    lines = text.splitlines(keepends=True)
-    begin = _owned_route_marker(state)
-    end = _owned_route_marker(state, end=True)
-    begins = [index for index, line in enumerate(lines) if line.strip() == begin]
-    ends = [index for index, line in enumerate(lines) if line.strip() == end]
-    if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
-        raise InstallerConflict("owned route file has drifted")
-    start, finish = begins[0], ends[0]
     plan = state["plan"]
-    expected = [
-        begin,
-        f"{plan['proxy_domain']} {plan['proxy_backend']};",
-        f"{plan['panel_domain']} {plan['panel_backend']};",
-        end,
-    ]
-    if [line.strip() for line in lines[start:finish + 1]] != expected:
-        raise InstallerConflict("owned route file has drifted")
-    return "".join(lines[:start] + lines[finish + 1:]).encode()
+    try:
+        return remove_owned_map_block(
+            current,
+            routes=(
+                (plan["proxy_domain"], plan["proxy_backend"]),
+                (plan["panel_domain"], plan["panel_backend"]),
+            ),
+            ownership_id=state["install_id"],
+        )
+    except TopologyError as exc:
+        raise InstallerConflict(str(exc)) from exc
+
+
+def _audit_mapping(value: object, label: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise InstallerConflict(f"{label} audit facts are invalid")
+    return value
 
 
 @dataclass(frozen=True)
@@ -426,6 +116,7 @@ class InstallPlan:
     route_file: str = "/etc/nginx/stream.d/routes.conf"
     proxy_backend_port: int = 8445
     panel_backend_port: int = 8787
+    route_variable: str = "$upstream_443"
     schema: int = 1
 
     @property
@@ -444,6 +135,7 @@ class InstallPlan:
             "proxy_backend": self.proxy_backend,
             "panel_backend": self.panel_backend,
             "route_file": self.route_file,
+            "route_variable": self.route_variable,
             "actions": [
                 {"kind": "nginx_route", "target": self.route_file},
                 {"kind": "ownership_manifest", "target": STATE_PATH},
@@ -456,7 +148,7 @@ class InstallPlan:
     @classmethod
     def from_audit(
         cls,
-        report: AuditReport,
+        report: AuditFacts,
         *,
         proxy_domain: str,
         panel_domain: str,
@@ -464,150 +156,109 @@ class InstallPlan:
         proxy_backend_port: int = 8445,
         panel_backend_port: int = 8787,
         require_domain_preflight: bool = True,
+        host_mode: HostMode = HostMode.COEXIST,
     ) -> "InstallPlan":
         proxy_domain, panel_domain = validate_domain(proxy_domain), validate_domain(panel_domain)
         if proxy_domain == panel_domain:
             raise InstallerConflict("proxy and panel domains must differ")
         if not route_file.startswith("/") or ".." in Path(route_file).parts:
             raise InstallerConflict("route file must be a normalized absolute path")
-        known = set(report.nginx.sni_routes) | set(report.nginx.http_domains)
+        if report.hard_stops:
+            raise InstallerConflict("host audit contains blocking findings")
+        nginx = _audit_mapping(report.topology.get("nginx"), "Nginx")
+        listeners = report.listeners
+        ownership = report.ownership
+        sni_routes = _audit_mapping(nginx.get("sni_routes"), "Nginx routes")
+        nginx_observation = nginx.get("observation")
+        if nginx_observation == "unknown":
+            raise InstallerConflict("Nginx topology is unknown")
+        if nginx_observation == "unavailable" and host_mode is not HostMode.FRESH:
+            raise InstallerConflict("Nginx is unavailable in coexist mode")
+        if nginx_observation not in {"observed", "unavailable"}:
+            raise InstallerConflict("Nginx audit facts are invalid")
+        http_domains = nginx.get("http_domains", ())
+        if not isinstance(http_domains, tuple):
+            raise InstallerConflict("Nginx audit facts are invalid")
+        known = set(sni_routes) | set(http_domains)
         for domain in (proxy_domain, panel_domain):
             if domain in known:
                 raise InstallerConflict(f"domain already routed: {domain}")
-        if report.nginx.duplicate_sni_domains:
+        duplicates = nginx.get("duplicate_sni_domains", ())
+        if duplicates:
             raise InstallerConflict("duplicate SNI routes make the topology ambiguous")
-        if report.nginx.stream_enabled and report.nginx.sni_map_count != 1:
-            raise InstallerConflict("exactly one SNI map is required")
+        stream_enabled = nginx.get("stream_enabled") is True
+        topology_error = nginx.get("topology_error")
+        if stream_enabled and topology_error is not None:
+            if not isinstance(topology_error, str):
+                raise InstallerConflict("Nginx audit facts are invalid")
+            raise InstallerConflict(topology_error)
+        listening_ports = listeners.get("ports", ())
+        if not isinstance(listening_ports, tuple):
+            raise InstallerConflict("listener audit facts are invalid")
         for port in (proxy_backend_port, panel_backend_port):
             if not 1024 <= port <= 65535:
                 raise InstallerConflict(f"backend port {port} is outside 1024..65535")
-            if port in report.listening_ports:
+            if port in listening_ports:
                 raise InstallerConflict(f"backend port {port} is already listening")
-        if not report.nginx.stream_enabled and 443 in report.listening_ports:
+        if not stream_enabled and 443 in listening_ports:
             raise InstallerConflict("public 443 is occupied without an Nginx stream router")
-        owners_443 = report.listener_owners.get(443, [])
-        if report.nginx.stream_enabled and owners_443 and not any("nginx" in name.lower() for name in owners_443):
+        listener_owners = _audit_mapping(listeners.get("owners", {}), "listener owners")
+        owners_443 = listener_owners.get("443", ())
+        if stream_enabled and owners_443 and not any(
+            isinstance(name, str) and "nginx" in name.lower() for name in owners_443
+        ):
             raise InstallerConflict("public 443 is not owned by Nginx despite a stream configuration")
-        if not report.docker_available:
+        docker = _audit_mapping(ownership.get("docker"), "Docker")
+        if docker.get("available") is not True:
             raise InstallerConflict("Docker is unavailable")
-        if report.nginx.stream_enabled and report.nginx.sni_map_files.get(route_file) != 1:
-            raise InstallerConflict("route file is not the single audited SNI map file")
+        map_files = _audit_mapping(nginx.get("sni_map_files"), "Nginx map files")
+        selected_route_file = route_file
+        route_variable = "$upstream_443"
+        if stream_enabled:
+            route_target = _audit_mapping(nginx.get("route_target"), "Nginx route target")
+            source_file = route_target.get("source_file")
+            selected_variable = route_target.get("variable")
+            if (
+                not isinstance(source_file, str)
+                or not isinstance(selected_variable, str)
+                or not re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", selected_variable)
+            ):
+                raise InstallerConflict("Nginx route target is invalid")
+            if route_file != source_file and map_files.get(route_file) != 1:
+                raise InstallerConflict("route file is not the active audited SNI map file")
+            selected_route_file = source_file
+            route_variable = selected_variable
         if require_domain_preflight:
-            checks = {item.domain: item for item in report.domains}
-            if set(checks) != {proxy_domain, panel_domain}:
+            dns = _audit_mapping(report.topology.get("dns"), "DNS")
+            certificates = _audit_mapping(
+                report.topology.get("certificates"),
+                "certificate",
+            )
+            if not {proxy_domain, panel_domain} <= set(dns):
                 raise InstallerConflict("domain preflight evidence is incomplete")
             for domain in (proxy_domain, panel_domain):
-                check = checks.get(domain)
-                if check is None or not check.dns_matches_host:
+                check = _audit_mapping(dns.get(domain), "domain")
+                if check.get("a_matches_local") is not True:
                     raise InstallerConflict(f"DNS does not resolve to this host: {domain}")
-                if check.unhandled_aaaa:
+                if check.get("aaaa_handled") is not True:
                     raise InstallerConflict(f"unhandled AAAA record: {domain}")
-                if not check.tls_certificate_present:
-                    raise InstallerConflict(f"TLS certificate is missing or does not cover: {domain}")
-        return cls(proxy_domain, panel_domain, route_file, proxy_backend_port, panel_backend_port)
+                if check.get("caa_compatible") is not True:
+                    raise InstallerConflict(f"CAA does not authorize issuance: {domain}")
+                certificate = _audit_mapping(certificates.get(domain), "certificate")
+                if certificate.get("covers_domain") is not True:
+                    raise InstallerConflict(
+                        f"TLS certificate is missing or does not cover: {domain}"
+                    )
+        return cls(
+            proxy_domain,
+            panel_domain,
+            selected_route_file,
+            proxy_backend_port,
+            panel_backend_port,
+            route_variable=route_variable,
+        )
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _fsync_dir(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _ensure_parent(path: Path) -> None:
-    missing = []
-    cursor = path.parent
-    while not cursor.exists():
-        missing.append(cursor)
-        cursor = cursor.parent
-    for directory in reversed(missing):
-        directory.mkdir()
-        _fsync_dir(directory.parent)
-
-
-def _durable_mkdir(path: Path, *, mode: int = 0o777) -> None:
-    missing = []
-    cursor = path
-    while not cursor.exists():
-        missing.append(cursor)
-        cursor = cursor.parent
-    if not cursor.is_dir():
-        raise NotADirectoryError(cursor)
-    for directory in reversed(missing):
-        directory.mkdir(mode=mode if directory == path else 0o777)
-        _fsync_dir(directory)
-        _fsync_dir(directory.parent)
-
-
-def _fsync_file(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _fsync_tree(path: Path) -> None:
-    """Persist a newly copied tree bottom-up before journaling its phase."""
-    for directory, names, files in os.walk(path, topdown=False):
-        current = Path(directory)
-        for name in files:
-            child = current / name
-            if not child.is_symlink() and child.is_file():
-                _fsync_file(child)
-        for name in names:
-            child = current / name
-            if not child.is_symlink() and child.is_dir():
-                _fsync_dir(child)
-        _fsync_dir(current)
-    _fsync_dir(path.parent)
-
-
-def _durable_copy2(source: Path, destination: Path) -> None:
-    _ensure_parent(destination)
-    shutil.copy2(source, destination)
-    _fsync_file(destination)
-    _fsync_dir(destination.parent)
-
-
-def _durable_symlink(target: str, path: Path) -> None:
-    _ensure_parent(path)
-    os.symlink(target, path)
-    _fsync_dir(path.parent)
-
-
-def _durable_remove(path: Path, *, missing_ok: bool = False) -> None:
-    if not path.exists() and not path.is_symlink():
-        if missing_ok:
-            return
-        raise FileNotFoundError(path)
-    if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path)
-    else:
-        path.unlink()
-    _fsync_dir(path.parent)
-
-
-def _atomic_write(path: Path, data: bytes, *, mode: int, owner: tuple[int, int] | None = None) -> None:
-    _ensure_parent(path)
-    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        with tmp.open("wb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fchmod(handle.fileno(), mode)
-            if owner is not None:
-                os.fchown(handle.fileno(), *owner)
-            os.fsync(handle.fileno())
-        os.replace(tmp, path)
-        _fsync_dir(path.parent)
-    finally:
-        tmp.unlink(missing_ok=True)
 
 
 def _state_path(root: Path) -> Path:
@@ -623,7 +274,7 @@ def _validate_manifest_plan(plan: object) -> None:
         raise InstallerConflict("ownership manifest plan is invalid")
     required = {
         "schema", "proxy_domain", "panel_domain", "proxy_backend", "panel_backend",
-        "route_file", "actions",
+        "route_file", "route_variable", "actions",
     }
     if set(plan) != required or plan.get("schema") != 1:
         raise InstallerConflict("ownership manifest plan is invalid")
@@ -636,6 +287,11 @@ def _validate_manifest_plan(plan: object) -> None:
         raise InstallerConflict("ownership manifest plan is invalid")
     route_file = plan["route_file"]
     if not isinstance(route_file, str) or not route_file.startswith("/") or ".." in Path(route_file).parts:
+        raise InstallerConflict("ownership manifest plan is invalid")
+    route_variable = plan["route_variable"]
+    if not isinstance(route_variable, str) or not re.fullmatch(
+        r"\$[A-Za-z_][A-Za-z0-9_]*", route_variable
+    ):
         raise InstallerConflict("ownership manifest plan is invalid")
     for key in ("proxy_backend", "panel_backend"):
         if not isinstance(plan[key], str) or not re.fullmatch(r"127\.0\.0\.1:(\d{4,5})", plan[key]):
@@ -681,13 +337,56 @@ def _load_state(root: Path) -> tuple[Path, dict] | None:
             raise InstallerConflict("ownership manifest metadata is invalid")
     if state["route_mode"] > 0o7777:
         raise InstallerConflict("ownership manifest metadata is invalid")
-    _validate_manifest_plan(state["plan"])
     for key, label in (
         ("route_sha256_before", "original"),
         ("route_sha256_owned", "owned"),
     ):
         if not isinstance(state[key], str) or not re.fullmatch(r"[0-9a-f]{64}", state[key]):
             raise InstallerConflict(f"ownership manifest has an invalid {label} hash")
+    plan = state["plan"]
+    if isinstance(plan, dict) and "route_variable" not in plan:
+        legacy_required = {
+            "schema",
+            "proxy_domain",
+            "panel_domain",
+            "proxy_backend",
+            "panel_backend",
+            "route_file",
+            "actions",
+        }
+        if set(plan) != legacy_required:
+            raise InstallerConflict("ownership manifest plan is invalid")
+        provisional = dict(plan)
+        provisional["route_variable"] = "$legacy_route"
+        _validate_manifest_plan(provisional)
+        candidates = (
+            _root_path(root, state["route_file"]),
+            _root_path(root, state["backup_file"]),
+        )
+        variables: set[str] = set()
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            try:
+                variables.add(
+                    derive_owned_route_variable(
+                        candidate.read_text(),
+                        routes=(
+                            (plan["proxy_domain"], plan["proxy_backend"]),
+                            (plan["panel_domain"], plan["panel_backend"]),
+                        ),
+                        ownership_id=install_id,
+                    )
+                )
+            except (OSError, UnicodeError, TopologyError):
+                continue
+        if len(variables) != 1:
+            raise InstallerConflict("legacy owned route topology is ambiguous")
+        plan = dict(plan)
+        plan["route_variable"] = variables.pop()
+        state["plan"] = plan
+        _write_state(path, state)
+    _validate_manifest_plan(state["plan"])
     return path, state
 
 
@@ -710,21 +409,6 @@ def _run_nginx_reload() -> None:
     subprocess.run(["systemctl", "reload", "nginx"], check=True)
 
 
-@contextmanager
-def _operation_lock(root: Path):
-    lock_path = _root_path(root, "/run/lock/proxy-control.lock")
-    _ensure_parent(lock_path)
-    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
-    with os.fdopen(descriptor, "r+") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise InstallerConflict("another proxyctl operation is in progress") from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
-
 
 def _apply_plan_unlocked(
     plan: InstallPlan,
@@ -744,14 +428,18 @@ def _apply_plan_unlocked(
     original = route.read_bytes()
     metadata = route.stat()
     install_id = uuid.uuid4().hex
-    changed = patch_stream_map(
-        original.decode(),
-        proxy_domain=plan.proxy_domain,
-        panel_domain=plan.panel_domain,
-        proxy_backend=plan.proxy_backend,
-        panel_backend=plan.panel_backend,
-        ownership_id=install_id,
-    ).encode()
+    try:
+        changed = patch_owned_map(
+            original.decode(),
+            variable=plan.route_variable,
+            routes=(
+                (plan.proxy_domain, plan.proxy_backend),
+                (plan.panel_domain, plan.panel_backend),
+            ),
+            ownership_id=install_id,
+        ).encode()
+    except (TopologyError, UnicodeDecodeError) as exc:
+        raise InstallerConflict(str(exc)) from exc
     backup_host = f"/var/lib/proxy-control/backups/{install_id}.route"
     backup = _root_path(root, backup_host)
     _atomic_write(backup, original, mode=0o600)
@@ -954,8 +642,10 @@ INSTALL_PHASES = {
     "rollback_sites", "rollback_project", "rollback_packages", "rollback_complete",
 }
 UNINSTALL_PHASES = {
-    "started", "compose_down", "data_purging", "data_purged", "packages_purged",
-    "route_removed", "sites_removing", "sites_removed", "project_cleaned",
+    "started", "compose_stopping", "compose_down", "data_purging",
+    "data_purged", "route_removing", "route_removed", "sites_removing",
+    "sites_removed", "project_cleaning", "project_cleaned",
+    "packages_purging", "packages_purged",
 }
 
 
@@ -975,10 +665,13 @@ class RuntimePlan:
     panel_tls_port: int = 8443
     protocol_probe: str = ""
     schema: int = 1
+    route_variable: str = "$upstream_443"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "proxy_domain", validate_domain(self.proxy_domain))
         object.__setattr__(self, "panel_domain", validate_domain(self.panel_domain))
+        if not re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", self.route_variable):
+            raise InstallerConflict("route variable is invalid")
         if self.proxy_domain == self.panel_domain:
             raise InstallerConflict("proxy and panel domains must differ")
         if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", self.email):
@@ -1003,6 +696,7 @@ class RuntimePlan:
             "panel_domain": self.panel_domain,
             "email": self.email,
             "route_file": self.route_file,
+            "route_variable": self.route_variable,
             "source_dir": self.source_dir,
             "project_dir": self.project_dir,
             "users": list(self.users),
@@ -1039,6 +733,92 @@ class CommandRunner:
             ).returncode == 0
         except OSError:
             return False
+
+    @staticmethod
+    def _query(argv: Sequence[str]) -> str:
+        command = [str(value) for value in argv]
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise InstallerConflict(
+                f"command query failed: {' '.join(command)}"
+            ) from exc
+        if completed.returncode:
+            detail = " ".join((completed.stderr or "").split())[-2000:]
+            suffix = f": {detail}" if detail else ""
+            raise InstallerConflict(
+                f"command query failed ({completed.returncode}): "
+                f"{' '.join(command)}{suffix}"
+            )
+        return completed.stdout or ""
+
+    def _compose_project_name(self, project_dir: str) -> str:
+        command = (
+            "docker",
+            "compose",
+            "--project-directory",
+            project_dir,
+            "config",
+            "--format",
+            "json",
+        )
+        try:
+            value = json.loads(self._query(command))
+        except json.JSONDecodeError as exc:
+            raise InstallerConflict(
+                "compose project identity is unreadable"
+            ) from exc
+        name = value.get("name") if isinstance(value, dict) else None
+        if not isinstance(name, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9_-]*",
+            name,
+        ):
+            raise InstallerConflict("compose project identity is invalid")
+        return name
+
+    def compose_project_present(self, project_dir: str) -> bool:
+        compose = (
+            "docker",
+            "compose",
+            "--project-directory",
+            project_dir,
+            "ps",
+            "-a",
+            "-q",
+        )
+        project = self._compose_project_name(project_dir)
+        networks = (
+            "docker",
+            "network",
+            "ls",
+            "--quiet",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+        )
+        return bool(
+            self._query(compose).strip()
+            or self._query(networks).strip()
+        )
+
+    def compose_project_volumes_present(self, project_dir: str) -> bool:
+        project = self._compose_project_name(project_dir)
+        command = (
+            "docker",
+            "volume",
+            "ls",
+            "--quiet",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+        )
+        return bool(self._query(command).strip())
 
     def run(self, argv, *, stdin_path: Path | None = None, env: dict[str, str] | None = None) -> None:
         stdin = stdin_path.open("rb") if stdin_path else subprocess.DEVNULL
@@ -1083,7 +863,23 @@ class RuntimeInstaller:
         self.root = root
         self.runner = runner or CommandRunner()
         self.state_path = _root_path(root, RUNTIME_STATE_PATH)
-
+        self.core = CoreAdapter(
+            root=root,
+            runner=self.runner,
+            source_dir=Path(plan.source_dir),
+            paths=CorePaths(
+                project_dir=plan.project_dir,
+                probe_path=plan.protocol_probe,
+            ),
+            users=plan.users,
+        )
+        self.core_action = self.core.action(
+            proxy_domain=plan.proxy_domain,
+            panel_domain=plan.panel_domain,
+            users=plan.users,
+            proxy_backend_port=plan.proxy_backend_port,
+            panel_app_port=plan.panel_app_port,
+        )
     def _run(self, *argv: str, stdin_path: Path | None = None) -> None:
         self.runner.run(argv, stdin_path=stdin_path)
 
@@ -1092,44 +888,13 @@ class RuntimeInstaller:
 
     @staticmethod
     def _sanitize_diagnostic(value: str, *, max_chars: int = 4096) -> str:
-        clean = " ".join(value.split())
-        clean = re.sub(r"(?i)\bBearer\s+\S+", "Bearer [REDACTED]", clean)
-        clean = re.sub(
-            r"(?i)\b(password|secret|token|authorization)(\s*[=:]\s*|\s+)\S+",
-            lambda match: f"{match.group(1)}{match.group(2)}[REDACTED]",
-            clean,
-        )
-        return clean[-max_chars:]
+        return CoreAdapter.sanitize_diagnostic(value, max_chars=max_chars)
 
     def _compose_start(self) -> None:
         try:
-            self._compose("up", "-d", "--wait")
-        except InstallerConflict as original:
-            compose = ("docker", "compose", "--project-directory", self.plan.project_dir)
-
-            def capture(command: tuple[str, ...], limit: int) -> str:
-                try:
-                    value = self.runner.capture(command, max_chars=limit)
-                except Exception as exc:
-                    value = f"diagnostic unavailable: {type(exc).__name__}"
-                return self._sanitize_diagnostic(value, max_chars=limit)
-
-            container = capture(compose + ("ps", "-q", "panel"), 256).strip().splitlines()
-            if container and re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", container[-1]):
-                health = capture(
-                    ("docker", "inspect", "--format", "{{json .State.Health}}", container[-1]),
-                    2400,
-                )
-            else:
-                health = "container id unavailable"
-            diagnostics = (
-                ("panel health", health),
-                ("panel logs", capture(compose + ("logs", "--no-color", "--tail", "80", "panel"), 600)),
-                ("compose ps", capture(compose + ("ps",), 400)),
-            )
-            summary = self._sanitize_diagnostic(str(original), max_chars=300)
-            detail = "; ".join(f"{label}: {value or '(empty)'}" for label, value in diagnostics)
-            raise InstallerConflict(f"compose startup failed: {summary}; startup diagnostics: {detail}") from original
+            self.core.start()
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def _managed_paths(self) -> list[str]:
         return [
@@ -1207,65 +972,13 @@ class RuntimeInstaller:
         _durable_symlink("../sites-available/proxy-control-panel.conf", enabled / "proxy-control-panel.conf")
 
     def _render_project(self, *, recovery: bool = False) -> bool:
-        project = _root_path(self.root, self.plan.project_dir)
-        marker = project / ".mtproxy-owned"
-        created = not project.exists()
-        if project.exists() and any(project.iterdir()):
-            names = {entry.name for entry in project.iterdir()}
-            if not recovery or ".mtproxy-owned" not in names or not names <= {".mtproxy-owned", "secrets"}:
-                raise InstallerConflict("pre-existing project requires explicit migration; refusing overwrite")
-        _durable_mkdir(project)
-        if not marker.exists():
-            _atomic_write(marker, (uuid.uuid4().hex + "\n").encode(), mode=0o600)
-        source = Path(self.plan.source_dir)
-        if not source.is_dir():
-            raise InstallerConflict("installer source directory does not exist")
-        for name in ("compose.yaml", "uninstall.sh"):
-            _durable_copy2(source / name, project / name)
-        target_scripts = project / "scripts"
-        _durable_mkdir(target_scripts)
-        _durable_copy2(source / "scripts/proxyctl.py", target_scripts / "proxyctl.py")
-        for directory in ("docker", "panel"):
-            shutil.copytree(
-                source / directory, project / directory, dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc", "*.sqlite3*"),
+        try:
+            return self.core.render_to_disk(
+                self.core_action,
+                recovery=recovery,
             )
-            _fsync_tree(project / directory)
-        secret_dir = project / "secrets"
-        _durable_mkdir(secret_dir, mode=0o700)
-        users_file = secret_dir / "users.conf"
-        existing: dict[str, str] = {}
-        if users_file.is_file():
-            for line in users_file.read_text().splitlines():
-                if "=" in line:
-                    name, value = line.split("=", 1)
-                    if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name) and re.fullmatch(r"[0-9a-f]{32}", value):
-                        existing[name] = value
-        _atomic_write(users_file, "".join(
-            f"{name}={existing.get(name, secrets.token_hex(16))}\n" for name in self.plan.users
-        ).encode(), mode=0o600)
-        token = secret_dir / "telemt-api-token"
-        if not token.exists():
-            _atomic_write(token, ("Bearer " + secrets.token_urlsafe(48) + "\n").encode(), mode=0o600)
-        password = secret_dir / "panel-bootstrap-password"
-        if not password.exists():
-            _atomic_write(password, (secrets.token_urlsafe(32) + "\n").encode(), mode=0o600)
-        env = (
-            f"MTPROXY_DOMAIN={self.plan.proxy_domain}\n"
-            f"MTPROXY_BACKEND_PORT={self.plan.proxy_backend_port}\n"
-            f"MTPROXY_COVER_ROOT=/var/www/{self.plan.proxy_domain}\n"
-            "MTPROXY_LETSENCRYPT_ROOT=/etc/letsencrypt\n"
-            f"PANEL_ALLOWED_HOSTS={self.plan.panel_domain}\n"
-            f"PANEL_HEALTHCHECK_HOST={self.plan.panel_domain}\n"
-        )
-        _atomic_write(project / ".env", env.encode(), mode=0o600)
-        cover = _root_path(self.root, f"/var/www/{self.plan.proxy_domain}/index.html")
-        if not cover.exists():
-            _atomic_write(cover, b"<!doctype html><title>Welcome</title><h1>Welcome</h1>\n", mode=0o644)
-        panel_cover = _root_path(self.root, f"/var/www/{self.plan.panel_domain}/index.html")
-        if not panel_cover.exists():
-            _atomic_write(panel_cover, b"<!doctype html><title>Workspace</title><h1>Secure workspace</h1>\n", mode=0o644)
-        return created
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def _remove_managed_files(self, state: dict, *, check_hashes: bool, allow_missing: bool = False) -> None:
         hashes = state.get("managed_hashes", {})
@@ -1312,10 +1025,11 @@ class RuntimeInstaller:
             "managed_hashes", "project_created",
         }
         keys = frozenset(state)
+        uninstall_ownership = {"purge_data", "project_marker_sha256"}
         allowed_keys = {
             frozenset(required),
             frozenset(required | {"rollback_error"}),
-            frozenset(required | {"purge_data"}),
+            frozenset(required | uninstall_ownership),
         }
         if keys not in allowed_keys:
             raise InstallerConflict("runtime manifest schema is invalid")
@@ -1331,14 +1045,31 @@ class RuntimeInstaller:
         if status not in {"installing", "rollback_failed", "active", "uninstalling"}:
             raise InstallerConflict("runtime manifest status is invalid")
         if status == "uninstalling":
-            if "purge_data" not in state:
-                # Before data preservation became the default, every interrupted uninstall
-                # had already committed to deleting volumes.
-                state["purge_data"] = True
-            elif not isinstance(state["purge_data"], bool):
+            if not isinstance(state.get("purge_data"), bool):
                 raise InstallerConflict("runtime uninstall data policy is invalid")
-        elif "purge_data" in state:
-            raise InstallerConflict("runtime uninstall data policy is invalid")
+            marker_sha256 = state.get("project_marker_sha256")
+            if (
+                not isinstance(marker_sha256, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", marker_sha256)
+            ):
+                raise InstallerConflict(
+                    "runtime project ownership checkpoint is invalid"
+                )
+        elif uninstall_ownership & set(state):
+            raise InstallerConflict("runtime uninstall ownership is invalid")
+        persisted_plan = state.get("plan")
+        expected_plan = self.plan.to_dict()
+        if (
+            isinstance(persisted_plan, dict)
+            and "route_variable" not in persisted_plan
+            and persisted_plan == {
+                key: value
+                for key, value in expected_plan.items()
+                if key != "route_variable"
+            }
+        ):
+            state["plan"] = expected_plan
+            _write_state(self.state_path, state)
         if state.get("plan") != self.plan.to_dict():
             raise InstallerConflict("runtime transaction belongs to another plan")
         packages = state.get("owned_packages")
@@ -1365,11 +1096,50 @@ class RuntimeInstaller:
             os.kill(os.getpid(), signal.SIGKILL)
 
     def _clean_project_preserving_credentials(self) -> None:
-        project = _root_path(self.root, self.plan.project_dir)
-        if project.is_dir():
-            for child in list(project.iterdir()):
-                if child.name not in {"secrets", ".mtproxy-owned"}:
-                    _durable_remove(child)
+        try:
+            self.core.clean_preserving_credentials()
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
+
+    def _validate_owned_project(
+        self,
+        expected_marker_sha256: str | None = None,
+    ) -> str:
+        try:
+            return self.core.marker_sha256(expected_marker_sha256)
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
+
+    def _require_owned_packages(self, state: dict, *, installed: bool) -> None:
+        mismatched = [
+            name
+            for name in state["owned_packages"]
+            if bool(self.runner.package_installed(name)) != installed
+        ]
+        if mismatched:
+            condition = "missing" if installed else "still installed"
+            raise InstallerConflict(
+                f"runtime owned packages are {condition}: {', '.join(mismatched)}"
+            )
+
+    def _validate_uninstall_ownership(
+        self,
+        state: dict,
+        *,
+        packages_installed: bool | None = True,
+    ) -> None:
+        self._validate_owned_project(state["project_marker_sha256"])
+        if packages_installed is not None:
+            self._require_owned_packages(
+                state,
+                installed=packages_installed,
+            )
+
+    def _compose_project_present(self) -> bool:
+        return self.core.compose_project_present()
+
+    def _compose_project_volumes_present(self) -> bool:
+        return self.core.compose_project_volumes_present()
 
     def _rollback_runtime(self, state: dict) -> None:
         """Idempotently restore host routing while retaining generated credentials."""
@@ -1409,16 +1179,10 @@ class RuntimeInstaller:
         self._run("systemctl", "reload", "nginx")
 
     def _health_and_protocol(self) -> None:
-        self._compose("config", "-q")
-        self._compose("ps", "--status", "running")
-        self._run(
-            "curl", "-fsS", "-H", f"Host: {self.plan.panel_domain}",
-            f"http://127.0.0.1:{self.plan.panel_app_port}/healthz",
-        )
-        self._run(
-            self.plan.protocol_probe, "--domain", self.plan.proxy_domain,
-            "--secrets-file", f"{self.plan.project_dir}/secrets/users.conf",
-        )
+        try:
+            self.core.health_and_protocol(self.core_action)
+        except CoreError as exc:
+            raise InstallerConflict(str(exc)) from exc
 
     def install(self) -> Path:
         with _operation_lock(self.root):
@@ -1454,8 +1218,12 @@ class RuntimeInstaller:
                 }
                 _write_state(self.state_path, state)
             route_plan = InstallPlan(
-                self.plan.proxy_domain, self.plan.panel_domain, self.plan.route_file,
-                self.plan.proxy_backend_port, self.plan.panel_tls_port,
+                proxy_domain=self.plan.proxy_domain,
+                panel_domain=self.plan.panel_domain,
+                route_file=self.plan.route_file,
+                proxy_backend_port=self.plan.proxy_backend_port,
+                panel_backend_port=self.plan.panel_tls_port,
+                route_variable=self.plan.route_variable,
             )
             try:
                 if state["owned_packages"]:
@@ -1535,8 +1303,13 @@ class RuntimeInstaller:
             with _operation_lock(self.root):
                 operation()
 
-    def uninstall(self, *, purge_data: bool = False) -> None:
-        with _operation_lock(self.root):
+    def uninstall(
+        self,
+        *,
+        purge_data: bool = False,
+        _locked: bool = False,
+    ) -> None:
+        def operation() -> None:
             if not self.state_path.exists():
                 return
             state = self._read_runtime_state()
@@ -1544,196 +1317,192 @@ class RuntimeInstaller:
                 self._rollback_runtime(state)
                 return
             if state["status"] == "active":
+                marker_sha256 = self._validate_owned_project()
+                self._require_owned_packages(state, installed=True)
                 state["purge_data"] = purge_data
-                self._checkpoint(state, status="uninstalling", phase="started")
+                state["project_marker_sha256"] = marker_sha256
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="started",
+                )
             elif state["purge_data"] != purge_data:
-                required_flag = "with --purge-data" if state["purge_data"] else "without --purge-data"
-                raise InstallerConflict(f"retry the interrupted uninstall {required_flag}")
+                required_flag = (
+                    "with --purge-data"
+                    if state["purge_data"]
+                    else "without --purge-data"
+                )
+                raise InstallerConflict(
+                    f"retry the interrupted uninstall {required_flag}"
+                )
+
             phase = state["phase"]
+            if phase == "packages_purged":
+                expected_packages: bool | None = False
+            elif phase == "packages_purging":
+                expected_packages = None
+            else:
+                expected_packages = True
+            self._validate_uninstall_ownership(
+                state,
+                packages_installed=expected_packages,
+            )
+
             if phase == "started":
-                self._compose("down", "--remove-orphans")
-                self._checkpoint(state, status="uninstalling", phase="compose_down")
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="compose_stopping",
+                )
+                phase = "compose_stopping"
+            if phase == "compose_stopping":
+                self._validate_uninstall_ownership(state)
+                if self._compose_project_present():
+                    self._compose("down", "--remove-orphans")
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="compose_down",
+                )
                 phase = "compose_down"
             if phase == "compose_down" and state["purge_data"]:
-                self._checkpoint(state, status="uninstalling", phase="data_purging")
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="data_purging",
+                )
                 phase = "data_purging"
             if phase == "data_purging":
-                self._compose("down", "--remove-orphans", "--volumes")
-                self._checkpoint(state, status="uninstalling", phase="data_purged")
+                self._validate_uninstall_ownership(state)
+                if self._compose_project_volumes_present():
+                    self._compose(
+                        "down",
+                        "--remove-orphans",
+                        "--volumes",
+                    )
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="data_purged",
+                )
                 phase = "data_purged"
             if phase in {"compose_down", "data_purged"}:
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="route_removing",
+                )
+                phase = "route_removing"
+            if phase == "route_removing":
+                self._validate_uninstall_ownership(state)
                 _uninstall_installation_unlocked(
                     root=self.root,
                     validate=lambda: self._run("nginx", "-t"),
                     reload=lambda: self._run("systemctl", "reload", "nginx"),
                 )
-                self._checkpoint(state, status="uninstalling", phase="route_removed")
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="route_removed",
+                )
                 phase = "route_removed"
             if phase == "route_removed":
+                self._validate_uninstall_ownership(state)
                 # Validate the complete owned generation before making removal retryable.
                 for host_path, expected in state["managed_hashes"].items():
                     path = _root_path(self.root, host_path)
-                    if (not path.exists() and not path.is_symlink()) or self._path_hash(path) != expected:
-                        raise InstallerConflict(f"managed file has drifted: {host_path}")
-                self._checkpoint(state, status="uninstalling", phase="sites_removing")
+                    if (
+                        (not path.exists() and not path.is_symlink())
+                        or self._path_hash(path) != expected
+                    ):
+                        raise InstallerConflict(
+                            f"managed file has drifted: {host_path}"
+                        )
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="sites_removing",
+                )
                 phase = "sites_removing"
             if phase == "sites_removing":
-                self._remove_managed_files(state, check_hashes=True, allow_missing=True)
+                self._validate_uninstall_ownership(state)
+                self._remove_managed_files(
+                    state,
+                    check_hashes=True,
+                    allow_missing=True,
+                )
                 self._validate_reload()
-                self._checkpoint(state, status="uninstalling", phase="sites_removed")
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="sites_removed",
+                )
                 phase = "sites_removed"
             if phase == "sites_removed":
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="project_cleaning",
+                )
+                phase = "project_cleaning"
+            if phase == "project_cleaning":
+                self._validate_uninstall_ownership(state)
                 self._clean_project_preserving_credentials()
-                self._checkpoint(state, status="uninstalling", phase="project_cleaned")
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="project_cleaned",
+                )
                 phase = "project_cleaned"
             if phase == "project_cleaned":
-                if state["owned_packages"]:
-                    self._run("apt-get", "purge", "-y", *state["owned_packages"])
-                self._checkpoint(state, status="uninstalling", phase="packages_purged")
+                self._validate_uninstall_ownership(state)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="packages_purging",
+                )
+                phase = "packages_purging"
+            if phase == "packages_purging":
+                self._validate_uninstall_ownership(
+                    state,
+                    packages_installed=None,
+                )
+                remaining = [
+                    package
+                    for package in state["owned_packages"]
+                    if self.runner.package_installed(package)
+                ]
+                if remaining:
+                    self._run("apt-get", "purge", "-y", *remaining)
+                self._checkpoint(
+                    state,
+                    status="uninstalling",
+                    phase="packages_purged",
+                )
+                phase = "packages_purged"
+            if phase == "packages_purged":
+                self._validate_uninstall_ownership(
+                    state,
+                    packages_installed=False,
+                )
             self.state_path.unlink()
             _fsync_dir(self.state_path.parent)
 
-
-def _add_runtime_arguments(command: argparse.ArgumentParser) -> None:
-    command.add_argument("--proxy-domain", required=True)
-    command.add_argument("--panel-domain", required=True)
-    command.add_argument("--email", required=True)
-    command.add_argument("--route-file", required=True)
-    command.add_argument("--project-dir", default="/opt/mtproxy-shared443")
-    command.add_argument("--users", default="default")
-    command.add_argument("--protocol-probe", required=True)
-    command.add_argument("--source-dir", default=str(Path(__file__).resolve().parents[1]))
-    command.add_argument("--json", action="store_true")
+        if _locked:
+            operation()
+        else:
+            with _operation_lock(self.root):
+                operation()
 
 
-def _runtime_plan_from_args(args) -> RuntimePlan:
-    return RuntimePlan(
-        proxy_domain=args.proxy_domain,
-        panel_domain=args.panel_domain,
-        email=args.email,
-        route_file=args.route_file,
-        source_dir=args.source_dir,
-        project_dir=args.project_dir,
-        users=tuple(part.strip() for part in args.users.split(",") if part.strip()),
-        protocol_probe=args.protocol_probe,
-    )
+def main(argv: Sequence[str] | None = None) -> int:
+    """Delegate command dispatch to the typed installer CLI."""
+    from installer.cli import main as installer_main
 
-
-def _runtime_plan_from_state(root: Path) -> RuntimePlan | None:
-    path = _root_path(root, RUNTIME_STATE_PATH)
-    if not path.is_file():
-        return None
-    try:
-        raw = json.loads(path.read_text())["plan"]
-        return RuntimePlan(**{key: raw[key] for key in (
-            "proxy_domain", "panel_domain", "email", "route_file", "source_dir", "project_dir",
-            "proxy_backend_port", "panel_app_port", "panel_tls_port", "protocol_probe",
-        )}, users=tuple(raw["users"]))
-    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as exc:
-        raise InstallerConflict("runtime manifest plan is invalid") from exc
-
-
-def _validate_runtime_preflight(report: AuditReport, plan: RuntimePlan) -> None:
-    known = set(report.nginx.sni_routes) | set(report.nginx.http_domains)
-    collision = known & {plan.proxy_domain, plan.panel_domain}
-    if collision:
-        raise InstallerConflict(f"domain already routed: {sorted(collision)[0]}")
-    if not report.nginx.stream_enabled or report.nginx.sni_map_count != 1:
-        raise InstallerConflict("exactly one existing Nginx SNI map is required")
-    if report.nginx.sni_map_files.get(plan.route_file) != 1:
-        raise InstallerConflict("route file is not the single audited SNI map file")
-    for port in (plan.proxy_backend_port, plan.panel_app_port):
-        if port in report.listening_ports:
-            raise InstallerConflict(f"backend port {port} is already listening")
-    checks = {item.domain: item for item in report.domains}
-    for domain in (plan.proxy_domain, plan.panel_domain):
-        check = checks.get(domain)
-        if check is None or not check.dns_matches_host:
-            raise InstallerConflict(f"DNS does not resolve to this host: {domain}")
-        if check.unhandled_aaaa:
-            raise InstallerConflict(f"unhandled AAAA record: {domain}")
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="proxyctl", description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path("/"), help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True)
-    audit = sub.add_parser("audit", help="read-only host audit")
-    audit.add_argument("--proxy-domain")
-    audit.add_argument("--panel-domain")
-    audit.add_argument("--json", action="store_true")
-    for name in ("plan", "install"):
-        command = sub.add_parser(name, help=f"{name} the complete MTProxy and panel runtime")
-        _add_runtime_arguments(command)
-    apply = sub.add_parser("apply", help="legacy route-only transaction")
-    apply.add_argument("--proxy-domain", required=True)
-    apply.add_argument("--panel-domain", required=True)
-    apply.add_argument("--route-file", required=True)
-    apply.add_argument("--json", action="store_true")
-    sub.add_parser("repair", help="validate and restart the complete owned runtime")
-    uninstall = sub.add_parser(
-        "uninstall",
-        help="remove the complete owned runtime, preserving credentials and named volumes",
-    )
-    uninstall.add_argument(
-        "--purge-data",
-        action="store_true",
-        help="also remove Compose named volumes (destructive; repeat when resuming)",
-    )
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    try:
-        if args.command in {"repair", "uninstall"}:
-            runtime_plan = _runtime_plan_from_state(args.root)
-            if runtime_plan is not None:
-                manager = RuntimeInstaller(runtime_plan, root=args.root)
-                if args.command == "repair":
-                    manager.repair()
-                else:
-                    manager.uninstall(purge_data=args.purge_data)
-            else:
-                function = repair_installation if args.command == "repair" else uninstall_installation
-                function(root=args.root)
-            return 0
-        requested = {
-            validate_domain(value)
-            for value in (getattr(args, "proxy_domain", None), getattr(args, "panel_domain", None))
-            if value
-        }
-        report = audit_host(root=args.root, domains=requested)
-        if args.command == "audit":
-            print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) if args.json else report)
-            return 0
-        if args.command in {"plan", "install"}:
-            runtime_plan = _runtime_plan_from_args(args)
-            existing_runtime = _runtime_plan_from_state(args.root)
-            if existing_runtime is not None:
-                if existing_runtime != runtime_plan:
-                    raise InstallerConflict("another runtime plan is already owned")
-                if args.command == "install":
-                    RuntimeInstaller(runtime_plan, root=args.root).install()
-                print(json.dumps(runtime_plan.to_dict(), indent=2, sort_keys=True) + "\n", end="")
-                return 0
-            _validate_runtime_preflight(report, runtime_plan)
-            if args.command == "install":
-                RuntimeInstaller(runtime_plan, root=args.root).install()
-            print(json.dumps(runtime_plan.to_dict(), indent=2, sort_keys=True) + "\n", end="")
-            return 0
-        plan = InstallPlan.from_audit(
-            report,
-            proxy_domain=args.proxy_domain,
-            panel_domain=args.panel_domain,
-            route_file=args.route_file,
-        )
-        apply_plan(plan, root=args.root)
-        print(plan.to_json(), end="")
-        return 0
-    except (InstallerConflict, ValueError, OSError, subprocess.SubprocessError) as exc:
-        print(f"BLOCKED: {exc}")
-        return 2
+    return installer_main(argv)
 
 
 if __name__ == "__main__":

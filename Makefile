@@ -1,6 +1,16 @@
-.PHONY: lab-test lab-prepare lab-start lab-reset lab-smoke lab-full lab-stop lab-clean
+.PHONY: release-candidate verify-release lab-test lab-container lab-prepare lab-start lab-reset lab-smoke lab-full lab-release lab-stop lab-clean
 
 LAB = python3 scripts/lab/qemu_lab.py
+DIST ?= dist
+
+# Build one reproducible release candidate from the committed tree.
+release-candidate:
+	@test -n "$(VERSION)" || { echo "set VERSION=<x.y.z>" >&2; exit 2; }
+	python3 release/build.py --source . --output $(DIST) --version $(VERSION)
+
+# Re-check every digest a built release published.
+verify-release:
+	python3 release/build.py --verify $(DIST)
 
 lab-test:
 	python3 -m unittest -v tests/lab/test_qemu_lab.py
@@ -21,6 +31,30 @@ lab-smoke:
 
 lab-full:
 	$(LAB) run --mode full --output lab-results
+
+# Release acceptance runs against one exact archive:
+#   make lab-release RELEASE_ARCHIVE=dist/proxy-control-v2.0.0.tar.gz \
+#     RELEASE_SHA256=<sha256> [LAB_ARCH=amd64|arm64] [LAB_SCENARIOS="audit plan"]
+LAB_ARCH ?= amd64
+LAB_SCENARIOS ?=
+lab-release:
+	@test -n "$(RELEASE_ARCHIVE)" || { echo "set RELEASE_ARCHIVE=<path>" >&2; exit 2; }
+	@test -n "$(RELEASE_SHA256)" || { echo "set RELEASE_SHA256=<sha256>" >&2; exit 2; }
+	$(LAB) run --mode release-$(LAB_ARCH) --output lab-results \
+	  --release-archive $(RELEASE_ARCHIVE) --release-sha256 $(RELEASE_SHA256) \
+	  $(foreach scenario,$(LAB_SCENARIOS),--scenario $(scenario))
+
+# Container-hosted release acceptance: the part of the matrix a disposable
+# systemd container proves, runnable anywhere Docker runs.
+#   make lab-container RELEASE_ARCHIVE=dist/proxy-control-v0.1.0.tar.gz \
+#     RELEASE_SHA256=<sha256> [LAB_SCENARIOS="audit plan"]
+lab-container:
+	@test -n "$(RELEASE_ARCHIVE)" || { echo "set RELEASE_ARCHIVE=<path>" >&2; exit 2; }
+	@test -n "$(RELEASE_SHA256)" || { echo "set RELEASE_SHA256=<sha256>" >&2; exit 2; }
+	python3 scripts/lab/docker_lab.py \
+	  --release-archive $(RELEASE_ARCHIVE) --release-sha256 $(RELEASE_SHA256) \
+	  --output lab-results-container \
+	  $(foreach scenario,$(LAB_SCENARIOS),--scenario $(scenario))
 
 lab-stop:
 	$(LAB) stop

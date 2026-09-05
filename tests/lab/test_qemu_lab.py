@@ -39,7 +39,7 @@ class QemuLabTests(unittest.TestCase):
         self.assertIn("\"https://$PANEL/healthz\"", runner)
         self.assertIn("jq -e '.status == \"ok\"'", runner)
 
-    def test_fake_certbot_avoids_self_copy_and_populates_each_san_with_source_permissions(self):
+    def test_fake_certbot_issues_a_complete_locally_trusted_lineage(self):
         runner = MODULE.parent / "guest-runner.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -60,12 +60,12 @@ class QemuLabTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                env={**os.environ, "LETSENCRYPT_LIVE_ROOT": str(root / "live")},
+                env={**os.environ, "LETSENCRYPT_ROOT": str(root / "letsencrypt")},
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
 
-            source = root / "live" / "proxy.lab.test"
-            panel = root / "live" / "panel.lab.test"
+            source = root / "letsencrypt" / "live" / "proxy.lab.test"
+            panel = root / "letsencrypt" / "live" / "panel.lab.test"
             for filename in ("fullchain.pem", "privkey.pem"):
                 self.assertTrue((source / filename).is_file())
                 self.assertEqual((source / filename).read_bytes(), (panel / filename).read_bytes())
@@ -81,6 +81,38 @@ class QemuLabTests(unittest.TestCase):
             )
             self.assertIn("DNS:proxy.lab.test", certificate.stdout)
             self.assertIn("DNS:panel.lab.test", certificate.stdout)
+
+            # The installer requires a complete Certbot-shaped lineage.
+            for filename in ("cert.pem", "chain.pem", "fullchain.pem", "privkey.pem"):
+                self.assertTrue((source / filename).is_file(), filename)
+            self.assertEqual((source / "privkey.pem").stat().st_mode & 0o777, 0o600)
+            self.assertTrue(
+                (root / "letsencrypt" / "renewal" / "proxy.lab.test.conf").is_file()
+            )
+            self.assertTrue(
+                (root / "letsencrypt" / "archive" / "proxy.lab.test").is_dir()
+            )
+            # The leaf verifies against the lab CA, so trust checks pass.
+            verified = subprocess.run(
+                [
+                    "openssl", "verify",
+                    "-CAfile", str(root / "letsencrypt" / "lab-ca" / "ca.crt"),
+                    "-untrusted", str(source / "chain.pem"),
+                    str(source / "cert.pem"),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            # The key belongs to the leaf.
+            key_public = subprocess.run(
+                ["openssl", "pkey", "-in", str(source / "privkey.pem"), "-pubout"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            leaf_public = subprocess.run(
+                ["openssl", "x509", "-in", str(source / "cert.pem"), "-pubkey", "-noout"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            self.assertEqual(key_public.strip(), leaf_public.strip())
 
     def test_case_run_preserves_failure_output_and_does_not_swallow_early_failure(self):
         runner = MODULE.parent / "guest-runner.sh"
@@ -283,10 +315,203 @@ case_run repair must_not_run install
         self.assertIn("sudo bash /tmp/mtproxy-source/scripts/lab/guest-runner.sh", remote)
 
     def test_pinned_image_metadata_has_sha256(self):
-        metadata = json.loads((MODULE.parent / "image.json").read_text())
-        self.assertRegex(metadata["sha256"], r"^[0-9a-f]{64}$")
-        self.assertIn("ubuntu-24.04", metadata["url"])
+        document = json.loads((MODULE.parent / "image.json").read_text())
+        self.assertEqual(document["schema"], 2)
+        amd64 = document["images"]["amd64"]
+        self.assertRegex(amd64["sha256"], r"^[0-9a-f]{64}$")
+        self.assertIn("ubuntu-24.04", amd64["url"])
+        for architecture, image in document["images"].items():
+            self.assertEqual(image["architecture"], architecture)
+            self.assertIn("cloud-images.ubuntu.com", image["url"])
+            self.assertIn(architecture, image["url"])
 
+
+
+REQUIRED_RELEASE_SCENARIOS = {
+    "environment-preflight",
+    "release-artifact-integrity",
+    "audit",
+    "plan",
+    "docker-build",
+    "repair",
+    "idempotence",
+    "secrets-scan",
+    "dns-tls-preflight",
+    "uninstall",
+    "interrupted-install-recovery",
+    "interrupted-uninstall-recovery",
+    "coexistence",
+    "telemt-official-client",
+    "naive-official-client",
+    "mieru-official-client",
+    "vless-tcp-client",
+    "vless-xhttp-client",
+    "hysteria2-client",
+    "reboot-recovery",
+    "nginx-multi-map",
+}
+
+
+def _passing_report(mode="release-amd64", names=None):
+    names = names if names is not None else lab.release_scenarios()
+    return {
+        "schema": 2,
+        "mode": mode,
+        "results": [
+            {"name": name, "status": "passed", "seconds": 0.1} for name in names
+        ],
+    }
+
+
+def report_without(scenario):
+    return _passing_report(
+        names=[name for name in lab.release_scenarios() if name != scenario]
+    )
+
+
+class ReleaseMatrixTests(unittest.TestCase):
+    def test_release_matrix_contains_required_lifecycle_and_protocol_cases(self):
+        names = set(lab.release_scenarios())
+        self.assertLessEqual(REQUIRED_RELEASE_SCENARIOS, names)
+        self.assertLessEqual(
+            {
+                "fresh-full-xui",
+                "coexist-existing-xui",
+                "crash-every-phase",
+                "uninstall-foreign-identity",
+            },
+            names,
+        )
+
+    def test_missing_scenario_result_fails_report_even_when_guest_exits_zero(self):
+        report = report_without("mieru-official-client")
+        self.assertEqual(lab.validate_report(report).exit_code, 1)
+        self.assertEqual(
+            lab.validate_report(report).missing, ("mieru-official-client",)
+        )
+
+    def test_complete_passing_report_validates(self):
+        verdict = lab.validate_report(_passing_report())
+        self.assertEqual(verdict.exit_code, 0)
+        self.assertTrue(verdict.ok)
+
+    def test_failed_scenario_fails_the_report(self):
+        report = _passing_report()
+        report["results"][3]["status"] = "failed"
+        verdict = lab.validate_report(report)
+        self.assertEqual(verdict.exit_code, 1)
+        self.assertTrue(verdict.failed)
+
+    def test_filtered_run_is_only_valid_against_what_it_declared(self):
+        report = _passing_report(names=["audit", "plan"])
+        report["filtered_scenarios"] = ["audit", "plan"]
+        self.assertEqual(lab.validate_report(report).exit_code, 0)
+        # A filtered report never stands in for the full release matrix.
+        self.assertEqual(
+            lab.validate_report(report, required=lab.release_scenarios()).exit_code,
+            1,
+        )
+
+    def test_release_modes_are_selectable_and_architecture_scoped(self):
+        self.assertIn("release-amd64", lab.SCENARIOS)
+        self.assertIn("release-arm64", lab.SCENARIOS)
+        self.assertEqual(lab.mode_architecture("release-arm64"), "arm64")
+        self.assertEqual(lab.mode_architecture("smoke"), "amd64")
+
+    def test_finalize_marks_a_missing_release_result_failed(self):
+        results = lab.finalize_results("release-amd64", [], 0, 1.0)
+        statuses = {item["name"]: item["status"] for item in results}
+        self.assertEqual(set(statuses), set(lab.release_scenarios()))
+        self.assertTrue(all(status == "failed" for status in statuses.values()))
+
+
+class ReleaseArtifactTests(unittest.TestCase):
+    def test_release_archive_must_match_the_named_checksum(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            archive = Path(temporary) / "release.tar.gz"
+            archive.write_bytes(b"release-bytes\n")
+            digest = lab.sha256(archive)
+            self.assertEqual(lab.verify_release_archive(archive, digest), digest)
+            with self.assertRaises(ValueError):
+                lab.verify_release_archive(archive, "0" * 64)
+            with self.assertRaises(ValueError):
+                lab.verify_release_archive(archive, "not-a-digest")
+
+    def test_release_run_requires_an_archive_and_checksum(self):
+        with self.assertRaises(ValueError):
+            lab.run_scenarios("release-amd64", Path("/tmp/unused-lab-output"))
+
+    def test_unknown_scenario_filter_is_refused(self):
+        with self.assertRaises(ValueError):
+            lab.guest_remote("release-amd64", "a" * 64, ("rm -rf /",))
+
+
+class ImageMetadataTests(unittest.TestCase):
+    def test_each_architecture_declares_a_machine_and_binary(self):
+        image = lab.metadata("amd64")
+        self.assertEqual(image["architecture"], "amd64")
+        self.assertEqual(len(image["sha256"]), 64)
+        self.assertTrue(image["qemu_binary"].startswith("qemu-system-"))
+        self.assertTrue(image["machine"])
+        self.assertTrue(image["minimum_qemu"])
+
+    def test_an_unpinned_image_fails_closed(self):
+        with self.assertRaises(ValueError) as caught:
+            lab.metadata("arm64")
+        self.assertIn("not pinned", str(caught.exception))
+
+    def test_qemu_command_follows_the_declared_architecture(self):
+        command = lab.qemu_command(
+            Path("disk"), Path("seed"), Path("key"), 2222,
+            Path("pid"), Path("serial"), "release-amd64",
+        )
+        self.assertEqual(command[0], "qemu-system-x86_64")
+        self.assertIn("q35", command)
+
+
+class ReleaseFixtureTests(unittest.TestCase):
+    def test_guest_runner_declares_every_release_scenario(self):
+        runner = (MODULE.parent / "guest-runner.sh").read_text()
+        for name in lab.release_scenarios():
+            if name == "environment-preflight":
+                continue
+            self.assertIn(f"case_run {name} ", runner, name)
+
+    def test_client_compose_pins_every_protocol_probe(self):
+        compose = (
+            Path(__file__).parent / "clients" / "compose.yaml"
+        ).read_text()
+        for service in (
+            "telemt:",
+            "naive:",
+            "mieru:",
+            "vless-tcp:",
+            "vless-xhttp:",
+            "hysteria2:",
+            "https-cover:",
+        ):
+            self.assertIn(service, compose)
+        self.assertIn("read_only: true", compose)
+        self.assertIn("cap_drop: [ALL]", compose)
+        self.assertNotIn("privileged", compose)
+
+    def test_foreign_three_xui_fixture_is_never_installer_owned(self):
+        fixture = (
+            Path(__file__).parent / "fixtures" / "three-xui-existing.sh"
+        ).read_text()
+        self.assertIn("/usr/local/x-ui", fixture)
+        self.assertIn("/etc/x-ui/x-ui.db", fixture)
+        self.assertIn("FOREIGN-PRIVATE-KEY-NEVER-READ", fixture)
+
+    def test_multi_map_fixture_adds_a_second_candidate_map_and_listener(self):
+        """It is added beside the shared 443 router, so it must not reuse 443."""
+        fixture = (
+            Path(__file__).parent / "fixtures" / "nginx-multi-map.conf"
+        ).read_text()
+        self.assertEqual(fixture.count("map $ssl_preread_server_name"), 1)
+        self.assertIn("$legacy_backend", fixture)
+        self.assertIn("listen 8443;", fixture)
+        self.assertNotIn("listen 443;", fixture)
 
 if __name__ == "__main__":
     unittest.main()

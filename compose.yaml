@@ -42,6 +42,10 @@ services:
     secrets:
       - mtproxy-secrets
       - telemt-api-token
+    expose:
+      # The authenticated Telemt API is reachable only by services on this
+      # Compose network. It must never be published on a host interface.
+      - "9091"
     ports:
       - "127.0.0.1:${MTPROXY_BACKEND_PORT}:443/tcp"
     read_only: true
