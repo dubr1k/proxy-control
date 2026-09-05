@@ -39,7 +39,7 @@ What you get:
 | **MTProxy / Telemt** | A proxy for Telegram. The panel hands out `tg://` links and QR codes, sets limits and expiry, and reports service state. |
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. One access works as both HTTPS and HTTP/2. Per-user quota and traffic accounting included. |
 | **Mieru** | An obfuscated proxy with its own protocol over TCP and UDP. The panel issues a one-time `mierus://` link and QR. |
-| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. The installer can install 3x-ui from scratch, adopt an existing one, or upgrade it. |
+| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. The installer can install 3x-ui from scratch, or adopt an existing one without touching its files. |
 | **Panel** | Owner, administrator, and viewer roles. Secret-free audit, one-time credential reveal, quota management. |
 | **Fleet** *(optional)* | Inventory and limited management of remote nodes over mTLS. Installed by hand. |
 
@@ -224,8 +224,13 @@ Profiles:
 | `core-mieru` | The same plus Mieru |
 | `full` | Everything |
 
-Any profile can additionally manage 3x-ui: install it from scratch
-(`managed-new`), adopt an existing one (`existing`), or upgrade it (`upgrade`).
+Any profile can additionally deal with 3x-ui through `three_xui.mode`:
+
+- `none` — leave 3x-ui alone entirely;
+- `existing` — adopt an installed one: the installer adds routes for its domains
+  and changes none of its files;
+- `managed-new` — install 3x-ui `3.7.0` from scratch and issue its certificates.
+
 Ready-made configuration examples live in
 [`examples/installer/`](examples/installer).
 
@@ -376,9 +381,15 @@ More: [MIERU.en.md](MIERU.en.md) and
 
 ### 3x-ui
 
-The installer handles 3x-ui three ways: install from scratch, adopt an existing
-instance, or upgrade it to the pinned version `3.7.0`. VLESS Reality (TCP and
-XHTTP) and Hysteria2 come from here.
+VLESS Reality (TCP and XHTTP) and Hysteria2 come from here. The installer either
+installs 3x-ui `3.7.0` from scratch (`managed-new`) or adopts an existing one
+(`existing`) — in the second case it only adds routes for its domains, while
+3x-ui's own files, database and unit stay byte for byte identical, which the lab
+verifies by hashing them before and after the run.
+
+Upgrading an already installed 3x-ui is prepared in the adapter as its own
+transaction, but no command exposes it yet — upgrade it with 3x-ui's own
+tooling.
 
 3x-ui stays a separate panel with its own interface — Proxy Control does not
 duplicate its management, it makes sure you can both live on one 443 without
