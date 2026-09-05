@@ -197,12 +197,20 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
     """Real host commands for the 3x-ui boundary."""
 
     def identity_named(self, database: str, name: str) -> str | None:
+        """Return the named entry, or None when it does not exist.
+
+        `capture` reports a failed lookup as diagnostic text rather than
+        raising, so only an entry whose first field is exactly this name
+        counts.
+        """
         try:
             output = self.capture(("getent", database, name), max_chars=512)
         except Exception:
             return None
-        lines = output.strip().splitlines()
-        return lines[0].split(":", 1)[0] if lines else None
+        for line in output.strip().splitlines():
+            if line.split(":", 1)[0] == name:
+                return name
+        return None
 
     def x_ui_version(self, binary: str) -> str:
         return self._capture_checked((binary, "-v")).strip()

@@ -982,3 +982,55 @@ def test_audit_names_a_foreign_holder_of_every_reserved_identity():
     assert set(facts) == set(RESERVED_IDENTITIES)
     assert facts["uid"] == {"10003": "foreign-service"}
     assert facts["gid"] == {"10004": "foreign-accounting"}
+
+
+def test_free_space_and_free_memory_never_change_the_plan_digest():
+    """Two audits of an unchanged host must produce the same stable facts.
+
+    Free disk space and free memory move constantly, so keeping them in the
+    stable set would change the plan digest between `plan` and `install` and
+    make an approved plan unapplicable on any live host.
+    """
+    selected = config()
+    responses = host_responses(selected.required_domains())
+    later = dict(responses)
+    # The same filesystem and the same total memory, one moment later.
+    later[("df", "-Pk")] = (
+        0,
+        "Filesystem 1024-blocks Used Available Capacity Mounted on\n"
+        "/dev/vda1 100000 25064 74936 26% /\n",
+        "",
+    )
+    later[("free", "-b")] = (
+        0,
+        "              total used free shared buff/cache available\n"
+        "Mem:     8589934592 1 2 3 4 6442449920\n",
+        "",
+    )
+    records = {domain: (["203.0.113.10"], []) for domain in selected.required_domains()}
+
+    first = audit_host(
+        selected,
+        CommandRunner(
+            executor=ScriptedExecutor(responses),
+            resolver=resolver(records),
+        ),
+    )
+    second = audit_host(
+        selected,
+        CommandRunner(
+            executor=ScriptedExecutor(later),
+            resolver=resolver(records),
+        ),
+    )
+
+    assert first.stable_dict() == second.stable_dict()
+    assert first.transient != second.transient
+    assert all(
+        set(disk) == {"filesystem", "mount", "total_kib"}
+        for disk in first.platform["disks"]
+    )
+    assert set(first.platform["memory"]) == {"total_bytes"}
+    assert first.transient["capacity"]["disks"][0]["available_kib"] != (
+        second.transient["capacity"]["disks"][0]["available_kib"]
+    )

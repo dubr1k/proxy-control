@@ -998,12 +998,21 @@ class TransactionEngine:
             host_path, path = _owned_path(self.store.root, raw_path)
             actual = _path_identity(path)
             preserve = False
+            mutable = False
+            if isinstance(expected, Mapping):
+                mutable = expected.get("mutable", False)
+                if not isinstance(mutable, bool):
+                    raise TransactionError("adapter ownership mutability flag is invalid")
             if isinstance(expected, str):
                 if expected != actual["sha256"]:
                     raise OwnershipError(f"owned file drifted: {host_path}")
             elif isinstance(expected, Mapping):
                 expected_hash = expected.get("sha256")
-                if expected_hash is not None and expected_hash != actual["sha256"]:
+                if (
+                    not mutable
+                    and expected_hash is not None
+                    and expected_hash != actual["sha256"]
+                ):
                     raise OwnershipError(f"owned file drifted: {host_path}")
                 preserve = expected.get("preserve", False)
                 if not isinstance(preserve, bool):
@@ -1016,6 +1025,9 @@ class TransactionEngine:
                     "adapter": action.adapter,
                     "kind": actual["kind"],
                     "preserve": preserve,
+                    # A service rewrites this file after the installer creates
+                    # it, so its content is never evidence of foreign drift.
+                    "mutable": mutable,
                     "sha256": actual["sha256"],
                 }
             )
@@ -1031,9 +1043,9 @@ class TransactionEngine:
                 actual = _path_identity(path)
             except OwnershipError as exc:
                 raise OwnershipError(f"owned file drifted: {host_path}") from exc
-            if (
-                actual["kind"] != expected.get("kind")
-                or actual["sha256"] != expected.get("sha256")
+            if actual["kind"] != expected.get("kind") or (
+                expected.get("mutable") is not True
+                and actual["sha256"] != expected.get("sha256")
             ):
                 raise OwnershipError(f"owned file drifted: {host_path}")
 
@@ -1052,9 +1064,9 @@ class TransactionEngine:
                     raise OwnershipError(f"owned file drifted: {host_path}")
                 continue
             actual = _path_identity(path)
-            if (
-                actual["kind"] != expected.get("kind")
-                or actual["sha256"] != expected.get("sha256")
+            if actual["kind"] != expected.get("kind") or (
+                expected.get("mutable") is not True
+                and actual["sha256"] != expected.get("sha256")
             ):
                 raise OwnershipError(f"owned file drifted: {host_path}")
 

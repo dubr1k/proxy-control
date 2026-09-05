@@ -524,7 +524,10 @@ class NginxAdapter:
             raise TopologyError("Nginx topology is unknown")
         routes = (
             (config.domains.mtproxy, "127.0.0.1:8445"),
-            (config.domains.panel, "127.0.0.1:8787"),
+            # The panel application speaks plain HTTP; the Core adapter owns an
+            # Nginx TLS listener on 8443 that terminates for it, so the raw TLS
+            # this router forwards reaches a TLS server.
+            (config.domains.panel, "127.0.0.1:8443"),
         )
         if config.profile.includes_naive:
             if config.domains.naive is None:
@@ -1335,11 +1338,14 @@ def _action_specification(action: Action) -> dict[str, object]:
         "resolved_path",
         "symlink_target",
     }
+    # The router always owns the MTProto and panel routes, and one more per
+    # protocol the profile selected; every domain appears exactly once.
     if (
         set(values) != required_values
         or values["mode"] not in {"fresh", "coexist"}
         or values["path_kind"] not in {"missing", "file", "symlink"}
-        or len(routes) != 2
+        or not 2 <= len(routes) <= 8
+        or len({domain for domain, _backend in routes}) != len(routes)
     ):
         raise TopologyError("Nginx action is malformed")
     target = _safe_host_path(values["target"])
@@ -2087,7 +2093,11 @@ class CertificatePlan:
             rendered = desired.decode()
         except UnicodeDecodeError as exc:
             raise TopologyError("owned HTTP-01 vhost is not UTF-8") from exc
-        if _effective_source_sections(result.stdout).get(host_path) != (rendered,):
+        # `nginx -T` prints one blank line after each file; that separator is
+        # the only difference tolerated here, exactly as in source
+        # authentication.
+        sections = _effective_source_sections(result.stdout).get(host_path, ())
+        if len(sections) != 1 or sections[0] not in {rendered, rendered + "\n"}:
             raise TopologyError(
                 "owned HTTP-01 vhost is absent from effective Nginx"
             )

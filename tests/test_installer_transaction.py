@@ -38,6 +38,7 @@ class RecordingAdapter:
     crash_during_rollback: type[BaseException] | None = None
     crash_before_rollback: bool = False
     preserve_data: bool = False
+    mutable_data: bool = False
     log: list[str] | None = None
     requires: frozenset[str] = frozenset()
 
@@ -58,7 +59,10 @@ class RecordingAdapter:
             f"/{self.target.name}": {"preserve": False},
         }
         if self.preserve_data:
-            ownership[f"/{self.data_path.name}"] = {"preserve": True}
+            ownership[f"/{self.data_path.name}"] = {
+                "preserve": True,
+                "mutable": self.mutable_data,
+            }
         return {"ownership": ownership, "owner": action.owner}
 
     def apply(
@@ -102,7 +106,8 @@ class RecordingAdapter:
             self.target.write_bytes(expected)
         if self.preserve_data:
             if (
-                self.data_path.exists()
+                not self.mutable_data
+                and self.data_path.exists()
                 and self.data_path.read_bytes() != b"persistent data\n"
             ):
                 raise OwnershipError("owned data drifted")
@@ -113,7 +118,7 @@ class RecordingAdapter:
 
     def verify(self, action: Action) -> Evidence:
         valid = self.target.read_bytes() == f"owned by {action.owner}\n".encode()
-        if self.preserve_data:
+        if self.preserve_data and not self.mutable_data:
             valid = valid and self.data_path.read_bytes() == b"persistent data\n"
         return Evidence(
             action_id=action.id,
@@ -661,6 +666,22 @@ def test_apply_requires_the_complete_accepted_plan_digest(tmp_path: Path) -> Non
 
     assert not adapter.target.exists()
     assert not store.state_path.exists()
+
+
+def test_a_service_rewritten_owned_file_is_not_foreign_drift(tmp_path: Path) -> None:
+    """A service rewrites some installer-created files — mita's server config,
+    the Naive Caddyfile — so their content must not block repair or rollback."""
+    adapter = RecordingAdapter("core", tmp_path, preserve_data=True, mutable_data=True)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+    adapter.data_path.write_text("rewritten by the service")
+
+    engine.repair()
+
+    adapter.target.write_text("foreign edit")
+    with pytest.raises(OwnershipError, match="owned file drifted"):
+        engine.repair()
 
 
 def test_repair_refuses_owned_file_drift_before_adapter_verification(tmp_path: Path) -> None:

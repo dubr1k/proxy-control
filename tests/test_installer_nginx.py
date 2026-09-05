@@ -11,6 +11,7 @@ from typing import Sequence
 import pytest
 
 from installer.adapters.nginx import (
+    CertificatePlan,
     NginxAdapter,
     TopologyError,
     parse_effective_nginx,
@@ -210,7 +211,7 @@ def test_coexist_owns_exact_marked_block_is_idempotent_and_preserves_adjacent_ro
     assert first.count(b"# BEGIN PROXY-CONTROL ROUTES") == 1
     assert b'"vpn.example.com" "127.0.0.1:10443";' in first
     assert b"mt.example.com 127.0.0.1:8445;" in first
-    assert b"panel.example.com 127.0.0.1:8787;" in first
+    assert b"panel.example.com 127.0.0.1:8443;" in first
     assert executor.calls[-2:] == [("nginx", "-t"), ("systemctl", "reload", "nginx")]
 
     evidence = adapter.rollback(action, applied, rollback_target="uninstalled")
@@ -450,7 +451,7 @@ def test_reconcile_rollback_completes_validation_reload_and_backup_cleanup(
             route.read_bytes(),
             routes=(
                 ("mt.example.com", "127.0.0.1:8445"),
-                ("panel.example.com", "127.0.0.1:8787"),
+                ("panel.example.com", "127.0.0.1:8443"),
             ),
             ownership_id=action.id,
         )
@@ -834,3 +835,75 @@ def test_source_authentication_tolerates_only_the_separator_nginx_adds(
             effective(body.replace("9443", "9444") + "\n"),
             source_file,
         )
+
+
+def test_route_specification_accepts_every_profile_route_set(tmp_path: Path) -> None:
+    """A profile with NaiveProxy plans three routes; the parser must take them."""
+    from installer.adapters.nginx import _action_specification
+    from installer.planner import Action
+
+    def action_with(routes: tuple[tuple[str, str], ...]) -> Action:
+        return Action(
+            id="nginx.routes",
+            adapter="nginx",
+            owner="proxy-control:nginx",
+            mutations=(
+                "mode=coexist",
+                "target=/etc/nginx/stream.d/routes.conf",
+                "variable=$shared_backend",
+                "path_kind=file",
+                "resolved_path=/etc/nginx/stream.d/routes.conf",
+                "symlink_target=-",
+                *(f"route={domain} {backend}" for domain, backend in routes),
+            ),
+            preconditions=("effective topology is observed",),
+            verification=("configuration test passes",),
+            inverse=("restore content",),
+            credentials_required=False,
+        )
+
+    two = (
+        ("proxy.example.com", "127.0.0.1:8445"),
+        ("panel.example.com", "127.0.0.1:8787"),
+    )
+    three = two + (("naive.example.com", "127.0.0.1:4443"),)
+    assert len(_action_specification(action_with(two))["routes"]) == 2
+    assert len(_action_specification(action_with(three))["routes"]) == 3
+
+    with pytest.raises(TopologyError, match="malformed"):
+        _action_specification(action_with(two[:1]))
+    with pytest.raises(TopologyError, match="malformed"):
+        _action_specification(action_with(two + (two[0],)))
+
+
+def test_owned_http01_vhost_accepts_only_the_separator_nginx_adds(
+    tmp_path: Path,
+) -> None:
+    """The same `nginx -T` separator rule applies to the HTTP-01 vhost."""
+    host_path = "/etc/nginx/conf.d/proxy-control-acme-proxy-control.conf"
+    body = (
+        "server {\n"
+        "    listen 80;\n"
+        "    server_name proxy.example.com;\n"
+        "    root /var/www/proxy.example.com;\n"
+        "}\n"
+    )
+
+    def effective(section: str) -> str:
+        return (
+            "# configuration file /etc/nginx/nginx.conf:\n"
+            "events {}\nhttp { include /etc/nginx/conf.d/*.conf; }\n"
+            "\n"
+            f"# configuration file {host_path}:\n"
+            f"{section}"
+        )
+
+    plan = CertificatePlan(root=tmp_path, runner=runner_for(effective(body))[0])
+    plan._assert_vhost_effective(host_path, body.encode())
+
+    plan.runner = runner_for(effective(body + "\n"))[0]
+    plan._assert_vhost_effective(host_path, body.encode())
+
+    plan.runner = runner_for(effective(body + "\n\n"))[0]
+    with pytest.raises(TopologyError, match="absent from effective"):
+        plan._assert_vhost_effective(host_path, body.encode())

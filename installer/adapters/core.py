@@ -48,14 +48,40 @@ _DOMAIN = re.compile(
 )
 _HEX_32 = re.compile(r"[0-9a-f]{32}\Z")
 _BEARER = re.compile(r"Bearer [A-Za-z0-9_-]{32,256}\Z")
-_COPY_FILES = ("compose.yaml", "uninstall.sh", "scripts/proxyctl.py")
-_COPY_DIRECTORIES = ("docker", "installer", "panel")
+# The project directory is self-contained: the protocol overlays live beside
+# the base model so every Compose command runs from one place.
+_COPY_FILES = (
+    "compose.yaml",
+    "compose.mieru.yaml",
+    "compose.naive.yaml",
+    "uninstall.sh",
+    "scripts/proxyctl.py",
+)
+# The overlays build their managers from this same context, so their
+# sources belong in the project directory too.
+_COPY_DIRECTORIES = (
+    "docker",
+    "installer",
+    "mieru_manager",
+    "naive_manager",
+    "panel",
+)
 _PRESERVED_CREDENTIALS = (
     "secrets/users.conf",
     "secrets/telemt-api-token",
     "secrets/panel-bootstrap-password",
 )
-_ACCEPTANCE_PREFIX = "proxy-control-acceptance-"
+_PANEL_VHOST = "/etc/nginx/conf.d/proxy-control-panel.conf"
+# The shared 443 router forwards raw TLS, so the panel needs a TLS listener of
+# its own: the panel application itself speaks plain HTTP on its app port.
+_PANEL_TLS_PORT = 8443
+# A reveal payload carries per-client configs plus base64 SVG QR images for the
+# NekoBox and Karing links, so it is far larger than an ordinary panel response.
+# The cap still bounds memory; it is not a plausibility check on the body.
+_MAX_RESPONSE_BYTES = 1024 * 1024
+# The panel accepts at most 32 characters for a username, so this prefix
+# plus 16 hex characters must stay inside that contract.
+_ACCEPTANCE_PREFIX = "pc-acceptance-"
 _SAFE_BACKEND = re.compile(
     r"(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:]+\]):([0-9]{1,5})\Z"
 )
@@ -280,21 +306,8 @@ class _DefaultCoreRunner:
             raise AcceptanceError("Core acceptance failed: resPQ")
         self._verify_adjacent_routes(adjacent_sni)
         for domain, _backend in adjacent_sni:
-            self._run_checked(
-                (
-                    "openssl",
-                    "s_client",
-                    "-connect",
-                    "127.0.0.1:443",
-                    "-servername",
-                    domain,
-                    "-verify_hostname",
-                    domain,
-                    "-verify_return_error",
-                    "-brief",
-                ),
-                "adjacent SNI",
-            )
+            if not self.verified_adjacent_handshake(domain):
+                raise AcceptanceError("Core acceptance failed: adjacent SNI")
         return {
             "adjacent_sni_ok": True,
             "compose_config_ok": True,
@@ -349,6 +362,41 @@ class _DefaultCoreRunner:
         if set(states) != expected or healthy != len(expected):
             raise AcceptanceError("Core acceptance failed: Compose health checks")
         return healthy
+
+    def verified_adjacent_handshake(self, domain: str) -> bool:
+        """Prove one adjacent site still terminates TLS behind the router.
+
+        `openssl s_client` exits non-zero even after a fully verified
+        handshake - the peer closes first - so the handshake result is read
+        from its own report instead of from the exit status.
+        """
+        try:
+            completed = subprocess.run(
+                (
+                    "openssl",
+                    "s_client",
+                    "-connect",
+                    "127.0.0.1:443",
+                    "-servername",
+                    domain,
+                    "-verify_hostname",
+                    domain,
+                    "-verify_return_error",
+                    "-brief",
+                ),
+                check=False,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=min(self.timeout, 30.0),
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        report = (completed.stdout or "") + (completed.stderr or "")
+        return (
+            "Verification: OK" in report
+            and f"Verified peername: {domain}" in report
+        )
 
     def _capture_effective_nginx(self) -> str:
         try:
@@ -643,10 +691,18 @@ class _DefaultCoreRunner:
         )
         try:
             with opener.open(request, timeout=20) as response:
-                body = response.read(65537)
+                body = response.read(_MAX_RESPONSE_BYTES + 1)
+        except urllib.error.HTTPError as exc:
+            # Name the endpoint and status: every protocol shares this client,
+            # so a bare "panel login" hides which request actually failed.
+            raise AcceptanceError(
+                f"panel request {method} {path} returned {exc.code}"
+            ) from exc
         except (OSError, urllib.error.URLError) as exc:
-            raise AcceptanceError("Core acceptance failed: panel login") from exc
-        if len(body) > 65536:
+            raise AcceptanceError(
+                f"panel request {method} {path} did not complete"
+            ) from exc
+        if len(body) > _MAX_RESPONSE_BYTES:
             raise AcceptanceError("Core acceptance response is too large")
         if not expect_json or not body:
             return {}
@@ -742,6 +798,7 @@ class RenderedCore:
     compose_yaml: str
     env_text: str
     file_modes: Mapping[str, int]
+    panel_vhost: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "file_modes", MappingProxyType(dict(self.file_modes)))
@@ -956,7 +1013,13 @@ class CoreAdapter:
         return RenderedCore(
             compose_yaml=compose,
             env_text=env,
+            panel_vhost=_panel_vhost_text(
+                panel_domain=str(selected["panel_domain"]),
+                certificate=str(selected["proxy_domain"]),
+                app_port=int(selected["panel_app_port"]),
+            ),
             file_modes={
+                _PANEL_VHOST: 0o644,
                 ".env": 0o600,
                 self.paths.marker_name: 0o600,
                 "secrets": 0o700,
@@ -1158,15 +1221,16 @@ class CoreAdapter:
                     selected,
                     str(prepared["acceptance_name"]),
                 )
-            except Exception as exc:
-                if not destructive_purge:
+            except Exception:
+                # A rollback must never be blocked by an unreachable runtime:
+                # the temporary user stays recorded in a preserved tombstone so
+                # a later repair or uninstall retries it, and the evidence says
+                # so instead of silently dropping it.
+                cleanup_pending = not destructive_purge
+                if cleanup_pending:
                     self._write_acceptance_owner(
                         str(prepared["acceptance_name"])
                     )
-                    raise CoreError(
-                        "temporary-user cleanup remains pending"
-                    ) from exc
-                cleanup_pending = False
             else:
                 durable_remove(pending, missing_ok=True)
             if destructive_purge:
@@ -1355,7 +1419,7 @@ class CoreAdapter:
         if (
             not isinstance(acceptance_name, str)
             or re.fullmatch(
-                r"proxy-control-acceptance-[0-9a-f]{16}",
+                r"pc-acceptance-[0-9a-f]{16}",
                 acceptance_name,
             )
             is None
@@ -1472,7 +1536,7 @@ class CoreAdapter:
         ):
             raise CoreError("temporary-user ownership has drifted")
         value = owner.read_text().strip()
-        if re.fullmatch(r"proxy-control-acceptance-[0-9a-f]{16}", value) is None:
+        if re.fullmatch(r"pc-acceptance-[0-9a-f]{16}", value) is None:
             raise CoreError("temporary-user ownership has drifted")
         if pending.exists() or pending.is_symlink():
             if (
@@ -1563,6 +1627,10 @@ class CoreAdapter:
         add(
             project / ".env",
             hashlib.sha256(rendered.env_text.encode()).hexdigest(),
+        )
+        add(
+            self._host(_PANEL_VHOST),
+            hashlib.sha256(rendered.panel_vhost.encode()).hexdigest(),
         )
         selected = self._selection(action)
         for domain, title in (
@@ -1673,6 +1741,16 @@ class CoreAdapter:
             if not cover.exists():
                 body = f"<!doctype html><title>{title}</title><h1>{title}</h1>\n".encode()
                 self._atomic(cover, body, 0o644)
+        self._write_panel_vhost(rendered)
+
+    def _write_panel_vhost(self, rendered: RenderedCore) -> None:
+        """Own the panel TLS listener the shared 443 router forwards to."""
+        vhost = self._host(_PANEL_VHOST)
+        if vhost.is_symlink() or (vhost.exists() and not vhost.is_file()):
+            raise CoreError("panel TLS vhost path is occupied")
+        self._atomic(vhost, rendered.panel_vhost.encode(), 0o644)
+        self._run("nginx", "-t")
+        self._run("systemctl", "reload", "nginx")
 
     def _assert_safe_project_tree(self, project: Path) -> None:
         marker = project / self.paths.marker_name
@@ -1862,7 +1940,7 @@ class CoreAdapter:
         ):
             raise AcceptanceError("temporary-user ownership is unavailable")
         value = path.read_text().strip()
-        if re.fullmatch(r"proxy-control-acceptance-[0-9a-f]{16}", value) is None:
+        if re.fullmatch(r"pc-acceptance-[0-9a-f]{16}", value) is None:
             raise AcceptanceError("temporary-user ownership has drifted")
         return value
 
@@ -2171,6 +2249,12 @@ class CoreAdapter:
                     "preserve": preserve,
                     "sha256": _path_sha256(path),
                 }
+        vhost = self._host(_PANEL_VHOST)
+        if vhost.exists() or vhost.is_symlink():
+            ownership[_PANEL_VHOST] = {
+                "preserve": False,
+                "sha256": _path_sha256(vhost),
+            }
         probe = self._host(self.paths.probe_path)
         if probe.exists() or probe.is_symlink():
             ownership[self.paths.probe_path] = {
@@ -2234,7 +2318,10 @@ class CoreAdapter:
                 r"/var/www/[A-Za-z0-9.-]+/index[.]html",
                 host_path,
             ) is not None
-            if project == path or (not in_project and not safe_cover):
+            owned_vhost = host_path == _PANEL_VHOST
+            if project == path or (
+                not in_project and not safe_cover and not owned_vhost
+            ):
                 raise CoreError("Core checkpoint ownership escapes the project")
             if in_project:
                 cursor = path.parent
@@ -2339,6 +2426,29 @@ class CoreAdapter:
     def _atomic(self, path: Path, data: bytes, mode: int) -> None:
         owner = (0, 0) if self.root == Path("/") and os.geteuid() == 0 else None
         atomic_write(path, data, mode=mode, owner=owner)
+
+
+def _panel_vhost_text(
+    *,
+    panel_domain: str,
+    certificate: str,
+    app_port: int,
+    tls_port: int = _PANEL_TLS_PORT,
+) -> str:
+    """Terminate TLS for the panel and proxy to its plain HTTP app port."""
+    proxy = (
+        f"proxy_pass http://127.0.0.1:{app_port}; "
+        "proxy_set_header Host $host; "
+        "proxy_set_header X-Forwarded-Proto https; "
+        "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; "
+    )
+    return (
+        f"server {{ listen 127.0.0.1:{tls_port} ssl; "
+        f"server_name {panel_domain}; "
+        f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
+        f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
+        f"location / {{ {proxy}}} }}\n"
+    )
 
 
 def _encode_adjacent_routes(routes: Sequence[tuple[str, str]]) -> str:

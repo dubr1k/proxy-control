@@ -380,7 +380,7 @@ def test_automatic_rollback_never_purges_volumes_or_credentials(tmp_path):
     assert not any("--volumes" in call for call, _stdin in runner.calls)
 
 
-def test_rollback_cleanup_failure_remains_retryable(tmp_path):
+def test_rollback_cleanup_failure_is_recorded_without_blocking_rollback(tmp_path):
     runner = FakeRunner(cleanup_fails=True)
     adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
     action = core_action()
@@ -390,15 +390,19 @@ def test_rollback_cleanup_failure_remains_retryable(tmp_path):
     pending.write_text(str(checkpoint["acceptance_name"]) + "\n")
     pending.chmod(0o600)
 
-    with pytest.raises(CoreError, match="cleanup"):
-        adapter.rollback(
-            action,
-            checkpoint,
-            purge_data=False,
-            rollback_target="rolled_back",
-        )
+    evidence = adapter.rollback(
+        action,
+        checkpoint,
+        purge_data=False,
+        rollback_target="rolled_back",
+    )
 
+    # The rollback completes - an unreachable runtime must never trap the host
+    # in a half-installed state - and records the pending cleanup instead.
+    assert evidence.success
+    assert evidence.details["temporary_cleanup_pending"] is True
     assert pending.is_file()
+    assert (tmp_path / "opt/mtproxy-shared443/.core-acceptance-owner").is_file()
     assert runner.cleanup_calls == 1
 
 
@@ -503,7 +507,9 @@ def test_acceptance_uses_transaction_unique_name_and_all_configured_credentials(
 
     evidence = adapter.verify(action)
 
-    assert runner.acceptance_names[0].startswith("proxy-control-acceptance-")
+    assert runner.acceptance_names[0].startswith("pc-acceptance-")
+    # The panel caps a username at 32 characters.
+    assert len(runner.acceptance_names[0]) <= 32
     assert evidence.details["respq_expected"] == 3
     assert evidence.details["respq_verified"] == 3
     assert applied["acceptance_name"] in runner.acceptance_names
@@ -619,13 +625,14 @@ def test_failed_rollback_cleanup_retains_tombstone_until_later_success(tmp_path)
     pending.write_text(str(applied["acceptance_name"]) + "\n")
     pending.chmod(0o600)
 
-    with pytest.raises(CoreError, match="cleanup"):
-        adapter.rollback(action, applied, rollback_target="rolled_back")
+    evidence = adapter.rollback(action, applied, rollback_target="rolled_back")
 
+    # The generation is gone, but the tombstone survives so the pending
+    # temporary user is retried instead of forgotten.
+    assert evidence.success
+    assert evidence.details["temporary_cleanup_pending"] is True
     assert pending.is_file()
     assert (project / ".core-acceptance-owner").is_file()
-    assert (project / "compose.yaml").is_file()
-    assert runner.compose_present
 
     runner.cleanup_fails = False
     adapter.reconcile_rollback(action, applied, rollback_target="rolled_back")
@@ -733,3 +740,146 @@ def test_explicit_purge_can_discard_failed_temporary_cleanup(tmp_path):
     assert evidence.success
     assert not pending.exists()
     assert not runner.volumes_present
+
+
+def test_core_owns_the_panel_tls_listener_the_router_forwards_to(tmp_path):
+    """The shared 443 router forwards raw TLS; the panel speaks plain HTTP."""
+    from installer.adapters.core import _PANEL_TLS_PORT, _PANEL_VHOST
+
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+
+    rendered = adapter.render(action)
+    assert f"listen 127.0.0.1:{_PANEL_TLS_PORT} ssl" in rendered.panel_vhost
+    assert "server_name panel.example.com" in rendered.panel_vhost
+    assert "proxy_pass http://127.0.0.1:8787" in rendered.panel_vhost
+    assert "/etc/letsencrypt/live/proxy.example.com/fullchain.pem" in (
+        rendered.panel_vhost
+    )
+    assert rendered.mode(_PANEL_VHOST) == 0o644
+
+    checkpoint = adapter.apply(action, adapter.prepare(action))
+
+    vhost = tmp_path / _PANEL_VHOST.lstrip("/")
+    assert vhost.read_text() == rendered.panel_vhost
+    assert stat.S_IMODE(vhost.stat().st_mode) == 0o644
+    assert _PANEL_VHOST in checkpoint["ownership"]
+    # Nginx is validated and reloaded so the listener actually exists.
+    joined = [" ".join(call) for call, _ in runner.calls]
+    assert any("nginx -t" in call for call in joined)
+    assert any("systemctl reload nginx" in call for call in joined)
+
+    adapter.rollback(action, checkpoint)
+    assert not vhost.exists()
+
+
+def test_core_refuses_an_occupied_panel_vhost_path(tmp_path):
+    from installer.adapters.core import _PANEL_VHOST
+
+    occupied = tmp_path / _PANEL_VHOST.lstrip("/")
+    occupied.parent.mkdir(parents=True)
+    occupied.symlink_to(tmp_path / "elsewhere")
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    action = core_action()
+
+    with pytest.raises(CoreError, match="panel TLS vhost"):
+        adapter.apply(action, adapter.prepare(action))
+
+
+def test_adjacent_handshake_reads_the_report_not_the_exit_status(monkeypatch):
+    """openssl exits non-zero after a verified handshake; the report decides."""
+    import subprocess as sp
+
+    from installer.adapters.core import _DefaultCoreRunner
+
+    runner = _DefaultCoreRunner()
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(tuple(argv))
+        assert kwargs["stdin"] is sp.DEVNULL
+        return sp.CompletedProcess(
+            argv,
+            1,
+            "Verification: OK\nVerified peername: old.example.com\n",
+            "",
+        )
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    assert runner.verified_adjacent_handshake("old.example.com") is True
+    assert "-verify_return_error" in calls[0]
+
+    monkeypatch.setattr(
+        sp,
+        "run",
+        lambda argv, **kwargs: sp.CompletedProcess(argv, 0, "Verification error\n", ""),
+    )
+    assert runner.verified_adjacent_handshake("old.example.com") is False
+
+    monkeypatch.setattr(
+        sp,
+        "run",
+        lambda argv, **kwargs: sp.CompletedProcess(
+            argv, 0, "Verification: OK\nVerified peername: other.example.com\n", ""
+        ),
+    )
+    assert runner.verified_adjacent_handshake("old.example.com") is False
+
+
+def test_the_project_directory_carries_every_compose_overlay(tmp_path):
+    """Naive and Mieru run Compose from the project, so the overlays live there."""
+    instance = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    action = core_action()
+
+    instance.apply(action, instance.prepare(action))
+
+    project = tmp_path / "opt/mtproxy-shared443"
+    for name in ("compose.yaml", "compose.naive.yaml", "compose.mieru.yaml"):
+        assert (project / name).is_file(), name
+        assert (project / name).read_bytes() == (ROOT / name).read_bytes()
+    # The overlays build their managers from this same context.
+    for directory in ("naive_manager", "mieru_manager", "panel"):
+        assert (project / directory / "Dockerfile").is_file(), directory
+
+
+def test_panel_client_accepts_a_full_reveal_payload():
+    """A reveal carries per-client configs and base64 SVG QR images, so the
+    acceptance client must not reject it as an oversized response."""
+    import io
+    import urllib.request
+
+    from installer.adapters.core import _MAX_RESPONSE_BYTES
+
+    body = json.dumps({"proxy_url": "https://u:p@naive.example.com", "pad": "x" * 300_000}).encode()
+    assert len(body) > 65536
+
+    class _Response(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            self.close()
+            return False
+
+    class _Opener:
+        def open(self, _request, timeout=None):
+            return _Response(body)
+
+    revealed = _DefaultCoreRunner._json_request(
+        _Opener(), "panel.example.com", "/api/reveal/token"
+    )
+    assert revealed["proxy_url"] == "https://u:p@naive.example.com"
+
+    oversized = json.dumps({"pad": "x" * (_MAX_RESPONSE_BYTES + 10)}).encode()
+
+    class _HugeOpener:
+        def open(self, _request, timeout=None):
+            return _Response(oversized)
+
+    with pytest.raises(AcceptanceError, match="too large"):
+        _DefaultCoreRunner._json_request(
+            _HugeOpener(), "panel.example.com", "/api/reveal/token"
+        )

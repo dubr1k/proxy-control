@@ -657,9 +657,19 @@ def _audit_host(config: InstallerConfig, runner: CommandRunner) -> AuditFacts:
         platform={
             "addresses": addresses,
             "architecture": architecture,
-            "disks": disks,
-            "memory": memory,
+            # Free space and free memory change between two consecutive audits,
+            # so they are transient observations: keeping them here would change
+            # the plan digest on every run and make an approved plan
+            # unapplicable on any live host.
+            "disks": _stable_disks(disks),
+            "memory": {"total_bytes": memory["total_bytes"]},
             "os": sys.platform,
+        },
+        transient={
+            "capacity": {
+                "disks": disks,
+                "memory": memory,
+            }
         },
         listeners=listeners,
         topology={
@@ -760,6 +770,20 @@ def _parse_disks(text: str) -> tuple[dict[str, object], ...]:
             }
         )
     return tuple(sorted(observations, key=lambda item: str(item["mount"])))
+
+
+def _stable_disks(
+    disks: Sequence[Mapping[str, object]],
+) -> tuple[dict[str, object], ...]:
+    """Only the identity and size of a filesystem; free space is transient."""
+    return tuple(
+        {
+            "filesystem": item["filesystem"],
+            "mount": item["mount"],
+            "total_kib": item["total_kib"],
+        }
+        for item in disks
+    )
 
 
 def _parse_memory(text: str) -> dict[str, int]:
