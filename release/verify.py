@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from installer.release import ReleaseError, ReleaseManifest, verify_artifact
+# Run as a script, `release/` is on sys.path and the repository root is not, so
+# the package this tool verifies would be unimportable.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from installer.release import ReleaseError, ReleaseManifest, verify_artifact  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:

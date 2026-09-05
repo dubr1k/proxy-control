@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -380,3 +382,17 @@ def test_release_workflow_pins_actions_and_separates_privileged_jobs():
 
 def test_version_file_matches_the_declared_release():
     assert (ROOT / "VERSION").read_text().strip() == VERSION
+
+
+def test_the_verify_tool_runs_as_a_script_from_the_repository_root():
+    """The release workflow runs `python release/verify.py`, which puts
+    `release/` on sys.path and not the repository root."""
+    completed = subprocess.run(
+        (sys.executable, "release/verify.py", "manifest", "release/external-artifacts.json"),
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={"PATH": os.environ.get("PATH", "")},
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "ok" in completed.stdout

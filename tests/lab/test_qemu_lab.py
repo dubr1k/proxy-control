@@ -455,9 +455,22 @@ class ImageMetadataTests(unittest.TestCase):
         self.assertTrue(image["machine"])
         self.assertTrue(image["minimum_qemu"])
 
+    def test_every_shipped_architecture_is_pinned(self):
+        document = json.loads((MODULE.parent / "image.json").read_text())
+        for architecture in document["images"]:
+            image = lab.metadata(architecture)
+            self.assertRegex(image["sha256"], r"^[0-9a-f]{64}$")
+
     def test_an_unpinned_image_fails_closed(self):
-        with self.assertRaises(ValueError) as caught:
-            lab.metadata("arm64")
+        """The controller refuses an image without a recorded digest rather
+        than trusting whatever the download returns."""
+        document = json.loads((MODULE.parent / "image.json").read_text())
+        document["images"]["arm64"]["sha256"] = None
+        path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "image.json"
+        path.write_text(json.dumps(document))
+        with mock.patch.object(lab, "HERE", path.parent):
+            with self.assertRaises(ValueError) as caught:
+                lab.metadata("arm64")
         self.assertIn("not pinned", str(caught.exception))
 
     def test_qemu_command_follows_the_declared_architecture(self):

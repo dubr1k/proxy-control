@@ -14,14 +14,12 @@
     "arm64": {
       "architecture": "arm64",
       "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260801/ubuntu-24.04-server-cloudimg-arm64.img",
-      "sha256": null,
+      "sha256": "aa6da05756e85ea6dde4836b841fecb10cfd1ba3bcea320189d9af945db70476",
       "source_checksums": "https://cloud-images.ubuntu.com/releases/noble/release-20260801/SHA256SUMS",
       "qemu_binary": "qemu-system-aarch64",
       "machine": "virt",
       "cpu": "max",
-      "minimum_qemu": "8.2",
-      "status": "unpinned",
-      "comment": "Record the official SHA-256 from source_checksums before using this image; the controller refuses an unpinned image rather than trusting a download."
+      "minimum_qemu": "8.2"
     }
   }
 }
