@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,25 @@ READMES = {
 }
 PROFILES = ("core", "core-naive", "core-mieru", "full")
 _BLOCK = re.compile(r"```[a-z]*\s+installer-check\n(.*?)```", re.DOTALL)
+
+
+def tracked(pattern: str) -> list[Path]:
+    """Files this repository actually ships, matching one pathspec.
+
+    The documentation describes the release, so the inventory is taken from
+    what is tracked: a virtual environment, a linked worktree holding another
+    revision, or an operator's untracked scratch file is none of its business.
+    """
+    completed = subprocess.run(
+        ("git", "-C", str(ROOT), "ls-files", "-z", pattern),
+        capture_output=True,
+        check=True,
+    )
+    return sorted(
+        ROOT / name
+        for name in completed.stdout.decode().split("\0")
+        if name
+    )
 
 
 def reference(language: str) -> str:
@@ -254,9 +274,7 @@ def test_the_per_protocol_egress_split_is_stated(language):
 
 def python_requirements() -> set[str]:
     names: set[str] = set()
-    for path in sorted(ROOT.glob("**/requirements*.txt")):
-        if ".venv" in path.parts:
-            continue
+    for path in tracked("**/requirements*.txt"):
         for line in path.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             # `-r other.txt` includes another file this loop already reads,
@@ -291,11 +309,7 @@ def test_readme_lists_every_pinned_external_artifact(language):
 @pytest.mark.parametrize("language", LANGUAGES)
 def test_readme_lists_every_container_base_image(language):
     text = readme(language)
-    dockerfiles = sorted(
-        path
-        for path in ROOT.glob("**/Dockerfile*")
-        if ".venv" not in path.parts and ".git" not in path.parts
-    )
+    dockerfiles = tracked("**/Dockerfile*")
     assert dockerfiles
     for path in dockerfiles:
         relative = path.relative_to(ROOT).as_posix()
