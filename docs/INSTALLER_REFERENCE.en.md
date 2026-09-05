@@ -35,6 +35,16 @@ external artifact manifest digest, the file count, and the tag. `sbom.spdx.json`
 lists every packaged file with its SHA-256 and every pinned external artifact
 with its licence.
 
+The build is reproducible: the release workflow builds the same commit twice and
+refuses to continue unless the bytes match. That determinism is exact for the
+archive's contents - the uncompressed tar is byte-identical across machines,
+because every member carries uid/gid 0, the mode from the git executable bit,
+and the commit timestamp. The gzip *container* around it is produced by the
+local zlib, so rebuilding on a machine with a different zlib version yields a
+different `.tar.gz` digest from the published one even though the contents are
+identical. Verify a download against the published `SHA256SUMS` and the
+attestation, not against a rebuild on a different platform.
+
 ## Interactive wizard
 
 With no arguments the installer starts the bilingual wizard:
