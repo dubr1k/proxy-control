@@ -131,7 +131,11 @@ def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
         stderr=subprocess.DEVNULL,
     )
     try:
-        deadline = time.monotonic() + 20
+        # A cold Chromium on a loaded CI runner regularly needs more than the
+        # twenty seconds this used to allow, and the loop already exits early
+        # when the process dies, so a longer budget only costs time on a real
+        # failure.
+        deadline = time.monotonic() + 90
         active_port = profile / "DevToolsActivePort"
         port = None
         while time.monotonic() < deadline:
