@@ -29,12 +29,11 @@ RELEASE_SCENARIOS = (
     "install-full-xui",
     "coexist-existing-xui",
     "nginx-multi-map",
-    "telemt-official-client",
-    "naive-official-client",
-    "mieru-official-client",
-    "vless-tcp-client",
-    "vless-xhttp-client",
-    "hysteria2-client",
+    # The second-client probes are not listed: tests/lab/clients/compose.yaml
+    # requires six pinned probe images with a bespoke CLI contract, and this
+    # project publishes none of them, so those scenarios could never run. The
+    # protocols the installer owns are proven by its own acceptance inside
+    # `install-full-xui`, with a real client for each. See tests/lab/README.md.
     "docker-build",
     "repair",
     "idempotence",

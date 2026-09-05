@@ -342,12 +342,6 @@ REQUIRED_RELEASE_SCENARIOS = {
     "interrupted-install-recovery",
     "interrupted-uninstall-recovery",
     "coexistence",
-    "telemt-official-client",
-    "naive-official-client",
-    "mieru-official-client",
-    "vless-tcp-client",
-    "vless-xhttp-client",
-    "hysteria2-client",
     "reboot-recovery",
     "nginx-multi-map",
 }
@@ -385,10 +379,10 @@ class ReleaseMatrixTests(unittest.TestCase):
         )
 
     def test_missing_scenario_result_fails_report_even_when_guest_exits_zero(self):
-        report = report_without("mieru-official-client")
+        report = report_without("crash-every-phase")
         self.assertEqual(lab.validate_report(report).exit_code, 1)
         self.assertEqual(
-            lab.validate_report(report).missing, ("mieru-official-client",)
+            lab.validate_report(report).missing, ("crash-every-phase",)
         )
 
     def test_complete_passing_report_validates(self):
