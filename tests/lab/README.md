@@ -38,7 +38,7 @@ The base cache is `${XDG_CACHE_HOME:-~/.cache}/mtproxy-installer-lab`. All mutab
 
 `release-amd64` and `release-arm64` validate one exact release archive rather than the working tree. The controller refuses to start unless `--release-archive` and `--release-sha256` are both given and the archive hashes to that value, and the guest re-verifies the same digest before unpacking. The installer under test is the one inside that archive: the guest drives `python3 -m installer.cli` from the unpacked release, never from the checked-out repository.
 
-Each architecture is pinned separately in `scripts/lab/image.json` (schema 2) with its official image URL, SHA-256, QEMU binary, machine, CPU, and minimum QEMU version. An architecture whose `sha256` is still `null` fails closed with a named error instead of trusting a download; record the official checksum from the `source_checksums` URL before using it. The `arm64` image ships unpinned for exactly this reason.
+Each architecture is pinned separately in `scripts/lab/image.json` (schema 2) with its official image URL, SHA-256, QEMU binary, machine, CPU, and minimum QEMU version. An architecture whose `sha256` is still `null` fails closed with a named error instead of trusting a download; record the official checksum from the `source_checksums` URL before using it. Both shipped architectures are pinned, and `test_an_unpinned_image_fails_closed` proves the refusal on a synthetic entry rather than by leaving a real one unpinned.
 
 The release matrix (`qemu_lab.release_scenarios()`) covers fresh full installs with managed 3x-ui, coexistence with an existing 3x-ui and an ambiguous multi-map Nginx, real protocol clients for Telemt, Naive, Mieru, VLESS TCP/XHTTP and Hysteria2, Docker build verification, repair, repeated install idempotence, restart recovery, a crash injected into every durable phase, secret scans, DNS/TLS preflight, uninstall twice, a foreign holder of a fixed identity, interrupted install/uninstall recovery, and final coexistence.
 
@@ -51,6 +51,55 @@ The release matrix (`qemu_lab.release_scenarios()`) covers fresh full installs w
 - `tests/lab/fixtures/three-xui-existing.sh` materializes a foreign 3x-ui install - config with clients and a Reality private key, database, binary, and unit - which is hashed before and after the run to prove byte identity.
 - `tests/lab/fixtures/nginx-multi-map.conf` provides an ambiguous shared-443 topology with two candidate stream maps; the installer must resolve it or refuse, never guess.
 - `tests/lab/clients/compose.yaml` runs each protocol probe in its own read-only, capability-dropped container against the guest's synthetic DNS. Every probe image is a required pinned input, the ephemeral credentials are mounted read-only from the guest overlay, and only a status and a byte count are recorded.
+
+## Bare-metal acceptance
+
+`scripts/lab/guest-runner.sh host` runs the complete release matrix on a real
+disposable server, with no QEMU and no nesting. It is the only mode that proves
+the parts a container cannot: the fresh full install, real protocol clients,
+`repair`, a repeated install, reboot recovery, a crash injected into a durable
+phase, reporting, uninstall, and final coexistence.
+
+```bash
+LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
+```
+
+`LAB_RESET=1` is the explicit opt-in that wipes installer-owned state,
+identities, units, Compose objects and Nginx fragments before the run. **It
+reinstalls the machine.** Run it only on a server you are willing to lose.
+
+### How the lab gets its domains
+
+No ACME request is ever made and no real domain is registered. The fixture
+builds the whole naming layer itself, which is what makes the run repeatable:
+
+- every name is a stub under `.lab.test` - `panel.lab.test`, `proxy.lab.test`,
+  `naive.lab.test`, `mieru.lab.test`, `xui.lab.test`, `vless.lab.test`,
+  `xhttp.lab.test`, `hy2.lab.test`, plus `old-xray.lab.test` as the adjacent
+  foreign site;
+- they are written into the host's `/etc/hosts` pointing at the host's own
+  address, so local clients and probes resolve them;
+- a dnsmasq instance answers the zone for real DNS queries with
+  `address=/lab.test/<host address>`, which is what the installer's preflight
+  actually asks. It sees an `A` record matching a local interface, no `AAAA`,
+  and a `CAA` query that answers "no records" - exactly like a fresh domain.
+  A preflight that cannot query `CAA` fails closed rather than assuming
+  permission, so a resolver is mandatory, not a convenience. Names outside
+  `lab.test` keep going to the host's original upstream resolvers, so package
+  and image downloads still work;
+- `write_fake_certbot` installs a deterministic Certbot-compatible generator: it
+  creates a local CA, issues a leaf for the requested names, writes a complete
+  `live`/`archive`/`renewal` lineage exactly where real Certbot would, and makes
+  the CA trusted on the host. `certbot renew --dry-run` therefore succeeds for
+  real, against a real lineage layout.
+
+That is why the acceptance exercises the true certificate code path - grouping
+by service, `--cert-name` lineages, `--webroot` per domain, and the renewal dry
+run - without ever touching Let's Encrypt or a public DNS zone.
+
+The adjacent foreign site is a real Nginx TLS vhost on `127.0.0.1:9443` behind
+the shared router, so "every adjacent SNI still works" is checked against
+something that actually terminates TLS.
 
 ## Container acceptance
 

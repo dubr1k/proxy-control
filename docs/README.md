@@ -31,6 +31,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Accounting semantics](ACCOUNTING.md)
 - [Validation gates](VALIDATION.md)
 - [Security policy](../SECURITY.md)
+- [Рабочий протокол для AI-агентов](../AGENTS.md)
 
 ## English
 
@@ -59,6 +60,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Accounting semantics](ACCOUNTING.md)
 - [Validation gates](VALIDATION.md)
 - [Security policy](../SECURITY.md)
+- [Operating protocol for AI agents](../AGENTS.md)
 
 ## Common rules
 
