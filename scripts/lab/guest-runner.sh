@@ -483,7 +483,7 @@ stage_mita_package() {
   # client, so the operator stages both pinned packages by hand. The lab
   # performs exactly that documented step and reads the pins from the release
   # under test instead of keeping a second copy of them.
-  local architecture name cache line url digest
+  local architecture name cache url digest
   architecture=$(dpkg --print-architecture)
   install -d -m 0755 /root/lab-artifacts /var/lib/proxy-control
   while read -r url digest; do
@@ -710,7 +710,10 @@ CRASHPY
 }
 
 release_secrets_scan() {
-  ! grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' /tmp/*.json /tmp/*.out /tmp/*.log 2>/dev/null
+  # `! cmd` skips errexit, so a match becomes an explicit failure instead.
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' /tmp/*.json /tmp/*.out /tmp/*.log 2>/dev/null; then
+    return 1
+  fi
   test "$(stat -c %a /opt/mtproxy-shared443/secrets)" = 700
   test "$(stat -c %a /etc/mieru-manager/token 2>/dev/null || echo 440)" = 440
 }
@@ -743,7 +746,9 @@ release_uninstall_foreign_identity() {
   groupadd --system --gid 10004 foreign-accounting 2>/dev/null || true
   cd "$RELEASE_ROOT"
   if installer_cmd plan --config "$CONFIG" --json >/tmp/plan-foreign.json 2>/tmp/plan-foreign.err; then
-    ! grep -q '"adapter": "naive"' /tmp/plan-foreign.json
+    if grep -q '"adapter": "naive"' /tmp/plan-foreign.json; then
+      return 1
+    fi
   else
     grep -qi 'collision' /tmp/plan-foreign.err
   fi
@@ -972,7 +977,9 @@ COEXISTPY
 container_uninstall_foreign_identity() {
   groupadd --system --gid 10004 foreign-accounting
   if container_cmd plan --config "$CONFIG" --json >/tmp/plan-foreign.json 2>/tmp/plan-foreign.err; then
-    ! grep -q '"adapter": "naive"' /tmp/plan-foreign.json
+    if grep -q '"adapter": "naive"' /tmp/plan-foreign.json; then
+      return 1
+    fi
   else
     grep -qi 'collision' /tmp/plan-foreign.err
   fi
@@ -995,8 +1002,10 @@ DNSPY
 }
 
 container_secrets_scan() {
-  ! grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
-    /tmp/plan*.json /tmp/plan*.err 2>/dev/null
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
+      /tmp/plan*.json /tmp/plan*.err 2>/dev/null; then
+    return 1
+  fi
   ! grep -q 'FOREIGN-PRIVATE-KEY-NEVER-READ' /tmp/plan.json
 }
 
@@ -1176,8 +1185,10 @@ host_uninstall() {
 }
 
 host_secrets_scan() {
-  ! grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
-    /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json 2>/dev/null
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
+      /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json 2>/dev/null; then
+    return 1
+  fi
   test "$(stat -c %a /opt/mtproxy-shared443/secrets 2>/dev/null || echo 700)" = 700
 }
 

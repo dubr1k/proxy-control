@@ -871,7 +871,6 @@ def test_panel_client_accepts_a_full_reveal_payload():
     """A reveal carries per-client configs and base64 SVG QR images, so the
     acceptance client must not reject it as an oversized response."""
     import io
-    import urllib.request
 
     from installer.adapters.core import _MAX_RESPONSE_BYTES
 
