@@ -544,8 +544,6 @@ udp_ports = [46002]
 [three_xui]
 mode = "existing"
 vless_tcp_domain = "vless.lab.test"
-warp = false
-warp_domains = []
 
 [firewall]
 manage_ufw = false

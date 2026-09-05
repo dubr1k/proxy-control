@@ -427,7 +427,7 @@ difference is deliberate:
 
 | Protocol | What goes through WARP |
 |---|---|
-| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves directly, and the mandatory final rule keeps unmatched traffic direct. |
+| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves directly, and the mandatory final rule keeps unmatched traffic direct. Available in `managed-new` mode only: an adopted instance (`existing`) is not managed by the installer, which never touches its routing. |
 | **NaiveProxy** | **All tunnelled traffic.** The `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
 | **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP. |
 

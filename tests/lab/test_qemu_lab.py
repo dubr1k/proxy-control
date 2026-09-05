@@ -6,6 +6,7 @@ import json
 import os
 import re
 import socket
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -682,3 +683,36 @@ class ReleaseConfigMatchesItsFixture(unittest.TestCase):
         body = text[start:start + 1 + following.start()]
         self.assertIn("ssl_preread", body)
         self.assertIn('cat > "$ROUTE"', body)
+
+
+class LabConfigurationsAreValid(unittest.TestCase):
+    """Each lab writes an installer configuration inline. Loading it through the
+    real loader and adapter selection catches an unknown key or an impossible
+    mode here, instead of thirty minutes into a QEMU run."""
+
+    RUNNER = MODULE.parent / "guest-runner.sh"
+
+    def _toml(self, function: str) -> str:
+        text = self.RUNNER.read_text()
+        start = text.index(f"\n{function}() {{")
+        body = text[start:]
+        opening = body.index('cat > "$CONFIG" <<TOML') + len('cat > "$CONFIG" <<TOML')
+        return (
+            body[opening:body.index("\nTOML")]
+            .replace('"$PANEL"', '"panel.lab.test"')
+            .replace('"$PROXY"', '"proxy.lab.test"')
+        )
+
+    def test_every_lab_configuration_loads_and_selects_adapters(self):
+        sys.path.insert(0, str(MODULE.parents[2]))
+        from installer.config import load_config
+        from installer.planner import adapters_for
+
+        for function in ("release_setup", "container_write_configs"):
+            with self.subTest(function):
+                directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+                path = directory / "install.toml"
+                path.write_text(self._toml(function))
+                config = load_config(path)
+                adapters = adapters_for(config)
+                self.assertTrue(adapters)
