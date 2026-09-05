@@ -14,7 +14,11 @@ import sys
 import tempfile
 import time
 
-_DEADLINE_SECONDS = 20.0
+# The client daemon starts, dials the server and negotiates its transport before
+# the SOCKS port carries anything. Twenty seconds was enough on an idle host and
+# not on a busy one, and a deployment that works must not fail acceptance
+# because the probe gave up early.
+_DEADLINE_SECONDS = 60.0
 _INTERVAL_SECONDS = 0.4
 
 

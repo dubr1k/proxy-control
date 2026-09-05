@@ -172,7 +172,7 @@ fi
 python3 release/build.py --source . --output dist --version "$(cat VERSION)"
 make lab-container \
   RELEASE_ARCHIVE=dist/proxy-control-v$(cat VERSION).tar.gz \
-  RELEASE_SHA256=$(cut -d' ' -f1 dist/SHA256SUMS)
+  RELEASE_SHA256=$(awk '/proxy-control-v.*\.tar\.gz$/ {print $1}' dist/SHA256SUMS)
 ```
 
 Полный цикл — установка, повторная установка, `repair`, восстановление после
@@ -395,7 +395,7 @@ runs:
 python3 release/build.py --source . --output dist --version "$(cat VERSION)"
 make lab-container \
   RELEASE_ARCHIVE=dist/proxy-control-v$(cat VERSION).tar.gz \
-  RELEASE_SHA256=$(cut -d' ' -f1 dist/SHA256SUMS)
+  RELEASE_SHA256=$(awk '/proxy-control-v.*\.tar\.gz$/ {print $1}' dist/SHA256SUMS)
 ```
 
 The complete lifecycle — install, a repeated install, `repair`, reboot recovery,
