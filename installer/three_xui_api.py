@@ -465,9 +465,16 @@ class ThreeXuiApi:
         *,
         contract: Mapping[str, object] | None = None,
         source_dir: Path | None = None,
+        base_path: str = "/",
     ) -> None:
         self.client = client
         self.contract = contract or self._load_contract(source_dir)
+        # Once the panel has a private base path, every one of its paths moves
+        # under it -- the login page included. A client that does not know the
+        # path talks to a panel that answers 404 to everything.
+        if _SAFE_PATH.fullmatch(base_path) is None:
+            raise ThreeXuiApiError("the 3x-ui base path is invalid")
+        self.base_path = base_path
         self._cookie: str | None = None
         self._csrf: str | None = None
 
@@ -495,6 +502,8 @@ class ThreeXuiApi:
             path = path.replace("{" + key + "}", rendered)
         if "{" in path:
             raise ThreeXuiApiError("a 3x-ui path parameter is missing")
+        if self.base_path != "/":
+            path = self.base_path.rstrip("/") + path
         return str(entry["method"]), path, str(entry["encoding"])
 
     def _call(
@@ -616,11 +625,14 @@ class ThreeXuiApi:
         old_password: str,
         new_username: str,
         new_password: str,
-        web_path: str,
     ) -> None:
-        """Replace the upstream first-run credential and the panel web path."""
-        if _SAFE_PATH.fullmatch(web_path) is None:
-            raise ThreeXuiApiError("the 3x-ui web path is invalid")
+        """Replace the upstream first-run credential.
+
+        Changing the credential invalidates the session that changed it, so
+        this makes exactly one call and then drops the session. Anything
+        further has to sign in again -- verified against a running 3.7.0,
+        where a second call on the old cookie is answered 404.
+        """
         self._call(
             "update_user",
             payload={
@@ -630,8 +642,8 @@ class ThreeXuiApi:
                 "newPassword": new_password,
             },
         )
-        self._call("update_settings", payload={"webBasePath": web_path})
         self._cookie = None
+        self._csrf = None
 
     def configure_panel(self, *, web_path: str, port: int, listen: str) -> None:
         """Move the panel onto loopback and give it a private base path.
@@ -687,12 +699,20 @@ class ThreeXuiApi:
             )
         return identifier
 
-    def delete_client(self, inbound_id: int, client_id: str) -> None:
+    def replace_clients(self, inbound_id: int, inbound: ManagedInbound) -> None:
+        """Rewrite one inbound so it carries exactly the clients given.
+
+        3x-ui 3.7.0 has no delete-client endpoint -- verified against a running
+        panel, where every spelling of one answers 404. An inbound is updated
+        whole, which is also the only way to remove a client without touching
+        anything else about it.
+        """
         if not isinstance(inbound_id, int) or isinstance(inbound_id, bool):
             raise ThreeXuiApiError("the 3x-ui inbound id is invalid")
         self._call(
-            "del_client",
-            parameters={"inbound_id": inbound_id, "client_id": client_id},
+            "update_inbound",
+            payload=inbound.request_body(),
+            parameters={"inbound_id": inbound_id},
         )
 
     def effective_config(self) -> dict[str, object]:

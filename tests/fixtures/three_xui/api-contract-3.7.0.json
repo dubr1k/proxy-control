@@ -22,11 +22,6 @@
       "path": "/panel/api/inbounds/add",
       "encoding": "json"
     },
-    "del_client": {
-      "method": "POST",
-      "path": "/panel/api/inbounds/{inbound_id}/delClient/{client_id}",
-      "encoding": "empty"
-    },
     "list_inbounds": {
       "method": "GET",
       "path": "/panel/api/inbounds/list",
@@ -41,6 +36,11 @@
       "method": "POST",
       "path": "/panel/api/setting/all",
       "encoding": "empty"
+    },
+    "update_inbound": {
+      "method": "POST",
+      "path": "/panel/api/inbounds/update/{inbound_id}",
+      "encoding": "json"
     }
   },
   "response_schema": {

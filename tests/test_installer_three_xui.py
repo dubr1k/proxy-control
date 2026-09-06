@@ -245,8 +245,11 @@ class RecordingApi:
         self._next_id += 1
         return identifier
 
-    def delete_client(self, inbound_id, client_id):
-        self.deleted.append((inbound_id, client_id))
+    def replace_clients(self, inbound_id, inbound):
+        self.deleted.append((inbound_id, inbound.tag))
+        for index, existing in enumerate(self.inbounds):
+            if existing.tag == inbound.tag:
+                self.inbounds[index] = inbound
 
     def effective_config(self):
         return {
@@ -274,7 +277,11 @@ def adapter(
         source_dir=ROOT,
         runner=runner or FakeThreeXuiRunner(),
         layout=FIXTURES / "release-layout.json",
-        api_factory=(lambda _port: api) if api is not None else (lambda _port: RecordingApi()),
+        api_factory=(
+            (lambda _port, _path="/": api)
+            if api is not None
+            else (lambda _port, _path="/": RecordingApi())
+        ),
     )
     instance.reality_keypair = lambda: ("private-key-value", "public-key-value")
     return instance
@@ -730,11 +737,14 @@ class FakeApi:
         self._next_id += 1
         return identifier
 
-    def delete_client(self, inbound_id, client_id):
-        self.deleted.append((inbound_id, client_id))
+    def replace_clients(self, inbound_id, inbound):
+        self.deleted.append((inbound_id, inbound.tag))
         if not self.keep_acceptance:
+            surviving = {item.email for item in inbound.clients}
             self.emails = [
-                email for email in self.emails if not email.startswith("acceptance-")
+                email
+                for email in self.emails
+                if not email.startswith("acceptance-") or email in surviving
             ]
 
     def effective_config(self):
@@ -949,7 +959,7 @@ def test_apply_provisions_the_panel_and_the_inbounds(tmp_path, monkeypatch):
     operator is left with an empty panel on its default public ports."""
     api = RecordingApi()
     instance = adapter(tmp_path)
-    instance.api_factory = lambda port: api
+    instance.api_factory = lambda port, path="/": api
     instance.reality_keypair = lambda: ("private-key-value", "public-key-value")
 
     instance.provision(_runtime_action(), password="the-chosen-password")

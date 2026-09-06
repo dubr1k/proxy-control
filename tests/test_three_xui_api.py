@@ -373,12 +373,6 @@ def test_add_inbound_rejects_a_response_without_an_identifier():
         api.add_inbound(template(), client())
 
 
-def test_delete_client_uses_the_contract_path_parameters():
-    api = api_with(lambda _request: ok({"success": True}))
-    api.delete_client(4, UUID_VALUE)
-    assert api.recorded.requests[-1][1] == f"/panel/api/inbounds/4/delClient/{UUID_VALUE}"
-
-
 def test_effective_config_reports_inbounds_without_credentials():
     rows = [
         {
@@ -400,33 +394,20 @@ def test_effective_config_reports_inbounds_without_credentials():
     assert UUID_VALUE not in json.dumps(effective)
 
 
-def test_rotate_credentials_replaces_defaults_and_drops_the_session():
+def test_rotating_the_credential_makes_one_call_and_drops_the_session():
+    """Changing the credential invalidates the session that changed it. A
+    second call on the old cookie is answered 404 by a running 3.7.0, so the
+    caller has to sign in again rather than carry on."""
     api = api_with(lambda _request: ok({"success": True}))
     api.rotate_credentials(
         old_username="admin",
         old_password="admin",
         new_username="operator",
         new_password="generated-password",
-        web_path="/managed-path/",
     )
     paths = [request[1] for request in api.recorded.requests]
-    assert paths == [
-        "/panel/api/setting/updateUser",
-        "/panel/api/setting/update",
-    ]
+    assert paths == ["/panel/api/setting/updateUser"]
     assert not api.authenticated
-
-
-def test_rotate_credentials_refuses_an_unsafe_web_path():
-    api = api_with(lambda _request: ok({"success": True}))
-    with pytest.raises(ThreeXuiApiError, match="web path is invalid"):
-        api.rotate_credentials(
-            old_username="admin",
-            old_password="admin",
-            new_username="operator",
-            new_password="generated-password",
-            web_path="not-absolute",
-        )
 
 
 def test_api_refuses_an_endpoint_outside_the_pinned_contract():

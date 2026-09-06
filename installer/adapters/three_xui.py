@@ -6,6 +6,8 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -91,27 +93,29 @@ _FORBIDDEN_FIELDS = (
 
 # Executed inside the bootstrap namespace; every credential arrives on stdin.
 _BOOTSTRAP_DIALOGUE = """
-import json, sys
+import json, sys, time
 from installer.three_xui_api import ThreeXuiApi, ThreeXuiApiError, ThreeXuiClient
 
 payload = json.load(sys.stdin)
 api = ThreeXuiApi(ThreeXuiClient(port=payload["port"]))
-api.login(payload["initial_username"], payload["initial_password"])
+# The panel is starting as this runs. Waiting for it here keeps a slow start
+# from looking like a wrong password.
+deadline = time.monotonic() + 60
+while True:
+    try:
+        api.login(payload["initial_username"], payload["initial_password"])
+        break
+    except ThreeXuiApiError:
+        if time.monotonic() >= deadline:
+            raise
+        time.sleep(1)
 api.rotate_credentials(
     old_username=payload["initial_username"],
     old_password=payload["initial_password"],
     new_username=payload["username"],
     new_password=payload["password"],
-    web_path=payload["web_path"],
 )
 api.login(payload["username"], payload["password"])
-# A fresh panel listens on *:2053 and *:2096. Move it before it is ever
-# reachable from outside this namespace.
-api.configure_panel(
-    web_path=payload["web_path"],
-    port=payload["panel_port"],
-    listen="127.0.0.1",
-)
 try:
     api.login(payload["initial_username"], payload["initial_password"])
 except ThreeXuiApiError:
@@ -119,6 +123,15 @@ except ThreeXuiApiError:
 else:
     raise SystemExit("the upstream first-run credential still works")
 api.login(payload["username"], payload["password"])
+# Moving the panel comes last: the base path takes effect immediately, so
+# every path this dialogue uses moves with it. A fresh panel listens on
+# *:2053 and *:2096, and this is still inside the namespace with no route
+# out, so it is never reachable from elsewhere on a default port.
+api.configure_panel(
+    web_path=payload["web_path"],
+    port=payload["panel_port"],
+    listen="127.0.0.1",
+)
 """
 
 
@@ -304,6 +317,9 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
                     "systemd-run",
                     f"--unit={_BOOTSTRAP_UNIT}",
                     f"--property=NetworkNamespacePath=/run/netns/{namespace}",
+                    # x-ui launches Xray by a relative path, so it only works
+                    # from inside its own tree.
+                    f"--property=WorkingDirectory={Path(binary).parent}",
                     binary,
                     "run",
                 ),
@@ -311,18 +327,37 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
             )
             # The dialogue reads its credentials from stdin: nothing sensitive
             # ever appears in argv, the journal, or a named temporary file.
-            self.run(
-                (
-                    "ip",
-                    "netns",
-                    "exec",
-                    namespace,
-                    "python3",
-                    "-c",
-                    _BOOTSTRAP_DIALOGUE,
-                ),
-                stdin_path=Path(payload_path),
-            )
+            #
+            # Its exit status is checked. It rotates the first-run credential
+            # and moves the panel onto loopback, and a failure that goes
+            # unnoticed here leaves the panel reachable with a password that
+            # is public knowledge.
+            with Path(payload_path).open("rb") as stdin:
+                completed = subprocess.run(
+                    (
+                        "ip",
+                        "netns",
+                        "exec",
+                        namespace,
+                        "python3",
+                        "-c",
+                        _BOOTSTRAP_DIALOGUE,
+                    ),
+                    check=False,
+                    stdin=stdin,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=self.timeout,
+                )
+            if completed.returncode != 0:
+                # The dialogue's credentials arrive on stdin and its traceback
+                # prints no values, so its own last words are safe to report
+                # and are the only way to tell why the panel was left alone.
+                detail = completed.stderr.decode("utf-8", "replace").strip()[-500:]
+                raise ThreeXuiError(
+                    "the 3x-ui first-run dialogue failed; the panel still has "
+                    f"its factory credential: {detail}"
+                )
         finally:
             self._run_checked(
                 ("systemctl", "stop", f"{_BOOTSTRAP_UNIT}.service"),
@@ -356,11 +391,11 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
             return False
 
 
-def _default_api_factory(port: int):
-    """One authenticated client against the local panel."""
+def _default_api_factory(port: int, base_path: str = "/"):
+    """One client against the local panel, under the path it now answers on."""
     from installer.three_xui_api import ThreeXuiApi, ThreeXuiClient
 
-    return ThreeXuiApi(ThreeXuiClient(port=port))
+    return ThreeXuiApi(ThreeXuiClient(port=port), base_path=base_path)
 
 
 class ThreeXuiAdapter:
@@ -749,7 +784,8 @@ class ThreeXuiAdapter:
             # The settings are stored at once but the listener does not move
             # until the service restarts, so the restart is part of the move.
             self._run("systemctl", "restart", _UNIT_NAME)
-            api = self.api_factory(_PANEL_BACKEND)
+            self._await_panel(_PANEL_BACKEND)
+            api = self.api_factory(_PANEL_BACKEND, self.web_path)
             api.login(self.panel_username, password)
             return self.configure_managed(
                 config,
@@ -758,6 +794,23 @@ class ThreeXuiAdapter:
             )
         finally:
             credential.unlink(missing_ok=True)
+
+    def _await_panel(self, port: int, *, timeout: float = 60.0) -> None:
+        """Wait until the panel is listening again after its restart.
+
+        Connecting the moment `systemctl restart` returns is a race the
+        installer loses on a loaded host: the unit is active before the panel
+        has bound its socket, and the refused connection then looks like a
+        configuration failure.
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if port in self.runner.listening_ports():
+                return
+            time.sleep(1.0)
+        raise AcceptanceError(
+            "the 3x-ui panel did not start listening on its private port"
+        )
 
     def _managed_config(self, action: Action) -> InstallerConfig:
         """Rebuild the managed configuration this action described.
@@ -824,22 +877,26 @@ class ThreeXuiAdapter:
             generator=generator,
             prefix="initial",
         )
-        identifiers: dict[str, int] = {}
-        for inbound in persistent:
-            identifiers[inbound.tag] = api.add_inbound(inbound)
-        routing = warp_routing(config)
         acceptance = build_managed_clients(
             templates,
             generator=generator,
             prefix="acceptance",
             acceptance=True,
         )
-        for inbound in acceptance:
-            api.add_inbound(inbound.with_clients(inbound.clients))
+        # Each inbound is created once, carrying both clients: two inbounds on
+        # one port is not something 3x-ui will accept, and rightly so. The
+        # acceptance client is then removed and its absence proved, which is
+        # what makes it an acceptance client rather than a second account
+        # nobody asked for.
+        identifiers: dict[str, int] = {}
+        for inbound, extra in zip(persistent, acceptance, strict=True):
+            identifiers[inbound.tag] = api.add_inbound(
+                inbound.with_clients([*inbound.clients, *extra.clients])
+            )
+        routing = warp_routing(config)
         removed = 0
-        for inbound in acceptance:
-            client = inbound.clients[0]
-            api.delete_client(identifiers[inbound.tag], client.client_id)
+        for inbound in persistent:
+            api.replace_clients(identifiers[inbound.tag], inbound)
             removed += 1
         effective = api.effective_config()
         emails = set(effective.get("client_emails", []))
