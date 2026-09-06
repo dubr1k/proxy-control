@@ -55,3 +55,7 @@ version-overrides/compose.versions.yaml
 
 # Cover-site content is deployment-specific and must stay outside Git history
 docker/site/
+
+# Local helper image definition: it is not part of the product and must not
+# enter the release. compose.yaml consumes the upstream image by digest.
+docker/Dockerfile.telemt

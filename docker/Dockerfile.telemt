@@ -1,4 +1,0 @@
-# syntax=docker/dockerfile:1
-FROM ghcr.io/samnet-dev/mtproxymax-telemt@sha256:ab27edbceb9f8c042911a7d9a44835318d1db5943ff50f276792fa29601ff856
-ADD --checksum=sha256:a284ffe3df5d2fd23f96ba52aebc4e08529dda92add9fecedffd58cf8c85731e https://github.com/telemt/telemt/releases/download/3.5.5/telemt /usr/local/bin/telemt
-RUN chmod 0755 /usr/local/bin/telemt
