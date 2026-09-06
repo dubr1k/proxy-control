@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -570,3 +571,89 @@ def test_xhttp_serves_a_path_that_looks_like_a_site_not_a_bare_slash():
     inbounds = build_managed_inbounds(config(), generator=DeterministicSecrets(seed=15))
     assert inbounds[1].stream_settings["xhttpSettings"]["path"] != "/"
     assert inbounds[1].stream_settings["xhttpSettings"]["mode"] == "auto"
+
+
+LIVE_SETTINGS = {
+    "webPort": 2053,
+    "webListen": "",
+    "webBasePath": "/",
+    "webDomain": "",
+    "webCertFile": "",
+    "webKeyFile": "",
+    "subEnable": True,
+    "subPort": 2096,
+    "subListen": "",
+    "pageSize": 25,
+    "sessionMaxAge": 360,
+    # Derived read-only flags the panel reports but does not accept back.
+    "hasApiToken": False,
+    "hasTgBotToken": False,
+}
+
+
+def test_the_panel_is_moved_off_its_public_ports_and_onto_loopback():
+    """A fresh 3x-ui listens on *:2053 and *:2096, reachable from anywhere.
+    Behind a shared 443 it must answer only locally."""
+    sent: list[dict] = []
+
+    def script(request):
+        _method, path, body, _headers = request
+        if path.endswith("/setting/all"):
+            return ok({"success": True, "obj": LIVE_SETTINGS})
+        sent.append(dict(urllib.parse.parse_qsl(body.decode())))
+        return ok({"success": True})
+
+    api = api_with(script)
+    api.configure_panel(web_path="/managed-path/", port=8451, listen="127.0.0.1")
+
+    submitted = sent[-1]
+    assert submitted["webListen"] == "127.0.0.1"
+    assert submitted["webPort"] == "8451"
+    assert submitted["webBasePath"] == "/managed-path/"
+    assert submitted["subListen"] == "127.0.0.1"
+
+
+def test_panel_settings_are_sent_whole_because_a_partial_form_is_rejected():
+    """Verified against a running 3x-ui: sending only the changed field is
+    answered `request body failed validation`, so every other setting has to
+    be read and sent back unchanged."""
+    sent: list[dict] = []
+
+    def script(request):
+        _method, path, body, _headers = request
+        if path.endswith("/setting/all"):
+            return ok({"success": True, "obj": LIVE_SETTINGS})
+        sent.append(dict(urllib.parse.parse_qsl(body.decode())))
+        return ok({"success": True})
+
+    api = api_with(script)
+    api.configure_panel(web_path="/managed-path/", port=8451, listen="127.0.0.1")
+
+    submitted = sent[-1]
+    assert submitted["pageSize"] == "25"
+    assert submitted["sessionMaxAge"] == "360"
+    # Derived flags are reported by the panel but are not settings.
+    assert "hasApiToken" not in submitted
+
+
+def test_configure_panel_refuses_a_web_path_it_cannot_vouch_for():
+    api = api_with(lambda _request: ok({"success": True, "obj": LIVE_SETTINGS}))
+    with pytest.raises(ThreeXuiApiError, match="web path is invalid"):
+        api.configure_panel(web_path="not-absolute", port=8451, listen="127.0.0.1")
+
+
+def test_configure_panel_refuses_a_non_loopback_listener():
+    """Moving the panel to a public address would undo the point of moving it."""
+    api = api_with(lambda _request: ok({"success": True, "obj": LIVE_SETTINGS}))
+    with pytest.raises(ThreeXuiApiError, match="loopback"):
+        api.configure_panel(web_path="/p/", port=8451, listen="0.0.0.0")
+
+
+def test_the_panel_move_is_not_complete_until_the_service_restarts():
+    """Verified against a running 3x-ui: the settings are stored and the new
+    base path takes effect immediately, but the listener does not move until
+    the service restarts. Reporting the move as done before that would leave
+    the panel still answering on *:2053."""
+    from installer.three_xui_api import PANEL_MOVE_REQUIRES_RESTART
+
+    assert PANEL_MOVE_REQUIRES_RESTART is True

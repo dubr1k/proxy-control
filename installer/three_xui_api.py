@@ -38,6 +38,12 @@ API_INBOUND_PORT = 8452
 # owned by the installer, so it is always there and always answers.
 PANEL_COVER_PORT = 8443
 
+# Verified against a running 3x-ui 3.7.0: `configure_panel` stores the new
+# address and the new base path takes effect at once, but the listener itself
+# does not move until the service restarts. Anything that calls it must restart
+# x-ui and then confirm the move, or the panel goes on answering on *:2053.
+PANEL_MOVE_REQUIRES_RESTART = True
+
 WARP_OUTBOUND_TAG = "warp"
 _MANDATORY_FINAL_RULE = {"outboundTag": "direct", "network": "tcp,udp"}
 _SAFE_TAG = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
@@ -436,6 +442,13 @@ def parse_csrf_token(page: str) -> str:
     return found.group(1)
 
 
+def _form_value(value: object) -> object:
+    """Render one setting the way the panel's own form does."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return value
+
+
 class _Sanitized(Exception):
     """A cause whose text is reduced to the original exception type only."""
 
@@ -619,6 +632,43 @@ class ThreeXuiApi:
         )
         self._call("update_settings", payload={"webBasePath": web_path})
         self._cookie = None
+
+    def configure_panel(self, *, web_path: str, port: int, listen: str) -> None:
+        """Move the panel onto loopback and give it a private base path.
+
+        A fresh 3x-ui listens on *:2053 and *:2096, reachable from anywhere.
+        Behind a shared 443 it must answer only locally.
+
+        The settings form is sent whole: verified against a running 3.7.0, a
+        partial form is answered `request body failed validation`, so every
+        other setting is read and sent back unchanged. Fields the panel
+        reports but does not accept back -- the derived `has...` flags that
+        say whether a secret is set -- are dropped.
+        """
+        if _SAFE_PATH.fullmatch(web_path) is None:
+            raise ThreeXuiApiError("the 3x-ui web path is invalid")
+        if listen not in _LOOPBACK_HOSTS:
+            raise ThreeXuiApiError("the 3x-ui panel must listen on loopback")
+        if not 1 <= port <= 65535:
+            raise ThreeXuiApiError("the 3x-ui panel port is invalid")
+        document = self._call("all_settings")
+        current = document.get("obj")
+        if not isinstance(current, Mapping):
+            raise ThreeXuiApiError("the 3x-ui settings did not match the contract")
+        payload: dict[str, object] = {
+            key: _form_value(value)
+            for key, value in current.items()
+            if not key.startswith("has")
+        }
+        payload.update(
+            {
+                "webListen": listen,
+                "webPort": port,
+                "webBasePath": web_path,
+                "subListen": listen,
+            }
+        )
+        self._call("update_settings", payload=payload)
 
     def add_inbound(
         self,
