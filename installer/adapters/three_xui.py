@@ -123,6 +123,32 @@ class AcceptanceError(ThreeXuiError):
     """The managed 3x-ui runtime failed an acceptance requirement."""
 
 
+# Xray prints the Reality keypair as labelled lines. The pinned 3x-ui 3.7.0
+# carries Xray 26.7.28, which writes "PrivateKey:" and "Password (PublicKey):";
+# older builds wrote "Private key:" and "Public key:". Both are read, and
+# anything else is an error rather than a silently empty key.
+_KEY_VALUE = r"([A-Za-z0-9_-]{43})"
+_PRIVATE_KEY_LINE = re.compile(rf"^Private ?[Kk]ey:[ \t]*{_KEY_VALUE}[ \t]*$", re.MULTILINE)
+_PUBLIC_KEY_LINE = re.compile(
+    rf"^(?:Password \(PublicKey\)|Public ?[Kk]ey):[ \t]*{_KEY_VALUE}[ \t]*$",
+    re.MULTILINE,
+)
+
+
+def parse_reality_keypair(output: str) -> tuple[str, str]:
+    """Read one Reality keypair out of `xray x25519` output.
+
+    A half-read keypair would produce an inbound nobody can connect to, so
+    every departure from the expected shape fails closed. The error never
+    quotes the output, because the output is key material.
+    """
+    private = _PRIVATE_KEY_LINE.search(output)
+    public = _PUBLIC_KEY_LINE.search(output)
+    if private is None or public is None:
+        raise ThreeXuiError("the Xray keypair output was not in the expected form")
+    return private.group(1), public.group(1)
+
+
 @dataclass(frozen=True)
 class ThreeXuiPaths:
     """Fixed host paths of an existing or managed 3x-ui installation."""
@@ -147,6 +173,16 @@ class ThreeXuiPaths:
         ):
             if not value.startswith("/") or ".." in Path(value).parts:
                 raise ValueError("3x-ui path must be a normalized absolute path")
+
+    def xray_binary(self, architecture: str) -> str:
+        """The Xray the pinned 3x-ui ships, which mints the Reality keypair.
+
+        3x-ui names it after the architecture it was built for, and the tree
+        carries exactly one of them.
+        """
+        if architecture not in _SUPPORTED_ARCHITECTURES:
+            raise ValueError("unsupported architecture")
+        return f"{self.root_dir}/bin/xray-linux-{architecture}"
 
 
 @dataclass(frozen=True)
@@ -214,6 +250,17 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
 
     def x_ui_version(self, binary: str) -> str:
         return self._capture_checked((binary, "-v")).strip()
+
+    def reality_keypair(self, xray_binary: str) -> tuple[str, str]:
+        """Mint one Reality keypair with the Xray that will serve it.
+
+        The private half never reaches argv, an environment variable, or the
+        journal: it is read from this process's own captured output and goes
+        straight into the inbound body.
+        """
+        return parse_reality_keypair(
+            self._capture_checked((xray_binary, "x25519"))
+        )
 
     def migration_rehearsal(self, binary: str, database: str) -> None:
         """Run the new binary's migration against a private database copy."""

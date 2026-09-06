@@ -801,3 +801,73 @@ def test_warp_on_an_adopted_three_xui_plans_no_three_xui_action(tmp_path):
     )
     actions = adapter(tmp_path).plan(config, existing_facts())
     assert [action.id for action in actions] == ["three_xui.routes"]
+
+
+REAL_X25519_OUTPUT = (
+    "PrivateKey: WPxecbPOtXbO-rrqOFhNo7aHgLic67S1pTmHQ_sl_H8\n"
+    "Password (PublicKey): 5F4I2YmIxq-rwvJ9izJrEEGXIcvtZG_8AOWSxxm48FU\n"
+    "Hash32: M2z_F0tUNm3fYuYdDkenlLS8sH9-Ap6AOaxU5KCNzjg\n"
+)
+
+
+def test_reality_keypair_reads_the_pinned_xray_output_verbatim():
+    """Captured from the Xray 26.7.28 that 3x-ui 3.7.0 actually ships:
+    the labels are `PrivateKey:` and `Password (PublicKey):`, not the
+    `Private key:` / `Public key:` of older builds."""
+    from installer.adapters.three_xui import parse_reality_keypair
+
+    private_key, public_key = parse_reality_keypair(REAL_X25519_OUTPUT)
+    assert private_key == "WPxecbPOtXbO-rrqOFhNo7aHgLic67S1pTmHQ_sl_H8"
+    assert public_key == "5F4I2YmIxq-rwvJ9izJrEEGXIcvtZG_8AOWSxxm48FU"
+
+
+def test_reality_keypair_also_reads_the_older_label_spelling():
+    from installer.adapters.three_xui import parse_reality_keypair
+
+    older = (
+        "Private key: WPxecbPOtXbO-rrqOFhNo7aHgLic67S1pTmHQ_sl_H8\n"
+        "Public key: 5F4I2YmIxq-rwvJ9izJrEEGXIcvtZG_8AOWSxxm48FU\n"
+    )
+    assert parse_reality_keypair(older) == (
+        "WPxecbPOtXbO-rrqOFhNo7aHgLic67S1pTmHQ_sl_H8",
+        "5F4I2YmIxq-rwvJ9izJrEEGXIcvtZG_8AOWSxxm48FU",
+    )
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "",
+        "PrivateKey: WPxecbPOtXbO-rrqOFhNo7aHgLic67S1pTmHQ_sl_H8\n",
+        "PrivateKey: short\nPassword (PublicKey): also-short\n",
+        "PrivateKey: has spaces here\nPassword (PublicKey): x\n",
+    ],
+)
+def test_reality_keypair_fails_closed_on_anything_it_does_not_recognise(output: str):
+    """A silently empty or half-read keypair would produce an inbound nobody
+    can connect to, so an unreadable output is an error, not a default."""
+    from installer.adapters.three_xui import ThreeXuiError, parse_reality_keypair
+
+    with pytest.raises(ThreeXuiError):
+        parse_reality_keypair(output)
+
+
+def test_reality_keypair_never_echoes_the_key_material_in_its_error():
+    from installer.adapters.three_xui import ThreeXuiError, parse_reality_keypair
+
+    leak = "PrivateKey: WPxecbPOtXbO-rrqOFhNo7aHgLic67S1pTmHQ_sl_H8\nnothing else\n"
+    with pytest.raises(ThreeXuiError) as caught:
+        parse_reality_keypair(leak)
+    assert "WPxecbPOtXbO" not in str(caught.value)
+
+
+def test_the_xray_that_serves_reality_is_the_one_that_mints_its_keypair(tmp_path):
+    """The keypair must come from the pinned Xray in the staged tree, not from
+    whatever Xray happens to be on the host."""
+    from installer.adapters.three_xui import ThreeXuiPaths
+
+    paths = ThreeXuiPaths()
+    assert paths.xray_binary("amd64") == "/usr/local/x-ui/bin/xray-linux-amd64"
+    assert paths.xray_binary("arm64") == "/usr/local/x-ui/bin/xray-linux-arm64"
+    with pytest.raises(ValueError):
+        paths.xray_binary("riscv64")
