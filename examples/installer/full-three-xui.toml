@@ -1,5 +1,8 @@
+# Every protocol this installer owns, next to a 3x-ui that is already
+# installed. The installer routes to that 3x-ui and never touches its files,
+# its database, or its inbounds.
 schema = 1
-host_mode = "fresh"
+host_mode = "coexist"
 profile = "full"
 acme_email = "admin@example.com"
 initial_user = "owner"
@@ -15,13 +18,11 @@ tcp_ports = [46001]
 udp_ports = [46001]
 
 [three_xui]
-mode = "managed-new"
+mode = "existing"
 panel_domain = "xui.example.com"
 vless_tcp_domain = "vless.example.com"
 vless_xhttp_domain = "xhttp.example.com"
 hysteria_domain = "hy2.example.com"
-warp = false
-warp_domains = []
 
 [firewall]
-manage_ufw = true
+manage_ufw = false

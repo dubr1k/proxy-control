@@ -102,7 +102,7 @@ tcp_ports = [46001]
 udp_ports = [46001]
 
 [three_xui]
-mode = "managed-new"           # none | existing | managed-new
+mode = "existing"              # none | existing
 panel_domain = "xui.example.com"
 vless_tcp_domain = "vless.example.com"
 vless_xhttp_domain = "xhttp.example.com"
@@ -117,9 +117,12 @@ manage_ufw = true
 `schema` is the integer `1`. `host_mode` selects a fresh host or coexistence
 with an existing shared-443 Nginx router. `initial_user` is the first panel
 owner and the Mieru bootstrap user, so it must be a safe name. Under
-`three_xui`, `mode = "none"` accepts no other key, `existing` accepts only the
-domains you want routed, and `managed-new` requires all four domains plus `warp`
-and `warp_domains`. `warp_domains` without `warp = true` is rejected.
+`three_xui`, `mode = "none"` accepts no other key and `existing` accepts only
+the domains you want routed. A third mode, `managed-new`, is not supported in
+this release: it stages and starts 3x-ui but creates no inbound, no Reality
+keypair, and no panel credential, so the planner refuses it by name.
+`warp_domains` without `warp = true` is rejected, and WARP itself applies only
+to a managed 3x-ui, which makes it unavailable in this release.
 `manage_ufw` only takes effect on a fresh host.
 
 ## Profiles and examples
@@ -163,7 +166,7 @@ boundary:
 | `core` | The `mtproxy` Compose project, its secrets, and the pinned TDLib probe |
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
-| `three_xui` | Nothing in `existing` mode beyond the owned route; one staged generation in `managed-new` |
+| `three_xui` | Nothing beyond the owned route: `existing` is the only supported mode |
 
 Each action is applied through a durable journal: prepare, apply, verify. An
 interrupted step is resumable, and every adapter's inverse restores what it
@@ -224,8 +227,7 @@ is mutated:
 - a public listener already claimed by another service;
 - a foreign holder of a reserved UID or GID (`10002`, `10003`, `10005`, and the
   groups `101`, `10004`, `10005`);
-- a pre-existing x-ui database, binary tree, unit, service user, or listener in
-  `managed-new` mode;
+- `three_xui.mode = "managed-new"`: the mode does not ship in this release;
 - an artifact whose digest does not match its pin.
 
 ## Recovery, repair, rollback, and uninstall

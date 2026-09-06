@@ -24,6 +24,12 @@ from installer.model import (
 from installer.planner import AuditFacts
 
 
+# The wizard offers only the modes the planner will accept. "managed-new"
+# stages 3x-ui but provisions no Reality keypair, no inbound, and no panel
+# credential, so the planner refuses it; offering it here would only let an
+# operator answer four more questions before being told no.
+OFFERED_THREE_XUI_MODES = (ThreeXuiMode.NONE, ThreeXuiMode.EXISTING)
+
 _ENUM = TypeVar("_ENUM", bound=StrEnum)
 _DOMAIN_RE = re.compile(
     r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
@@ -376,7 +382,7 @@ class TerminalWizard:
         host_mode = self.io.choose_enum(text(self.locale, "host_mode"), tuple(HostMode))
         profile = self.io.choose_enum(text(self.locale, "profile"), tuple(Profile))
         xui_mode = self.io.choose_enum(
-            text(self.locale, "three_xui_mode"), tuple(ThreeXuiMode)
+            text(self.locale, "three_xui_mode"), OFFERED_THREE_XUI_MODES
         )
         values: dict[str, object] = {
             "host_mode": host_mode,

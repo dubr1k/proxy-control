@@ -89,7 +89,7 @@ PROFILE_MATRIX = (
     ),
     (
         Profile.FULL,
-        ThreeXuiMode.MANAGED_NEW,
+        ThreeXuiMode.EXISTING,
         BASE + ("firewall", "core", "naive", "mieru", "three_xui"),
     ),
 )
@@ -116,7 +116,7 @@ def test_profile_order_is_the_documented_installation_order():
     names = tuple(
         adapter.name
         for adapter in adapters_for(
-            config_for(profile=Profile.FULL, three_xui=ThreeXuiMode.MANAGED_NEW)
+            config_for(profile=Profile.FULL, three_xui=ThreeXuiMode.EXISTING)
         )
     )
     assert names == (
@@ -167,18 +167,20 @@ def test_selection_rejects_mieru_listeners_outside_a_mieru_profile():
         adapters_for(broken)
 
 
-def test_selection_rejects_managed_three_xui_on_a_coexisting_host():
-    broken = config_for(
-        three_xui=ThreeXuiMode.MANAGED_NEW,
-        host_mode=HostMode.COEXIST,
-    )
-    with pytest.raises(PlanError, match="fresh host"):
+@pytest.mark.parametrize("host_mode", (HostMode.FRESH, HostMode.COEXIST))
+def test_selection_refuses_managed_three_xui_because_it_provisions_nothing(host_mode):
+    """The mode stages 3x-ui but creates no Reality keypair, no inbound, and no
+    panel credential, so the host would be left with an empty panel where the
+    configuration named VLESS Reality and Hysteria2 domains. It must be refused
+    by name on every host, not installed half-way."""
+    broken = config_for(three_xui=ThreeXuiMode.MANAGED_NEW, host_mode=host_mode)
+    with pytest.raises(PlanError, match="not supported in this release"):
         adapters_for(broken)
 
 
 def test_every_selected_adapter_declares_satisfiable_dependencies():
     adapters = adapters_for(
-        config_for(profile=Profile.FULL, three_xui=ThreeXuiMode.MANAGED_NEW)
+        config_for(profile=Profile.FULL, three_xui=ThreeXuiMode.EXISTING)
     )
     available: set[str] = set()
     for adapter in adapters:

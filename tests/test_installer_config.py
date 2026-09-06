@@ -235,3 +235,22 @@ def test_domains_are_normalized_before_duplicate_checks():
 def test_invalid_toml_is_reported_as_config_error():
     with pytest.raises(ConfigError, match="invalid TOML"):
         parse_config("schema = [")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "core.toml",
+        "core-naive.toml",
+        "core-mieru.toml",
+        "full-three-xui.toml",
+        "existing-three-xui.toml",
+    ],
+)
+def test_every_example_configuration_selects_adapters(name: str):
+    """An example that parses but cannot be planned is a trap: an operator
+    copies it and learns only at the planning step that the combination is
+    refused. Every shipped example must survive adapter selection."""
+    from installer.planner import adapters_for
+
+    assert adapters_for(load_config(EXAMPLES / name))

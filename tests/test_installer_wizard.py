@@ -109,7 +109,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "",  # LANG default: Russian
             "fresh",
             "full",
-            "managed-new",
+            "existing",
             "panel.example.com",
             "relay.example.com",
             "edge.example.com",
@@ -120,7 +120,6 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "vless.example.com",
             "xhttp.example.com",
             "hy2.example.com",
-            "no",
             "admin@example.com",
             "owner",
             "yes",
@@ -136,7 +135,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
     config = load_config(output)
     assert config.host_mode is HostMode.FRESH
     assert config.profile is Profile.FULL
-    assert config.three_xui.mode is ThreeXuiMode.MANAGED_NEW
+    assert config.three_xui.mode is ThreeXuiMode.EXISTING
     assert config.canonical_dict()["domains"] == {
         "panel": "panel.example.com",
         "mtproxy": "relay.example.com",
@@ -215,7 +214,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "",
         "fresh",
         "full",
-        "managed-new",
+        "existing",
         "panel.example.com",
         "relay.example.com",
         "edge.example.com",
@@ -226,7 +225,6 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "vless.example.com",
         "xhttp.example.com",
         "hy2.example.com",
-        "no",
         "admin@example.com",
         "owner",
         "yes",
@@ -355,3 +353,45 @@ def test_wizard_quit_before_digest_confirmation_has_no_mutations(tmp_path: Path)
     assert completed.returncode == 0, transcript
     assert _tree(tmp_path) == before
     assert "No changes were made" in transcript
+
+
+def test_the_wizard_never_offers_a_mode_the_planner_will_refuse():
+    """An operator must not be able to answer several questions and only then
+    be told the mode does not exist. Whatever the wizard offers, the planner
+    has to accept."""
+    from installer.planner import PlanError, adapters_for
+    from installer.wizard import OFFERED_THREE_XUI_MODES
+
+    assert ThreeXuiMode.MANAGED_NEW not in OFFERED_THREE_XUI_MODES
+    for mode in OFFERED_THREE_XUI_MODES:
+        config = _base_config(mode)
+        try:
+            adapters_for(config)
+        except PlanError as exc:  # pragma: no cover - the assertion names it
+            raise AssertionError(f"the wizard offers a refused mode: {mode}") from exc
+
+
+def _base_config(mode: ThreeXuiMode):
+    from installer.model import (
+        DomainConfig,
+        FirewallConfig,
+        InstallerConfig,
+        Profile,
+        ThreeXuiConfig,
+    )
+
+    return InstallerConfig(
+        schema=1,
+        host_mode=HostMode.FRESH,
+        profile=Profile.CORE,
+        acme_email="ops@example.com",
+        initial_user="owner",
+        domains=DomainConfig(panel="panel.example.com", mtproxy="proxy.example.com"),
+        mieru=None,
+        three_xui=(
+            ThreeXuiConfig(mode=mode, vless_tcp_domain="vless.example.com")
+            if mode is not ThreeXuiMode.NONE
+            else ThreeXuiConfig(mode=mode)
+        ),
+        firewall=FirewallConfig(manage_ufw=True),
+    )

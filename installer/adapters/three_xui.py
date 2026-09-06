@@ -635,7 +635,16 @@ class ThreeXuiAdapter:
         *,
         generator,
     ) -> Mapping[str, object]:
-        """Create the persistent inbounds, then prove acceptance clients gone."""
+        """Create the persistent inbounds, then prove acceptance clients gone.
+
+        Not reached in this release. `apply` stages and starts 3x-ui but never
+        calls this, and two pieces are still missing before it could: nothing
+        produces the Reality keypair this needs from the pinned Xray binary,
+        and nothing issues the 3x-ui panel credential or web path that
+        `bootstrap_credentials` would rotate. The planner therefore refuses
+        `managed-new` outright rather than installing an empty panel. This
+        code and its tests are the groundwork for finishing the mode.
+        """
         from installer.three_xui_api import (
             build_managed_clients,
             build_managed_inbounds,
@@ -685,7 +694,10 @@ class ThreeXuiAdapter:
         web_path: str,
         port: int,
     ) -> None:
-        """Rotate the upstream first-run credential inside a private namespace."""
+        """Rotate the upstream first-run credential inside a private namespace.
+
+        Not reached in this release, for the same reason as `configure_managed`.
+        """
         session = getattr(self.runner, "bootstrap_session", None)
         if not callable(session):
             raise ThreeXuiError("the 3x-ui bootstrap session is unavailable")

@@ -39,7 +39,7 @@ What you get:
 | **MTProxy / Telemt** | A proxy for Telegram. The panel hands out `tg://` links and QR codes, sets limits and expiry, and reports service state. |
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. One access works as both HTTPS and HTTP/2. Per-user quota and traffic accounting included. |
 | **Mieru** | An obfuscated proxy with its own protocol over TCP and UDP. The panel issues a one-time `mierus://` link and QR. |
-| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. The installer can install 3x-ui from scratch, or adopt an existing one without touching its files. |
+| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. The installer adopts an already installed 3x-ui and shares port 443 with it without touching a single one of its files. It cannot yet install 3x-ui from scratch. |
 | **Panel** | Owner, administrator, and viewer roles. Secret-free audit, one-time credential reveal, quota management. |
 | **Fleet** *(optional)* | Inventory and limited management of remote nodes over mTLS. Installed by hand. |
 
@@ -127,10 +127,10 @@ It depends on the profile. Not every protocol needs one:
 | `mtproxy` — MTProxy | Always | Yes |
 | `naive` — NaiveProxy | Profiles with Naive | Yes |
 | `mieru` — Mieru | Profiles with Mieru | **No** |
-| `three_xui.panel_domain` | When installing 3x-ui from scratch | Yes |
-| `three_xui.hysteria_domain` | When installing 3x-ui from scratch | Yes |
-| `three_xui.vless_tcp_domain` | When installing 3x-ui from scratch | **No** |
-| `three_xui.vless_xhttp_domain` | When installing 3x-ui from scratch | **No** |
+| `three_xui.panel_domain` | When sharing 443 with 3x-ui | Yes |
+| `three_xui.hysteria_domain` | When sharing 443 with 3x-ui | Yes |
+| `three_xui.vless_tcp_domain` | When sharing 443 with 3x-ui | **No** |
+| `three_xui.vless_xhttp_domain` | When sharing 443 with 3x-ui | **No** |
 
 Mieru and VLESS Reality need no Let's Encrypt certificate: Mieru speaks its own
 protocol, and Reality borrows the certificate of the site it imitates. They
@@ -232,8 +232,14 @@ Any profile can additionally deal with 3x-ui through `three_xui.mode`:
 
 - `none` — leave 3x-ui alone entirely;
 - `existing` — adopt an installed one: the installer adds routes for its domains
-  and changes none of its files;
-- `managed-new` — install 3x-ui `3.7.0` from scratch and issue its certificates.
+  and changes none of its files.
+
+A third mode, `managed-new` (install 3x-ui from scratch), is **not supported**
+in this release: it stages and starts the panel but creates no inbound, no
+Reality keypair, and no credential, so it would leave an empty panel where the
+configuration named VLESS and Hysteria2. The installer refuses the mode while
+building the plan rather than half-way through an installation. Install 3x-ui
+yourself and use `existing`.
 
 Ready-made configuration examples live in
 [`examples/installer/`](examples/installer).
@@ -386,11 +392,11 @@ More: [MIERU.en.md](MIERU.en.md) and
 
 ### 3x-ui
 
-VLESS Reality (TCP and XHTTP) and Hysteria2 come from here. The installer either
-installs 3x-ui `3.7.0` from scratch (`managed-new`) or adopts an existing one
-(`existing`) — in the second case it only adds routes for its domains, while
-3x-ui's own files, database and unit stay byte for byte identical, which the lab
-verifies by hashing them before and after the run.
+VLESS Reality (TCP and XHTTP) and Hysteria2 come from here. The installer adopts
+an already installed 3x-ui (`existing`): it only adds routes for its domains,
+while 3x-ui's own files, database, and unit stay byte for byte identical, which
+the lab verifies by hashing them before and after the run. It cannot yet install
+3x-ui from scratch — see `three_xui.mode` above.
 
 Upgrading an already installed 3x-ui is prepared in the adapter as its own
 transaction, but no command exposes it yet — upgrade it with 3x-ui's own
@@ -427,7 +433,7 @@ difference is deliberate:
 
 | Protocol | What goes through WARP |
 |---|---|
-| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves directly, and the mandatory final rule keeps unmatched traffic direct. Available in `managed-new` mode only: an adopted instance (`existing`) is not managed by the installer, which never touches its routing. |
+| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves directly, and the mandatory final rule keeps unmatched traffic direct. In practice this is unavailable: `existing` is the only supported mode, and an adopted instance is not managed by the installer, which never touches its routing. |
 | **NaiveProxy** | **All tunnelled traffic.** The `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
 | **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP. |
 
