@@ -234,12 +234,13 @@ Any profile can additionally deal with 3x-ui through `three_xui.mode`:
 - `existing` — adopt an installed one: the installer adds routes for its domains
   and changes none of its files.
 
-A third mode, `managed-new` (install 3x-ui from scratch), is **not supported**
-in this release: it stages and starts the panel but creates no inbound, no
-Reality keypair, and no credential, so it would leave an empty panel where the
-configuration named VLESS and Hysteria2. The installer refuses the mode while
-building the plan rather than half-way through an installation. Install 3x-ui
-yourself and use `existing`.
+- `managed-new` — install 3x-ui `3.7.0` itself: the installer issues its
+  certificates, moves the panel off its public ports onto `127.0.0.1` under a
+  private path, replaces the factory `admin/admin` with your own credentials,
+  and **creates the inbounds for you** — VLESS Reality TCP, VLESS Reality
+  XHTTP, and Hysteria2. It needs a fresh host: installing 3x-ui means owning
+  Nginx and the certificates too, and on a host that already runs Nginx those
+  have an owner already.
 
 Ready-made configuration examples live in
 [`examples/installer/`](examples/installer).

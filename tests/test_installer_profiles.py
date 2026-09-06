@@ -167,14 +167,14 @@ def test_selection_rejects_mieru_listeners_outside_a_mieru_profile():
         adapters_for(broken)
 
 
-@pytest.mark.parametrize("host_mode", (HostMode.FRESH, HostMode.COEXIST))
-def test_selection_refuses_managed_three_xui_because_it_provisions_nothing(host_mode):
-    """The mode stages 3x-ui but creates no Reality keypair, no inbound, and no
-    panel credential, so the host would be left with an empty panel where the
-    configuration named VLESS Reality and Hysteria2 domains. It must be refused
-    by name on every host, not installed half-way."""
-    broken = config_for(three_xui=ThreeXuiMode.MANAGED_NEW, host_mode=host_mode)
-    with pytest.raises(PlanError, match="not supported in this release"):
+def test_selection_rejects_managed_three_xui_on_a_coexisting_host():
+    """Installing 3x-ui itself means owning the host's Nginx and certificates
+    too, which a coexisting host already has an owner for."""
+    broken = config_for(
+        three_xui=ThreeXuiMode.MANAGED_NEW,
+        host_mode=HostMode.COEXIST,
+    )
+    with pytest.raises(PlanError, match="fresh host"):
         adapters_for(broken)
 
 

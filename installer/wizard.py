@@ -29,11 +29,8 @@ from installer.credentials import (
 from installer.planner import AuditFacts
 
 
-# The wizard offers only the modes the planner will accept. "managed-new"
-# stages 3x-ui but provisions no Reality keypair, no inbound, and no panel
-# credential, so the planner refuses it; offering it here would only let an
-# operator answer four more questions before being told no.
-OFFERED_THREE_XUI_MODES = (ThreeXuiMode.NONE, ThreeXuiMode.EXISTING)
+# The wizard offers only the modes the planner will accept.
+OFFERED_THREE_XUI_MODES = tuple(ThreeXuiMode)
 
 _ENUM = TypeVar("_ENUM", bound=StrEnum)
 _DOMAIN_RE = re.compile(

@@ -366,18 +366,8 @@ def adapters_for(
         raise PlanError("the selected profile requires Mieru listeners and a host")
     if not config.profile.includes_mieru and config.mieru is not None:
         raise PlanError("Mieru listeners are configured outside a Mieru profile")
-    if config.three_xui.mode.value == "managed-new":
-        # The mode stages and starts the pinned 3x-ui, but nothing provisions
-        # its inbounds: no Reality keypair is generated, no VLESS or Hysteria2
-        # inbound is created, and no panel credential is issued. Installing it
-        # would leave an empty panel where the configuration named VLESS
-        # Reality and Hysteria2 domains. Refuse the mode by name rather than
-        # deliver that. Coexisting with an already installed 3x-ui is the
-        # supported path and is proven end to end in the lab.
-        raise PlanError(
-            "three_xui.mode = \"managed-new\" is not supported in this release; "
-            "install 3x-ui yourself and use \"existing\""
-        )
+    if config.three_xui.mode.value == "managed-new" and config.host_mode.value != "fresh":
+        raise PlanError("managed 3x-ui requires a fresh host")
 
     factories = adapter_factories()
     selected = ["packages", "nginx", "certificates"]

@@ -215,16 +215,65 @@ class FakeThreeXuiRunner:
             raise RuntimeError("migration rehearsal failed")
 
 
+class RecordingApi:
+    """Stands in for a real 3x-ui panel and records what the adapter did."""
+
+    def __init__(self) -> None:
+        self.logins: list[tuple[str, str]] = []
+        self.panel: dict[str, object] | None = None
+        self.inbounds: list = []
+        self.deleted: list[tuple[int, str]] = []
+        self._next_id = 1
+
+    def login(self, username, password):
+        self.logins.append((username, password))
+
+    def rotate_credentials(self, **kwargs):
+        self.rotation = kwargs
+
+    def configure_panel(self, *, web_path, port, listen):
+        self.panel = {"web_path": web_path, "port": port, "listen": listen}
+
+    def add_inbound(self, inbound, client=None):
+        del client
+        self.inbounds.append(inbound)
+        identifier = self._next_id
+        self._next_id += 1
+        return identifier
+
+    def delete_client(self, inbound_id, client_id):
+        self.deleted.append((inbound_id, client_id))
+
+    def effective_config(self):
+        return {
+            "inbounds": [
+                {"tag": item.tag, "protocol": item.protocol, "port": item.port}
+                for item in self.inbounds
+            ],
+            "client_emails": [],
+        }
+
+
 def adapter(
     tmp_path: Path,
     runner: FakeThreeXuiRunner | None = None,
+    *,
+    api=None,
 ) -> ThreeXuiAdapter:
-    return ThreeXuiAdapter(
+    """An adapter whose panel is a recording stand-in unless one is supplied.
+
+    Applying now provisions the panel and its inbounds, so a test that applies
+    without a panel would otherwise try to reach a real one.
+    """
+    instance = ThreeXuiAdapter(
         root=tmp_path,
         source_dir=ROOT,
         runner=runner or FakeThreeXuiRunner(),
         layout=FIXTURES / "release-layout.json",
+        api_factory=(lambda _port: api) if api is not None else (lambda _port: RecordingApi()),
     )
+    instance.reality_keypair = lambda: ("private-key-value", "public-key-value")
+    return instance
 
 
 def build_release(tmp_path: Path, *, binary: bytes = b"x-ui-binary\n") -> Path:
@@ -871,3 +920,60 @@ def test_the_xray_that_serves_reality_is_the_one_that_mints_its_keypair(tmp_path
     assert paths.xray_binary("arm64") == "/usr/local/x-ui/bin/xray-linux-arm64"
     with pytest.raises(ValueError):
         paths.xray_binary("riscv64")
+
+
+def test_provisioning_creates_every_promised_inbound(tmp_path):
+    """The whole point of the managed mode: the operator names domains and the
+    inbounds exist afterwards, with no manual step in 3x-ui."""
+    from installer.three_xui_api import SystemSecrets
+
+    api = RecordingApi()
+    report = adapter(tmp_path).configure_managed(
+        managed_config(),
+        api,
+        generator=SystemSecrets(keypair=("private-key-value", "public-key-value")),
+    )
+
+    created = [inbound for inbound in api.inbounds if not inbound.clients[0].acceptance]
+    assert [item.protocol for item in created] == ["vless", "vless", "hysteria"]
+    assert [item.network for item in created] == ["tcp", "xhttp", "hysteria"]
+    assert report["inbounds"] == 3
+
+
+def test_apply_provisions_the_panel_and_the_inbounds(tmp_path, monkeypatch):
+    """Staging and starting 3x-ui is not an installation: without this the
+    operator is left with an empty panel on its default public ports."""
+    api = RecordingApi()
+    instance = adapter(tmp_path)
+    instance.api_factory = lambda port: api
+    instance.reality_keypair = lambda: ("private-key-value", "public-key-value")
+
+    instance.provision(_runtime_action(), password="the-chosen-password")
+
+    calls = instance.runner.calls
+    # The credential rotation and the panel move happen inside the private
+    # namespace, before the panel is reachable from anywhere else.
+    assert any(call[0] == "bootstrap-dialogue" for call in calls)
+    # The listener only moves when the service restarts.
+    assert ("systemctl", "restart", "x-ui") in calls
+    created = [item for item in api.inbounds if not item.clients[0].acceptance]
+    assert [item.protocol for item in created] == ["vless", "vless", "hysteria"]
+    assert [item.network for item in created] == ["tcp", "xhttp", "hysteria"]
+
+
+def test_the_bootstrap_dialogue_moves_the_panel_before_it_is_reachable():
+    """The panel is moved off *:2053 inside the namespace that has no route
+    out, so it is never reachable on a public port with a known password."""
+    from installer.adapters.three_xui import _BOOTSTRAP_DIALOGUE
+
+    assert "configure_panel" in _BOOTSTRAP_DIALOGUE
+    assert 'listen="127.0.0.1"' in _BOOTSTRAP_DIALOGUE
+    rotation = _BOOTSTRAP_DIALOGUE.index("rotate_credentials")
+    move = _BOOTSTRAP_DIALOGUE.index("configure_panel")
+    assert rotation < move
+
+
+def _runtime_action():
+    from installer.adapters.three_xui import ThreeXuiAdapter
+
+    return ThreeXuiAdapter(source_dir=ROOT)._managed_action(managed_config())

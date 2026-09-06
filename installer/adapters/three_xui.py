@@ -51,6 +51,8 @@ _UNIT_NAME = "x-ui"
 _BOOTSTRAP_UNIT = "x-ui-bootstrap"
 _BOOTSTRAP_NETNS = "proxy-control-x-ui"
 _DEFAULT_CREDENTIAL = "admin"
+# Where a fresh 3x-ui answers before the installer moves it.
+_DEFAULT_PANEL_PORT = 2053
 _VERSION = "3.7.0"
 _SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
 _MAX_CONFIG_BYTES = 4 * 1024 * 1024
@@ -100,6 +102,14 @@ api.rotate_credentials(
     new_username=payload["username"],
     new_password=payload["password"],
     web_path=payload["web_path"],
+)
+api.login(payload["username"], payload["password"])
+# A fresh panel listens on *:2053 and *:2096. Move it before it is ever
+# reachable from outside this namespace.
+api.configure_panel(
+    web_path=payload["web_path"],
+    port=payload["panel_port"],
+    listen="127.0.0.1",
 )
 try:
     api.login(payload["initial_username"], payload["initial_password"])
@@ -332,6 +342,13 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
             return False
 
 
+def _default_api_factory(port: int):
+    """One authenticated client against the local panel."""
+    from installer.three_xui_api import ThreeXuiApi, ThreeXuiClient
+
+    return ThreeXuiApi(ThreeXuiClient(port=port))
+
+
 class ThreeXuiAdapter:
     """Read an existing 3x-ui install, or own one staged pinned generation."""
 
@@ -348,6 +365,9 @@ class ThreeXuiAdapter:
         architecture: str = "amd64",
         pin: ArtifactPin | None = None,
         layout: Path | None = None,
+        panel_username: str = "owner",
+        web_path: str | None = None,
+        api_factory=None,
     ) -> None:
         if runner is None:
             runner = _DefaultThreeXuiRunner()
@@ -360,6 +380,12 @@ class ThreeXuiAdapter:
         self.architecture = architecture
         self.pin = pin
         self.layout = layout
+        self.panel_username = panel_username
+        # A private base path keeps the panel off "/" where a scanner looks
+        # first. It is not a secret and it is not a substitute for the
+        # password, but it costs nothing.
+        self.web_path = web_path or f"/{secrets.token_hex(8)}/"
+        self.api_factory = api_factory or _default_api_factory
 
     # ------------------------------------------------------------------
     # existing audit
@@ -629,6 +655,8 @@ class ThreeXuiAdapter:
                 f"database={self.paths.database}",
                 f"panel-domain={config.three_xui.panel_domain}",
                 f"hysteria-domain={config.three_xui.hysteria_domain}",
+                f"vless-tcp-domain={config.three_xui.vless_tcp_domain}",
+                f"vless-xhttp-domain={config.three_xui.vless_xhttp_domain}",
                 f"vless-tcp-backend={_VLESS_TCP_BACKEND}",
                 f"vless-xhttp-backend={_VLESS_XHTTP_BACKEND}",
                 f"panel-backend={_PANEL_BACKEND}",
@@ -640,7 +668,8 @@ class ThreeXuiAdapter:
             ),
             verification=(
                 "the staged binary reports the pinned version",
-                "the effective generated configuration matches the templates",
+                "the panel answers only on loopback under its private path",
+                "every promised inbound exists and its port is open",
             ),
             inverse=(
                 "stop the staged unit and remove only the staged generation",
@@ -675,6 +704,92 @@ class ThreeXuiAdapter:
             credentials_required=True,
         )
 
+    def reality_keypair(self) -> tuple[str, str]:
+        """One Reality keypair from the Xray that will serve it."""
+        return self.runner.reality_keypair(
+            str(self._host(self.paths.xray_binary(self.architecture)))
+        )
+
+    def provision(self, action: Action, *, password: str) -> Mapping[str, object]:
+        """Turn a started 3x-ui into a configured one.
+
+        Staging and starting the service is not an installation: on its own it
+        leaves an empty panel on its default public ports with the upstream
+        first-run credential. This rotates that credential, moves the panel
+        onto loopback, restarts it so the move takes effect, and creates every
+        inbound the operator's domains promised.
+        """
+        from installer.three_xui_api import SystemSecrets
+
+        config = self._managed_config(action)
+        credential = self._host(self.paths.snapshot_dir) / "panel-password"
+        durable_mkdir(credential.parent, mode=0o700)
+        self._atomic(credential, (password + "\n").encode(), 0o600)
+        try:
+            self.bootstrap_credentials(
+                username=self.panel_username,
+                password_path=credential,
+                web_path=self.web_path,
+                port=_DEFAULT_PANEL_PORT,
+            )
+            # The settings are stored at once but the listener does not move
+            # until the service restarts, so the restart is part of the move.
+            self._run("systemctl", "restart", _UNIT_NAME)
+            api = self.api_factory(_PANEL_BACKEND)
+            api.login(self.panel_username, password)
+            return self.configure_managed(
+                config,
+                api,
+                generator=SystemSecrets(keypair=self.reality_keypair()),
+            )
+        finally:
+            credential.unlink(missing_ok=True)
+
+    def _managed_config(self, action: Action) -> InstallerConfig:
+        """Rebuild the managed configuration this action described.
+
+        The plan carries every domain it will act on, in the open, because
+        none of them is a secret.
+        """
+        from installer.model import (
+            DomainConfig,
+            FirewallConfig,
+            HostMode,
+            Profile,
+            ThreeXuiConfig,
+        )
+
+        values: dict[str, str] = {}
+        for mutation in action.mutations:
+            key, separator, value = mutation.partition("=")
+            if separator:
+                values[key] = value
+        missing = [
+            name
+            for name in ("panel-domain", "hysteria-domain", "vless-tcp-domain", "vless-xhttp-domain")
+            if not values.get(name) or values[name] == "None"
+        ]
+        if missing:
+            raise ThreeXuiError(f"the 3x-ui action names no {missing[0]}")
+        return InstallerConfig(
+            schema=1,
+            host_mode=HostMode.COEXIST,
+            profile=Profile.CORE,
+            acme_email="unused@example.invalid",
+            initial_user="owner",
+            domains=DomainConfig(panel=values["panel-domain"], mtproxy=values["panel-domain"]),
+            mieru=None,
+            three_xui=ThreeXuiConfig(
+                mode=ThreeXuiMode.MANAGED_NEW,
+                panel_domain=values["panel-domain"],
+                vless_tcp_domain=values["vless-tcp-domain"],
+                vless_xhttp_domain=values["vless-xhttp-domain"],
+                hysteria_domain=values["hysteria-domain"],
+                warp=values.get("warp") == "true",
+            ),
+            firewall=FirewallConfig(manage_ufw=False),
+        )
+
     def configure_managed(
         self,
         config: InstallerConfig,
@@ -682,16 +797,7 @@ class ThreeXuiAdapter:
         *,
         generator,
     ) -> Mapping[str, object]:
-        """Create the persistent inbounds, then prove acceptance clients gone.
-
-        Not reached in this release. `apply` stages and starts 3x-ui but never
-        calls this, and two pieces are still missing before it could: nothing
-        produces the Reality keypair this needs from the pinned Xray binary,
-        and nothing issues the 3x-ui panel credential or web path that
-        `bootstrap_credentials` would rotate. The planner therefore refuses
-        `managed-new` outright rather than installing an empty panel. This
-        code and its tests are the groundwork for finishing the mode.
-        """
+        """Create the persistent inbounds, then prove acceptance clients gone."""
         from installer.three_xui_api import (
             build_managed_clients,
             build_managed_inbounds,
@@ -750,6 +856,7 @@ class ThreeXuiAdapter:
             raise ThreeXuiError("the 3x-ui bootstrap session is unavailable")
         payload = {
             "port": port,
+            "panel_port": _PANEL_BACKEND,
             "initial_username": _DEFAULT_CREDENTIAL,
             "initial_password": _DEFAULT_CREDENTIAL,
             "username": username,
@@ -948,7 +1055,31 @@ class ThreeXuiAdapter:
         self._run("systemctl", "daemon-reload")
         self._run("systemctl", "enable", "--now", _UNIT_NAME)
         del selected
-        return {**dict(checkpoint), "staged": True, "ownership": self._ownership()}
+        # Starting the service is not an installation: on its own it leaves an
+        # empty panel on its default public ports with the upstream first-run
+        # credential still working.
+        provisioned = self.provision(action, password=self._panel_password())
+        return {
+            **dict(checkpoint),
+            "staged": True,
+            "provisioned": dict(provisioned),
+            "ownership": self._ownership(),
+        }
+
+    def _panel_password(self) -> str:
+        """The 3x-ui password the operator chose, or a generated one."""
+        from installer.credentials import CredentialError, staged_credentials
+
+        try:
+            chosen = staged_credentials(self.root)
+        except CredentialError as exc:
+            raise ThreeXuiError(f"the staged credentials cannot be used: {exc}") from None
+        if chosen is not None:
+            if chosen.three_xui_username:
+                self.panel_username = chosen.three_xui_username
+            if chosen.three_xui_password:
+                return chosen.three_xui_password
+        return secrets.token_urlsafe(32)
 
     def reconcile_apply(
         self,

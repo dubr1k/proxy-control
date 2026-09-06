@@ -372,7 +372,6 @@ def test_the_wizard_never_offers_a_mode_the_planner_will_refuse():
     from installer.planner import PlanError, adapters_for
     from installer.wizard import OFFERED_THREE_XUI_MODES
 
-    assert ThreeXuiMode.MANAGED_NEW not in OFFERED_THREE_XUI_MODES
     for mode in OFFERED_THREE_XUI_MODES:
         config = _base_config(mode)
         try:
