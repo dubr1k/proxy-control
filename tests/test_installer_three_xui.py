@@ -782,3 +782,22 @@ def test_bootstrap_rotates_credentials_inside_a_private_namespace(tmp_path):
     assert any("NetworkNamespacePath" in call for call in joined)
     assert any("systemctl stop x-ui-bootstrap.service" in call for call in joined)
     assert not any("generated-password" in call for call in joined)
+
+
+def test_warp_on_an_adopted_three_xui_plans_no_three_xui_action(tmp_path):
+    """`warp` is readable in every mode because NaiveProxy and Mieru use it, but
+    an adopted 3x-ui is not managed by the installer. Planning a WARP action
+    here would declare a verification -- "the WARP outbound exists" -- for an
+    apply that changes nothing, which is exactly the shape of a promise the
+    installer cannot keep."""
+    write_xray_config(tmp_path, config_with_clients_and_reality_secret())
+    config = dataclasses.replace(
+        existing_config(),
+        three_xui=ThreeXuiConfig(
+            mode=ThreeXuiMode.EXISTING,
+            vless_tcp_domain="vless.example.com",
+            warp=True,
+        ),
+    )
+    actions = adapter(tmp_path).plan(config, existing_facts())
+    assert [action.id for action in actions] == ["three_xui.routes"]
