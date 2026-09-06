@@ -101,13 +101,17 @@ host_diagnostics() {
     state=$(systemctl is-active "$unit" 2>/dev/null || true)
     printf ' %s=%s' "$unit" "${state:-unknown}"
   done
+  printf ' nginx-version: %s' "$(nginx -v 2>&1 | tr -d '\n' || true)"
   printf ' nginx-journal: %s' \
     "$(journalctl -u nginx -n 40 --no-pager -o cat 2>/dev/null | tr '\n' ' ' || true)"
   # A service that aborts leaves a stack behind. Report it, or the next run
-  # only repeats that something died.
+  # only repeats that something died. Say so either way: a silent absence
+  # reads as "no crash" when it may only mean the tool is missing.
   if command -v coredumpctl >/dev/null 2>&1; then
     printf ' coredump: %s' \
-      "$(coredumpctl info --no-pager 2>/dev/null | tail -n 25 | tr '\n' ' ' || true)"
+      "$(coredumpctl info --no-pager 2>&1 | tail -n 30 | tr '\n' ' ' || true)"
+  else
+    printf ' coredump: coredumpctl is not installed'
   fi
 }
 
