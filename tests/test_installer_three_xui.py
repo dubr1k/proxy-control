@@ -171,6 +171,10 @@ class FakeThreeXuiRunner:
         self.fail_on = fail_on
         self.calls: list[tuple[str, ...]] = []
         self.rehearsals: list[str] = []
+        self.open_ports: set[int] = {8449, 8450, 443, 8451}
+
+    def listening_ports(self):
+        return set(self.open_ports)
 
     def run(self, argv, *, stdin_path=None):
         del stdin_path
@@ -977,3 +981,31 @@ def _runtime_action():
     from installer.adapters.three_xui import ThreeXuiAdapter
 
     return ThreeXuiAdapter(source_dir=ROOT)._managed_action(managed_config())
+
+
+def test_verify_refuses_an_inbound_whose_port_never_opened(tmp_path):
+    """3x-ui stores a row Xray will not serve and reports it as enabled, with
+    nothing in the log. Only an open port proves the inbound exists."""
+    archive = build_release(tmp_path)
+    api = RecordingApi()
+    instance = adapter(tmp_path, api=api)
+    action = pinned_action(tmp_path, archive)
+    instance.apply(action, instance.prepare(action), archive=archive)
+
+    instance.runner.open_ports = {8449, 8450}  # Hysteria2 never came up
+    with pytest.raises(AcceptanceError, match="not listening"):
+        instance.verify(action)
+
+
+def test_verify_accepts_a_generation_whose_every_inbound_listens(tmp_path):
+    archive = build_release(tmp_path)
+    api = RecordingApi()
+    instance = adapter(tmp_path, api=api)
+    action = pinned_action(tmp_path, archive)
+    instance.apply(action, instance.prepare(action), archive=archive)
+
+    instance.runner.open_ports = {8449, 8450, 443, 8451}
+    evidence = instance.verify(action)
+
+    assert evidence.success
+    assert evidence.details["inbounds_listening"] == 3

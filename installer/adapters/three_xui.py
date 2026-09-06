@@ -64,6 +64,7 @@ _VLESS_TCP_BACKEND = 8449
 _VLESS_XHTTP_BACKEND = 8450
 _PANEL_BACKEND = 8451
 _WARP_PORT = 45000
+_HYSTERIA_PORT = 443
 
 _SAFE_TEXT = re.compile(r"[A-Za-z0-9_.:@/-]{1,128}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -331,6 +332,19 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
                 ("ip", "netns", "delete", namespace),
                 "bootstrap namespace cleanup",
             )
+
+    def listening_ports(self) -> set[int]:
+        """Every TCP and UDP port with a listener right now."""
+        ports: set[int] = set()
+        for argv in (("ss", "-lntH"), ("ss", "-lnuH")):
+            for line in self._capture_checked(argv).splitlines():
+                fields = line.split()
+                if len(fields) < 4:
+                    continue
+                _host, separator, port = fields[3].rpartition(":")
+                if separator and port.isdigit():
+                    ports.add(int(port))
+        return ports
 
     def unit_active(self, unit: str) -> bool:
         try:
@@ -1124,11 +1138,29 @@ class ThreeXuiAdapter:
         version = self._x_ui_version(self._host(self.paths.binary))
         if _VERSION not in version:
             raise AcceptanceError("the installed 3x-ui is not the pinned version")
+        # 3x-ui stores a row Xray will not serve and still reports it enabled,
+        # with nothing in the log to say so. An open port is the only evidence
+        # that an inbound exists.
+        listening = self.runner.listening_ports()
+        if _PANEL_BACKEND not in listening:
+            raise AcceptanceError(
+                "the 3x-ui panel is not listening on its private loopback port"
+            )
+        expected = (_VLESS_TCP_BACKEND, _VLESS_XHTTP_BACKEND, _HYSTERIA_PORT)
+        missing = [port for port in expected if port not in listening]
+        if missing:
+            raise AcceptanceError(
+                f"a provisioned 3x-ui inbound is not listening on port {missing[0]}"
+            )
         return Evidence(
             action_id=action.id,
             success=True,
-            observations=("the staged 3x-ui generation reports the pinned version",),
-            details={"version_pinned": True},
+            observations=(
+                "the staged 3x-ui generation reports the pinned version",
+                "the panel answers only on its private loopback port",
+                "every provisioned inbound is listening",
+            ),
+            details={"version_pinned": True, "inbounds_listening": len(expected)},
         )
 
     def repair(
