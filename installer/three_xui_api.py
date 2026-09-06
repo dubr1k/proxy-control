@@ -34,6 +34,9 @@ VLESS_XHTTP_PORT = 8450
 PANEL_PORT = 8451
 HYSTERIA_PORT = 443
 API_INBOUND_PORT = 8452
+# The panel's own TLS listener, which Reality uses as its cover site. It is
+# owned by the installer, so it is always there and always answers.
+PANEL_COVER_PORT = 8443
 
 WARP_OUTBOUND_TAG = "warp"
 _MANDATORY_FINAL_RULE = {"outboundTag": "direct", "network": "tcp,udp"}
@@ -89,6 +92,9 @@ class ManagedClient:
     client_id: str
     password: str | None = None
     acceptance: bool = False
+    # Vision is the flow a Reality TCP inbound is served with. XHTTP has no
+    # flow, and sending one there breaks the inbound.
+    flow: str = ""
 
     def __post_init__(self) -> None:
         if _SAFE_TAG.fullmatch(self.email) is None:
@@ -101,12 +107,14 @@ class ManagedClient:
         return frozenset(values)
 
     def settings(self, protocol: str) -> dict[str, object]:
+        # Hysteria2 authenticates with "auth"; a client sent as "password" is
+        # stored and then never authenticates anybody.
         if protocol == "hysteria":
-            return {"email": self.email, "password": self.password or ""}
+            return {"email": self.email, "auth": self.password or ""}
         return {
             "id": self.client_id,
             "email": self.email,
-            "flow": "",
+            "flow": self.flow,
             "enable": True,
         }
 
@@ -221,7 +229,12 @@ def build_managed_inbounds(
             "security": "reality",
             "realitySettings": {
                 "show": False,
-                "target": f"{domain}:443",
+                # Reality hides behind a cover site. This one is the panel's
+                # own local TLS listener, which the installer owns and keeps
+                # running: a foreign site can change its certificate or
+                # disappear, and Reality then fails for every client at once.
+                "dest": f"127.0.0.1:{PANEL_COVER_PORT}",
+                "xver": 0,
                 "serverNames": [domain],
                 "privateKey": private_key,
                 "publicKey": public_key,
@@ -229,7 +242,9 @@ def build_managed_inbounds(
             },
         }
         if network == "xhttp":
-            stream["xhttpSettings"] = {"path": "/", "mode": "auto"}
+            # A bare "/" is the one path a probe tries first. This one reads
+            # like a site's own asset route.
+            stream["xhttpSettings"] = {"host": "", "path": "/assets/", "mode": "auto"}
         else:
             stream["tcpSettings"] = {"header": {"type": "none"}}
         inbounds.append(
@@ -249,14 +264,20 @@ def build_managed_inbounds(
         ManagedInbound(
             tag="managed-hysteria2-tls",
             protocol="hysteria",
-            network="udp",
+            network="hysteria",
             security="tls",
             listen="0.0.0.0",
             port=HYSTERIA_PORT,
             stream_settings={
-                "network": "udp",
+                # Read off running servers: Xray serves Hysteria2 only on the
+                # "hysteria" network with its own settings block. It accepts
+                # the row on "udp" and then never opens the port, with nothing
+                # in the log to say so.
+                "network": "hysteria",
                 "security": "tls",
+                "hysteriaSettings": {"udpIdleTimeout": 60, "version": 2},
                 "tlsSettings": {
+                    "alpn": ["h3"],
                     "serverName": three_xui.hysteria_domain,
                     "certificates": [
                         {
@@ -273,6 +294,7 @@ def build_managed_inbounds(
                 },
             },
             sniffing=sniffing,
+            extra_settings={"version": 2},
         )
     )
     return tuple(inbounds)
@@ -293,6 +315,12 @@ def build_managed_clients(
             client_id=generator.client_id(),
             password=generator.password() if inbound.protocol == "hysteria" else None,
             acceptance=acceptance,
+            # Vision belongs to Reality over TCP only.
+            flow=(
+                "xtls-rprx-vision"
+                if inbound.protocol == "vless" and inbound.network == "tcp"
+                else ""
+            ),
         )
         attached.append(inbound.with_clients([client]))
     return tuple(attached)

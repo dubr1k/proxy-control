@@ -186,7 +186,7 @@ def test_managed_templates_match_reference_transports_without_reusing_secrets():
     assert [(x.protocol, x.network, x.security) for x in first] == [
         ("vless", "tcp", "reality"),
         ("vless", "xhttp", "reality"),
-        ("hysteria", "udp", "tls"),
+        ("hysteria", "hysteria", "tls"),
     ]
     assert secret_values(first).isdisjoint(secret_values(second))
 
@@ -204,7 +204,7 @@ def test_managed_templates_set_reality_and_sniffing_selectors():
     inbounds = build_managed_inbounds(config(), generator=DeterministicSecrets(seed=4))
     reality = inbounds[0].stream_settings["realitySettings"]
     assert reality["serverNames"] == ["vless.example.com"]
-    assert reality["target"] == "vless.example.com:443"
+    assert reality["dest"] == "127.0.0.1:8443"
     assert inbounds[1].stream_settings["xhttpSettings"]["mode"] == "auto"
     assert inbounds[0].sniffing["destOverride"] == ["http", "tls", "quic"]
     certificates = inbounds[2].stream_settings["tlsSettings"]["certificates"]
@@ -515,3 +515,58 @@ def test_the_login_carries_the_cookie_the_csrf_token_was_issued_with():
     assert submitted[1] == "/login"
     assert submitted[3]["Cookie"] == "3x-ui=pre-login-value"
     assert submitted[3]["X-CSRF-Token"] == CSRF_TOKEN
+
+
+# The shapes below were read off three running servers whose inbounds work
+# (ams-server, AMS_P, AMS_R, AMS_Z all carry the same three). A shape 3x-ui
+# accepts is not necessarily a shape Xray serves: it stores the row and
+# silently never opens the port.
+
+
+def test_hysteria_matches_the_shape_a_running_server_actually_serves():
+    inbounds = build_managed_inbounds(config(), generator=DeterministicSecrets(seed=9))
+    hysteria = inbounds[2]
+    stream = hysteria.stream_settings
+    assert stream["network"] == "hysteria"
+    assert stream["hysteriaSettings"] == {"udpIdleTimeout": 60, "version": 2}
+    assert stream["tlsSettings"]["alpn"] == ["h3"]
+    assert hysteria.extra_settings["version"] == 2
+
+
+def test_a_hysteria_client_authenticates_with_auth_not_password():
+    inbounds = build_managed_clients(
+        build_managed_inbounds(config(), generator=DeterministicSecrets(seed=10)),
+        generator=DeterministicSecrets(seed=11),
+        prefix="initial",
+    )
+    settings = inbounds[2].clients[0].settings("hysteria")
+    assert set(settings) == {"email", "auth"}
+    assert settings["auth"]
+
+
+def test_reality_hides_behind_the_local_panel_site_rather_than_a_foreign_one():
+    """A local cover site is always reachable; a foreign one can change or
+    disappear, and Reality then fails for every client at once."""
+    inbounds = build_managed_inbounds(config(), generator=DeterministicSecrets(seed=12))
+    for vless in inbounds[:2]:
+        reality = vless.stream_settings["realitySettings"]
+        assert reality["dest"] == "127.0.0.1:8443"
+        assert reality["xver"] == 0
+
+
+def test_reality_tcp_uses_vision_flow_and_xhttp_does_not():
+    """Vision is the flow a Reality TCP inbound is served with; XHTTP has no
+    flow at all, and sending one there breaks the inbound."""
+    inbounds = build_managed_clients(
+        build_managed_inbounds(config(), generator=DeterministicSecrets(seed=13)),
+        generator=DeterministicSecrets(seed=14),
+        prefix="initial",
+    )
+    assert inbounds[0].clients[0].settings("vless")["flow"] == "xtls-rprx-vision"
+    assert inbounds[1].clients[0].settings("vless")["flow"] == ""
+
+
+def test_xhttp_serves_a_path_that_looks_like_a_site_not_a_bare_slash():
+    inbounds = build_managed_inbounds(config(), generator=DeterministicSecrets(seed=15))
+    assert inbounds[1].stream_settings["xhttpSettings"]["path"] != "/"
+    assert inbounds[1].stream_settings["xhttpSettings"]["mode"] == "auto"
