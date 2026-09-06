@@ -5,6 +5,7 @@ import io
 import os
 import pty
 import select
+import stat
 import subprocess
 import sys
 import time
@@ -123,6 +124,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "no",  # WARP: asked for Naive and Mieru profiles
             "admin@example.com",
             "owner",
+            "",  # panel password: blank keeps it generated
             "yes",
             "save",
         ],
@@ -167,6 +169,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "no",  # WARP: asked for the Mieru profile
             "admin@example.com",
             "owner",
+            "",  # panel password: blank keeps it generated
             "maybe",
             "yes",
             "save",
@@ -230,6 +233,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "no",  # WARP: asked for Naive and Mieru profiles
         "admin@example.com",
         "owner",
+        "",  # panel password: blank keeps it generated
         "yes",
         "save",
     ]
@@ -256,6 +260,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
             "relay.example.com",
             "admin@example.com",
             "owner",
+            "",  # panel password: blank keeps it generated
             "save-config",
         ],
         output=output,
@@ -281,6 +286,7 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
             "relay.example.com",
             "admin@example.com",
             "owner",
+            "",  # panel password: blank keeps it generated
             "no",
             "edit",
             "domains.panel",
@@ -317,6 +323,7 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         "",
         "admin@example.com",
         "owner",
+        "",  # panel password: blank keeps it generated
         "back",
         "",
         "edit",
@@ -398,3 +405,95 @@ def _base_config(mode: ThreeXuiMode):
         ),
         firewall=FirewallConfig(manage_ufw=True),
     )
+
+
+def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_path: Path):
+    """The configuration is read to build the plan, the plan is digested and
+    shown, and reports derive from the same values, so a password in it would
+    reach all three."""
+    from installer.credentials import credentials_path, read_credentials
+
+    output = tmp_path / "typed.toml"
+    answers = [
+        "",
+        "coexist",
+        "core",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "admin@example.com",
+        "owner",
+        "correct-horse-battery",
+        "correct-horse-battery",
+        "save",
+    ]
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+
+    assert "correct-horse-battery" not in output.read_text()
+    stored = read_credentials(output)
+    assert stored is not None
+    assert stored.panel_username == "owner"
+    assert stored.panel_password == "correct-horse-battery"
+    assert stat.S_IMODE(os.stat(credentials_path(output)).st_mode) == 0o600
+
+
+def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
+    from installer.credentials import credentials_path
+
+    output = tmp_path / "generated.toml"
+    answers = [
+        "",
+        "coexist",
+        "core",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "admin@example.com",
+        "owner",
+        "",
+        "save",
+    ]
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+
+    assert not credentials_path(output).exists()
+
+
+def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
+    from installer.credentials import read_credentials
+
+    output = tmp_path / "mismatch.toml"
+    transcript = io.StringIO()
+    answers = [
+        "",
+        "coexist",
+        "core",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "admin@example.com",
+        "owner",
+        "first-attempt-password",
+        "second-attempt-password",
+        "short",
+        "short",
+        "settled-panel-password",
+        "settled-panel-password",
+        "save",
+    ]
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+
+    assert "не совпадают" in transcript.getvalue()
+    stored = read_credentials(output)
+    assert stored is not None and stored.panel_password == "settled-panel-password"

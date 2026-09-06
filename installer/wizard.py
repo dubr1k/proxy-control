@@ -21,6 +21,11 @@ from installer.model import (
     ThreeXuiConfig,
     ThreeXuiMode,
 )
+from installer.credentials import (
+    CredentialError,
+    OperatorCredentials,
+    write_credentials,
+)
 from installer.planner import AuditFacts
 
 
@@ -371,6 +376,7 @@ class TerminalWizard:
             if action is ReviewAction.SAVE:
                 self.config_output.write_text(render_config(config), encoding="utf-8")
                 self.io.write(text(self.locale, "saved", path=self.config_output))
+                self._save_credentials(values)
                 raise WizardSaved(config, self.config_output)
             if action is ReviewAction.BACK:
                 self._back(values)
@@ -418,12 +424,62 @@ class TerminalWizard:
         values["initial_user"] = self.io.validated(
             text(self.locale, "initial_user"), _safe_name
         )
+        # Passwords never enter the configuration: it is read to build the
+        # plan, the plan is digested and displayed, and reports derive from
+        # the same values. They travel in a private file beside it instead.
+        values["panel_password"] = self._password("panel_password", "panel_password_again")
+        if xui_mode is ThreeXuiMode.MANAGED_NEW:
+            values["xui_username"] = self.io.validated(
+                text(self.locale, "xui_username"), _safe_name
+            )
+            values["xui_password"] = self._password("xui_password", "xui_password_again")
         values["manage_ufw"] = (
             self.io.yes_no(text(self.locale, "manage_ufw"), default=True)
             if host_mode is HostMode.FRESH
             else False
         )
         return values
+
+    def _save_credentials(self, values: dict[str, object]) -> None:
+        """Write what the operator typed to a private file beside the config.
+
+        Nothing is written when they chose generated credentials everywhere,
+        so an installation that answers every password prompt with a blank
+        leaves no extra file behind.
+        """
+        assert self.locale is not None
+        chosen = OperatorCredentials(
+            panel_username=str(values["initial_user"]),
+            panel_password=_optional(values.get("panel_password")),
+            three_xui_username=_optional(values.get("xui_username")),
+            three_xui_password=_optional(values.get("xui_password")),
+        )
+        if chosen.panel_password is None and chosen.three_xui_password is None:
+            return
+        path = write_credentials(self.config_output, chosen)
+        self.io.write(text(self.locale, "credentials_saved", path=path))
+
+    def _password(self, prompt_key: str, repeat_key: str) -> str | None:
+        """Ask for a password twice without echoing it, or accept a blank.
+
+        A blank answer keeps the existing behaviour: the installer generates
+        one and writes it where the operator can read it afterwards.
+        """
+        assert self.locale is not None
+        while True:
+            first = self.io.read_line(text(self.locale, prompt_key) + ": ", echo=False)
+            if not first:
+                return None
+            second = self.io.read_line(text(self.locale, repeat_key) + ": ", echo=False)
+            if first != second:
+                self.io.write(text(self.locale, "password_mismatch"))
+                continue
+            try:
+                OperatorCredentials(panel_username="owner", panel_password=first)
+            except CredentialError:
+                self.io.write(text(self.locale, "invalid_password"))
+                continue
+            return first
 
     def _managed_xui(self) -> dict[str, object]:
         assert self.locale is not None
