@@ -339,7 +339,10 @@ CERTBOT
 setup_full_host() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  apt-get install -y -qq nginx-full libnginx-mod-stream docker.io docker-compose-v2 certbot openssl socat jq >/dev/null
+  # systemd-coredump is diagnostic scaffolding, not a product dependency:
+  # without it a service that aborts leaves no stack behind.
+  apt-get install -y -qq nginx-full libnginx-mod-stream docker.io docker-compose-v2 \
+    certbot openssl socat jq systemd-coredump >/dev/null
   add_hosts
   mkdir -p /etc/nginx/stream.d /usr/local/x-ui/bin /var/lib/lab-status
   cat > /etc/nginx/nginx.conf <<'EOF'
@@ -543,7 +546,14 @@ for pins in (_MITA_PINS, _MIERU_CLIENT_PINS):
 release_setup() {
   setup_full_host
   export DEBIAN_FRONTEND=noninteractive
-  apt-get install -y -qq dpkg-dev iproute2 >/dev/null
+  # systemd-coredump is diagnostic scaffolding, not a product dependency:
+  # without it a service that aborts leaves no stack and the report can only
+  # say that it died.
+  apt-get install -y -qq dpkg-dev iproute2 systemd-coredump >/dev/null
+  command -v coredumpctl >/dev/null || {
+    printf 'coredumpctl is missing after installing systemd-coredump\n' >&2
+    return 1
+  }
   install -d -m 0700 "$CREDENTIALS"
   install -d -m 0755 "$CLIENT_RESULTS"
   rm -rf "$RELEASE_STAGE"

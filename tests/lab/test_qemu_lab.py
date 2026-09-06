@@ -741,3 +741,18 @@ class LabConfigurationsAreValid(unittest.TestCase):
                 config = load_config(path)
                 adapters = adapters_for(config)
                 self.assertTrue(adapters)
+
+
+class LabDiagnostics(unittest.TestCase):
+    def test_every_lab_that_runs_services_can_report_a_crash(self):
+        """The release lab and the host lab set the guest up through different
+        functions, and a diagnostic added to one silently missed the other: a
+        run reported nginx dead with no stack for three attempts. Each setup
+        that installs services installs the tool that records their crashes."""
+        runner = (MODULE.parent / "guest-runner.sh").read_text()
+        for name in ("setup_full_host", "release_setup", "host_setup"):
+            start = runner.index(f"{name}() {{")
+            body = runner[start:runner.index("\n}\n", start)]
+            if "apt-get install" not in body:
+                continue
+            self.assertIn("systemd-coredump", body, name)
