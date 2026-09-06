@@ -469,6 +469,30 @@ class ImageMetadataTests(unittest.TestCase):
                 lab.metadata("arm64")
         self.assertIn("not pinned", str(caught.exception))
 
+    def test_a_same_architecture_guest_uses_kvm_when_the_device_is_usable(self):
+        """Software emulation makes a healthy release candidate fail on its own
+        timeouts, so a guest that can run natively must."""
+        with mock.patch.object(lab.platform, "machine", return_value="x86_64"), \
+                mock.patch.object(lab.os, "access", return_value=True):
+            self.assertEqual(lab.acceleration("amd64", "max"), ("kvm", "host"))
+
+    def test_emulation_is_the_fallback_for_a_foreign_or_unavailable_accelerator(self):
+        with mock.patch.object(lab.platform, "machine", return_value="x86_64"), \
+                mock.patch.object(lab.os, "access", return_value=True):
+            self.assertEqual(lab.acceleration("arm64", "max"), ("tcg", "max"))
+        with mock.patch.object(lab.platform, "machine", return_value="aarch64"), \
+                mock.patch.object(lab.os, "access", return_value=False):
+            self.assertEqual(lab.acceleration("arm64", "max"), ("tcg", "max"))
+
+    def test_qemu_command_carries_the_chosen_accelerator_and_cpu(self):
+        with mock.patch.object(lab, "acceleration", return_value=("kvm", "host")):
+            command = lab.qemu_command(
+                Path("disk"), Path("seed"), Path("key"), 2222,
+                Path("pid"), Path("serial"), "release-amd64",
+            )
+        self.assertEqual(command[command.index("-accel") + 1], "kvm")
+        self.assertEqual(command[command.index("-cpu") + 1], "host")
+
     def test_qemu_command_follows_the_declared_architecture(self):
         command = lab.qemu_command(
             Path("disk"), Path("seed"), Path("key"), 2222,

@@ -7,6 +7,7 @@ import hashlib
 import html
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -189,6 +190,34 @@ def user_data(mode: str, public_key: str) -> str:
     )
 
 
+# QEMU and the kernel spell the same machine differently, so map both spellings
+# onto the architecture names this lab uses.
+_HOST_ARCHITECTURES = {
+    "x86_64": "amd64",
+    "amd64": "amd64",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+}
+
+
+def acceleration(architecture: str, declared_cpu: str) -> tuple[str, str]:
+    """Pick the accelerator and CPU model for a guest of this architecture.
+
+    Emulating an entire guest in software runs an order of magnitude slower than
+    the host, and that slowness does not look like slowness in a report: the
+    installer's own command timeouts expire, and services miss their systemd
+    start deadlines, so a healthy release candidate fails for reasons that have
+    nothing to do with it. Use KVM whenever the guest shares the host's
+    architecture and /dev/kvm is genuinely usable, and fall back to software
+    emulation everywhere else so the lab still runs on any machine.
+    """
+    if _HOST_ARCHITECTURES.get(platform.machine()) != architecture:
+        return "tcg", declared_cpu
+    if not os.access("/dev/kvm", os.R_OK | os.W_OK):
+        return "tcg", declared_cpu
+    return "kvm", "host"
+
+
 def qemu_command(disk: Path, seed: Path, key: Path, port: int, pid: Path, serial: Path, mode: str) -> list[str]:
     if mode not in SCENARIOS:
         raise ValueError(f"unsupported mode: {mode}")
@@ -208,10 +237,11 @@ def qemu_command(disk: Path, seed: Path, key: Path, port: int, pid: Path, serial
                 f"install {package}"
             )
         firmware = ["-bios", declared]
+    accelerator, cpu = acceleration(image["architecture"], image["cpu"])
     return [
-        image["qemu_binary"], "-accel", "tcg",
+        image["qemu_binary"], "-accel", accelerator,
         *firmware,
-        "-machine", image["machine"], "-cpu", image["cpu"],
+        "-machine", image["machine"], "-cpu", cpu,
         "-smp", "2", "-m", "3072", "-display", "none", "-daemonize",
         "-pidfile", str(pid), "-serial", f"file:{serial}",
         "-drive", f"file={disk},if=virtio,format=qcow2,discard=unmap",

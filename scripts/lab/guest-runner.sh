@@ -78,10 +78,28 @@ case_run() {
     emit "$name" passed "$started"
   else
     CASE_STATUS[$name]=failed
-    message=$(tr '\n' ' ' <"$log")
+    message="$(tr '\n' ' ' <"$log") $(host_diagnostics)"
     emit "$name" failed "$started" "$message"
   fi
   rm -f "$log"
+}
+
+# A failure that only says a service could not be reloaded is not a report, it
+# is a second investigation. Name the state of the services this lab depends on
+# at the moment the scenario failed. These are unit states and journal lines of
+# the lab's own services, never configuration and never a credential.
+# Diagnostics must never turn a scenario failure into a runner failure, so
+# every command here is allowed to be absent or to fail.
+host_diagnostics() {
+  local unit state
+  command -v systemctl >/dev/null 2>&1 || return 0
+  printf '| host:'
+  for unit in nginx docker; do
+    state=$(systemctl is-active "$unit" 2>/dev/null || true)
+    printf ' %s=%s' "$unit" "${state:-unknown}"
+  done
+  printf ' nginx-journal: %s' \
+    "$(journalctl -u nginx -n 12 --no-pager -o cat 2>/dev/null | tr '\n' ' ' || true)"
 }
 
 run_captured() {
