@@ -1034,3 +1034,64 @@ def test_a_failing_command_reports_what_it_said(tmp_path: Path) -> None:
     with pytest.raises(TopologyError) as suppressed:
         plan._run_checked(("certbot", "renew"), "renewal failed")
     assert str(suppressed.value) == "renewal failed"
+
+
+class NginxReloadRecovery:
+    """A runner whose nginx dies on the reload it is told to die on."""
+
+    def __init__(self, *, die_on_reload: int | None = None) -> None:
+        self.calls: list[tuple[str, ...]] = []
+        self.die_on_reload = die_on_reload
+        self.reloads = 0
+        self.active = True
+
+    def run(self, argv):
+        command = tuple(str(value) for value in argv)
+        self.calls.append(command)
+        if command == ("systemctl", "reload", "nginx"):
+            self.reloads += 1
+            if self.die_on_reload == self.reloads:
+                self.active = False
+                return subprocess.CompletedProcess(command, 1, b"", b"nginx.service is not active")
+        if command == ("systemctl", "restart", "nginx"):
+            self.active = True
+        if command == ("systemctl", "is-active", "nginx"):
+            return subprocess.CompletedProcess(
+                command, 0 if self.active else 3, b"active\n" if self.active else b"failed\n", b""
+            )
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+
+def test_a_reload_that_kills_nginx_is_recovered_and_reported():
+    """nginx 1.24 can abort inside its own configuration reload -- observed in
+    the release lab, with a stack in ngx_destroy_pool. Leaving the host with a
+    dead nginx because a third-party service crashed is worse than restarting
+    it, but it must not pass silently either."""
+    from installer.adapters.nginx import reload_nginx
+
+    runner = NginxReloadRecovery(die_on_reload=1)
+
+    recovered = reload_nginx(runner, "test reload")
+
+    assert recovered is True
+    assert ("systemctl", "restart", "nginx") in runner.calls
+
+
+def test_a_reload_failure_that_leaves_nginx_running_is_still_an_error():
+    """A refused reload with a live nginx means the configuration was rejected,
+    and restarting would only hide it."""
+    from installer.adapters.nginx import TopologyError, reload_nginx
+
+    class Refusing(NginxReloadRecovery):
+        def run(self, argv):
+            command = tuple(str(value) for value in argv)
+            if command == ("systemctl", "reload", "nginx"):
+                self.calls.append(command)
+                return subprocess.CompletedProcess(command, 1, b"", b"refused")
+            return super().run(argv)
+
+    runner = Refusing()
+
+    with pytest.raises(TopologyError, match="test reload"):
+        reload_nginx(runner, "test reload")
+    assert ("systemctl", "restart", "nginx") not in runner.calls

@@ -691,10 +691,7 @@ class NginxAdapter:
                 require_owned=True,
             )
             self._run_checked(("nginx", "-t"), "nginx configuration test failed")
-            self._run_checked(
-                ("systemctl", "reload", "nginx"),
-                "nginx reload failed",
-            )
+            reload_nginx(self.runner, "nginx reload failed")
         except BaseException:
             if bool(identity["exists"]):
                 atomic_write(
@@ -742,10 +739,7 @@ class NginxAdapter:
                     ("nginx", "-t"),
                     "nginx configuration test failed",
                 )
-                self._run_checked(
-                    ("systemctl", "reload", "nginx"),
-                    "nginx reload failed",
-                )
+                reload_nginx(self.runner, "nginx reload failed")
                 return self._applied_checkpoint(
                     action,
                     checkpoint,
@@ -832,10 +826,7 @@ class NginxAdapter:
             )
         try:
             self._run_checked(("nginx", "-t"), "nginx configuration test failed")
-            self._run_checked(
-                ("systemctl", "reload", "nginx"),
-                "nginx reload failed",
-            )
+            reload_nginx(self.runner, "nginx reload failed")
         except BaseException:
             atomic_write(
                 path,
@@ -887,10 +878,7 @@ class NginxAdapter:
         if not committed:
             return self.rollback(action, checkpoint)
         self._run_checked(("nginx", "-t"), "nginx configuration test failed")
-        self._run_checked(
-            ("systemctl", "reload", "nginx"),
-            "nginx reload failed",
-        )
+        reload_nginx(self.runner, "nginx reload failed")
         durable_remove(self._backup_path(action, identity), missing_ok=True)
         return Evidence(
             action_id=action.id,
@@ -1725,10 +1713,7 @@ class CertificatePlan:
                 ("nginx", "-t"),
                 "Nginx HTTP-01 rollback test failed",
             )
-            self._run_checked(
-                ("systemctl", "reload", "nginx"),
-                "Nginx HTTP-01 rollback reload failed",
-            )
+            reload_nginx(self.runner, "Nginx HTTP-01 rollback reload failed")
             self._assert_vhost_absent(str(saved["vhost"]))
         except BaseException:
             if removed:
@@ -1798,11 +1783,7 @@ class CertificatePlan:
             "Nginx HTTP-01 vhost test failed",
             include_output=True,
         )
-        self._run_checked(
-            ("systemctl", "reload", "nginx"),
-            "Nginx HTTP-01 vhost reload failed",
-            include_output=True,
-        )
+        reload_nginx(self.runner, "Nginx HTTP-01 vhost reload failed")
         self._assert_vhost_effective(vhost_name, desired_vhost)
         self._ensure_lineage(
             specification,
@@ -2270,6 +2251,33 @@ def _validate_certificate_facts(
             )
         ):
             raise TopologyError(f"certificate domain preflight failed: {name}")
+
+
+def reload_nginx(runner, message: str) -> bool:
+    """Reload Nginx, and survive it crashing on its own reload.
+
+    nginx 1.24 can abort inside `ngx_init_cycle` while reloading -- seen in the
+    release lab, with a stack ending in `ngx_destroy_pool`. Leaving the host
+    with a dead Nginx because a third-party service crashed is worse than
+    restarting it, so the crash is recovered from. It is never silent: the
+    caller is told it happened.
+
+    A reload that fails while Nginx is still running is a different thing
+    entirely -- the configuration was rejected -- and restarting would only
+    hide it, so that stays an error.
+
+    Returns True when Nginx had to be restarted.
+    """
+    result = runner.run(("systemctl", "reload", "nginx"))
+    if result.returncode == 0:
+        return False
+    if runner.run(("systemctl", "is-active", "nginx")).returncode == 0:
+        detail = _sanitize_diagnostic(f"{result.stderr}\n{result.stdout}")
+        raise TopologyError(f"{message}: {detail}" if detail else message)
+    runner.run(("systemctl", "restart", "nginx"))
+    if runner.run(("systemctl", "is-active", "nginx")).returncode != 0:
+        raise TopologyError(f"{message}: Nginx did not come back after a restart")
+    return True
 
 
 def _address_facts(

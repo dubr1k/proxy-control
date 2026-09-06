@@ -391,6 +391,10 @@ class CertRunner:
                 "",
                 "",
             )
+        if command == ("systemctl", "is-active", "nginx"):
+            # Nginx stays up in these tests, so a refused reload means the
+            # configuration was rejected rather than that Nginx crashed.
+            return subprocess.CompletedProcess(command, 0, "active", "")
         if command == ("systemctl", "reload", "nginx"):
             return subprocess.CompletedProcess(
                 command,
