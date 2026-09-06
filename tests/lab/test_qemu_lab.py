@@ -161,8 +161,9 @@ case_run repair must_not_run install
         )
 
     def test_smoke_qemu_command_has_no_guest_outbound(self):
+        """The accelerator is chosen from what the host offers and is not part
+        of this boundary; the guest's isolation is."""
         rendered = " ".join(self.qemu_command("smoke"))
-        self.assertIn("-accel tcg", rendered)
         self.assertIn("-smp 2", rendered)
         self.assertIn("-m 3072", rendered)
         self.assertIn("restrict=on", rendered)
