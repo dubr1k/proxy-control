@@ -130,13 +130,12 @@ def render_config(config: InstallerConfig) -> str:
         value = getattr(config.three_xui, name)
         if value is not None:
             lines.append(f"{name} = {_toml_string(value)}")
+    # Round-tripping must reproduce exactly what the parser accepts in this
+    # mode, so `warp_domains` is written only where it is allowed.
+    if config.three_xui.warp or config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
+        lines.append(f"warp = {_toml_boolean(config.three_xui.warp)}")
     if config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
-        lines.extend(
-            [
-                f"warp = {_toml_boolean(config.three_xui.warp)}",
-                f"warp_domains = {_toml_array(config.three_xui.warp_domains)}",
-            ]
-        )
+        lines.append(f"warp_domains = {_toml_array(config.three_xui.warp_domains)}")
 
     lines.extend(
         [
@@ -196,10 +195,19 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
         "vless_xhttp_domain",
         "hysteria_domain",
     }
+    # `warp` is not a 3x-ui setting despite living here: NaiveProxy and Mieru
+    # read it to decide their own egress, and neither depends on 3x-ui. It is
+    # therefore accepted in every mode. `warp_domains` really is Xray-only, so
+    # it stays confined to the managed mode.
     if mode is ThreeXuiMode.NONE:
-        _keys(raw, path="three_xui", required={"mode"})
+        _keys(raw, path="three_xui", required={"mode"}, optional={"warp"})
     elif mode is ThreeXuiMode.EXISTING:
-        _keys(raw, path="three_xui", required={"mode"}, optional=domain_names)
+        _keys(
+            raw,
+            path="three_xui",
+            required={"mode"},
+            optional={*domain_names, "warp"},
+        )
     else:
         _keys(
             raw,

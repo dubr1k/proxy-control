@@ -254,3 +254,56 @@ def test_every_example_configuration_selects_adapters(name: str):
     from installer.planner import adapters_for
 
     assert adapters_for(load_config(EXAMPLES / name))
+
+
+@pytest.mark.parametrize("mode", ["none", "existing"])
+def test_warp_is_configurable_without_a_managed_three_xui(mode: str):
+    """`warp` lives under [three_xui] but is not a 3x-ui setting: NaiveProxy and
+    Mieru read it to choose their own egress, and neither depends on 3x-ui.
+    Confining it to the managed mode would take WARP away from the protocols
+    that actually use it."""
+    document = (
+        "schema = 1\n"
+        'host_mode = "coexist"\n'
+        'profile = "core-mieru"\n'
+        'acme_email = "ops@example.com"\n'
+        'initial_user = "owner"\n'
+        "\n[domains]\n"
+        'panel = "panel.example.com"\n'
+        'mtproxy = "proxy.example.com"\n'
+        'mieru = "mieru.example.com"\n'
+        "\n[mieru]\n"
+        "tcp_ports = [46001]\n"
+        "udp_ports = [46002]\n"
+        "\n[three_xui]\n"
+        f'mode = "{mode}"\n'
+        "warp = true\n"
+        "\n[firewall]\n"
+        "manage_ufw = false\n"
+    )
+    config = parse_config(document)
+    assert config.three_xui.warp is True
+    assert parse_config(render_config(config)) == config
+
+
+@pytest.mark.parametrize("mode", ["none", "existing"])
+def test_warp_domains_stay_confined_to_the_managed_mode(mode: str):
+    """Domain-scoped WARP routing only exists for an Xray the installer owns."""
+    document = (
+        "schema = 1\n"
+        'host_mode = "coexist"\n'
+        'profile = "core"\n'
+        'acme_email = "ops@example.com"\n'
+        'initial_user = "owner"\n'
+        "\n[domains]\n"
+        'panel = "panel.example.com"\n'
+        'mtproxy = "proxy.example.com"\n'
+        "\n[three_xui]\n"
+        f'mode = "{mode}"\n'
+        "warp = true\n"
+        'warp_domains = ["example.com"]\n'
+        "\n[firewall]\n"
+        "manage_ufw = false\n"
+    )
+    with pytest.raises(ConfigError, match=r"unknown key: three_xui\.warp_domains"):
+        parse_config(document)

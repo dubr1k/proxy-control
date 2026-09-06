@@ -405,6 +405,13 @@ class TerminalWizard:
             values.update(self._managed_xui())
         elif xui_mode is ThreeXuiMode.EXISTING:
             values.update(self._existing_xui())
+        if (
+            xui_mode is not ThreeXuiMode.MANAGED_NEW
+            and (profile.includes_naive or profile.includes_mieru)
+        ):
+            # NaiveProxy and Mieru read this to choose their own egress, so the
+            # question belongs to those profiles rather than to 3x-ui.
+            values["warp"] = self.io.yes_no(text(self.locale, "warp"), default=False)
         values["acme_email"] = self.io.validated(
             text(self.locale, "acme_email"), _email
         )
@@ -533,7 +540,10 @@ class TerminalWizard:
                     EditField.XUI_HYSTERIA,
                 )
             )
-        if xui_mode is ThreeXuiMode.MANAGED_NEW:
+        if xui_mode is ThreeXuiMode.MANAGED_NEW or (
+            isinstance(profile, Profile)
+            and (profile.includes_naive or profile.includes_mieru)
+        ):
             fields.append(EditField.WARP)
         if values["host_mode"] is HostMode.FRESH:
             fields.append(EditField.FIREWALL)

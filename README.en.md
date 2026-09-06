@@ -433,14 +433,13 @@ difference is deliberate:
 
 | Protocol | What goes through WARP |
 |---|---|
-| **Xray / 3x-ui** | **Only the selected traffic.** Routing rules are keyed to `warp_domains`; everything else leaves directly, and the mandatory final rule keeps unmatched traffic direct. In practice this is unavailable: `existing` is the only supported mode, and an adopted instance is not managed by the installer, which never touches its routing. |
+| **Xray / 3x-ui** | **Nothing.** An adopted instance (`existing`) is not managed by the installer, which never touches its routing, and domain-scoped `warp_domains` exists only for a managed 3x-ui, which this release does not ship. |
 | **NaiveProxy** | **All tunnelled traffic.** The `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
 | **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP. |
 
-So a Naive or Mieru user's whole session leaves through WARP, while an Xray
-user's session leaves through WARP only for the domains you listed. With
-`warp = false` no WARP outbound, upstream, or rule is emitted anywhere, and the
-Mieru egress rule stays `DIRECT`.
+So a Naive or Mieru user's whole session leaves through WARP. With
+`warp = false` no WARP upstream or rule is emitted anywhere, and the Mieru
+egress rule stays `DIRECT`.
 
 ## Day-to-day operation
 
@@ -675,8 +674,11 @@ coexistence — runs against a real release archive in two labs: a disposable
 systemd container and a disposable bare-metal host. Each protocol is accepted
 with a real client.
 
-Production Fleet enrollment and billing-grade traffic accounting are still not
-claimed as completed release gates.
+Not claimed as completed: production Fleet enrollment, billing-grade traffic
+accounting, installing 3x-ui from scratch (`three_xui.mode = "managed-new"`,
+which the installer refuses while building the plan), and WARP egress, which has
+no automated acceptance — if you turn `warp = true` on, verify the tunnel
+yourself.
 
 Repository code is released under the [MIT License](LICENSE). Telemt,
 Caddy/forwardproxy, Mieru/`mita`, 3x-ui, third-party images, and Python packages

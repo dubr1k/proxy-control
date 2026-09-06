@@ -120,6 +120,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "vless.example.com",
             "xhttp.example.com",
             "hy2.example.com",
+            "no",  # WARP: asked for Naive and Mieru profiles
             "admin@example.com",
             "owner",
             "yes",
@@ -163,6 +164,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "46001",
             "70000",
             "46001",
+            "no",  # WARP: asked for the Mieru profile
             "admin@example.com",
             "owner",
             "maybe",
@@ -225,6 +227,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "vless.example.com",
         "xhttp.example.com",
         "hy2.example.com",
+        "no",  # WARP: asked for Naive and Mieru profiles
         "admin@example.com",
         "owner",
         "yes",
