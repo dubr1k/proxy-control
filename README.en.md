@@ -214,12 +214,19 @@ This project deliberately never offers "download and run in one command".
 ### Step 2. Answer the wizard
 
 There is no separate command to run: once the archive checks out,
-`install-bootstrap` hands over to the installer, which with no arguments opens a
-bilingual wizard. It asks about the profile, domains, certificate email, and
-3x-ui mode, and writes a configuration file — ordinary TOML you can read and
-edit by hand.
+`install-bootstrap` hands over to the installer, which opens a bilingual wizard
+when given no arguments. It writes a configuration file — ordinary TOML you can
+read and edit by hand.
 
-Profiles:
+Here is everything it asks, in order.
+
+**Language.** English or Russian.
+
+**Host mode.** `fresh` — the server is yours entirely and the installer sets up
+Nginx itself. `coexist` — the server already runs an Nginx that owns port 443,
+and the installer only adds its own routes to it.
+
+**Profile.**
 
 | Profile | What gets installed |
 |---|---|
@@ -228,19 +235,62 @@ Profiles:
 | `core-mieru` | The same plus Mieru |
 | `full` | Everything |
 
-Any profile can additionally deal with 3x-ui through `three_xui.mode`:
+**3x-ui mode.**
 
 - `none` — leave 3x-ui alone entirely;
 - `existing` — adopt an installed one: the installer adds routes for its domains
-  and changes none of its files.
-
-- `managed-new` — install 3x-ui `3.7.0` itself: the installer issues its
+  and changes none of its files. You create its inbounds yourself;
+- `managed-new` — install 3x-ui `3.7.0` itself. The installer issues its
   certificates, moves the panel off its public ports onto `127.0.0.1` under a
-  private path, replaces the factory `admin/admin` with your own credentials,
-  and **creates the inbounds for you** — VLESS Reality TCP, VLESS Reality
-  XHTTP, and Hysteria2. It needs a fresh host: installing 3x-ui means owning
-  Nginx and the certificates too, and on a host that already runs Nginx those
-  have an owner already.
+  private path, replaces the factory `admin/admin` with your own, and **creates
+  the inbounds for you** — VLESS Reality TCP, VLESS Reality XHTTP, and
+  Hysteria2. It requires `fresh` mode: installing 3x-ui means owning Nginx and
+  the certificates too, and on a host that already runs Nginx those have an
+  owner already.
+
+**Domains.** Only the ones the chosen profile actually needs:
+
+| Question | When it is asked | What it is for |
+|---|---|---|
+| Panel domain | always | the Proxy Control panel |
+| MTProxy Fake-TLS domain | always | MTProxy |
+| NaiveProxy domain | profiles with Naive | NaiveProxy |
+| Mieru hostname | profiles with Mieru | Mieru (needs no certificate) |
+| Mieru TCP and UDP ports | profiles with Mieru | the Mieru listeners |
+| 3x-ui panel domain | `existing` and `managed-new` | the 3x-ui panel |
+| VLESS Reality TCP domain | the same | the VLESS Reality TCP inbound |
+| VLESS Reality XHTTP domain | the same | the VLESS Reality XHTTP inbound |
+| Hysteria2 domain | the same | the Hysteria2 inbound |
+
+**WARP.** Asked in profiles with Naive or Mieru: whether their traffic should
+leave through the local SOCKS5 endpoint at `127.0.0.1:45000`. If no WARP client
+is listening there, answer no — otherwise the tunnels run into an upstream that
+does not exist.
+
+**ACME email.** The address Let's Encrypt will use.
+
+**Panel credentials.**
+
+- the first Proxy Control panel owner and their password;
+- the 3x-ui panel username and password — in `managed-new` mode only.
+
+A password is typed twice and never echoed. **A blank answer means "generate
+one"** — the installer then creates a random password and you read it after the
+installation. The only requirement is at least 12 characters.
+
+> [!IMPORTANT]
+> Passwords never enter the configuration file: it is read to build the plan,
+> the plan is printed on screen, and reports are derived from the same values.
+> The wizard writes them beside it instead, to `<configuration-name>.credentials`
+> with mode `0600`. **Delete that file once the installation has finished.** The
+> installer erases its own working copy as soon as the installation ends,
+> successfully or not.
+
+**Manage UFW.** On a fresh host only: whether the installer may open the ports
+it needs in the firewall itself.
+
+At the end the wizard shows everything you answered and offers to correct any
+field, save the configuration, or go ahead with the installation.
 
 Ready-made configuration examples live in
 [`examples/installer/`](examples/installer).
@@ -304,14 +354,29 @@ boundary can be brought up directly with Compose:
 described in [PANEL.en.md](PANEL.en.md) (NaiveProxy) and
 [MIERU.en.md](MIERU.en.md) (Mieru).
 
-## First login
+## First sign-in to the panels
 
-The initial owner password is in
-`/opt/mtproxy-shared443/secrets/panel-bootstrap-password` with mode `0600`. Read
-it through a secure console, log in at `https://panel.example.com/login`
-immediately, and change it.
+**The Proxy Control panel.** If you chose a password in the wizard, sign in with
+it at `https://panel.example.com/login`. If you left the field blank, the
+installer generated one and put it in
+`/opt/mtproxy-shared443/secrets/panel-bootstrap-password` with mode `0600`: read
+it through a secure console, sign in, and change it immediately.
 
 Never copy that file into `.env`, Git, tickets, logs, or shared backups.
+
+**The 3x-ui panel** (`managed-new` mode only). It does not listen on a public
+port: it answers on `127.0.0.1:8451` under a private path of the form
+`/<random-characters>/`, and the factory `admin/admin` no longer works. From
+outside it is reachable through its own domain over the shared 443, and its path
+and credentials are the ones you gave the wizard. If you did not give any, the
+installer generated them and the report shows where to look:
+
+```bash
+sudo python3 -m installer.cli status --json
+```
+
+Remember to delete the `<configuration-name>.credentials` file the wizard wrote:
+it is no longer needed.
 
 Roles:
 
@@ -393,11 +458,31 @@ More: [MIERU.en.md](MIERU.en.md) and
 
 ### 3x-ui
 
-VLESS Reality (TCP and XHTTP) and Hysteria2 come from here. The installer adopts
-an already installed 3x-ui (`existing`): it only adds routes for its domains,
-while 3x-ui's own files, database, and unit stay byte for byte identical, which
-the lab verifies by hashing them before and after the run. It cannot yet install
-3x-ui from scratch — see `three_xui.mode` above.
+VLESS Reality (TCP and XHTTP) and Hysteria2 come from here. There are two paths.
+
+**Adopt an installed one** (`existing`). The installer only adds routes for its
+domains; 3x-ui's own files, database, and unit stay byte for byte identical,
+which the lab verifies by hashing them before and after the run. You create the
+inbounds yourself, and they must listen on loopback or there is nothing to share
+port 443 with.
+
+**Install it yourself** (`managed-new`). The installer deploys 3x-ui `3.7.0` and
+brings it to a working state with no manual step:
+
+1. it moves the panel off the public `*:2053` and `*:2096` onto
+   `127.0.0.1:8451` under a private path;
+2. it replaces the factory `admin/admin` with your credentials, and does so
+   inside an isolated network namespace, so the panel is never reachable from
+   outside with a known password;
+3. it creates three inbounds: VLESS Reality TCP (`127.0.0.1:8449`), VLESS
+   Reality XHTTP (`127.0.0.1:8450`), and Hysteria2 (`0.0.0.0:443/UDP`);
+4. it proves each one by its open port. This matters: 3x-ui stores an inbound
+   Xray will not serve and goes on reporting it as enabled, with nothing in the
+   log. An open port is the only evidence.
+
+The Reality keypair is minted by the very Xray that will serve it, and the cover
+site is the panel's own local TLS listener: a foreign site can change its
+certificate or disappear, and Reality then fails for every client at once.
 
 Upgrading an already installed 3x-ui is prepared in the adapter as its own
 transaction, but no command exposes it yet — upgrade it with 3x-ui's own
@@ -676,10 +761,11 @@ systemd container and a disposable bare-metal host. Each protocol is accepted
 with a real client.
 
 Not claimed as completed: production Fleet enrollment, billing-grade traffic
-accounting, installing 3x-ui from scratch (`three_xui.mode = "managed-new"`,
-which the installer refuses while building the plan), and WARP egress, which has
-no automated acceptance — if you turn `warp = true` on, verify the tunnel
-yourself.
+accounting, and WARP egress, which has no automated acceptance — if you turn
+`warp = true` on, verify the tunnel yourself. The `managed-new` mode was driven
+against a real 3x-ui `3.7.0` call by call, but is not yet exercised end to end
+in the lab: the lab builds a coexistence topology and this mode needs a fresh
+host.
 
 Repository code is released under the [MIT License](LICENSE). Telemt,
 Caddy/forwardproxy, Mieru/`mita`, 3x-ui, third-party images, and Python packages
