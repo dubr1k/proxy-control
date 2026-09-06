@@ -1744,7 +1744,11 @@ class CoreAdapter:
             self._atomic(api_file, ("Bearer " + secrets.token_urlsafe(48) + "\n").encode(), 0o600)
         bootstrap_file = credential_dir / "panel-bootstrap-password"
         if not bootstrap_file.exists():
-            self._atomic(bootstrap_file, (secrets.token_urlsafe(32) + "\n").encode(), 0o600)
+            self._atomic(
+                bootstrap_file,
+                (self._panel_password() + "\n").encode(),
+                0o600,
+            )
         self._atomic(project / ".env", rendered.env_text.encode(), 0o600)
         for domain, title in (
             (selected["proxy_domain"], "Welcome"),
@@ -1755,6 +1759,22 @@ class CoreAdapter:
                 body = f"<!doctype html><title>{title}</title><h1>{title}</h1>\n".encode()
                 self._atomic(cover, body, 0o644)
         self._write_panel_vhost(rendered)
+
+    def _panel_password(self) -> str:
+        """The password the operator chose, or a generated one.
+
+        The wizard writes a chosen password to a private staged file; nothing
+        about it ever enters the configuration, the plan, or a report.
+        """
+        from installer.credentials import CredentialError, staged_credentials
+
+        try:
+            chosen = staged_credentials(self.root)
+        except CredentialError as exc:
+            raise CoreError(f"the staged credentials cannot be used: {exc}") from None
+        if chosen is not None and chosen.panel_password:
+            return chosen.panel_password
+        return secrets.token_urlsafe(32)
 
     def _write_panel_vhost(self, rendered: RenderedCore) -> None:
         """Own the panel TLS listener the shared 443 router forwards to."""

@@ -131,3 +131,47 @@ def read_credentials(config_path: Path) -> OperatorCredentials | None:
 def _toml_string(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+# Adapters run far from the configuration path, so the CLI stages the operator's
+# credentials once at this fixed private location rather than threading a secret
+# through every signature between the two.
+_STAGED_ANCHOR = "operator.toml"
+
+
+def _anchor(root: Path) -> Path:
+    """The staging location, inside the installer's own private directory."""
+    from installer.transaction import INSTALLER_PATH, _root_path
+
+    return _root_path(Path(root), INSTALLER_PATH) / _STAGED_ANCHOR
+
+
+def staged_path(root: Path) -> Path:
+    """The private file the adapters read while an installation is running."""
+    return credentials_path(_anchor(root))
+
+
+def stage_credentials(root: Path, config_path: Path) -> Path | None:
+    """Copy the operator's credentials where the adapters will look.
+
+    Returns None when the operator chose generated credentials, in which case
+    nothing is written and nothing is left behind.
+    """
+    values = read_credentials(config_path)
+    if values is None or values.is_empty():
+        return None
+    anchor = _anchor(root)
+    anchor.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(anchor.parent, 0o700)
+    return write_credentials(anchor, values)
+
+
+def staged_credentials(root: Path) -> OperatorCredentials | None:
+    """Read what the CLI staged, or None when it staged nothing."""
+    return read_credentials(_anchor(root))
+
+
+def discard_staged_credentials(root: Path) -> None:
+    """Remove the staged copy: a password is needed while installing, and
+    never afterwards."""
+    staged_path(root).unlink(missing_ok=True)

@@ -88,3 +88,59 @@ def test_the_configuration_never_carries_a_credential(tmp_path: Path):
         ),
     )
     assert "a-long-enough-password" not in target.read_text()
+
+
+def test_staging_hands_the_installer_a_private_copy_it_can_find(tmp_path: Path):
+    """The adapters run far from the configuration path, so the CLI stages the
+    credentials once at a fixed private location instead of threading a secret
+    through every signature it would otherwise pass."""
+    from installer.credentials import stage_credentials, staged_credentials
+
+    config = tmp_path / "install.toml"
+    root = tmp_path / "state"
+    root.mkdir()
+    given = OperatorCredentials(
+        panel_username="owner",
+        panel_password="a-long-enough-password",
+    )
+    write_credentials(config, given)
+
+    staged = stage_credentials(root, config)
+
+    assert stat.S_IMODE(os.stat(staged).st_mode) == 0o600
+    assert stat.S_IMODE(os.stat(staged.parent).st_mode) == 0o700
+    assert staged_credentials(root) == given
+
+
+def test_nothing_is_staged_when_the_operator_chose_generated_credentials(tmp_path: Path):
+    from installer.credentials import stage_credentials, staged_credentials
+
+    root = tmp_path / "state"
+    root.mkdir()
+    assert stage_credentials(root, tmp_path / "install.toml") is None
+    assert staged_credentials(root) is None
+
+
+def test_discarding_staged_credentials_leaves_nothing_behind(tmp_path: Path):
+    """A password is needed while installing and never afterwards."""
+    from installer.credentials import (
+        discard_staged_credentials,
+        stage_credentials,
+        staged_credentials,
+    )
+
+    config = tmp_path / "install.toml"
+    root = tmp_path / "state"
+    root.mkdir()
+    write_credentials(
+        config,
+        OperatorCredentials(panel_username="owner", panel_password="a-long-password"),
+    )
+    staged = stage_credentials(root, config)
+    assert staged is not None
+
+    discard_staged_credentials(root)
+
+    assert not staged.exists()
+    assert staged_credentials(root) is None
+    discard_staged_credentials(root)  # discarding twice is not an error

@@ -938,3 +938,34 @@ def test_core_tolerates_the_naive_compose_secret_in_the_shared_project(tmp_path)
     (secrets / Path(_PRESERVED_CREDENTIALS[0]).name).unlink()
     with pytest.raises(CoreError, match="credentials are unsafe"):
         instance._validate_existing_credentials(secrets, require_all=True)
+
+
+def test_the_panel_owner_gets_the_password_the_operator_typed(tmp_path):
+    """The wizard asks for it, the CLI stages it privately, and the adapter
+    uses it here. Without this the operator would have to go and find a
+    generated password after the installation finished."""
+    from installer.credentials import OperatorCredentials, stage_credentials, write_credentials
+
+    config = tmp_path / "install.toml"
+    write_credentials(
+        config,
+        OperatorCredentials(
+            panel_username="owner",
+            panel_password="the-operators-own-password",
+        ),
+    )
+    stage_credentials(tmp_path, config)
+
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+
+    assert adapter._panel_password() == "the-operators-own-password"
+
+
+def test_a_generated_password_is_used_when_the_operator_chose_none(tmp_path):
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+
+    first = adapter._panel_password()
+    second = adapter._panel_password()
+
+    assert first != second
+    assert len(first) >= 32

@@ -14,6 +14,7 @@ from installer.config import ConfigError, load_config
 from installer.i18n import Locale, parse_locale, text
 from installer.model import InstallerConfig
 from installer.audit import CommandRunner, audit_host
+from installer.credentials import discard_staged_credentials, stage_credentials
 from installer.planner import (
     AuditFacts,
     Evidence,
@@ -292,7 +293,15 @@ def _automated_install(
         raise CliError("--accept-plan requires the complete plan digest")
     if not secrets.compare_digest(accepted, plan.digest):
         raise CliError("accepted plan digest does not match")
-    state = services.engine.apply(plan, accepted_digest=accepted)
+    # The adapters read the operator's chosen passwords from a private staged
+    # copy; the configuration itself never carries one. The copy is discarded
+    # as soon as the installation reaches a terminal state, because a password
+    # is needed while installing and never afterwards.
+    stage_credentials(args.root, Path(args.config))
+    try:
+        state = services.engine.apply(plan, accepted_digest=accepted)
+    finally:
+        discard_staged_credentials(args.root)
     _write_status(state, json_output=args.json, output=output)
     return 0
 
