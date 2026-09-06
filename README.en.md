@@ -736,6 +736,17 @@ git ls-files -z '*.sh' | xargs -0 -r shellcheck
 git diff --check
 ```
 
+The installer is verified against a real release archive in two labs, described
+in [tests/lab/README.md](tests/lab/README.md). The mode that installs 3x-ui
+itself has its own run, against a real 3x-ui on a disposable server:
+
+```bash
+sudo bash scripts/lab/managed-xui-acceptance.sh
+```
+
+It refuses to run where a 3x-ui already exists and removes what it created;
+`KEEP=1` leaves the staged panel in place for inspection.
+
 Contribution rules are in [CONTRIBUTING.md](CONTRIBUTING.md). The mandatory
 operating protocol for AI agents is in [AGENTS.md](AGENTS.md).
 

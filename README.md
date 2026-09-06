@@ -723,6 +723,17 @@ git ls-files -z '*.sh' | xargs -0 -r shellcheck
 git diff --check
 ```
 
+Установщик проверяется на настоящем релизном архиве в двух стендах — описание в
+[tests/lab/README.md](tests/lab/README.md). Режим, который ставит 3x-ui сам,
+проверяется отдельно, на одноразовом сервере с настоящим 3x-ui:
+
+```bash
+sudo bash scripts/lab/managed-xui-acceptance.sh
+```
+
+Прогон отказывается работать там, где 3x-ui уже стоит, и убирает за собой;
+`KEEP=1` оставляет поднятую панель, чтобы разобраться в случившемся.
+
 Правила участия — в [CONTRIBUTING.md](CONTRIBUTING.md). Обязательный рабочий
 протокол для AI-агентов — в [AGENTS.md](AGENTS.md).
 
