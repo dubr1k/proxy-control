@@ -327,19 +327,31 @@ def test_api_requires_authentication_before_any_managed_request():
         api.add_inbound(template(), client())
 
 
+def _panel(script):
+    """Serve the CSRF page for the pre-login GET and defer the rest."""
+    def serve(request):
+        method, path, _body, _headers = request
+        if method == "GET" and path == "/":
+            return FakeResponse(200, LOGIN_PAGE, ())
+        return script(request)
+
+    return serve
+
+
 def test_login_stores_the_session_cookie_in_memory_only():
     api = api_with(
-        lambda _request: ok({"success": True}, ("3x-ui-session=abc; Path=/",)),
+        _panel(lambda _request: ok({"success": True}, ("3x-ui-session=abc; Path=/",))),
         authenticated=False,
     )
     api.login("admin", "admin")
     assert api.authenticated
-    assert api.recorded.requests[0][1] == "/login"
-    assert b"password=admin" in api.recorded.requests[0][2]
+    submitted = api.recorded.requests[-1]
+    assert submitted[1] == "/login"
+    assert b"password=admin" in submitted[2]
 
 
 def test_login_without_a_session_cookie_fails_closed():
-    api = api_with(lambda _request: ok({"success": True}), authenticated=False)
+    api = api_with(_panel(lambda _request: ok({"success": True})), authenticated=False)
     with pytest.raises(ThreeXuiApiError, match="session cookie"):
         api.login("admin", "admin")
 
@@ -397,7 +409,10 @@ def test_rotate_credentials_replaces_defaults_and_drops_the_session():
         web_path="/managed-path/",
     )
     paths = [request[1] for request in api.recorded.requests]
-    assert paths == ["/panel/setting/updateUser", "/panel/setting/update"]
+    assert paths == [
+        "/panel/api/setting/updateUser",
+        "/panel/api/setting/update",
+    ]
     assert not api.authenticated
 
 
@@ -432,3 +447,71 @@ def test_api_refuses_a_response_outside_the_contract_schema():
     api = api_with(lambda _request: ok({"result": "ok"}))
     with pytest.raises(ThreeXuiApiError, match="did not match the contract"):
         api.effective_config()
+
+
+# Captured from a real 3x-ui 3.7.0: the panel embeds its CSRF token in a meta
+# tag on any page and rejects a state-changing request without it.
+LOGIN_PAGE = (
+    b'<!doctype html><html><head>'
+    b'<meta name="csrf-token" content="BkrUEkgggKcZdZiIx-8mPfPw_acOjEvAehA0CapfnAA">'
+    b'<meta name="base-path" content="/"></head><body></body></html>'
+)
+CSRF_TOKEN = "BkrUEkgggKcZdZiIx-8mPfPw_acOjEvAehA0CapfnAA"
+
+
+def test_csrf_token_is_read_from_the_page_the_panel_serves():
+    from installer.three_xui_api import parse_csrf_token
+
+    assert parse_csrf_token(LOGIN_PAGE.decode()) == CSRF_TOKEN
+
+
+@pytest.mark.parametrize(
+    "page",
+    ["", "<html></html>", '<meta name="csrf-token">', '<meta name="csrf-token" content="">'],
+)
+def test_a_page_without_a_usable_csrf_token_fails_closed(page: str):
+    """Continuing without the token would send every later request into a 403
+    that looks like a credential problem."""
+    from installer.three_xui_api import ThreeXuiApiError, parse_csrf_token
+
+    with pytest.raises(ThreeXuiApiError):
+        parse_csrf_token(page)
+
+
+def test_login_fetches_a_csrf_token_and_sends_it():
+    """A real 3x-ui 3.7.0 answers 403 to a login that carries no CSRF token,
+    so the client fetches the page first and echoes the token back."""
+    def script(request):
+        method, path, _body, _headers = request
+        if method == "GET" and path == "/":
+            return FakeResponse(200, LOGIN_PAGE, ("3x-ui=session-value; Path=/; HttpOnly",))
+        return ok({"success": True}, cookies=("3x-ui=session-value; Path=/; HttpOnly",))
+
+    api = api_with(script, authenticated=False)
+    api.login("owner", "secret")
+
+    fetched, submitted = api.recorded.requests[0], api.recorded.requests[-1]
+    assert fetched[0] == "GET"
+    assert submitted[0] == "POST" and submitted[1] == "/login"
+    assert submitted[3]["X-CSRF-Token"] == CSRF_TOKEN
+
+
+def test_the_login_carries_the_cookie_the_csrf_token_was_issued_with():
+    """Verified against a running 3x-ui 3.7.0: a login with the token but
+    without the cookie it was issued with is answered 403, and a 403 reads
+    exactly like a wrong password."""
+    issued = "3x-ui=pre-login-value; Path=/; HttpOnly"
+
+    def script(request):
+        method, path, _body, _headers = request
+        if method == "GET" and path == "/":
+            return FakeResponse(200, LOGIN_PAGE, (issued,))
+        return ok({"success": True}, cookies=("3x-ui=session-value; Path=/",))
+
+    api = api_with(script, authenticated=False)
+    api.login("owner", "secret")
+
+    submitted = api.recorded.requests[-1]
+    assert submitted[1] == "/login"
+    assert submitted[3]["Cookie"] == "3x-ui=pre-login-value"
+    assert submitted[3]["X-CSRF-Token"] == CSRF_TOKEN

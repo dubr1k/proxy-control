@@ -391,6 +391,23 @@ class ThreeXuiClient:
                 pass
 
 
+# 3x-ui embeds its CSRF token in a meta tag on every page it serves. A request
+# that changes state and carries no token is answered 403, which is
+# indistinguishable from a credential problem, so the token is mandatory here.
+_CSRF_META = re.compile(
+    r"<meta\s+name=[\"']csrf-token[\"']\s+content=[\"']([A-Za-z0-9_\-+/=]{16,256})[\"']",
+    re.IGNORECASE,
+)
+
+
+def parse_csrf_token(page: str) -> str:
+    """Read the CSRF token out of a panel page, or fail closed."""
+    found = _CSRF_META.search(page)
+    if found is None:
+        raise ThreeXuiApiError("the 3x-ui page carried no usable CSRF token")
+    return found.group(1)
+
+
 class _Sanitized(Exception):
     """A cause whose text is reduced to the original exception type only."""
 
@@ -411,6 +428,7 @@ class ThreeXuiApi:
         self.client = client
         self.contract = contract or self._load_contract(source_dir)
         self._cookie: str | None = None
+        self._csrf: str | None = None
 
     @staticmethod
     def _load_contract(source_dir: Path | None) -> Mapping[str, object]:
@@ -448,10 +466,14 @@ class ThreeXuiApi:
     ) -> Mapping[str, object]:
         method, path, encoding = self._endpoint(name, **(parameters or {}))
         headers: dict[str, str] = {"Accept": "application/json"}
-        if authenticated:
-            if self._cookie is None:
-                raise ThreeXuiApiError("the 3x-ui session is not authenticated")
+        if authenticated and self._cookie is None:
+            raise ThreeXuiApiError("the 3x-ui session is not authenticated")
+        # The CSRF token is bound to the cookie the panel issued with it, so
+        # the pre-login cookie travels with the login too, not only after it.
+        if self._cookie is not None:
             headers["Cookie"] = self._cookie
+        if self._csrf is not None and name != "csrf_page":
+            headers["X-CSRF-Token"] = self._csrf
         body: bytes | None = None
         if encoding == "json":
             body = json.dumps(payload or {}, separators=(",", ":")).encode()
@@ -508,8 +530,38 @@ class ThreeXuiApi:
     def authenticated(self) -> bool:
         return self._cookie is not None
 
+    def _begin_session(self) -> None:
+        """Take the pre-login cookie and the CSRF token the panel expects.
+
+        3x-ui answers 403 to a login that carries no token, and a 403 reads
+        exactly like a wrong password, so this runs before every login rather
+        than being retried after a confusing failure.
+        """
+        method, path, _encoding = self._endpoint("csrf_page")
+        status, raw, cookies = self.client.request(
+            method,
+            path,
+            body=None,
+            headers={"Accept": "text/html"},
+        )
+        if status != 200:
+            raise ThreeXuiApiError("the 3x-ui panel did not serve its login page")
+        # The panel hands out a pre-login cookie here, but a build that does
+        # not is still fine: the login response carries the session cookie, and
+        # that one is mandatory.
+        for value in cookies:
+            self._cookie = value.split(";", 1)[0].strip()
+            break
+        try:
+            page = raw.decode("utf-8", errors="replace")
+        except Exception as exc:  # pragma: no cover - decode never raises here
+            raise ThreeXuiApiError("the 3x-ui login page was unreadable") from exc
+        self._csrf = parse_csrf_token(page)
+
     def login(self, username: str, password: str) -> None:
         self._cookie = None
+        self._csrf = None
+        self._begin_session()
         self._call(
             "login",
             payload={"username": username, "password": password},

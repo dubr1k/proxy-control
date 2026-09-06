@@ -1,16 +1,20 @@
 {
-  "comment": "Pinned local 3x-ui 3.7.0 HTTP contract. Every request this installer makes is listed here; anything outside this table is refused before a socket is opened.",
+  "comment": "Pinned local 3x-ui 3.7.0 HTTP contract, recorded against a running 3.7.0 rather than from documentation. Every request this installer makes is listed here; anything outside this table is refused before a socket is opened. The panel rejects a state-changing request that carries no CSRF token, so `csrf_page` names the page the token is read from.",
   "version": "3.7.0",
   "endpoints": {
-    "login": {"method": "POST", "path": "/login", "encoding": "form"},
+    "login": {
+      "method": "POST",
+      "path": "/login",
+      "encoding": "form"
+    },
     "update_user": {
       "method": "POST",
-      "path": "/panel/setting/updateUser",
+      "path": "/panel/api/setting/updateUser",
       "encoding": "form"
     },
     "update_settings": {
       "method": "POST",
-      "path": "/panel/setting/update",
+      "path": "/panel/api/setting/update",
       "encoding": "form"
     },
     "add_inbound": {
@@ -27,11 +31,26 @@
       "method": "GET",
       "path": "/panel/api/inbounds/list",
       "encoding": "empty"
+    },
+    "csrf_page": {
+      "method": "GET",
+      "path": "/",
+      "encoding": "empty"
+    },
+    "all_settings": {
+      "method": "POST",
+      "path": "/panel/api/setting/all",
+      "encoding": "empty"
     }
   },
   "response_schema": {
-    "required": ["success"],
-    "optional": ["msg", "obj"]
+    "required": [
+      "success"
+    ],
+    "optional": [
+      "msg",
+      "obj"
+    ]
   },
   "limits": {
     "max_response_bytes": 4194304,
