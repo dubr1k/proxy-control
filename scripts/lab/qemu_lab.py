@@ -424,8 +424,18 @@ def start(mode: str, timeout: int = 900) -> None:
     _write_seed(mode)
     port = allocate_port()
     (STATE / "ssh-port").write_text(f"{port}\n")
-    run(qemu_command(STATE / "disk.qcow2", STATE / "seed.img", STATE / "ssh-key", port,
-                     pid_file, STATE / "serial.log", mode))
+    command = qemu_command(STATE / "disk.qcow2", STATE / "seed.img", STATE / "ssh-key", port,
+                           pid_file, STATE / "serial.log", mode)
+    # Say which accelerator this run actually got. Software emulation is an
+    # order of magnitude slower and makes healthy candidates fail on their own
+    # timeouts, and that is invisible in a report unless it is stated here.
+    accelerator = command[command.index("-accel") + 1]
+    print(
+        f"lab: {mode} runs under {accelerator}"
+        + ("" if accelerator != "tcg" else " (software emulation: expect a slow run)"),
+        flush=True,
+    )
+    run(command)
     mode_file.write_text(f"{mode}\n")
     unbooted.unlink(missing_ok=True)
     wait_for_readiness(timeout)

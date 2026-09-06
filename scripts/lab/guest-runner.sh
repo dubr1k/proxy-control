@@ -51,7 +51,10 @@ PY
 )
   message=${message//$'\t'/ }
   message=${message//$'\n'/ }
-  message=${message:0:4000}
+  # Keep the tail, not the head: the last error line and the host diagnostics
+  # say what happened, while the first 4000 characters of a Python traceback
+  # say only where it started.
+  ((${#message} > 4000)) && message="...${message: -4000}"
   printf 'LAB_RESULT\t%s\t%s\t%s\t%s\n' "$name" "$status" "$elapsed" "$message"
   [[ $status == passed ]] || RESULTS_FAILED=1
 }
@@ -99,7 +102,13 @@ host_diagnostics() {
     printf ' %s=%s' "$unit" "${state:-unknown}"
   done
   printf ' nginx-journal: %s' \
-    "$(journalctl -u nginx -n 12 --no-pager -o cat 2>/dev/null | tr '\n' ' ' || true)"
+    "$(journalctl -u nginx -n 40 --no-pager -o cat 2>/dev/null | tr '\n' ' ' || true)"
+  # A service that aborts leaves a stack behind. Report it, or the next run
+  # only repeats that something died.
+  if command -v coredumpctl >/dev/null 2>&1; then
+    printf ' coredump: %s' \
+      "$(coredumpctl info --no-pager 2>/dev/null | tail -n 25 | tr '\n' ' ' || true)"
+  fi
 }
 
 run_captured() {
@@ -1108,8 +1117,11 @@ host_setup() {
   fi
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
+  # systemd-coredump is diagnostic scaffolding for the lab, not a product
+  # dependency: without it a service that aborts leaves no stack, and the
+  # report can only say that it died.
   apt-get install -y -qq nginx-full libnginx-mod-stream docker.io docker-compose-v2 \
-    certbot openssl socat jq dnsmasq dnsutils dpkg-dev iproute2 >/dev/null
+    certbot openssl socat jq dnsmasq dnsutils dpkg-dev iproute2 systemd-coredump >/dev/null
   container_setup
   install -d -m 0700 "$CREDENTIALS"
   install -d -m 0755 "$CLIENT_RESULTS"
