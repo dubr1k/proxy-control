@@ -51,16 +51,15 @@ PY
 )
   message=${message//$'\t'/ }
   message=${message//$'\n'/ }
-  # Keep the tail, not the head: the last error line and the host diagnostics
-  # say what happened, while the first 4000 characters of a Python traceback
-  # say only where it started.
+  # Keep the tail, not the head: the last error line says what happened, while
+  # the first 4000 characters of a Python traceback say only where it started.
   ((${#message} > 4000)) && message="...${message: -4000}"
   printf 'LAB_RESULT\t%s\t%s\t%s\t%s\n' "$name" "$status" "$elapsed" "$message"
   [[ $status == passed ]] || RESULTS_FAILED=1
 }
 
 case_run() {
-  local name=$1 function=$2 started log rc message prerequisite
+  local name=$1 function=$2 started log rc message prerequisite scenario diagnostics
   shift 2
   selected "$name" || return 0
   started=$(python3 -c 'import time; print(time.time())')
@@ -81,7 +80,13 @@ case_run() {
     emit "$name" passed "$started"
   else
     CASE_STATUS[$name]=failed
-    message="$(tr '\n' ' ' <"$log") $(host_diagnostics)"
+    # Trim the scenario's own output and the host diagnostics separately, or a
+    # long journal pushes the failure itself out of the report entirely.
+    scenario=$(tr '\n' ' ' <"$log")
+    ((${#scenario} > 2400)) && scenario="...${scenario: -2400}"
+    diagnostics=$(host_diagnostics)
+    ((${#diagnostics} > 1500)) && diagnostics="${diagnostics:0:1500}..."
+    message="$scenario $diagnostics"
     emit "$name" failed "$started" "$message"
   fi
   rm -f "$log"
@@ -103,13 +108,13 @@ host_diagnostics() {
   done
   printf ' nginx-version: %s' "$(nginx -v 2>&1 | tr -d '\n' || true)"
   printf ' nginx-journal: %s' \
-    "$(journalctl -u nginx -n 40 --no-pager -o cat 2>/dev/null | tr '\n' ' ' || true)"
+    "$(journalctl -u nginx -n 20 --no-pager -o cat 2>/dev/null | tr '\n' ' ' || true)"
   # A service that aborts leaves a stack behind. Report it, or the next run
   # only repeats that something died. Say so either way: a silent absence
   # reads as "no crash" when it may only mean the tool is missing.
   if command -v coredumpctl >/dev/null 2>&1; then
     printf ' coredump: %s' \
-      "$(coredumpctl info --no-pager 2>&1 | tail -n 30 | tr '\n' ' ' || true)"
+      "$(coredumpctl info --no-pager 2>&1 | tail -n 18 | tr '\n' ' ' || true)"
   else
     printf ' coredump: coredumpctl is not installed'
   fi
