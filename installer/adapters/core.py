@@ -292,15 +292,11 @@ class _DefaultCoreRunner:
             "http://127.0.0.1:8787/healthz",
             headers={"Host": panel_domain},
         )
-        def probe() -> tuple[int, bytes]:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                return response.status, response.read(65537)
-
         try:
-            status, body = _await_panel_health(probe)
+            status, body = _await_panel_health(lambda: _panel_probe(request))
             if status != 200 or len(body) > 65536:
                 raise AcceptanceError(
-                    "Core acceptance failed: panel health"
+                    f"Core acceptance failed: panel health (status {status})"
                     + _panel_health_diagnosis(self, compose)
                 )
         except (OSError, urllib.error.URLError) as exc:
@@ -2541,6 +2537,27 @@ def _sanitize_diagnostic(value: str, *, max_chars: int = 900) -> str:
     return redacted[-max_chars:].replace("\n", " ").strip()
 
 
+def _panel_probe(request, *, opener=urllib.request.urlopen) -> tuple[int, bytes]:
+    """Ask the panel once, telling an answer apart from an unreachable panel.
+
+    `HTTPError` is a subclass of `URLError`, so a request the panel answered
+    with a failing status is indistinguishable from one it never received
+    unless it is caught here. Waiting out a deadline for a 403 helps nobody,
+    and reporting it as silence throws away the one fact worth having.
+    """
+    try:
+        with opener(request, timeout=15) as response:
+            return response.status, response.read(65537)
+    except urllib.error.HTTPError as answered:
+        body = b""
+        try:
+            body = answered.read(65537)
+        except Exception:  # pragma: no cover - a body is a bonus, not a need
+            pass
+        return answered.code, body
+
+
+
 def _await_panel_health(
     probe,
     *,
@@ -2566,6 +2583,20 @@ def _await_panel_health(
 
 
 
+def _without_health_polling(text: str) -> str:
+    """Drop the container health check's own successful probes.
+
+    It polls every few seconds, so on a panel that has been up for minutes its
+    lines are all a bounded log tail contains, and whatever actually went wrong
+    has long since scrolled out of it.
+    """
+    return "\n".join(
+        line
+        for line in text.splitlines()
+        if '"GET /healthz HTTP/1.0" 200' not in line
+    )
+
+
 def _panel_health_diagnosis(runner, compose: Sequence[str]) -> str:
     """Describe what the containers were doing when the panel did not answer.
 
@@ -2576,13 +2607,13 @@ def _panel_health_diagnosis(runner, compose: Sequence[str]) -> str:
     parts: list[str] = []
     for label, argv in (
         ("services", tuple(compose) + ("ps", "--format", "{{.Service}}: {{.State}} {{.Status}}")),
-        ("panel", tuple(compose) + ("logs", "--tail", "20", "panel")),
+        ("panel", tuple(compose) + ("logs", "--tail", "80", "panel")),
     ):
         try:
-            captured = runner.capture(argv, max_chars=1500)
+            captured = runner.capture(argv, max_chars=6000)
         except Exception:
             continue
-        text = _sanitize_diagnostic(str(captured)).strip()
+        text = _sanitize_diagnostic(_without_health_polling(str(captured))).strip()
         if text:
             parts.append(f"{label}: {text}")
     return ("; " + "; ".join(parts)) if parts else ""

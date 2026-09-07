@@ -4,6 +4,9 @@ import json
 import stat
 from pathlib import Path
 
+import urllib.error
+import urllib.request
+
 import pytest
 
 from installer.adapters.core import (
@@ -1043,3 +1046,57 @@ def test_panel_acceptance_gives_up_and_reports_the_last_refusal():
             sleep=lambda _s: None,
             monotonic=lambda: next(clock),
         )
+
+
+def test_a_panel_that_answers_with_an_error_code_reports_that_code():
+    """`HTTPError` is a subclass of `URLError`, so an answered request with a
+    failing status looked exactly like an unreachable panel: retried for the
+    whole deadline and then reported as silence, with its status thrown away."""
+    from installer.adapters.core import _panel_probe
+
+    class Failing:
+        def __call__(self, request, timeout):
+            del request, timeout
+            raise urllib.error.HTTPError(
+                "http://127.0.0.1:8787/healthz", 403, "Forbidden", {}, None
+            )
+
+    status, body = _panel_probe(
+        urllib.request.Request("http://127.0.0.1:8787/healthz"),
+        opener=Failing(),
+    )
+
+    assert status == 403
+    assert body == b""
+
+
+def test_a_panel_that_cannot_be_reached_still_raises():
+    """A refused connection is a different thing from an answered request, and
+    only the first one is worth waiting out."""
+    from installer.adapters.core import _panel_probe
+
+    class Refused:
+        def __call__(self, request, timeout):
+            del request, timeout
+            raise urllib.error.URLError(OSError("connection refused"))
+
+    with pytest.raises(urllib.error.URLError):
+        _panel_probe(
+            urllib.request.Request("http://127.0.0.1:8787/healthz"),
+            opener=Refused(),
+        )
+
+
+def test_the_panel_diagnosis_drops_its_own_health_polling():
+    """The container health check polls every few seconds, so on a panel that
+    has been up for minutes its lines fill the whole log tail and whatever went
+    wrong has scrolled out of it."""
+    from installer.adapters.core import _without_health_polling
+
+    noisy = (
+        'INFO:     127.0.0.1:1 - "GET /healthz HTTP/1.0" 200 OK\n'
+        "ERROR:    the thing that actually went wrong\n"
+        'INFO:     127.0.0.1:2 - "GET /healthz HTTP/1.0" 200 OK\n'
+    )
+
+    assert _without_health_polling(noisy) == "ERROR:    the thing that actually went wrong"
