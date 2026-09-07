@@ -120,12 +120,16 @@ class _DefaultCoreRunner:
     ) -> subprocess.CompletedProcess[bytes]:
         stdin = stdin_path.open("rb") if stdin_path is not None else subprocess.DEVNULL
         try:
+            # A command's own words are the only thing that says why it failed,
+            # and callers redact and bound them before they reach a report.
+            # Discarding them here left failures that named a command and
+            # nothing else.
             return subprocess.run(
                 [str(value) for value in argv],
                 check=False,
                 stdin=stdin,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 timeout=self.timeout,
                 env=dict(env) if env is not None else None,
             )

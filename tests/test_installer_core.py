@@ -1144,3 +1144,17 @@ def test_a_failed_core_command_never_echoes_a_credential():
     message = str(caught.value)
     assert "hunter2" not in message
     assert "abcdef" not in message
+
+
+def test_the_runner_keeps_what_a_failing_command_printed(tmp_path):
+    """A named command that failed is half the answer; the other half is what
+    it said. The real installation reported "docker compose" and nothing more,
+    which is not enough to act on."""
+    from installer.adapters.core import _DefaultCoreRunner
+
+    result = _DefaultCoreRunner().run(
+        ("sh", "-c", "echo 'the actual reason' >&2; exit 3")
+    )
+
+    assert result.returncode == 3
+    assert b"the actual reason" in result.stderr
