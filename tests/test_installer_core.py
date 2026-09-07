@@ -1175,3 +1175,24 @@ def test_creating_the_first_owner_twice_is_not_an_error(tmp_path):
     store.create_admin("owner", "a-different-long-password", "owner")
 
     assert store.verify_admin("owner", "a-different-long-password") is not None
+
+
+def test_compose_builds_the_images_from_the_release_it_installs():
+    """Compose reuses an image that already exists, so an installation from a
+    new release quietly ran the old code -- which is exactly what happened: a
+    fix shipped in the release never reached the container."""
+    from installer.adapters.core import CoreAdapter
+
+    calls: list[tuple[str, ...]] = []
+
+    class Runner:
+        def run(self, argv, **kwargs):
+            del kwargs
+            calls.append(tuple(str(value) for value in argv))
+            return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    adapter = CoreAdapter(root=Path("/"), runner=Runner())
+    adapter._compose_start()
+
+    started = next(call for call in calls if "up" in call)
+    assert "--build" in started

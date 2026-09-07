@@ -2034,7 +2034,10 @@ class CoreAdapter:
 
     def _compose_start(self) -> None:
         try:
-            self._compose("up", "-d", "--wait")
+            # `--build` is not an optimisation to skip: Compose reuses an
+            # image that already exists, so an installation from a new release
+            # would quietly run the code of an older one.
+            self._compose("up", "-d", "--build", "--wait")
         except Exception as original:
             compose = (
                 "docker",
