@@ -1158,3 +1158,20 @@ def test_the_runner_keeps_what_a_failing_command_printed(tmp_path):
 
     assert result.returncode == 3
     assert b"the actual reason" in result.stderr
+
+
+def test_creating_the_first_owner_twice_is_not_an_error(tmp_path):
+    """A rollback keeps the panel's data volume, so the next attempt meets the
+    owner the previous one created. The real installation failed there with a
+    UNIQUE constraint, having done everything else right."""
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "panel"))
+    from panel.store import Store
+
+    store = Store(tmp_path / "panel.sqlite3")
+    store.create_admin("owner", "a-long-enough-password", "owner")
+
+    store.create_admin("owner", "a-different-long-password", "owner")
+
+    assert store.verify_admin("owner", "a-different-long-password") is not None

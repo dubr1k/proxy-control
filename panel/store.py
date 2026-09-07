@@ -72,9 +72,27 @@ class Store:
                 )
 
     def create_admin(self, username: str, password: str, role: str):
+        """Create this administrator, or set the password of an existing one.
+
+        An installation that rolled back keeps the panel's data volume, so the
+        next attempt meets the account the previous one created. Failing there
+        would strand a working installation on its own leftovers, and leaving
+        the old password in place would strand the operator with a credential
+        that no longer matches what they were told.
+        """
         if role not in {"owner", "admin", "viewer"} or len(password) < 12:
             raise ValueError("invalid administrator")
         with self.connect() as db:
+            existing = db.execute(
+                "SELECT id FROM admins WHERE username=? COLLATE NOCASE",
+                (username,),
+            ).fetchone()
+            if existing is not None:
+                db.execute(
+                    "UPDATE admins SET password_hash=?, role=?, active=1 WHERE id=?",
+                    (self.passwords.hash(password), role, existing["id"]),
+                )
+                return existing["id"]
             cur = db.execute("INSERT INTO admins(username,password_hash,role,created_at) VALUES(?,?,?,?)",
                              (username, self.passwords.hash(password), role, int(time.time())))
             return cur.lastrowid
