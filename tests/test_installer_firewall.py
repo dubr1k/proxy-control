@@ -75,3 +75,36 @@ def test_preparing_an_enable_does_not_demand_an_active_firewall():
 
     assert checkpoint["preexisting"] == ()
     assert checkpoint["initial_fingerprints"] == ()
+
+
+def test_rolling_back_switches_off_a_firewall_this_installation_switched_on():
+    """A rollback puts the host back as it was. Leaving a firewall running
+    that was not running before is not that -- and it leaves port 80 shut,
+    so the next attempt cannot even get a certificate."""
+    from installer.adapters.firewall import FirewallAdapter
+    from installer.planner import Action
+
+    action = Action(
+        id="firewall.ufw",
+        adapter="firewall",
+        owner="proxy-control:firewall",
+        mutations=("ssh=22", "ipv6=false", "enable=true", "rule=tcp:443"),
+        preconditions=("the SSH listener is preserved before the firewall denies",),
+        verification=("exact selected-profile UFW rules are active",),
+        inverse=("delete exact comment-scoped rules added by this action",),
+        credentials_required=False,
+    )
+    calls: list[tuple[str, ...]] = []
+
+    class Runner:
+        def run(self, argv):
+            command = tuple(str(value) for value in argv)
+            calls.append(command)
+            return subprocess.CompletedProcess(argv, 0, "Status: inactive", "")
+
+    adapter = FirewallAdapter(runner=Runner())
+    adapter._assert_ipv6_mode = lambda enabled: enabled
+
+    adapter.rollback(action, {"installer_added": (), "preexisting": (), "initial_fingerprints": ()})
+
+    assert ("ufw", "--force", "disable") in calls

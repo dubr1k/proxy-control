@@ -352,6 +352,18 @@ class FirewallAdapter:
             raise ValueError("invalid rollback target")
         desired = _action_rules(action)
         self._assert_ipv6_mode(_action_ipv6_enabled(action))
+        if _action_enable(action):
+            # This installation switched the firewall on, so putting the host
+            # back as it was means switching it off. Leaving it running would
+            # leave port 80 shut, and the next attempt could not even get a
+            # certificate. The rules it added go with it.
+            self.runner.run(("ufw", "--force", "disable"))
+            return Evidence(
+                action_id=action.id,
+                success=True,
+                observations=("the firewall this installation enabled is off again",),
+                details={"disabled": True},
+            )
         initial, _preexisting, installer_added = _firewall_checkpoint(
             checkpoint,
             desired,

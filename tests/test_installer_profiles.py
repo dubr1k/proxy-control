@@ -15,7 +15,7 @@ from installer.model import (
 from installer.planner import PlanError, adapters_for
 
 
-BASE = ("packages", "nginx", "certificates")
+BASE = ("packages", "nginx")
 
 
 def config_for(
@@ -66,31 +66,31 @@ def config_for(
 
 
 PROFILE_MATRIX = (
-    (Profile.CORE, ThreeXuiMode.NONE, BASE + ("firewall", "core")),
+    (Profile.CORE, ThreeXuiMode.NONE, BASE + ("firewall", "certificates", "core")),
     (
         Profile.CORE_NAIVE,
         ThreeXuiMode.NONE,
-        BASE + ("firewall", "core", "naive"),
+        BASE + ("firewall", "certificates", "core", "naive"),
     ),
     (
         Profile.CORE_MIERU,
         ThreeXuiMode.NONE,
-        BASE + ("firewall", "core", "mieru"),
+        BASE + ("firewall", "certificates", "core", "mieru"),
     ),
     (
         Profile.FULL,
         ThreeXuiMode.NONE,
-        BASE + ("firewall", "core", "naive", "mieru"),
+        BASE + ("firewall", "certificates", "core", "naive", "mieru"),
     ),
     (
         Profile.CORE,
         ThreeXuiMode.EXISTING,
-        BASE + ("firewall", "core", "three_xui"),
+        BASE + ("firewall", "certificates", "core", "three_xui"),
     ),
     (
         Profile.FULL,
         ThreeXuiMode.EXISTING,
-        BASE + ("firewall", "core", "naive", "mieru", "three_xui"),
+        BASE + ("firewall", "certificates", "core", "naive", "mieru", "three_xui"),
     ),
 )
 
@@ -122,8 +122,8 @@ def test_profile_order_is_the_documented_installation_order():
     assert names == (
         "packages",
         "nginx",
-        "certificates",
         "firewall",
+        "certificates",
         "core",
         "naive",
         "mieru",
@@ -219,3 +219,14 @@ def test_profile_environment_is_non_secret_and_self_contained():
     assert "compose.yaml:compose.naive.yaml:compose.mieru.yaml" in rendered
     assert "password" not in rendered.lower()
     assert "token" not in rendered.lower()
+
+
+def test_the_firewall_opens_its_ports_before_certificates_are_issued():
+    """ACME validates over port 80. A firewall that comes up after the
+    certificates were meant to be issued closes the very door the issuing
+    needs -- which is exactly how a real installation failed."""
+    order = tuple(
+        adapter.name
+        for adapter in adapters_for(config_for(profile=Profile.FULL, three_xui=ThreeXuiMode.EXISTING))
+    )
+    assert order.index("firewall") < order.index("certificates")

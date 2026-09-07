@@ -315,8 +315,10 @@ class InstallPlan:
 _PROFILE_ORDER = (
     "packages",
     "nginx",
-    "certificates",
+    # The firewall comes before the certificates: ACME validates over port 80,
+    # and a firewall raised afterwards closes the very door the issuing needs.
     "firewall",
+    "certificates",
     "core",
     "naive",
     "mieru",
