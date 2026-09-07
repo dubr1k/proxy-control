@@ -1,8 +1,9 @@
 name: Release
 
 # A release is only published after the same bytes were built twice, passed the
-# isolated lab on both architectures, and were attested. No job in this file has
-# SSH access or touches a production environment.
+# isolated lab, and were attested. The project targets x86-64 VPS hosts, which
+# is what the lab runs on and the only architecture the installer accepts. No
+# job in this file has SSH access or touches a production environment.
 
 on:
   push:
@@ -118,41 +119,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  lab-arm64:
-    needs: build-twice-and-compare
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 360
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
-        with:
-          name: release-dist
-          path: dist
-      - name: Lab prerequisites
-        run: |
-          sudo apt-get update -qq
-          # The aarch64 "virt" machine has no built-in firmware.
-          sudo apt-get install -y -qq qemu-system-arm qemu-efi-aarch64 qemu-utils cloud-image-utils shellcheck
-      - name: Release acceptance on arm64
-        run: |
-          make lab-release \
-            LAB_ARCH=arm64 \
-            RELEASE_ARCHIVE=dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz \
-            RELEASE_SHA256=${{ needs.build-twice-and-compare.outputs.archive-sha256 }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: lab-arm64
-          path: lab-results/
-          if-no-files-found: error
-          retention-days: 7
-
   attest:
-    needs: [build-twice-and-compare, lab-amd64, lab-arm64]
+    needs: [build-twice-and-compare, lab-amd64]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:

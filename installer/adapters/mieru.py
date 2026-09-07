@@ -76,7 +76,7 @@ _WARP_PROXY_NAME = "warp"
 _RUNNING = 'mita server status is "RUNNING"'
 _MITA_PROCESS = "mita"
 _MITA_VERSION = "3.36.0"
-_SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
+_SUPPORTED_ARCHITECTURES = ("amd64",)
 
 # Pinned upstream mita 3.36.0 packages and the executable each one must carry.
 # mita stays an external GPLv3+ artifact: only the binary and its license text
@@ -88,12 +88,6 @@ _MITA_PINS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
             "mita_3.36.0_amd64.deb",
             "44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a",
             "38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170",
-        ),
-        "arm64": (
-            "https://github.com/enfein/mieru/releases/download/v3.36.0/"
-            "mita_3.36.0_arm64.deb",
-            "a43dbc4d75dcb18978ea79b924ce859e2485af8b776dfc981b29a7b60644157c",
-            "5105cf47ae85cfa885922fe8384f53f1977ea230259eb066130b7232ce0847b0",
         ),
     }
 )
@@ -108,12 +102,6 @@ _MIERU_CLIENT_PINS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
             "mieru_3.36.0_amd64.deb",
             "49da700a7ce80aa46486313d61ecb83825a99e27a1dab9dda726241cbb85cb90",
             "acbf1b6ea9d48a6f88af9397fa9f1897cdb0f5f6ec456608b55307d7f1dcbdfc",
-        ),
-        "arm64": (
-            "https://github.com/enfein/mieru/releases/download/v3.36.0/"
-            "mieru_3.36.0_arm64.deb",
-            "8049bdacbd36d936eb502525425ef93004913f99ac4178e66bebfb29c82f0378",
-            "23031932aaf4b46567a7882c3971cb22f439a138f38fe17c633c65c9f4411da9",
         ),
     }
 )

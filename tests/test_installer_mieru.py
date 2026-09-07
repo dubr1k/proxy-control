@@ -92,7 +92,7 @@ def pinned_client(monkeypatch):
                 _CLIENT_PACKAGE_DIGEST,
                 _CLIENT_BINARY_DIGEST,
             )
-            for architecture in ("amd64", "arm64")
+            for architecture in ("amd64",)
         }
     )
     monkeypatch.setattr(mieru_module, "_MIERU_CLIENT_PINS", pins)

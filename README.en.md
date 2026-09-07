@@ -87,6 +87,10 @@ installation safe.
 
 ## Before you install
 
+- An **x86-64** server, which is what the overwhelming majority of VPS hosts
+  are. Any other architecture is refused during the audit rather than part-way
+  through an installation: the release is built for x86-64 only, and that is
+  the only architecture the lab proves.
 - Ubuntu 24.04 with `systemd`, and `root` or `sudo` access.
 - DNS A/AAAA records for every name point **directly** at the server. For
   MTProto, CDN proxying must be off — DNS-only mode.

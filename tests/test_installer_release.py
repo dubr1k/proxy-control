@@ -127,38 +127,39 @@ def test_reviewed_manifest_and_fixture_are_identical_and_strictly_valid():
 def test_external_artifact_is_arch_specific_and_version_pinned():
     manifest = ReleaseManifest.from_bytes(VALID_MANIFEST.read_bytes())
 
-    arm64 = manifest.external_artifact("three_xui", "arm64")
     amd64 = manifest.artifacts.for_platform("three_xui", "amd64")
 
-    assert arm64.version == "3.7.0"
-    assert arm64.tag == "v3.7.0"
-    assert arm64.sha256 == (
-        "3caf1db1e8b10bb1fa1324c945522690bcf01c533ee75b377268f1c01a3ce896"
-    )
-    assert arm64.url == (
-        "https://github.com/MHSanaei/3x-ui/releases/download/"
-        "v3.7.0/x-ui-linux-arm64.tar.gz"
-    )
-    assert arm64.architecture == "arm64"
-    assert arm64.spdx_license == "GPL-3.0-only"
+    assert amd64.version == "3.7.0"
+    assert amd64.tag == "v3.7.0"
     assert amd64.sha256 == (
         "0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5"
     )
-    assert "latest" not in arm64.url.lower()
+    assert amd64.url == (
+        "https://github.com/MHSanaei/3x-ui/releases/download/"
+        "v3.7.0/x-ui-linux-amd64.tar.gz"
+    )
+    assert amd64.architecture == "amd64"
+    assert amd64.spdx_license == "GPL-3.0-only"
+    assert "latest" not in amd64.url.lower()
     with pytest.raises(FrozenInstanceError):
-        arm64.version = "latest"  # type: ignore[misc]
+        amd64.version = "latest"  # type: ignore[misc]
 
 
-def test_mita_pins_include_package_and_executable_hashes_for_both_architectures():
+def test_an_architecture_this_release_does_not_build_for_is_refused():
+    """The project targets x86-64. Asking for another architecture must fail by
+    name here, not later when a pinned artifact turns out not to exist."""
+    manifest = ReleaseManifest.from_bytes(VALID_MANIFEST.read_bytes())
+
+    with pytest.raises(ReleaseError):
+        manifest.external_artifact("three_xui", "arm64")
+
+
+def test_mita_pins_include_package_and_executable_hashes():
     manifest = ReleaseManifest.from_bytes(VALID_MANIFEST.read_bytes())
     expected = {
         "amd64": (
             "44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a",
             "38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170",
-        ),
-        "arm64": (
-            "a43dbc4d75dcb18978ea79b924ce859e2485af8b776dfc981b29a7b60644157c",
-            "5105cf47ae85cfa885922fe8384f53f1977ea230259eb066130b7232ce0847b0",
         ),
     }
 
@@ -272,7 +273,14 @@ def test_mita_pins_include_package_and_executable_hashes_for_both_architectures(
         ),
         (
             "missing platform",
-            lambda data: data["artifacts"][0]["platforms"].pop("arm64"),
+            lambda data: data["artifacts"][0]["platforms"].pop("amd64"),
+            "platforms must be exactly",
+        ),
+        (
+            "an unbuilt platform",
+            lambda data: data["artifacts"][0]["platforms"].update(
+                {"arm64": dict(data["artifacts"][0]["platforms"]["amd64"])}
+            ),
             "platforms must be exactly",
         ),
     ],
@@ -1050,3 +1058,12 @@ def test_precommit_cleanup_failure_does_not_mask_primary_error(
         safe_extract_tar(archive, destination, _valid_archive_manifest())
 
     assert len(_stage_paths(destination)) == 1
+
+
+def test_the_release_manifest_pins_x86_64_only():
+    """The project targets x86-64 VPS hosts. An arm64 pin nobody runs is a
+    claim the lab never checks, and a pin that is never checked is worse than
+    no pin at all."""
+    from installer.release import _SUPPORTED_ARCHITECTURES
+
+    assert set(_SUPPORTED_ARCHITECTURES) == {"amd64"}

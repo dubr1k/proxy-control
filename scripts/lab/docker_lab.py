@@ -269,7 +269,7 @@ def _architecture() -> str:
     machine = subprocess.run(
         ("uname", "-m"), check=False, text=True, capture_output=True
     ).stdout.strip()
-    return {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(
+    return {"x86_64": "amd64", "amd64": "amd64"}.get(
         machine, machine
     )
 

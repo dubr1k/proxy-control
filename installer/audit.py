@@ -34,10 +34,12 @@ _DOMAIN_RE = re.compile(
     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z"
 )
 _SAFE_NAME_RE = re.compile(r"[A-Za-z0-9_.:@+-]{1,128}\Z")
+# x86-64 only: every pinned artifact is built for it, and it is the only
+# architecture the lab proves. A host of any other architecture is refused
+# during the audit rather than part-way through an installation, when a pinned
+# artifact turns out not to exist for it.
 _SAFE_ARCHITECTURES = {
-    "aarch64": "arm64",
     "amd64": "amd64",
-    "arm64": "arm64",
     "x86_64": "amd64",
 }
 _CAA_VALIDATION_METHODS = frozenset({"dns-01", "http-01", "tls-alpn-01"})

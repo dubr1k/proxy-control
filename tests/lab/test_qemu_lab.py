@@ -409,10 +409,12 @@ class ReleaseMatrixTests(unittest.TestCase):
             1,
         )
 
-    def test_release_modes_are_selectable_and_architecture_scoped(self):
-        self.assertIn("release-amd64", lab.SCENARIOS)
-        self.assertIn("release-arm64", lab.SCENARIOS)
-        self.assertEqual(lab.mode_architecture("release-arm64"), "arm64")
+    def test_the_release_gate_is_x86_64_only(self):
+        """The project targets x86-64 VPS hosts. An architecture the release is
+        never built for must not be selectable as a release mode."""
+        self.assertEqual(lab.RELEASE_MODES, ("release-amd64",))
+        self.assertNotIn("release-arm64", lab.SCENARIOS)
+        self.assertEqual(lab.mode_architecture("release-amd64"), "amd64")
         self.assertEqual(lab.mode_architecture("smoke"), "amd64")
 
     def test_finalize_marks_a_missing_release_result_failed(self):
@@ -462,12 +464,12 @@ class ImageMetadataTests(unittest.TestCase):
         """The controller refuses an image without a recorded digest rather
         than trusting whatever the download returns."""
         document = json.loads((MODULE.parent / "image.json").read_text())
-        document["images"]["arm64"]["sha256"] = None
+        document["images"]["amd64"]["sha256"] = None
         path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "image.json"
         path.write_text(json.dumps(document))
         with mock.patch.object(lab, "HERE", path.parent):
             with self.assertRaises(ValueError) as caught:
-                lab.metadata("arm64")
+                lab.metadata("amd64")
         self.assertIn("not pinned", str(caught.exception))
 
     def test_a_same_architecture_guest_uses_kvm_when_the_device_is_usable(self):
@@ -587,53 +589,6 @@ class GuestRunnerPreflightScripts(unittest.TestCase):
                     if re.search(rf"(^|[^\w-]){re.escape(candidate)}(\s|$|\))", body, re.M):
                         missing.setdefault(candidate, []).append(name)
             self.assertEqual(missing, {}, f"declare -f {group}")
-
-
-class Aarch64Firmware(unittest.TestCase):
-    """`qemu-system-aarch64 -machine virt` has no built-in firmware.
-
-    Without one the guest boots to nothing, and the only symptom is an SSH
-    readiness timeout that names neither the cause nor the missing package.
-    """
-
-    def test_arm64_declares_firmware_and_amd64_does_not(self):
-        document = json.loads((MODULE.parent / "image.json").read_text())
-        self.assertIsNone(document["images"]["amd64"]["firmware"])
-        arm64 = document["images"]["arm64"]
-        self.assertTrue(arm64["firmware"].startswith("/"))
-        self.assertTrue(arm64["firmware_package"])
-
-    def test_a_missing_firmware_fails_closed_and_names_the_package(self):
-        with self.assertRaises(ValueError) as caught:
-            lab.qemu_command(
-                Path("disk"), Path("seed"), Path("key"), 2222,
-                Path("pid"), Path("serial"), "release-arm64",
-            )
-        message = str(caught.exception)
-        self.assertIn("qemu-efi-aarch64", message)
-        self.assertIn("UEFI firmware", message)
-
-    def test_the_release_workflow_installs_that_package(self):
-        workflow = (MODULE.parents[2] / ".github/workflows/release.yml").read_text()
-        document = json.loads((MODULE.parent / "image.json").read_text())
-        self.assertIn(document["images"]["arm64"]["firmware_package"], workflow)
-
-    def test_firmware_precedes_the_machine_it_boots(self):
-        document = json.loads((MODULE.parent / "image.json").read_text())
-        firmware = Path(self.enterContext(tempfile.TemporaryDirectory())) / "efi.fd"
-        firmware.write_bytes(b"firmware")
-        document["images"]["arm64"]["firmware"] = str(firmware)
-        path = firmware.parent / "image.json"
-        path.write_text(json.dumps(document))
-        with mock.patch.object(lab, "HERE", path.parent):
-            command = lab.qemu_command(
-                Path("disk"), Path("seed"), Path("key"), 2222,
-                Path("pid"), Path("serial"), "release-arm64",
-            )
-        self.assertEqual(command[0], "qemu-system-aarch64")
-        self.assertIn("-bios", command)
-        self.assertEqual(command[command.index("-bios") + 1], str(firmware))
-        self.assertLess(command.index("-bios"), command.index("-machine"))
 
 
 class ReleaseRootLayout(unittest.TestCase):

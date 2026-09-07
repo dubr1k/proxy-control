@@ -4,7 +4,7 @@ This lab boots an official, checksum-pinned Ubuntu 24.04 cloud image in QEMU. It
 
 ## Prerequisites
 
-Ubuntu host packages: `qemu-system-x86` (and `qemu-system-arm` for `release-arm64`), `qemu-utils`, `cloud-image-utils`, `openssh-client`, `curl`, `shellcheck`, and Python 3. The guest needs outbound package/image access only in `full` mode. No ACME request is made: the full fixture injects a local deterministic Certbot-compatible certificate generator, and DNS is supplied through guest-only `/etc/hosts` entries.
+Ubuntu host packages: `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `openssh-client`, `curl`, `shellcheck`, and Python 3. The guest needs outbound package/image access only in `full` mode. No ACME request is made: the full fixture injects a local deterministic Certbot-compatible certificate generator, and DNS is supplied through guest-only `/etc/hosts` entries.
 
 ## Commands
 
@@ -16,7 +16,7 @@ make lab-smoke      # real VM: archive, audit, plan, fixtures, report
 make lab-reset      # stop and create a fresh overlay/ephemeral key
 make lab-full       # all lifecycle, recovery, coexistence, Docker scenarios
 make lab-release RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz \
-                 RELEASE_SHA256=<sha256> [LAB_ARCH=amd64|arm64] \
+                 RELEASE_SHA256=<sha256> \
                  [LAB_SCENARIOS="audit plan"]
 make lab-container RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz \
                    RELEASE_SHA256=<sha256> [LAB_SCENARIOS="audit plan"]
@@ -36,7 +36,7 @@ The base cache is `${XDG_CACHE_HOME:-~/.cache}/mtproxy-installer-lab`. All mutab
 
 ## Release acceptance
 
-`release-amd64` and `release-arm64` validate one exact release archive rather than the working tree. The controller refuses to start unless `--release-archive` and `--release-sha256` are both given and the archive hashes to that value, and the guest re-verifies the same digest before unpacking. The installer under test is the one inside that archive: the guest drives `python3 -m installer.cli` from the unpacked release, never from the checked-out repository.
+`release-amd64` validates one exact release archive rather than the working tree. The controller refuses to start unless `--release-archive` and `--release-sha256` are both given and the archive hashes to that value, and the guest re-verifies the same digest before unpacking. The installer under test is the one inside that archive: the guest drives `python3 -m installer.cli` from the unpacked release, never from the checked-out repository.
 
 Each architecture is pinned separately in `scripts/lab/image.json` (schema 2) with its official image URL, SHA-256, QEMU binary, machine, CPU, and minimum QEMU version. An architecture whose `sha256` is still `null` fails closed with a named error instead of trusting a download; record the official checksum from the `source_checksums` URL before using it. Both shipped architectures are pinned, and `test_an_unpinned_image_fails_closed` proves the refusal on a synthetic entry rather than by leaving a real one unpinned.
 

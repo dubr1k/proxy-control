@@ -1036,3 +1036,12 @@ def test_free_space_and_free_memory_never_change_the_plan_digest():
     assert first.transient["capacity"]["disks"][0]["available_kib"] != (
         second.transient["capacity"]["disks"][0]["available_kib"]
     )
+
+
+def test_a_non_x86_host_is_refused_by_name():
+    """Installing onto an architecture the release never built for would fail
+    later and less clearly, when a pinned artifact turned out not to exist."""
+    from installer.audit import _SAFE_ARCHITECTURES
+
+    assert set(_SAFE_ARCHITECTURES) == {"amd64", "x86_64"}
+    assert set(_SAFE_ARCHITECTURES.values()) == {"amd64"}

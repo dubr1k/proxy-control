@@ -19,7 +19,9 @@ _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _NAME_RE = re.compile(r"[a-z][a-z0-9_]*")
 _VERSION_RE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
-_SUPPORTED_ARCHITECTURES = frozenset({"amd64", "arm64"})
+# The project targets x86-64 VPS hosts, which is what the lab runs on. A pin
+# for an architecture nothing ever verifies is a claim, not a guarantee.
+_SUPPORTED_ARCHITECTURES = frozenset({"amd64"})
 _SUPPORTED_SPDX_LICENSES = frozenset({"GPL-3.0-only", "GPL-3.0-or-later"})
 _COPY_CHUNK_SIZE = 1024 * 1024
 _HARD_MAX_COMPRESSED_SIZE = 1024 * 1024 * 1024

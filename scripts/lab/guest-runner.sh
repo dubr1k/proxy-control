@@ -1304,7 +1304,7 @@ elif [[ $MODE == full ]]; then
   case_run interrupted-install-recovery interrupt_install_recovery uninstall
   case_run interrupted-uninstall-recovery interrupt_uninstall_recovery interrupted-install-recovery
   case_run coexistence full_coexist interrupted-uninstall-recovery
-elif [[ $MODE == release-amd64 || $MODE == release-arm64 ]]; then
+elif [[ $MODE == release-amd64 ]]; then
   if ! release_environment_preflight; then
     exit "$RESULTS_FAILED"
   fi

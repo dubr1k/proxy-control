@@ -9,9 +9,7 @@ Proxy Control поддерживает `mita` **3.35.x и 3.36.x** через о
 | Архитектура | Upstream package | SHA-256 package | SHA-256 `usr/bin/mita` |
 |---|---|---|---|
 | amd64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb` | `cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342` | `4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31` |
-| arm64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_arm64.deb` | `66ff435dd5bd6078944cb4eb7fc427366afaac5ab51030ff62561c645c31a9e3` | `a4e486c1531b7bebec02eca2b60dcba2a4971b2cd479c590d8405aab59fe6a23` |
 | amd64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb` | `44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a` | `38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170` |
-| arm64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_arm64.deb` | `a43dbc4d75dcb18978ea79b924ce859e2485af8b776dfc981b29a7b60644157c` | `5105cf47ae85cfa885922fe8384f53f1977ea230259eb066130b7232ce0847b0` |
 
 Не устанавливайте package только ради binary: скачайте, проверьте package digest, распакуйте и отдельно проверьте executable digest. Пример для v3.36.0 amd64:
 

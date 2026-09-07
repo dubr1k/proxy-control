@@ -931,9 +931,9 @@ def test_the_xray_that_serves_reality_is_the_one_that_mints_its_keypair(tmp_path
 
     paths = ThreeXuiPaths()
     assert paths.xray_binary("amd64") == "/usr/local/x-ui/bin/xray-linux-amd64"
-    assert paths.xray_binary("arm64") == "/usr/local/x-ui/bin/xray-linux-arm64"
-    with pytest.raises(ValueError):
-        paths.xray_binary("riscv64")
+    for unsupported in ("arm64", "riscv64"):
+        with pytest.raises(ValueError):
+            paths.xray_binary(unsupported)
 
 
 def test_provisioning_creates_every_promised_inbound(tmp_path):

@@ -33,8 +33,7 @@ require_clean_host() {
 architecture() {
   case "$(dpkg --print-architecture)" in
     amd64) printf 'amd64' ;;
-    arm64) printf 'arm64' ;;
-    *) fail "unsupported architecture" ;;
+    *) fail "this project targets x86-64 only" ;;
   esac
 }
 

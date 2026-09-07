@@ -11,18 +11,6 @@
       "cpu": "max",
       "minimum_qemu": "8.2",
       "firmware": null
-    },
-    "arm64": {
-      "architecture": "arm64",
-      "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260801/ubuntu-24.04-server-cloudimg-arm64.img",
-      "sha256": "aa6da05756e85ea6dde4836b841fecb10cfd1ba3bcea320189d9af945db70476",
-      "source_checksums": "https://cloud-images.ubuntu.com/releases/noble/release-20260801/SHA256SUMS",
-      "qemu_binary": "qemu-system-aarch64",
-      "machine": "virt",
-      "cpu": "max",
-      "minimum_qemu": "8.2",
-      "firmware": "/usr/share/AAVMF/AAVMF_CODE.fd",
-      "firmware_package": "qemu-efi-aarch64"
     }
   }
 }

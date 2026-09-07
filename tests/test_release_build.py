@@ -392,7 +392,6 @@ def test_release_workflow_pins_actions_and_separates_privileged_jobs():
         "quality:",
         "build-twice-and-compare:",
         "lab-amd64:",
-        "lab-arm64:",
         "attest:",
         "draft-release:",
         "publish:",

@@ -34,8 +34,8 @@ lab-full:
 
 # Release acceptance runs against one exact archive:
 #   make lab-release RELEASE_ARCHIVE=dist/proxy-control-v2.0.0.tar.gz \
-#     RELEASE_SHA256=<sha256> [LAB_ARCH=amd64|arm64] [LAB_SCENARIOS="audit plan"]
-LAB_ARCH ?= amd64
+#     RELEASE_SHA256=<sha256> [LAB_SCENARIOS="audit plan"]
+LAB_ARCH ?= amd64  # x86-64 only; the project targets x86-64 VPS hosts
 LAB_SCENARIOS ?=
 lab-release:
 	@test -n "$(RELEASE_ARCHIVE)" || { echo "set RELEASE_ARCHIVE=<path>" >&2; exit 2; }

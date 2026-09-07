@@ -58,9 +58,10 @@ SCENARIOS = {
         "coexistence",
     ),
     "release-amd64": RELEASE_SCENARIOS,
-    "release-arm64": RELEASE_SCENARIOS,
 }
-RELEASE_MODES = ("release-amd64", "release-arm64")
+# The project targets x86-64 VPS hosts, and that is the only architecture the
+# release is built for and the lab proves.
+RELEASE_MODES = ("release-amd64",)
 
 
 def release_scenarios() -> tuple[str, ...]:
@@ -195,8 +196,6 @@ def user_data(mode: str, public_key: str) -> str:
 _HOST_ARCHITECTURES = {
     "x86_64": "amd64",
     "amd64": "amd64",
-    "aarch64": "arm64",
-    "arm64": "arm64",
 }
 
 
@@ -224,9 +223,9 @@ def qemu_command(disk: Path, seed: Path, key: Path, port: int, pid: Path, serial
     del key  # key is deliberately not attached to the VM; cloud-init gets only its public half.
     restrict = "on" if mode == "smoke" else "off"
     image = metadata(mode_architecture(mode))
-    # x86 carries its firmware inside QEMU; the aarch64 "virt" machine has none
-    # and boots to nothing without one, which surfaces only as an SSH readiness
-    # timeout. Fail closed on the missing file and name the package instead.
+    # x86 carries its firmware inside QEMU, so nothing is attached here. An
+    # image that declares firmware fails closed rather than booting to nothing,
+    # which surfaces only as an SSH readiness timeout.
     firmware: list[str] = []
     declared = image.get("firmware")
     if isinstance(declared, str) and declared:

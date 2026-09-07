@@ -56,7 +56,7 @@ _DEFAULT_CREDENTIAL = "admin"
 # Where a fresh 3x-ui answers before the installer moves it.
 _DEFAULT_PANEL_PORT = 2053
 _VERSION = "3.7.0"
-_SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
+_SUPPORTED_ARCHITECTURES = ("amd64",)
 _MAX_CONFIG_BYTES = 4 * 1024 * 1024
 _MAX_INBOUNDS = 256
 _MAX_TREE_ENTRIES = 4096
