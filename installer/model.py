@@ -54,6 +54,8 @@ class ThreeXuiConfig:
     hysteria_domain: str | None = None
     warp: bool = False
     warp_domains: tuple[str, ...] = ()
+    warp_port: int = 45000
+    subscription_domain: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,7 @@ class InstallerConfig:
             self.three_xui.vless_tcp_domain,
             self.three_xui.vless_xhttp_domain,
             self.three_xui.hysteria_domain,
+            self.three_xui.subscription_domain,
         )
         return tuple(sorted({value for value in values if value is not None}))
 

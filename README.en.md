@@ -523,22 +523,29 @@ Full procedure: [FLEET.en.md](FLEET.en.md).
 
 ## Egress: WARP as one SOCKS5 endpoint
 
-WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:45000`. This project
-never provisions WARP itself: you run your own client, bind it there, and the
-installer wires the protocols to it when `warp = true`.
+WARP is one loopback **SOCKS5** endpoint, defaulting to `127.0.0.1:45000`.
+With `warp = true`, the installer downloads the pinned official Cloudflare
+client, verifies SHA-256, registers it, enables `warp-svc`, and selects proxy
+mode. This is an optional proprietary external dependency: it is not covered
+by the project's MIT licence and is not bundled in the release archive.
 
-The three protocols do **not** treat that endpoint the same way, and the
-difference is deliberate:
+The settings live under `[three_xui]`. `warp_port` defaults to `45000` and is
+passed to every consumer; an explicitly configured alternative is preserved.
+An existing foreign WARP installation is never adopted or reconfigured: it
+requires a separate, explicit migration.
 
 | Protocol | What goes through WARP |
 |---|---|
-| **Xray / 3x-ui** | **Nothing.** An adopted instance (`existing`) is not managed by the installer, which never touches its routing, and domain-scoped `warp_domains` exists only for a managed 3x-ui, which this release does not ship. |
-| **NaiveProxy** | **All tunnelled traffic.** The `forward_proxy` block carries one `upstream socks5://127.0.0.1:45000`, which has no per-domain form. |
-| **Mieru** | **All traffic**, as a single egress rule covering every domain and every IP. |
+| **Xray / managed 3x-ui** | Domains in `warp_domains`, with the rule following blocking rules. Adopted (`existing`) routing is not changed. |
+| **NaiveProxy** | With empty `warp_domains`, all tunnelled traffic through `upstream socks5://127.0.0.1:45000`; with domain selectors it stays direct. |
+| **Mieru** | With empty `warp_domains`, all egress traffic; with domain selectors it stays `DIRECT`. |
 
-So a Naive or Mieru user's whole session leaves through WARP. With
-`warp = false` no WARP upstream or rule is emitted anywhere, and the Mieru
-egress rule stays `DIRECT`.
+With `warp = false`, WARP is not installed. Acceptance requires a fully
+configured pinned package, an active and boot-enabled service, a loopback
+listener owned by `warp-svc`, and an actual HTTPS request through SOCKS5 showing
+`warp=on/plus` and an external IP different from direct egress. An open port
+alone is not success. Ownership drift blocks mutations; `resume` handles
+interrupted operations and `repair` restores a stopped service.
 
 ## Day-to-day operation
 

@@ -803,7 +803,8 @@ class NaiveAdapter:
                     f"manager-uid={_MANAGER_UID}",
                     f"manager-gid={_MANAGER_GID}",
                     f"adjacent-sni={_encode_adjacent_routes(adjacent)}",
-                    f"egress={'proxy' if config.three_xui.warp else 'direct'}",
+                    f"egress={'proxy' if config.three_xui.warp and not config.three_xui.warp_domains else 'direct'}",
+                    f"warp-port={config.three_xui.warp_port}",
                 ),
                 preconditions=(
                     "the Core runtime and the Naive certificate are verified",
@@ -890,7 +891,7 @@ class NaiveAdapter:
         domain = str(selected["naive_domain"])
         # Every tunnelled connection leaves through WARP when it is enabled.
         upstream = (
-            f"            upstream {_WARP_EGRESS}\n"
+            f"            upstream socks5://127.0.0.1:{selected['warp_port']}\n"
             if selected["egress"] == "proxy"
             else ""
         )
@@ -1277,7 +1278,7 @@ class NaiveAdapter:
             "adjacent-sni",
             "egress",
         }
-        if set(values) != required:
+        if not required <= set(values) or set(values) - required - {"warp-port"}:
             raise NaiveError("Naive action is invalid")
         if (
             values["project"] != self.paths.project_dir
@@ -1297,7 +1298,11 @@ class NaiveAdapter:
             or values["egress"] not in {"proxy", "direct"}
         ):
             raise NaiveError("Naive action is invalid")
+        warp_port = int(values.get("warp-port", "45000"))
+        if not 1024 <= warp_port <= 65535:
+            raise NaiveError("invalid WARP port")
         return {
+            "warp_port": warp_port,
             "naive_domain": values["naive-domain"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "adjacent_sni": _decode_adjacent_routes(values["adjacent-sni"]),
@@ -1907,18 +1912,9 @@ class NaiveAdapter:
             self.paths.compose_overlay,
             *args,
         )
-        capture = getattr(self.runner, "capture", None)
-        if callable(capture):
-            try:
-                output = str(capture(argv, max_chars=1200))
-            except Exception as exc:
-                raise NaiveError(_command_failure(argv)) from exc
-            if output.startswith("exit="):
-                raise NaiveError(
-                    f"{_command_failure(argv)}; {_sanitize_diagnostic(output)}"
-                )
-            return
-        self._run_compose(*args)
+        # Mutations must use the execution boundary, not the short, best-effort
+        # diagnostic capture: its timeout is not a successful Compose result.
+        self._run(*argv)
 
     def _run_compose(self, *args: str) -> None:
         self._run(
@@ -1948,7 +1944,11 @@ class NaiveAdapter:
         except Exception as exc:
             raise NaiveError(_command_failure(argv)) from exc
         if getattr(result, "returncode", 0):
-            raise NaiveError(_command_failure(argv))
+            stderr = getattr(result, "stderr", "") or ""
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", errors="replace")
+            detail = _sanitize_diagnostic(str(stderr))
+            raise NaiveError(f"{_command_failure(argv)}; {detail}")
 
     def _run_best_effort(self, *argv: str) -> None:
         try:

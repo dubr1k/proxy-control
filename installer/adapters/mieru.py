@@ -200,6 +200,15 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
         """Fetch one pinned artifact over HTTPS onto the host."""
         _download(url, destination)
 
+    def identity_named(self, database: str, name: str) -> str | None:
+        if database not in {"passwd", "group"}:
+            raise MieruError("unsupported identity database")
+        output = self.capture(("getent", database, name), max_chars=512)
+        fields = output.strip().split(":")
+        if len(fields) >= 4 and fields[0] == name and fields[2].isdigit():
+            return name
+        return None
+
     def identity_owner(self, kind: str, identifier: int) -> str | None:
         """Name the holder of a fixed identity, or None when it is free.
 
@@ -712,7 +721,7 @@ class MieruAdapter:
         self._assert_planned_identities(facts)
         self._assert_free_listeners(facts, transports)
         url, package_sha256, executable_sha256 = self._pins()
-        egress = "proxy" if config.three_xui.warp else "direct"
+        egress = "proxy" if config.three_xui.warp and not config.three_xui.warp_domains else "direct"
         return (
             Action(
                 id="mieru.runtime",
@@ -735,6 +744,7 @@ class MieruAdapter:
                     f"bootstrap-user={config.initial_user}",
                     "transports=" + _encode_transports(transports),
                     f"egress={egress}",
+                    f"warp-port={config.three_xui.warp_port}",
                 ),
                 preconditions=(
                     "the Core runtime is verified",
@@ -917,7 +927,7 @@ class MieruAdapter:
                         "name": _WARP_PROXY_NAME,
                         "protocol": "SOCKS5_PROXY_PROTOCOL",
                         "host": _WARP_EGRESS[0],
-                        "port": _WARP_EGRESS[1],
+                        "port": selected["warp_port"],
                     }
                 ],
                 "rules": [
@@ -1237,7 +1247,7 @@ class MieruAdapter:
             "transports",
             "egress",
         }
-        optional = {"package"}
+        optional = {"package", "warp-port"}
         if not required <= set(values) or set(values) - required - optional:
             raise MieruError("Mieru action is invalid")
         if (
@@ -1260,7 +1270,11 @@ class MieruAdapter:
         package = values.get("package", self._default_package(values["architecture"]))
         if not package.startswith("/") or ".." in Path(package).parts:
             raise MieruError("Mieru action is invalid")
+        warp_port = int(values.get("warp-port", "45000"))
+        if not 1024 <= warp_port <= 65535:
+            raise MieruError("invalid WARP port")
         return {
+            "warp_port": warp_port,
             "mieru_host": values["mieru-host"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "architecture": values["architecture"],
@@ -1785,9 +1799,11 @@ class MieruAdapter:
     ) -> None:
         token = self._host(self.paths.manager_token)
         if not (token.exists() or token.is_symlink()):
-            self._atomic(token, (secrets.token_hex(32) + "\n").encode(), 0o600)
+            self._atomic(token, (secrets.token_hex(32) + "\n").encode("ascii"), 0o600)
         self._run(self.paths.token_preparer, "prepare", self.paths.manager_token)
-        self._run(self.paths.state_preparer, "prepare", self.paths.manager_state)
+        state = self._host(self.paths.manager_state)
+        mode = "verify" if state.is_dir() and any(state.iterdir()) else "prepare"
+        self._run(self.paths.state_preparer, mode, self.paths.manager_state)
         self._atomic(
             self._host(self.paths.env_overlay),
             self.env_text(selected, mita_gid=mita_gid).encode(),
@@ -1884,7 +1900,7 @@ class MieruAdapter:
         return self._unit_present() or self._compose_service_present()
 
     def _compose(self, *args: str) -> None:
-        self._run(
+        command = (
             "docker",
             "compose",
             "--project-directory",
@@ -1899,6 +1915,40 @@ class MieruAdapter:
             self.paths.compose_overlay,
             *args,
         )
+        try:
+            self._run(*command)
+        except MieruError:
+            if not args or args[0] != "up":
+                raise
+            capture = getattr(self.runner, "capture", None)
+            def read(argv, limit):
+                if not callable(capture):
+                    return "unavailable"
+                try:
+                    return str(capture(argv, max_chars=limit))[:limit]
+                except Exception:
+                    return "unavailable"
+            base = command[:-len(args)]
+            details = []
+            for service in ("mieru-manager", "panel"):
+                identity = read(base + ("ps", "-a", "-q", service), 128).strip()
+                if not re.fullmatch(r"[a-f0-9]{64}", identity):
+                    details.append(f"{service}: id unavailable")
+                    continue
+                state = read(("docker", "inspect", "--format",
+                    "{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{if .State.Health}}{{.State.Health.Status}}{{end}}", identity), 240).strip()
+                if not re.fullmatch(r"[a-z]+ exit=-?[0-9]+ oom=(?:true|false) health=[a-z]*", state):
+                    state = "state unavailable"
+                logs = read(("docker", "logs", "--tail", "12", identity), 1000)
+                # Arbitrary application errors can contain unlabeled credentials.
+                # Export only closed-vocabulary categories, never raw log text.
+                classes = [name for name in (
+                    "UnicodeDecodeError", "PermissionError", "FileNotFoundError",
+                    "ConnectionRefusedError", "TimeoutError", "ModuleNotFoundError",
+                    "ImportError", "RuntimeError", "ValueError", "TypeError",
+                ) if re.search(r"\b" + name + r"\b", logs)]
+                details.append(f"{service}: {state}; error classes: {','.join(classes) or 'unclassified'}")
+            raise MieruError("Compose startup failed; " + "; ".join(details)) from None
 
     def _run(self, *argv: str, stdin_path: Path | None = None) -> None:
         try:
@@ -1911,7 +1961,11 @@ class MieruAdapter:
         except Exception as exc:
             raise MieruError(_command_failure(argv)) from exc
         if getattr(result, "returncode", 0):
-            raise MieruError(_command_failure(argv))
+            from installer.adapters.nginx import _sanitize_diagnostic
+            stderr = getattr(result, "stderr", "") or ""
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", errors="replace")
+            raise MieruError(f"{_command_failure(argv)}; {_sanitize_diagnostic(str(stderr))}")
 
     def _run_best_effort(self, *argv: str) -> None:
         try:

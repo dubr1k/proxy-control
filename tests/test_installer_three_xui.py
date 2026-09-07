@@ -838,6 +838,7 @@ def test_bootstrap_rotates_credentials_inside_a_private_namespace(tmp_path):
         password_path=password,
         web_path="/managed/",
         port=8451,
+        panel_domain="xui.example.com",
     )
 
     joined = [" ".join(call) for call in runner.calls]
@@ -1048,11 +1049,12 @@ def test_the_panel_certificate_comes_from_the_lineage_the_installer_issued(tmp_p
         password_path=credential,
         web_path="/managed/",
         port=2053,
+        panel_domain="xui.example.com",
     )
 
     assert captured["certificate"] == (
-        "/etc/letsencrypt/live/three-xui-panel/fullchain.pem"
+        "/etc/letsencrypt/live/xui.example.com/fullchain.pem"
     )
     assert captured["private_key"] == (
-        "/etc/letsencrypt/live/three-xui-panel/privkey.pem"
+        "/etc/letsencrypt/live/xui.example.com/privkey.pem"
     )

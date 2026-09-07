@@ -2,6 +2,16 @@
   "comment": "Pinned local 3x-ui 3.7.0 HTTP contract, recorded against a running 3.7.0 rather than from documentation. Every request this installer makes is listed here; anything outside this table is refused before a socket is opened. The panel rejects a state-changing request that carries no CSRF token, so `csrf_page` names the page the token is read from.",
   "version": "3.7.0",
   "endpoints": {
+    "xray_settings": {
+      "method": "POST",
+      "path": "/panel/api/xray/",
+      "encoding": "form"
+    },
+    "update_xray_settings": {
+      "method": "POST",
+      "path": "/panel/api/xray/update",
+      "encoding": "form"
+    },
     "login": {
       "method": "POST",
       "path": "/login",

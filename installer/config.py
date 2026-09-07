@@ -127,13 +127,18 @@ def render_config(config: InstallerConfig) -> str:
         "vless_xhttp_domain",
         "hysteria_domain",
     ):
+        # Subscription is emitted below only when explicitly enabled.
         value = getattr(config.three_xui, name)
         if value is not None:
             lines.append(f"{name} = {_toml_string(value)}")
     # Round-tripping must reproduce exactly what the parser accepts in this
+    if config.three_xui.subscription_domain is not None:
+        lines.append(f"subscription_domain = {_toml_string(config.three_xui.subscription_domain)}")
     # mode, so `warp_domains` is written only where it is allowed.
     if config.three_xui.warp or config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
         lines.append(f"warp = {_toml_boolean(config.three_xui.warp)}")
+    if config.three_xui.warp_port != 45000:
+        lines.append(f"warp_port = {config.three_xui.warp_port}")
     if config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
         lines.append(f"warp_domains = {_toml_array(config.three_xui.warp_domains)}")
 
@@ -200,19 +205,20 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
     # therefore accepted in every mode. `warp_domains` really is Xray-only, so
     # it stays confined to the managed mode.
     if mode is ThreeXuiMode.NONE:
-        _keys(raw, path="three_xui", required={"mode"}, optional={"warp"})
+        _keys(raw, path="three_xui", required={"mode"}, optional={"warp", "warp_port"})
     elif mode is ThreeXuiMode.EXISTING:
         _keys(
             raw,
             path="three_xui",
             required={"mode"},
-            optional={*domain_names, "warp"},
+            optional={*domain_names, "warp", "warp_port"},
         )
     else:
         _keys(
             raw,
             path="three_xui",
             required={"mode", "warp", "warp_domains", *domain_names},
+            optional={"warp_port", "subscription_domain"},
         )
 
     parsed_domains = {
@@ -221,12 +227,15 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
     }
     warp = _boolean(raw["warp"], "three_xui.warp") if "warp" in raw else False
     warp_domains = (
-        _domains(raw["warp_domains"], "three_xui.warp_domains")
+        _warp_domains(raw["warp_domains"])
         if "warp_domains" in raw
         else ()
     )
     if not warp and warp_domains:
         raise ConfigError("three_xui.warp_domains requires warp = true")
+    warp_port = _integer(raw.get("warp_port", 45000), "three_xui.warp_port")
+    if not 1024 <= warp_port <= 65535:
+        raise ConfigError("three_xui.warp_port must be between 1024 and 65535")
     return ThreeXuiConfig(
         mode=mode,
         panel_domain=parsed_domains["panel_domain"],
@@ -235,7 +244,25 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
         hysteria_domain=parsed_domains["hysteria_domain"],
         warp=warp,
         warp_domains=warp_domains,
+        warp_port=warp_port,
+        subscription_domain=_domain(raw["subscription_domain"], "three_xui.subscription_domain") if "subscription_domain" in raw else None,
     )
+
+
+def _warp_domains(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ConfigError("three_xui.warp_domains must be an array")
+    result = []
+    for item in value:
+        item = _string(item, "three_xui.warp_domains")
+        if item.startswith("geosite:"):
+            if re.fullmatch(r"geosite:[a-z0-9_-]+", item) is None:
+                raise ConfigError("invalid WARP geosite selector")
+        else:
+            domain = item.removeprefix("domain:")
+            _domain(domain, "three_xui.warp_domains")
+        result.append(item)
+    return tuple(sorted(set(result)))
 
 
 def _parse_firewall(value: object) -> FirewallConfig:

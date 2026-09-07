@@ -749,7 +749,7 @@ def test_naive_sends_every_tunnel_through_warp_when_it_is_enabled():
                 vless_xhttp_domain="xhttp.example.com",
                 hysteria_domain="hy2.example.com",
                 warp=True,
-                warp_domains=("openai.com",),
+                warp_domains=(),
             ),
         }
     )

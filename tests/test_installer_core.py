@@ -156,6 +156,27 @@ class FakeRunner:
         self.temporary_present = False
 
 
+def test_core_never_claims_adjacent_naive_token(tmp_path):
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    project = tmp_path / 'opt/mtproxy-shared443'
+    (project / 'secrets').mkdir(parents=True)
+    (project / 'owned.txt').write_text('core')
+    (project / 'secrets/naive-manager-token').write_text('adjacent-token')
+    owned = adapter._ownership()
+    assert '/opt/mtproxy-shared443/owned.txt' in owned
+    assert '/opt/mtproxy-shared443/secrets/naive-manager-token' not in owned
+
+
+def test_core_refuses_orphaned_volumes_before_creating_credentials(tmp_path):
+    runner = FakeRunner()
+    runner.volumes_present = True
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    with pytest.raises(CoreError, match="volumes.*recovery generation"):
+        adapter.prepare(core_action())
+    assert runner.calls == []
+    assert not (tmp_path / "opt/mtproxy-shared443").exists()
+
+
 def test_core_render_uses_secret_files_and_internal_telemt_api(tmp_path):
     rendered = CoreAdapter(root=tmp_path, source_dir=ROOT).render(core_action())
 
@@ -745,8 +766,8 @@ def test_absent_filesystem_adoption_refuses_active_fixed_label_resources(tmp_pat
 
     runner.compose_present = False
     runner.volumes_present = True
-    checkpoint = adapter.prepare(core_action())
-    assert checkpoint["adoption"] == "absent"
+    with pytest.raises(CoreError, match="orphaned mtproxy volumes"):
+        adapter.prepare(core_action())
 
 
 def test_explicit_purge_can_discard_failed_temporary_cleanup(tmp_path):

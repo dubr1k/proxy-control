@@ -320,6 +320,7 @@ _PROFILE_ORDER = (
     "firewall",
     "certificates",
     "core",
+    "warp",
     "naive",
     "mieru",
     "three_xui",
@@ -338,6 +339,7 @@ def adapter_factories() -> dict[str, type]:
     from installer.adapters.nginx import CertificatePlan, NginxAdapter
     from installer.adapters.packages import PackagesAdapter
     from installer.adapters.three_xui import ThreeXuiAdapter
+    from installer.adapters.warp import WarpAdapter
 
     return {
         "packages": PackagesAdapter,
@@ -348,6 +350,7 @@ def adapter_factories() -> dict[str, type]:
         "naive": NaiveAdapter,
         "mieru": MieruAdapter,
         "three_xui": ThreeXuiAdapter,
+        "warp": WarpAdapter,
     }
 
 
@@ -376,6 +379,8 @@ def adapters_for(
     if config.host_mode.value == "fresh" and config.firewall.manage_ufw:
         selected.append("firewall")
     selected.append("core")
+    if config.three_xui.warp:
+        selected.append("warp")
     if config.profile.includes_naive:
         selected.append("naive")
     if config.profile.includes_mieru:
