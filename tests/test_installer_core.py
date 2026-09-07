@@ -1196,3 +1196,24 @@ def test_compose_builds_the_images_from_the_release_it_installs():
 
     started = next(call for call in calls if "up" in call)
     assert "--build" in started
+
+
+def test_a_failed_acceptance_step_carries_what_the_probe_said():
+    """"Core acceptance failed: resPQ" names the step and nothing else. The
+    probe's own words are what distinguish a broken proxy from a host that
+    cannot reach Telegram at all."""
+    from installer.adapters.core import AcceptanceError, _DefaultCoreRunner
+
+    class Runner(_DefaultCoreRunner):
+        def run(self, argv, **kwargs):
+            del argv, kwargs
+            return subprocess.CompletedProcess(
+                [], 1, b"", b"probe: no route to the datacenter"
+            )
+
+    with pytest.raises(AcceptanceError) as caught:
+        Runner()._run_checked(("probe", "--domain", "example.com"), "resPQ")
+
+    message = str(caught.value)
+    assert "resPQ" in message
+    assert "no route to the datacenter" in message

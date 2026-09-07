@@ -739,7 +739,15 @@ class _DefaultCoreRunner:
     def _run_checked(self, argv: Sequence[str], label: str) -> None:
         result = self.run(argv)
         if result.returncode:
-            raise AcceptanceError(f"Core acceptance failed: {label}")
+            # Naming the step is not naming the cause. The probe's own words
+            # are what separate a broken proxy from a host that cannot reach
+            # Telegram at all, and they are redacted and bounded on the way.
+            detail = _sanitize_diagnostic(
+                f"{_as_text(getattr(result, 'stderr', ''))}\n"
+                f"{_as_text(getattr(result, 'stdout', ''))}"
+            )
+            named = f"Core acceptance failed: {label}"
+            raise AcceptanceError(f"{named}: {detail}" if detail else named)
 
     def _capture_checked(self, argv: Sequence[str]) -> str:
         try:
