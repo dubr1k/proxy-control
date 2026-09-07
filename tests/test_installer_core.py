@@ -969,3 +969,41 @@ def test_a_generated_password_is_used_when_the_operator_chose_none(tmp_path):
 
     assert first != second
     assert len(first) >= 32
+
+
+def test_a_failed_panel_health_check_says_what_the_containers_were_doing():
+    """The engine rolls back on a failed acceptance, taking the containers with
+    it, so by the time anything outside looks they are gone. The failure has to
+    carry that state itself or the report says only that the panel did not
+    answer."""
+    from installer.adapters.core import _panel_health_diagnosis
+
+    class Runner:
+        def __init__(self):
+            self.calls = []
+
+        def capture(self, argv, *, max_chars=4096):
+            del max_chars
+            self.calls.append(tuple(argv))
+            if "ps" in argv:
+                return 'panel: exited (1)\nmtproxy: running'
+            return "Traceback: panel failed to bind"
+
+    runner = Runner()
+    detail = _panel_health_diagnosis(runner, ("docker", "compose"))
+
+    assert "exited (1)" in detail
+    assert "panel failed to bind" in detail
+
+
+def test_the_panel_diagnosis_never_lets_a_diagnostic_failure_mask_the_real_one():
+    """A host without Docker must still report the acceptance failure, not a
+    second failure raised while describing the first."""
+    from installer.adapters.core import _panel_health_diagnosis
+
+    class Broken:
+        def capture(self, argv, *, max_chars=4096):
+            del argv, max_chars
+            raise OSError("docker is not installed")
+
+    assert _panel_health_diagnosis(Broken(), ("docker", "compose")) == ""

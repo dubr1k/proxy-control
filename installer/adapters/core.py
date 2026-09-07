@@ -295,9 +295,18 @@ class _DefaultCoreRunner:
             with urllib.request.urlopen(request, timeout=15) as response:
                 body = response.read(65537)
                 if response.status != 200 or len(body) > 65536:
-                    raise AcceptanceError("Core acceptance failed: panel health")
+                    raise AcceptanceError(
+                        "Core acceptance failed: panel health"
+                        + _panel_health_diagnosis(self, compose)
+                    )
         except (OSError, urllib.error.URLError) as exc:
-            raise AcceptanceError("Core acceptance failed: panel health") from exc
+            # A failed acceptance is rolled back, and the rollback removes the
+            # containers, so nothing outside this moment can still see why the
+            # panel was silent. Say it here or it is never said.
+            raise AcceptanceError(
+                "Core acceptance failed: panel health"
+                + _panel_health_diagnosis(self, compose)
+            ) from exc
         verified, expected = self._panel_and_respq(
             panel_domain=panel_domain,
             proxy_domain=proxy_domain,
@@ -2516,6 +2525,39 @@ def _validate_users(users: Sequence[str]) -> None:
         for name in users
     ):
         raise CoreError("Core users must be unique safe names")
+
+
+def _sanitize_diagnostic(value: str, *, max_chars: int = 900) -> str:
+    """Keep a bounded diagnostic with any credential assignment redacted."""
+    redacted = re.sub(
+        r"(?i)((?:password|token|secret|auth)[=:\s]+)\S+",
+        r"\1[REDACTED]",
+        value,
+    )
+    return redacted[-max_chars:].replace("\n", " ").strip()
+
+
+def _panel_health_diagnosis(runner, compose: Sequence[str]) -> str:
+    """Describe what the containers were doing when the panel did not answer.
+
+    "The panel did not answer" is not a diagnosis when the panel runs in
+    Compose. Describing the failure must never raise one of its own, so every
+    step here is allowed to fail and contribute nothing.
+    """
+    parts: list[str] = []
+    for label, argv in (
+        ("services", tuple(compose) + ("ps", "--format", "{{.Service}}: {{.State}} {{.Status}}")),
+        ("panel", tuple(compose) + ("logs", "--tail", "20", "panel")),
+    ):
+        try:
+            captured = runner.capture(argv, max_chars=1500)
+        except Exception:
+            continue
+        text = _sanitize_diagnostic(str(captured)).strip()
+        if text:
+            parts.append(f"{label}: {text}")
+    return ("; " + "; ".join(parts)) if parts else ""
+
 
 
 def _read_existing_users(path: Path) -> dict[str, str]:
