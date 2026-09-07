@@ -1019,3 +1019,40 @@ def test_verify_accepts_a_generation_whose_every_inbound_listens(tmp_path):
 
     assert evidence.success
     assert evidence.details["inbounds_listening"] == 3
+
+
+def test_the_bootstrap_dialogue_hands_the_panel_its_own_certificate():
+    """Nginx routes the panel's domain to it by SNI, so the panel terminates
+    TLS itself. Without this it answers plain HTTP to a TLS client and the
+    panel never opens, with a certificate sitting unused beside it."""
+    from installer.adapters.three_xui import _BOOTSTRAP_DIALOGUE
+
+    assert 'certificate=payload["certificate"]' in _BOOTSTRAP_DIALOGUE
+    assert 'private_key=payload["private_key"]' in _BOOTSTRAP_DIALOGUE
+
+
+def test_the_panel_certificate_comes_from_the_lineage_the_installer_issued(tmp_path):
+    instance = adapter(tmp_path)
+    captured: dict[str, object] = {}
+
+    def session(*, namespace, binary, payload_path):
+        del namespace, binary
+        captured.update(json.loads(Path(payload_path).read_text()))
+
+    instance.runner.bootstrap_session = session
+    credential = tmp_path / "pw"
+    credential.write_text("a-panel-password\n")
+
+    instance.bootstrap_credentials(
+        username="owner",
+        password_path=credential,
+        web_path="/managed/",
+        port=2053,
+    )
+
+    assert captured["certificate"] == (
+        "/etc/letsencrypt/live/three-xui-panel/fullchain.pem"
+    )
+    assert captured["private_key"] == (
+        "/etc/letsencrypt/live/three-xui-panel/privkey.pem"
+    )

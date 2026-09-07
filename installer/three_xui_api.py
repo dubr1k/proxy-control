@@ -645,7 +645,15 @@ class ThreeXuiApi:
         self._cookie = None
         self._csrf = None
 
-    def configure_panel(self, *, web_path: str, port: int, listen: str) -> None:
+    def configure_panel(
+        self,
+        *,
+        web_path: str,
+        port: int,
+        listen: str,
+        certificate: str | None = None,
+        private_key: str | None = None,
+    ) -> None:
         """Move the panel onto loopback and give it a private base path.
 
         A fresh 3x-ui listens on *:2053 and *:2096, reachable from anywhere.
@@ -663,6 +671,12 @@ class ThreeXuiApi:
             raise ThreeXuiApiError("the 3x-ui panel must listen on loopback")
         if not 1 <= port <= 65535:
             raise ThreeXuiApiError("the 3x-ui panel port is invalid")
+        # Nginx routes the panel's domain straight to this port by SNI, so the
+        # panel terminates TLS itself. Without a certificate it answers plain
+        # HTTP to a TLS client and the panel never opens.
+        for label, value in (("certificate", certificate), ("private key", private_key)):
+            if value is not None and not value.startswith("/"):
+                raise ThreeXuiApiError(f"the 3x-ui panel {label} path must be absolute")
         document = self._call("all_settings")
         current = document.get("obj")
         if not isinstance(current, Mapping):
@@ -680,6 +694,8 @@ class ThreeXuiApi:
                 "subListen": listen,
             }
         )
+        if certificate is not None and private_key is not None:
+            payload.update({"webCertFile": certificate, "webKeyFile": private_key})
         self._call("update_settings", payload=payload)
 
     def add_inbound(

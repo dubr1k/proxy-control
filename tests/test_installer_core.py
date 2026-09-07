@@ -1007,3 +1007,39 @@ def test_the_panel_diagnosis_never_lets_a_diagnostic_failure_mask_the_real_one()
             raise OSError("docker is not installed")
 
     assert _panel_health_diagnosis(Broken(), ("docker", "compose")) == ""
+
+
+def test_panel_acceptance_waits_for_the_panel_instead_of_racing_it():
+    """Compose reports the container healthy before the panel is accepting
+    connections, and a single request loses that race on a loaded host. The
+    lab failed this way, with the panel answering 200 seconds later."""
+    from installer.adapters.core import _await_panel_health
+
+    attempts: list[int] = []
+
+    def probe():
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise OSError("connection refused")
+        return 200, b'{"status":"ok"}'
+
+    status, body = _await_panel_health(probe, deadline=5.0, sleep=lambda _s: None)
+
+    assert (status, body) == (200, b'{"status":"ok"}')
+    assert len(attempts) == 3
+
+
+def test_panel_acceptance_gives_up_and_reports_the_last_refusal():
+    from installer.adapters.core import _await_panel_health
+
+    def always_refused():
+        raise OSError("connection refused")
+
+    clock = iter([0.0, 1.0, 2.0, 10.0, 20.0])
+    with pytest.raises(OSError):
+        _await_panel_health(
+            always_refused,
+            deadline=5.0,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+        )

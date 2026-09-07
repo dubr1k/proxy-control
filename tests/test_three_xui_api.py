@@ -638,3 +638,42 @@ def test_the_panel_move_is_not_complete_until_the_service_restarts():
     from installer.three_xui_api import PANEL_MOVE_REQUIRES_RESTART
 
     assert PANEL_MOVE_REQUIRES_RESTART is True
+
+
+def test_the_panel_is_given_the_certificate_its_domain_is_reached_by():
+    """Nginx routes the panel's domain straight to this port by SNI, so the
+    panel terminates TLS itself. Without a certificate it answers plain HTTP
+    to a TLS client and the panel simply never opens."""
+    sent: list[dict] = []
+
+    def script(request):
+        _method, path, body, _headers = request
+        if path.endswith("/setting/all"):
+            return ok({"success": True, "obj": LIVE_SETTINGS})
+        sent.append(dict(urllib.parse.parse_qsl(body.decode())))
+        return ok({"success": True})
+
+    api = api_with(script)
+    api.configure_panel(
+        web_path="/managed-path/",
+        port=8451,
+        listen="127.0.0.1",
+        certificate="/etc/letsencrypt/live/three-xui-panel/fullchain.pem",
+        private_key="/etc/letsencrypt/live/three-xui-panel/privkey.pem",
+    )
+
+    submitted = sent[-1]
+    assert submitted["webCertFile"].endswith("three-xui-panel/fullchain.pem")
+    assert submitted["webKeyFile"].endswith("three-xui-panel/privkey.pem")
+
+
+def test_a_panel_certificate_path_must_be_absolute():
+    api = api_with(lambda _request: ok({"success": True, "obj": LIVE_SETTINGS}))
+    with pytest.raises(ThreeXuiApiError, match="certificate"):
+        api.configure_panel(
+            web_path="/p/",
+            port=8451,
+            listen="127.0.0.1",
+            certificate="relative/fullchain.pem",
+            private_key="/etc/letsencrypt/live/three-xui-panel/privkey.pem",
+        )

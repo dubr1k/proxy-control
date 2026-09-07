@@ -11,6 +11,7 @@ import shutil
 import ssl
 import stat
 import subprocess
+import time
 import tempfile
 import urllib.error
 import urllib.request
@@ -291,14 +292,17 @@ class _DefaultCoreRunner:
             "http://127.0.0.1:8787/healthz",
             headers={"Host": panel_domain},
         )
-        try:
+        def probe() -> tuple[int, bytes]:
             with urllib.request.urlopen(request, timeout=15) as response:
-                body = response.read(65537)
-                if response.status != 200 or len(body) > 65536:
-                    raise AcceptanceError(
-                        "Core acceptance failed: panel health"
-                        + _panel_health_diagnosis(self, compose)
-                    )
+                return response.status, response.read(65537)
+
+        try:
+            status, body = _await_panel_health(probe)
+            if status != 200 or len(body) > 65536:
+                raise AcceptanceError(
+                    "Core acceptance failed: panel health"
+                    + _panel_health_diagnosis(self, compose)
+                )
         except (OSError, urllib.error.URLError) as exc:
             # A failed acceptance is rolled back, and the rollback removes the
             # containers, so nothing outside this moment can still see why the
@@ -2535,6 +2539,31 @@ def _sanitize_diagnostic(value: str, *, max_chars: int = 900) -> str:
         value,
     )
     return redacted[-max_chars:].replace("\n", " ").strip()
+
+
+def _await_panel_health(
+    probe,
+    *,
+    deadline: float = 90.0,
+    sleep=time.sleep,
+    monotonic=time.monotonic,
+):
+    """Ask the panel until it answers, or until the deadline passes.
+
+    Compose reports a container healthy as soon as its own health check
+    passes, which is before the panel is necessarily accepting connections on
+    the host. A single request loses that race on a loaded host, and the
+    refusal then reads as a broken panel rather than a slow one.
+    """
+    started = monotonic()
+    while True:
+        try:
+            return probe()
+        except (OSError, urllib.error.URLError):
+            if monotonic() - started >= deadline:
+                raise
+            sleep(1.0)
+
 
 
 def _panel_health_diagnosis(runner, compose: Sequence[str]) -> str:

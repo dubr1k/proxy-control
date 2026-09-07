@@ -55,6 +55,9 @@ _BOOTSTRAP_NETNS = "proxy-control-x-ui"
 _DEFAULT_CREDENTIAL = "admin"
 # Where a fresh 3x-ui answers before the installer moves it.
 _DEFAULT_PANEL_PORT = 2053
+# The certificate lineage the Nginx boundary issues for the 3x-ui panel domain.
+_LINEAGE_ROOT = "/etc/letsencrypt/live"
+_PANEL_LINEAGE = "three-xui-panel"
 _VERSION = "3.7.0"
 _SUPPORTED_ARCHITECTURES = ("amd64",)
 _MAX_CONFIG_BYTES = 4 * 1024 * 1024
@@ -131,6 +134,8 @@ api.configure_panel(
     web_path=payload["web_path"],
     port=payload["panel_port"],
     listen="127.0.0.1",
+    certificate=payload["certificate"],
+    private_key=payload["private_key"],
 )
 """
 
@@ -928,6 +933,11 @@ class ThreeXuiAdapter:
         payload = {
             "port": port,
             "panel_port": _PANEL_BACKEND,
+            # Nginx routes the panel's domain here by SNI, so the panel
+            # terminates TLS itself with the certificate the installer issued
+            # for that domain.
+            "certificate": f"{_LINEAGE_ROOT}/{_PANEL_LINEAGE}/fullchain.pem",
+            "private_key": f"{_LINEAGE_ROOT}/{_PANEL_LINEAGE}/privkey.pem",
             "initial_username": _DEFAULT_CREDENTIAL,
             "initial_password": _DEFAULT_CREDENTIAL,
             "username": username,
