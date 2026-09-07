@@ -142,6 +142,17 @@ class FirewallAdapter:
         ipv6_enabled = self._assert_ipv6_mode(
             _action_ipv6_enabled(action)
         )
+        if _action_enable(action):
+            # The enable happens while applying, so there is nothing to read
+            # here yet: an inactive firewall has no rules, and the enable puts
+            # the SSH rule in before it starts denying anything.
+            return {
+                "initial_fingerprints": (),
+                "installer_added": (),
+                "owner": action.owner,
+                "ownership": {},
+                "preexisting": (),
+            }
         rules = self._status()
         _assert_ssh_preserved(rules, _action_ssh_port(action), ipv6_enabled)
         preexisting = tuple(

@@ -42,3 +42,36 @@ def test_enabling_ufw_stops_if_allowing_ssh_fails():
         enable_ufw(run, ssh_port=22)
 
     assert not any("enable" in call for call in calls)
+
+
+def test_preparing_an_enable_does_not_demand_an_active_firewall():
+    """The enable happens while applying, so preparing runs against a firewall
+    that is still off. Reading its rules there is asking a question the host
+    cannot answer yet."""
+    from installer.adapters.firewall import FirewallAdapter
+    from installer.planner import Action
+
+    action = Action(
+        id="firewall.ufw",
+        adapter="firewall",
+        owner="proxy-control:firewall",
+        mutations=("ssh=22", "ipv6=false", "enable=true", "rule=tcp:443"),
+        preconditions=("the SSH listener is preserved before the firewall denies",),
+        verification=("exact selected-profile UFW rules are active",),
+        inverse=("delete exact comment-scoped rules added by this action",),
+        credentials_required=False,
+    )
+
+    class Runner:
+        def run(self, argv):
+            del argv
+            raise AssertionError("an inactive firewall must not be queried")
+
+    adapter = FirewallAdapter(runner=Runner())
+    # The IPv6 mode is read from the host and is not what this test is about.
+    adapter._assert_ipv6_mode = lambda enabled: enabled
+
+    checkpoint = adapter.prepare(action)
+
+    assert checkpoint["preexisting"] == ()
+    assert checkpoint["initial_fingerprints"] == ()
