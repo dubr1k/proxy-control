@@ -672,7 +672,18 @@ class TransactionEngine:
                     self._validate_adapters(plan)
                     self._assert_all_owned(existing)
                     return existing
-                raise TransactionError("an installer transaction already exists")
+                # A rollback that finished put the host back as it was, so
+                # there is nothing left for this guard to protect. Refusing
+                # here only makes an operator clear state by hand on a host
+                # where nothing is installed. An interrupted transaction is a
+                # different matter -- it still owns things, and `resume` and
+                # `repair` exist for it -- so only a completed rollback is
+                # cleared.
+                if existing.status != "rolled_back":
+                    raise TransactionError(
+                        "an installer transaction already exists"
+                    )
+                self.store.state_path.unlink(missing_ok=True)
             self._validate_adapters(plan)
             self.store.write_plan(plan)
             state = TransactionState(

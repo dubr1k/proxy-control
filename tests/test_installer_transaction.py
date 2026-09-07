@@ -1097,3 +1097,51 @@ def test_reapplying_the_same_intent_after_the_host_changed_is_a_no_op(
 
     assert again.transaction_id == first.transaction_id
     assert adapter.counter.read_text() == mutations
+
+
+def test_a_completed_rollback_does_not_block_the_next_attempt(tmp_path):
+    """A rollback that finished put the host back as it was, so there is
+    nothing left to protect. Refusing the next attempt only forces an operator
+    to clear state by hand -- on a host where nothing was installed."""
+    from installer.transaction import TransactionState
+
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.store.initialize()
+    engine.store.write_plan(plan)
+    engine._persist(
+        TransactionState(
+            transaction_id="0" * 32,
+            status="rolled_back",
+            plan_digest=plan.digest,
+            accepted_digest=plan.digest,
+        )
+    )
+
+    state = engine.apply(plan, accepted_digest=plan.digest)
+
+    assert state.status == "active"
+
+
+def test_an_interrupted_transaction_still_blocks_a_fresh_start(tmp_path):
+    """An installation that stopped half-way owns things on the host. Starting
+    over would abandon them; `resume` and `repair` exist for that."""
+    from installer.transaction import TransactionError, TransactionState
+
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.store.initialize()
+    engine.store.write_plan(plan)
+    engine._persist(
+        TransactionState(
+            transaction_id="0" * 32,
+            status="applying",
+            plan_digest=plan.digest,
+            accepted_digest=plan.digest,
+        )
+    )
+
+    with pytest.raises(TransactionError, match="already exists"):
+        engine.apply(plan, accepted_digest=plan.digest)
