@@ -4,7 +4,7 @@ import hashlib
 import ipaddress
 import re
 from collections.abc import Mapping
-from dataclasses import replace, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from installer.model import HostMode, InstallerConfig, ThreeXuiMode
@@ -103,16 +103,18 @@ class FirewallAdapter:
         if getattr(facts, "hard_stops", ()):
             raise FirewallError("host audit contains blocking findings")
         ssh_port = self._ssh_port(facts)
-        # A fresh host arrives with UFW installed and switched off. Asking the
-        # operator to turn it on first is the kind of manual step this
-        # installer exists to remove, so it turns it on -- SSH first, checked,
-        # and only then the firewall itself.
-        self._ensure_enabled(facts, ssh_port)
-        self._validate_ownership(self._reread_ownership(facts))
+        # A fresh host arrives with UFW installed and switched off. Turning it
+        # on is part of the installation, not a prerequisite for planning it:
+        # planning must observe the host, never change it, or the same plan
+        # digests differently the second time it is computed.
+        enable = self._enable_needed(facts)
+        self._validate_ownership(facts, enabling=enable)
         ipv6_enabled = _ipv6_enabled(facts)
         self._assert_ipv6_mode(ipv6_enabled)
-        rules = self._status()
-        _assert_ssh_preserved(rules, ssh_port, ipv6_enabled)
+        if not enable:
+            # An inactive UFW has no rules to preserve yet; the enable itself
+            # puts the SSH rule in first, before the firewall starts denying.
+            _assert_ssh_preserved(self._status(), ssh_port, ipv6_enabled)
         desired = _selected_ports(config)
         return (
             Action(
@@ -122,6 +124,7 @@ class FirewallAdapter:
                 mutations=(
                     f"ssh={ssh_port}",
                     f"ipv6={'true' if ipv6_enabled else 'false'}",
+                    f"enable={'true' if enable else 'false'}",
                     *(f"rule={key}" for key in desired),
                 ),
                 preconditions=(
@@ -167,6 +170,8 @@ class FirewallAdapter:
             checkpoint,
             desired,
         )
+        if _action_enable(action):
+            enable_ufw(self.runner.run, ssh_port=_action_ssh_port(action))
         current = self._status()
         _assert_foreign_preserved(initial, current)
         _assert_ssh_preserved(
@@ -449,44 +454,33 @@ class FirewallAdapter:
             raise FirewallError("SSH listener preservation is ambiguous")
         return next(iter(selected))
 
-    def _ensure_enabled(self, facts: AuditFacts, ssh_port: int) -> None:
-        """Enable a UFW that is present, observed, managed, and simply off."""
+    @staticmethod
+    def _enable_needed(facts: AuditFacts) -> bool:
+        """Whether this installation will have to switch UFW on itself."""
         ufw = facts.ownership.get("ufw")
-        if not isinstance(ufw, Mapping):
-            return
-        if ufw.get("active") is True:
-            return
-        if (
-            ufw.get("available") is not True
-            or ufw.get("mode") != "managed"
-            or ufw.get("observation") != "observed"
-        ):
-            # Anything else is somebody's arrangement, and `_validate_ownership`
-            # is the right place to refuse it by name.
-            return
-        enable_ufw(self.runner.run, ssh_port=ssh_port)
-        self._enabled_here = True
-
-    def _reread_ownership(self, facts: AuditFacts) -> AuditFacts:
-        """Reflect an enable this planning step just performed."""
-        if not getattr(self, "_enabled_here", False):
-            return facts
-        ufw = dict(facts.ownership.get("ufw") or {})
-        ufw["active"] = True
-        ownership = {**facts.ownership, "ufw": ufw}
-        return replace(facts, ownership=ownership)
+        if not isinstance(ufw, Mapping) or ufw.get("active") is True:
+            return False
+        return (
+            ufw.get("available") is True
+            and ufw.get("mode") == "managed"
+            and ufw.get("observation") == "observed"
+        )
 
     @staticmethod
-    def _validate_ownership(facts: AuditFacts) -> None:
+    def _validate_ownership(facts: AuditFacts, *, enabling: bool = False) -> None:
         ufw = facts.ownership.get("ufw")
+        expected = {
+            "active": True,
+            "available": True,
+            "mode": "managed",
+            "observation": "observed",
+        }
+        if enabling:
+            # This installation switches it on, so being off is exactly the
+            # state it expects to find.
+            expected.pop("active")
         if not isinstance(ufw, Mapping) or any(
-            ufw.get(key) != value
-            for key, value in {
-                "active": True,
-                "available": True,
-                "mode": "managed",
-                "observation": "observed",
-            }.items()
+            ufw.get(key) != value for key, value in expected.items()
         ):
             raise FirewallError("active managed UFW ownership is not established")
         foreign = facts.ownership.get("firewall")
@@ -496,6 +490,11 @@ class FirewallAdapter:
                 "ufw",
             }:
                 raise FirewallError("foreign firewall ownership is present")
+
+
+def _action_enable(action: Action) -> bool:
+    """Whether this action is the one that switches the firewall on."""
+    return any(mutation == "enable=true" for mutation in action.mutations)
 
 
 def enable_ufw(run, *, ssh_port: int) -> None:
@@ -667,6 +666,7 @@ def _action_rules(action: Action) -> tuple[str, ...]:
     values: list[str] = []
     ssh_seen = False
     ipv6_seen = False
+    enable_seen = False
     for mutation in action.mutations:
         key, separator, value = mutation.partition("=")
         if separator != "=":
@@ -677,6 +677,10 @@ def _action_rules(action: Action) -> tuple[str, ...]:
             continue
         if key == "ipv6" and not ipv6_seen:
             ipv6_seen = True
+            _parse_boolean(value)
+            continue
+        if key == "enable" and not enable_seen:
+            enable_seen = True
             _parse_boolean(value)
             continue
         if key != "rule":
