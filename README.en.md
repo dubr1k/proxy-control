@@ -488,6 +488,15 @@ The Reality keypair is minted by the very Xray that will serve it, and the cover
 site is the panel's own local TLS listener: a foreign site can change its
 certificate or disappear, and Reality then fails for every client at once.
 
+> [!NOTE]
+> The 3x-ui subscription is **not published** yet. It lives on its own port and,
+> after an installation, is reachable only from the server itself. The reason is
+> how port 443 is shared: Nginx picks the recipient from the name in the TLS
+> greeting, one name means one recipient, and the panel and the subscription
+> listen on different ports -- so the subscription needs a domain of its own.
+> That domain arrives together with publishing the subscription automatically;
+> until then it is absent, and we will not claim otherwise.
+
 Upgrading an already installed 3x-ui is prepared in the adapter as its own
 transaction, but no command exposes it yet — upgrade it with 3x-ui's own
 tooling.
@@ -775,8 +784,8 @@ coexistence — runs against a real release archive in two labs: a disposable
 systemd container and a disposable bare-metal host. Each protocol is accepted
 with a real client.
 
-Not claimed as completed: production Fleet enrollment, billing-grade traffic
-accounting, and WARP egress, which has no automated acceptance — if you turn
+Not claimed as completed: publishing the 3x-ui subscription (planned),
+production Fleet enrollment, billing-grade traffic accounting, and WARP egress, which has no automated acceptance — if you turn
 `warp = true` on, verify the tunnel yourself. The `managed-new` mode was driven
 against a real 3x-ui `3.7.0` call by call, but is not yet exercised end to end
 in the lab: the lab builds a coexistence topology and this mode needs a fresh
