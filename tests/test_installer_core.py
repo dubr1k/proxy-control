@@ -1217,3 +1217,29 @@ def test_a_failed_acceptance_step_carries_what_the_probe_said():
     message = str(caught.value)
     assert "resPQ" in message
     assert "no route to the datacenter" in message
+
+
+def test_a_probe_image_built_from_older_sources_is_not_compatible():
+    """An image whose sources differ from the release being installed runs code
+    the operator did not install -- which is how a shipped fix stayed unused."""
+    from installer.adapters.core import _DefaultCoreRunner
+
+    runner = _DefaultCoreRunner()
+    runner.probe_sources_sha256 = "a" * 64
+    runner._probe_image_label = lambda image, label: {
+        "org.proxy-control.respq-probe.version": "1.0.0",
+        "org.proxy-control.respq-probe.tdlib": "0.1008066.0",
+        "org.proxy-control.respq-probe.tdl": "8.1.0",
+        "org.proxy-control.respq-probe.sources": "b" * 64,
+    }[label]
+
+    assert runner.probe_image_compatible("mtproxy-respq-probe:1.0.0") is False
+
+    runner._probe_image_label = lambda image, label: {
+        "org.proxy-control.respq-probe.version": "1.0.0",
+        "org.proxy-control.respq-probe.tdlib": "0.1008066.0",
+        "org.proxy-control.respq-probe.tdl": "8.1.0",
+        "org.proxy-control.respq-probe.sources": "a" * 64,
+    }[label]
+
+    assert runner.probe_image_compatible("mtproxy-respq-probe:1.0.0") is True

@@ -22,7 +22,13 @@ source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 python3 -c \
     'import json, sys; dependencies = json.load(open(sys.argv[1], encoding="utf-8"))["packages"][""]["dependencies"]; expected = {"prebuilt-tdlib": sys.argv[2], "tdl": sys.argv[3]}; raise SystemExit(0 if dependencies == expected else "locked probe dependency mismatch")' \
     "$source_dir/package-lock.json" "$TDLIB_VERSION" "$TDL_VERSION"
-build=(docker build --pull --tag "$IMAGE")
+# The image carries the digest of the sources it was built from. Without it an
+# image built from older sources looks current, and a fix that shipped in a
+# release never reaches the container that runs it.
+sources_sha256=$(cat "$source_dir/src/index.cjs" "$source_dir/Dockerfile" \
+    "$source_dir/package-lock.json" | sha256sum | cut -d" " -f1)
+build=(docker build --pull --tag "$IMAGE"
+    --label "org.proxy-control.respq-probe.sources=$sources_sha256")
 if [[ -n $owner_id ]]; then
     build+=(--label "org.proxy-control.respq-probe.owner=$owner_id")
 fi

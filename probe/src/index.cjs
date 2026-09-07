@@ -15,6 +15,15 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+// Say why the check failed. A bare "verification failed" cannot tell a broken
+// proxy from a host that never reached Telegram, and that is the whole question
+// an operator has to answer. Anything shaped like a proxy secret is removed:
+// TDLib echoes back what it was given.
+function describe(error) {
+  const text = String((error && (error.message || error.code)) || error || "unknown error");
+  return text.replace(/[0-9a-f]{32,}/gi, "[REDACTED]").replace(/\s+/g, " ").slice(0, 300);
+}
+
 function parseArguments(argv) {
   if (argv.length !== 4 || argv[0] !== "--domain" || argv[2] !== "--secrets-file" || argv[3] !== SECRET_PATH) {
     throw new Error("invalid invocation");
@@ -105,4 +114,4 @@ async function main() {
   process.stdout.write(`probe: verified ${secrets.length} configured proxy secret(s)\n`);
 }
 
-main().catch(() => fail("MTProto proxy verification failed"));
+main().catch((error) => fail(`MTProto proxy verification failed: ${describe(error)}`));

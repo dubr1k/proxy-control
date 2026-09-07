@@ -364,3 +364,15 @@ def test_the_changelog_records_the_installer():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "installer" in changelog.lower()
     assert (ROOT / "VERSION").read_text().strip() in changelog
+
+
+def test_the_mtproto_probe_reports_why_it_failed_without_echoing_a_secret():
+    """A bare "verification failed" cannot tell a broken proxy from a host that
+    never reached Telegram, and that is the question an operator has to answer.
+    TDLib echoes back what it was given, so anything shaped like a proxy secret
+    is removed on the way out."""
+    source = (ROOT / "probe/src/index.cjs").read_text(encoding="utf-8")
+
+    assert "describe(error)" in source
+    assert "[REDACTED]" in source
+    assert "main().catch(() => fail(" not in source

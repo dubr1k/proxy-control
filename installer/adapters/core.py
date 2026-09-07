@@ -105,6 +105,14 @@ class _AcceptanceCollision(AcceptanceError):
 
 
 
+def probe_sources_digest(source_dir: Path) -> str:
+    """The digest of the probe sources an image must have been built from."""
+    digest = hashlib.sha256()
+    for name in ("src/index.cjs", "Dockerfile", "package-lock.json"):
+        digest.update((source_dir / "probe" / name).read_bytes())
+    return digest.hexdigest()
+
+
 class _DefaultCoreRunner:
     """Bounded, non-logging host and HTTPS acceptance boundary."""
 
@@ -214,6 +222,8 @@ class _DefaultCoreRunner:
             raise CoreError("probe image identity is invalid")
         return value
 
+    probe_sources_sha256: str = ""
+
     def probe_image_compatible(self, image: str) -> bool:
         return (
             self._probe_image_label(
@@ -231,6 +241,13 @@ class _DefaultCoreRunner:
                 "org.proxy-control.respq-probe.tdl",
             )
             == "8.1.0"
+            # An image built from older sources is not compatible with this
+            # release: the fix that shipped in it would never run.
+            and self._probe_image_label(
+                image,
+                "org.proxy-control.respq-probe.sources",
+            )
+            == self.probe_sources_sha256
         )
 
     def probe_image_owner(self, image: str) -> str | None:
@@ -1959,7 +1976,15 @@ class CoreAdapter:
 
     def _probe_image_compatible(self) -> bool:
         method = getattr(self.runner, "probe_image_compatible", None)
-        return bool(method(_PROBE_IMAGE)) if callable(method) else False
+        if not callable(method):
+            return False
+        # Tell the runner which sources this release ships, so an image built
+        # from older ones is recognised as what it is.
+        try:
+            self.runner.probe_sources_sha256 = probe_sources_digest(self.source_dir)
+        except (OSError, AttributeError):
+            pass
+        return bool(method(_PROBE_IMAGE))
 
     def _probe_image_owner(self) -> str | None:
         method = getattr(self.runner, "probe_image_owner", None)
