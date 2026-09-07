@@ -4,6 +4,7 @@ import json
 import stat
 from pathlib import Path
 
+import subprocess
 import urllib.error
 import urllib.request
 
@@ -1100,3 +1101,46 @@ def test_the_panel_diagnosis_drops_its_own_health_polling():
     )
 
     assert _without_health_polling(noisy) == "ERROR:    the thing that actually went wrong"
+
+
+def test_a_failed_core_command_names_the_command_that_failed():
+    """"Core command failed" says nothing an operator can act on. The real
+    installation rolled back on it twice, and the message named neither the
+    program nor its subcommand."""
+    from installer.adapters.core import CoreAdapter, CoreError
+
+    class Failing:
+        def run(self, argv, **kwargs):
+            del kwargs
+            return subprocess.CompletedProcess(argv, 1, b"", b"unit x-ui not found")
+
+    adapter = CoreAdapter(root=Path("/"), runner=Failing())
+
+    with pytest.raises(CoreError) as caught:
+        adapter._run("systemctl", "enable", "--now", "docker")
+
+    message = str(caught.value)
+    assert "systemctl enable" in message
+    assert "unit x-ui not found" in message
+
+
+def test_a_failed_core_command_never_echoes_a_credential():
+    """Argument lists reach here carrying paths and names, and output can carry
+    anything the command chose to print."""
+    from installer.adapters.core import CoreAdapter, CoreError
+
+    class Leaking:
+        def run(self, argv, **kwargs):
+            del kwargs
+            return subprocess.CompletedProcess(
+                argv, 1, b"", b"password=hunter2 token: abcdef"
+            )
+
+    adapter = CoreAdapter(root=Path("/"), runner=Leaking())
+
+    with pytest.raises(CoreError) as caught:
+        adapter._run("docker", "compose", "up")
+
+    message = str(caught.value)
+    assert "hunter2" not in message
+    assert "abcdef" not in message

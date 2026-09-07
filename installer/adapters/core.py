@@ -2135,7 +2135,11 @@ class CoreAdapter:
             result = self.runner.run(argv)
         returncode = getattr(result, "returncode", 0)
         if returncode:
-            raise CoreError("Core command failed")
+            # "Core command failed" is not something an operator can act on.
+            # Name the program and its subcommand -- never the rest of argv,
+            # which carries paths and names -- and add the command's own last
+            # words, redacted and bounded.
+            raise CoreError(_command_failure(argv, result))
 
     def _run_acceptance(
         self,
@@ -2525,6 +2529,30 @@ def _validate_users(users: Sequence[str]) -> None:
         for name in users
     ):
         raise CoreError("Core users must be unique safe names")
+
+
+def _command_failure(argv: Sequence[str], result: object) -> str:
+    """Name the failing program and subcommand, with its own last words."""
+    values = [str(value) for value in argv]
+    program = Path(values[0]).name if values else "command"
+    subcommand = ""
+    for value in values[1:3]:
+        if value.startswith("-") or "/" in value:
+            break
+        subcommand += f" {value}"
+    detail = _sanitize_diagnostic(
+        f"{_as_text(getattr(result, 'stderr', ''))}\n"
+        f"{_as_text(getattr(result, 'stdout', ''))}"
+    )
+    named = f"Core command failed: {program}{subcommand}"
+    return f"{named}: {detail}" if detail else named
+
+
+def _as_text(value: object) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return "" if value is None else str(value)
+
 
 
 def _sanitize_diagnostic(value: str, *, max_chars: int = 900) -> str:
