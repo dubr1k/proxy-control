@@ -1033,7 +1033,9 @@ def test_a_failing_command_reports_what_it_said(tmp_path: Path) -> None:
     # ACME output can carry credentials, so it stays suppressed by default.
     with pytest.raises(TopologyError) as suppressed:
         plan._run_checked(("certbot", "renew"), "renewal failed")
-    assert str(suppressed.value) == "renewal failed"
+    assert str(suppressed.value).startswith("renewal failed:")
+    assert "/var/log/letsencrypt/letsencrypt.log" in str(suppressed.value)
+    assert "abcdef" not in str(suppressed.value)
 
 
 class NginxReloadRecovery:

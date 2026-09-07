@@ -1710,6 +1710,7 @@ class CertificatePlan:
         except Exception:
             success = False
             specification = _certificate_action(action)
+            getattr(self, "_renewal_evidence", {}).pop(str(specification["certificate"]), None)
         return Evidence(
             action_id=action.id,
             success=success,
@@ -1922,6 +1923,22 @@ class CertificatePlan:
         self._run_checked(tuple(argv), "certificate issuance failed")
 
     def _run_renewal(self, specification: Mapping[str, object]) -> None:
+        name = str(specification["certificate"])
+        # apply and verify share one adapter. A second immediate dry-run can
+        # deactivate the authorization the first just proved. Reuse only this
+        # process's success for the exact unchanged certificate/renewal files.
+        paths = (
+            self.root / "etc/letsencrypt/renewal" / f"{name}.conf",
+            self.root / "etc/letsencrypt/live" / name / "fullchain.pem",
+        )
+        identity = None
+        if all(path.is_file() for path in paths):
+            identity = tuple(hashlib.sha256(path.read_bytes()).hexdigest() for path in paths)
+        cache = getattr(self, "_renewal_evidence", {})
+        if identity is not None and cache.get(name) == identity:
+            # Consume this one apply-to-verify handoff, not future checks.
+            cache.pop(name, None)
+            return
         self._run_checked(
             (
                 "certbot",
@@ -1933,6 +1950,8 @@ class CertificatePlan:
             ),
             "certificate renewal dry run failed",
         )
+        if identity is not None:
+            self._renewal_evidence = {**cache, name: identity}
 
     def _lineage_state(self, specification: Mapping[str, object]) -> str:
         certificate = str(specification["certificate"])
@@ -2210,11 +2229,23 @@ class CertificatePlan:
         without that an operator is told a reload failed and nothing about why.
         """
         result = self.runner.run(argv)
+        # Certbot 2.9 deactivates a cached staging authorization. Boulder may
+        # briefly return the just-invalidated order to the next new-order call.
+        # Retry that specific race once, never DNS/auth failures in general.
+        if (
+            result.returncode != 0
+            and argv[:2] == ("certbot", "renew")
+            and "--dry-run" in argv
+            and "authorization must be pending" in f"{result.stderr}\n{result.stdout}"
+        ):
+            import time
+            time.sleep(3)
+            result = self.runner.run(argv)
         if result.returncode != 0:
             detail = (
                 _sanitize_diagnostic(f"{result.stderr}\n{result.stdout}")
                 if include_output
-                else ""
+                else "see /var/log/letsencrypt/letsencrypt.log for the full ACME reason"
             )
             raise TopologyError(f"{message}: {detail}" if detail else message)
 
@@ -2250,6 +2281,8 @@ def _certificate_groups(
                     (config.three_xui.hysteria_domain,),
                 )
             )
+    if config.three_xui.subscription_domain is not None:
+        groups.append(("three-xui-subscription", config.three_xui.subscription_domain, (config.three_xui.subscription_domain,)))
     return tuple(sorted(groups))
 
 

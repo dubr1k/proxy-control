@@ -137,12 +137,14 @@ class CommandRunner:
         self._executor = executor or _bounded_execute
         self._resolver = resolver
 
-    def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    def run(self, argv: Sequence[str], *, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
         command = _validated_argv(argv)
+        if timeout is not None and not 0 < timeout < float("inf"):
+            raise ValueError("timeout must be positive and finite")
         try:
             result = self._executor(
                 command,
-                timeout=self.timeout,
+                timeout=self.timeout if timeout is None else min(self.timeout, timeout),
                 max_output=self.max_output,
             )
         except CommandUnavailable:

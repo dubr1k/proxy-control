@@ -396,11 +396,11 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
             return False
 
 
-def _default_api_factory(port: int, base_path: str = "/"):
+def _default_api_factory(port: int, base_path: str = "/", *, certificate: Path | None = None):
     """One client against the local panel, under the path it now answers on."""
     from installer.three_xui_api import ThreeXuiApi, ThreeXuiClient
 
-    return ThreeXuiApi(ThreeXuiClient(port=port), base_path=base_path)
+    return ThreeXuiApi(ThreeXuiClient(port=port, certificate=certificate), base_path=base_path)
 
 
 class ThreeXuiAdapter:
@@ -662,6 +662,8 @@ class ThreeXuiAdapter:
             if domain is None:
                 raise PlanError("managed 3x-ui requires every selected domain")
             routes.append((domain.lower(), f"127.0.0.1:{backend}"))
+        if config.three_xui.subscription_domain is not None:
+            routes.append((config.three_xui.subscription_domain, "127.0.0.1:2096"))
         return tuple(sorted(routes))
 
     def _route_action(
@@ -715,6 +717,9 @@ class ThreeXuiAdapter:
                 f"vless-xhttp-backend={_VLESS_XHTTP_BACKEND}",
                 f"panel-backend={_PANEL_BACKEND}",
                 f"warp={'true' if config.three_xui.warp else 'false'}",
+                f"warp-port={config.three_xui.warp_port}",
+                f"warp-domains={','.join(config.three_xui.warp_domains)}",
+                f"subscription-domain={config.three_xui.subscription_domain or ''}",
             ),
             preconditions=(
                 "no x-ui database, binary tree, unit, user, or listener exists",
@@ -785,18 +790,28 @@ class ThreeXuiAdapter:
                 password_path=credential,
                 web_path=self.web_path,
                 port=_DEFAULT_PANEL_PORT,
+                panel_domain=config.three_xui.panel_domain,
             )
             # The settings are stored at once but the listener does not move
             # until the service restarts, so the restart is part of the move.
             self._run("systemctl", "restart", _UNIT_NAME)
             self._await_panel(_PANEL_BACKEND)
-            api = self.api_factory(_PANEL_BACKEND, self.web_path)
+            if self.api_factory is _default_api_factory:
+                certificate = self._host(f"{_LINEAGE_ROOT}/{config.three_xui.panel_domain}/fullchain.pem")
+                api = self.api_factory(_PANEL_BACKEND, self.web_path, certificate=certificate)
+            else:
+                api = self.api_factory(_PANEL_BACKEND, self.web_path)
             api.login(self.panel_username, password)
-            return self.configure_managed(
+            configured = self.configure_managed(
                 config,
                 api,
                 generator=SystemSecrets(keypair=self.reality_keypair()),
             )
+            # Subscription certificate/listener changes are stored by v3.7.0
+            # but do not become live until the panel service is restarted.
+            self._run("systemctl", "restart", _UNIT_NAME)
+            self._await_panel(_PANEL_BACKEND)
+            return configured
         finally:
             credential.unlink(missing_ok=True)
 
@@ -858,6 +873,9 @@ class ThreeXuiAdapter:
                 vless_xhttp_domain=values["vless-xhttp-domain"],
                 hysteria_domain=values["hysteria-domain"],
                 warp=values.get("warp") == "true",
+                warp_port=int(values.get("warp-port", "45000")),
+                warp_domains=tuple(filter(None, values.get("warp-domains", "").split(","))),
+                subscription_domain=values.get("subscription-domain") or None,
             ),
             firewall=FirewallConfig(manage_ufw=False),
         )
@@ -877,10 +895,12 @@ class ThreeXuiAdapter:
         )
 
         templates = build_managed_inbounds(config, generator=generator)
+        subscription_id = secrets.token_urlsafe(24) if config.three_xui.subscription_domain else None
         persistent = build_managed_clients(
             templates,
             generator=generator,
             prefix="initial",
+            subscription_id=subscription_id,
         )
         acceptance = build_managed_clients(
             templates,
@@ -899,6 +919,17 @@ class ThreeXuiAdapter:
                 inbound.with_clients([*inbound.clients, *extra.clients])
             )
         routing = warp_routing(config)
+        if config.three_xui.warp:
+            api.configure_warp(config)
+        if config.three_xui.subscription_domain:
+            api.configure_subscription(
+                config.three_xui.subscription_domain,
+                certificate=f"{_LINEAGE_ROOT}/{config.three_xui.subscription_domain}/fullchain.pem",
+                private_key=f"{_LINEAGE_ROOT}/{config.three_xui.subscription_domain}/privkey.pem",
+            )
+            path = self._host("/var/lib/proxy-control/three-xui/subscription-url")
+            durable_mkdir(path.parent, mode=0o700)
+            self._atomic(path, f"https://{config.three_xui.subscription_domain}/sub/{subscription_id}\n".encode(), 0o600)
         removed = 0
         for inbound in persistent:
             api.replace_clients(identifiers[inbound.tag], inbound)
@@ -922,11 +953,11 @@ class ThreeXuiAdapter:
         password_path: Path,
         web_path: str,
         port: int,
+        panel_domain: str,
     ) -> None:
-        """Rotate the upstream first-run credential inside a private namespace.
-
-        Not reached in this release, for the same reason as `configure_managed`.
-        """
+        """Rotate the first-run credential before exposing the panel."""
+        if not isinstance(panel_domain, str) or not _DOMAIN.fullmatch(panel_domain):
+            raise ThreeXuiError("invalid panel certificate domain")
         session = getattr(self.runner, "bootstrap_session", None)
         if not callable(session):
             raise ThreeXuiError("the 3x-ui bootstrap session is unavailable")
@@ -936,8 +967,8 @@ class ThreeXuiAdapter:
             # Nginx routes the panel's domain here by SNI, so the panel
             # terminates TLS itself with the certificate the installer issued
             # for that domain.
-            "certificate": f"{_LINEAGE_ROOT}/{_PANEL_LINEAGE}/fullchain.pem",
-            "private_key": f"{_LINEAGE_ROOT}/{_PANEL_LINEAGE}/privkey.pem",
+            "certificate": f"{_LINEAGE_ROOT}/{panel_domain}/fullchain.pem",
+            "private_key": f"{_LINEAGE_ROOT}/{panel_domain}/privkey.pem",
             "initial_username": _DEFAULT_CREDENTIAL,
             "initial_password": _DEFAULT_CREDENTIAL,
             "username": username,
@@ -1117,7 +1148,10 @@ class ThreeXuiAdapter:
             return dict(checkpoint)
         selected = self._selection(action)
         if archive is None:
-            raise ThreeXuiError("managed 3x-ui apply requires a verified archive")
+            from installer.adapters.mieru import _download, ensure_pinned_package
+            url, digest = self._pins()
+            archive = self._host(f"/var/cache/proxy-control/three-xui-{digest}.tar.gz")
+            ensure_pinned_package(archive, url, digest, fetch=getattr(self.runner, "fetch_artifact", _download))
         self.assert_absent()
         staging, tree = self.stage(action, archive)
         try:
@@ -1134,12 +1168,12 @@ class ThreeXuiAdapter:
         else:
             raise ThreeXuiError("3x-ui checkpoint is invalid")
         self._run("systemctl", "daemon-reload")
-        self._run("systemctl", "enable", "--now", _UNIT_NAME)
         del selected
         # Starting the service is not an installation: on its own it leaves an
         # empty panel on its default public ports with the upstream first-run
         # credential still working.
         provisioned = self.provision(action, password=self._panel_password())
+        self._run("systemctl", "enable", _UNIT_NAME)
         return {
             **dict(checkpoint),
             "staged": True,
@@ -1501,8 +1535,11 @@ class ThreeXuiAdapter:
         shutil.copytree(staged, destination, symlinks=False)
         os.chmod(self._host(self.paths.binary), 0o755)
         unit_source = staged / "x-ui.service"
-        if unit_source.is_file():
-            self._atomic(self._host(self.paths.unit), unit_source.read_bytes(), 0o644)
+        if not unit_source.is_file():
+            unit_source = staged / "x-ui.service.debian"
+        if not unit_source.is_file():
+            raise ArtifactError("pinned 3x-ui archive has no Debian service unit")
+        self._atomic(self._host(self.paths.unit), unit_source.read_bytes(), 0o644)
 
     def _ownership(self) -> dict[str, dict[str, object]]:
         ownership: dict[str, dict[str, object]] = {}

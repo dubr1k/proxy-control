@@ -1085,6 +1085,11 @@ class CoreAdapter:
         self._selection(action)
         project = self._host(self.paths.project_dir)
         kind = self._project_kind(project)
+        if kind == "absent" and self._volumes_present():
+            raise CoreError(
+                "orphaned mtproxy volumes require a proven owned recovery generation; "
+                "restore its credentials or explicitly back up and purge the old lab data"
+            )
         if kind == "absent" and self._compose_present():
             raise CoreError(
                 "active mtproxy resources require a proven owned recovery generation"
@@ -2327,6 +2332,8 @@ class CoreAdapter:
                 if not path.is_file() and not path.is_symlink():
                     continue
                 relative = path.relative_to(project).as_posix()
+                if relative in _ADJACENT_CREDENTIALS:
+                    continue
                 preserve = (
                     relative in _PRESERVED_CREDENTIALS
                     or relative == self.paths.marker_name

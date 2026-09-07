@@ -12,6 +12,7 @@ import http.client
 import json
 import re
 import secrets
+import ssl
 import urllib.parse
 import uuid
 from collections.abc import Mapping, Sequence
@@ -44,7 +45,7 @@ PANEL_COVER_PORT = 8443
 # x-ui and then confirm the move, or the panel goes on answering on *:2053.
 PANEL_MOVE_REQUIRES_RESTART = True
 
-WARP_OUTBOUND_TAG = "warp"
+WARP_OUTBOUND_TAG = "WARP"
 _MANDATORY_FINAL_RULE = {"outboundTag": "direct", "network": "tcp,udp"}
 _SAFE_TAG = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 _SAFE_PATH = re.compile(r"/[A-Za-z0-9_./{}-]{0,255}\Z")
@@ -101,6 +102,7 @@ class ManagedClient:
     # Vision is the flow a Reality TCP inbound is served with. XHTTP has no
     # flow, and sending one there breaks the inbound.
     flow: str = ""
+    subscription_id: str | None = None
 
     def __post_init__(self) -> None:
         if _SAFE_TAG.fullmatch(self.email) is None:
@@ -110,18 +112,21 @@ class ManagedClient:
         values = {self.client_id}
         if self.password:
             values.add(self.password)
+        if self.subscription_id:
+            values.add(self.subscription_id)
         return frozenset(values)
 
     def settings(self, protocol: str) -> dict[str, object]:
         # Hysteria2 authenticates with "auth"; a client sent as "password" is
         # stored and then never authenticates anybody.
         if protocol == "hysteria":
-            return {"email": self.email, "auth": self.password or ""}
+            return {"email": self.email, "auth": self.password or "", **({"subId": self.subscription_id} if self.subscription_id else {})}
         return {
             "id": self.client_id,
             "email": self.email,
             "flow": self.flow,
             "enable": True,
+            **({"subId": self.subscription_id} if self.subscription_id else {}),
         }
 
 
@@ -312,6 +317,7 @@ def build_managed_clients(
     generator: SecretGenerator,
     prefix: str,
     acceptance: bool = False,
+    subscription_id: str | None = None,
 ) -> tuple[ManagedInbound, ...]:
     """Attach one distinct client per inbound; acceptance clients are removable."""
     attached = []
@@ -321,6 +327,7 @@ def build_managed_clients(
             client_id=generator.client_id(),
             password=generator.password() if inbound.protocol == "hysteria" else None,
             acceptance=acceptance,
+            subscription_id=subscription_id if not acceptance else None,
             # Vision belongs to Reality over TCP only.
             flow=(
                 "xtls-rprx-vision"
@@ -347,14 +354,14 @@ def warp_routing(
         "tag": WARP_OUTBOUND_TAG,
         "protocol": "socks",
         "settings": {
-            "servers": [{"address": "127.0.0.1", "port": 45000}],
+            "servers": [{"address": "127.0.0.1", "port": config.three_xui.warp_port}],
         },
     }
     rules = [rule for rule in existing_rules if rule != _MANDATORY_FINAL_RULE]
     rules.append(
         {
             "type": "field",
-            "domain": [f"domain:{domain}" for domain in domains],
+            "domain": [domain if domain.startswith(("domain:", "geosite:")) else f"domain:{domain}" for domain in domains],
             "outboundTag": WARP_OUTBOUND_TAG,
         }
     )
@@ -373,6 +380,7 @@ class ThreeXuiClient:
         *,
         timeout: float = _TIMEOUT,
         connection_factory=None,
+        certificate: Path | None = None,
     ) -> None:
         if host not in _LOOPBACK_HOSTS:
             raise ThreeXuiApiError("the 3x-ui API is only reachable on loopback")
@@ -381,9 +389,24 @@ class ThreeXuiClient:
         self.host = host
         self.port = port
         self.timeout = timeout
+        self._pin = None
+        if certificate is not None:
+            try:
+                leaf = certificate.read_text().split('-----END CERTIFICATE-----', 1)[0] + '-----END CERTIFICATE-----\n'
+                self._pin = ssl.PEM_cert_to_DER_cert(leaf)
+            except Exception as exc:
+                raise ThreeXuiApiError("invalid managed panel certificate") from _Sanitized(exc)
         self._factory = connection_factory or self._default_factory
 
     def _default_factory(self):
+        if self._pin is not None:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            # Exact leaf pin is checked after TLS handshake, BEFORE any request.
+            # This intentionally authenticates the installed certificate rather
+            # than a loopback hostname which is absent from public certificates.
+            return http.client.HTTPSConnection(self.host, self.port, timeout=self.timeout, context=context)
         return http.client.HTTPConnection(
             self.host,
             self.port,
@@ -402,6 +425,10 @@ class ThreeXuiClient:
             raise ThreeXuiApiError("the 3x-ui request path is invalid")
         connection = self._factory()
         try:
+            if self._pin is not None:
+                connection.connect()
+                if connection.sock is None or not secrets.compare_digest(connection.sock.getpeercert(binary_form=True), self._pin):
+                    raise ThreeXuiApiError("managed panel certificate pin mismatch")
             connection.request(method, path, body=body, headers=dict(headers))
             response = connection.getresponse()
             payload = response.read(_MAX_RESPONSE_BYTES + 1)
@@ -416,7 +443,7 @@ class ThreeXuiClient:
             raise
         except Exception as exc:
             raise ThreeXuiApiError(
-                f"the local 3x-ui request to {path} failed"
+                "the local 3x-ui request failed"
             ) from _Sanitized(exc)
         finally:
             try:
@@ -730,6 +757,58 @@ class ThreeXuiApi:
             payload=inbound.request_body(),
             parameters={"inbound_id": inbound_id},
         )
+
+    def configure_subscription(self, domain: str, *, certificate: str, private_key: str) -> None:
+        desired = {
+            "subEnable": True, "subListen": "127.0.0.1", "subPort": 2096,
+            "subPath": "/sub/", "subURI": f"https://{domain}/sub/",
+            "subDomain": domain, "subCertFile": certificate, "subKeyFile": private_key,
+            "subJsonEnable": False, "subEncrypt": False,
+        }
+        current = self._call("all_settings").get("obj")
+        if not isinstance(current, Mapping):
+            raise ThreeXuiApiError("invalid subscription settings response")
+        self._call("update_settings", payload={key: _form_value(value) for key, value in {**current, **desired}.items() if not key.startswith("has")})
+        observed = self._call("all_settings").get("obj")
+        if not isinstance(observed, Mapping):
+            raise ThreeXuiApiError("invalid subscription settings read-back")
+        if any(str(_form_value(observed.get(key))) != str(_form_value(value)) for key, value in desired.items()):
+            raise ThreeXuiApiError("subscription settings read-back mismatch")
+
+    def xray_settings(self) -> dict[str, object]:
+        value = self._call("xray_settings").get("obj")
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                raise ThreeXuiApiError("invalid Xray settings response") from None
+        if not isinstance(value, dict) or not isinstance(value.get("xraySetting"), dict):
+            raise ThreeXuiApiError("Xray settings response has no template")
+        return value
+
+    def configure_warp(self, config: InstallerConfig) -> None:
+        current = self.xray_settings()
+        template = current["xraySetting"]
+        if not isinstance(template, dict):
+            raise ThreeXuiApiError("invalid Xray template")
+        outbounds = template.get("outbounds", [])
+        routing = template.get("routing", {})
+        if not isinstance(outbounds, list) or not isinstance(routing, dict):
+            raise ThreeXuiApiError("invalid Xray outbound/routing template")
+        if any(item.get("tag") == WARP_OUTBOUND_TAG for item in outbounds):
+            raise ThreeXuiApiError("pre-existing WARP outbound requires explicit migration")
+        policy = warp_routing(config, existing_rules=routing.get("rules", []))
+        candidate = {
+            **template,
+            "outbounds": [*outbounds, *policy["outbounds"]],
+            "routing": {**routing, "rules": policy["rules"]},
+        }
+        self._call("update_xray_settings", payload={
+            "xraySetting": json.dumps(candidate, separators=(",", ":")),
+            "outboundTestUrl": current.get("outboundTestUrl", "https://www.google.com/generate_204"),
+        })
+        if self.xray_settings()["xraySetting"] != candidate:
+            raise ThreeXuiApiError("WARP template read-back mismatch")
 
     def effective_config(self) -> dict[str, object]:
         """Return the effective inbound view, with no client credentials."""

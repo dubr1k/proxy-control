@@ -1,0 +1,106 @@
+{
+  "archive_sha256": "0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5",
+  "version": "3.7.0",
+  "entries": [
+    {
+      "path": "x-ui",
+      "mode": 493,
+      "kind": "directory"
+    },
+    {
+      "path": "x-ui/x-ui",
+      "mode": 493,
+      "kind": "file",
+      "sha256": "4738190332c5480ec96fd72e10a21157ee4bcf91c240a9b4b061d14f15092298"
+    },
+    {
+      "path": "x-ui/x-ui.service.debian",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "513f84fd2be16e3eec41e61acdd72c32cc639715eb4105e6dd9dc5ff190e5aec"
+    },
+    {
+      "path": "x-ui/bin",
+      "mode": 493,
+      "kind": "directory"
+    },
+    {
+      "path": "x-ui/bin/geoip_IR.dat",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "cfb5cc31cbf70afc90152012f3d72b61290f062cd910c2d14cb423328aa45498"
+    },
+    {
+      "path": "x-ui/bin/geosite.dat",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "add5027bf389b8a035797ca1de6ed5b4ed59cef40162fa2913dc42ee4d8819ec"
+    },
+    {
+      "path": "x-ui/bin/geoip_RU.dat",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "2b2cd19030f4c3abd5b75d5476cfa11691060c52985d22296b1a26a5ec2f38e6"
+    },
+    {
+      "path": "x-ui/bin/geosite_IR.dat",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "cbdee9b1836f4a3f0d391a0715e79c4d39e60ae052fddba9abf9cc55d05ffd4f"
+    },
+    {
+      "path": "x-ui/bin/mtg-linux-amd64",
+      "mode": 493,
+      "kind": "file",
+      "sha256": "8923e0d696dfbe81197355db1720402ad00e26d346df9283b1e76f3d9af5d3e5"
+    },
+    {
+      "path": "x-ui/bin/README.md",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "0d098928cf19c756a8c956c0b5ca736b75f9eaff0765fd71c26a3dcb413a3dde"
+    },
+    {
+      "path": "x-ui/bin/LICENSE",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+    },
+    {
+      "path": "x-ui/bin/geoip.dat",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "8ebcb11333f7deed4bf2740f2ce3249aa8997ef03d437150c7ae373c011cd72a"
+    },
+    {
+      "path": "x-ui/bin/geosite_RU.dat",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "76fdbe01687a6cc7683b50c38ceea84941458e8371d215918daf555665a537cd"
+    },
+    {
+      "path": "x-ui/bin/xray-linux-amd64",
+      "mode": 493,
+      "kind": "file",
+      "sha256": "64d46afb80adea1bf97a0d467e83f4a9ac1ebd0995891e84bca3f1a1d1affb1d"
+    },
+    {
+      "path": "x-ui/x-ui.sh",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "cfabcd4af35a3646c374ea0ccba5178f4c0d3135f699277fc8d8b810158e85c0"
+    },
+    {
+      "path": "x-ui/x-ui.service.arch",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "4d55c7cdfd05cbdf1ed54b0d5fecdc79ca8fbe8d48fc7a1460db1d89c3762242"
+    },
+    {
+      "path": "x-ui/x-ui.service.rhel",
+      "mode": 420,
+      "kind": "file",
+      "sha256": "8669748361612b2ee17f2d03ffc43520c91ef39b0cb343712608bfc965ab518c"
+    }
+  ]
+}
