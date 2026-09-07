@@ -4,7 +4,7 @@ import hashlib
 import ipaddress
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import replace, dataclass
 from typing import TYPE_CHECKING
 
 from installer.model import HostMode, InstallerConfig, ThreeXuiMode
@@ -102,8 +102,13 @@ class FirewallAdapter:
             return ()
         if getattr(facts, "hard_stops", ()):
             raise FirewallError("host audit contains blocking findings")
-        self._validate_ownership(facts)
         ssh_port = self._ssh_port(facts)
+        # A fresh host arrives with UFW installed and switched off. Asking the
+        # operator to turn it on first is the kind of manual step this
+        # installer exists to remove, so it turns it on -- SSH first, checked,
+        # and only then the firewall itself.
+        self._ensure_enabled(facts, ssh_port)
+        self._validate_ownership(self._reread_ownership(facts))
         ipv6_enabled = _ipv6_enabled(facts)
         self._assert_ipv6_mode(ipv6_enabled)
         rules = self._status()
@@ -444,6 +449,33 @@ class FirewallAdapter:
             raise FirewallError("SSH listener preservation is ambiguous")
         return next(iter(selected))
 
+    def _ensure_enabled(self, facts: AuditFacts, ssh_port: int) -> None:
+        """Enable a UFW that is present, observed, managed, and simply off."""
+        ufw = facts.ownership.get("ufw")
+        if not isinstance(ufw, Mapping):
+            return
+        if ufw.get("active") is True:
+            return
+        if (
+            ufw.get("available") is not True
+            or ufw.get("mode") != "managed"
+            or ufw.get("observation") != "observed"
+        ):
+            # Anything else is somebody's arrangement, and `_validate_ownership`
+            # is the right place to refuse it by name.
+            return
+        enable_ufw(self.runner.run, ssh_port=ssh_port)
+        self._enabled_here = True
+
+    def _reread_ownership(self, facts: AuditFacts) -> AuditFacts:
+        """Reflect an enable this planning step just performed."""
+        if not getattr(self, "_enabled_here", False):
+            return facts
+        ufw = dict(facts.ownership.get("ufw") or {})
+        ufw["active"] = True
+        ownership = {**facts.ownership, "ufw": ufw}
+        return replace(facts, ownership=ownership)
+
     @staticmethod
     def _validate_ownership(facts: AuditFacts) -> None:
         ufw = facts.ownership.get("ufw")
@@ -464,6 +496,40 @@ class FirewallAdapter:
                 "ufw",
             }:
                 raise FirewallError("foreign firewall ownership is present")
+
+
+def enable_ufw(run, *, ssh_port: int) -> None:
+    """Turn a default-deny firewall on without locking the operator out.
+
+    The order here is the whole safety property: SSH is allowed first, the
+    allow is checked, and only then is the firewall enabled. A firewall
+    enabled after a failed allow is a locked door with the key inside, so a
+    failure stops before the enable rather than after it.
+    """
+    allow = run(
+        (
+            "ufw",
+            "allow",
+            "proto",
+            "tcp",
+            "from",
+            "any",
+            "to",
+            "any",
+            "port",
+            str(ssh_port),
+            "comment",
+            "proxy-control: preserved SSH",
+        )
+    )
+    if allow.returncode != 0:
+        raise FirewallError(
+            "refusing to enable UFW: the SSH allow rule could not be added"
+        )
+    enabled = run(("ufw", "--force", "enable"))
+    if enabled.returncode != 0:
+        raise FirewallError("UFW could not be enabled")
+
 
 
 def parse_ufw_status(text: str) -> tuple[UfwRule, ...]:
