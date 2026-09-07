@@ -8,6 +8,7 @@ import secrets
 import shutil
 import stat
 import tempfile
+import urllib.request
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -133,6 +134,49 @@ def _command_failure(argv: Sequence[str]) -> str:
     return f"Mieru command failed: {program}{subcommand}"
 
 
+def _download(url: str, destination: Path) -> None:
+    """Fetch one pinned artifact over HTTPS and nothing else."""
+    if not url.startswith("https://"):
+        raise ArtifactError("a pinned artifact must be fetched over HTTPS")
+    request = urllib.request.Request(url, headers={"User-Agent": "proxy-control"})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        if response.status != 200:
+            raise ArtifactError(f"fetching the pinned package returned {response.status}")
+        with destination.open("wb") as output:
+            shutil.copyfileobj(response, output, length=1024 * 1024)
+
+
+def ensure_pinned_package(
+    destination: Path,
+    url: str,
+    digest: str,
+    *,
+    fetch=_download,
+) -> None:
+    """Make sure the pinned package is on disk, fetching it if it is not.
+
+    Staging two .deb files by hand was the last manual step in an otherwise
+    automatic installation. Downloading them is safe precisely because their
+    digests are pinned: a file that does not match is discarded rather than
+    left for a later step to pick up and trust. A package the operator staged
+    themselves is never replaced.
+    """
+    if destination.exists():
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = destination.with_name(f".{destination.name}.fetching")
+    staging.unlink(missing_ok=True)
+    try:
+        fetch(url, staging)
+        if _file_sha256(staging) != digest:
+            raise ArtifactError(
+                "the fetched package digest does not match its pin"
+            )
+        os.replace(staging, destination)
+        os.chmod(destination, 0o644)
+    finally:
+        staging.unlink(missing_ok=True)
+
 class MieruError(RuntimeError):
     """The Mieru ownership boundary cannot be changed safely."""
 
@@ -151,6 +195,10 @@ class _AcceptanceCollision(AcceptanceError):
 
 class _DefaultMieruRunner(_DefaultCoreRunner):
     """Real host commands and acceptance probes for the Mieru boundary."""
+
+    def fetch_artifact(self, url: str, destination: Path) -> None:
+        """Fetch one pinned artifact over HTTPS onto the host."""
+        _download(url, destination)
 
     def identity_owner(self, kind: str, identifier: int) -> str | None:
         """Name the holder of a fixed identity, or None when it is free.
@@ -786,6 +834,9 @@ class MieruAdapter:
         package = Path(str(selected["package"]))
         expected_package = str(selected["package_digest"])
         expected_executable = str(selected["executable_digest"])
+        # An absent package is fetched from its pin rather than asked for: the
+        # digest is what makes the download safe, and it is checked either way.
+        self._fetch_pinned(package, str(selected["architecture"]), expected_package)
         try:
             verify_artifact(package, expected_package)
         except Exception as exc:
@@ -1221,6 +1272,24 @@ class MieruAdapter:
             "egress": values["egress"],
         }
 
+    def _fetch_pinned(self, package: Path, architecture: str, digest: str) -> None:
+        """Fetch the pinned server package when it is not already staged."""
+        if architecture not in _MITA_PINS:
+            return
+        self._fetch_artifact(package, _MITA_PINS[architecture][0], digest)
+
+    def _fetch_artifact(self, package: Path, url: str, digest: str) -> None:
+        """Fetch one pinned artifact, if this runner can reach the network.
+
+        Downloading is a boundary like any other system action, so it lives on
+        the runner. A runner without it -- a test double, say -- simply does
+        not fetch, and the caller's digest check then reports the absence.
+        """
+        fetch = getattr(self.runner, "fetch_artifact", None)
+        if not callable(fetch):
+            return
+        ensure_pinned_package(package, url, digest, fetch=fetch)
+
     def _default_package(self, architecture: str) -> str:
         return f"/var/lib/proxy-control/mita_{_MITA_VERSION}_{architecture}.deb"
 
@@ -1236,8 +1305,9 @@ class MieruAdapter:
         """
         if architecture not in _MIERU_CLIENT_PINS:
             raise ArtifactError("mieru client is not pinned for this architecture")
-        _url, package_digest, executable_digest = _MIERU_CLIENT_PINS[architecture]
+        url, package_digest, executable_digest = _MIERU_CLIENT_PINS[architecture]
         package = self._host(self._default_client_package(architecture))
+        self._fetch_artifact(package, url, package_digest)
         try:
             verify_artifact(package, package_digest)
         except Exception as exc:

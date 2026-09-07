@@ -972,3 +972,59 @@ def test_mieru_replanning_accepts_ports_its_own_server_already_holds():
     unattributed = AuditFacts(listeners={"tcp": (46001,), "udp": (), "owners": {}})
     with pytest.raises(PlanError, match="already claimed"):
         instance._assert_free_listeners(unattributed, transports)
+
+
+def test_a_missing_package_is_fetched_from_its_pin(tmp_path):
+    """Staging two .deb files by hand was the one manual step left in an
+    otherwise automatic installation. The download is safe because the digest
+    is pinned: a fetch that does not match it is discarded."""
+    from installer.adapters.mieru import ensure_pinned_package
+
+    payload = b"a pinned package\n"
+    digest = hashlib.sha256(payload).hexdigest()
+    target = tmp_path / "mita.deb"
+    fetched: list[str] = []
+
+    def fetch(url: str, destination: Path) -> None:
+        fetched.append(url)
+        destination.write_bytes(payload)
+
+    ensure_pinned_package(target, "https://example.invalid/mita.deb", digest, fetch=fetch)
+
+    assert target.read_bytes() == payload
+    assert fetched == ["https://example.invalid/mita.deb"]
+
+
+def test_a_package_that_is_already_staged_is_not_fetched_again(tmp_path):
+    from installer.adapters.mieru import ensure_pinned_package
+
+    payload = b"a pinned package\n"
+    digest = hashlib.sha256(payload).hexdigest()
+    target = tmp_path / "mita.deb"
+    target.write_bytes(payload)
+
+    def fetch(url: str, destination: Path) -> None:
+        raise AssertionError("an operator-staged package must not be replaced")
+
+    ensure_pinned_package(target, "https://example.invalid/mita.deb", digest, fetch=fetch)
+
+
+def test_a_download_that_does_not_match_its_pin_is_discarded(tmp_path):
+    """The pin is the whole reason downloading is safe, so a mismatch leaves
+    nothing behind for a later step to pick up and trust."""
+    from installer.adapters.mieru import ArtifactError, ensure_pinned_package
+
+    target = tmp_path / "mita.deb"
+
+    def fetch(url: str, destination: Path) -> None:
+        del url
+        destination.write_bytes(b"something else entirely\n")
+
+    with pytest.raises(ArtifactError, match="digest"):
+        ensure_pinned_package(
+            target,
+            "https://example.invalid/mita.deb",
+            hashlib.sha256(b"expected\n").hexdigest(),
+            fetch=fetch,
+        )
+    assert not target.exists()

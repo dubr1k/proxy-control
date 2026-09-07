@@ -1095,3 +1095,60 @@ def test_a_reload_failure_that_leaves_nginx_running_is_still_an_error():
     with pytest.raises(TopologyError, match="test reload"):
         reload_nginx(runner, "test reload")
     assert ("systemctl", "restart", "nginx") not in runner.calls
+
+
+STOCK_NGINX_CONF = """\
+user www-data;
+worker_processes auto;
+events { worker_connections 768; }
+http {
+    include /etc/nginx/mime.types;
+    include /etc/nginx/conf.d/*.conf;
+}
+"""
+
+
+def test_a_stock_nginx_gains_the_stream_context_it_lacks(tmp_path: Path):
+    """Ubuntu's stock nginx.conf carries no stream context at all. On a host
+    the installer owns, requiring the operator to add one by hand is exactly
+    the manual step this installer exists to remove."""
+    from installer.adapters.nginx import ensure_stream_context
+
+    conf = tmp_path / "nginx.conf"
+    conf.write_text(STOCK_NGINX_CONF)
+
+    added = ensure_stream_context(conf, "/etc/nginx/stream.d/proxy-control.conf")
+
+    assert added is True
+    text = conf.read_text()
+    assert "stream {" in text
+    assert "include /etc/nginx/stream.d/*.conf;" in text
+    # The http context it already had must survive untouched.
+    assert "include /etc/nginx/conf.d/*.conf;" in text
+
+
+def test_a_config_that_already_streams_is_left_alone(tmp_path: Path):
+    from installer.adapters.nginx import ensure_stream_context
+
+    conf = tmp_path / "nginx.conf"
+    conf.write_text(STOCK_NGINX_CONF + "stream { include /etc/nginx/stream.d/*.conf; }\n")
+    before = conf.read_text()
+
+    assert ensure_stream_context(conf, "/etc/nginx/stream.d/proxy-control.conf") is False
+    assert conf.read_text() == before
+
+
+def test_the_stream_context_is_never_added_inside_another_block(tmp_path: Path):
+    """A stream block nested in http is not a stream context, and nginx would
+    refuse the whole configuration."""
+    from installer.adapters.nginx import ensure_stream_context
+
+    conf = tmp_path / "nginx.conf"
+    conf.write_text(STOCK_NGINX_CONF)
+    ensure_stream_context(conf, "/etc/nginx/stream.d/proxy-control.conf")
+
+    text = conf.read_text()
+    stream_at = text.index("stream {")
+    http_at = text.index("http {")
+    http_end = text.rindex("}", http_at, stream_at) if stream_at > http_at else -1
+    assert stream_at > http_at and http_end != -1

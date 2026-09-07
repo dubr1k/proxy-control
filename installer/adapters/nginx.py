@@ -5,6 +5,7 @@ import fnmatch
 import ipaddress
 import os
 import re
+import shutil
 import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -23,7 +24,11 @@ OWNERSHIP_BEGIN = "# BEGIN PROXY-CONTROL ROUTES"
 OWNERSHIP_END = "# END PROXY-CONTROL ROUTES"
 GENERATED_BEGIN = "# BEGIN PROXY-CONTROL GENERATED STREAM ROUTER"
 GENERATED_END = "# END PROXY-CONTROL GENERATED STREAM ROUTER"
+_NGINX_CONF = "/etc/nginx/nginx.conf"
 _DEFAULT_FRESH_PATH = "/etc/nginx/stream.d/proxy-control.conf"
+# A stream context at the top level: `stream` preceded only by whitespace or a
+# newline, never the word inside another directive.
+_STREAM_CONTEXT = re.compile(r"(?m)^\s*stream\s*\{")
 _VARIABLE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*\Z")
 _SOURCE_MARKER = re.compile(r"# configuration file (/[^:\r\n]+):(?:\r?\n|\Z)")
 _SOURCE_SECTION_MARKER = re.compile(
@@ -582,9 +587,18 @@ class NginxAdapter:
                     "fresh mode cannot replace an active stream router"
                 )
             if not self._fresh_path_is_included(topology):
-                raise TopologyError(
-                    "fresh router path is not included by the stream context"
-                )
+                # A host in fresh mode is the installer's to configure, and a
+                # stock Nginx simply has no stream context. Creating it is part
+                # of the installation, not a prerequisite for it.
+                created = self._create_stream_context()
+                if created:
+                    topology = parse_effective_nginx(
+                        self.runner.capture(("nginx", "-T"))
+                    )
+                if not created or not self._fresh_path_is_included(topology):
+                    raise TopologyError(
+                        "fresh router path is not included by the stream context"
+                    )
             mode = "fresh"
             target_path = self.fresh_path
             variable = "$proxy_control_backend"
@@ -950,6 +964,33 @@ class NginxAdapter:
             )
         if require_owned and not owned:
             raise TopologyError("owned route is not on the active 443 path")
+
+    def _create_stream_context(self) -> bool:
+        """Add the stream context, keeping a copy of what was there before.
+
+        Only ever when there is none. A configuration that already streams but
+        does not include this router is somebody else's arrangement, and this
+        returns False rather than editing it.
+        """
+        config = self._root_path(_NGINX_CONF)
+        if not config.is_file() or config.is_symlink():
+            return False
+        backup = config.with_name(config.name + ".proxy-control-backup")
+        if not backup.exists():
+            shutil.copy2(config, backup)
+        directory = self._root_path(str(Path(self.fresh_path).parent))
+        directory.mkdir(parents=True, exist_ok=True)
+        if not ensure_stream_context(config, self.fresh_path):
+            return False
+        result = self.runner.run(("nginx", "-t"))
+        if result.returncode != 0:
+            shutil.copy2(backup, config)
+            detail = _sanitize_diagnostic(f"{result.stderr}\n{result.stdout}")
+            raise TopologyError(
+                f"adding the stream context left Nginx unable to start: {detail}"
+            )
+        reload_nginx(self.runner, "Nginx reload after adding the stream context")
+        return True
 
     def _fresh_path_is_included(self, topology: NginxTopology) -> bool:
         relative: list[str] = []
@@ -2251,6 +2292,30 @@ def _validate_certificate_facts(
             )
         ):
             raise TopologyError(f"certificate domain preflight failed: {name}")
+
+
+def ensure_stream_context(config_path: Path, router_path: str) -> bool:
+    """Give a stock Nginx the stream context its router file needs.
+
+    Ubuntu ships an nginx.conf with no stream context at all. On a host the
+    installer owns -- which is what fresh mode means -- requiring an operator
+    to add one by hand is exactly the manual step this installer exists to
+    remove. On a host it does not own, it never comes here.
+
+    Returns True when the file was changed, and leaves a configuration that
+    already streams exactly as it was.
+    """
+    text = config_path.read_text(encoding="utf-8")
+    directory = str(Path(router_path).parent)
+    include = f"include {directory}/*.conf;"
+    if _STREAM_CONTEXT.search(text):
+        return False
+    # Appended at the very end, so it lands at the top level rather than
+    # inside http, where nginx would refuse the whole configuration.
+    addition = f"\n# Added by Proxy Control: the shared 443 router lives here.\nstream {{\n    {include}\n}}\n"
+    config_path.write_text(text.rstrip("\n") + "\n" + addition, encoding="utf-8")
+    return True
+
 
 
 def reload_nginx(runner, message: str) -> bool:
