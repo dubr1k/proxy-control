@@ -85,7 +85,7 @@ case_run() {
     scenario=$(tr '\n' ' ' <"$log")
     ((${#scenario} > 2400)) && scenario="...${scenario: -2400}"
     diagnostics=$(host_diagnostics)
-    ((${#diagnostics} > 1500)) && diagnostics="${diagnostics:0:1500}..."
+    ((${#diagnostics} > 2200)) && diagnostics="${diagnostics:0:2200}..."
     message="$scenario $diagnostics"
     emit "$name" failed "$started" "$message"
   fi
@@ -112,6 +112,14 @@ host_diagnostics() {
   # A service that aborts leaves a stack behind. Report it, or the next run
   # only repeats that something died. Say so either way: a silent absence
   # reads as "no crash" when it may only mean the tool is missing.
+  # The panel runs in Compose, so "it did not answer" is not a diagnosis: say
+  # which containers exist, in what state, and what the panel last printed.
+  if command -v docker >/dev/null 2>&1; then
+    printf ' containers: %s' \
+      "$(docker ps -a --format '{{.Names}}={{.State}}/{{.Status}}' 2>&1 | tr '\n' ' ' || true)"
+    printf ' panel-log: %s' \
+      "$(docker logs --tail 15 proxy-control-panel 2>&1 | tr '\n' ' ' || true)"
+  fi
   if command -v coredumpctl >/dev/null 2>&1; then
     printf ' coredump: %s' \
       "$(coredumpctl info --no-pager 2>&1 | tail -n 18 | tr '\n' ' ' || true)"
