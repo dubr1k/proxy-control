@@ -15,19 +15,20 @@ from installer.three_xui_api import warp_routing
 from tests.test_installer_config import FULL_MANAGED_TOML
 
 
-def test_new_install_uses_45000_for_every_warp_consumer():
+def test_new_install_uses_40000_for_every_warp_consumer():
+    from dataclasses import replace
+    from installer.adapters.three_xui import ThreeXuiAdapter
+
     config = parse_config(FULL_MANAGED_TOML.replace('warp = false', 'warp = true'))
-    assert ThreeXuiConfig(mode=config.three_xui.mode).warp_port == 45000
-    assert config.three_xui.warp_port == 45000
-    assert WarpAdapter().plan(config, AuditFacts())[0].mutations == ('port=45000',)
+    assert ThreeXuiConfig(mode=config.three_xui.mode).warp_port == 40000
+    assert config.three_xui.warp_port == 40000
+    assert WarpAdapter().plan(config, AuditFacts())[0].mutations == ('port=40000',)
     for adapter in (NaiveAdapter(), MieruAdapter()):
         selected = adapter._selection(adapter.plan(config, AuditFacts())[0])
-        assert selected['warp_port'] == 45000
-    from dataclasses import replace
+        assert selected['warp_port'] == 40000
     routing_config = replace(config, three_xui=replace(config.three_xui, warp_domains=('example.org',)))
     policy = warp_routing(routing_config, existing_rules=[])
-    assert policy['outbounds'][0]['settings']['servers'][0]['port'] == 45000
-    from installer.adapters.three_xui import ThreeXuiAdapter
+    assert policy['outbounds'][0]['settings']['servers'][0]['port'] == 40000
     xui = ThreeXuiAdapter()
     action = next(a for a in xui.plan(routing_config, AuditFacts()) if a.id == 'three_xui.runtime')
     old_action = replace(action, mutations=tuple(m for m in action.mutations if not m.startswith('warp-port=')))
@@ -70,7 +71,7 @@ class HostCommands:
         elif argv[:2] == ('systemctl', 'is-enabled'):
             output = 'enabled'
         elif argv[0] == 'ss':
-            output = 'LISTEN 0 128 127.0.0.1:45000 0.0.0.0:* users:(("warp-svc",pid=99,fd=1))' if self.connected else ''
+            output = 'LISTEN 0 128 127.0.0.1:40000 0.0.0.0:* users:(("warp-svc",pid=99,fd=1))' if self.connected else ''
         elif argv == ('warp-cli', '--accept-tos', 'connect'):
             self.connected = True
         elif argv[0] == 'curl':
@@ -271,8 +272,8 @@ def test_apply_refuses_foreign_state_appearing_after_prepare(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize('listener', [
-    'LISTEN 0 128 127.0.0.1:45000 0.0.0.0:* users:(("foreign",pid=99,fd=1))',
-    'LISTEN 0 128 0.0.0.0:45000 0.0.0.0:* users:(("warp-svc",pid=99,fd=1))',
+    'LISTEN 0 128 127.0.0.1:40000 0.0.0.0:* users:(("foreign",pid=99,fd=1))',
+    'LISTEN 0 128 0.0.0.0:40000 0.0.0.0:* users:(("warp-svc",pid=99,fd=1))',
 ])
 def test_verify_rejects_foreign_or_public_socks_listener(tmp_path, monkeypatch, listener):
     runner, adapter, plan, store, engine = transaction(tmp_path, monkeypatch)

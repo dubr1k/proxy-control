@@ -757,10 +757,10 @@ def test_naive_sends_every_tunnel_through_warp_when_it_is_enabled():
     assert "egress=proxy" in action.mutations
 
     rendered = NaiveAdapter(source_dir=ROOT).render(action)
-    assert "upstream socks5://127.0.0.1:45000" in rendered.caddyfile_template
+    assert "upstream socks5://127.0.0.1:40000" in rendered.caddyfile_template
     # The upstream belongs inside the single managed forward_proxy block.
     forward = rendered.caddyfile_template.split("forward_proxy {", 1)[1]
-    assert "upstream socks5://127.0.0.1:45000" in forward.split("}", 1)[0]
+    assert "upstream socks5://127.0.0.1:40000" in forward.split("}", 1)[0]
 
 
 def test_naive_stays_direct_without_warp():

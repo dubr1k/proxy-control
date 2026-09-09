@@ -54,7 +54,7 @@ class ThreeXuiConfig:
     hysteria_domain: str | None = None
     warp: bool = False
     warp_domains: tuple[str, ...] = ()
-    warp_port: int = 45000
+    warp_port: int = 40000
     subscription_domain: str | None = None
 
 

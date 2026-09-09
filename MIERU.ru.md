@@ -48,7 +48,7 @@ Production-safe unit использует:
 - socket `/run/mita/mita.sock` mode `0770`;
 - отдельного non-login user `mita`.
 
-Не используйте `RuntimeDirectory=mita` с bind-mounted UDS: restart может заменить directory inode и оставить container на stale mount. Fresh host сначала получает одну валидную generation: selected TCP+UDP bindings, один защищённый bootstrap user и all-domain/all-IP SOCKS5 egress на `127.0.0.1:45000`. Zero-user/empty-config unit не запускайте.
+Не используйте `RuntimeDirectory=mita` с bind-mounted UDS: restart может заменить directory inode и оставить container на stale mount. Fresh host сначала получает одну валидную generation: selected TCP+UDP bindings, один защищённый bootstrap user и all-domain/all-IP SOCKS5 egress на `127.0.0.1:40000`. Zero-user/empty-config unit не запускайте.
 
 ```bash
 sudo install -m 0644 deploy/mita.tmpfiles.conf /etc/tmpfiles.d/mita.conf

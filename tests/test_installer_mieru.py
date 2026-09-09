@@ -520,7 +520,7 @@ def test_mieru_bootstrap_config_is_one_valid_generation(tmp_path):
     ]
     assert [user["name"] for user in document["users"]] == ["owner"]
     assert document["egress"]["rules"][0]["action"] == "DIRECT"
-    assert document["egress"]["proxies"][0]["port"] == 45000
+    assert document["egress"]["proxies"][0]["port"] == 40000
 
 
 def test_mieru_bootstrap_config_proxies_all_traffic_with_warp(tmp_path):

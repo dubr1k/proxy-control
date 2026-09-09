@@ -137,7 +137,7 @@ def render_config(config: InstallerConfig) -> str:
     # mode, so `warp_domains` is written only where it is allowed.
     if config.three_xui.warp or config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
         lines.append(f"warp = {_toml_boolean(config.three_xui.warp)}")
-    if config.three_xui.warp_port != 45000:
+    if config.three_xui.warp_port != 40000:
         lines.append(f"warp_port = {config.three_xui.warp_port}")
     if config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
         lines.append(f"warp_domains = {_toml_array(config.three_xui.warp_domains)}")
@@ -233,7 +233,7 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
     )
     if not warp and warp_domains:
         raise ConfigError("three_xui.warp_domains requires warp = true")
-    warp_port = _integer(raw.get("warp_port", 45000), "three_xui.warp_port")
+    warp_port = _integer(raw.get("warp_port", 40000), "three_xui.warp_port")
     if not 1024 <= warp_port <= 65535:
         raise ConfigError("three_xui.warp_port must be between 1024 and 65535")
     return ThreeXuiConfig(
