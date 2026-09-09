@@ -126,6 +126,8 @@ This is where installation stops most often, so here it is in detail.
 
 ### How many domains you need
 
+**The complete beta package** — the `full` profile, `managed-new` 3x-ui mode, and a separate subscription domain — requires **9 distinct domains**: the Proxy Control panel, MTProxy Fake-TLS, NaiveProxy, Mieru, the 3x-ui panel, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2, and the 3x-ui subscription. All must resolve correctly to the VPS; not all require certificates.
+
 It depends on the profile. Not every protocol needs one:
 
 | Domain | When it is needed | Certificate required |
@@ -134,10 +136,11 @@ It depends on the profile. Not every protocol needs one:
 | `mtproxy` — MTProxy | Always | Yes |
 | `naive` — NaiveProxy | Profiles with Naive | Yes |
 | `mieru` — Mieru | Profiles with Mieru | **No** |
-| `three_xui.panel_domain` | When sharing 443 with 3x-ui | Yes |
-| `three_xui.hysteria_domain` | When sharing 443 with 3x-ui | Yes |
-| `three_xui.vless_tcp_domain` | When sharing 443 with 3x-ui | **No** |
-| `three_xui.vless_xhttp_domain` | When sharing 443 with 3x-ui | **No** |
+| `three_xui.panel_domain` | In a 3x-ui mode | Yes |
+| `three_xui.hysteria_domain` | In a 3x-ui mode | Yes |
+| `three_xui.vless_tcp_domain` | In a 3x-ui mode | **No** |
+| `three_xui.vless_xhttp_domain` | In a 3x-ui mode | **No** |
+| `three_xui.subscription_domain` | `managed-new`, when a separate subscription is wanted | Yes |
 
 Mieru and VLESS Reality need no Let's Encrypt certificate: Mieru speaks its own
 protocol, and Reality borrows the certificate of the site it imitates. They
@@ -173,6 +176,7 @@ The installer groups domains by service, and each group gets its own lineage
 | `naive` | The NaiveProxy domain |
 | `three-xui-panel` | The 3x-ui panel domain |
 | `three-xui-hysteria` | The Hysteria2 domain |
+| `three-xui-subscription` | The separate 3x-ui subscription domain |
 
 Issuance runs through `certbot certonly --webroot`: each name uses its own
 `/var/www/<domain>` directory, where Let's Encrypt drops the validation file
@@ -268,6 +272,7 @@ and the installer only adds its own routes to it.
 | VLESS Reality TCP domain | the same | the VLESS Reality TCP inbound |
 | VLESS Reality XHTTP domain | the same | the VLESS Reality XHTTP inbound |
 | Hysteria2 domain | the same | the Hysteria2 inbound |
+| 3x-ui subscription domain | `managed-new`, when a separate subscription is wanted | serving the 3x-ui subscription over HTTPS |
 
 **WARP.** Asked in profiles with Naive or Mieru: whether their traffic should
 leave through the local SOCKS5 endpoint at `127.0.0.1:40000`. If no WARP client
@@ -795,12 +800,14 @@ coexistence — runs against a real release archive in two labs: a disposable
 systemd container and a disposable bare-metal host. Each protocol is accepted
 with a real client.
 
-Not claimed as completed: publishing the 3x-ui subscription (planned),
-production Fleet enrollment, billing-grade traffic accounting, and WARP egress, which has no automated acceptance — if you turn
-`warp = true` on, verify the tunnel yourself. The `managed-new` mode was driven
-against a real 3x-ui `3.7.0` call by call, but is not yet exercised end to end
-in the lab: the lab builds a coexistence topology and this mode needs a fresh
-host.
+Also validated: the 3x-ui subscription public contract (public SNI endpoints on
+443 only), the live WARP lifecycle with real egress and rollback, and
+`managed-new` against real 3x-ui `3.7.0`: the installer creates VLESS Reality
+TCP, VLESS Reality XHTTP, and Hysteria2, and issues SSL certificates for the
+3x-ui panel, Hysteria2, and the separate subscription.
+
+Not claimed as completed: production Fleet enrollment and billing-grade traffic
+accounting.
 
 Repository code is released under the [MIT License](LICENSE). Telemt,
 Caddy/forwardproxy, Mieru/`mita`, 3x-ui, third-party images, and Python packages
