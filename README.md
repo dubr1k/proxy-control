@@ -125,6 +125,8 @@ URL и контрольные суммы обоих — в
 
 ### Сколько доменов нужно
 
+**Полный beta-комплект** — профиль `full`, режим `managed-new` для 3x-ui и отдельный домен подписки — требует **9 разных доменов**: панель Proxy Control, Fake-TLS MTProxy, NaiveProxy, Mieru, панель 3x-ui, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2 и subscription 3x-ui. Все должны иметь корректные DNS-записи на VPS; сертификаты нужны не всем.
+
 Зависит от профиля. Домен нужен не всем протоколам:
 
 | Домен | Когда нужен | Нужен ли сертификат |
@@ -133,10 +135,11 @@ URL и контрольные суммы обоих — в
 | `mtproxy` — MTProxy | Всегда | Да |
 | `naive` — NaiveProxy | В профилях с Naive | Да |
 | `mieru` — Mieru | В профилях с Mieru | **Нет** |
-| `three_xui.panel_domain` | Если делите 443 с 3x-ui | Да |
-| `three_xui.hysteria_domain` | Если делите 443 с 3x-ui | Да |
-| `three_xui.vless_tcp_domain` | Если делите 443 с 3x-ui | **Нет** |
-| `three_xui.vless_xhttp_domain` | Если делите 443 с 3x-ui | **Нет** |
+| `three_xui.panel_domain` | В режиме 3x-ui | Да |
+| `three_xui.hysteria_domain` | В режиме 3x-ui | Да |
+| `three_xui.vless_tcp_domain` | В режиме 3x-ui | **Нет** |
+| `three_xui.vless_xhttp_domain` | В режиме 3x-ui | **Нет** |
+| `three_xui.subscription_domain` | `managed-new`, если нужна отдельная subscription | Да |
 
 Mieru и VLESS Reality сертификатов Let's Encrypt не требуют: Mieru работает по
 собственному протоколу, а Reality маскируется под чужой сайт и использует его
@@ -171,6 +174,7 @@ Mieru и VLESS Reality сертификатов Let's Encrypt не требую�
 | `naive` | Домен NaiveProxy |
 | `three-xui-panel` | Домен панели 3x-ui |
 | `three-xui-hysteria` | Домен Hysteria2 |
+| `three-xui-subscription` | Отдельный домен subscription 3x-ui |
 
 Выпуск идёт через `certbot certonly --webroot`: для каждого имени
 используется свой каталог `/var/www/<домен>`, куда Let's Encrypt кладёт
@@ -265,6 +269,7 @@ sha256sum --check --ignore-missing SHA256SUMS
 | Домен VLESS Reality TCP | там же | инбаунд VLESS Reality по TCP |
 | Домен VLESS Reality XHTTP | там же | инбаунд VLESS Reality по XHTTP |
 | Домен Hysteria2 | там же | инбаунд Hysteria2 |
+| Домен subscription 3x-ui | `managed-new`, если нужна отдельная subscription | выдача подписки 3x-ui по HTTPS |
 
 **WARP.** Спрашивают в профилях с Naive или Mieru: пускать ли их трафик через
 локальную точку SOCKS5 `127.0.0.1:40000`. Если WARP-клиента там нет, отвечайте
@@ -776,13 +781,14 @@ sudo bash scripts/lab/managed-xui-acceptance.sh
 systemd-контейнер и одноразовый сервер на голом железе. Приёмка каждого
 протокола выполняется реальными клиентами.
 
-Не заявляются как завершённые: публикация подписки 3x-ui наружу (запланирована),
-регистрация Fleet в боевой среде, бухгалтерская точность учёта трафика и egress
-через WARP, у которого нет автоматической
-приёмки — включив `warp = true`, проверьте туннель сами. Режим `managed-new`
-проверен на настоящем 3x-ui `3.7.0` покомандно, но целиком в стенде пока не
-прогоняется: стенд строит топологию сосуществования, а этот режим требует
-чистого сервера.
+Подтверждены также public contract subscription 3x-ui (только публичные SNI на
+443), живой lifecycle WARP с реальным egress и rollback, а также режим
+`managed-new` на настоящем 3x-ui `3.7.0`: установщик создаёт VLESS Reality TCP,
+VLESS Reality XHTTP и Hysteria2 и выпускает SSL-сертификаты для панели 3x-ui,
+Hysteria2 и отдельной subscription.
+
+Не заявляются как завершённые: регистрация Fleet в боевой среде и бухгалтерская
+точность учёта трафика.
 
 Код репозитория распространяется по [лицензии MIT](LICENSE). Telemt,
 Caddy/forwardproxy, Mieru/`mita`, 3x-ui, сторонние изображения и Python-пакеты
