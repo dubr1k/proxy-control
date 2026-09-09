@@ -790,7 +790,27 @@ Hysteria2 и отдельной subscription.
 Не заявляются как завершённые: регистрация Fleet в боевой среде и бухгалтерская
 точность учёта трафика.
 
-Код репозитория распространяется по [лицензии MIT](LICENSE). Telemt,
-Caddy/forwardproxy, Mieru/`mita`, 3x-ui, сторонние изображения и Python-пакеты
-сохраняют собственные лицензии. См.
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Благодарности
+
+Proxy Control опирается на работу авторов и сопровождающих upstream-проектов:
+
+| Компонент | За что благодарим | Ссылка |
+|---|---|---|
+| Telemt | MTProto/MTProxy runtime на Rust | [telemt/telemt](https://github.com/telemt/telemt) |
+| Mieru и mita | TCP/UDP proxy runtime и manager | [enfein/mieru](https://github.com/enfein/mieru) |
+| 3x-ui | Xray/3x-ui control plane | [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) |
+| Caddy | HTTPS reverse proxy и TLS automation | [caddyserver/caddy](https://github.com/caddyserver/caddy) |
+| forwardproxy | HTTP CONNECT module для Caddy | [klzgrad/forwardproxy](https://github.com/klzgrad/forwardproxy) |
+| Nginx | shared-443 SNI routing | [nginx.org](https://nginx.org/) |
+| Certbot и Let's Encrypt | ACME HTTP-01 и выпуск/продление сертификатов | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
+| Docker и Compose | изолированное выполнение сервисов | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
+| Python web stack | FastAPI, Starlette, Pydantic, HTTPX, Uvicorn, Argon2, cryptography и qrcode | [requirements](panel/requirements.txt) |
+
+Спасибо всем разработчикам, мейнтейнерам и участникам этих проектов. Точные
+версии, лицензии, provenance и отдельные notices приведены в
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
+[`release/external-artifacts.json`](release/external-artifacts.json) и файлах
+`panel/requirements*.txt`.
+
+Код репозитория распространяется по [лицензии MIT](LICENSE); внешние компоненты
+сохраняют собственные лицензии.
