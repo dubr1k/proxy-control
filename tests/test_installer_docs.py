@@ -255,7 +255,7 @@ def test_primary_install_path_verifies_attestation_before_sudo():
 def test_warp_is_documented_as_one_socks5_endpoint(language):
     for text in (reference(language), readme(language)):
         assert "SOCKS5" in text
-        assert "127.0.0.1:45000" in text
+        assert "127.0.0.1:40000" in text
 
 
 @pytest.mark.parametrize("language", LANGUAGES)

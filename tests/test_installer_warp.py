@@ -34,7 +34,7 @@ def test_warp_owned_lifecycle_and_foreign_install_refusal(tmp_path):
             if argv[:2] in {('systemctl', 'is-active'), ('systemctl', 'is-enabled')}:
                 return subprocess.CompletedProcess(argv, 0, 'active' if argv[1] == 'is-active' else 'enabled', '')
             if argv[0] == 'ss':
-                text = 'LISTEN 0 128 127.0.0.1:45000 0.0.0.0:* users:(("warp-svc",pid=99,fd=1))' if self.installed else ''
+                text = 'LISTEN 0 128 127.0.0.1:40000 0.0.0.0:* users:(("warp-svc",pid=99,fd=1))' if self.installed else ''
                 return subprocess.CompletedProcess(argv, 0, text, '')
             if argv[0] == 'dpkg-query':
                 value = 'installed' if '${db:Status-Status}' in argv[2] else '2026.7.1377.0'
@@ -62,7 +62,7 @@ def test_warp_owned_lifecycle_and_foreign_install_refusal(tmp_path):
     commands = runner.commands
     mode_index = commands.index(('warp-cli', '--accept-tos', 'mode', 'proxy'))
     assert mode_index < commands.index(('warp-cli', '--accept-tos', 'connect'))
-    assert ('warp-cli', '--accept-tos', 'proxy', 'port', '45000') in commands
+    assert ('warp-cli', '--accept-tos', 'proxy', 'port', '40000') in commands
     assert adapter.rollback(action, applied).success
     assert not runner.installed
     runner.installed = True

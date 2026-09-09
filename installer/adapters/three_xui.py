@@ -68,7 +68,7 @@ _MAX_TREE_ENTRIES = 4096
 _VLESS_TCP_BACKEND = 8449
 _VLESS_XHTTP_BACKEND = 8450
 _PANEL_BACKEND = 8451
-_WARP_PORT = 45000
+_WARP_PORT = 40000
 _HYSTERIA_PORT = 443
 
 _SAFE_TEXT = re.compile(r"[A-Za-z0-9_.:@/-]{1,128}\Z")
@@ -78,6 +78,15 @@ _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 _NETWORKS = {"tcp", "ws", "grpc", "http", "xhttp", "httpupgrade", "kcp", "quic"}
 _SECURITY = {"none", "tls", "reality", "xtls"}
 _ROUTING_SELECTORS = ("inboundTag", "outboundTag", "balancerTag", "network", "protocol")
+_WARP_GEOSITE = re.compile(r"geosite:[a-z0-9_-]+\Z")
+
+
+def _valid_warp_selector(value: str) -> bool:
+    """Match exactly the selector grammar accepted by installer config."""
+    if _WARP_GEOSITE.fullmatch(value) is not None:
+        return True
+    return _DOMAIN.fullmatch(value.removeprefix("domain:")) is not None
+
 
 # Fields that must never reach a fact, report, plan, or evidence structure.
 _FORBIDDEN_FIELDS = (
@@ -741,7 +750,7 @@ class ThreeXuiAdapter:
         if not domains:
             raise PlanError("WARP requires operator-confirmed domains")
         for domain in domains:
-            if _DOMAIN.fullmatch(domain) is None:
+            if not _valid_warp_selector(domain):
                 raise PlanError("WARP domains must be valid")
         return Action(
             id="three_xui.warp",
@@ -749,7 +758,7 @@ class ThreeXuiAdapter:
             owner="proxy-control:three-xui-warp",
             mutations=(
                 "warp=true",
-                f"warp-egress=127.0.0.1:{_WARP_PORT}",
+                f"warp-egress=127.0.0.1:{config.three_xui.warp_port}",
                 *(f"warp-domain={domain}" for domain in domains),
             ),
             preconditions=(
@@ -1525,7 +1534,7 @@ class ThreeXuiAdapter:
             for value in action.mutations
             if value.startswith("warp-domain=")
         )
-        if not domains or any(_DOMAIN.fullmatch(item) is None for item in domains):
+        if not domains or any(not _valid_warp_selector(item) for item in domains):
             raise ThreeXuiError("3x-ui WARP action declares no valid domain")
         return domains
 

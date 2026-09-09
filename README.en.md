@@ -267,7 +267,7 @@ and the installer only adds its own routes to it.
 | Hysteria2 domain | the same | the Hysteria2 inbound |
 
 **WARP.** Asked in profiles with Naive or Mieru: whether their traffic should
-leave through the local SOCKS5 endpoint at `127.0.0.1:45000`. If no WARP client
+leave through the local SOCKS5 endpoint at `127.0.0.1:40000`. If no WARP client
 is listening there, answer no — otherwise the tunnels run into an upstream that
 does not exist.
 
@@ -339,11 +339,12 @@ previous state.
 ### What the installer owns, and what it does not
 
 It owns: the Ubuntu packages from its list, certificates and their renewal,
-Nginx routes and the panel TLS vhost, containers and volumes, the NaiveProxy and
-Mieru host services, UFW rules when you allow it, and 3x-ui in the chosen mode.
+Nginx and the panel's TLS vhost, containers and volumes, NaiveProxy and Mieru
+host services, UFW rules if you allow them, 3x-ui in its selected mode, and its
+own pinned WARP boundary when `warp = true`.
 
-It does not own: DNS, WARP, Fleet, your own websites, foreign containers, or
-foreign Nginx routes. Its journal and ownership records live in
+It does not own: DNS, Fleet, your own websites, foreign containers, foreign
+WARP, or foreign Nginx routes. The journal and ownership files live under
 `/var/lib/proxy-control/` — do not delete them by hand.
 
 The complete surface — every command, every configuration field, ownership
@@ -523,13 +524,13 @@ Full procedure: [FLEET.en.md](FLEET.en.md).
 
 ## Egress: WARP as one SOCKS5 endpoint
 
-WARP is one loopback **SOCKS5** endpoint, defaulting to `127.0.0.1:45000`.
+WARP is one loopback **SOCKS5** endpoint, defaulting to `127.0.0.1:40000`.
 With `warp = true`, the installer downloads the pinned official Cloudflare
 client, verifies SHA-256, registers it, enables `warp-svc`, and selects proxy
 mode. This is an optional proprietary external dependency: it is not covered
 by the project's MIT licence and is not bundled in the release archive.
 
-The settings live under `[three_xui]`. `warp_port` defaults to `45000` and is
+The settings live under `[three_xui]`. `warp_port` defaults to `40000` and is
 passed to every consumer; an explicitly configured alternative is preserved.
 An existing foreign WARP installation is never adopted or reconfigured: it
 requires a separate, explicit migration.
@@ -537,7 +538,7 @@ requires a separate, explicit migration.
 | Protocol | What goes through WARP |
 |---|---|
 | **Xray / managed 3x-ui** | Domains in `warp_domains`, with the rule following blocking rules. Adopted (`existing`) routing is not changed. |
-| **NaiveProxy** | With empty `warp_domains`, all tunnelled traffic through `upstream socks5://127.0.0.1:45000`; with domain selectors it stays direct. |
+| **NaiveProxy** | With empty `warp_domains`, all tunnelled traffic through `upstream socks5://127.0.0.1:40000`; with domain selectors it stays direct. |
 | **Mieru** | With empty `warp_domains`, all egress traffic; with domain selectors it stays `DIRECT`. |
 
 With `warp = false`, WARP is not installed. Acceptance requires a fully

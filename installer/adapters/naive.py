@@ -82,7 +82,7 @@ _BOOTSTRAP_PASSWORD = "__PROXY_CONTROL_BOOTSTRAP_PASSWORD__"
 # WARP is one loopback SOCKS5 endpoint. Unlike Xray, which routes only the
 # selected domains through it, NaiveProxy sends every tunnelled connection
 # through WARP once it is enabled.
-_WARP_EGRESS = "socks5://127.0.0.1:45000"
+_WARP_EGRESS = "socks5://127.0.0.1:40000"
 _ACCOUNTING_TIMEOUT = 120.0
 _ACCOUNTING_INTERVAL = 5.0
 

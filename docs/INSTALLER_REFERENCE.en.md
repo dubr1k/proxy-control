@@ -196,8 +196,9 @@ cleanup is reported and stays retryable rather than being silently dropped.
 
 ## WARP and egress
 
-WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:45000`. The installer
-never provisions WARP itself; it wires the protocols to it when you enable it.
+WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:40000`. With
+`warp = true`, the installer provisions and verifies the pinned official
+Cloudflare client before wiring the selected protocols to it.
 
 The split is deliberate and differs per protocol:
 
@@ -206,7 +207,7 @@ The split is deliberate and differs per protocol:
   final policy is appended after them, never replaced.
 - **NaiveProxy** sends **all** tunnelled traffic through WARP. There is no
   per-domain split: the managed `forward_proxy` block gets
-  `upstream socks5://127.0.0.1:45000`.
+  `upstream socks5://127.0.0.1:40000`.
 - **Mieru** sends **all** traffic through WARP as well, as a single
   all-domain/all-IP egress rule that names the WARP proxy.
 
@@ -291,4 +292,5 @@ release report. Details: [tests/lab/README.md](../tests/lab/README.md).
   is a rolling admission check, not a billing counter.
 - The Mieru MSS clamp is a diagnostic-only host firewall change. The installer
   never enables it.
-- The installer does not provision WARP, and it does not manage DNS.
+- The installer does not manage DNS. With `warp = true`, it provisions only its
+  own pinned WARP generation and refuses to adopt or reconfigure a foreign one.
