@@ -18,6 +18,9 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
+> [!WARNING]
+> **Текущий публичный выпуск — [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0).** Используйте его на новых или изолированных установках либо только после резервного копирования текущей конфигурации сервера.
+
 > [!IMPORTANT]
 > Проект рассчитан на людей, которые понимают, что такое DNS, TLS, Nginx и
 > Docker. Установщик берёт на себя рутину и не даст сделать опасный шаг молча,
