@@ -18,6 +18,9 @@ that either finishes the job or puts the server back the way it was.
 
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
+> [!WARNING]
+> **The current public release is [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0).** Use it on new or isolated installations, or only after backing up the server's current configuration.
+
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
 > installer takes care of the routine and refuses to take a dangerous step
