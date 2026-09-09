@@ -214,6 +214,20 @@ def test_managed_templates_set_reality_and_sniffing_selectors():
     )
 
 
+def test_managed_templates_advertise_only_the_public_sni_endpoints():
+    inbounds = build_managed_inbounds(config(), generator=DeterministicSecrets(seed=16))
+    assert [inbound.stream_settings["externalProxy"] for inbound in inbounds] == [
+        [{"dest": "vless.example.com", "port": 443, "forceTls": "same"}],
+        [{"dest": "xhttp.example.com", "port": 443, "forceTls": "same"}],
+        [{"dest": "hysteria.example.com", "port": 443, "forceTls": "same"}],
+    ]
+    assert [(inbound.listen, inbound.port) for inbound in inbounds] == [
+        ("127.0.0.1", 8449),
+        ("127.0.0.1", 8450),
+        ("0.0.0.0", 443),
+    ]
+
+
 def test_managed_templates_require_every_domain():
     broken = config()
     incomplete = InstallerConfig(
@@ -255,17 +269,28 @@ def test_acceptance_clients_are_distinct_from_persistent_clients():
 
 
 def test_inbound_request_body_serializes_settings_as_pinned_strings():
-    inbound = build_managed_clients(
+    inbounds = build_managed_clients(
         build_managed_inbounds(config(), generator=DeterministicSecrets(seed=8)),
         generator=DeterministicSecrets(seed=8),
         prefix="initial",
-    )[0]
+    )
+    inbound = inbounds[0]
     body = inbound.request_body()
     assert body["protocol"] == "vless"
     assert body["listen"] == "127.0.0.1"
     settings = json.loads(body["settings"])
+    assert isinstance(body["streamSettings"], str)
+    stream_settings = json.loads(body["streamSettings"])
     assert settings["decryption"] == "none"
     assert len(settings["clients"]) == 1
+    assert stream_settings["externalProxy"] == [
+        {"dest": "vless.example.com", "port": 443, "forceTls": "same"}
+    ]
+    assert [json.loads(str(item.request_body()["streamSettings"]))["externalProxy"] for item in inbounds] == [
+        [{"dest": "vless.example.com", "port": 443, "forceTls": "same"}],
+        [{"dest": "xhttp.example.com", "port": 443, "forceTls": "same"}],
+        [{"dest": "hysteria.example.com", "port": 443, "forceTls": "same"}],
+    ]
 
 
 # ----------------------------------------------------------------------
