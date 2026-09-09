@@ -809,7 +809,27 @@ TCP, VLESS Reality XHTTP, and Hysteria2, and issues SSL certificates for the
 Not claimed as completed: production Fleet enrollment and billing-grade traffic
 accounting.
 
-Repository code is released under the [MIT License](LICENSE). Telemt,
-Caddy/forwardproxy, Mieru/`mita`, 3x-ui, third-party images, and Python packages
-retain their own licenses. See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Acknowledgements
+
+Proxy Control relies on the work of upstream authors and maintainers:
+
+| Component | What we thank it for | Link |
+|---|---|---|
+| Telemt | Rust MTProto/MTProxy runtime | [telemt/telemt](https://github.com/telemt/telemt) |
+| Mieru and mita | TCP/UDP proxy runtime and manager | [enfein/mieru](https://github.com/enfein/mieru) |
+| 3x-ui | Xray/3x-ui control plane | [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) |
+| Caddy | HTTPS reverse proxy and TLS automation | [caddyserver/caddy](https://github.com/caddyserver/caddy) |
+| forwardproxy | Caddy HTTP CONNECT module | [klzgrad/forwardproxy](https://github.com/klzgrad/forwardproxy) |
+| Nginx | shared-443 SNI routing | [nginx.org](https://nginx.org/) |
+| Certbot and Let's Encrypt | ACME HTTP-01 and certificate issuance/renewal | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
+| Docker and Compose | isolated service execution | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
+| Python web stack | FastAPI, Starlette, Pydantic, HTTPX, Uvicorn, Argon2, cryptography, and qrcode | [requirements](panel/requirements.txt) |
+
+Thank you to every developer, maintainer, and contributor to these projects.
+Exact versions, licences, provenance, and separate notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
+[`release/external-artifacts.json`](release/external-artifacts.json), and
+`panel/requirements*.txt`.
+
+Repository code is released under the [MIT License](LICENSE); external
+components retain their own licences.
