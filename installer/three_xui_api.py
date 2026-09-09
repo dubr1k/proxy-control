@@ -238,6 +238,11 @@ def build_managed_inbounds(
         stream: dict[str, object] = {
             "network": network,
             "security": "reality",
+            # 3x-ui's subscription renderer otherwise advertises this
+            # loopback backend and its private port.  The shared 443 router
+            # selects the inbound by this public SNI name, so each managed
+            # inbound must publish exactly that endpoint instead.
+            "externalProxy": [{"dest": domain, "port": 443, "forceTls": "same"}],
             "realitySettings": {
                 "show": False,
                 # Reality hides behind a cover site. This one is the panel's
@@ -280,6 +285,9 @@ def build_managed_inbounds(
             listen="0.0.0.0",
             port=HYSTERIA_PORT,
             stream_settings={
+                "externalProxy": [
+                    {"dest": three_xui.hysteria_domain, "port": 443, "forceTls": "same"}
+                ],
                 # Read off running servers: Xray serves Hysteria2 only on the
                 # "hysteria" network with its own settings block. It accepts
                 # the row on "udp" and then never opens the port, with nothing
