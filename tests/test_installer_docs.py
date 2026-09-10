@@ -236,14 +236,81 @@ def test_reference_documents_recovery_and_report_boundaries(language):
     assert "0600" in text
 
 
-def test_primary_install_path_verifies_attestation_before_sudo():
-    for language in LANGUAGES:
-        steps = install_steps(language)
-        joined = "\n".join(steps)
-        attestation = joined.index("gh attestation verify")
+def test_primary_install_path_verifies_release_assets_before_sudo():
+    command_documents = (*INSTALL_GUIDES.values(), *READMES.values(), *REFERENCES.values())
+    for path in command_documents:
+        joined = path.read_text(encoding="utf-8")
+        checksum = joined.index("sha256sum --check SHA256SUMS")
+        extract_bootstrap = joined.index("tar -xOf proxy-control-v0.1.0.tar.gz")
         dispatch = joined.index("./install-bootstrap")
-        assert attestation < dispatch, language
-        assert "curl |" not in install_text(language)
+        assert checksum < extract_bootstrap < dispatch, path
+        assert "gh attestation verify" not in joined, path
+        assert "curl |" not in joined, path
+        assert "SHA256SUMS" in joined
+        assert "sbom.spdx.json" in joined
+
+
+def test_release_integrity_limit_is_stated_in_every_install_document():
+    documents = (*INSTALL_GUIDES.values(), *READMES.values(), *REFERENCES.values())
+    for path in documents:
+        text = path.read_text(encoding="utf-8")
+        assert "attestation" in text, path
+        assert "three payload" in text or "три payload" in text, path
+        assert "checksum file itself" in text or "сам файл контрольных сумм" in text, path
+        stale = (
+            "the attestation is checked first",
+            "сначала проверяется аттестация",
+            "SHA256SUMS` and the attestation",
+            "`SHA256SUMS` и\nаттестации",
+            "integrity of all four",
+            "целостность всех четырёх",
+        )
+        assert not any(claim in text for claim in stale), path
+
+
+def test_install_guides_distinguish_fresh_and_coexist_nginx_requirements():
+    for path in INSTALL_GUIDES.values():
+        requirements = path.read_text(encoding="utf-8").split("## ", 2)[2]
+        assert "coexist" in requirements, path
+        assert "fresh" in requirements, path
+        assert "Nginx" in requirements, path
+        assert "443" in requirements, path
+
+
+def test_readmes_document_the_actual_warp_wizard_branches():
+    for path in READMES.values():
+        text = path.read_text(encoding="utf-8")
+        assert "managed-new" in text, path
+        assert "none" in text and "existing" in text, path
+        assert "NaiveProxy" in text and "Mieru" in text, path
+        assert "non-empty" in text or "непустой" in text, path
+        assert "127.0.0.1:40000" in text, path
+        assert "manually with" not in text, path
+        assert "задаётся вручную" not in text, path
+
+
+def test_readmes_and_release_notes_state_one_current_beta_contract():
+    release_path = ROOT / "docs/releases/v0.1.0.md"
+    release_notes = release_path.read_text(encoding="utf-8")
+    documents = (*READMES.values(), release_path)
+    stale_claims = (
+        "Ставить 3x-ui с нуля он пока не умеет",
+        "cannot yet install 3x-ui from scratch",
+        "Подписка 3x-ui наружу пока **не публикуется**",
+        "The 3x-ui subscription is **not published** yet",
+        "Если WARP-клиента там нет, отвечайте",
+        "If no WARP client is listening there, answer no",
+    )
+    for path in documents:
+        text = path.read_text(encoding="utf-8")
+        assert not any(claim in text for claim in stale_claims), path
+        assert "managed-new" in text, path
+        assert "127.0.0.1:40000" in text, path
+    assert "**9" in release_notes
+    assert "домен" in release_notes
+    assert "domains" in release_notes
+    assert "SHA256SUMS" in release_notes
+    assert "install-bootstrap" in release_notes
 
 
 # ----------------------------------------------------------------------

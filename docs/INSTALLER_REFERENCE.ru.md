@@ -15,12 +15,16 @@
 
 ## Проверка релиза
 
-Скачайте архив, его `SHA256SUMS` и `release-manifest.json` со страницы релиза,
-затем проверьте provenance до того, как что-либо получит привилегии.
+Скачайте архив, `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json` со
+страницы релиза. Для v0.1.0 GitHub attestation не опубликована. `sha256sum`
+сверяет три payload-файла из скачанного `SHA256SUMS`; сам файл контрольных сумм
+остаётся доверенным как файл со страницы релиза. Затем извлеките bootstrap из
+проверенного архива — всё это до получения привилегий.
 
 ```bash installer-check
-gh attestation verify proxy-control-v0.1.0.tar.gz --repo dubr1k/proxy-control
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check SHA256SUMS
+tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+chmod 700 install-bootstrap
 ./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
@@ -28,7 +32,7 @@ sha256sum --check --ignore-missing SHA256SUMS
 он проверяет, что каждый вход — обычный файл, принадлежащий вам и не доступный
 на запись группе или остальным, сверяет архив с опубликованной контрольной
 суммой, требует, чтобы манифест называл тот же архив и тот же digest, отклоняет
-prerelease-версию и проверяет архив на абсолютные и выходящие за пределы члены.
+версию с prerelease-суффиксом и проверяет архив на абсолютные и выходящие за пределы члены.
 Он никогда не скачивает и не исполняет одной командой.
 
 `release-manifest.json` фиксирует имя и digest архива, коммит, digest манифеста
@@ -41,8 +45,8 @@ prerelease-версию и проверяет архив на абсолютны
 uid/gid 0, режим берётся из бита исполняемости git, а время — из коммита.
 Gzip-обёртку вокруг архива делает локальный zlib, поэтому система с другой
 версией zlib даст другой digest `.tar.gz` при полностью совпадающем содержимом —
-именно поэтому скачанный архив проверяется по опубликованным `SHA256SUMS` и
-аттестации.
+именно поэтому скачанный архив проверяется по `SHA256SUMS`; для v0.1.0
+независимая attestation не опубликована.
 
 ## Интерактивный мастер
 

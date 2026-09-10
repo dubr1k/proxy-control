@@ -8,7 +8,9 @@ Root-only `install.sh` вызывает транзакционный `scripts/pr
 audit → plan → install → repair → uninstall
 ```
 
-Полный installer разворачивает Telemt/MTProxy и panel. NaiveProxy, Mieru и fleet подключаются отдельно после successful core acceptance.
+Установщик всегда разворачивает Telemt/MTProxy и панель, а в выбранных профилях
+в той же транзакции добавляет NaiveProxy и/или Mieru после успешной приёмки
+core. Fleet остаётся отдельной ручной интеграцией.
 
 ## Основной путь установки: проверенный релиз
 
@@ -16,21 +18,25 @@ audit → plan → install → repair → uninstall
 последовательность `scripts/proxyctl.py` ниже, которая остаётся в документации
 для уже развёрнутых систем и для разбора того, что делает установщик.
 
-Скачайте архив, его `SHA256SUMS` и `release-manifest.json` со страницы релиза,
-затем проверьте provenance **до** того, как что-либо получит привилегии:
+Скачайте архив, `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json` со
+страницы релиза. Для v0.1.0 GitHub attestation не опубликована. `sha256sum`
+сверяет три payload-файла из скачанного `SHA256SUMS`; сам файл контрольных сумм
+остаётся доверенным как файл со страницы релиза. Затем извлеките bootstrap из
+проверенного архива — всё это до получения привилегий:
 
 ```bash installer-check
-gh attestation verify proxy-control-v0.1.0.tar.gz --repo dubr1k/proxy-control
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check SHA256SUMS
+tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+chmod 700 install-bootstrap
 ./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
-Порядок важен: сначала проверяется аттестация, и только потом что-либо
+Порядок важен: сначала сверяются payload-файлы, и только потом что-либо
 передаётся `sudo`. `install-bootstrap` отказывается работать от root, проверяет,
 что каждый вход — обычный файл, принадлежащий вам и не доступный на запись
 группе или остальным, сверяет архив с опубликованной контрольной суммой,
 требует, чтобы манифест называл тот же архив и тот же digest, отклоняет
-prerelease-версию и проверяет архив на абсолютные и выходящие за пределы члены
+версию с prerelease-суффиксом и проверяет архив на абсолютные и выходящие за пределы члены
 перед единственным `exec sudo`. Ничто никогда не скачивается и не исполняется
 одной командой.
 
@@ -53,8 +59,10 @@ digest плана. Полная поверхность — профили, вс�
 - root/sudo;
 - DNS A/AAAA для proxy и panel names указывает напрямую на host;
 - TCP/80 доступен для ACME HTTP-01;
-- public TCP/443 принадлежит существующему Nginx `stream` listener;
-- в выбранном route file есть ровно одна понятная `$ssl_preread_server_name` map;
+- в режиме `coexist` public TCP/443 принадлежит существующему Nginx `stream`, а
+  в route file есть ровно одна понятная `$ssl_preread_server_name` map;
+- в режиме `fresh` порт 443 не занят чужим процессом; Nginx ставит и настраивает
+  установщик;
 - loopback ports свободны;
 - подготовлен внешний executable protocol probe, проверяющий real Fake-TLS/Obfuscated2 `req_pq_multi → resPQ`;
 - создан host-level backup Nginx, services и соседних routes.

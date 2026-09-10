@@ -14,20 +14,26 @@ checksummed release that carries its own identity at `release/release.json`.
 
 ## Verifying a release
 
-Download the archive, its `SHA256SUMS`, and `release-manifest.json` from the
-release page, then verify provenance before anything runs with privilege.
+Download the archive, `SHA256SUMS`, `release-manifest.json`, and
+`sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
+attestation. `sha256sum` checks the three payload files named by the downloaded
+`SHA256SUMS`; the checksum file itself remains trusted as downloaded from the
+release page. Then extract the bootstrap from the verified archive — all before
+anything runs with privilege.
 
 ```bash installer-check
-gh attestation verify proxy-control-v0.1.0.tar.gz --repo dubr1k/proxy-control
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check SHA256SUMS
+tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+chmod 700 install-bootstrap
 ./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as root. Before its single `exec sudo` it
 checks that every input is a regular file you own and that is not
 group- or other-writable, compares the archive against the published checksum,
-requires the manifest to name the same archive and digest, refuses a prerelease
-version, and preflights the archive for absolute or escaping members. It never
+requires the manifest to name the same archive and digest, refuses a version
+with a prerelease suffix, and preflights the archive for absolute or escaping
+members. It never
 downloads and executes in one step.
 
 `release-manifest.json` records the archive name and digest, the commit, the
@@ -42,7 +48,7 @@ carries uid/gid 0, the mode from the git executable bit, and the commit
 timestamp. The gzip container around the archive is produced by the local zlib,
 so a system with a different zlib version yields a different `.tar.gz` digest
 even though the archive contents are identical - which is why a download is
-verified against the published `SHA256SUMS` and the attestation.
+verified against `SHA256SUMS`; v0.1.0 has no independent published attestation.
 
 ## Interactive wizard
 
