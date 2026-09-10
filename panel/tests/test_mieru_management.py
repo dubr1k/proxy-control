@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from mieru_manager.healthcheck import check as manager_healthcheck
 from mieru_manager.server import ManagerHTTPServer
-from panel.mieru import MieruClient
+from panel.mieru import MieruClient, MieruError
 from panel.mieru_routes import mieru_access
 
 
@@ -413,3 +413,64 @@ async def test_mieru_client_lifecycle_uses_fixed_allowlisted_path_and_empty_body
     assert seen == {"method": "POST", "path": "/v1/lifecycle/restart", "body": {}}
     with pytest.raises(ValueError, match="lifecycle"):
         await client.lifecycle("reload")
+
+
+async def test_memory_mieru_replays_a_caller_credential_and_refuses_a_generated_one():
+    """The fake must model the manager: a credential the manager generated is gone,
+    and saying so is the only safe answer to a retry."""
+    from panel.mieru import MemoryMieru
+
+    mieru = MemoryMieru()
+    first = await mieru.create({
+        "username": "phone", "quotas": [], "expected_revision": mieru.revision,
+        "password": "caller-supplied-password-01", "operation_id": "op-1",
+    })
+    assert "caller-supplied-password-01" in first["share_url"]
+    second = await mieru.create({
+        "username": "phone", "quotas": [], "expected_revision": "stale",
+        "password": "caller-supplied-password-01", "operation_id": "op-1",
+    })
+    assert second == {"username": "phone", "revision": first["revision"], "replayed": True}
+    assert list(mieru.users) == ["phone"]
+
+    await mieru.create({
+        "username": "laptop", "quotas": [], "expected_revision": mieru.revision,
+        "operation_id": "op-2",
+    })
+    with pytest.raises(MieruError) as refused:
+        await mieru.create({
+            "username": "laptop", "quotas": [], "expected_revision": "stale",
+            "operation_id": "op-2",
+        })
+    assert refused.value.code == "result_unrecoverable"
+
+    mieru.faults["create"] = "lose_response"
+    with pytest.raises(MieruError):
+        await mieru.create({
+            "username": "desktop", "quotas": [], "expected_revision": mieru.revision,
+            "password": "caller-supplied-password-03", "operation_id": "op-3",
+        })
+    mieru.faults.clear()
+    retried = await mieru.create({
+        "username": "desktop", "quotas": [], "expected_revision": "stale",
+        "password": "caller-supplied-password-03", "operation_id": "op-3",
+    })
+    assert retried["replayed"] is True and list(mieru.users) == ["phone", "laptop", "desktop"]
+
+
+async def test_mieru_client_rotate_sends_the_caller_credential_and_operation_id():
+    sent = {}
+
+    class Recorder(MieruClient):
+        async def _request(self, method, path, payload=None):
+            sent.update({"method": method, "path": path, "payload": payload})
+            return {"username": "phone", "revision": "rev-2"}
+
+    client = Recorder("/run/missing.sock", "token")
+    await client.rotate("phone", "rev-1", password="rotated-password-0123456", operation_id="op-9")
+    assert sent["path"] == "/v1/users/phone/rotate"
+    assert sent["payload"] == {
+        "expected_revision": "rev-1",
+        "password": "rotated-password-0123456",
+        "operation_id": "op-9",
+    }

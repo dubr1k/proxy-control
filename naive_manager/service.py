@@ -53,6 +53,15 @@ def lifecycle_synchronized(method):
     return wrapped
 
 
+# A caller may supply the credential so that the panel can store it before the
+# manager commits; the manager still refuses anything outside this shape.
+PASSWORD = re.compile(r"^[A-Za-z0-9_.~-]{16,128}$")
+OPERATION_ID = re.compile(r"^[A-Za-z0-9_:.-]{1,128}$")
+# How long a completed operation stays replayable. Long enough for a retry after an
+# outage, short enough that the state file does not grow without bound.
+OPERATION_RETENTION_SECONDS = 7 * 86400
+
+
 class ManagerConflict(RuntimeError):
     """A refused operation. `code` names the reason for callers to act on."""
 
@@ -331,7 +340,9 @@ class NaiveCredentialManager:
 
     @synchronized
     def reveal(self, username: str) -> dict:
-        row = self._find(self._read_state(), username)
+        return self._reveal_row(self._find(self._read_state(), username))
+
+    def _reveal_row(self, row: dict) -> dict:
         user = quote(row["username"], safe="")
         password = quote(row["password"], safe="")
         proxy_url = f"https://{user}:{password}@{self.public_host}"
@@ -342,35 +353,57 @@ class NaiveCredentialManager:
         }
 
     @lifecycle_synchronized
-    def create(self, username: str, quota_bytes: int | None = None) -> dict:
+    def create(
+        self,
+        username: str,
+        quota_bytes: int | None = None,
+        *,
+        password: str | None = None,
+        operation_id: str | None = None,
+    ) -> dict:
         self._valid_username(username)
         self._validate_quota(quota_bytes)
+        self._validate_password(password)
         state = self._read_state()
+        replay = self._replay(state, operation_id, "create", username)
+        if replay is not None:
+            return replay
         if any(row["username"] == username for row in state["users"]):
             raise ManagerConflict("user already exists")
         if any(row["username"] == username for row in state["tombstones"]):
             raise ManagerConflict("username is permanently retired")
         timestamp = _now()
-        state["users"].append({
+        row = {
             "username": username,
-            "password": secrets.token_urlsafe(18),
+            "password": password or secrets.token_urlsafe(18),
             "enabled": True,
             "quota_bytes": quota_bytes,
             "disabled_reason": None,
             "created_at": timestamp,
             "updated_at": timestamp,
-        })
+        }
+        state["users"].append(row)
+        result = self._reveal_row(row)
+        self._remember(state, operation_id, "create", username, result)
         self._apply(state)
-        return self.reveal(username)
+        return result
 
     @lifecycle_synchronized
-    def rotate(self, username: str) -> dict:
+    def rotate(
+        self, username: str, *, password: str | None = None, operation_id: str | None = None
+    ) -> dict:
+        self._validate_password(password)
         state = self._read_state()
+        replay = self._replay(state, operation_id, "rotate", username)
+        if replay is not None:
+            return replay
         row = self._find(state, username)
-        row["password"] = secrets.token_urlsafe(18)
+        row["password"] = password or secrets.token_urlsafe(18)
         row["updated_at"] = _now()
+        result = self._reveal_row(row)
+        self._remember(state, operation_id, "rotate", username, result)
         self._apply(state)
-        return self.reveal(username)
+        return result
 
     @lifecycle_synchronized
     def set_enabled(self, username: str, enabled: bool) -> dict:
@@ -566,8 +599,9 @@ class NaiveCredentialManager:
             raise ManagerConflict("invalid manager state") from exc
         if state.get("version") != 1 or state.get("host") != self.public_host or not isinstance(state.get("users"), list):
             raise ManagerConflict("unsupported manager state")
-        if set(state) - {"version", "host", "users", "tombstones"}:
+        if set(state) - {"version", "host", "users", "tombstones", "operations"}:
             raise ManagerConflict("unsupported manager state")
+        state["operations"] = self._pruned_operations(state.get("operations"))
         state.setdefault("tombstones", [])
         if not isinstance(state["tombstones"], list):
             raise ManagerConflict("invalid tombstone state")
@@ -812,6 +846,75 @@ class NaiveCredentialManager:
             raise ValueError("invalid username")
         if username == REDACTION_SENTINEL:
             raise ValueError("reserved username")
+
+    @staticmethod
+    def _pruned_operations(operations) -> dict:
+        """Records are kept only long enough for a retry; a state file must not grow forever."""
+        if operations is None:
+            return {}
+        if not isinstance(operations, dict):
+            raise ManagerConflict("invalid operation state")
+        cutoff = datetime.now(UTC).timestamp() - OPERATION_RETENTION_SECONDS
+        kept = {}
+        for key, record in operations.items():
+            if (
+                not isinstance(key, str)
+                or OPERATION_ID.fullmatch(key) is None
+                or not isinstance(record, dict)
+                or set(record) != {"operation", "username", "completed_at", "result"}
+                or record["operation"] not in {"create", "rotate"}
+                or not isinstance(record["result"], dict)
+                or not isinstance(record["completed_at"], str)
+            ):
+                raise ManagerConflict("invalid operation state")
+            try:
+                completed = datetime.fromisoformat(record["completed_at"]).timestamp()
+            except ValueError as exc:
+                raise ManagerConflict("invalid operation state") from exc
+            if completed >= cutoff:
+                kept[key] = record
+        return kept
+
+    @staticmethod
+    def _validate_password(password: str | None) -> None:
+        if password is not None and (not isinstance(password, str) or PASSWORD.fullmatch(password) is None):
+            raise ValueError("invalid password")
+
+    @staticmethod
+    def _validate_operation_id(operation_id: str | None) -> None:
+        if operation_id is not None and (
+            not isinstance(operation_id, str) or OPERATION_ID.fullmatch(operation_id) is None
+        ):
+            raise ValueError("invalid operation id")
+
+    def _replay(self, state: dict, operation_id: str | None, operation: str, username: str) -> dict | None:
+        """Return the recorded result when this exact request already completed.
+
+        A lost response is the normal case: the caller retries with the same id and
+        must get the same credential back, not a second account or a refusal.
+        """
+        self._validate_operation_id(operation_id)
+        if operation_id is None:
+            return None
+        record = state["operations"].get(operation_id)
+        if record is None:
+            return None
+        if record["operation"] != operation or record["username"] != username:
+            raise ManagerConflict(
+                "operation id already used for another request", "operation_conflict"
+            )
+        return {**record["result"], "replayed": True}
+
+    @staticmethod
+    def _remember(state: dict, operation_id: str | None, operation: str, username: str, result: dict) -> None:
+        if operation_id is None:
+            return
+        state["operations"][operation_id] = {
+            "operation": operation,
+            "username": username,
+            "completed_at": _now(),
+            "result": result,
+        }
 
     @staticmethod
     def _validate_quota(quota_bytes: int | None) -> None:

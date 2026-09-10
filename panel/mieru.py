@@ -8,9 +8,10 @@ import httpx
 
 
 class MieruError(RuntimeError):
-    def __init__(self, message: str, status_code: int = 502):
+    def __init__(self, message: str, status_code: int = 502, code: str | None = None):
         super().__init__(message)
         self.status_code = status_code
+        self.code = code
 
 
 class MieruClient:
@@ -87,6 +88,16 @@ class MieruClient:
             {"expected_revision": revision},
         )
 
+    async def rotate(self, username, revision, *, password=None, operation_id=None):
+        """Rotation carries the caller's credential so the panel can escrow it first."""
+        payload = {"expected_revision": revision}
+        for key, value in (("password", password), ("operation_id", operation_id)):
+            if value is not None:
+                payload[key] = value
+        return await self._request(
+            "POST", f"/v1/users/{quote(username, safe='')}/rotate", payload
+        )
+
     async def delete(self, username, revision):
         return await self._request(
             "DELETE",
@@ -105,6 +116,10 @@ class MemoryMieru:
         self.users = {}
         self.revision = "rev-1"
         self.broken = False
+        self.operations = {}
+        # {"create": "lose_response"} performs the mutation and then raises, the way a
+        # manager does when the reply never reaches the panel.
+        self.faults = {}
 
     def _next(self):
         self.revision = "rev-" + str(int(self.revision.split("-")[1]) + 1)
@@ -129,21 +144,76 @@ class MemoryMieru:
             "reason": "typed_histories_unavailable",
         }
 
+    def _replay(self, operation_id, operation, username):
+        if operation_id is None:
+            return None
+        record = self.operations.get(operation_id)
+        if record is None:
+            return None
+        if (record["operation"], record["username"]) != (operation, username):
+            raise MieruError("operation id already used for another request", 409, "operation_conflict")
+        if record["credential_origin"] != "caller":
+            # The fake never kept that password either; a link it cannot produce must
+            # not be invented.
+            raise MieruError(
+                "operation result is unrecoverable; rotate the credential", 409, "result_unrecoverable"
+            )
+        return {"username": username, "revision": record["revision"], "replayed": True}
+
+    def _remember(self, operation_id, operation, username, password, revision):
+        if operation_id is not None:
+            self.operations[operation_id] = {
+                "operation": operation, "username": username, "revision": revision,
+                "credential_origin": "caller" if password else "manager",
+            }
+
+    def _maybe_lose(self, operation):
+        if self.faults.get(operation) == "lose_response":
+            raise MieruError("Mieru manager unavailable")
+
+    def _share(self, username, password):
+        return (
+            f"mierus://{quote(username, safe='')}:{quote(password, safe='')}"
+            f"@mieru.example.com?profile={quote(username)}&port=8443&protocol=TCP"
+        )
+
     async def create(self, payload):
+        operation_id = payload.get("operation_id")
+        username = payload["username"]
+        replayed = self._replay(operation_id, "user.create", username)
+        if replayed is not None:
+            return replayed
         if payload["expected_revision"] != self.revision:
             raise MieruError("conflict", 409)
-        username = payload["username"]
-        password = secrets.token_urlsafe(18)
+        password = payload.get("password") or secrets.token_urlsafe(18)
         self.users[username] = {
             "username": username,
             "enabled": True,
             "quotas": copy.deepcopy(payload["quotas"]),
         }
         revision = self._next()
+        self._remember(operation_id, "user.create", username, payload.get("password"), revision)
+        self._maybe_lose("create")
         return {
             "username": username,
-            "share_url": f"mierus://{quote(username, safe='')}:{quote(password, safe='')}@mieru.example.com?profile={quote(username)}&port=8443&protocol=TCP",
+            "share_url": self._share(username, password),
             "revision": revision,
+        }
+
+    async def rotate(self, username, revision, *, password=None, operation_id=None):
+        replayed = self._replay(operation_id, "user.rotate", username)
+        if replayed is not None:
+            return replayed
+        if revision != self.revision:
+            raise MieruError("conflict", 409)
+        secret = password or secrets.token_urlsafe(18)
+        next_revision = self._next()
+        self._remember(operation_id, "user.rotate", username, password, next_revision)
+        self._maybe_lose("rotate")
+        return {
+            "username": username,
+            "share_url": self._share(username, secret),
+            "revision": next_revision,
         }
 
     async def operation(self, username, operation, revision):

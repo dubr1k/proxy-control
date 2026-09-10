@@ -1588,3 +1588,88 @@ def test_cover_probe_accepts_a_locally_untrusted_cover_certificate(tmp_path):
     finally:
         server.join(timeout=5)
         listener.close()
+
+
+def _bootstrapped(tmp_path: Path) -> NaiveCredentialManager:
+    """The file's own pattern: a helper builds the service, bootstrap imports the
+    two credentials the sample Caddyfile already carries."""
+    service = manager(tmp_path, Hooks())
+    service.bootstrap()
+    return service
+
+
+def _usernames(service) -> list[str]:
+    return [user["username"] for user in service.list_users()]
+
+
+def test_create_with_operation_id_replays_the_same_credential(tmp_path):
+    service = _bootstrapped(tmp_path)
+    first = service.create("phone", None, password="caller-supplied-password-01", operation_id="op-1")
+    second = service.create("phone", None, password="caller-supplied-password-01", operation_id="op-1")
+    assert first["proxy_url"] == second["proxy_url"] and second["replayed"] is True
+    assert "replayed" not in first
+    # A replay creates nothing: "user already exists" would have refused a real retry.
+    assert _usernames(service) == ["old-user", "second", "phone"]
+
+
+def test_operation_id_reused_for_another_username_conflicts(tmp_path):
+    service = _bootstrapped(tmp_path)
+    service.create("phone", None, password="caller-supplied-password-01", operation_id="op-1")
+    with pytest.raises(ManagerConflict, match="operation") as refused:
+        service.create("laptop", None, password="caller-supplied-password-02", operation_id="op-1")
+    assert refused.value.code == "operation_conflict"
+    assert _usernames(service) == ["old-user", "second", "phone"]
+
+
+def test_caller_supplied_password_is_used_verbatim_and_validated(tmp_path):
+    service = _bootstrapped(tmp_path)
+    revealed = service.create("phone", None, password="caller-supplied-password-01")
+    assert "caller-supplied-password-01" in revealed["proxy_url"]
+    with pytest.raises(ValueError):
+        service.create("laptop", None, password="short")
+    with pytest.raises(ValueError):
+        service.create("laptop", None, password="has spaces in it and is long")
+    # A refused password leaves no half-created user behind.
+    assert _usernames(service) == ["old-user", "second", "phone"]
+
+
+def test_rotate_with_operation_id_is_replayable(tmp_path):
+    service = _bootstrapped(tmp_path)
+    service.create("phone", None)
+    first = service.rotate("phone", password="rotated-password-0123456", operation_id="op-2")
+    second = service.rotate("phone", password="rotated-password-0123456", operation_id="op-2")
+    assert first["proxy_url"] == second["proxy_url"] and second["replayed"] is True
+    assert "rotated-password-0123456" in first["proxy_url"]
+    # The same id cannot be reused for a different operation.
+    with pytest.raises(ManagerConflict, match="operation"):
+        service.create("laptop", None, operation_id="op-2")
+
+
+def test_an_operation_record_is_written_with_the_state_it_describes(tmp_path):
+    service = _bootstrapped(tmp_path)
+    service.create("phone", None, password="caller-supplied-password-01", operation_id="op-1")
+    state = json.loads(service.state_file.read_text())
+    record = state["operations"]["op-1"]
+    assert (record["operation"], record["username"]) == ("create", "phone")
+    # The result is computed from the desired state, so it lands in the same atomic write.
+    assert "caller-supplied-password-01" in record["result"]["proxy_url"]
+
+
+def test_legacy_state_without_operations_map_is_upgraded_on_read(tmp_path):
+    service = _bootstrapped(tmp_path)
+    state = service._read_state()
+    state.pop("operations", None)
+    service._apply(state)
+    assert service._read_state()["operations"] == {}
+
+
+def test_operation_records_older_than_the_retention_window_are_pruned(tmp_path):
+    service = _bootstrapped(tmp_path)
+    service.create("phone", None, password="caller-supplied-password-01", operation_id="op-1")
+    state = service._read_state()
+    state["operations"]["op-old"] = {
+        "operation": "create", "username": "ghost",
+        "completed_at": "2000-01-01T00:00:00+00:00", "result": {"username": "ghost"},
+    }
+    service._apply(state)
+    assert set(service._read_state()["operations"]) == {"op-1"}

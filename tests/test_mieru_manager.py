@@ -14,6 +14,7 @@ from mieru_manager.service import (
     MieruManager,
     MitaCLI,
     ValidationError,
+    _atomic,
     validate_config,
 )
 
@@ -1040,3 +1041,82 @@ def test_cli_eof_before_child_exit_is_sanitized_and_reaps_child(tmp_path):
         cli.version()
     assert type(error.value).__name__ == "MitaError"
     assert not _process_running(int(child_pid.read_text()))
+
+
+def _service(tmp_path):
+    """The file's own pattern: a helper builds the manager, bootstrap returns the revision."""
+    service = manager(tmp_path, FakeMita())
+    return service, service.bootstrap()["revision"]
+
+
+def test_create_with_caller_password_and_operation_id_replays_without_secret(tmp_path):
+    service, revision = _service(tmp_path)
+    first = service.create_user(
+        "phone", [], expected_revision=revision,
+        password="caller-supplied-password-01", operation_id="op-1",
+    )
+    assert "caller-supplied-password-01" in first["share_url"]
+    # The retry carries a stale revision — that is the whole point of a lost response.
+    second = service.create_user(
+        "phone", [], expected_revision="stale",
+        password="caller-supplied-password-01", operation_id="op-1",
+    )
+    assert second == {"username": "phone", "revision": first["revision"], "replayed": True}
+    assert [row["username"] for row in service.list_users()] == ["alice", "phone"]
+    journal = json.dumps(service._state())
+    assert "caller-supplied-password-01" not in journal and "share_url" not in journal
+
+
+def test_manager_generated_credential_cannot_be_replayed(tmp_path):
+    service, revision = _service(tmp_path)
+    service.create_user("phone", [], expected_revision=revision, operation_id="op-2")
+    # The manager never stored that password, so it cannot honestly return it again.
+    with pytest.raises(ConfigConflict, match="unrecoverable"):
+        service.create_user("phone", [], expected_revision="stale", operation_id="op-2")
+
+
+def test_rotate_with_operation_id_is_replayable(tmp_path):
+    service, revision = _service(tmp_path)
+    created = service.create_user("phone", [], expected_revision=revision)
+    first = service.rotate_user(
+        "phone", expected_revision=created["revision"],
+        password="rotated-password-0123456", operation_id="op-3",
+    )
+    second = service.rotate_user(
+        "phone", expected_revision="stale",
+        password="rotated-password-0123456", operation_id="op-3",
+    )
+    assert second == {"username": "phone", "revision": first["revision"], "replayed": True}
+    assert "rotated-password-0123456" in first["share_url"]
+
+
+def test_operation_id_reused_for_another_request_conflicts(tmp_path):
+    service, revision = _service(tmp_path)
+    service.create_user(
+        "phone", [], expected_revision=revision,
+        password="caller-supplied-password-01", operation_id="op-4",
+    )
+    with pytest.raises(ConfigConflict, match="operation id"):
+        service.create_user(
+            "laptop", [], expected_revision="stale",
+            password="caller-supplied-password-02", operation_id="op-4",
+        )
+
+
+def test_a_caller_password_is_validated_and_operations_are_pruned(tmp_path):
+    service, revision = _service(tmp_path)
+    with pytest.raises(ValidationError):
+        service.create_user("phone", [], expected_revision=revision, password="short")
+    created = service.create_user(
+        "phone", [], expected_revision=revision,
+        password="caller-supplied-password-01", operation_id="op-5",
+    )
+    state = service._state()
+    assert state["operations"]["op-5"]["credential_origin"] == "caller"
+    assert state["operations"]["op-5"]["revision"] == created["revision"]
+    state["operations"]["op-old"] = {
+        "operation": "user.create", "username": "ghost", "revision": "r",
+        "completed_at": "2000-01-01T00:00:00+00:00", "credential_origin": "caller",
+    }
+    _atomic(service.state_file, state)
+    assert set(service._state()["operations"]) == {"op-5"}

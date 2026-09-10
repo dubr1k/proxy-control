@@ -114,7 +114,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 self._exact(
                     body,
                     {"username", "quotas", "expected_revision"},
-                    {"elevated", "allow_private_ip", "allow_loopback_ip"},
+                    {
+                        "elevated", "allow_private_ip", "allow_loopback_ip",
+                        "password", "operation_id",
+                    },
                 )
                 return self._send(
                     201,
@@ -125,6 +128,8 @@ class ManagerHandler(BaseHTTPRequestHandler):
                         elevated=body.get("elevated", False),
                         allow_private_ip=body.get("allow_private_ip", False),
                         allow_loopback_ip=body.get("allow_loopback_ip", False),
+                        password=body.get("password"),
+                        operation_id=body.get("operation_id"),
                     ),
                 )
             prefix = "/v1/users/"
@@ -158,11 +163,21 @@ class ManagerHandler(BaseHTTPRequestHandler):
                         return self._send(
                             200, self.server.manager.reset_metric_baseline(username)
                         )
+                    if operation == "rotate":
+                        self._exact(body, {"expected_revision"}, {"password", "operation_id"})
+                        return self._send(
+                            200,
+                            self.server.manager.rotate_user(
+                                username,
+                                expected_revision=body["expected_revision"],
+                                password=body.get("password"),
+                                operation_id=body.get("operation_id"),
+                            ),
+                        )
                     self._exact(body, {"expected_revision"})
                     actions = {
                         "enable": self.server.manager.enable_user,
                         "disable": self.server.manager.disable_user,
-                        "rotate": self.server.manager.rotate_user,
                     }
                     if operation in actions:
                         return self._send(
