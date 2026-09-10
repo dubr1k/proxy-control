@@ -17,7 +17,14 @@ async def test_user_crud_rotate_and_one_time_reveal(client, login_user, telemt):
     assert created.status_code == 201
     body = created.json()
     assert set(body) == {"username", "reveal_token"}
-    assert "secret" not in str(client._transport.app.state.store.dump_schema()).lower()
+    # v0.2 added exactly one encrypted store; nothing else in the schema mentions
+    # secrets, and that store keeps ciphertext rather than credential columns.
+    schema = str(client._transport.app.state.store.dump_schema()).lower()
+    assert set(re.findall(r"secret\w*", schema)) <= {
+        "secret_versions", "secret_versions_key", "secret_versions_grant",
+        # access_grants points at a secret version; the value itself stays ciphertext.
+        "secret_id", "secret_version",
+    }
     token = body["reveal_token"]
     revealed = await client.get(f"/api/reveal/{token}")
     assert len(revealed.json()["secret"]) == 32 and "tg://proxy" in revealed.json()["link"]
@@ -55,7 +62,10 @@ async def test_sidebar_counters_are_filled_by_the_overview_not_by_visiting_a_sec
     assert protocols["mieru"]["credentials"]["total"] == 1
     assert protocols["naive"]["credentials"]["total"] == 1
     nodes = await client.get("/api/fleet/nodes")
-    assert nodes.status_code == 200 and nodes.json()["items"] == []
+    # No node has been registered, so the only row is the reserved local one that
+    # migration 5 creates in every database.
+    assert nodes.status_code == 200
+    assert [node["node_id"] for node in nodes.json()["items"]] == ["local"]
 
     entry = (await client.get("/static/app.js")).text
     dashboard = (await client.get("/static/js/dashboard.js")).text
@@ -298,7 +308,7 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     entry = (await client.get("/static/app.js")).text
     modules = {
         name: (await client.get(f"/static/js/{name}.js")).text
-        for name in ("access", "api", "audit", "common", "dashboard", "fleet", "main", "management", "mieru", "naive", "state", "users")
+        for name in ("access", "api", "audit", "common", "dashboard", "fleet", "main", "management", "mieru", "naive", "nodes", "state", "users")
     }
     assert entry.strip() == 'import { boot } from "/static/js/main.js";\n\nboot();'
     assert '<script type="module" src="/static/app.js"></script>' in text
@@ -355,10 +365,16 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     assert ".access-layout.no-qr{grid-template-columns:1fr}" in css.text
     assert ".toast-region{position:fixed;inset:auto 18px 18px auto" in css.text
     assert "@media(max-width:760px)" in css.text and ".client-tabs{overflow-x:auto" in css.text
-    assert 'id="fleet-modal"' in text and 'id="create-fleet-node"' in text
-    assert 'id="new-node-id"' in text and 'id="new-node-name"' in text
+    # Task 8 replaced the raw fleet dialog with the node lifecycle dialogs; the v1
+    # command form stays, but only inside the Advanced drawer.
+    assert 'id="fleet-modal"' not in text and 'id="create-fleet-node"' not in text
+    assert 'id="node-modal"' in text and 'id="create-node"' in text
+    assert 'id="node-id"' in text and 'id="node-name"' in text
+    assert 'id="node-rename-modal"' in text and 'id="node-revoke-confirm"' in text
     assert "FLEET_OPERATIONS" in modules["fleet"] and "fleet-command-form" in modules["fleet"]
-    assert "last_seen_at" in modules["fleet"] and "fleetCommands" in modules["state"]
+    assert "fleetCommands" in modules["state"] and "nodes: []" in modules["state"]
+    assert "last_seen_at" in modules["nodes"] and 'data-node-action="revoke-all"' in modules["nodes"]
+    assert 'class="advanced-drawer"' in modules["nodes"] and "fleet: renderNodes" in modules["main"]
     assert "next_cursor" in modules["audit"] and "Детали и IP" in modules["audit"]
     assert "actor" in modules["audit"] and "before_id" in modules["audit"]
     for operation in (
@@ -618,3 +634,62 @@ async def test_busy_buttons_capture_their_target_instead_of_reading_it_after_awa
         assert "event.currentTarget" not in source, name
         for handler in re.findall(r"\(\{ currentTarget: (\w+) \}\) =>", source):
             assert handler == "button", name
+
+
+async def _writer(client):
+    return client._transport.app.state.settings.vnext_writer
+
+
+async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
+    client, login_user, telemt, naive, mieru
+):
+    """The flag changes who owns the record, never what the caller sees."""
+    await login_user(client)
+    headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    created = await client.post("/api/users", json={"username": "alice"}, headers=headers)
+    assert created.status_code == 201 and created.json()["username"] == "alice"
+    assert "reveal_token" in created.json()
+
+    naive_created = await client.post("/api/naive/users", json={"username": "alice"}, headers=headers)
+    assert naive_created.status_code == 201 and "reveal_token" in naive_created.json()
+
+    mieru_created = await client.post(
+        "/api/mieru/users",
+        json={"username": "alice", "quotas": [], "expected_revision": mieru.revision},
+        headers=headers,
+    )
+    assert mieru_created.status_code == 201 and "reveal_token" in mieru_created.json()
+
+    app = client._transport.app
+    with app.state.database.connect() as db:
+        grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
+        clients = [dict(row) for row in db.execute("SELECT * FROM clients")]
+    if await _writer(client) == "domain":
+        # The domain writer owns the credential: that is the whole point of the flag.
+        assert {row["protocol"] for row in grants} == {"mtproxy", "naive", "mieru"}
+        assert all(row["origin"] == "provisioned" for row in grants)
+        assert all(row["secret_id"] is not None for row in grants)
+        assert [row["display_name"] for row in clients] == ["alice"]
+    else:
+        assert grants == [] and clients == []
+
+
+async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, login_user, telemt, naive, mieru):
+    """A username the panel has never seen is recorded, not merged and not recreated."""
+    naive.seed("legacy-user", "pre-existing-password-0001")
+    await login_user(client)
+    headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    disabled = await client.post("/api/naive/users/legacy-user/disable", headers=headers)
+    assert disabled.status_code == 200 and disabled.json()["enabled"] is False
+    assert naive.users["legacy-user"]["password"] == "pre-existing-password-0001"
+
+    app = client._transport.app
+    with app.state.database.connect() as db:
+        grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
+    if await _writer(client) == "domain":
+        assert [row["runtime_username"] for row in grants] == ["legacy-user"]
+        assert grants[0]["origin"] == "imported" and grants[0]["desired_state"] == "disabled"
+        # Adoption on the fly never invents a credential it does not have.
+        assert grants[0]["secret_id"] is None
+    else:
+        assert grants == []

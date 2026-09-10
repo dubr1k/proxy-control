@@ -140,6 +140,156 @@ Tabs without a QR (Native, Shadowrocket) drop the QR pane entirely instead of re
 
 Karing's current source accepts `karing://install-config?url=...` and imports sing-box configuration content; its current protocol editor includes Naive. See the [Karing URL-scheme contract](https://karing.app/en/cooperation/scheme), [Karing import guide](https://karing.app/en/quickstart), and [sing-box Naive outbound schema](https://sing-box.sagernet.org/configuration/outbound/naive/). All variants contain the same credential and remain subject to the one-time reveal and `Cache-Control: no-store` rules.
 
+## Switching the writer: `PANEL_VNEXT_WRITER`
+
+Since v0.2 the protocol endpoints have two writers, selected by
+`PANEL_VNEXT_WRITER`:
+
+- `legacy` (default) — the panel calls the managers directly, exactly as v0.1.0 did;
+- `domain` — the same requests go through clients and grants, so the panel **owns the
+  credential** and can render a subscription.
+
+From outside the two are indistinguishable: same status codes, same response shapes,
+same audit actions. That is enforced by running the whole API test suite in both modes.
+
+Cut over in this order:
+
+1. Import the existing users on the Clients screen.
+2. Adopt the grants with the "Adopt" button (for Mieru, with a deliberate rotation).
+3. Set `PANEL_VNEXT_WRITER=domain` and restart the panel.
+4. Verify create/enable/rotate on one user of each protocol.
+
+If step 3 finds users the panel does not know, that is fine: the first operation on
+such a user records it as `imported`, without recreating it and without merging it with
+a same-named account of another protocol. No credential appears for that row — the
+panel does not have one; adopt it explicitly.
+
+Elevated Mieru flags (`allow_private_ip`, `allow_loopback_ip`) stay on the direct
+manager call even in `domain` mode: that path is deliberately manual, and smuggling it
+through a generic intent would change what it means.
+
+## The Clients screen
+
+A client is a person or a device; a grant is their account in one protocol on one
+node. The card shows the client's name, its state (active / suspended / archived) and
+one chip per grant: "protocol · runtime account · state".
+
+"Import existing" lists what the managers already run. The panel only **reads** them:
+passwords, quotas and enabled flags are untouched, and no `create`, `rotate`, `enable`
+or `delete` is ever issued. Import is therefore safe on a live server and can be
+repeated — already adopted accounts are marked and skipped.
+
+An identical username across protocols is **a hint only**. The panel flags those rows,
+but by default every (protocol, runtime account) pair becomes its own client: three
+`alice` accounts in three managers are not evidence of one person, and a silent merge
+would hand one subscriber somebody else's access. Merge deliberately by picking an
+existing client in the "Where" column.
+
+An imported grant carries no secret: the panel never saw the password the manager
+issued earlier. Such a grant is marked "no stored secret" and stays out of the
+subscription until it is adopted with the "Adopt" button.
+
+Adoption differs by protocol, and the difference is not cosmetic:
+
+- **MTProxy and NaiveProxy** hand the current credential back on request, so the panel
+  simply reads it and files it in encrypted storage. The link a subscriber already
+  holds keeps working.
+- **Mieru** stores only a password hash, so neither the panel nor mita itself can read
+  it back. The only honest option is to issue a new one, and the panel asks first, in
+  those words: **the current `mierus://` link will stop working** and the subscriber
+  needs a new one. Without that consent the panel refuses (409) and never touches the
+  manager.
+
+Neither the API response nor the audit log ever contains the password: the audit
+records the protocol and whether a rotation happened (`rotated: true|false`).
+
+### Issuing access
+
+The "Issue access" button on a client card creates accounts in several protocols as a
+**single operation**. Three managers cannot share a transaction, so "all or nothing" is
+not available — instead the operation keeps a journal, and every run ends in exactly one
+of three outcomes:
+
+- **succeeded** — every access exists and its credential is in encrypted storage;
+- **compensated** — something refused, and everything **this operation** created was
+  removed. Anything that existed on the server beforehand is never touched;
+- **manual_intervention_required** — the runtime changed but cannot be rolled back
+  safely. The panel names the operation id; continue with
+  `python -m panel.cli operations-resume <id>`.
+
+The journal survives a restart: a second `run` resumes from the last checkpoint instead
+of starting over, so a duplicate account with the same name never appears.
+
+After success the panel shows every link of the operation once. The same token does not
+open twice — it is a one-time reveal.
+
+A node that still carries grants cannot be disabled; subscribers would lose access
+silently. Delete the grants first, then disable the node.
+
+## The Nodes screen
+
+A node card shows four things: identity (name, `node_id`, "this server" or "remote
+[REDACTED:API key param]"), enrollment state, transport (when the node last checked in) and daemon
+state. Certificates are listed with their expiry; anything expiring within two weeks
+is highlighted.
+
+Owner actions:
+
+- **Register** (the Add button) creates the node and immediately shows the
+  enrollment checklist. The panel cannot issue the certificate for you: the private
+  key is generated on the node and never copied anywhere.
+- **Rename** changes the display name only. `node_id` is immutable because
+  certificates and grants are bound to it.
+- **Disable / Enable**: a disabled node fails transport authentication. The panel
+  refuses to disable a node that still has pending commands — they would otherwise
+  sit in the queue with nobody to run them.
+- **Revoke all certificates** requires retyping `node_id` in the dialog; the node
+  stays off the transport until a new certificate is issued and bound.
+
+The reserved "this server" node exists in every installation — a database migration
+creates it, not the operator — and it is always listed first. It has no enrollment
+actions at all: local protocols are managed directly, with no command queue and no
+certificates. Instead of a certificate list, its card shows the health of the three
+managers — Telemt, NaiveProxy, Mieru: "ok", "unavailable", or "disabled" for a
+protocol this installation does not run. It can be renamed, but not disabled and not
+revoked; the `node_id` `local` is reserved, so registering an ordinary node under it
+is refused.
+
+Raw Telemt v1 typed commands live in the card's "Advanced: transport v1" drawer —
+the same interface as before, simply not on the first screen. See also
+[FLEET.en.md](FLEET.en.md).
+
+## Master key and rotation
+
+Since v0.2 the panel can store a client credential so that a subscription still
+renders tomorrow. Those values are encrypted with AES-256-GCM under the keyring
+in `secrets/panel-master-key`, staged read-only into the container at
+`/run/panel/master-key`. Encryption is bound to each row's identity, so a
+ciphertext copied into another row — or handed to another node — fails to
+decrypt rather than leaking.
+
+What this protects: a stolen database file or backup. What it does not protect:
+a compromised panel process, which holds the key while it runs.
+
+- The installer creates the key on install and upgrade and never regenerates it.
+- A panel with no stored secrets starts without the key; once encrypted rows
+  exist and the key is gone, it refuses to start instead of serving empty
+  subscriptions.
+- Back the key up separately from the database ([backup and
+  restore](docs/BACKUP_RESTORE.en.md)).
+
+```sh
+# check that a key and a database belong together (prints counts, never values)
+docker compose exec panel python -m panel.cli master-key-verify --path /run/panel/master-key
+
+# rotate: add a new active key, re-encrypt in batches, verify, then narrow the keyring
+docker compose exec panel python -m panel.cli master-key-rotate --path /run/panel/master-key
+```
+
+Rotation is overlap-first: the file carries both keys while rows are rewrapped,
+so an interrupted rotation leaves every secret readable. Take a fresh key backup
+after it finishes.
+
 ## Backup
 
 Back up volumes `panel-data` and `telemt-config`, `${NAIVE_DATA_DIR}` when the Naive integration is enabled, and secret files separately with mode `0600`. `users.conf` is imported only when `telemt-config/config.toml` is first created. Telemt then becomes the source of truth and atomically persists API mutations. Deleting `telemt-config` causes the original `users.conf` to be imported again.

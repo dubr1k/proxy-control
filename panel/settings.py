@@ -39,8 +39,19 @@ class Settings:
         )
     )
     mieru_enabled: bool = os.getenv("MIERU_ENABLED", "false").lower() == "true"
+    # Which writer serves the protocol endpoints. `legacy` calls the managers directly,
+    # exactly as v0.1.0 did; `domain` routes the same requests through clients/grants so
+    # the panel owns the credential. Cutover order: import first, then flip this.
+    vnext_writer: str = os.getenv("PANEL_VNEXT_WRITER", "legacy")
     version_agent_socket: str = os.getenv(
         "VERSION_AGENT_SOCKET", "/run/proxy-control/version-agent.sock"
+    )
+    # Absent means "no secret store": the panel still starts, but only while the
+    # database holds no encrypted rows (ADR 005).
+    master_key_file: Path | None = field(
+        default_factory=lambda: Path(os.environ["PANEL_MASTER_KEY_FILE"])
+        if os.getenv("PANEL_MASTER_KEY_FILE")
+        else None
     )
     session_cookie_secure: bool = (
         os.getenv("PANEL_COOKIE_SECURE", "true").lower() == "true"

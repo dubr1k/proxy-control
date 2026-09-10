@@ -227,6 +227,7 @@ def register_auth_admin_audit_routes(
         actor: str | None = Query(default=None, min_length=1, max_length=64),
         action: str | None = Query(default=None, min_length=1, max_length=128),
         target: str | None = Query(default=None, min_length=1, max_length=256),
+        request_id: str | None = Query(default=None, min_length=1, max_length=64),
         _user=Depends(context.current),
     ):
         rows = await asyncio.to_thread(
@@ -236,6 +237,7 @@ def register_auth_admin_audit_routes(
             actor=actor,
             action=action,
             target=target,
+            request_id=request_id,
         )
         response = {"items": rows[:limit]}
         if len(rows) > limit:

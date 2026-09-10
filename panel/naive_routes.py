@@ -117,6 +117,20 @@ def safe_naive_quota(value):
     raise NaiveError("Invalid NaiveProxy quota response")
 
 
+async def _domain_created(app, username: str, quota_bytes, request, user) -> dict:
+    """Provision through the domain, then answer in the shape the caller already knows."""
+    from .clients.store import ClientConflict  # noqa: PLC0415 - avoids an import cycle
+
+    try:
+        await app.state.domain_facade.create(
+            "naive", username, {"quota_bytes": quota_bytes},
+            **app.state.request_context.domain_context(request, user),
+        )
+    except ClientConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return await app.state.naive.reveal(username)
+
+
 def register_naive_routes(app, context: RequestContext) -> None:
     settings = context.settings
 
@@ -281,10 +295,16 @@ def register_naive_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_naive()
-        data = naive_reveal(
-            await app.state.naive.create(body.username, body.quota_bytes),
-            body.username,
-        )
+        if context.settings.vnext_writer == "domain":
+            data = naive_reveal(
+                await _domain_created(app, body.username, body.quota_bytes, request, user),
+                body.username,
+            )
+        else:
+            data = naive_reveal(
+                await app.state.naive.create(body.username, body.quota_bytes),
+                body.username,
+            )
         await context.audit(
             user,
             "naive.create",
@@ -359,6 +379,13 @@ def register_naive_routes(app, context: RequestContext) -> None:
                 "username": username,
                 "enabled": changed.get("enabled") is True,
             }
+            if context.settings.vnext_writer == "domain":
+                # A username the panel has never seen is recorded, not recreated.
+                await app.state.domain_facade.set_enabled(
+                    "naive", username, operation == "enable",
+                    observed={"quota_bytes": changed.get("quota_bytes")},
+                    **app.state.request_context.domain_context(request, user),
+                )
         await context.audit(user, f"naive.{operation}", username, request)
         return result
 
