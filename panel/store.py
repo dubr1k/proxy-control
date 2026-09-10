@@ -3,13 +3,16 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-import sqlite3
 import threading
 import time
 from pathlib import Path
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+
+from . import audit
+from .database import Database
+from .migrations import apply_migrations
 
 
 DUMMY_PASSWORD_HASH = (
@@ -24,52 +27,14 @@ class ConflictError(Exception):
 class Store:
     def __init__(self, path: Path):
         self.path = path
-        path.parent.mkdir(parents=True, exist_ok=True)
+        self.database = Database(path)
         self._lock = threading.RLock()
         self.passwords = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
         self._dummy_hash = DUMMY_PASSWORD_HASH
-        self._init()
+        apply_migrations(self.database)
 
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA foreign_keys=ON")
-        return db
-
-    def _init(self):
-        with self.connect() as db:
-            db.executescript("""
-            PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS admins (
-              id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-              password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
-              active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS sessions (
-              token_hash TEXT PRIMARY KEY, admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
-              csrf_hash TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
-              last_seen_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS login_attempts (
-              scope TEXT NOT NULL, happened_at INTEGER NOT NULL,
-              reservation_id TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS login_attempts_scope_time ON login_attempts(scope,happened_at);
-            CREATE TABLE IF NOT EXISTS audit_log (
-              id INTEGER PRIMARY KEY, happened_at INTEGER NOT NULL, actor_id INTEGER,
-              actor_username TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL,
-              detail_json TEXT NOT NULL DEFAULT '{}', ip TEXT NOT NULL
-            );
-            """)
-            columns = {
-                row["name"]
-                for row in db.execute("PRAGMA table_info(login_attempts)")
-            }
-            if "reservation_id" not in columns:
-                db.execute(
-                    "ALTER TABLE login_attempts "
-                    "ADD COLUMN reservation_id TEXT NOT NULL DEFAULT ''"
-                )
+        return self.database.connect()
 
     def create_admin(self, username: str, password: str, role: str):
         """Create this administrator, or set the password of an existing one.
@@ -221,11 +186,25 @@ class Store:
     def _owner_count(db):
         return db.execute("SELECT count(*) FROM admins WHERE role='owner' AND active=1").fetchone()[0]
 
-    def audit(self, actor: dict, action: str, target: str, ip: str, detail: dict | None = None):
-        safe = {k: v for k, v in (detail or {}).items() if k not in {"secret", "password", "token", "link"}}
+    def audit(
+        self,
+        actor: dict,
+        action: str,
+        target: str,
+        ip: str,
+        detail: dict | None = None,
+        request_id: str | None = None,
+    ):
         with self.connect() as db:
-            db.execute("INSERT INTO audit_log(happened_at,actor_id,actor_username,action,target,detail_json,ip) VALUES(?,?,?,?,?,?,?)",
-                       (int(time.time()), actor.get("admin_id") or actor.get("id"), actor["username"], action, target, json.dumps(safe), ip))
+            return audit.record(
+                db,
+                actor=actor,
+                action=action,
+                target=target,
+                ip=ip,
+                detail=detail,
+                request_id=request_id,
+            )
 
     def audits(
         self,
@@ -235,6 +214,7 @@ class Store:
         actor: str | None = None,
         action: str | None = None,
         target: str | None = None,
+        request_id: str | None = None,
     ):
         clauses = []
         values = []
@@ -250,6 +230,9 @@ class Store:
         if target is not None:
             clauses.append("target = ?")
             values.append(target)
+        if request_id is not None:
+            clauses.append("request_id = ?")
+            values.append(request_id)
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         values.append(limit)
         with self.connect() as db:
