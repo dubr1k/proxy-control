@@ -1,4 +1,4 @@
-import { date, esc, initials, number, query, serialise } from "./common.js";
+import { date, esc, number, query, serialise } from "./common.js";
 import { isCurrent } from "./state.js";
 
 export const FLEET_OPERATIONS = [
@@ -64,7 +64,7 @@ function inventoryList(node) {
     <div class="fleet-capabilities"><span>Возможности Telemt v1</span>${capabilities.length ? capabilities.map((capability) => `<code>${esc(capability)}</code>`).join("") : "<small>Агент ещё не подтвердил поддерживаемые операции.</small>"}</div>`;
 }
 
-function commandForm(context, node, commands) {
+export function commandForm(context, node, commands) {
   if (context.state.me.role === "viewer") return '<p class="form-hint">Наблюдатель видит статус и историю, но не может ставить команды в очередь.</p>';
   const capabilities = visibleCapabilities(node);
   const hasInventory = !capabilities.length || capabilities.includes("telemt.inventory.refresh");
@@ -87,7 +87,7 @@ function commandForm(context, node, commands) {
   </form>`;
 }
 
-function nodeDetail(context, node, commands) {
+export function nodeDetail(context, node, commands) {
   if (!node) return '<section class="fleet-detail empty-state"><span>◇</span><h3>Выберите узел</h3><p>Откройте карточку, чтобы увидеть inventory и историю команд.</p></section>';
   const connected = node.auth_state === "connected";
   return `<section class="fleet-detail" aria-labelledby="fleet-node-title">
@@ -98,36 +98,16 @@ function nodeDetail(context, node, commands) {
   </section>`;
 }
 
-function nodeCard(node, selected) {
-  const connected = node.auth_state === "connected";
-  return `<button class="fleet-node-card ${selected ? "selected" : ""}" data-fleet-node="${esc(node.node_id)}" aria-current="${selected ? "true" : "false"}">
-    <span class="user-glyph">${esc(initials(node.node_id))}</span><span><b>${esc(node.display_name)}</b><small>${esc(node.node_id)} · ${esc(node.inventory?.region || "регион не задан")}</small></span><span class="status-pill ${connected ? "active" : "blocked"}"><i></i>${connected ? "online" : esc(node.auth_state || "unenrolled")}</span>
-  </button>`;
-}
-
-async function refreshCommands(context, nodeId, generation) {
+export async function refreshCommands(context, nodeId, generation) {
   const data = await context.api(`/api/fleet/nodes/${encodeURIComponent(nodeId)}/commands`);
   if (!isCurrent(context.state, generation, "fleet") || context.state.fleetSelection !== nodeId) return null;
   context.state.fleetCommands = data.items || [];
   return context.state.fleetCommands;
 }
 
-export async function renderFleet(context, generation) {
-  const data = await context.api("/api/fleet/nodes");
-  if (!isCurrent(context.state, generation, "fleet")) return;
-  context.state.fleet = data.items || [];
-  query("#fleet-count", context.root).textContent = context.state.fleet.length;
-  if (!context.state.fleet.some((node) => node.node_id === context.state.fleetSelection)) {
-    context.state.fleetSelection = context.state.fleet[0]?.node_id || "";
-    context.state.fleetCommands = [];
-  }
-  if (context.state.fleetSelection) {
-    const commands = await refreshCommands(context, context.state.fleetSelection, generation);
-    if (commands === null) return;
-  }
-  const selected = context.state.fleet.find((node) => node.node_id === context.state.fleetSelection);
-  context.ui.view.innerHTML = `<div class="security-note">Узлы подключаются исходящим mTLS long-poll. Идентичность привязана к SAN, серийному номеру и отпечатку сертификата; bearer fallback отсутствует.</div>
-    <section class="fleet-layout"><nav class="fleet-node-list" aria-label="Узлы Fleet">${context.state.fleet.length ? context.state.fleet.map((node) => nodeCard(node, node.node_id === context.state.fleetSelection)).join("") : '<div class="empty-state"><span>◇</span><h3>Узлы не зарегистрированы</h3><p>Владелец может добавить обезличенный inventory через Fleet API.</p></div>'}</nav>${nodeDetail(context, selected, context.state.fleetCommands)}</section>`;
+// The node list itself now lives in nodes.js; this module keeps only the v1
+// transport pieces the Advanced drawer renders.
+export function updateCommandFieldsAfterRender(context) {
   updateCommandFields(context);
 }
 
@@ -202,44 +182,7 @@ export async function submitFleetCommand(context, form) {
   }
 }
 
-export function openFleetModal(context) {
-  query("#fleet-form", context.root).reset();
-  query("#fleet-error", context.root).textContent = "";
-  context.ui.openModal("#fleet-modal", "#new-node-id");
-}
-
-export function bindFleet(context) {
-  const { api, root, ui } = context;
-  query("#create-fleet-node", root)?.addEventListener("click", async ({ currentTarget: button }) => {
-    const form = query("#fleet-form", root);
-    const error = query("#fleet-error", root);
-    if (!form.reportValidity()) return;
-    const nodeId = query("#new-node-id", root).value;
-    const displayName = query("#new-node-name", root).value.trim();
-    const region = query("#new-node-region", root).value.trim();
-    const inventory = region ? { region } : {};
-    error.textContent = "";
-    try {
-      ui.setBusy(button, true, "Добавляем…");
-      await api("/api/fleet/nodes", { method: "POST", body: JSON.stringify({ node_id: nodeId, display_name: displayName, inventory }) });
-      query("#fleet-modal", root).close();
-      context.state.fleetSelection = nodeId;
-      ui.toast("Узел добавлен в реестр");
-      await context.navigate("fleet");
-    } catch (exception) {
-      error.textContent = exception.message;
-    } finally {
-      ui.setBusy(button, false);
-    }
-  });
-}
-
 export function handleFleetClick(context, button) {
-  if (button.dataset.fleetNode) {
-    context.state.fleetSelection = button.dataset.fleetNode;
-    void context.navigate("fleet");
-    return true;
-  }
   if (button.dataset.fleetAction === "prepare-inventory") {
     const form = query("#fleet-command-form", context.root);
     query("#fleet-operation", form).value = "telemt.inventory.refresh";

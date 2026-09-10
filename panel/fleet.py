@@ -4,13 +4,15 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sqlite3
 import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .database import Database
+from .migrations import apply_migrations
 
 
 PROTOCOL_VERSION = 1
@@ -241,76 +243,12 @@ class TypedCommand:
 class FleetStore:
     def __init__(self, path: Path):
         self.path = path
+        self.database = Database(path)
         self._lock = threading.RLock()
-        self._init()
+        apply_migrations(self.database)
 
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA foreign_keys=ON")
-        return db
-
-    def _init(self):
-        with self.connect() as db:
-            db.executescript("""
-            PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS fleet_nodes (
-              node_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, auth_state TEXT NOT NULL,
-              inventory_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
-              next_sequence INTEGER NOT NULL DEFAULT 1, last_result_sequence INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS fleet_commands (
-              command_id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,
-              sequence INTEGER NOT NULL, idempotency_key TEXT NOT NULL, protocol_version INTEGER NOT NULL,
-              operation TEXT NOT NULL, expected_revision TEXT NOT NULL, payload_json TEXT NOT NULL,
-              status TEXT NOT NULL CHECK(status IN ('queued','dispatched','succeeded','failed','indeterminate')),
-              result_json TEXT, created_at INTEGER NOT NULL, completed_at INTEGER,
-              UNIQUE(node_id,sequence), UNIQUE(node_id,idempotency_key)
-            );
-            CREATE INDEX IF NOT EXISTS fleet_commands_node_sequence ON fleet_commands(node_id,sequence);
-            CREATE TABLE IF NOT EXISTS fleet_certificates (
-              serial TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,
-              fingerprint_sha256 TEXT NOT NULL UNIQUE, not_before INTEGER NOT NULL, not_after INTEGER NOT NULL,
-              state TEXT NOT NULL CHECK(state IN ('active','revoked')), issued_at INTEGER NOT NULL, revoked_at INTEGER
-            );
-            """)
-            self._add_column(db, "fleet_nodes", "last_seen_at", "INTEGER")
-            self._add_column(db, "fleet_commands", "actor", "TEXT NOT NULL DEFAULT 'system'")
-            self._add_column(db, "fleet_commands", "expires_at", "INTEGER NOT NULL DEFAULT 0")
-            self._add_column(db, "fleet_commands", "payload_sha256", "TEXT NOT NULL DEFAULT ''")
-            self._add_column(db, "fleet_commands", "dispatched_at", "INTEGER")
-            for row in db.execute("SELECT command_id,payload_json,created_at FROM fleet_commands WHERE payload_sha256='' OR expires_at=0"):
-                db.execute("UPDATE fleet_commands SET payload_sha256=?,expires_at=? WHERE command_id=?",
-                           (hashlib.sha256(row["payload_json"].encode()).hexdigest(), row["created_at"] + 300, row["command_id"]))
-            self._migrate_command_status_constraint(db)
-
-    @staticmethod
-    def _add_column(db, table: str, column: str, definition: str):
-        columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
-        if column not in columns:
-            db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-
-    @staticmethod
-    def _migrate_command_status_constraint(db):
-        sql = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='fleet_commands'").fetchone()[0]
-        if "'dispatched'" in sql:
-            return
-        db.execute("DROP INDEX IF EXISTS fleet_commands_node_sequence")
-        db.execute("ALTER TABLE fleet_commands RENAME TO fleet_commands_old")
-        db.execute("""CREATE TABLE fleet_commands (
-          command_id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,
-          sequence INTEGER NOT NULL, idempotency_key TEXT NOT NULL, protocol_version INTEGER NOT NULL,
-          operation TEXT NOT NULL, expected_revision TEXT NOT NULL, payload_json TEXT NOT NULL,
-          status TEXT NOT NULL CHECK(status IN ('queued','dispatched','succeeded','failed','indeterminate')),
-          result_json TEXT, created_at INTEGER NOT NULL, completed_at INTEGER, actor TEXT NOT NULL,
-          expires_at INTEGER NOT NULL, payload_sha256 TEXT NOT NULL, dispatched_at INTEGER,
-          UNIQUE(node_id,sequence), UNIQUE(node_id,idempotency_key)
-        )""")
-        db.execute("""INSERT INTO fleet_commands SELECT command_id,node_id,sequence,idempotency_key,protocol_version,
-            operation,expected_revision,payload_json,status,result_json,created_at,completed_at,actor,expires_at,
-            payload_sha256,dispatched_at FROM fleet_commands_old""")
-        db.execute("DROP TABLE fleet_commands_old")
-        db.execute("CREATE INDEX fleet_commands_node_sequence ON fleet_commands(node_id,sequence)")
+        return self.database.connect()
 
     def register_node(self, node_id: str, display_name: str, inventory: dict) -> dict:
         if not NODE_RE.fullmatch(node_id):
@@ -360,6 +298,7 @@ class FleetStore:
                 else []
             )
         value["inventory"] = inventory
+        value["disabled"] = bool(value.get("disabled", 0))
         return value
 
     def enqueue(self, node_id: str, idempotency_key: str, operation: str, payload: dict, expected_revision: str,
@@ -381,9 +320,11 @@ class FleetStore:
                 if (previous["operation"], previous["payload_json"], previous["expected_revision"]) != (operation, canonical_payload, expected_revision):
                     raise CommandConflict("idempotency key was reused with different command data")
                 return self._command(previous)
-            node = db.execute("SELECT next_sequence FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
+            node = db.execute("SELECT next_sequence,kind FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
             if not node:
                 raise KeyError(node_id)
+            if node["kind"] == "local":
+                raise CommandConflict("local node has no fleet transport")
             sequence = node["next_sequence"]
             raw = {
                 "protocol_version": PROTOCOL_VERSION, "command_id": str(uuid.uuid4()), "node_id": node_id,
@@ -433,8 +374,11 @@ class FleetStore:
             raise ProtocolError("certificate metadata is invalid")
         now = int(time.time())
         with self.connect() as db:
-            if not db.execute("SELECT 1 FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone():
+            node = db.execute("SELECT kind FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
+            if not node:
                 raise KeyError(node_id)
+            if node["kind"] == "local":
+                raise ProtocolError("local node has no certificates")
             db.execute("""INSERT INTO fleet_certificates(serial,node_id,fingerprint_sha256,not_before,not_after,state,issued_at)
                 VALUES(?,?,?,?,?,'active',?)""", (metadata["serial"].upper(), node_id,
                 metadata["fingerprint_sha256"].lower(), metadata["not_before"], metadata["not_after"], now))
@@ -457,8 +401,12 @@ class FleetStore:
         if cert_node_id != node_id:
             return False
         with self.connect() as db:
-            row = db.execute("""SELECT 1 FROM fleet_certificates WHERE node_id=? AND serial=?
-                AND fingerprint_sha256=? AND state='active' AND not_before<=? AND not_after>?""",
+            # A disabled node, and the reserved local node, have no transport at all:
+            # authentication fails here rather than anywhere further in.
+            row = db.execute("""SELECT 1 FROM fleet_certificates c
+                JOIN fleet_nodes n ON n.node_id=c.node_id
+                WHERE c.node_id=? AND c.serial=? AND c.fingerprint_sha256=? AND c.state='active'
+                AND c.not_before<=? AND c.not_after>? AND n.disabled=0 AND n.kind='remote'""",
                 (node_id, serial.upper(), fingerprint.lower(), now, now)).fetchone()
             if not row:
                 return False
@@ -471,11 +419,13 @@ class FleetStore:
         with self._lock, self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             node = db.execute(
-                "SELECT last_result_sequence FROM fleet_nodes WHERE node_id=?",
+                "SELECT last_result_sequence,kind FROM fleet_nodes WHERE node_id=?",
                 (node_id,),
             ).fetchone()
             if not node:
                 raise KeyError(node_id)
+            if node["kind"] == "local":
+                raise CommandConflict("local node has no fleet transport")
             last_result_sequence = node["last_result_sequence"]
             while True:
                 row = db.execute(
