@@ -1,0 +1,178 @@
+{
+  "schema": 1,
+  "generated_for": "v0.2",
+  "columns": [
+    "create",
+    "enable",
+    "disable",
+    "rotate",
+    "delete",
+    "quota",
+    "expiry",
+    "accounting",
+    "stable_access_artifact",
+    "credential_capture_without_rotation",
+    "whole_service_socks_upstream",
+    "cidr_routing",
+    "domain_routing",
+    "per_client_routing",
+    "hot_reload",
+    "rollback",
+    "dns_ownership",
+    "socks_hostname_propagation",
+    "tcp_udp_upstream",
+    "identity_propagation",
+    "fail_closed",
+    "binary_hot_upgrade",
+    "exact_geodata_version"
+  ],
+  "rows": {
+    "fleet_v1": {
+      "create": {"status": "unsupported", "note": "panel/fleet.py:23 OPERATIONS has five telemt operations and no create"},
+      "enable": {"status": "supported", "note": "telemt.user.enable in panel/fleet.py OPERATIONS"},
+      "disable": {"status": "supported", "note": "telemt.user.disable in panel/fleet.py OPERATIONS"},
+      "rotate": {"status": "unsupported", "note": "no rotate operation; a rotation result would be secret-bearing and validate_result rejects it"},
+      "delete": {"status": "unsupported", "note": "not in OPERATIONS; deletion stays a local panel action in v0.2"},
+      "quota": {"status": "supported", "note": "telemt.user.update_limits and telemt.user.reset_quota"},
+      "expiry": {"status": "unsupported", "note": "no expiry operation; validity windows are a control-plane concept (AccessGrant.valid_until)"},
+      "accounting": {"status": "supported", "note": "telemt.inventory.refresh returns quota/limit counters, validated secret-free"},
+      "stable_access_artifact": {"status": "unsupported", "note": "panel/fleet.py:21 FORBIDDEN_KEYS blocks link/links/secret in payload and result"},
+      "credential_capture_without_rotation": {"status": "unsupported", "note": "Fleet v1 never carries credentials in either direction"},
+      "whole_service_socks_upstream": {"status": "out_of_scope", "note": "egress belongs to the node runtime, not to the command queue"},
+      "cidr_routing": {"status": "out_of_scope", "note": "routing is not part of Fleet v1"},
+      "domain_routing": {"status": "out_of_scope", "note": "routing is not part of Fleet v1"},
+      "per_client_routing": {"status": "out_of_scope", "note": "routing is not part of Fleet v1"},
+      "hot_reload": {"status": "out_of_scope", "note": "reload semantics belong to the node runtime; Fleet v1 only delivers typed telemt operations"},
+      "rollback": {"status": "unsupported", "note": "imperative commands with no generation history (ADR 002 is v0.3)"},
+      "dns_ownership": {"status": "out_of_scope", "note": "not a transport concern"},
+      "socks_hostname_propagation": {"status": "out_of_scope", "note": "not a transport concern"},
+      "tcp_udp_upstream": {"status": "out_of_scope", "note": "not a transport concern"},
+      "identity_propagation": {"status": "out_of_scope", "note": "not a transport concern"},
+      "fail_closed": {"status": "supported", "note": "validate_payload/validate_result raise ProtocolError on unknown operations and secret-bearing bodies"},
+      "binary_hot_upgrade": {"status": "out_of_scope", "note": "agent upgrades are an installer concern"},
+      "exact_geodata_version": {"status": "out_of_scope", "note": "geodata belongs to the v0.5 routing backend"}
+    },
+    "mtproxy": {
+      "create": {"status": "supported", "note": "TelemtClient.create_user (panel/telemt.py:39)"},
+      "enable": {"status": "supported", "note": "TelemtClient.set_enabled(username, True)"},
+      "disable": {"status": "supported", "note": "TelemtClient.set_enabled(username, False)"},
+      "rotate": {"status": "supported", "note": "TelemtClient.rotate returns a fresh secret and link"},
+      "delete": {"status": "supported", "note": "TelemtClient.delete_user"},
+      "quota": {"status": "supported", "note": "safe_user exposes data_quota_bytes, rate_limit_up_bps, rate_limit_down_bps; reset via /api/users/{u}/reset-quota"},
+      "expiry": {"status": "unsupported", "note": "Telemt has no expiry field; v0.2 enforces AccessGrant.valid_until by disabling"},
+      "accounting": {"status": "supported", "note": "TelemtClient.stats/quota_stats/connections/active_ips"},
+      "stable_access_artifact": {"status": "supported", "note": "list_users keeps links.tls, so POST /api/users/{u}/access re-renders the current link (telemt_routes.py:400-420)"},
+      "credential_capture_without_rotation": {"status": "supported", "note": "the current link is readable at any time, so an imported grant is captured without touching the user"},
+      "whole_service_socks_upstream": {"status": "out_of_scope", "note": "MTProxy is excluded from routing scope (ADR 006)"},
+      "cidr_routing": {"status": "out_of_scope", "note": "MTProxy is excluded from routing scope (ADR 006)"},
+      "domain_routing": {"status": "out_of_scope", "note": "MTProxy is excluded from routing scope (ADR 006)"},
+      "per_client_routing": {"status": "out_of_scope", "note": "MTProxy is excluded from routing scope (ADR 006)"},
+      "hot_reload": {"status": "supported", "note": "user changes apply through the Telemt API without restarting the proxy"},
+      "rollback": {"status": "unsupported", "note": "no generation history; a revert is a new mutation"},
+      "dns_ownership": {"status": "out_of_scope", "note": "no routing, so no resolver ownership question"},
+      "socks_hostname_propagation": {"status": "out_of_scope", "note": "no SOCKS upstream in scope"},
+      "tcp_udp_upstream": {"status": "out_of_scope", "note": "MTProto transport is fixed and not an upstream we route"},
+      "identity_propagation": {"status": "out_of_scope", "note": "no routing backend receives MTProxy traffic"},
+      "fail_closed": {"status": "supported", "note": "non-2xx from Telemt raises TelemtError and the panel returns an error instead of a partial success"},
+      "binary_hot_upgrade": {"status": "unsupported", "note": "upgrading the Telemt image restarts the container"},
+      "exact_geodata_version": {"status": "out_of_scope", "note": "no geodata involved"}
+    },
+    "naive": {
+      "create": {"status": "supported", "note": "NaiveClient.create(username, quota_bytes) (panel/naive.py:62)"},
+      "enable": {"status": "supported", "note": "NaiveClient.set_enabled(username, True)"},
+      "disable": {"status": "supported", "note": "NaiveClient.set_enabled(username, False)"},
+      "rotate": {"status": "supported", "note": "NaiveClient.rotate issues a new password and returns it once"},
+      "delete": {"status": "supported", "note": "NaiveClient.delete"},
+      "quota": {"status": "supported", "note": "NaiveClient.set_quota plus periodic enforcement that disables an exhausted user with disabled_reason=quota"},
+      "expiry": {"status": "unsupported", "note": "the manager has no expiry field; v0.2 enforces AccessGrant.valid_until by disabling"},
+      "accounting": {"status": "supported", "note": "NaiveClient.traffic returns upload/download bytes per user"},
+      "stable_access_artifact": {"status": "supported", "note": "POST /api/naive/users/{u}/access returns the full reveal payload from manager state at any time (naive_routes.py:300-309)"},
+      "credential_capture_without_rotation": {"status": "supported", "note": "the password lives in manager state, so an imported grant is captured without rotating it"},
+      "whole_service_socks_upstream": {"status": "supported", "note": "installer/adapters/naive.py:806 renders egress=proxy with warp-port, i.e. one SOCKS5 upstream for the whole service"},
+      "cidr_routing": {"status": "unproven", "note": "no compiler exists; whole-service egress only until the v0.4 backend and its spike"},
+      "domain_routing": {"status": "unproven", "note": "no compiler exists; requires a DNS-aware backend proven by the v0.4 spike"},
+      "per_client_routing": {"status": "unproven", "note": "one upstream serves every user; per-grant routing needs identity propagation that is not proven"},
+      "hot_reload": {"status": "supported", "note": "Caddy reloads the adapted config without dropping the listener"},
+      "rollback": {"status": "unsupported", "note": "manager state is a single atomic JSON with a backup file, not a generation history"},
+      "dns_ownership": {"status": "unproven", "note": "resolver ownership under a routing backend is untested"},
+      "socks_hostname_propagation": {"status": "unproven", "note": "whether hostnames survive the SOCKS5 upstream is untested"},
+      "tcp_udp_upstream": {"status": "unsupported", "note": "NaiveProxy carries HTTP/2 CONNECT over TCP; UDP is not transported"},
+      "identity_propagation": {"status": "unsupported", "note": "the upstream sees the service, not the grant"},
+      "fail_closed": {"status": "supported", "note": "NaiveError on non-2xx; the panel surfaces the failure instead of reporting success"},
+      "binary_hot_upgrade": {"status": "unsupported", "note": "a new Caddy build restarts the unit"},
+      "exact_geodata_version": {"status": "out_of_scope", "note": "no geodata involved"}
+    },
+    "mieru": {
+      "create": {"status": "supported", "note": "MieruClient.create(payload) with expected_revision (panel/mieru.py:75)"},
+      "enable": {"status": "supported", "note": "MieruClient.operation(username, 'enable', revision); mieru_routes.py:272 allows enable|disable|rotate"},
+      "disable": {"status": "supported", "note": "MieruClient.operation(username, 'disable', revision)"},
+      "rotate": {"status": "supported", "note": "MieruClient.operation(username, 'rotate', revision) returns a new share_url once"},
+      "delete": {"status": "supported", "note": "MieruClient.delete(username, revision)"},
+      "quota": {"status": "supported", "note": "MieruClient.set_quotas; mieru_routes.py:202 documents rolling application-byte admission quota (approximate)"},
+      "expiry": {"status": "unsupported", "note": "mita has no expiry field; v0.2 enforces AccessGrant.valid_until by disabling"},
+      "accounting": {"status": "unsupported", "note": "panel/mieru.py:58-68 requires the metrics response to be exactly capability=unavailable, reason=typed_histories_unavailable"},
+      "stable_access_artifact": {"status": "unsupported", "note": "mita stores hashedPassword; share_url exists only in the create/rotate response"},
+      "credential_capture_without_rotation": {"status": "unsupported", "note": "the plaintext cannot be recovered, so adopting an imported grant requires rotation"},
+      "whole_service_socks_upstream": {"status": "supported", "note": "installer/adapters/mieru.py:724 renders egress=proxy, i.e. one SOCKS5 upstream for the whole service"},
+      "cidr_routing": {"status": "unproven", "note": "no compiler exists; whole-service egress only until the v0.4 backend and its spike"},
+      "domain_routing": {"status": "unproven", "note": "no compiler exists; requires a DNS-aware backend proven by the v0.4 spike"},
+      "per_client_routing": {"status": "unproven", "note": "one upstream serves every user; per-grant routing needs identity propagation that is not proven"},
+      "hot_reload": {"status": "supported", "note": "controlled restart/reload under the Mieru transaction policy (MieruClient.lifecycle)"},
+      "rollback": {"status": "unsupported", "note": "journal.json plus CAS revision, not a generation history"},
+      "dns_ownership": {"status": "unproven", "note": "resolver ownership under a routing backend is untested"},
+      "socks_hostname_propagation": {"status": "unproven", "note": "whether hostnames survive the SOCKS5 upstream is untested"},
+      "tcp_udp_upstream": {"status": "supported", "note": "mita declares TCP and UDP port bindings and server-side UDP was verified on the lab host; client-side UDP failures are separate"},
+      "identity_propagation": {"status": "unsupported", "note": "the upstream sees the service, not the grant"},
+      "fail_closed": {"status": "supported", "note": "MieruError on non-2xx and a revision mismatch returns 409 instead of applying"},
+      "binary_hot_upgrade": {"status": "unsupported", "note": "a new mita binary restarts the unit"},
+      "exact_geodata_version": {"status": "out_of_scope", "note": "no geodata involved"}
+    }
+  },
+  "clients": {
+    "karing": {
+      "mtproxy": {"status": "unsupported", "note": "no MTProto import path; the tg:// link is handed over manually"},
+      "naive": {"status": "supported", "note": "sing-box fork core; accepts a sing-box JSON subscription with a naive outbound"},
+      "mieru": {"status": "supported", "note": "release notes list Mieru support for both the sing-box and clash cores"}
+    },
+    "singbox": {
+      "mtproxy": {"status": "unsupported", "note": "sing-box has no MTProto outbound"},
+      "naive": {"status": "supported", "note": "outbound type naive exists since sing-box 1.13.0 on Apple, Android, Windows and part of the Linux builds"},
+      "mieru": {"status": "unsupported", "note": "official sing-box has no mieru outbound"}
+    },
+    "mihomo": {
+      "mtproxy": {"status": "unsupported", "note": "mihomo has no MTProto proxy type"},
+      "naive": {"status": "unsupported", "note": "naiveproxy support is an open feature request, MetaCubeX/mihomo#273"},
+      "mieru": {"status": "supported", "note": "proxy type mieru with server, port/port-range, transport, username, password, multiplexing, udp"}
+    },
+    "mieru_cli": {
+      "mtproxy": {"status": "unsupported", "note": "single-protocol client"},
+      "naive": {"status": "unsupported", "note": "single-protocol client"},
+      "mieru": {"status": "unsupported", "note": "the official client has no subscription mechanism at all: mieru apply config / mieru import config only (enfein/mieru docs/client-install.md)"}
+    },
+    "telegram": {
+      "mtproxy": {"status": "unsupported", "note": "Telegram accepts a tg://proxy link and never polls a subscription URL"},
+      "naive": {"status": "unsupported", "note": "not a Telegram protocol"},
+      "mieru": {"status": "unsupported", "note": "not a Telegram protocol"}
+    },
+    "shadowrocket": {
+      "mtproxy": {"status": "unsupported", "note": "MTProto is imported manually, not from a mixed feed"},
+      "naive": {"status": "unproven", "note": "no verified naive import format for our renderers; not offered until proven on the lab host"},
+      "mieru": {"status": "unsupported", "note": "no verified Mieru import format (docs/MIERU_SHARING.en.md)"}
+    },
+    "nekobox": {
+      "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
+      "naive": {"status": "unproven", "note": "NekoBox forks parse naive+https:// links, but subscription auto-refresh with our feed is unverified"},
+      "mieru": {"status": "unsupported", "note": "no verified Mieru import format (docs/MIERU_SHARING.en.md)"}
+    },
+    "v2rayn": {
+      "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
+      "naive": {"status": "unproven", "note": "depends on the bundled core version; not verified against our sing-box renderer"},
+      "mieru": {"status": "unproven", "note": "depends on the bundled core version; not verified against our clash renderer"}
+    },
+    "hiddify": {
+      "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
+      "naive": {"status": "unproven", "note": "sing-box based, but the shipped core version and naive build variant are unverified"},
+      "mieru": {"status": "unsupported", "note": "sing-box based; the official core has no mieru outbound"}
+    }
+  }
+}
