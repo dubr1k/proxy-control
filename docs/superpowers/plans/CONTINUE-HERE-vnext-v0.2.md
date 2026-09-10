@@ -198,7 +198,54 @@ scripts/dev/remote-gate.sh lab-container          # если трогал instal
 - Не используй `pkill -f <строка>` по SSH: шаблон совпадает с командной строкой
   самой удалённой оболочки и обрывает сессию.
 
-## Состояние репозитория
+## Состояние репозитория (2026-09-10, конец сессии)
+
+Всё сделанное лежит в ветке **`feature/vnext-v0.2-local-control-plane`**, запушенной
+в `origin`. Одиннадцать коммитов, `main` не тронут:
+
+```
+f872e1c feat: добавить экраны клиентов и узлов в UI панели
+8543f5f refactor: направить старые API клиентов через единый сервис под флагом
+1385a45 feat: добавить lifecycle клиентских подписок
+b319682 feat: добавить клиентов, безопасный импорт и журналируемую выдачу доступов
+0453483 refactor: унифицировать контракт protocol adapters
+aa69aae feat: сделать операции менеджеров восстановимыми после потери ответа
+3b2607d refactor: разделить lifecycle узлов и transport, добавить локальный узел
+26eb045 feat: добавить версионируемое хранилище секретов и мастер-ключ
+640a264 refactor: ввести единый слой БД, миграции и транзакционный аудит
+9f12a5c docs: зафиксировать архитектуру и матрицу возможностей vNext
+afe9bae chore: добавить стенд ams-test, план и spec vNext v0.2
+```
+
+Коммиты сгруппированы по слоям, а не по номерам задач: задачи разрабатывались одним
+потоком, и один файл трогали несколько задач подряд, поэтому «один коммит на задачу»
+дал бы историю, в которой промежуточные состояния никогда не существовали. **Гейтом
+проверена вершина ветки**, а не каждый коммит по отдельности: на `f872e1c` получен
+`REMOTE_GATE_FULL_OK`, `1494 passed, 2 skipped`.
+
+Trailer'ов (`Co-Authored-By`, `Claude-Session`) в сообщениях нет и быть не должно.
+
+## Что делать первым делом завтра
+
+**Дописать Task 15.** Сервис подписок (`panel/subscriptions/`) и миграция 8 готовы и
+покрыты тестами (`8 passed`), но он **ещё не подключён к приложению**. Осталось:
+
+1. `panel/settings.py` — `public_url: str = os.getenv("PANEL_PUBLIC_URL", "")`.
+2. `panel/app.py` — `app.state.subscriptions = SubscriptionService(...)` и
+   `app.state.clients.on_change.append(app.state.subscriptions.bump_generation)`.
+3. Вызвать `bump_generation` там, где меняется grant: в `ProvisioningService` после
+   `succeeded`, в `ClientService.capture_credential`/`adopt_credential` и в
+   `DomainFacade.set_enabled/forget/rotate` — **в той же транзакции**, где меняется
+   строка. Ради этого хук и сделан принимающим `db`.
+4. `compose.yaml` — `PANEL_PUBLIC_URL: ${PANEL_PUBLIC_URL:-}`;
+   `installer/adapters/core.py` — писать `PANEL_PUBLIC_URL=https://<panel_domain>`
+   в `.env`.
+
+Проверка: `scripts/dev/remote-gate.sh quick panel/tests/test_subscription_lifecycle.py
+panel/tests/test_clients_domain.py panel/tests/test_provisioning_saga.py`, затем
+`full`.
+
+## Прежнее состояние репозитория
 
 Задачи 0–14 **не закоммичены** — владелец коммитит только по явной просьбе.
 В рабочем дереве ~30 изменённых файлов и новые каталоги `panel/nodes/`,
