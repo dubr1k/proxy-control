@@ -1,16 +1,10 @@
 import { api } from "./api.js";
 import { createAccessDialogs } from "./access.js";
 import { handleAuditClick, handleAuditSubmit, renderAudit } from "./audit.js";
+import { bindClients, handleClientsClick, openClientModal, renderClients } from "./clients.js";
 import { query, queryAll } from "./common.js";
 import { renderDashboard } from "./dashboard.js";
-import {
-  bindFleet,
-  handleFleetChange,
-  handleFleetClick,
-  handleFleetSubmit,
-  openFleetModal,
-  renderFleet,
-} from "./fleet.js";
+import { handleFleetChange, handleFleetClick, handleFleetSubmit } from "./fleet.js";
 import {
   bindManagement,
   handleManagementChange,
@@ -21,6 +15,7 @@ import {
   ROLE_NAMES,
 } from "./management.js";
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
+import { bindNodes, handleNodesClick, openNodeModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
 import { createPanelState } from "./state.js";
 import { createUi } from "./ui.js";
@@ -28,22 +23,24 @@ import { bindUsers, handleUsersClick, handleUsersInput, openUserModal, renderUse
 
 const TITLES = {
   dashboard: ["Обзор", "Состояние всех прокси-протоколов в одном месте"],
+  clients: ["Клиенты", "Абоненты и их доступы MTProxy · Naive · Mieru"],
   mieru: ["Mieru", "Пользователи, rolling-квоты и application-byte трафик"],
   users: ["MTProxy", "Пользователи, ссылки и ключи доступа"],
   naive: ["NaiveProxy", "HTTPS-прокси, конфигурации и доступы"],
   versions: ["Версии", "Проверенные обновления runtime-компонентов"],
-  fleet: ["Узлы", "Inventory, состояние агента и typed-команды Telemt v1"],
+  fleet: ["Узлы", "Enrollment, транспорт и состояние демонов; raw-команды Telemt v1 — в Advanced"],
   admins: ["Администраторы", "Роли и доступ к панели"],
   audit: ["Журнал действий", "Изменения, входы и операции с ключами"],
 };
 
 const RENDERERS = {
   dashboard: renderDashboard,
+  clients: renderClients,
   users: renderUsers,
   mieru: renderMieru,
   naive: renderNaive,
   versions: renderVersions,
-  fleet: renderFleet,
+  fleet: renderNodes,
   admins: renderAdmins,
   audit: renderAudit,
 };
@@ -59,13 +56,14 @@ function createNavigator(context) {
     query("#subtitle", context.root).textContent = subtitle;
     queryAll("[data-view]", context.root).forEach((button) => button.classList.toggle("active", button.dataset.view === name));
 
-    const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru"].includes(name))
+    const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "clients"].includes(name))
       || (name === "fleet" && context.state.me?.role === "owner")
       || (name === "admins" && context.state.me?.role === "owner");
     const add = query("#add", context.root);
     add.hidden = !canCreate;
     query("#add-label", context.root).textContent = {
       admins: "Администратора",
+      clients: "Клиента",
       fleet: "Узел",
       naive: "Naive доступ",
       mieru: "Mieru доступ",
@@ -115,7 +113,8 @@ function bindPanel(context) {
   queryAll("[data-view]", root).forEach((button) => button.addEventListener("click", () => context.navigate(button.dataset.view)));
   query("#add", root).addEventListener("click", () => {
     if (context.state.view === "admins") openAdminModal(context);
-    else if (context.state.view === "fleet") openFleetModal(context);
+    else if (context.state.view === "clients") openClientModal(context);
+    else if (context.state.view === "fleet") openNodeModal(context);
     else if (context.state.view === "naive") openNaiveModal(context);
     else if (context.state.view === "mieru") openMieruModal(context);
     else openUserModal(context);
@@ -138,9 +137,10 @@ function bindPanel(context) {
   });
 
   bindUsers(context);
+  bindClients(context);
   bindMieru(context);
   bindNaive(context);
-  bindFleet(context);
+  bindNodes(context);
   bindManagement(context);
   context.access.bind();
 
@@ -162,6 +162,8 @@ function bindPanel(context) {
       return;
     }
     if (handleAuditClick(context, button)) return;
+    if (handleClientsClick(context, button)) return;
+    if (handleNodesClick(context, button)) return;
     if (handleFleetClick(context, button)) return;
     if (handleManagementClick(context, button)) return;
     if (handleMieruClick(context, button)) return;

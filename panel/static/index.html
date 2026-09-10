@@ -12,6 +12,7 @@
     <div class="brand"><span class="brand-mark" role="img" aria-label="🦄">🦄</span><span><b>Proxy Control</b><small>CONTROL PANEL</small></span></div>
     <nav aria-label="Основная навигация">
       <button class="nav-item active" data-view="dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20h-6v-6h-4v6H4z"/></svg><span>Обзор</span></button>
+      <button class="nav-item" data-view="clients"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19c.5-3.5 2.5-5 6-5s5.5 1.5 6 5"/><path d="M16 5a3 3 0 0 1 0 6M18 19c-.2-1.6-.7-2.9-1.5-3.8"/></svg><span>Клиенты</span><span class="nav-count" id="clients-count">—</span></button>
       <button class="nav-item" data-view="users"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><path d="M11 12h2M3 12H1m22 0h-2"/></svg><span>MTProxy</span><span class="nav-count" id="users-count">—</span></button>
       <button class="nav-item" data-view="mieru"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12c4-7 12-7 16 0-4 7-12 7-16 0z"/><circle cx="12" cy="12" r="2"/></svg><span>Mieru</span><span class="nav-count" id="mieru-count">—</span></button>
       <button class="nav-item" data-view="naive"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6z"/><path d="M9 12h6M12 9v6"/></svg><span>NaiveProxy</span><span class="nav-count" id="naive-count">—</span></button>
@@ -37,6 +38,7 @@
 
   <nav class="mobile-nav" aria-label="Мобильная навигация">
     <button class="active" data-view="dashboard"><svg class="mobile-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20h-6v-6h-4v6H4z"/></svg><small>Обзор</small></button>
+    <button data-view="clients"><svg class="mobile-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19c.5-3.5 2.5-5 6-5s5.5 1.5 6 5"/></svg><small>Клиенты</small></button>
     <button data-view="users"><svg class="mobile-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><path d="M11 12h2"/></svg><small>MTProxy</small></button>
     <button data-view="mieru"><svg class="mobile-icon" viewBox="0 0 24 24"><path d="M4 12c4-7 12-7 16 0-4 7-12 7-16 0z"/></svg><small>Mieru</small></button>
     <button data-view="naive"><svg class="mobile-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6z"/><path d="M9 12h6M12 9v6"/></svg><small>Naive</small></button>
@@ -119,15 +121,88 @@
   </dialog>
 
 
-  <dialog id="fleet-modal" class="sheet">
-    <form method="dialog" id="fleet-form">
-      <div class="modal-head"><div><span class="eyebrow">FLEET NODE</span><h2>Добавить узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Регистрирует узел в реестре. Для подключения агента после регистрации потребуется выпустить и привязать отдельный mTLS-сертификат.</p>
-      <label>ID узла<input id="new-node-id" pattern="[a-z0-9](?:[a-z0-9.\-]{0,62}[a-z0-9])?" maxlength="64" autocomplete="off" placeholder="например, example-node-02" required><small>Строчные латинские буквы, цифры, точка и дефис</small></label>
-      <label>Отображаемое имя<input id="new-node-name" maxlength="128" autocomplete="off" placeholder="например, Example Region 2" required></label>
-      <label>Регион<input id="new-node-region" pattern="[A-Za-z0-9._\-]{0,64}" maxlength="64" autocomplete="off" placeholder="например, eu-west-amsterdam"><small>Необязательно; секреты и адреса доступа сюда не добавляются</small></label>
-      <div class="form-error" id="fleet-error" role="alert"></div>
-      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-fleet-node" type="button">Добавить узел</button></footer>
+  <dialog id="client-modal" class="sheet">
+    <form method="dialog" id="client-form">
+      <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2>Новый клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Клиент — это человек или устройство. Доступы к протоколам добавляются отдельно.</p>
+      <label>Имя<input id="client-name" maxlength="128" autocomplete="off" placeholder="например, Ноутбук Сергея" required></label>
+      <div class="form-error" id="client-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-client" type="button">Создать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="bundle-modal" class="access-dialog">
+    <form method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">ДОСТУПЫ ВЫДАНЫ</span><h2 id="bundle-title">Ссылки доступа</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Показывается один раз. Скопируйте всё нужное сейчас: панель хранит секреты в шифрованном виде, но эта страница больше не откроется по той же ссылке.</p>
+      <div id="bundle-body"></div>
+      <footer><button class="primary" value="cancel" formnovalidate>Готово</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="grant-modal" class="sheet">
+    <form method="dialog" id="grant-form">
+      <div class="modal-head"><div><span class="eyebrow">ДОСТУПЫ</span><h2>Выдать доступы</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Панель создаст учётные записи в выбранных протоколах одной операцией. Если один из менеджеров откажет, уже созданное будет удалено — кроме того, что существовало до операции.</p>
+      <label>Имя учётной записи<input id="grant-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop" required><small>Одинаковое имя в разных протоколах — это разные учётные записи</small></label>
+      <fieldset class="grant-protocols">
+        <legend>Протоколы</legend>
+        <label class="grant-protocol"><input type="checkbox" value="mtproxy" checked> MTProxy</label>
+        <label class="grant-protocol"><input type="checkbox" value="naive"> NaiveProxy</label>
+        <label class="grant-protocol"><input type="checkbox" value="mieru"> Mieru</label>
+      </fieldset>
+      <input id="grant-client-id" type="hidden">
+      <div class="form-error" id="grant-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-grants" type="button">Выдать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="client-import-modal" class="access-dialog">
+    <form method="dialog" id="client-import-form">
+      <div class="modal-head"><div><span class="eyebrow">ИМПОРТ</span><h2>Импорт существующих доступов</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Панель только читает менеджеры: пароли, квоты и состояние пользователей не меняются. Одинаковое имя в разных протоколах — только подсказка, объединения по умолчанию нет.</p>
+      <p class="form-hint" id="client-import-summary"></p>
+      <div class="import-table-wrap">
+        <table class="import-table">
+          <thead><tr><th></th><th>Протокол</th><th>Учётная запись</th><th>Состояние</th><th>Куда</th></tr></thead>
+          <tbody id="client-import-rows"></tbody>
+        </table>
+      </div>
+      <div class="form-error" id="client-import-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="confirm-client-import" type="button">Импортировать отмеченные</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="node-modal" class="sheet">
+    <form method="dialog" id="node-form">
+      <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2>Зарегистрировать узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">После регистрации панель покажет шаги enrollment. Приватный ключ узла никогда не покидает сам узел.</p>
+      <label>ID узла<input id="node-id" pattern="[a-z0-9](?:[a-z0-9.\-]{0,62}[a-z0-9])?" maxlength="64" autocomplete="off" placeholder="например, edge-02" required><small>Строчные латинские буквы, цифры, точка и дефис</small></label>
+      <label>Отображаемое имя<input id="node-name" maxlength="128" autocomplete="off" placeholder="например, Frankfurt edge" required></label>
+      <div class="form-error" id="node-error" role="alert"></div>
+      <div id="node-checklist"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Закрыть</button><button class="primary" id="create-node" type="button">Зарегистрировать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="node-rename-modal" class="sheet">
+    <form method="dialog" id="node-rename-form">
+      <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2>Переименовать узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <input id="node-rename-id" type="hidden">
+      <label>Отображаемое имя<input id="node-rename-name" maxlength="128" autocomplete="off" required><small>ID узла не меняется: к нему привязаны сертификаты и доступы</small></label>
+      <div class="form-error" id="node-rename-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="save-node-name" type="button">Сохранить</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="node-revoke-modal" class="sheet">
+    <form method="dialog" id="node-revoke-form">
+      <div class="modal-head"><div><span class="eyebrow">УЗЕЛ</span><h2>Отозвать все сертификаты</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Узел <b id="node-revoke-name"></b> перестанет проходить аутентификацию, пока ему не выпустят и не привяжут новый сертификат.</p>
+      <input id="node-revoke-id" type="hidden">
+      <label>Повторите ID узла<input id="node-revoke-confirm" maxlength="64" autocomplete="off" required></label>
+      <div class="form-error" id="node-revoke-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="danger" id="confirm-node-revoke" type="button">Отозвать</button></footer>
     </form>
   </dialog>
 

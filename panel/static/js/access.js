@@ -1,4 +1,4 @@
-import { query } from "./common.js";
+import { esc, query } from "./common.js";
 
 function validServer(value) {
   if (/^[A-Za-z0-9.-]{1,253}$/.test(value)) return true;
@@ -466,8 +466,26 @@ export function createAccessDialogs(context) {
     bindClientDialog("naive");
   }
 
+  async function openOperationBundle(operationId) {
+    // One reveal for the whole operation: the token is consumed on first read, so the
+    // dialog renders everything it received and never re-fetches.
+    const { reveal_token: token } = await api(
+      `/api/operations/${encodeURIComponent(operationId)}/bundle`, { method: "POST" },
+    );
+    const bundle = await api(`/api/reveal/${encodeURIComponent(token)}`);
+    const body = query("#bundle-body", root);
+    body.innerHTML = (bundle.grants || []).map((grant) => `<section class="bundle-grant">
+      <h3>${esc(grant.protocol)} · ${esc(grant.runtime_username)}</h3>
+      ${(grant.artifacts || []).map((artifact) => `<label>${esc(artifact.label)}
+        <span class="copy-field"><input readonly value="${esc(artifact.value)}"><button type="button" class="copy" data-copy="${esc(artifact.value)}">Копировать</button></span>
+      </label>`).join("")}
+    </section>`).join("") || "<p class=\"form-hint\">Артефактов нет.</p>";
+    ui.openModal("#bundle-modal");
+  }
+
   return {
     bind,
+    openOperationBundle,
     revealToken,
     revealMieruToken,
     revealNaiveToken,

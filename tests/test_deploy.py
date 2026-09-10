@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import json
 import os
 import shutil
@@ -380,6 +381,15 @@ class DeployCliTests(unittest.TestCase):
             self.assertTrue(api_token.startswith("Bearer "))
             self.assertEqual((install / "secrets/telemt-api-token").stat().st_mode & 0o777, 0o600)
             self.assertNotIn(api_token, (install / "state.json").read_text())
+            master_key = install / "secrets/panel-master-key"
+            self.assertEqual(master_key.stat().st_mode & 0o777, 0o600)
+            keyring = json.loads(master_key.read_text())
+            self.assertEqual(keyring["schema"], 1)
+            self.assertEqual(len(keyring["keys"]), 1)
+            material = keyring["keys"][0]["key_material"]
+            self.assertEqual(len(base64.b64decode(material, validate=True)), 32)
+            # The key never reaches the recorded state, so a state dump stays harmless.
+            self.assertNotIn(material, (install / "state.json").read_text())
             self.assertTrue((install / ".mtproxy-owned").is_file())
             self.assertTrue((install / "uninstall.sh").is_file())
             self.assertTrue((install / "scripts/check-deployment.sh").is_file())
@@ -469,9 +479,56 @@ class DeployCliTests(unittest.TestCase):
             )
             self.run_cli(*args, root=root)
             secret_file = root / "opt/mtproxy-shared443/secrets/users.conf"
+            master_key = root / "opt/mtproxy-shared443/secrets/panel-master-key"
             before = secret_file.read_text()
+            # Regenerating the master key would make every stored credential
+            # undecryptable, so a second render must leave it byte-identical.
+            key_before = master_key.read_text()
             self.run_cli(*args, root=root)
             self.assertEqual(secret_file.read_text(), before)
+            self.assertEqual(master_key.read_text(), key_before)
+
+    def test_nodes_view_exposes_lifecycle_actions_and_hides_raw_transport_in_advanced(self):
+        javascript = (ROOT / "panel/static/js/nodes.js").read_text()
+        html = (ROOT / "panel/static/index.html").read_text()
+        main = (ROOT / "panel/static/js/main.js").read_text()
+        self.assertIn('data-node-action="revoke-all"', javascript)
+        self.assertIn('class="advanced-drawer"', javascript)
+        self.assertIn("/api/nodes/${encodeURIComponent(nodeId)}/certificates/revoke-all", javascript)
+        self.assertIn('id="node-modal"', html)
+        self.assertIn("fleet: renderNodes", main)
+        # The raw Telemt v1 command form is reachable only from the drawer.
+        self.assertNotIn("fleet-command-form", javascript)
+        self.assertIn("nodeDetail", javascript)
+        # The local card carries manager health instead of certificates, and no drawer.
+        self.assertIn('class="node-services"', javascript)
+        self.assertIn('node.kind === "local" ? servicesBlock(node) : certificates', javascript)
+        self.assertIn(".node-services{grid-area:detail", (ROOT / "panel/static/style.css").read_text())
+
+    def test_clients_view_imports_read_only_and_never_merges_by_name(self):
+        javascript = (ROOT / "panel/static/js/clients.js").read_text()
+        html = (ROOT / "panel/static/index.html").read_text()
+        main = (ROOT / "panel/static/js/main.js").read_text()
+        self.assertIn("/api/clients/import/inventory", javascript)
+        self.assertIn("same_username_hint", javascript)
+        self.assertIn("только подсказка", html)
+        self.assertIn('id="client-import-modal"', html)
+        self.assertEqual(html.count('data-view="clients"'), 2)  # sidebar and mobile nav
+        self.assertIn("clients: renderClients", main)
+        # Import must stay read-only: the view never calls a manager mutation route.
+        for route in ("/api/naive/users", "/api/mieru/users", "/api/users"):
+            self.assertNotIn(route, javascript)
+        # Adoption never rotates silently: Mieru asks first, and only Mieru needs to.
+        self.assertIn('ROTATION_REQUIRED = new Set(["mieru"])', javascript)
+        self.assertIn("/adopt", javascript)
+        self.assertIn("allow_rotation: rotation", javascript)
+        self.assertIn("Старая ссылка перестанет работать", javascript)
+        # A compensated operation is reported as itself, never as a success.
+        self.assertIn("compensated:", javascript)
+        self.assertIn("manual_intervention_required:", javascript)
+        self.assertIn("operations-resume", javascript)
+        self.assertIn('id="grant-modal"', html)
+        self.assertIn('id="bundle-modal"', html)
 
     def test_coexist_adds_one_marked_route_and_removes_only_that_route(self):
         with tempfile.TemporaryDirectory() as td:

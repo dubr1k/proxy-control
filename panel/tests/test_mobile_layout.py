@@ -228,7 +228,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
     css = (ROOT / "static" / "style.css").read_text()
     buttons = "".join(
         f'<button><span class="mobile-icon">◇</span><small>{label}</small></button>'
-        for label in ("Обзор", "MTProxy", "Mieru", "Naive", "Версии", "Узлы", "Админы", "Журнал", "Выйти")
+        for label in ("Обзор", "Клиенты", "MTProxy", "Mieru", "Naive", "Версии", "Узлы", "Админы", "Журнал", "Выйти")
     )
 
     def card(classes: str, glyph: str, username: str, protocol: str, configuration: str) -> str:
@@ -245,11 +245,78 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
           </div>
         """
 
+    def node_card(node_id: str) -> str:
+        """The node card has its own grid areas, so it is measured as its own variant."""
+        return f"""
+          <article class="data-row node-card">
+            <span class="user-glyph">ND</span>
+            <div class="node-identity"><b>{node_id}</b><small>{node_id} · Удалённый узел</small></div>
+            <span class="status-pill active"><i></i>Enrolled</span>
+            <dl class="node-facts">
+              <div><dt>Транспорт</dt><dd>На связи · 10.09.2026, 12:00</dd></div>
+              <div><dt>Демон</dt><dd>Telemt 3.4.25 · агент 0.1.0</dd></div>
+              <div><dt>Команды в очереди</dt><dd>0</dd></div>
+            </dl>
+            <ul class="node-certificates"><li><code>AA01</code> <small>до 10.10.2026, 12:00</small></li></ul>
+            <div class="node-actions">
+              <button class="secondary">Переименовать</button><button class="secondary">Отключить</button>
+              <button class="danger ghost">Отозвать все сертификаты</button>
+            </div>
+            <div class="advanced-drawer"><button class="ghost">Advanced: транспорт v1</button></div>
+          </article>
+        """
+
+    def local_node_card() -> str:
+        """The local card drops actions and the drawer and shows manager health instead."""
+        return """
+          <article class="data-row node-card local-node">
+            <span class="user-glyph">LO</span>
+            <div class="node-identity"><b>Этот сервер</b><small>local · Этот сервер</small></div>
+            <span class="status-pill active"><i></i>Этот сервер</span>
+            <dl class="node-facts">
+              <div><dt>Транспорт</dt><dd>Транспорт не используется</dd></div>
+              <div><dt>Демон</dt><dd>Telemt не определён · агент не определён</dd></div>
+              <div><dt>Команды в очереди</dt><dd>0</dd></div>
+            </dl>
+            <div class="node-services">
+              <ul>
+                <li><span class="status-pill"><i></i>Telemt · работает</span></li>
+                <li><span class="status-pill blocked"><i></i>NaiveProxy · недоступен</span></li>
+                <li><span class="status-pill muted"><i></i>Mieru · выключен</span></li>
+              </ul>
+              <p class="form-hint">Локальные протоколы управляются напрямую: у этого узла нет ни очереди команд, ни сертификатов.</p>
+            </div>
+          </article>
+        """
+
+    def client_card() -> str:
+        """The client card carries grant chips instead of traffic cells, so it is its own variant."""
+        return """
+          <article class="data-row client-card">
+            <span class="user-glyph">СД</span>
+            <div class="client-identity"><b>Ноутбук Сергея с очень длинным именем</b><small>Доступов: 3</small></div>
+            <span class="status-pill active"><i></i>Активен</span>
+            <ul class="client-grants">
+              <li class="grant-chip"><b>MTProxy</b><span>alice</span><small>включён</small></li>
+              <li class="grant-chip"><b>NaiveProxy</b><span>alice</span><small>включён</small><em>· без секрета</em></li>
+              <li class="grant-chip"><b>Mieru</b><span>alice-with-a-very-long-runtime-name</span><small>выключен</small></li>
+            </ul>
+            <p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку.
+              <button class="secondary" disabled>Принять доступ</button></p>
+            <div class="client-actions">
+              <button class="secondary">Приостановить</button><button class="danger ghost">Архивировать</button>
+            </div>
+          </article>
+        """
+
     cards = "".join(
         (
             card("data-row", "MT", "mt-user-with-a-very-long-name", "MTProto · FakeTLS", "Подключение"),
             card("data-row naive-grid", "MI", "mieru-user-with-a-very-long-name", "Mieru · native AEAD", "Конфигурация"),
             card("data-row naive-grid", "NP", "naive-user-with-a-very-long-name", "HTTPS · HTTP/2 CONNECT", "Конфигурация"),
+            node_card("edge-node-with-a-very-long-name"),
+            local_node_card(),
+            client_card(),
         )
     )
     script = """
@@ -257,7 +324,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
         const errors = [];
         const tolerance = 1;
         if (innerWidth !== 390) errors.push(`viewport is ${innerWidth}px instead of 390px`);
-        for (const row of document.querySelectorAll(".data-row")) {
+        for (const row of document.querySelectorAll(".data-row:not(.node-card):not(.client-card)")) {
           const [identity, status, traffic, actions] = row.children;
           const boxes = [identity, status, traffic, actions].map((node) => node.getBoundingClientRect());
           if (boxes[1].top + tolerance < boxes[0].bottom) errors.push("status overlaps identity");
@@ -278,6 +345,80 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
           const buttonBoxes = actionButtons.map((button) => button.getBoundingClientRect());
           if (Math.abs(buttonBoxes[0].top - buttonBoxes[1].top) > tolerance || buttonBoxes[2].top <= buttonBoxes[0].bottom) {
             errors.push("actions are not a compact two-column grid");
+          }
+        }
+        // The node card uses its own grid areas, so it gets its own stacking check.
+        for (const card of document.querySelectorAll(".node-card:not(.local-node)")) {
+          const cardBox = card.getBoundingClientRect();
+          for (const region of card.children) {
+            const box = region.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance || region.scrollWidth > region.clientWidth + tolerance) {
+              errors.push("node card content escapes horizontally");
+            }
+          }
+          for (const button of card.querySelectorAll("button")) {
+            const box = button.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) errors.push("node action escapes card");
+          }
+          const identity = card.querySelector(".node-identity").getBoundingClientRect();
+          const facts = card.querySelector(".node-facts").getBoundingClientRect();
+          const actions = card.querySelector(".node-actions").getBoundingClientRect();
+          const drawer = card.querySelector(".advanced-drawer").getBoundingClientRect();
+          if (facts.top + tolerance < identity.bottom) errors.push("node facts overlap identity");
+          if (actions.top + tolerance < facts.bottom) errors.push("node actions overlap facts");
+          if (drawer.top + tolerance < actions.bottom) errors.push("advanced drawer overlaps actions");
+        }
+        // The local card has no enrollment actions and no transport drawer, so it stacks
+        // identity → facts → services and is measured on its own terms.
+        for (const card of document.querySelectorAll(".local-node")) {
+          const cardBox = card.getBoundingClientRect();
+          for (const region of card.children) {
+            const box = region.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance || region.scrollWidth > region.clientWidth + tolerance) {
+              errors.push("local node card content escapes horizontally");
+            }
+          }
+          if (card.querySelector(".node-actions") || card.querySelector(".advanced-drawer")) {
+            errors.push("local node card offers enrollment controls");
+          }
+          const identity = card.querySelector(".node-identity").getBoundingClientRect();
+          const facts = card.querySelector(".node-facts").getBoundingClientRect();
+          const services = card.querySelector(".node-services").getBoundingClientRect();
+          if (facts.top + tolerance < identity.bottom) errors.push("local node facts overlap identity");
+          if (services.top + tolerance < facts.bottom) errors.push("local node services overlap facts");
+          for (const pill of card.querySelectorAll(".node-services .status-pill")) {
+            const box = pill.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
+              errors.push("service pill escapes card");
+            }
+          }
+        }
+        // The client card stacks identity → grants → note → actions and must not
+        // let a long runtime username push a chip out of the card.
+        for (const card of document.querySelectorAll(".client-card")) {
+          const cardBox = card.getBoundingClientRect();
+          for (const region of card.children) {
+            const box = region.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance || region.scrollWidth > region.clientWidth + tolerance) {
+              errors.push("client card content escapes horizontally");
+            }
+          }
+          const identity = card.querySelector(".client-identity").getBoundingClientRect();
+          const grants = card.querySelector(".client-grants").getBoundingClientRect();
+          const actions = card.querySelector(".client-actions").getBoundingClientRect();
+          if (grants.top + tolerance < identity.bottom) errors.push("client grants overlap identity");
+          if (actions.top + tolerance < grants.bottom) errors.push("client actions overlap grants");
+          for (const chip of card.querySelectorAll(".grant-chip")) {
+            const box = chip.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
+              errors.push("grant chip escapes card");
+            }
+          }
+          for (const button of card.querySelectorAll("button")) {
+            const box = button.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
+              errors.push("client action escapes card");
+            }
           }
         }
         const nav = document.querySelector(".mobile-nav");
