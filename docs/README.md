@@ -33,6 +33,18 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Security policy](../SECURITY.md)
 - [Рабочий протокол для AI-агентов](../AGENTS.md)
 
+### Архитектура vNext
+
+- [Архитектура vNext](VNEXT_ARCHITECTURE.md)
+- [Матрица возможностей vNext](VNEXT_CAPABILITIES.md)
+- [ADR 001 — pull-only транспорт узлов](adr/001-pull-only-node-transport.md)
+- [ADR 002 — декларативные поколения](adr/002-declarative-generations.md)
+- [ADR 003 — один писатель на ресурс](adr/003-one-writer-per-resource.md)
+- [ADR 004 — Client, AccessGrant и подписка](adr/004-client-access-grant-subscription.md)
+- [ADR 005 — секреты по ссылкам](adr/005-secret-references.md)
+- [ADR 006 — нейтральный routing IR](adr/006-routing-policy-ir.md)
+- [ADR 007 — владение enforcement маршрутизации](adr/007-routing-enforcement-ownership.md)
+
 ## English
 
 ### Getting started
@@ -61,6 +73,18 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Validation gates](VALIDATION.md)
 - [Security policy](../SECURITY.md)
 - [Operating protocol for AI agents](../AGENTS.md)
+
+### vNext architecture
+
+- [vNext architecture](VNEXT_ARCHITECTURE.md)
+- [vNext capability matrix](VNEXT_CAPABILITIES.md)
+- [ADR 001 — pull-only node transport](adr/001-pull-only-node-transport.md)
+- [ADR 002 — declarative generations](adr/002-declarative-generations.md)
+- [ADR 003 — one writer per resource](adr/003-one-writer-per-resource.md)
+- [ADR 004 — Client, AccessGrant and subscription](adr/004-client-access-grant-subscription.md)
+- [ADR 005 — secret references](adr/005-secret-references.md)
+- [ADR 006 — engine-neutral routing IR](adr/006-routing-policy-ir.md)
+- [ADR 007 — routing enforcement ownership](adr/007-routing-enforcement-ownership.md)
 
 ## Common rules
 
