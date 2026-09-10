@@ -9,6 +9,7 @@ A backup is usable only when it is consistent, protected as a credential, checks
 | Boundary | Required data |
 |---|---|
 | Panel | SQLite through online backup, or DB + WAL/SHM with the writer stopped |
+| Panel master key | `secrets/panel-master-key`, stored **separately from the database backup** |
 | Telemt | `telemt-config` volume, source secret files, API token |
 | Naive | complete `NAIVE_DATA_DIR`, Caddyfile, user state, transaction/backups, accounting SQLite/WAL/SHM, Caddy binary/unit, log ownership contract |
 | Mieru | complete manager state, `journal.json` + original `journal.key`, backups, manager token, mita config/binary/unit, UDS/tmpfiles contract |
@@ -18,6 +19,40 @@ A backup is usable only when it is consistent, protected as a credential, checks
 | Deployment | exact Git revision, image IDs/digests, binary digests, complete `COMPOSE_FILE`, package/unit versions |
 
 Never keep the offline fleet CA key and online node backups in one broadly accessible archive.
+
+### The panel master key
+
+From v0.2 the panel stores client credentials encrypted with AES-256-GCM under the
+keyring in `secrets/panel-master-key`. The two artefacts are useless alone and
+dangerous together:
+
+- a database backup **without** the key cannot produce a single credential — that
+  is the point of the design (ADR 005);
+- the key **without** the database is a file of random bytes;
+- both in one archive re-creates exactly the risk the encryption removes, so they
+  go to different destinations with different access.
+
+Back the key up whenever it changes (installation, `master-key-rotate`) — it is
+not rotated on a schedule, so a stale copy is usually still correct, but a copy
+from before a rotation is not.
+
+```bash
+install -m 0600 /opt/mtproxy-shared443/secrets/panel-master-key \
+  "$backup_keys/panel-master-key"     # a destination separate from $backup
+```
+
+After restoring, prove the pair matches before trusting it:
+
+```bash
+docker run --rm -v "$restored_data":/data -v "$restored_key":/key:ro \
+  --entrypoint python mtproxy-panel:latest -m panel.cli \
+  --database /data/panel.sqlite3 master-key-verify --path /key/panel-master-key
+```
+
+The command prints how many secret versions decrypt per key id and nothing else:
+no credential is written to the terminal, the logs, or the report. A non-zero
+exit means the key and the database do not belong together — stop and find the
+right key rather than starting the panel, which will fail closed anyway.
 
 ## Preparation
 

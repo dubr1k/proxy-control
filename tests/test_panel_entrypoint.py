@@ -15,6 +15,7 @@ RUNTIME_DIR = "/run/panel"
 TELEMT_TARGET = f"{RUNTIME_DIR}/telemt-api-token"
 NAIVE_TARGET = f"{RUNTIME_DIR}/naive-manager-token"
 MIERU_TARGET = f"{RUNTIME_DIR}/mieru-manager-token"
+MASTER_KEY_TARGET = f"{RUNTIME_DIR}/master-key"
 
 
 def _fake_command(command: str) -> str:
@@ -53,7 +54,8 @@ def run_entrypoint(
             script += """printf '%s\n' \
   "${TELEMT_API_TOKEN_FILE-}" \
   "${NAIVE_MANAGER_TOKEN_FILE-}" \
-  "${MIERU_MANAGER_TOKEN_FILE-}" > "$ENVIRONMENT_LOG"
+  "${MIERU_MANAGER_TOKEN_FILE-}" \
+  "${PANEL_MASTER_KEY_FILE-}" > "$ENVIRONMENT_LOG"
 """
         (bin_dir / command).write_text(script)
         (bin_dir / command).chmod(0o755)
@@ -198,7 +200,37 @@ def test_panel_entrypoint_ignores_runtime_override_and_uses_fixed_privileged_des
         TELEMT_TARGET,
         NAIVE_TARGET,
         MIERU_TARGET,
+        "",  # no master key source in this run, so the panel starts without a secret store
     ]
+
+
+def test_panel_entrypoint_stages_the_master_key_only_when_the_secret_is_mounted(tmp_path: Path):
+    master_key_source = tmp_path / "panel-master-key"
+    master_key_source.write_text('{"schema": 1}')
+
+    staged = run_entrypoint(tmp_path, None, PANEL_MASTER_KEY_SOURCE=str(master_key_source))
+
+    assert staged.returncode == 0, staged.stderr
+    assert [
+        "install",
+        "-m",
+        "0400",
+        "-o",
+        "panel",
+        "-g",
+        "panel",
+        str(master_key_source),
+        MASTER_KEY_TARGET,
+    ] in logged_commands(staged)
+    assert staged.environment_log.read_text().splitlines()[-1] == MASTER_KEY_TARGET  # type: ignore[attr-defined]
+
+    second = tmp_path / "second"
+    second.mkdir()
+    absent = run_entrypoint(second, None, PANEL_MASTER_KEY_SOURCE=str(tmp_path / "missing"))
+
+    assert absent.returncode == 0, absent.stderr
+    assert not any(MASTER_KEY_TARGET in command for command in logged_commands(absent))
+    assert absent.environment_log.read_text().splitlines()[-1] == ""  # type: ignore[attr-defined]
 
 
 def test_panel_entrypoint_mieru_disabled_does_not_verify_stage_or_remove_token(tmp_path: Path):

@@ -9,6 +9,7 @@ Backup считается пригодным только если он согл
 | Boundary | Обязательные данные |
 |---|---|
 | Panel | SQLite database через online backup или вместе с WAL/SHM при остановленном writer |
+| Мастер-ключ панели | `secrets/panel-master-key`, хранится **отдельно от резервной копии БД** |
 | Telemt | `telemt-config` volume, исходные secret files, API token |
 | Naive | полный `NAIVE_DATA_DIR`, Caddyfile, users state, transaction/backups, accounting SQLite/WAL/SHM, Caddy binary/unit, log ownership contract |
 | Mieru | manager state целиком, `journal.json` + исходный `journal.key`, backups, manager token, `mita` config/binary/unit, UDS/tmpfiles contract |
@@ -18,6 +19,40 @@ Backup считается пригодным только если он согл
 | Deployment | exact Git revision, image IDs/digests, binary digests, полный `COMPOSE_FILE`, package/unit versions |
 
 Не складывайте offline fleet CA key и node backups в один доступный online archive.
+
+### Мастер-ключ панели
+
+С v0.2 панель хранит учётные данные клиентов зашифрованными (AES-256-GCM) под
+ключом из `secrets/panel-master-key`. По отдельности эти два артефакта бесполезны,
+а вместе — опасны:
+
+- копия БД **без** ключа не даёт ни одного credential — ради этого шифрование и
+  вводилось (ADR 005);
+- ключ **без** БД — просто файл случайных байт;
+- оба в одном архиве возвращают ровно тот риск, который шифрование убирает,
+  поэтому они уезжают в разные места с разным доступом.
+
+Ключ копируется при каждом изменении (установка, `master-key-rotate`). По
+расписанию он не меняется, поэтому старая копия обычно всё ещё верна — но копия,
+снятая до ротации, уже нет.
+
+```bash
+install -m 0600 /opt/mtproxy-shared443/secrets/panel-master-key \
+  "$backup_keys/panel-master-key"     # каталог, отличный от $backup
+```
+
+После восстановления сначала докажите, что пара совпадает:
+
+```bash
+docker run --rm -v "$restored_data":/data -v "$restored_key":/key:ro \
+  --entrypoint python mtproxy-panel:latest -m panel.cli \
+  --database /data/panel.sqlite3 master-key-verify --path /key/panel-master-key
+```
+
+Команда печатает только количество расшифрованных версий секретов по key id —
+ни одного значения ни в терминал, ни в логи, ни в отчёт. Ненулевой код возврата
+означает, что ключ и БД из разных поколений: ищите правильный ключ, а не
+запускайте панель — она всё равно откажется стартовать.
 
 ## Подготовка
 
