@@ -68,6 +68,16 @@ class QuotaEnforcer(threading.Thread):
             delay = self.interval
 
 
+def _optional_text(body: dict, key: str) -> str | None:
+    """Absent means "manager decides"; a wrong type is a client bug, not a default."""
+    value = body.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
+    return value
+
+
 class ManagerHTTPServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
 
@@ -155,7 +165,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(
                     201,
                     self.server.manager.create(
-                        body.get("username", ""), body.get("quota_bytes")
+                        body.get("username", ""),
+                        body.get("quota_bytes"),
+                        password=_optional_text(body, "password"),
+                        operation_id=_optional_text(body, "operation_id"),
                     ),
                 )
             prefix = "/v1/users/"
@@ -171,7 +184,14 @@ class ManagerHandler(BaseHTTPRequestHandler):
                     if operation == "access":
                         return self._send(200, self.server.manager.reveal(username))
                     if operation == "rotate":
-                        return self._send(200, self.server.manager.rotate(username))
+                        return self._send(
+                            200,
+                            self.server.manager.rotate(
+                                username,
+                                password=_optional_text(body, "password"),
+                                operation_id=_optional_text(body, "operation_id"),
+                            ),
+                        )
                     if operation == "enable":
                         return self._send(200, self.server.manager.set_enabled(username, True))
                     if operation == "disable":

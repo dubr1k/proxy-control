@@ -418,3 +418,27 @@ async def test_viewer_cannot_change_naive_quota(client, login_user, naive):
     )
     assert response.status_code == 403
     assert not any(call[0] == "set_quota" for call in naive.calls)
+
+
+async def test_memory_naive_replays_an_operation_and_can_lose_a_response(naive):
+    """The in-memory backend must model the manager's replay, or panel tests would
+    prove a retry safe against a fake that cannot lose a response."""
+    first = await naive.create("phone", password="caller-supplied-password-01", operation_id="op-1")
+    second = await naive.create("phone", password="caller-supplied-password-01", operation_id="op-1")
+    assert first["proxy_url"] == second["proxy_url"] and second["replayed"] is True
+    assert "caller-supplied-password-01" in first["proxy_url"]
+    assert list(naive.users) == ["phone"]
+
+    naive.faults["create"] = "lose_response"
+    with pytest.raises(NaiveError):
+        await naive.create("laptop", password="caller-supplied-password-02", operation_id="op-2")
+    # The mutation happened before the response was lost, so a retry must replay it.
+    naive.faults.clear()
+    retried = await naive.create("laptop", password="caller-supplied-password-02", operation_id="op-2")
+    assert retried["replayed"] is True and list(naive.users) == ["phone", "laptop"]
+
+    rotated = await naive.rotate("phone", password="rotated-password-0123456", operation_id="op-3")
+    again = await naive.rotate("phone", password="rotated-password-0123456", operation_id="op-3")
+    assert rotated["proxy_url"] == again["proxy_url"] and again["replayed"] is True
+    with pytest.raises(NaiveError):
+        await naive.create("desktop", password="caller-supplied-password-03", operation_id="op-3")

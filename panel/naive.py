@@ -59,12 +59,14 @@ class NaiveClient:
     async def health(self): return await self._request("GET", "/v1/health")
     async def list_users(self): return await self._request("GET", "/v1/users")
     async def traffic(self): return await self._request("GET", "/v1/traffic")
-    async def create(self, username, quota_bytes=None):
-        return await self._request(
-            "POST", "/v1/users", {"username": username, "quota_bytes": quota_bytes}
-        )
+    async def create(self, username, quota_bytes=None, *, password=None, operation_id=None):
+        payload = {"username": username, "quota_bytes": quota_bytes}
+        return await self._request("POST", "/v1/users", {**payload, **_optional(password, operation_id)})
     async def reveal(self, username): return await self._request("POST", f"/v1/users/{quote(username)}/access", {})
-    async def rotate(self, username): return await self._request("POST", f"/v1/users/{quote(username)}/rotate", {})
+    async def rotate(self, username, *, password=None, operation_id=None):
+        return await self._request(
+            "POST", f"/v1/users/{quote(username)}/rotate", _optional(password, operation_id)
+        )
     async def set_enabled(self, username, enabled): return await self._request("POST", f"/v1/users/{quote(username)}/{'enable' if enabled else 'disable'}", {})
     async def set_quota(self, username, quota_bytes):
         return await self._request(
@@ -74,6 +76,12 @@ class NaiveClient:
     async def reset_traffic(self, username): return await self._request("POST", f"/v1/users/{quote(username)}/traffic/reset", {})
 
 
+def _optional(password, operation_id) -> dict:
+    """Only send what the caller chose; an explicit null would mean something else."""
+    fields = {"password": password, "operation_id": operation_id}
+    return {key: value for key, value in fields.items() if value is not None}
+
+
 class MemoryNaive:
     def __init__(self, public_host="naive.example.com"):
         self.public_host = public_host
@@ -81,6 +89,10 @@ class MemoryNaive:
         self.calls = []
         self.period_start = datetime.now(UTC).isoformat()
         self.traffic_rows = {}
+        self.operations = {}
+        # {"create": "lose_response"} performs the mutation and then raises, the way a
+        # manager does when the reply never reaches the panel.
+        self.faults = {}
 
     def seed(self, username, password, *, enabled=True, quota_bytes=None):
         self.users[username] = {
@@ -150,17 +162,49 @@ class MemoryNaive:
                 "excludes_tls_ip_overhead": True, "reset_is_local_baseline_only": True,
             },
         }
-    async def create(self, username, quota_bytes=None):
+    def _replay(self, operation_id, operation, username):
+        if operation_id is None:
+            return None
+        record = self.operations.get(operation_id)
+        if record is None:
+            return None
+        if (record["operation"], record["username"]) != (operation, username):
+            raise NaiveError("operation id already used for another request", 409, "operation_conflict")
+        return {**record["result"], "replayed": True}
+
+    def _remember(self, operation_id, operation, username, result):
+        if operation_id is not None:
+            self.operations[operation_id] = {
+                "operation": operation, "username": username, "result": result,
+            }
+
+    def _maybe_lose(self, operation):
+        if self.faults.get(operation) == "lose_response":
+            raise NaiveError("NaiveProxy manager unavailable")
+
+    async def create(self, username, quota_bytes=None, *, password=None, operation_id=None):
         self.calls.append(("create", username))
-        self.seed(username, secrets.token_urlsafe(18), quota_bytes=quota_bytes)
-        return self._access(username)
+        replayed = self._replay(operation_id, "create", username)
+        if replayed is not None:
+            return replayed
+        self.seed(username, password or secrets.token_urlsafe(18), quota_bytes=quota_bytes)
+        result = self._access(username)
+        self._remember(operation_id, "create", username, result)
+        self._maybe_lose("create")
+        return result
     async def reveal(self, username):
         self.calls.append(("access", username))
         return self._access(username)
-    async def rotate(self, username):
+    async def rotate(self, username, *, password=None, operation_id=None):
         self.calls.append(("rotate", username))
-        self.users[username]["password"] = secrets.token_urlsafe(18)
-        return self._access(username)
+        replayed = self._replay(operation_id, "rotate", username)
+        if replayed is not None:
+            return replayed
+        self.users[username]["password"] = password or secrets.token_urlsafe(18)
+        result = self._access(username)
+        self._remember(operation_id, "rotate", username, result)
+        self._maybe_lose("rotate")
+        return result
     async def set_enabled(self, username, enabled):
         self.calls.append(("enabled", username, enabled))
         if enabled:

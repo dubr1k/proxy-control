@@ -20,6 +20,7 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import quote, urlencode
@@ -395,6 +396,49 @@ def validate_config(config: Any, *, elevated: bool = False) -> dict:
     return config
 
 
+_STATE_KEYS = frozenset(
+    {"version", "generation", "revision", "config_hash", "disabled", "tombstones", "metric_baselines"}
+)
+# `operations` appears the first time an idempotent request is recorded, so a state file
+# written by an older manager stays readable.
+_OPTIONAL_STATE_KEYS = frozenset({"operations"})
+# A caller may supply the credential so the panel can escrow it before mita commits.
+PASSWORD = re.compile(r"^[A-Za-z0-9_.~-]{16,128}$")
+OPERATION_ID = re.compile(r"^[A-Za-z0-9_:.-]{1,128}$")
+OPERATION_RETENTION_SECONDS = 7 * 86400
+_OPERATION_FIELDS = frozenset(
+    {"operation", "username", "revision", "completed_at", "credential_origin"}
+)
+
+
+def _pruned_operations(operations) -> dict:
+    """Replay records, never secrets: the journal holds who did what, not the credential."""
+    if operations is None:
+        return {}
+    if not isinstance(operations, dict):
+        raise ConfigConflict("invalid operation state")
+    cutoff = time.time() - OPERATION_RETENTION_SECONDS
+    kept = {}
+    for key, record in operations.items():
+        if (
+            not isinstance(key, str)
+            or OPERATION_ID.fullmatch(key) is None
+            or not isinstance(record, dict)
+            or set(record) != _OPERATION_FIELDS
+            or record["operation"] not in {"user.create", "user.rotate"}
+            or record["credential_origin"] not in {"caller", "manager"}
+            or not isinstance(record["completed_at"], str)
+        ):
+            raise ConfigConflict("invalid operation state")
+        try:
+            completed = datetime.fromisoformat(record["completed_at"]).timestamp()
+        except ValueError as exc:
+            raise ConfigConflict("invalid operation state") from exc
+        if completed >= cutoff:
+            kept[key] = record
+    return kept
+
+
 def _canonical(value: Any) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
@@ -752,23 +796,56 @@ class MieruManager:
             raise ConfigConflict("invalid manager state") from exc
         if (
             not isinstance(state, dict)
-            or set(state)
-            != {
-                "version",
-                "generation",
-                "revision",
-                "config_hash",
-                "disabled",
-                "tombstones",
-                "metric_baselines",
-            }
+            or not _STATE_KEYS <= set(state)
+            or set(state) - _STATE_KEYS - _OPTIONAL_STATE_KEYS
             or state["version"] != 2
             or isinstance(state["generation"], bool)
             or not isinstance(state["generation"], int)
             or state["generation"] < 0
         ):
             raise ConfigConflict("invalid manager state")
+        state["operations"] = _pruned_operations(state.get("operations"))
         return state
+
+    @staticmethod
+    def _validate_credential(password: str | None, operation_id: str | None) -> None:
+        if password is not None and (
+            not isinstance(password, str) or PASSWORD.fullmatch(password) is None
+        ):
+            raise ValidationError("invalid password")
+        if operation_id is not None and (
+            not isinstance(operation_id, str) or OPERATION_ID.fullmatch(operation_id) is None
+        ):
+            raise ValidationError("invalid operation id")
+
+    @staticmethod
+    def _replay(state: dict, operation_id: str | None, operation: str, username: str) -> dict | None:
+        """Answer a retry from the journal, or refuse honestly.
+
+        The journal deliberately holds no credential, so a manager-generated password
+        cannot be handed out twice. Saying so is the only safe answer: the caller must
+        rotate rather than believe a link it never received.
+        """
+        if operation_id is None:
+            return None
+        record = state.get("operations", {}).get(operation_id)
+        if record is None:
+            return None
+        if (record["operation"], record["username"]) != (operation, username):
+            raise ConfigConflict("operation id already used for another request")
+        if record["credential_origin"] != "caller":
+            raise ConfigConflict("operation result is unrecoverable; rotate the credential")
+        return {"username": username, "revision": record["revision"], "replayed": True}
+
+    @staticmethod
+    def _record(operation: str, username: str, password: str | None) -> dict:
+        return {
+            "operation": operation,
+            "username": username,
+            "revision": None,
+            "completed_at": datetime.now(UTC).isoformat(),
+            "credential_origin": "caller" if password else "manager",
+        }
 
     def inspect(self) -> dict:
         with self._writer():
@@ -876,7 +953,13 @@ class MieruManager:
             raise ConfigConflict("desired revision does not match")
 
     def _transaction(
-        self, desired: dict, state: dict, *, mode: str, operation: str
+        self,
+        desired: dict,
+        state: dict,
+        *,
+        mode: str,
+        operation: str,
+        operation_record: tuple[str, dict] | None = None,
     ) -> str:
         if mode not in {"reload", "restart"} or operation not in TRANSACTION_MODES:
             raise ValidationError("invalid transaction metadata")
@@ -955,6 +1038,12 @@ class MieruManager:
         state["config_hash"] = desired_hash
         state["revision"] = next_revision
         state["generation"] = next_generation
+        if operation_record is not None:
+            # The revision only exists now, and the record must land in the same atomic
+            # write as the state it describes — otherwise a crash between the two would
+            # leave a replay pointing at a revision that never happened.
+            operation_id, record = operation_record
+            state.setdefault("operations", {})[operation_id] = {**record, "revision": next_revision}
         _atomic(self.state_file, state)
         self.journal_file.unlink(missing_ok=True)
         _fsync_dir(self.state_dir)
@@ -1104,6 +1193,8 @@ class MieruManager:
         elevated: bool = False,
         allow_private_ip: bool = False,
         allow_loopback_ip: bool = False,
+        password: str | None = None,
+        operation_id: str | None = None,
     ) -> dict:
         with self._writer():
             if (
@@ -1112,7 +1203,13 @@ class MieruManager:
                 or len(username.encode()) > 64
             ):
                 raise ValidationError("invalid username")
+            self._validate_credential(password, operation_id)
             state = self._state()
+            replay = self._replay(state, operation_id, "user.create", username)
+            if replay is not None:
+                # A retry carries the revision it saw before the response was lost, so
+                # the replay answers before the compare-and-swap can reject it.
+                return replay
             self._check_revision(state, expected_revision)
             if username in state["tombstones"]:
                 raise ConfigConflict("username reuse is forbidden")
@@ -1126,7 +1223,7 @@ class MieruManager:
                 raise ValidationError(
                     "private/loopback SSRF flags require elevated approval"
                 )
-            raw = secrets.token_urlsafe(24)
+            raw = password or secrets.token_urlsafe(24)
             user = {"name": username, "password": raw, "quotas": copy.deepcopy(quotas)}
             if allow_private_ip:
                 user["allowPrivateIP"] = True
@@ -1135,8 +1232,11 @@ class MieruManager:
             config.setdefault("users", []).append(user)
             share_url = self._share(username, raw, config)
             mode = "restart" if allow_private_ip or allow_loopback_ip else "reload"
+            record = None if operation_id is None else (
+                operation_id, self._record("user.create", username, password)
+            )
             revision = self._transaction(
-                config, state, mode=mode, operation="user.create"
+                config, state, mode=mode, operation="user.create", operation_record=record
             )
             return {
                 "username": username,
@@ -1176,13 +1276,24 @@ class MieruManager:
                 ),
             }
 
-    def rotate_user(self, username: str, *, expected_revision: str) -> dict:
+    def rotate_user(
+        self,
+        username: str,
+        *,
+        expected_revision: str,
+        password: str | None = None,
+        operation_id: str | None = None,
+    ) -> dict:
         with self._writer():
+            self._validate_credential(password, operation_id)
             state = self._state()
+            replay = self._replay(state, operation_id, "user.rotate", username)
+            if replay is not None:
+                return replay
             self._check_revision(state, expected_revision)
             config = self.mita.observe()
             index, old = self._find_active(config, username)
-            raw = secrets.token_urlsafe(24)
+            raw = password or secrets.token_urlsafe(24)
             config["users"][index] = {
                 key: copy.deepcopy(value)
                 for key, value in old.items()
@@ -1190,8 +1301,11 @@ class MieruManager:
             }
             config["users"][index]["password"] = raw
             share_url = self._share(username, raw, config)
+            record = None if operation_id is None else (
+                operation_id, self._record("user.rotate", username, password)
+            )
             revision = self._transaction(
-                config, state, mode="restart", operation="user.rotate"
+                config, state, mode="restart", operation="user.rotate", operation_record=record
             )
             return {
                 "username": username,
