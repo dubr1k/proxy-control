@@ -28,9 +28,9 @@ that either finishes the job or puts the server back the way it was.
 
 ## What this is
 
-Proxy Control is a standalone alternative to 3x-ui: a separate panel that
-manages **other** protocols and credentials. It is not a fork of 3x-ui and not
-an attempt to replace it.
+Proxy Control is a standalone companion panel for 3x-ui that manages **other**
+protocols and credentials. It is not a fork of 3x-ui and does not attempt to
+replace its interface.
 
 The central idea: **you do not have to choose between Proxy Control and 3x-ui**.
 Both run on one server, behind one shared port 443, without fighting each other.
@@ -42,7 +42,7 @@ What you get:
 | **MTProxy / Telemt** | A proxy for Telegram. The panel hands out `tg://` links and QR codes, sets limits and expiry, and reports service state. |
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. One access works as both HTTPS and HTTP/2. Per-user quota and traffic accounting included. |
 | **Mieru** | An obfuscated proxy with its own protocol over TCP and UDP. The panel issues a one-time `mierus://` link and QR. |
-| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. The installer adopts an already installed 3x-ui and shares port 443 with it without touching a single one of its files. It cannot yet install 3x-ui from scratch. |
+| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.7.0` and creates those inbounds. |
 | **Panel** | Owner, administrator, and viewer roles. Secret-free audit, one-time credential reveal, quota management. |
 | **Fleet** *(optional)* | Inventory and limited management of remote nodes over mTLS. Installed by hand. |
 
@@ -98,8 +98,10 @@ installation safe.
 - DNS A/AAAA records for every name point **directly** at the server. For
   MTProto, CDN proxying must be off — DNS-only mode.
 - TCP/80 free: this is how Let's Encrypt validates your domains.
-- A working Nginx with `stream` owning public 443, and **exactly one**
-  understandable `$ssl_preread_server_name` map in the route file.
+- In `coexist` mode, a working Nginx with `stream` owning public 443 and
+  **exactly one** understandable `$ssl_preread_server_name` map in the route
+  file. In `fresh` mode the installer installs and configures Nginx itself;
+  no foreign process may own port 443.
 - The local ports from the table above, free.
 - Your own separate backup of Nginx, services, routes, and Docker state.
 
@@ -205,20 +207,25 @@ names exactly which domain failed which check.
 
 ### Step 1. Download the release and verify it
 
-Take the archive, `SHA256SUMS`, and `release-manifest.json` from the release
-page. Verify provenance **before** anything gains root:
+Download all four files under Assets: the archive, `SHA256SUMS`,
+`release-manifest.json`, and `sbom.spdx.json`. v0.1.0 has no published GitHub
+attestation. The command below checks the three payload files named by the
+downloaded `SHA256SUMS`; the checksum file itself remains trusted as downloaded
+from the release page, with no independent provenance proof. After that check,
+extract the bootstrap from the verified archive before allowing any root step:
 
 ```bash installer-check
-gh attestation verify proxy-control-v0.1.0.tar.gz --repo dubr1k/proxy-control
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check SHA256SUMS
+tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+chmod 700 install-bootstrap
 ./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 The order matters. `install-bootstrap` refuses to run as root, and before its
 single `exec sudo` it checks that every file belongs to you and is not writable
 by anyone else, that the archive matches the published checksum, that the
-manifest names the same archive, that the version is not a prerelease, and that
-no member inside the archive escapes it.
+manifest names the same archive, that the manifest version has no prerelease
+suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
 
@@ -272,12 +279,16 @@ and the installer only adds its own routes to it.
 | VLESS Reality TCP domain | the same | the VLESS Reality TCP inbound |
 | VLESS Reality XHTTP domain | the same | the VLESS Reality XHTTP inbound |
 | Hysteria2 domain | the same | the Hysteria2 inbound |
-| 3x-ui subscription domain | `managed-new`, when a separate subscription is wanted | serving the 3x-ui subscription over HTTPS |
+| 3x-ui subscription domain | Not asked by the wizard; add `subscription_domain` to the `managed-new` TOML | serving the 3x-ui subscription over HTTPS |
 
-**WARP.** Asked in profiles with Naive or Mieru: whether their traffic should
-leave through the local SOCKS5 endpoint at `127.0.0.1:40000`. If no WARP client
-is listening there, answer no — otherwise the tunnels run into an upstream that
-does not exist.
+**WARP.** In `managed-new` mode the wizard asks whether to enable WARP for Xray
+and, on yes, requires a non-empty list of domain selectors; NaiveProxy and Mieru
+keep direct egress in that case. In 3x-ui modes `none` and `existing`, the wizard
+asks when the profile includes NaiveProxy or Mieru: yes routes all of their
+traffic through WARP and does not change an existing 3x-ui. The installer deploys
+the pinned official Cloudflare client itself and creates a Proxy Control-owned
+SOCKS5 endpoint at `127.0.0.1:40000`; no pre-existing WARP client is needed, and
+foreign WARP state is instead a hard stop. Inspect the resulting plan first.
 
 **ACME email.** The address Let's Encrypt will use.
 
@@ -489,22 +500,21 @@ brings it to a working state with no manual step:
    outside with a known password;
 3. it creates three inbounds: VLESS Reality TCP (`127.0.0.1:8449`), VLESS
    Reality XHTTP (`127.0.0.1:8450`), and Hysteria2 (`0.0.0.0:443/UDP`);
-4. it proves each one by its open port. This matters: 3x-ui stores an inbound
-   Xray will not serve and goes on reporting it as enabled, with nothing in the
-   log. An open port is the only evidence.
+4. it checks the pinned version, the panel's private listener, and a listener for
+   each created inbound. This proves that Xray accepted the configuration; it is
+   not a full VLESS/Hysteria2 client acceptance.
 
 The Reality keypair is minted by the very Xray that will serve it, and the cover
 site is the panel's own local TLS listener: a foreign site can change its
 certificate or disappear, and Reality then fails for every client at once.
 
 > [!NOTE]
-> The 3x-ui subscription is **not published** yet. It lives on its own port and,
-> after an installation, is reachable only from the server itself. The reason is
-> how port 443 is shared: Nginx picks the recipient from the name in the TLS
-> greeting, one name means one recipient, and the panel and the subscription
-> listen on different ports -- so the subscription needs a domain of its own.
-> That domain arrives together with publishing the subscription automatically;
-> until then it is absent, and we will not claim otherwise.
+> The 3x-ui subscription is published only when the `managed-new` TOML contains
+> a separate `subscription_domain`. The installer issues its certificate, routes
+> that SNI through shared TCP/443 to the loopback listener on `127.0.0.1:2096`,
+> and stores the subscription URL in root-only state. Entries in the subscription
+> advertise public protocol names on port `443`, never private backend ports.
+> Without `subscription_domain`, the subscription is not published externally.
 
 Upgrading an already installed 3x-ui is prepared in the adapter as its own
 transaction, but no command exposes it yet — upgrade it with 3x-ui's own

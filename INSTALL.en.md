@@ -8,7 +8,9 @@ Root-only `install.sh` invokes transactional `scripts/proxyctl.py install`. Supp
 audit → plan → install → repair → uninstall
 ```
 
-The complete installer deploys Telemt/MTProxy and the panel. NaiveProxy, Mieru, and fleet are separate integrations applied only after core acceptance.
+The installer always deploys Telemt/MTProxy and the panel. Selected profiles add
+NaiveProxy and/or Mieru in the same transaction after core acceptance. Fleet
+remains a separate manual integration.
 
 ## The primary install path: a verified release
 
@@ -16,20 +18,25 @@ This is the supported way to install Proxy Control. It replaces the manual
 `scripts/proxyctl.py` sequence below, which stays documented for an existing
 deployment and for reviewing what the installer does.
 
-Download the archive, its `SHA256SUMS`, and `release-manifest.json` from the
-release page, then verify provenance **before** anything runs with privilege:
+Download the archive, `SHA256SUMS`, `release-manifest.json`, and
+`sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
+attestation. `sha256sum` checks the three payload files named by the downloaded
+`SHA256SUMS`; the checksum file itself remains trusted as downloaded from the
+release page. Then extract the bootstrap from the verified archive — all before
+anything runs with privilege:
 
 ```bash installer-check
-gh attestation verify proxy-control-v0.1.0.tar.gz --repo dubr1k/proxy-control
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check SHA256SUMS
+tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+chmod 700 install-bootstrap
 ./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
-The order matters: the attestation is checked first, and only then is anything
+The order matters: the payload files are checked first, and only then is anything
 handed to `sudo`. `install-bootstrap` refuses to run as root, verifies that
 every input is a regular file you own that is not group- or other-writable,
 compares the archive against the published checksum, requires the manifest to
-name the same archive and digest, refuses a prerelease version, and preflights
+name the same archive and digest, refuses a version with a prerelease suffix, and preflights
 the archive for absolute or escaping members before its single `exec sudo`.
 Nothing is ever downloaded and executed in one step.
 
@@ -52,8 +59,11 @@ in [`release/external-artifacts.json`](release/external-artifacts.json).
 - root/sudo;
 - DNS A/AAAA for proxy and panel names points directly to the host;
 - TCP/80 available for ACME HTTP-01;
-- public TCP/443 owned by an existing Nginx `stream` listener;
-- exactly one understandable `$ssl_preread_server_name` map in the selected route file;
+- in `coexist` mode, public TCP/443 owned by an existing Nginx `stream` listener
+  with exactly one understandable `$ssl_preread_server_name` map in the selected
+  route file;
+- in `fresh` mode, no foreign process on port 443; the installer installs and
+  configures Nginx;
 - free loopback ports;
 - external executable probe that validates real Fake-TLS/Obfuscated2 `req_pq_multi → resPQ`;
 - host-level backup of Nginx, services, and adjacent routes.
