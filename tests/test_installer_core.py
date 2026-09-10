@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import stat
 from pathlib import Path
@@ -184,6 +185,7 @@ def test_core_render_uses_secret_files_and_internal_telemt_api(tmp_path):
     assert "9091:" not in rendered.compose_yaml
     assert rendered.mode("secrets/users.conf") == 0o600
     assert rendered.mode("secrets/telemt-api-token") == 0o600
+    assert "panel-master-key" in rendered.compose_yaml
     assert "Bearer " not in rendered.env_text
     assert "token" not in rendered.env_text.casefold()
 
@@ -206,12 +208,18 @@ def test_core_apply_preserves_modes_and_secrets_on_replay(tmp_path):
     applied = adapter.apply(action, checkpoint)
     users = tmp_path / "opt/mtproxy-shared443/secrets/users.conf"
     token = tmp_path / "opt/mtproxy-shared443/secrets/telemt-api-token"
-    before = users.read_bytes(), token.read_bytes()
+    master_key = tmp_path / "opt/mtproxy-shared443/secrets/panel-master-key"
+    before = users.read_bytes(), token.read_bytes(), master_key.read_bytes()
     replayed = adapter.reconcile_apply(action, checkpoint)
 
-    assert before == (users.read_bytes(), token.read_bytes())
+    assert before == (users.read_bytes(), token.read_bytes(), master_key.read_bytes())
     assert stat.S_IMODE(users.stat().st_mode) == 0o600
     assert stat.S_IMODE(token.stat().st_mode) == 0o600
+    # A regenerated key would silently orphan every stored credential.
+    assert stat.S_IMODE(master_key.stat().st_mode) == 0o600
+    keyring = json.loads(master_key.read_text())
+    assert keyring["schema"] == 1
+    assert len(base64.b64decode(keyring["keys"][0]["key_material"], validate=True)) == 32
     assert applied["ownership"] == replayed["ownership"]
     install_calls = [call for call, _stdin in runner.calls if any(value.endswith("probe/install.sh") for value in call)]
     assert len(install_calls) == 1
@@ -742,6 +750,7 @@ stream {
         ("secrets/users.conf", 0o644),
         ("secrets/telemt-api-token", 0o644),
         ("secrets/panel-bootstrap-password", 0o644),
+        ("secrets/panel-master-key", 0o644),
     ],
 )
 def test_repair_revalidates_credential_metadata(tmp_path, relative, mode):

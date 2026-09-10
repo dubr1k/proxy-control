@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import secrets
 import shutil
 import stat
 import sys
+import time
 import uuid
 
 REPO = Path(__file__).resolve().parents[1]
@@ -111,6 +113,32 @@ def render(args: argparse.Namespace) -> None:
     api_token_file = install / "secrets/telemt-api-token"
     if not api_token_file.exists():
         atomic_write(api_token_file, "Bearer " + secrets.token_urlsafe(48) + "\n", 0o600)
+    # The panel's master keyring (panel.keyring schema 1). Generated here so an
+    # upgrade needs no manual step, and never regenerated: a new key would make
+    # every stored credential undecryptable.
+    master_key_file = install / "secrets/panel-master-key"
+    if not master_key_file.exists():
+        key_id = "k-" + secrets.token_hex(4)
+        atomic_write(
+            master_key_file,
+            json.dumps(
+                {
+                    "schema": 1,
+                    "active_key_id": key_id,
+                    "keys": [
+                        {
+                            "key_id": key_id,
+                            "state": "active",
+                            "created_at": int(time.time()),
+                            "key_material": base64.b64encode(secrets.token_bytes(32)).decode(),
+                        }
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            0o600,
+        )
 
     webroot = rooted(cover_root)
     webroot.mkdir(parents=True, exist_ok=True)

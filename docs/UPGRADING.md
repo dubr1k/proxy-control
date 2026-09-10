@@ -12,6 +12,39 @@ This procedure applies to a running installation and to the panel's `version-age
 6. Upgrade one boundary at a time inside that one stack. Validate configuration, service health, protocol behavior, accounting, and adjacent SNI routes.
 7. On failure, stop the changed service and restore the complete previous generation with the same stack name and overlay set. Do not regenerate journal keys or partially copy state.
 
+## Upgrading to v0.2: the panel master key
+
+v0.2 stores client credentials encrypted, so the panel service now mounts one more
+Compose secret: `secrets/panel-master-key`.
+
+- **Installed with `proxy-control`**: nothing to do. The installer creates the key
+  during install and upgrade, preserves an existing one, and never regenerates it
+  (a new key would make every stored credential undecryptable).
+- **Assembled by hand from `compose.yaml`**: create the key once before
+  `docker compose up`, otherwise Compose refuses to start with a missing secret
+  file:
+
+```bash
+umask 077
+docker run --rm -v "$PWD/secrets":/out --entrypoint python mtproxy-panel:latest \
+  -m panel.cli master-key-init --path /out/panel-master-key
+```
+
+Then back it up **separately from the database** ([backup and
+restore](BACKUP_RESTORE.en.md)). A panel that has never stored a secret still
+starts without the key; once encrypted rows exist and the key is missing, the
+panel refuses to start rather than serving empty subscriptions.
+
+Rotation is a separate, deliberate operation and never part of an upgrade:
+
+```bash
+docker compose exec panel python -m panel.cli master-key-rotate --path /run/panel/master-key
+```
+
+It adds a new active key, re-encrypts every stored secret in batches, verifies
+the result, and only then narrows the keyring to the new key — an interrupted
+rotation leaves everything readable.
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

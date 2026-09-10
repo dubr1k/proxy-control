@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import fnmatch
 import hashlib
 import http.cookiejar
@@ -67,11 +68,17 @@ _COPY_DIRECTORIES = (
     "naive_manager",
     "panel",
 )
-_PRESERVED_CREDENTIALS = (
+# Credentials a project Core adopts must already have. The master key is deliberately
+# not here: a v0.1.0 project has none, and demanding it would refuse the upgrade.
+_REQUIRED_CREDENTIALS = (
     "secrets/users.conf",
     "secrets/telemt-api-token",
     "secrets/panel-bootstrap-password",
 )
+# Everything Core owns and never overwrites. The panel's master keyring is generated
+# during render so an upgrade needs no manual step, and preserved from then on:
+# regenerating it would make every stored secret undecryptable (ADR 005).
+_PRESERVED_CREDENTIALS = (*_REQUIRED_CREDENTIALS, "secrets/panel-master-key")
 # Compose secrets another adapter owns inside the shared project. Core must
 # leave them alone, but it must not read them as foreign residue either.
 _ADJACENT_CREDENTIALS = ("secrets/naive-manager-token",)
@@ -1617,9 +1624,10 @@ class CoreAdapter:
         ):
             raise CoreError("pre-existing project credentials are unsafe")
         owned = {Path(value).name for value in _PRESERVED_CREDENTIALS}
+        required = {Path(value).name for value in _REQUIRED_CREDENTIALS}
         adjacent = {Path(value).name for value in _ADJACENT_CREDENTIALS}
         names = {entry.name for entry in secret_dir.iterdir()}
-        if names - (owned | adjacent) or (require_all and not owned <= names):
+        if names - (owned | adjacent) or (require_all and not required <= names):
             raise CoreError("pre-existing project credentials are unsafe")
         validators = {
             "users.conf": _valid_users_file,
@@ -1629,11 +1637,15 @@ class CoreAdapter:
             "panel-bootstrap-password": lambda data: (
                 bool(data.rstrip("\n")) and "\n" not in data.rstrip("\n")
             ),
+            # Structure only: the key material never reaches a diagnostic.
+            "panel-master-key": _valid_master_key_file,
         }
         for name, validator in validators.items():
             path = secret_dir / name
             if not (path.exists() or path.is_symlink()):
-                if require_all:
+                # An adopted v0.1.0 project has no master key yet; the render creates
+                # one. Every other credential must already be there.
+                if require_all and name in required:
                     raise CoreError("pre-existing project credentials are unsafe")
                 continue
             if path.is_symlink() or not path.is_file():
@@ -1792,6 +1804,27 @@ class CoreAdapter:
                 (self._panel_password() + "\n").encode(),
                 0o600,
             )
+        master_key = credential_dir / "panel-master-key"
+        if not master_key.exists():
+            # Rendered with the stdlib so the installer never needs `cryptography`;
+            # the format is panel.keyring's schema 1.
+            key_id = "k-" + secrets.token_hex(4)
+            payload = json.dumps(
+                {
+                    "schema": 1,
+                    "active_key_id": key_id,
+                    "keys": [
+                        {
+                            "key_id": key_id,
+                            "state": "active",
+                            "created_at": int(time.time()),
+                            "key_material": base64.b64encode(secrets.token_bytes(32)).decode(),
+                        }
+                    ],
+                },
+                indent=2,
+            ) + "\n"
+            self._atomic(master_key, payload.encode(), 0o600)
         self._atomic(project / ".env", rendered.env_text.encode(), 0o600)
         for domain, title in (
             (selected["proxy_domain"], "Welcome"),
@@ -2741,6 +2774,29 @@ def _valid_users_file(text: str) -> bool:
             return False
         names.append(name)
     return len(names) == len(set(names))
+
+
+def _valid_master_key_file(text: str) -> bool:
+    """Structure check only: schema, one active key, 32 bytes of base64 material.
+
+    Nothing here returns or logs the material — a malformed file is reported as
+    unsafe credentials, never as its contents.
+    """
+    try:
+        data = json.loads(text)
+        if data["schema"] != 1 or not isinstance(data["keys"], list) or not data["keys"]:
+            return False
+        active = str(data["active_key_id"])
+        seen = set()
+        for item in data["keys"]:
+            if item["state"] not in {"active", "retiring"}:
+                return False
+            if len(base64.b64decode(str(item["key_material"]), validate=True)) != 32:
+                return False
+            seen.add(str(item["key_id"]))
+        return active in seen and len(seen) == len(data["keys"])
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return False
 
 
 def _compose_publishes_telemt_api(compose: str) -> bool:
