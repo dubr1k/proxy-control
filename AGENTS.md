@@ -81,7 +81,7 @@ python3 -m venv .venv
 sudo .venv/bin/python -m pytest -q
 .venv/bin/python -m unittest -v tests/test_deploy.py
 python3 scripts/check-doc-links.py
-node --check panel/static/app.js
+bash scripts/dev/check-js-syntax.sh
 
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 git ls-files -z '*.sh' | xargs -0 -r shellcheck
@@ -302,7 +302,7 @@ After every material change, run the complete gate set:
 sudo .venv/bin/python -m pytest -q
 .venv/bin/python -m unittest -v tests/test_deploy.py
 python3 scripts/check-doc-links.py
-node --check panel/static/app.js
+bash scripts/dev/check-js-syntax.sh
 
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 git ls-files -z '*.sh' | xargs -0 -r shellcheck

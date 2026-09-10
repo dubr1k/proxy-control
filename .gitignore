@@ -19,6 +19,7 @@ Desktop.ini
 # Agent
 .gemini/
 .agent/
+.hermes/
 
 .worktrees/
 # graphify knowledge graph: derived artefacts, rebuilt from source with
