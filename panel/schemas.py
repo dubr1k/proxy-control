@@ -109,6 +109,21 @@ class FleetNodeCreate(BaseModel):
     inventory: dict = Field(default_factory=dict)
 
 
+class NodeCreate(BaseModel):
+    node_id: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$")
+    display_name: str = Field(min_length=1, max_length=128)
+
+
+class NodeRename(BaseModel):
+    display_name: str = Field(min_length=1, max_length=128)
+
+
+class NodeRevokeAll(BaseModel):
+    # Typed confirmation: the operator repeats the node id, so revoking every
+    # certificate cannot happen on a mis-click.
+    confirm: str = Field(min_length=1, max_length=64)
+
+
 class FleetCommandCreate(BaseModel):
     idempotency_key: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{7,127}$")
     operation: Literal[
@@ -120,3 +135,52 @@ class FleetCommandCreate(BaseModel):
     ]
     expected_telemt_revision: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
     payload: dict
+
+
+class ClientCreate(BaseModel):
+    display_name: str = Field(min_length=1, max_length=128)
+
+
+class ClientState(BaseModel):
+    state: Literal["active", "suspended", "archived"]
+
+
+class ImportDecision(BaseModel):
+    display_name: str = Field(min_length=1, max_length=128)
+    client_id: str | None = Field(default=None, max_length=64)
+    # (protocol, runtime username) pairs; the panel checks both against live inventory.
+    items: list[tuple[Literal["mtproxy", "naive", "mieru"], str]] = Field(min_length=1, max_length=64)
+
+    @field_validator("items")
+    @classmethod
+    def usernames(cls, value):
+        for _protocol, username in value:
+            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", username):
+                raise ValueError("invalid runtime username")
+        return value
+
+
+class ClientImport(BaseModel):
+    decisions: list[ImportDecision] = Field(min_length=1, max_length=200)
+
+
+class GrantAdopt(BaseModel):
+    # Rotation invalidates the link a subscriber holds today, so consent is explicit.
+    allow_rotation: bool = False
+
+
+class GrantAdoptBatch(GrantAdopt):
+    protocol: Literal["mtproxy", "naive", "mieru"]
+
+
+class GrantRequest(BaseModel):
+    protocol: Literal["mtproxy", "naive", "mieru"]
+    runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
+    # Protocol-specific options are validated by the domain model, not here.
+    options: dict = Field(default_factory=dict)
+    valid_from: int | None = None
+    valid_until: int | None = None
+
+
+class GrantsCreate(BaseModel):
+    grants: list[GrantRequest] = Field(min_length=1, max_length=8)

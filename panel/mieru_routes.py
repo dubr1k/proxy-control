@@ -138,6 +138,30 @@ def mieru_access(value) -> dict:
     }
 
 
+async def _domain_created(app, context, username: str, payload: dict, request, user) -> dict:
+    """Provision through the domain, then answer in the shape the caller already knows."""
+    from .clients.store import ClientConflict  # noqa: PLC0415 - avoids an import cycle
+
+    try:
+        credential = await app.state.domain_facade.create(
+            "mieru", username, {"quotas": payload["quotas"]},
+            **context.domain_context(request, user),
+        )
+    except ClientConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    adapter = app.state.adapters["mieru"]
+    facade = app.state.domain_facade
+    grant = facade.grant("mieru", username)
+    health = await app.state.mieru.health()
+    # The link is rebuilt from the shape mita itself reported, not from a guess.
+    artifacts = adapter.render_artifacts(grant, credential, public_host=adapter.public_host)
+    return {
+        "username": username,
+        "revision": health.get("revision"),
+        "share_url": artifacts[0].value if artifacts else "",
+    }
+
+
 def register_mieru_routes(app, context: RequestContext) -> None:
     def require_mieru():
         if not context.settings.mieru_enabled:
@@ -214,7 +238,12 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         payload["elevated"] = user["role"] == "owner" and (
             body.allow_private_ip or body.allow_loopback_ip
         )
-        data = await app.state.mieru.create(payload)
+        if context.settings.vnext_writer == "domain" and not payload["elevated"]:
+            # The SSRF flags are an elevated, deliberately manual path: they stay on the
+            # legacy call rather than being smuggled through a generic domain intent.
+            data = await _domain_created(app, context, body.username, payload, request, user)
+        else:
+            data = await app.state.mieru.create(payload)
         await context.audit(
             user,
             "mieru.create",
@@ -278,6 +307,11 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         data = await app.state.mieru.operation(
             username, operation, body.expected_revision
         )
+        if context.settings.vnext_writer == "domain" and operation in {"enable", "disable"}:
+            await app.state.domain_facade.set_enabled(
+                "mieru", username, operation == "enable", observed={"quotas": []},
+                **context.domain_context(request, user),
+            )
         await context.audit(user, f"mieru.{operation}", username, request)
         if operation == "rotate":
             return {

@@ -75,6 +75,7 @@ services:
       - "10001"
     environment:
       PANEL_DATABASE: /data/panel.sqlite3
+      PANEL_VNEXT_WRITER: ${PANEL_VNEXT_WRITER:-legacy}
       PANEL_ALLOWED_HOSTS: ${PANEL_ALLOWED_HOSTS:-localhost,127.0.0.1}
       PANEL_HEALTHCHECK_HOST: ${PANEL_HEALTHCHECK_HOST:-localhost}
       PANEL_COOKIE_SECURE: ${PANEL_COOKIE_SECURE:-true}
@@ -84,6 +85,7 @@ services:
       PANEL_SUPPLEMENTARY_GROUPS: "10001"
     secrets:
       - telemt-api-token
+      - panel-master-key
     ports:
       - "127.0.0.1:8787:8787/tcp"
     volumes:
@@ -126,6 +128,10 @@ secrets:
     file: ./secrets/users.conf
   telemt-api-token:
     file: ./secrets/telemt-api-token
+  # The panel's master keyring: it encrypts stored credentials and is deliberately
+  # kept outside the database volume, so a stolen backup of one is useless alone.
+  panel-master-key:
+    file: ./secrets/panel-master-key
 
 volumes:
   telemt-config:

@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from panel.app import Settings, create_app
+from panel.keyring import Keyring
 from panel.naive import MemoryNaive
 from panel.mieru import MemoryMieru
 from panel.telemt import MemoryTelemt
@@ -32,10 +33,20 @@ def mieru() -> MemoryMieru:
     return MemoryMieru()
 
 
-@pytest.fixture
-async def client(tmp_path: Path, telemt: MemoryTelemt, naive: MemoryNaive, mieru: MemoryMieru):
+@pytest.fixture(params=["legacy", "domain"])
+async def client(request, tmp_path: Path, telemt: MemoryTelemt, naive: MemoryNaive, mieru: MemoryMieru):
+    """Every API test runs against both writers.
+
+    The domain writer must be indistinguishable from the outside: same status codes,
+    same response shapes, same audit actions. Anything that differs is a regression,
+    not a new feature.
+    """
+    # Credential escrow is part of the panel now, so the shared app has a keyring.
+    master_key = tmp_path / "panel-master-key"
+    Keyring.generate().save(master_key)
     settings = Settings(
         database_path=tmp_path / "panel.sqlite3",
+        master_key_file=master_key,
         session_cookie_secure=False,
         allowed_hosts=("testserver",),
         login_attempts=3,
@@ -44,6 +55,7 @@ async def client(tmp_path: Path, telemt: MemoryTelemt, naive: MemoryNaive, mieru
         naive_public_host="naive.example.com",
         naive_enabled=True,
         mieru_enabled=True,
+        vnext_writer=request.param,
     )
     app = create_app(
         settings,

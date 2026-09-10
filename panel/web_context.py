@@ -47,9 +47,29 @@ class RequestContext:
 
         return check
 
+    def read_roles(self, *allowed: str):
+        """A role gate for reads. CSRF protects state changes, and a GET carries no
+        token, so `roles()` would reject every reader before its role is even looked at."""
+
+        async def check(user=Depends(self.current)):
+            if user["role"] not in allowed:
+                raise HTTPException(403, "insufficient role")
+            return user
+
+        return check
+
     @staticmethod
     def client_ip(request: Request) -> str:
         return request.client.host if request.client else "unknown"
+
+    def domain_context(self, request: Request, user: dict) -> dict:
+        """Who did it, from where, under which request — the audit fields every
+        domain write needs, built once instead of in every route."""
+        return {
+            "actor": user,
+            "ip": self.client_ip(request),
+            "request_id": getattr(request.state, "request_id", None),
+        }
 
     async def audit(
         self,
@@ -66,6 +86,7 @@ class RequestContext:
             target,
             self.client_ip(request),
             detail,
+            getattr(request.state, "request_id", None),
         )
 
     def create_reveal(self, data: dict, owner: dict) -> str:
@@ -95,6 +116,9 @@ class RequestContext:
 def install_security_middleware(app, settings: Settings) -> None:
     @app.middleware("http")
     async def security(request: Request, call_next):
+        # One id per request, echoed to the client and stored on every audit row the
+        # request writes, so a response can be traced to its trail and back.
+        request.state.request_id = secrets.token_hex(8)
         length = request.headers.get("content-length")
         try:
             declared_too_large = bool(
@@ -119,6 +143,7 @@ def install_security_middleware(app, settings: Settings) -> None:
                 "Referrer-Policy": "no-referrer",
                 "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
                 "Cache-Control": "no-store",
+                "X-Request-Id": request.state.request_id,
             }
         )
         return response

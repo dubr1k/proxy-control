@@ -13,6 +13,7 @@ from .naive import NaiveError
 from .naive_routes import safe_naive_traffic
 from .reveals import qr_data
 from .schemas import UserCreate, UserLimits
+from .telemt import api_secret
 from .versions import VersionAgentError
 from .web_context import RequestContext
 
@@ -203,6 +204,23 @@ def proxy_link(value) -> str:
     return value
 
 
+async def _domain_created(app, protocol: str, username: str, request: Request, user: dict) -> dict:
+    """Provision through the domain, then answer in the shape the caller already knows."""
+    from .clients.store import ClientConflict  # noqa: PLC0415 - avoids an import cycle
+
+    try:
+        secret = await app.state.domain_facade.create(
+            protocol, username, {}, **app.state.request_context.domain_context(request, user)
+        )
+    except ClientConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    row = next(
+        (item for item in await app.state.telemt.list_users() if item.get("username") == username),
+        None,
+    )
+    return {"user": row, "secret": api_secret(secret.decode())}
+
+
 def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
     settings = context.settings
 
@@ -391,7 +409,11 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         request: Request,
         user=Depends(context.roles("owner", "admin")),
     ):
-        data = await app.state.telemt.create_user(body.username)
+        if settings.vnext_writer == "domain":
+            # Same reply, different owner: the credential is escrowed before it is shown.
+            data = await _domain_created(app, "mtproxy", body.username, request, user)
+        else:
+            data = await app.state.telemt.create_user(body.username)
         await context.audit(user, "user.create", body.username, request)
         token = context.create_reveal(secret_reveal(data), user)
         return {"username": body.username, "reveal_token": token}
