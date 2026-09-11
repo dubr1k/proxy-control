@@ -46,13 +46,21 @@ function adoptNote(context, grants) {
 }
 
 function actions(context, client) {
-  if (context.state.me?.role === "viewer" || client.state === "archived") return "";
+  // The subscription dialog is read-only for viewers, so it is offered to everyone;
+  // the buttons that change anything appear inside it by role.
+  const subscription = client.state === "archived"
+    ? ""
+    : '<button class="secondary" data-client-action="subscription">Подписка</button>';
+  if (context.state.me?.role === "viewer" || client.state === "archived") {
+    return subscription ? `<div class="client-actions">${subscription}</div>` : "";
+  }
   const grant = '<button class="secondary" data-client-action="grant">Выдать доступ</button>';
   const toggle = client.state === "suspended"
     ? '<button class="secondary" data-client-action="resume">Возобновить</button>'
     : '<button class="secondary" data-client-action="suspend">Приостановить</button>';
   return `<div class="client-actions">
     ${grant}
+    ${subscription}
     ${toggle}
     <button class="danger ghost" data-client-action="archive">Архивировать</button>
   </div>`;
@@ -319,6 +327,12 @@ export function handleClientsClick(context, button) {
   if (action === "grant") {
     const card = button.closest("[data-client-id]");
     if (card) openGrantModal(context, card.dataset.clientId);
+    return true;
+  }
+  if (action === "subscription") {
+    const card = button.closest("[data-client-id]");
+    const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
+    if (entry) void context.subscriptions.open(entry.client.id, entry.client.display_name);
     return true;
   }
   const card = button.closest("[data-client-id]");

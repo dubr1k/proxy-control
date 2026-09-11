@@ -456,6 +456,15 @@ export function createAccessDialogs(context) {
       await ui.copyText(query("#access-link", root));
       ui.toast("Ссылка скопирована");
     });
+    // Copy buttons rendered inside dialogs (the bundle, for one) carry the value they copy.
+    root.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-copy]");
+      if (!button) return;
+      const input = button.parentElement?.querySelector("input");
+      if (input) await ui.copyText(input);
+      else await navigator.clipboard?.writeText(button.dataset.copy);
+      ui.toast("Скопировано");
+    });
     query("#access-modal", root)?.addEventListener("close", () => {
       query("#access-link", root).value = "";
       query("#qr-image", root).removeAttribute("src");
