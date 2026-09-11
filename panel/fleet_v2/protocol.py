@@ -40,8 +40,8 @@ class GenerationDocument(_Strict):
     schema_version: Literal[1] = SCHEMA_VERSION
     node_guid: str = Field(min_length=1, max_length=64)
     master_guid: str = Field(min_length=1, max_length=64)
-    generation: int = Field(ge=0)
-    previous_generation: int = Field(ge=-1)
+    generation: int = Field(ge=1)
+    previous_generation: int = Field(ge=0)
     created_at: int
     created_by: str = Field(max_length=128)
     resources: list[Resource] = Field(max_length=MAX_RESOURCES)
