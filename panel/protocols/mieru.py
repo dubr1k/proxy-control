@@ -163,6 +163,7 @@ class MieruAdapter:
     credential_origin = "caller"
     # mita stores only a hash, so a credential it generated cannot be read back.
     capture_supported = False
+    accepts_caller_credential = True
 
     def __init__(self, client, *, public_host: str = "", port: int = 8443):
         # mita owns the public host; it arrives inside the share URL.
@@ -314,6 +315,21 @@ class MieruAdapter:
     async def capture(self, grant: GrantRef) -> bytes | None:
         """Always None: mita keeps a hash, so the credential cannot be read back."""
         return None
+
+    async def update_options(self, grant: GrantRef, options: dict) -> AppliedGrant | None:
+        if "quotas" not in options:
+            return None
+        try:
+            await self.client.set_quotas(grant.runtime_username, {"quotas": options["quotas"]})
+        except MieruError as exc:
+            raise AdapterError("Mieru manager refused the request") from exc
+        return AppliedGrant(
+            runtime_username=grant.runtime_username,
+            enabled=True,
+            credential=b"",
+            revision=await self._revision(),
+            artifact_template={"share_template": SHARE_TEMPLATE, "host": self.public_host, "port": self.port},
+        )
 
     def render_artifacts(
         self, grant: AccessGrant, credential: bytes, *, public_host: str

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import secrets
 import time
 from urllib.parse import parse_qs, quote, urlsplit
@@ -9,7 +10,15 @@ import httpx
 
 
 class TelemtError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        if status_code is None:
+            # `_request` always embeds the HTTP status this way; parsing it back keeps
+            # errors raised elsewhere (fakes in tests) carrying the same information
+            # without every caller having to pass it explicitly.
+            match = re.search(r"\((\d{3})\)\s*$", message)
+            status_code = int(match.group(1)) if match else 502
+        self.status_code = status_code
 
 
 class TelemtIndeterminate(TelemtError):
@@ -76,7 +85,7 @@ class TelemtClient:
         except httpx.HTTPError as exc:
             raise TelemtError("Telemt API unavailable") from exc
         if response.status_code >= 400:
-            raise TelemtError(f"Telemt API error ({response.status_code})")
+            raise TelemtError(f"Telemt API error ({response.status_code})", status_code=response.status_code)
         try:
             body = response.json()
         except ValueError as exc:
@@ -86,10 +95,19 @@ class TelemtClient:
         return body.get("data"), body.get("revision")
 
     async def list_users(self): return (await self._request("GET", "/v1/users"))[0]
-    async def create_user(self, username): return (await self._request("POST", "/v1/users", {"username": username}))[0]
+
+    async def create_user(self, username, secret=None):
+        body = {"username": username}
+        if secret is not None:
+            body["secret"] = secret
+        return (await self._request("POST", "/v1/users", body))[0]
+
     async def delete_user(self, username): return (await self._request("DELETE", f"/v1/users/{quote(username)}"))[0]
     async def set_enabled(self, username, enabled): return (await self._request("POST", f"/v1/users/{quote(username)}/{'enable' if enabled else 'disable'}"))[0]
-    async def rotate(self, username): return (await self._request("POST", f"/v1/users/{quote(username)}/rotate-secret", {}))[0]
+
+    async def rotate(self, username, secret=None):
+        body = {} if secret is None else {"secret": secret}
+        return (await self._request("POST", f"/v1/users/{quote(username)}/rotate-secret", body))[0]
     async def update_user(self, username, fields): return (await self._request("PATCH", f"/v1/users/{quote(username)}", fields))[0]
     async def reset_quota(self, username): return (await self._request("POST", f"/v1/users/{quote(username)}/reset-quota", {}))[0]
     async def health(self): return (await self._request("GET", "/v1/health/ready"))[0]
@@ -125,8 +143,8 @@ class MemoryTelemt:
         return None if row is None else access_from_user(row)
 
     async def list_users(self): return list(self.users.values())
-    async def create_user(self, username):
-        secret = secrets.token_hex(16)
+    async def create_user(self, username, secret=None):
+        secret = secret or secrets.token_hex(16)
         link = f"tg://proxy?server={self.public_host}&port={self.public_port}&secret=ee{secret}"
         user = {"username": username, "enabled": True, "links": {"tls": [link]}}
         self.users[username] = user
@@ -140,8 +158,8 @@ class MemoryTelemt:
     async def set_enabled(self, username, enabled):
         self.users[username]["enabled"] = enabled
         return copy.deepcopy(self.users[username])
-    async def rotate(self, username):
-        secret = secrets.token_hex(16)
+    async def rotate(self, username, secret=None):
+        secret = secret or secrets.token_hex(16)
         link = f"tg://proxy?server={self.public_host}&port={self.public_port}&secret=ee{secret}"
         self.users[username]["links"] = {"tls": [link]}
         self._maybe_lose("rotate")
