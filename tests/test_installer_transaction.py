@@ -1124,6 +1124,32 @@ def test_a_completed_rollback_does_not_block_the_next_attempt(tmp_path):
     assert state.status == "active"
 
 
+def test_a_completed_uninstall_does_not_block_the_next_install(tmp_path):
+    """`uninstall` → `install` is the documented way to re-render owned files
+    from a new release; a finished uninstall owns nothing, like a finished
+    rollback."""
+    from installer.transaction import TransactionState
+
+    adapter = RecordingAdapter("core", tmp_path)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.store.initialize()
+    engine.store.write_plan(plan)
+    engine._persist(
+        TransactionState(
+            transaction_id="0" * 32,
+            status="uninstalled",
+            plan_digest=plan.digest,
+            accepted_digest=plan.digest,
+        )
+    )
+
+    state = engine.apply(plan, accepted_digest=plan.digest)
+
+    assert state.status == "active"
+    assert state.transaction_id != "0" * 32
+
+
 def test_an_interrupted_transaction_still_blocks_a_fresh_start(tmp_path):
     """An installation that stopped half-way owns things on the host. Starting
     over would abandon them; `resume` and `repair` exist for that."""

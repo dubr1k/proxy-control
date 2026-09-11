@@ -4,7 +4,90 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.0-beta.1] - 2026-09-11
+
+The local control plane (vNext v0.2): the panel owns clients, their accesses and the
+credentials behind them, and hands each client one invalidatable subscription URL on a
+dedicated domain. Everything below was gated on the disposable lab host, not in CI —
+see `docs/superpowers/plans/2026-09-10-vnext-v0.2-local-control-plane.md`, Task 19A.
+
 ### Added
+
+- One database boundary (`panel/database.py`) with versioned, checksummed migrations
+  (`db-migrate`, `db-status`); the baseline migration adopts a v0.1.0 database in place.
+  Audit rows are written inside the transaction of the change they describe and carry
+  `X-Request-Id`, so a response and its trail can be matched.
+- An encrypted secret store (AES-256-GCM, per-row AAD) behind a master keyring that the
+  installer creates and preserves; the panel refuses to start when encrypted rows exist
+  and the key is missing. `master-key-init|rotate|verify` in the CLI; backup guidance in
+  `BACKUP_RESTORE.*`.
+- Clients and access grants: import existing manager accounts read-only, adopt their
+  credentials (MTProxy and NaiveProxy by capture, Mieru by explicit rotation), issue new
+  accesses through a journaled saga that ends in exactly one of `succeeded`,
+  `compensated` or `manual_intervention_required` (`operations-resume` in the CLI). Node
+  lifecycle with a reserved `local` node; screens "Clients" and "Nodes" in the UI.
+- Idempotent manager operations: NaiveProxy and Mieru accept a caller-supplied credential
+  and an operation id and replay a lost reply; Telemt reads its live link back after an
+  indeterminate call.
+- `PANEL_VNEXT_WRITER=legacy|domain`: the protocol endpoints keep their v0.1.0 contract in
+  both modes (the whole API suite runs twice); in `domain` the panel owns the credential.
+- Client subscriptions: a bearer URL `https://<subscription domain>/s/<token>` (stored as a
+  hash, revealed once), rendered from escrow as `raw`, `singbox` (Karing; `client=singbox`
+  for the official core), `clash` (mihomo), `manifest` and `html`; ETag from the effective
+  set of grants, `304` on `If-None-Match`, `Profile-Update-Interval`, a per-address rate
+  limit, no access log anywhere on the path, and a compatibility matrix that names what a
+  client cannot consume instead of shipping a link it cannot parse. Generation moves in
+  the transaction of the change; `subscription.*` events and `GET /api/events`.
+- `domains.subscription` in `install.toml` (asked by the wizard): a SAN on the core
+  certificate, an SNI route and a dedicated Nginx `server` that serves only `/s/` with
+  `access_log off`; the panel's own name refuses the path without logging it.
+- Lab tooling that the gate relies on: `scripts/dev/remote-gate.sh`
+  (`quick|full|compose|lab-container|lab-host`), `scripts/lab/host-teardown.sh` and
+  `scripts/lab/subscription-acceptance.py` (the live subscription check, including the
+  real sing-box and mihomo cores).
+- ADR 001–007, `docs/VNEXT_ARCHITECTURE.md` and the capability matrix
+  `docs/VNEXT_CAPABILITIES.md` / `tests/fixtures/vnext-capabilities.json`.
+
+### Changed
+
+- The release train: the lab host gates, CI confirms. `release.yml` rebuilds the tagged
+  commit twice, refuses any archive whose digest differs from the one the lab accepted
+  (`expected_sha256` input or a `lab-sha256:` tag annotation), attests and publishes after
+  human confirmation; the QEMU `lab-amd64` job is gone. Pre-release tags
+  (`vX.Y.Z-*`) build the same way.
+- `panel/entrypoint.sh` runs uvicorn with `--no-access-log`; the subscription path is a
+  bearer credential and an access line would be a copy of it.
+- MTProxy links are rebuilt from the host and port Telemt itself reported (learned into
+  the grant's options), not from the panel's domain.
+- The `mierus://` link parser lives in `panel.protocols.mieru` and serves both the reveal
+  and the subscription renderers.
+
+### Fixed
+
+- `full` profile installs ended with a panel that did not know NaiveProxy (`feature
+  unavailable`): the Naive and Mieru adapters each started Compose with only their own
+  overlay, and whichever applied last recreated the panel without the other's environment.
+  Both now include the sibling overlay whenever its generation is present.
+- `repair` on a `managed-new` 3x-ui host failed twice over: the route verify demanded that
+  the 3x-ui panel and subscription listeners be Xray inbounds, and the runtime verify ran
+  before the restarted panel had bound its port.
+- A finished `uninstall` blocked the next `install` with "an installer transaction already
+  exists", although the host owned nothing anymore; it is now cleared like a finished
+  rollback, so `uninstall` → `install` re-renders owned files from a new release over the
+  preserved data. `managed-new` 3x-ui still refuses a preserved `/etc/x-ui/x-ui.db`
+  (documented in the installer reference).
+- `db-status` on a v0.1.0 database crashed instead of reporting that nothing was applied.
+- The one-time bundle dialog's "copy" buttons had no handler.
+- `Database.__init__` retried `PRAGMA journal_mode=WAL` under contention (found by a 300-run
+  stress of a test that failed once in a full run).
+
+### Not in this release
+
+Fleet v2, routing and the Xray router remain roadmap (`docs/VNEXT_ARCHITECTURE.md`).
+Karing auto-refresh is verified for the feed formats it consumes but the on-device import
+is the owner's manual check.
+
+### Added (before the v0.2 work)
 
 - A host resource card on the overview reporting CPU utilisation, memory and root-filesystem usage with warning thresholds, sourced from a new read-only `GET /v1/host` on the host version-agent. The panel runs read-only with all capabilities dropped and mounts nothing from the host but the agent socket, so the agent is the only component that can measure these; when it is unreachable the card degrades to a stated reason instead of guessing.
 - NaiveProxy per-user traffic quotas: `quota_bytes` on create and a dedicated quota endpoint, with usage, remaining and exhaustion reported in the panel. A manager thread enforces quotas on an interval (`NAIVE_QUOTA_INTERVAL_SECONDS`, default 60 s) and transactionally removes an exhausted user's credentials from the managed Caddy block.
@@ -12,7 +95,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Standalone Proxy Control documentation, governance templates, screenshot policy, and third-party notices.
 - CI coverage for the complete Python suite, Ruff, all tracked shell scripts, all Compose variants, project image builds, documentation links, and provenance notices.
 
-### Changed
+### Changed (before the v0.2 work)
 
 - Quota enforcement moved out of the manager's socket accept loop into its own thread with backoff, so a Caddy validate/reload can no longer stall the control socket. `GET /v1/health` and `GET /v1/traffic` are reads again and never rewrite the managed config.
 - Managers tolerate a client that hangs up mid-response instead of logging a traceback per probe, and their health probes read the full response before closing.
@@ -25,7 +108,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Naive and Mieru one-time reveals now expose client-specific Native, Karing, and verified manual variants. Karing receives a full profile through its documented deep link instead of a raw endpoint QR; unsupported Shadowrocket/Mieru and Mieru port-range combinations are reported without fabricated import formats.
 - The Mieru manager, deployment guidance, and panel version metadata now admit pinned mita 3.36.x binaries while retaining 3.35.x compatibility.
 
-### Fixed
+### Fixed (before the v0.2 work)
 
 - Added an opt-in, idempotent systemd-managed TCP MSS clamp for Mieru listeners. It addresses confirmed mobile return-path black holes without changing unrelated firewall rules and removes its exact rule on stop.
 - Creating or rotating an MTProxy access now refreshes the list without a page reload. The reveal payload carried no QR while the access dialog requires one, so it threw after the modal closed and before the list was re-fetched, leaving the new profile invisible until F5. The QR now travels with the reveal, and a dialog that cannot render is reported without blocking the refresh.

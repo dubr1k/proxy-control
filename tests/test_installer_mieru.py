@@ -561,6 +561,42 @@ def test_mieru_apply_orders_artifact_identities_bootstrap_and_overlay(tmp_path):
     assert index("prepare-mieru-token") < index("up -d --build --wait")
 
 
+def test_mieru_compose_carries_the_naive_overlay_when_that_runtime_is_present(tmp_path):
+    """Both overlays extend the panel service: naming only one recreates the panel without the other."""
+    runner = FakeMieruRunner()
+    instance = adapter(tmp_path, runner)
+    project = tmp_path / "opt/mtproxy-shared443"
+    project.mkdir(parents=True, exist_ok=True)
+    (project / ".env.naive").write_text("NAIVE_PUBLIC_HOST=naive.example.com\n")
+
+    applied(instance, staged_action(tmp_path))
+
+    up = next(command for command in runner.calls if "up" in command and "--wait" in command)
+    files = [up[i + 1] for i, part in enumerate(up) if part == "-f"]
+    env_files = [up[i + 1] for i, part in enumerate(up) if part == "--env-file"]
+    assert files == [
+        "/opt/mtproxy-shared443/compose.yaml",
+        "/opt/mtproxy-shared443/compose.naive.yaml",
+        "/opt/mtproxy-shared443/compose.mieru.yaml",
+    ]
+    assert env_files == [
+        "/opt/mtproxy-shared443/.env",
+        "/opt/mtproxy-shared443/.env.naive",
+        "/opt/mtproxy-shared443/.env.mieru",
+    ]
+
+
+def test_mieru_compose_names_only_its_own_overlay_without_naive(tmp_path):
+    runner = FakeMieruRunner()
+    instance = adapter(tmp_path, runner)
+
+    applied(instance, staged_action(tmp_path))
+
+    up = next(command for command in runner.calls if "up" in command and "--wait" in command)
+    files = [up[i + 1] for i, part in enumerate(up) if part == "-f"]
+    assert files == ["/opt/mtproxy-shared443/compose.yaml", "/opt/mtproxy-shared443/compose.mieru.yaml"]
+
+
 def test_mieru_apply_installs_the_pinned_binary_and_license(tmp_path):
     instance = adapter(tmp_path)
 

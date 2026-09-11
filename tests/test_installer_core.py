@@ -832,6 +832,58 @@ def test_core_owns_the_panel_tls_listener_the_router_forwards_to(tmp_path):
     assert not vhost.exists()
 
 
+def test_subscription_lives_on_its_own_vhost_without_access_log(tmp_path):
+    """Owner decision 1: `/s/` exists only on the subscription name, never on the panel's."""
+    import dataclasses
+
+    from installer.adapters.core import _PANEL_TLS_PORT
+
+    with_subscription = dataclasses.replace(
+        config(),
+        domains=DomainConfig(
+            panel="panel.example.com", mtproxy="proxy.example.com", subscription="sub.example.com"
+        ),
+    )
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    action = adapter.plan(with_subscription, AuditFacts())[0]
+    assert "subscription-domain=sub.example.com" in action.mutations
+
+    rendered = adapter.render(action)
+    panel_vhost, subscription_vhost = rendered.panel_vhost.splitlines()
+    assert "server_name panel.example.com;" in panel_vhost
+    # The panel name never proxies `/s/`: Nginx refuses it, and writes no log line for it.
+    assert "location ^~ /s/ { access_log off; return 404; }" in panel_vhost
+    assert panel_vhost.count("/s/") == 1
+    assert "server_name sub.example.com;" in subscription_vhost
+    assert f"listen 127.0.0.1:{_PANEL_TLS_PORT} ssl" in subscription_vhost
+    assert "access_log off;" in subscription_vhost
+    assert "location ^~ /s/ { proxy_pass http://127.0.0.1:8787;" in subscription_vhost
+    assert "location / { return 404; }" in subscription_vhost
+    # Same lineage as the panel: the certificate carries the subscription name as a SAN.
+    assert "/etc/letsencrypt/live/proxy.example.com/fullchain.pem" in subscription_vhost
+    assert "PANEL_ALLOWED_HOSTS=panel.example.com,sub.example.com\n" in rendered.env_text
+    assert "PANEL_SUBSCRIPTION_HOST=sub.example.com\n" in rendered.env_text
+    assert "PANEL_SUBSCRIPTION_URL=https://sub.example.com\n" in rendered.env_text
+
+    # Without the name the endpoint stays off: no vhost, no variables, same action shape.
+    plain = adapter.render(core_action())
+    assert "subscription-domain=" in core_action().mutations
+    assert plain.panel_vhost.count("server {") == 1 and "sub.example.com" not in plain.panel_vhost
+    assert "PANEL_ALLOWED_HOSTS=panel.example.com\n" in plain.env_text
+    assert "PANEL_SUBSCRIPTION" not in plain.env_text
+
+
+def test_core_refuses_a_subscription_name_that_is_the_panel_or_proxy(tmp_path):
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    for clash in ("panel.example.com", "proxy.example.com", "not a domain"):
+        action = adapter.action(
+            proxy_domain="proxy.example.com", panel_domain="panel.example.com",
+            users=("owner",), subscription_domain=clash,
+        )
+        with pytest.raises(CoreError, match="Core action is invalid"):
+            adapter.render(action)
+
+
 def test_core_refuses_an_occupied_panel_vhost_path(tmp_path):
     from installer.adapters.core import _PANEL_VHOST
 

@@ -450,6 +450,40 @@ def test_certificate_plan_groups_service_names_and_uses_webroot(tmp_path: Path) 
     )
 
 
+def test_subscription_name_is_a_san_of_the_core_certificate(tmp_path: Path) -> None:
+    """One lineage, one renewal: the subscription vhost reuses the panel's certificate files."""
+    import dataclasses
+
+    runner = CertRunner(tmp_path)
+    adapter = CertificatePlan(
+        root=tmp_path,
+        runner=runner,
+        expected_key_owner=(os.getuid(), tmp_path.stat().st_gid),
+    )
+    with_subscription = dataclasses.replace(
+        config(),
+        domains=DomainConfig(panel="panel.example.com", mtproxy="mt.example.com", subscription="sub.example.com"),
+    )
+    baseline = dns_facts().topology
+    facts = AuditFacts(
+        topology={
+            "dns": {**baseline["dns"], "sub.example.com": dict(baseline["dns"]["panel.example.com"])},
+            "certificates": {**baseline["certificates"], "sub.example.com": {"covers_domain": False, "present": False}},
+        }
+    )
+    actions = adapter.plan(with_subscription, facts)
+    assert [action.id for action in actions] == ["certificate.proxy-control"]
+
+    adapter.apply(actions[0], adapter.prepare(actions[0]))
+    certbot = next(call for call in runner.calls if call[:2] == ("certbot", "certonly"))
+    assert {certbot[index + 1] for index, part in enumerate(certbot) if part == "-d"} == {
+        "mt.example.com",
+        "panel.example.com",
+        "sub.example.com",
+    }
+    assert certbot.count("-w") == 3
+
+
 @pytest.mark.parametrize("fact", ["a_matches_local", "aaaa_handled", "caa_compatible"])
 def test_certificate_plan_fails_closed_on_domain_facts(fact: str, tmp_path: Path) -> None:
     adapter = CertificatePlan(root=tmp_path, runner=CertRunner(tmp_path))

@@ -101,6 +101,22 @@ def test_full_managed_config_collects_every_domain():
     assert parse_config(render_config(config)) == config
 
 
+def test_subscription_domain_is_optional_distinct_and_round_trips():
+    """The client subscription lives on its own name; it is never the panel's or a proxy's."""
+    with_subscription = CORE_TOML.replace(
+        'mtproxy = "relay.example.com"', 'mtproxy = "relay.example.com"\nsubscription = "sub.example.com"'
+    )
+    config = parse_config(with_subscription)
+    assert config.domains.subscription == "sub.example.com"
+    assert "sub.example.com" in config.required_domains()
+    assert parse_config(render_config(config)) == config
+    assert 'subscription = "sub.example.com"' in render_config(config)
+    assert parse_config(CORE_TOML).domains.subscription is None
+    assert "subscription" not in render_config(parse_config(CORE_TOML))
+    with pytest.raises(ConfigError, match="duplicate TCP SNI domain: panel.example.com"):
+        parse_config(with_subscription.replace('subscription = "sub.example.com"', 'subscription = "panel.example.com"'))
+
+
 def test_coexist_rejects_ufw_mutation():
     with pytest.raises(ConfigError, match="UFW can be managed only in fresh mode"):
         parse_config(COEXIST_WITH_UFW_TOML)

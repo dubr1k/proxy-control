@@ -115,6 +115,23 @@ journalctl -u nginx -u caddy-naive -u mita --since=-15m --no-pager
 
 Before sharing logs, remove passwords, complete access URLs, QR/reveal payloads, tokens, cookies/CSRF values, and PKI material. Keep infrastructure identity only in an approved private incident channel.
 
+### Subscriptions: logs and rotation
+
+A client subscription URL (`https://<subscription domain>/s/<token>`) is a bearer
+credential: whoever holds it receives every access of that client. By design it
+never reaches a log — the panel runs uvicorn without an access log, the Nginx
+`server` block for the subscription domain has `access_log off`, and the panel
+stores only a hash of the token. Do not add request logging to that path, and do
+not paste a subscription URL into a ticket.
+
+If a URL leaks, rotate the client's subscription in the panel: the old token stops
+answering (404, same as an unknown token) in the same transaction that issues the
+new one, so there is never a window with two live URLs. Revoking without
+reissuing has the same effect. Rotating an access credential (Naive/Mieru/MTProxy)
+does not change the subscription URL; clients pick the new link up on their next
+refresh (`Profile-Update-Interval: 12`, and `ETag`/`If-None-Match` keep unchanged
+fetches at 304).
+
 ## 7. Accounting
 
 - Telemt runtime counter and quota usage are different values.

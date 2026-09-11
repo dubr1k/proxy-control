@@ -672,14 +672,14 @@ class TransactionEngine:
                     self._validate_adapters(plan)
                     self._assert_all_owned(existing)
                     return existing
-                # A rollback that finished put the host back as it was, so
-                # there is nothing left for this guard to protect. Refusing
-                # here only makes an operator clear state by hand on a host
-                # where nothing is installed. An interrupted transaction is a
-                # different matter -- it still owns things, and `resume` and
-                # `repair` exist for it -- so only a completed rollback is
-                # cleared.
-                if existing.status != "rolled_back":
+                # A rollback or an uninstall that finished put the host back
+                # as it was, so there is nothing left for this guard to
+                # protect. Refusing here only makes an operator clear state by
+                # hand on a host where nothing is installed. An interrupted
+                # transaction is a different matter -- it still owns things,
+                # and `resume` and `repair` exist for it -- so only a completed
+                # rollback or uninstall is cleared.
+                if existing.status not in {"rolled_back", "uninstalled"}:
                     raise TransactionError(
                         "an installer transaction already exists"
                     )

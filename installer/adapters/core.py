@@ -950,6 +950,7 @@ class CoreAdapter:
             f"project={self.paths.project_dir}",
             f"proxy-domain={config.domains.mtproxy}",
             f"panel-domain={config.domains.panel}",
+            f"subscription-domain={config.domains.subscription or ''}",
             f"users={','.join(selected_users)}",
             "proxy-backend-port=8445",
             "panel-app-port=8787",
@@ -997,6 +998,8 @@ class CoreAdapter:
         if not isinstance(routes, Mapping):
             raise CoreError("audited adjacent SNI routes are invalid")
         owned = {config.domains.mtproxy.lower(), config.domains.panel.lower()}
+        if config.domains.subscription is not None:
+            owned.add(config.domains.subscription.lower())
         adjacent: list[tuple[str, str]] = []
         for domain, backend in routes.items():
             if not isinstance(domain, str) or not isinstance(backend, str):
@@ -1020,6 +1023,7 @@ class CoreAdapter:
         users: Sequence[str],
         proxy_backend_port: int = 8445,
         panel_app_port: int = 8787,
+        subscription_domain: str | None = None,
     ) -> Action:
         """Build the same secret-free action for compatibility coordinators."""
         selected_users = tuple(users)
@@ -1033,6 +1037,7 @@ class CoreAdapter:
                 f"project={self.paths.project_dir}",
                 f"proxy-domain={proxy_domain}",
                 f"panel-domain={panel_domain}",
+                f"subscription-domain={subscription_domain or ''}",
                 f"users={','.join(selected_users)}",
                 f"proxy-backend-port={proxy_backend_port}",
                 f"panel-app-port={panel_app_port}",
@@ -1059,22 +1064,38 @@ class CoreAdapter:
             raise CoreError("Core Compose project identity is invalid")
         if _compose_publishes_telemt_api(compose):
             raise CoreError("Telemt API must not be host-published")
+        subscription_domain = selected["subscription_domain"]
+        allowed_hosts = [str(selected["panel_domain"])]
+        if subscription_domain is not None:
+            allowed_hosts.append(str(subscription_domain))
         env = (
             f"MTPROXY_DOMAIN={selected['proxy_domain']}\n"
             f"MTPROXY_BACKEND_PORT={selected['proxy_backend_port']}\n"
             f"MTPROXY_COVER_ROOT=/var/www/{selected['proxy_domain']}\n"
             "MTPROXY_LETSENCRYPT_ROOT=/etc/letsencrypt\n"
-            f"PANEL_ALLOWED_HOSTS={selected['panel_domain']}\n"
+            f"PANEL_ALLOWED_HOSTS={','.join(allowed_hosts)}\n"
             f"PANEL_HEALTHCHECK_HOST={selected['panel_domain']}\n"
         )
+        if subscription_domain is not None:
+            env += (
+                f"PANEL_SUBSCRIPTION_HOST={subscription_domain}\n"
+                f"PANEL_SUBSCRIPTION_URL=https://{subscription_domain}\n"
+            )
+        panel_vhost = _panel_vhost_text(
+            panel_domain=str(selected["panel_domain"]),
+            certificate=str(selected["proxy_domain"]),
+            app_port=int(selected["panel_app_port"]),
+        )
+        if subscription_domain is not None:
+            panel_vhost += _subscription_vhost_text(
+                subscription_domain=str(subscription_domain),
+                certificate=str(selected["proxy_domain"]),
+                app_port=int(selected["panel_app_port"]),
+            )
         return RenderedCore(
             compose_yaml=compose,
             env_text=env,
-            panel_vhost=_panel_vhost_text(
-                panel_domain=str(selected["panel_domain"]),
-                certificate=str(selected["proxy_domain"]),
-                app_port=int(selected["panel_app_port"]),
-            ),
+            panel_vhost=panel_vhost,
             file_modes={
                 _PANEL_VHOST: 0o644,
                 ".env": 0o600,
@@ -1406,6 +1427,7 @@ class CoreAdapter:
             "project",
             "proxy-domain",
             "panel-domain",
+            "subscription-domain",
             "users",
             "proxy-backend-port",
             "panel-app-port",
@@ -1416,6 +1438,7 @@ class CoreAdapter:
         }
         if set(values) != required:
             raise CoreError("Core action is invalid")
+        subscription_domain = values["subscription-domain"].lower() or None
         if (
             values["project"] != self.paths.project_dir
             or values["probe"] != self.paths.probe_path
@@ -1424,6 +1447,13 @@ class CoreAdapter:
             or _DOMAIN.fullmatch(values["proxy-domain"]) is None
             or _DOMAIN.fullmatch(values["panel-domain"]) is None
             or values["proxy-domain"] == values["panel-domain"]
+            or (
+                subscription_domain is not None
+                and (
+                    _DOMAIN.fullmatch(subscription_domain) is None
+                    or subscription_domain in {values["proxy-domain"].lower(), values["panel-domain"].lower()}
+                )
+            )
         ):
             raise CoreError("Core action is invalid")
         selected_users = tuple(values["users"].split(","))
@@ -1439,6 +1469,7 @@ class CoreAdapter:
         return {
             "proxy_domain": values["proxy-domain"].lower(),
             "panel_domain": values["panel-domain"].lower(),
+            "subscription_domain": subscription_domain,
             "users": selected_users,
             "proxy_backend_port": proxy_port,
             "panel_app_port": panel_port,
@@ -1920,6 +1951,7 @@ class CoreAdapter:
                 f"project={self.paths.project_dir}",
                 f"proxy-domain={selected['proxy_domain']}",
                 f"panel-domain={selected['panel_domain']}",
+                f"subscription-domain={selected.get('subscription_domain') or ''}",
                 f"users={','.join(users)}",
                 f"proxy-backend-port={selected['proxy_backend_port']}",
                 f"panel-app-port={selected['panel_app_port']}",
@@ -2561,7 +2593,12 @@ def _panel_vhost_text(
     app_port: int,
     tls_port: int = _PANEL_TLS_PORT,
 ) -> str:
-    """Terminate TLS for the panel and proxy to its plain HTTP app port."""
+    """Terminate TLS for the panel and proxy to its plain HTTP app port.
+
+    `/s/` is the subscription path and belongs to the subscription name only: on the
+    panel's name it is refused by Nginx itself and, because a subscription URL is a
+    bearer token, refused without an access-log line.
+    """
     proxy = (
         f"proxy_pass http://127.0.0.1:{app_port}; "
         "proxy_set_header Host $host; "
@@ -2573,7 +2610,38 @@ def _panel_vhost_text(
         f"server_name {panel_domain}; "
         f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
         f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
+        "location ^~ /s/ { access_log off; return 404; } "
         f"location / {{ {proxy}}} }}\n"
+    )
+
+
+def _subscription_vhost_text(
+    *,
+    subscription_domain: str,
+    certificate: str,
+    app_port: int,
+    tls_port: int = _PANEL_TLS_PORT,
+) -> str:
+    """The subscription name serves `/s/` and nothing else, and writes no access log.
+
+    A subscription URL is a bearer token: an access line would be a copy of it, and
+    any other path answered on this name would tell a subscriber what else lives
+    here. The panel's own vhost never carries `/s/` (owner decision 1 of the v0.2 plan).
+    """
+    proxy = (
+        f"proxy_pass http://127.0.0.1:{app_port}; "
+        "proxy_set_header Host $host; "
+        "proxy_set_header X-Forwarded-Proto https; "
+        "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; "
+    )
+    return (
+        f"server {{ listen 127.0.0.1:{tls_port} ssl; "
+        f"server_name {subscription_domain}; "
+        f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
+        f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
+        "access_log off; "
+        f"location ^~ /s/ {{ {proxy}}} "
+        "location / { return 404; } }\n"
     )
 
 

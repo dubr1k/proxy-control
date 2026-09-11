@@ -218,6 +218,27 @@ def test_coexist_owns_exact_marked_block_is_idempotent_and_preserves_adjacent_ro
     assert evidence.success is True
     assert route.read_bytes() == original
 
+def test_subscription_domain_routes_to_the_panel_tls_listener(tmp_path: Path) -> None:
+    """The subscription name shares the 8443 listener; Nginx picks the vhost by server_name."""
+    import dataclasses
+
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, _ = runner_for(effective, root=root)
+    adapter = NginxAdapter(root=root, runner=runner)
+    with_subscription = dataclasses.replace(
+        config(),
+        domains=DomainConfig(panel="panel.example.com", mtproxy="mt.example.com", subscription="sub.example.com"),
+    )
+    action = adapter.plan(with_subscription, facts())[0]
+
+    adapter.apply(action, adapter.prepare(action))
+    text = route.read_bytes()
+    assert b"panel.example.com 127.0.0.1:8443;" in text
+    assert b"sub.example.com 127.0.0.1:8443;" in text
+
+
 def test_transaction_engine_allows_adjacent_foreign_route_and_removes_only_owned_block(
     tmp_path: Path,
 ) -> None:

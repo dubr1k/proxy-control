@@ -78,9 +78,36 @@ case $LEVEL in
   lab-host)
     test "${LAB_RESET:-0}" = 1 || { echo "lab-host reinstalls $HOST entirely; rerun with LAB_RESET=1" >&2; exit 2; }
     sync_tree
+    # The runner must be the copy inside the extracted release (it derives its root from
+    # its own location and refuses a tree with `.git`), exactly as docker_lab.py stages it.
     remote "python3 release/build.py --source . --output dist --version \"\$(cat VERSION)\" --allow-dirty \
       && sha=\$(awk '/proxy-control-v.*\.tar\.gz\$/ {print \$1}' dist/SHA256SUMS) \
-      && LAB_RESET=1 bash scripts/lab/guest-runner.sh host \"\$sha\""
+      && cp \"dist/proxy-control-v\$(cat VERSION).tar.gz\" /tmp/proxy-control-release.tar.gz \
+      && printf '%s\n' \"\$sha\" > /tmp/proxy-control-release.sha256 \
+      && rm -rf /tmp/proxy-control-release && mkdir -p /tmp/proxy-control-release \
+      && tar -xzf /tmp/proxy-control-release.tar.gz -C /tmp/proxy-control-release \
+      && printf '%s\n' \"\$sha\" > /root/lab-host.sha"
+    # The install scenario drops the SSH session (the host's firewall changes reset
+    # established connections), so the runner is detached from it: it writes its own log
+    # on the host and this side only follows the log until the exit marker appears.
+    remote "rm -f /root/lab-host.log; setsid nohup bash -c 'LAB_RESET=1 bash /tmp/proxy-control-release/proxy-control/scripts/lab/guest-runner.sh host \"\$(cat /root/lab-host.sha)\"; echo LAB_HOST_EXIT=\$?' > /root/lab-host.log 2>&1 < /dev/null &"
+    shown=0
+    while :; do
+      sleep 30
+      if ! text=$("${SSH[@]}" "cat /root/lab-host.log 2>/dev/null"); then
+        continue
+      fi
+      total=$(printf '%s\n' "$text" | grep -c '^LAB_RESULT\|^LAB_PLAN_DIGEST\|^LAB_HOST_EXIT' || true)
+      if ((total > shown)); then
+        printf '%s\n' "$text" | grep '^LAB_RESULT\|^LAB_PLAN_DIGEST\|^LAB_HOST_EXIT' | tail -n "$((total - shown))"
+        shown=$total
+      fi
+      if printf '%s\n' "$text" | grep -q '^LAB_HOST_EXIT='; then
+        code=$(printf '%s\n' "$text" | sed -n 's/^LAB_HOST_EXIT=//p' | tail -n1)
+        test "$code" = 0 && echo REMOTE_GATE_LAB_HOST_OK
+        exit "$code"
+      fi
+    done
     ;;
   *)
     echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host}" >&2
