@@ -93,6 +93,8 @@ class MemoryNaive:
         # {"create": "lose_response"} performs the mutation and then raises, the way a
         # manager does when the reply never reaches the panel.
         self.faults = {}
+        # The one-shot form: the next call of this operation mutates, then loses its reply.
+        self.lose_next: str | None = None
 
     def seed(self, username, password, *, enabled=True, quota_bytes=None):
         self.users[username] = {
@@ -179,6 +181,9 @@ class MemoryNaive:
             }
 
     def _maybe_lose(self, operation):
+        if self.lose_next == operation:
+            self.lose_next = None
+            raise NaiveError("NaiveProxy manager unavailable")
         if self.faults.get(operation) == "lose_response":
             raise NaiveError("NaiveProxy manager unavailable")
 
