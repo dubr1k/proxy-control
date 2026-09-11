@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from .api_key_routes import register_api_key_routes
+from .api_keys import ApiKeyService
 from .auth_routes import register_auth_admin_audit_routes
 from .client_routes import register_client_routes
 from .clients.facade import DomainFacade
@@ -18,6 +20,8 @@ from .database import Database
 from .events import EventBus
 from .fleet import FleetStore
 from .fleet_routes import register_fleet_routes
+from .fleet_v2.identity import ensure_guid
+from .fleet_v2.node_routes import register_fleet_v2_node_routes
 from .keyring import Keyring
 from .mieru import MieruClient, MieruError
 from .mieru_routes import register_mieru_routes
@@ -35,7 +39,7 @@ from .telemt import TelemtClient, TelemtError
 from .telemt_routes import register_telemt_dashboard_routes
 from .version_routes import register_version_routes
 from .versions import VersionAgentError, VersionClient
-from .web_context import RequestContext, install_security_middleware
+from .web_context import KeyRateLimiter, RequestContext, install_security_middleware
 
 
 def create_app(
@@ -112,6 +116,9 @@ def create_app(
     app.state.login_verify_slots = asyncio.Semaphore(
         settings.login_verify_concurrency
     )
+    app.state.api_keys = ApiKeyService(app.state.database)
+    app.state.key_rate = KeyRateLimiter(settings.api_key_rate_per_minute)
+    app.state.panel_guid = ensure_guid(app.state.database)
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")
@@ -149,6 +156,8 @@ def create_app(
         return JSONResponse({"detail": str(exc)}, exc.status_code)
 
     register_auth_admin_audit_routes(app, context, static)
+    register_api_key_routes(app, context)
+    register_fleet_v2_node_routes(app, context)
     register_version_routes(app, context)
     register_telemt_dashboard_routes(app, context)
     register_naive_routes(app, context)

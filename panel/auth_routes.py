@@ -127,6 +127,7 @@ def register_auth_admin_audit_routes(
         return {
             "username": user["username"],
             "role": user["role"],
+            "via": user.get("via", "session"),
             "features": {
                 "naive": settings.naive_enabled,
                 "mieru": settings.mieru_enabled,

@@ -184,3 +184,13 @@ class GrantRequest(BaseModel):
 
 class GrantsCreate(BaseModel):
     grants: list[GrantRequest] = Field(min_length=1, max_length=8)
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    scope: Literal["admin", "monitor", "node-sync"]
+    expires_at: int | None = Field(default=None, ge=0)
+
+
+class ApiKeyEnabled(BaseModel):
+    enabled: bool

@@ -2,11 +2,31 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import time
+from collections import defaultdict, deque
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .settings import Settings
+
+
+class KeyRateLimiter:
+    """Per-key sliding window, in-process (spec §5.1)."""
+
+    def __init__(self, limit: int, window: float = 60.0, clock=time):
+        self.limit, self.window, self.clock = limit, window, clock
+        self.hits: dict[int, deque] = defaultdict(deque)
+
+    def allow(self, key_id: int) -> bool:
+        now = self.clock.monotonic()
+        window = self.hits[key_id]
+        while window and now - window[0] > self.window:
+            window.popleft()
+        if len(window) >= self.limit:
+            return False
+        window.append(now)
+        return True
 
 
 class RequestContext:
@@ -15,6 +35,23 @@ class RequestContext:
         self.settings = settings
 
         async def current(request: Request):
+            header = request.headers.get("authorization", "")
+            if header.lower().startswith("bearer "):
+                user = await asyncio.to_thread(
+                    self.app.state.api_keys.authenticate, header[7:].strip()
+                )
+                if not user:
+                    raise HTTPException(401, "invalid API key")
+                if not self.app.state.key_rate.allow(user["key_id"]):
+                    raise HTTPException(429, "API key rate limit exceeded")
+                if user["scope"] == "node-sync" and not request.url.path.startswith(
+                    "/api/fleet/v2/"
+                ):
+                    raise HTTPException(403, "node-sync key is limited to the fleet API")
+                # Bearer users have no session, so `create_reveal`/`consume_reveal`
+                # (keyed on `owner["token_hash"]`) need a stand-in that stays unique
+                # per key without ever colliding with a real session token hash.
+                return {**user, "token_hash": f"key:{user['key_id']}"}
             value = await asyncio.to_thread(
                 self.app.state.store.session,
                 request.cookies.get("panel_session"),
@@ -24,6 +61,9 @@ class RequestContext:
             return value
 
         async def mutation(request: Request, user=Depends(current)):
+            if user.get("via") == "api-key":
+                # A bearer request carries no cookie, so there is no CSRF state to check.
+                return user
             supplied = request.headers.get("X-CSRF-Token")
             cookie = request.cookies.get("panel_csrf")
             if not self.app.state.store.csrf_valid(user, supplied, cookie):
@@ -36,8 +76,14 @@ class RequestContext:
                 raise HTTPException(403, "CSRF validation failed")
             return user
 
+        async def fleet_key(user=Depends(current)):
+            if user.get("via") != "api-key" or user["scope"] not in ("node-sync", "admin"):
+                raise HTTPException(403, "a node-sync or admin API key is required")
+            return user
+
         self.current = current
         self.mutation = mutation
+        self.fleet_key = fleet_key
 
     def roles(self, *allowed: str):
         async def check(user=Depends(self.mutation)):
