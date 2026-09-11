@@ -168,6 +168,36 @@ Elevated Mieru flags (`allow_private_ip`, `allow_loopback_ip`) stay on the direc
 manager call even in `domain` mode: that path is deliberately manual, and smuggling it
 through a generic intent would change what it means.
 
+## Subscriptions: `PANEL_SUBSCRIPTION_URL` and `/s/{token}`
+
+A client subscription is one URL, `https://<subscription domain>/s/<token>`, that
+renders every access the client holds from the panel's own escrow — no manager is
+called on a fetch. The panel publishes it only when `PANEL_SUBSCRIPTION_URL` is set
+(the installer derives it from `domains.subscription` in `install.toml`; the host part
+becomes `PANEL_SUBSCRIPTION_HOST` and is added to `PANEL_ALLOWED_HOSTS`). The path
+answers **only** on that host: on the panel's own domain `/s/` is a 404, the same 404 as
+an unknown or revoked token, so a subscription reveals nothing about where the panel
+lives. With the variable empty the endpoint is switched off.
+
+Formats are chosen with `?format=` or by `Accept`: `raw` (plain text, one link per
+line, no base64), `singbox` (`application/json`, naive + mieru outbounds for Karing;
+`&client=singbox` cuts it to naive only, because an official sing-box ≥ 1.13 refuses a
+configuration with an outbound type it does not know), `clash` (`text/yaml`, mieru
+proxies for mihomo), `manifest`
+(`application/vnd.proxy-control.subscription+json;version=1`) and `html` (a page
+with links, QR codes and the compatibility matrix). What a client cannot consume is
+listed as `unsupported` with the reason, never handed over as a link that does not
+work; a grant without a stored credential is `unsupported: no stored credential`
+until it is adopted.
+
+Responses carry `ETag` (from the effective set of grants, so it moves when an access
+is added, disabled, rotated or expires — not when the page is fetched),
+`Cache-Control: private, no-cache`, `Profile-Update-Interval: 12` and
+`X-Robots-Tag: noindex`; `If-None-Match` gets a 304. Fetches are limited to 60 per
+minute per client address, across all tokens. The token is stored as a hash, never
+logged (uvicorn runs without an access log, the Nginx block has `access_log off`) and
+never written to the audit trail.
+
 ## The Clients screen
 
 A client is a person or a device; a grant is their account in one protocol on one

@@ -54,6 +54,8 @@ if [ -r "$MASTER_KEY_SOURCE" ]; then
   install -m 0400 -o panel -g panel "$MASTER_KEY_SOURCE" "$MASTER_KEY_TARGET"
   export PANEL_MASTER_KEY_FILE="$MASTER_KEY_TARGET"
 fi
+# No access log: the subscription path `/s/{token}` is a bearer credential, and an
+# access line in `docker logs` would be a copy of it.
 exec setpriv --reuid=panel --regid=panel "$@" --no-new-privs \
   uvicorn panel.app:create_app --factory --host 0.0.0.0 --port 8787 \
-  --proxy-headers --forwarded-allow-ips 172.16.0.0/12
+  --proxy-headers --forwarded-allow-ips 172.16.0.0/12 --no-access-log

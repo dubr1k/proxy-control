@@ -194,6 +194,7 @@ def test_panel_entrypoint_ignores_runtime_override_and_uses_fixed_privileged_des
             "--proxy-headers",
             "--forwarded-allow-ips",
             "172.16.0.0/12",
+            "--no-access-log",
         ],
     ]
     assert result.environment_log.read_text().splitlines() == [  # type: ignore[attr-defined]

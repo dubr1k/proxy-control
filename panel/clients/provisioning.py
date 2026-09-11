@@ -237,11 +237,20 @@ class ProvisioningService:
                 )
 
     def _remember_template(self, grant: AccessGrant, artifact_template: dict) -> None:
-        """Keep the shape the runtime reported, so a link can be rebuilt without it."""
-        template = artifact_template.get("share_template")
-        if not template or not hasattr(grant.options, "share_template"):
+        """Keep the shape the runtime reported, so a link can be rebuilt without it.
+
+        Only what the protocol's options model has a field for is kept: Mieru's share
+        template, Telemt's host and port. Everything else the adapter reported is
+        transient.
+        """
+        learned = {
+            key: value
+            for key, value in artifact_template.items()
+            if key in type(grant.options).model_fields and value not in (None, "")
+        }
+        if not learned:
             return
-        options = grant.options.model_copy(update={"share_template": template})
+        options = grant.options.model_copy(update=learned)
         with self.database.transaction() as db:
             self.clients.store.update_grant(
                 db, grant.id, protocol_options_json=options.model_dump_json(),

@@ -71,17 +71,26 @@ class TelemtAdapter:
             return Preflight(False, "runtime username already exists")
         return Preflight(True)
 
-    def _applied(self, username: str, secret: str, *, enabled: bool, recovered: bool) -> AppliedGrant:
+    def _applied(self, username: str, access: dict, *, enabled: bool, recovered: bool) -> AppliedGrant:
+        """Everything a link needs comes out of the link Telemt returned.
+
+        The host and port are learned the same way Mieru's share template is: Telemt
+        owns them, the panel is not configured with them, and a subscription rebuilt
+        from escrow must point where the runtime actually listens.
+        """
         return AppliedGrant(
             runtime_username=username,
             enabled=enabled,
-            credential=secret.encode(),
-            artifact_template={"host": self.public_host, "port": self.public_port},
+            credential=(access.get("secret") or "").encode(),
+            artifact_template={
+                "host": access.get("server") or self.public_host,
+                "port": access.get("port") or self.public_port,
+            },
             recovered=recovered,
         )
 
     @staticmethod
-    def _link_secret(result: dict) -> str | None:
+    def _link_access(result: dict) -> dict | None:
         """The credential is what the link carries, not the bare `secret` field.
 
         Telemt reports the raw secret while the Fake-TLS link prefixes it with `ee`.
@@ -89,13 +98,13 @@ class TelemtAdapter:
         so the adapter always takes the secret out of the link itself.
         """
         access = access_from_user(result.get("user") if isinstance(result, dict) else None)
-        return None if access is None else access["secret"]
+        return None if access is None or not access.get("secret") else access
 
     async def _recover(self, username: str) -> AppliedGrant | None:
         access = await self.client.current_access(username)
         if access is None or not access.get("secret"):
             return None
-        return self._applied(username, access["secret"], enabled=True, recovered=True)
+        return self._applied(username, access, enabled=True, recovered=True)
 
     async def create(
         self, operation_id: str, intent: GrantIntent, credential: CredentialPlan
@@ -112,10 +121,10 @@ class TelemtAdapter:
             created = await self.client.create_user(intent.runtime_username)
         except TelemtError as exc:
             raise AdapterError("Telemt refused the request") from exc
-        secret = self._link_secret(created)
-        if not secret:
+        access = self._link_access(created)
+        if access is None:
             raise AdapterError("Telemt returned a user without a connection link")
-        return self._applied(intent.runtime_username, secret, enabled=True, recovered=False)
+        return self._applied(intent.runtime_username, access, enabled=True, recovered=False)
 
     async def _set_enabled(self, grant: GrantRef, enabled: bool) -> AppliedGrant:
         try:
@@ -123,8 +132,7 @@ class TelemtAdapter:
         except TelemtError as exc:
             raise AdapterError("Telemt refused the request") from exc
         access = await self.client.current_access(grant.runtime_username)
-        secret = (access or {}).get("secret") or ""
-        return self._applied(grant.runtime_username, secret, enabled=enabled, recovered=False)
+        return self._applied(grant.runtime_username, access or {}, enabled=enabled, recovered=False)
 
     async def enable(self, grant: GrantRef) -> AppliedGrant:
         return await self._set_enabled(grant, True)
@@ -146,10 +154,10 @@ class TelemtAdapter:
             return recovered
         except TelemtError as exc:
             raise AdapterError("Telemt refused the request") from exc
-        secret = self._link_secret(rotated)
-        if not secret:
+        access = self._link_access(rotated)
+        if access is None:
             raise AdapterError("Telemt returned a user without a connection link")
-        return self._applied(grant.runtime_username, secret, enabled=True, recovered=False)
+        return self._applied(grant.runtime_username, access, enabled=True, recovered=False)
 
     async def delete(self, grant: GrantRef) -> None:
         try:
@@ -167,8 +175,10 @@ class TelemtAdapter:
         self, grant: AccessGrant, credential: bytes, *, public_host: str
     ) -> list[AccessArtifact]:
         options = grant.options.model_dump() if hasattr(grant.options, "model_dump") else {}
+        # What the saga learned from Telemt's own link wins over any configured fallback.
+        host = options.get("host") or public_host
         port = options.get("port") or self.public_port
-        link = _link(public_host, port, credential.decode())
+        link = _link(host, port, credential.decode())
         return [
             AccessArtifact(
                 kind="link",

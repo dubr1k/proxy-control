@@ -33,7 +33,11 @@ def api_secret(link_secret: str) -> str:
 
 
 def access_from_user(row) -> dict | None:
-    """The current link and the secret inside it, or None when the user is absent."""
+    """The current link, the secret inside it and the endpoint it points at.
+
+    Telemt owns the public host and port: they exist nowhere in the panel's own
+    configuration, so the only place to learn them is the link the runtime returns.
+    """
     if not isinstance(row, dict):
         return None
     links = row.get("links") if isinstance(row.get("links"), dict) else {}
@@ -41,8 +45,14 @@ def access_from_user(row) -> dict | None:
     link = next((item for item in candidates if isinstance(item, str)), None)
     if not link:
         return None
-    secret = parse_qs(urlsplit(link).query).get("secret", [None])[0]
-    return {"link": link, "secret": secret}
+    query = parse_qs(urlsplit(link).query)
+    port = query.get("port", [""])[0]
+    return {
+        "link": link,
+        "secret": query.get("secret", [None])[0],
+        "server": query.get("server", [None])[0] or None,
+        "port": int(port) if port.isdigit() and 1 <= int(port) <= 65535 else None,
+    }
 
 
 class TelemtClient:
