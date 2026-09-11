@@ -308,6 +308,7 @@ class ReviewAction(StrEnum):
 class EditField(StrEnum):
     PANEL = "domains.panel"
     MTPROXY = "domains.mtproxy"
+    SUBSCRIPTION = "domains.subscription"
     NAIVE = "domains.naive"
     MIERU = "domains.mieru"
     ACME_EMAIL = "acme_email"
@@ -393,6 +394,11 @@ class TerminalWizard:
             "xui_mode": xui_mode,
             "panel": self.io.validated(text(self.locale, "panel_domain"), _domain),
             "mtproxy": self.io.validated(text(self.locale, "mtproxy_domain"), _domain),
+            # Blank keeps the public subscription endpoint off; the name is separate
+            # from the panel's on purpose, so a subscriber never learns where it is.
+            "subscription": self.io.validated(
+                text(self.locale, "subscription_domain"), _domain, allow_empty=True
+            ),
         }
         if profile.includes_naive:
             values["naive"] = self.io.validated(
@@ -540,6 +546,7 @@ class TerminalWizard:
                 mtproxy=str(values["mtproxy"]),
                 naive=str(values["naive"]) if profile.includes_naive else None,
                 mieru=str(values["mieru"]) if profile.includes_mieru else None,
+                subscription=_optional(values.get("subscription")),
             ),
             mieru=(
                 MieruConfig(
@@ -577,6 +584,7 @@ class TerminalWizard:
         fields = [
             EditField.PANEL,
             EditField.MTPROXY,
+            EditField.SUBSCRIPTION,
             EditField.ACME_EMAIL,
             EditField.INITIAL_USER,
         ]
@@ -617,6 +625,7 @@ class TerminalWizard:
         domains = {
             EditField.PANEL: ("panel", "panel_domain"),
             EditField.MTPROXY: ("mtproxy", "mtproxy_domain"),
+            EditField.SUBSCRIPTION: ("subscription", "subscription_domain"),
             EditField.NAIVE: ("naive", "naive_domain"),
             EditField.MIERU: ("mieru", "mieru_domain"),
             EditField.XUI_PANEL: ("xui_panel", "xui_panel_domain"),
@@ -626,7 +635,7 @@ class TerminalWizard:
         }
         if field in domains:
             key, message = domains[field]
-            optional = (
+            optional = field is EditField.SUBSCRIPTION or (
                 values["xui_mode"] is ThreeXuiMode.EXISTING
                 and field
                 in {

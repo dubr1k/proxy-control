@@ -23,7 +23,7 @@ from release.sbom import SbomError, build_sbom
 
 ROOT = Path(__file__).parents[1]
 FIXED_EPOCH = 1_767_225_600  # 2026-01-01T00:00:00Z
-VERSION = "0.1.0"
+VERSION = "0.2.0-beta.1"
 
 
 def sha256(path: Path) -> str:
@@ -391,12 +391,20 @@ def test_release_workflow_pins_actions_and_separates_privileged_jobs():
     for job in (
         "quality:",
         "build-twice-and-compare:",
-        "lab-amd64:",
         "attest:",
         "draft-release:",
         "publish:",
     ):
         assert job in workflow
+    # The lab host is the gate: CI only confirms it built the bytes the lab accepted,
+    # from a dispatch input or the annotated tag, and no QEMU lab job sits in the chain.
+    assert "lab-amd64:" not in workflow
+    assert "expected_sha256:" in workflow
+    assert "lab-sha256:" in workflow
+    assert 'test "$first" = "$expected"' in workflow
+    assert "needs: [build-twice-and-compare]" in workflow
+    assert '- "v[0-9]+.[0-9]+.[0-9]+"' in workflow
+    assert '- "v[0-9]+.[0-9]+.[0-9]+-*"' in workflow
     assert "id-token: write" in workflow
     assert "attestations: write" in workflow
     assert "contents: write" in workflow

@@ -484,6 +484,33 @@ def test_managed_plan_routes_every_selected_domain_to_loopback(tmp_path):
     assert "warp=false" in runtime.mutations
 
 
+def test_route_verify_counts_the_panel_as_a_listener_not_an_inbound(tmp_path):
+    """On repair the panel route (8451) exists only as 3x-ui's own listener; Xray never lists it."""
+    import json as json_module
+
+    from installer.adapters.three_xui import AcceptanceError
+
+    runner = FakeThreeXuiRunner()
+    instance = adapter(tmp_path, runner)
+    routes = next(action for action in instance.plan(managed_config(), AuditFacts()) if action.id == "three_xui.routes")
+    config = tmp_path / PATHS.config.lstrip("/")
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(json_module.dumps({
+        "inbounds": [
+            {"tag": "vless-tcp", "protocol": "vless", "listen": "127.0.0.1", "port": 8449},
+            {"tag": "vless-xhttp", "protocol": "vless", "listen": "127.0.0.1", "port": 8450},
+        ],
+        "outbounds": [],
+    }))
+
+    evidence = instance.verify(routes)
+    assert evidence.success and evidence.details["routes"] == 3 and evidence.details["installed"] is True
+
+    runner.open_ports.discard(8451)
+    with pytest.raises(AcceptanceError, match="not an audited loopback inbound"):
+        instance.verify(routes)
+
+
 def test_managed_plan_requires_every_selected_domain(tmp_path):
     config = managed_config()
     broken = InstallerConfig(

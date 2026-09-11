@@ -102,6 +102,7 @@ panel = "panel.example.com"
 mtproxy = "relay.example.com"
 naive = "edge.example.com"     # required by core-naive and full
 mieru = "mieru.example.com"    # required by core-mieru and full
+subscription = "sub.example.com"  # optional: client subscription URLs
 
 [mieru]                        # only with a Mieru profile
 tcp_ports = [46001]
@@ -128,6 +129,15 @@ domains you want routed, and `managed-new` requires all four domains plus `warp`
 and `warp_domains` and runs on a fresh host only. `warp_domains` without
 `warp = true` is rejected.
 `manage_ufw` only takes effect on a fresh host.
+
+`domains.subscription` is optional and must differ from every other name. When it
+is set, the installer adds it to the Core certificate as a SAN, routes it to the
+panel's TLS listener with its own Nginx `server` block that serves only `/s/`
+(`access_log off`, everything else answers 404), and passes
+`PANEL_SUBSCRIPTION_HOST`/`PANEL_SUBSCRIPTION_URL` to the panel. Client
+subscription URLs are `https://<subscription>/s/<token>`; the panel's own domain
+never serves that path, so a subscriber cannot learn where the panel lives.
+Without the key the public endpoint stays switched off.
 
 ## Profiles and examples
 
@@ -251,6 +261,13 @@ recorded digest and refuses to continue when one has drifted. `uninstall`
 removes only the owned generation and preserves credentials, manager state, and
 named volumes; `--purge-data` is the explicit opt-in that also removes them and,
 for Naive and Mieru, the identities the installer itself created.
+
+A finished `uninstall` or rollback does not block the next `install`: that is how
+owned files are re-rendered from a new release, and the preserved data (master
+key, panel database, credentials) is picked up as it is. The exception is
+`three_xui` in `managed-new` mode: it refuses any existing `/etc/x-ui/x-ui.db`,
+including one a previous `uninstall` preserved; reinstalling needs `uninstall
+--purge-data` or the operator moving that database away first.
 
 ## Reports and credential handoff
 

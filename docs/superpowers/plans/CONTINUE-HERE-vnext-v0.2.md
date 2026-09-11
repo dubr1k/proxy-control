@@ -7,9 +7,9 @@
 
 Проект: `~/Syncthing/development/proxy-control`. Отвечай по-русски.
 
-Продолжаем vNext v0.2 — локальный control plane. Задачи 0–14 плана уже сделаны и
-проверены; твоя задача — вести план дальше с **Task 15**, не ломая того, что уже
-зелёное.
+Продолжаем vNext v0.2 — локальный control plane. Задачи 0–19 и релизный гейт 19A
+(Steps 1–6) сделаны и проверены на стенде; остались действия владельца (коммиты, тег,
+проверка Karing на устройстве). См. раздел «Состояние репозитория» в конце.
 
 ## Прочитай сначала
 
@@ -132,14 +132,39 @@ scripts/dev/remote-gate.sh lab-container          # если трогал instal
   неизвестный ей пользователь записывается как `imported` без пересоздания и без
   слияния. Элевированные Mieru-флаги остаются на прямом вызове намеренно.
 
-## Следующая задача: Task 15 — lifecycle токена подписки и generation
+- **15** — `panel/subscriptions/` (миграция 8): bearer-токен хранится хэшем, generation
+  движется в транзакции изменения через единственный `on_change.append(bump_generation)` в `create_app`,
+  ETag — от эффективного набора. Переменная — `PANEL_SUBSCRIPTION_URL` (не `PANEL_PUBLIC_URL`, решение 1).
+- **16** — `panel/subscriptions/renderers/` (`manifest|singbox|clash|raw|html`) и `compatibility.py`
+  (копия секции `clients` фикстуры Task 3, сверяется тестом). Разбор `mierus://` вынесен в
+  `panel.protocols.mieru.parse_share_url`, роут Mieru им пользуется. YAML пишется руками, без PyYAML.
+- **17** — `panel/subscription_routes.py`: `GET|HEAD /s/{token}` только на `PANEL_SUBSCRIPTION_HOST`,
+  один 404 на все отказы, rate limit до поиска токена, `--no-access-log` в entrypoint, своя CSP.
+  Установщик: `domains.subscription` (мастер, config, SAN в lineage `proxy-control`, SNI-маршрут на
+  8443, второй `server` с `access_log off`, env). Попутно: хост/порт MTProxy теперь учатся из ссылки
+  Telemt в `MtproxyOptions.host/port` (раньше bundle подставлял домен панели).
+- **18** — диалог «Подписка» (`panel/static/js/subscriptions.js`, `#subscription-modal`), API
+  `GET|POST /api/clients/{id}/subscription[/rotate|/revoke]`, `GET /api/subscriptions/compatibility`;
+  URL показывается один раз через reveal с вариантами `singbox|clash|raw` и QR каждого.
+- **19** — `panel/events.py` (`EventBus`): `subscription.generation.changed|fetched|revoked` в `audit_log`
+  в той же транзакции + кольцо; `GET /api/events?after&limit` для всех ролей.
 
-Читай раздел «Task 15» в плане: `panel/subscriptions/`, миграция 8, хук
-`ClientService.on_change` уже готов и вызывается внутри транзакции.
+## Task 19A — релизный гейт v0.2 на `ams-test` (пройден 2026-09-11)
 
-После 12x идут Tasks 13–19A (saga, legacy endpoints, подписка). Task 19A — релизный
-гейт: он целиком на `ams-test`, включая живую установку и проверку подписки на
-домене `eclipse.sky.dubr1kkk.uk`.
+Все шаги с фактами — в плане. Коротко: full/compose/lab-container/lab-host зелёные;
+апгрейд-drill на данных v0.1.0 пройден; живая установка `full`+`managed-new`+`eclipse` стоит на
+стенде (`/root/install.toml` с `subscription = "eclipse.sky.dubr1kkk.uk"`, бэкап в
+`/root/install.toml.bak-20260911`); `scripts/lab/subscription-acceptance.py` —
+`SUBSCRIPTION_ACCEPTANCE_OK` с настоящими sing-box 1.14.0 и mihomo 1.19.30 (образы запинены по
+дайджесту в плане). По пути починены три дефекта установщика (overlay профиля `full`, verify
+маршрутов 3x-ui, гонка repair 3x-ui), `db-status` на базе v0.1.0 и три дефекта самого гейта
+(`lab-host` из dev-чекаута, неиндексированные файлы в релизе, обрыв SSH на install).
+
+**Что осталось владельцу:** (1) коммиты по слоям (см. ниже), (2) аннотированный тег
+`v0.2.0-beta.1` с `lab-sha256: <digest>` из `dist/SHA256SUMS` последнего зелёного `lab-host` на
+стенде (собрать из закоммиченного чистого дерева — `--allow-dirty` даёт другой digest, чем CI),
+(3) Karing на устройстве: импорт URL `?format=singbox`, автообновление, трафик naive и mieru —
+результат в `tests/fixtures/vnext-capabilities.json`.
 
 ## Правила, добытые в этой серии
 
@@ -197,11 +222,41 @@ scripts/dev/remote-gate.sh lab-container          # если трогал instal
   (`WHERE node_id='n1'`, `== ["local"]`), а не ослабить до `>= 1`.
 - Не используй `pkill -f <строка>` по SSH: шаблон совпадает с командной строкой
   самой удалённой оболочки и обрывает сессию.
+- **Не откатывай канарейку через `git checkout <файл>`** — вместе с ней уходит вся
+  незакоммиченная работа в этом файле (так потерялись и были заново написаны правила
+  `style.css`). Канарейка — это обратный `ctx_patch`, а не git.
+- **Новый файл попадает в релиз только через индекс.** `release/build.py` пакует
+  `git ls-files`; непроиндексированный `panel/events.py` дал `ModuleNotFoundError` только на
+  `lab-host`. Новые файлы — `git add -N` сразу.
+- **Длинные шаги на стенде — только детаченно.** `install`/`repair` роняют SSH (nginx/сеть
+  пересобираются): `setsid nohup … > /root/x.log` и опрос лога; скрипты класть через rsync, а не
+  heredoc внутри `ssh '…'` (зависает). `guest-runner.sh` в режиме библиотеки включает `set -e` —
+  source его в подоболочке.
+- **Переустановка `managed-new` 3x-ui без `--purge-data` невозможна по замыслу**: адаптер
+  отказывается от любой существующей `/etc/x-ui/x-ui.db`, включая сохранённую своим же `uninstall`.
+  На стенде — перенести базу в сторону; в проде — решение оператора.
 
-## Состояние репозитория (2026-09-10, конец сессии)
+## Состояние репозитория (2026-09-11)
 
-Всё сделанное лежит в ветке **`feature/vnext-v0.2-local-control-plane`**, запушенной
-в `origin`. Одиннадцать коммитов, `main` не тронут:
+Ветка **`feature/vnext-v0.2-local-control-plane`**. Коммиты ниже (Tasks 0–14) запушены в
+`origin`; **Tasks 15–19 и Task 19A (фиксы установщика, `remote-gate.sh lab-host`, скрипты
+`scripts/lab/host-teardown.sh` и `scripts/lab/subscription-acceptance.py`, релизный поезд,
+`VERSION` = `0.2.0-beta.1`, `CHANGELOG.md`, `docs/releases/v0.2.0-beta.1.md`) лежат в рабочем
+дереве незакоммиченными** (новые файлы — `git add -N`, чтобы попадать в релиз) — владелец
+коммитит только по явной просьбе. Сообщения для них прописаны в плане под каждой задачей
+(`feat: добавить lifecycle клиентских подписок` уже занят коммитом `1385a45` — для
+Task 15 бери `feat: подключить подписки к приложению`). Гейтом проверена вершина
+рабочего дерева: см. Task 19A в плане (финальный прогон — в Step 7).
+
+Задачи 15–19 трогали одни и те же файлы (`panel/app.py`, `panel/subscription_routes.py`,
+`test_subscription_http.py`), так что резать их на пять коммитов по номерам не стоит —
+сгруппируй по слоям: (1) подписки + рендереры + `/s/` + события (`panel/`), (2) установщик +
+лаборатория + релизный поезд + документация (`installer/`, `scripts/`, `.github/`, `docs/`,
+`VERSION`, `CHANGELOG.md`), (3) UI (`panel/static/`, `test_mobile_layout.py`,
+`test_subscription_ui_contract.py`). После коммитов — `remote-gate.sh lab-host` из чистого дерева
+ради digest для аннотации тега.
+
+Ранее запушенные коммиты, `main` не тронут:
 
 ```
 f872e1c feat: добавить экраны клиентов и узлов в UI панели
@@ -225,32 +280,14 @@ afe9bae chore: добавить стенд ams-test, план и spec vNext v0.2
 
 Trailer'ов (`Co-Authored-By`, `Claude-Session`) в сообщениях нет и быть не должно.
 
-## Что делать первым делом завтра
+## Что делать первым делом
 
-**Дописать Task 15.** Сервис подписок (`panel/subscriptions/`) и миграция 8 готовы и
-покрыты тестами (`8 passed`), но он **ещё не подключён к приложению**. Осталось:
-
-1. `panel/settings.py` — `public_url: str = os.getenv("PANEL_PUBLIC_URL", "")`.
-2. `panel/app.py` — `app.state.subscriptions = SubscriptionService(...)` и
-   `app.state.clients.on_change.append(app.state.subscriptions.bump_generation)`.
-3. Вызвать `bump_generation` там, где меняется grant: в `ProvisioningService` после
-   `succeeded`, в `ClientService.capture_credential`/`adopt_credential` и в
-   `DomainFacade.set_enabled/forget/rotate` — **в той же транзакции**, где меняется
-   строка. Ради этого хук и сделан принимающим `db`.
-4. `compose.yaml` — `PANEL_PUBLIC_URL: ${PANEL_PUBLIC_URL:-}`;
-   `installer/adapters/core.py` — писать `PANEL_PUBLIC_URL=https://<panel_domain>`
-   в `.env`.
-
-Проверка: `scripts/dev/remote-gate.sh quick panel/tests/test_subscription_lifecycle.py
-panel/tests/test_clients_domain.py panel/tests/test_provisioning_saga.py`, затем
-`full`.
-
-## Прежнее состояние репозитория
-
-Задачи 0–14 **не закоммичены** — владелец коммитит только по явной просьбе.
-В рабочем дереве ~30 изменённых файлов и новые каталоги `panel/nodes/`,
-`docs/adr/`. Сообщения для семнадцати коммитов уже прописаны в плане под каждой
-задачей. Спроси владельца, коммитить ли, прежде чем продолжать — иначе
-следующая задача смешается с предыдущими в одном диффе.
+На стенде сейчас стоит живая установка итогового архива `de22f79d…` (свежий хост после
+`lab-host`, `status: active`, домены `aurora`/`eclipse`, клиент «acceptance» в базе панели;
+сертификаты LE выпущены 2026-09-11 дважды на каждый набор имён — лимит 5/неделя, считай
+перед следующим teardown). Если нужен `lab-host` или новая живая установка — сначала
+`LAB_RESET=1 scripts/lab/host-teardown.sh` (разрушительно; `install.toml` с `subscription` уже
+лежит в `/root/`). Перед разрушительными шагами убедись, что стенд свободен: `ssh ams-test docker ps`.
+Следующая инженерная работа — отдельный план v0.3 (раздел 4 плана), только после тега `v0.2.0`.
 
 После задач, меняющих структуру кода, выполняй `graphify update .`.

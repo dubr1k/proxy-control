@@ -37,6 +37,9 @@ class DomainConfig:
     mtproxy: str
     naive: str | None = None
     mieru: str | None = None
+    # The client subscription URL lives on its own name so that a subscriber never
+    # learns the panel's; absent means the public `/s/` endpoint stays switched off.
+    subscription: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +84,7 @@ class InstallerConfig:
             self.domains.mtproxy,
             self.domains.naive,
             self.domains.mieru,
+            self.domains.subscription,
             self.three_xui.panel_domain,
             self.three_xui.vless_tcp_domain,
             self.three_xui.vless_xhttp_domain,

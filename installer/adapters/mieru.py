@@ -1899,22 +1899,32 @@ class MieruAdapter:
     def _service_present(self) -> bool:
         return self._unit_present() or self._compose_service_present()
 
+    def _compose_argv(self, *args: str) -> tuple[str, ...]:
+        """One Compose invocation over every overlay the project currently runs with.
+
+        Both protocol overlays extend the same `panel` service; naming only this
+        adapter's overlay recreated the panel without NaiveProxy's environment on a
+        `full` profile. The Naive overlay rides along whenever its env file exists on
+        the host — written by that generation, removed with it.
+        """
+        project = self.paths.project_dir
+        env_files = [f"{project}/.env"]
+        compose_files = [f"{project}/compose.yaml"]
+        sibling_env = f"{project}/.env.naive"
+        if self._host(sibling_env).is_file():
+            env_files.append(sibling_env)
+            compose_files.append(f"{project}/compose.naive.yaml")
+        env_files.append(self.paths.env_overlay)
+        compose_files.append(self.paths.compose_overlay)
+        argv: list[str] = ["docker", "compose", "--project-directory", project]
+        for path in env_files:
+            argv += ["--env-file", path]
+        for path in compose_files:
+            argv += ["-f", path]
+        return (*argv, *args)
+
     def _compose(self, *args: str) -> None:
-        command = (
-            "docker",
-            "compose",
-            "--project-directory",
-            self.paths.project_dir,
-            "--env-file",
-            f"{self.paths.project_dir}/.env",
-            "--env-file",
-            self.paths.env_overlay,
-            "-f",
-            f"{self.paths.project_dir}/compose.yaml",
-            "-f",
-            self.paths.compose_overlay,
-            *args,
-        )
+        command = self._compose_argv(*args)
         try:
             self._run(*command)
         except MieruError:

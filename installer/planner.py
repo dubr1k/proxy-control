@@ -406,12 +406,18 @@ def compose_file_list(config: InstallerConfig) -> tuple[str, ...]:
 
 def profile_environment(config: InstallerConfig) -> str:
     """Root-only, non-secret environment rendered once, never exported by hand."""
+    allowed_hosts = [config.domains.panel]
+    if config.domains.subscription is not None:
+        allowed_hosts.append(config.domains.subscription)
     lines = [
         f"COMPOSE_FILE={':'.join(compose_file_list(config))}",
         f"PROXY_CONTROL_PROFILE={config.profile.value}",
-        f"PANEL_ALLOWED_HOSTS={config.domains.panel}",
+        f"PANEL_ALLOWED_HOSTS={','.join(allowed_hosts)}",
         f"MTPROXY_DOMAIN={config.domains.mtproxy}",
     ]
+    if config.domains.subscription is not None:
+        lines.append(f"PANEL_SUBSCRIPTION_HOST={config.domains.subscription}")
+        lines.append(f"PANEL_SUBSCRIPTION_URL=https://{config.domains.subscription}")
     if config.profile.includes_naive and config.domains.naive is not None:
         lines.append(f"NAIVE_PUBLIC_HOST={config.domains.naive}")
     if config.profile.includes_mieru and config.domains.mieru is not None:

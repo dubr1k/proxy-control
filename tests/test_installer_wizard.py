@@ -113,6 +113,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "existing",
             "panel.example.com",
             "relay.example.com",
+            "",  # subscription domain: blank keeps subscriptions off
             "edge.example.com",
             "mieru.example.com",
             "46001",
@@ -144,6 +145,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
         "mtproxy": "relay.example.com",
         "naive": "edge.example.com",
         "mieru": "mieru.example.com",
+        "subscription": None,
     }
 
 
@@ -161,6 +163,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "not a domain",
             "panel.example.com",
             "relay.example.com",
+            "",  # subscription domain: blank keeps subscriptions off
             "mieru.example.com",
             "abc",
             "46001",
@@ -222,6 +225,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "existing",
         "panel.example.com",
         "relay.example.com",
+        "",  # subscription domain: blank keeps subscriptions off
         "edge.example.com",
         "mieru.example.com",
         "46001",
@@ -258,6 +262,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
             "none",
             "panel.example.com",
             "relay.example.com",
+            "",  # subscription domain: blank keeps subscriptions off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -270,6 +275,35 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
     assert "Passwords and keys are generated only during installation" in transcript
     assert "No changes were made." not in transcript
     assert load_config(output).host_mode is HostMode.COEXIST
+    assert load_config(output).domains.subscription is None
+
+
+def test_wizard_writes_the_subscription_domain_when_one_is_given(tmp_path: Path):
+    output = tmp_path / "with-subscription.toml"
+    completed, transcript = _run_cli_in_pty(
+        tmp_path,
+        locale="C.UTF-8",
+        answers=[
+            "en",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "sub.example.com",
+            "admin@example.com",
+            "owner",
+            "",  # panel password: blank keeps it generated
+            "yes",
+            "save-config",
+        ],
+        output=output,
+    )
+
+    assert completed.returncode == 0, transcript
+    assert "Client subscription domain" in transcript
+    assert load_config(output).domains.subscription == "sub.example.com"
+    assert 'subscription = "sub.example.com"' in output.read_text()
 
 
 def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
@@ -284,6 +318,7 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
             "none",
             "panel.example.com",
             "relay.example.com",
+            "",  # subscription domain: blank keeps subscriptions off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -317,6 +352,7 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         "existing",
         "panel.example.com",
         "relay.example.com",
+        "",  # subscription domain: blank keeps subscriptions off
         "xui.example.com",
         "",
         "",
@@ -420,6 +456,7 @@ def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_p
         "none",
         "panel.example.com",
         "relay.example.com",
+        "",  # subscription domain: blank keeps subscriptions off
         "admin@example.com",
         "owner",
         "correct-horse-battery",
@@ -451,6 +488,7 @@ def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
         "none",
         "panel.example.com",
         "relay.example.com",
+        "",  # subscription domain: blank keeps subscriptions off
         "admin@example.com",
         "owner",
         "",
@@ -477,6 +515,7 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
         "none",
         "panel.example.com",
         "relay.example.com",
+        "",  # subscription domain: blank keeps subscriptions off
         "admin@example.com",
         "owner",
         "first-attempt-password",

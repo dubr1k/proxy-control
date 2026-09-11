@@ -1891,47 +1891,44 @@ class NaiveAdapter:
         if not listener(_ADMIN_PORT) or not listener(_PRIVATE_PORT):
             raise NaiveError("Caddy Admin API and private listener must stay loopback")
 
+    def _compose_argv(self, *args: str) -> tuple[str, ...]:
+        """One Compose invocation over every overlay the project currently runs with.
+
+        Both protocol overlays extend the same `panel` service. A command that names
+        only this adapter's overlay recreates the panel without the other's environment
+        and mounts, so a `full` profile ended with whichever runtime applied last. The
+        sibling overlay rides along whenever its env file exists on the host: that file
+        is written by the sibling's generation and removed with it, so it says exactly
+        whether that runtime is part of the project right now.
+        """
+        project = self.paths.project_dir
+        env_files = [f"{project}/.env"]
+        compose_files = [f"{project}/compose.yaml"]
+        sibling_env = f"{project}/.env.mieru"
+        if self._host(sibling_env).is_file():
+            env_files.append(sibling_env)
+            compose_files.append(f"{project}/compose.mieru.yaml")
+        env_files.append(self.paths.env_overlay)
+        compose_files.append(self.paths.compose_overlay)
+        argv: list[str] = ["docker", "compose", "--project-directory", project]
+        for path in env_files:
+            argv += ["--env-file", path]
+        for path in compose_files:
+            argv += ["-f", path]
+        return (*argv, *args)
+
     def _compose(self, *args: str) -> None:
         """Run one Compose command and keep its diagnostic on failure.
 
         A Compose failure is otherwise invisible: the runner discards output,
         and the operator is left with a bare "command failed".
         """
-        argv = (
-            "docker",
-            "compose",
-            "--project-directory",
-            self.paths.project_dir,
-            "--env-file",
-            f"{self.paths.project_dir}/.env",
-            "--env-file",
-            self.paths.env_overlay,
-            "-f",
-            f"{self.paths.project_dir}/compose.yaml",
-            "-f",
-            self.paths.compose_overlay,
-            *args,
-        )
         # Mutations must use the execution boundary, not the short, best-effort
         # diagnostic capture: its timeout is not a successful Compose result.
-        self._run(*argv)
+        self._run(*self._compose_argv(*args))
 
     def _run_compose(self, *args: str) -> None:
-        self._run(
-            "docker",
-            "compose",
-            "--project-directory",
-            self.paths.project_dir,
-            "--env-file",
-            f"{self.paths.project_dir}/.env",
-            "--env-file",
-            self.paths.env_overlay,
-            "-f",
-            f"{self.paths.project_dir}/compose.yaml",
-            "-f",
-            self.paths.compose_overlay,
-            *args,
-        )
+        self._run(*self._compose_argv(*args))
 
     def _run(self, *argv: str, stdin_path: Path | None = None) -> None:
         try:

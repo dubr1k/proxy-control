@@ -534,6 +534,10 @@ class NginxAdapter:
             # this router forwards reaches a TLS server.
             (config.domains.panel, "127.0.0.1:8443"),
         )
+        if config.domains.subscription is not None:
+            # Same TLS listener as the panel: Nginx picks the vhost by server_name, and
+            # the subscription vhost serves nothing but `/s/`.
+            routes += ((config.domains.subscription, "127.0.0.1:8443"),)
         if config.profile.includes_naive:
             if config.domains.naive is None:
                 raise TopologyError("Naive route domain is missing")
@@ -2253,11 +2257,14 @@ class CertificatePlan:
 def _certificate_groups(
     config: InstallerConfig,
 ) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    # The subscription name rides on the Core lineage: one certificate, one renewal,
+    # and the vhost that serves `/s/` points at the same files as the panel's.
+    core_names = {config.domains.mtproxy, config.domains.panel, config.domains.subscription} - {None}
     groups: list[tuple[str, str, tuple[str, ...]]] = [
         (
             "proxy-control",
             config.domains.mtproxy,
-            tuple(sorted((config.domains.mtproxy, config.domains.panel))),
+            tuple(sorted(core_names)),
         )
     ]
     if config.profile.includes_naive:

@@ -68,6 +68,8 @@ _MAX_TREE_ENTRIES = 4096
 _VLESS_TCP_BACKEND = 8449
 _VLESS_XHTTP_BACKEND = 8450
 _PANEL_BACKEND = 8451
+# 3x-ui's own subscription server; like the panel it is a 3x-ui listener, not an inbound.
+_SUBSCRIPTION_BACKEND = 2096
 _WARP_PORT = 40000
 _HYSTERIA_PORT = 443
 
@@ -672,7 +674,7 @@ class ThreeXuiAdapter:
                 raise PlanError("managed 3x-ui requires every selected domain")
             routes.append((domain.lower(), f"127.0.0.1:{backend}"))
         if config.three_xui.subscription_domain is not None:
-            routes.append((config.three_xui.subscription_domain, "127.0.0.1:2096"))
+            routes.append((config.three_xui.subscription_domain, f"127.0.0.1:{_SUBSCRIPTION_BACKEND}"))
         return tuple(sorted(routes))
 
     def _route_action(
@@ -1226,12 +1228,20 @@ class ThreeXuiAdapter:
         if action.id == "three_xui.routes":
             routes = self._route_map(action)
             audit = self.audit_existing()
+            # The panel and its subscription server are 3x-ui's own loopback listeners,
+            # not Xray inbounds: for those two routes an open port is the evidence, and
+            # the inbound audit can never vouch for them.
+            own = {f"127.0.0.1:{_PANEL_BACKEND}", f"127.0.0.1:{_SUBSCRIPTION_BACKEND}"}
+            listening = set(self.runner.listening_ports()) if audit.installed else set()
             reachable = sum(
                 1
                 for _domain, backend in routes.items()
-                if any(
-                    f"127.0.0.1:{item.port}" == backend and item.loopback
-                    for item in audit.inbounds
+                if (
+                    (backend in own and int(backend.rsplit(":", 1)[1]) in listening)
+                    or any(
+                        f"127.0.0.1:{item.port}" == backend and item.loopback
+                        for item in audit.inbounds
+                    )
                 )
             )
             if audit.installed and reachable != len(routes):
@@ -1282,6 +1292,9 @@ class ThreeXuiAdapter:
             return dict(checkpoint)
         self._assert_ownership(checkpoint)
         self._run("systemctl", "restart", _UNIT_NAME)
+        # The verify that follows checks the listening ports; the same race provision
+        # waits out applies here, and the panel binds last.
+        self._await_panel(_PANEL_BACKEND)
         return dict(checkpoint)
 
     def rollback(
