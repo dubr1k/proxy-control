@@ -175,9 +175,23 @@ SUBSCRIPTIONS_V8 = Migration(8, "client-subscriptions", (
     " ON client_subscriptions(client_id) WHERE state='active'",
 ))
 
+# Panel-wide settings and scoped API keys (v0.3, ADR 008). The key itself is never
+# stored: `prefix` finds the row, `key_hash` (SHA-256 of the full plaintext) proves it.
+API_KEYS_V9 = Migration(9, "panel-settings-and-api-keys", (
+    """CREATE TABLE IF NOT EXISTS panel_settings (
+      key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS api_keys (
+      id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+      scope TEXT NOT NULL CHECK(scope IN ('admin','monitor','node-sync')),
+      prefix TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE,
+      enabled INTEGER NOT NULL DEFAULT 1, expires_at INTEGER,
+      created_at INTEGER NOT NULL, created_by TEXT NOT NULL, last_used_at INTEGER)""",
+    "CREATE INDEX IF NOT EXISTS api_keys_prefix ON api_keys(prefix)",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
-    SUBSCRIPTIONS_V8,
+    SUBSCRIPTIONS_V8, API_KEYS_V9,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
