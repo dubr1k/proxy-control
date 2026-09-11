@@ -3,7 +3,7 @@ import pytest
 from panel.clients.models import GrantIntent, MtproxyOptions
 from panel.protocols.base import CredentialPlan, GrantRef
 from panel.protocols.telemt import TelemtAdapter
-from panel.telemt import MemoryTelemt, TelemtError
+from panel.telemt import MemoryTelemt, TelemtError, TelemtIndeterminate
 
 pytestmark = pytest.mark.anyio
 
@@ -43,6 +43,35 @@ async def test_runtime_that_rejects_the_secret_field_falls_back_to_manager():
 
     applied = await TelemtAdapter(Rejecting()).create("op", _intent(), CredentialPlan("caller", SECRET.encode()))
     assert applied.credential_origin == "manager" and applied.credential
+
+
+async def test_create_double_indeterminate_propagates_raw_not_adapter_error():
+    """Initial call indeterminate, recovery finds nothing, retry indeterminate again:
+    the outcome is still unknown, so the saga must resume — never compensate."""
+
+    class AlwaysLost(MemoryTelemt):
+        async def create_user(self, username, secret=None):
+            raise TelemtIndeterminate("simulated loss")
+
+        async def current_access(self, username):
+            return None
+
+    with pytest.raises(TelemtIndeterminate):
+        await TelemtAdapter(AlwaysLost()).create("op", _intent(), CredentialPlan("manager", None))
+
+
+async def test_rotate_double_indeterminate_propagates_raw_not_adapter_error():
+    class AlwaysLost(MemoryTelemt):
+        async def rotate(self, username, secret=None):
+            raise TelemtIndeterminate("simulated loss")
+
+        async def current_access(self, username):
+            return None
+
+    with pytest.raises(TelemtIndeterminate):
+        await TelemtAdapter(AlwaysLost()).rotate(
+            "op", GrantRef("mtproxy", "alice"), CredentialPlan("manager", None)
+        )
 
 
 async def test_update_options_changes_limits_and_reports_unsupported_fields():

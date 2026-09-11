@@ -116,25 +116,43 @@ class TelemtAdapter:
             recovered = await self._recover(username)
             if recovered is not None:
                 return recovered
-            # Nothing was created, so a single retry is safe rather than a guess.
+            # Nothing was created, so a single retry is safe rather than a guess. If
+            # this also comes back indeterminate, it propagates raw: the outcome is
+            # still unknown and the saga must resume, not compensate.
             return await self.client.create_user(username, secret=secret)
 
-    async def create(
-        self, operation_id: str, intent: GrantIntent, credential: CredentialPlan
-    ) -> AppliedGrant:
-        secret = credential.plaintext.decode() if credential.origin == "caller" else None
-        origin = credential.origin
+    async def _with_caller_fallback(self, secret, attempt):
+        """Try a caller-chosen secret; on a runtime that refuses it, fall back to a
+        manager-generated one and say so via the returned origin.
+
+        `TelemtIndeterminate` is never turned into `AdapterError`: an unknown outcome
+        must resume, not be compensated, so it always propagates raw.
+        """
+        origin = "caller" if secret is not None else "manager"
         try:
-            created = await self._create_with(intent.runtime_username, secret)
+            result = await attempt(secret)
+        except TelemtIndeterminate:
+            raise
         except TelemtError as exc:
             if secret is None or getattr(exc, "status_code", 502) not in (400, 422):
                 raise AdapterError("Telemt refused the request") from exc
             # This build generates its own secret: fall back and report the origin.
             origin = "manager"
             try:
-                created = await self._create_with(intent.runtime_username, None)
+                result = await attempt(None)
+            except TelemtIndeterminate:
+                raise
             except TelemtError as inner:
                 raise AdapterError("Telemt refused the request") from inner
+        return result, origin
+
+    async def create(
+        self, operation_id: str, intent: GrantIntent, credential: CredentialPlan
+    ) -> AppliedGrant:
+        secret = credential.plaintext.decode() if credential.origin == "caller" else None
+        created, origin = await self._with_caller_fallback(
+            secret, lambda s: self._create_with(intent.runtime_username, s)
+        )
         if isinstance(created, AppliedGrant):
             return created
         access = self._link_access(created)
@@ -170,17 +188,9 @@ class TelemtAdapter:
         self, operation_id: str, grant: GrantRef, credential: CredentialPlan
     ) -> AppliedGrant:
         secret = credential.plaintext.decode() if credential.origin == "caller" else None
-        origin = credential.origin
-        try:
-            rotated = await self._rotate_with(grant.runtime_username, secret)
-        except TelemtError as exc:
-            if secret is None or getattr(exc, "status_code", 502) not in (400, 422):
-                raise AdapterError("Telemt refused the request") from exc
-            origin = "manager"
-            try:
-                rotated = await self._rotate_with(grant.runtime_username, None)
-            except TelemtError as inner:
-                raise AdapterError("Telemt refused the request") from inner
+        rotated, origin = await self._with_caller_fallback(
+            secret, lambda s: self._rotate_with(grant.runtime_username, s)
+        )
         if isinstance(rotated, AppliedGrant):
             return rotated
         access = self._link_access(rotated)
@@ -198,7 +208,8 @@ class TelemtAdapter:
         except TelemtError as exc:
             raise AdapterError("Telemt refused the request") from exc
         access = await self.client.current_access(grant.runtime_username)
-        return self._applied(grant.runtime_username, access or {}, enabled=True, recovered=False)
+        applied = self._applied(grant.runtime_username, access or {}, enabled=True, recovered=False)
+        return replace(applied, credential_origin="manager")
 
     async def delete(self, grant: GrantRef) -> None:
         try:
