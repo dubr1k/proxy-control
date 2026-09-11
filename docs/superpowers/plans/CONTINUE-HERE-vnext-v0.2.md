@@ -40,7 +40,7 @@ scripts/dev/remote-gate.sh lab-container          # если трогал instal
 
 Базовая линия, с которой сравниваешь: до Tasks 0–8 было **1279 passed, 2 skipped**,
 после Task 14 — **1494 passed, 2 skipped**; новых падений быть не должно. Production-хосты `ams-server`, `AMS_R`, `AMS_P`,
-`GER` не трогаются ничем.
+`AMS_Z` (бывший `GER`) не трогаются ничем.
 
 ## Что уже сделано (Tasks 0–14)
 
