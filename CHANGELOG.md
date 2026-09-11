@@ -77,6 +77,9 @@ see `docs/superpowers/plans/2026-09-10-vnext-v0.2-local-control-plane.md`, Task 
   preserved data. `managed-new` 3x-ui still refuses a preserved `/etc/x-ui/x-ui.db`
   (documented in the installer reference).
 - `db-status` on a v0.1.0 database crashed instead of reporting that nothing was applied.
+- The release workflow read the lab digest from the local tag ref, which `actions/checkout`
+  peels to the commit; the annotation is now read from the tag object through the API (the
+  first `v0.2.0-beta.1` run built the exact lab bytes and stopped on "no lab digest").
 - The one-time bundle dialog's "copy" buttons had no handler.
 - `Database.__init__` retried `PRAGMA journal_mode=WAL` under contention (found by a 300-run
   stress of a test that failed once in a full run).

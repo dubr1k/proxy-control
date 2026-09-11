@@ -79,6 +79,9 @@ jobs:
           persist-credentials: false
       - name: Build the release twice and require identical bytes
         id: build
+        env:
+          # Read-only: only the tag object's annotation is fetched with it.
+          GH_TOKEN: ${{ github.token }}
         run: |
           version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
           python3 release/build.py --source . --output dist --version "$version"
@@ -94,7 +97,14 @@ jobs:
           # without it, or a mismatch, stops the train here.
           expected=${EXPECTED_SHA256:-}
           if test -z "$expected" && test "${GITHUB_REF_TYPE}" = "tag"; then
-            expected=$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)' \
+            # actions/checkout peels an annotated tag to its commit, so the annotation is
+            # read from the tag object itself through the API, not from the local ref.
+            object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" --jq '.object')
+            message=
+            if test "$(jq -r .type <<<"$object")" = "tag"; then
+              message=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(jq -r .sha <<<"$object")" --jq '.message')
+            fi
+            expected=$(printf '%s\n' "$message" \
               | sed -n 's/^lab-sha256: *\([0-9a-f]\{64\}\).*/\1/p' | head -n1)
           fi
           test -n "$expected" || { echo "no lab digest: pass expected_sha256 or annotate the tag with 'lab-sha256: <digest>'" >&2; exit 1; }
