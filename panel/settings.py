@@ -77,6 +77,7 @@ class Settings:
     reveal_ttl_seconds: int = 120
     body_limit_bytes: int = 65536
     login_verify_concurrency: int = 2
+    api_key_rate_per_minute: int = 120
 
     def __post_init__(self) -> None:
         if not self.subscription_host and self.subscription_url:
