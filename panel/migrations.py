@@ -189,9 +189,23 @@ API_KEYS_V9 = Migration(9, "panel-settings-and-api-keys", (
     "CREATE INDEX IF NOT EXISTS api_keys_prefix ON api_keys(prefix)",
 ))
 
+# Node side of Fleet v2 (spec §4): what the central panel asked for and what this
+# panel actually runs. `managed_resources` is the ownership register ADR 003 needs.
+MANAGED_V10 = Migration(10, "fleet-v2-managed", (
+    """CREATE TABLE IF NOT EXISTS managed_generations (
+      generation INTEGER PRIMARY KEY, digest TEXT NOT NULL, master_guid TEXT NOT NULL,
+      document_json TEXT NOT NULL, received_at INTEGER NOT NULL, applied_at INTEGER,
+      state TEXT NOT NULL CHECK(state IN ('received','applying','converged','failed')))""",
+    """CREATE TABLE IF NOT EXISTS managed_resources (
+      protocol TEXT NOT NULL, runtime_username TEXT NOT NULL, ref TEXT NOT NULL,
+      credential_ref TEXT, generation INTEGER NOT NULL, state TEXT NOT NULL,
+      last_error TEXT, revision TEXT, updated_at INTEGER NOT NULL,
+      PRIMARY KEY(protocol, runtime_username))""",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
-    SUBSCRIPTIONS_V8, API_KEYS_V9,
+    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
