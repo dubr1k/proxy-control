@@ -158,6 +158,7 @@ the panel domain, and that vhost logs no access lines.
 - [ADR 005 — Secrets travel as references](adr/005-secret-references.md)
 - [ADR 006 — Engine-neutral routing policy IR](adr/006-routing-policy-ir.md)
 - [ADR 007 — Routing enforcement ownership](adr/007-routing-enforcement-ownership.md)
+- [ADR 008 — Panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md) (v0.3)
 
 See also the [capability matrix](VNEXT_CAPABILITIES.md) (machine-readable source:
 `tests/fixtures/vnext-capabilities.json`), [compatibility
