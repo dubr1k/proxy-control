@@ -1,6 +1,6 @@
 # ADR 001: Pull-only node transport
 
-Status: accepted (v0.2)
+Status: accepted (v0.2); transport direction superseded by [ADR 008](008-panel-to-panel-transport.md) in v0.3 — the typed-payload rule and the frozen Fleet v1 boundary stay in force
 
 ## Context
 
