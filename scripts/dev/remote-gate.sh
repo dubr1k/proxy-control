@@ -11,7 +11,8 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST")
 
 case $HOST in
-  ams-server|AMS_R|AMS_P|GER) echo "refusing production host $HOST" >&2; exit 2 ;;
+  # AMS_Z is the host formerly aliased GER; both names stay refused.
+  ams-server|AMS_R|AMS_P|AMS_Z|GER) echo "refusing production host $HOST" >&2; exit 2 ;;
 esac
 
 sync_tree() {
