@@ -157,6 +157,8 @@ jobs:
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           draft: true
+          # A version with a pre-release suffix (`-alpha.1`, `-beta.1`) is published as one.
+          prerelease: ${{ contains(needs.build-twice-and-compare.outputs.version, '-') }}
           tag_name: v${{ needs.build-twice-and-compare.outputs.version }}
           files: |
             dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz
@@ -168,7 +170,9 @@ jobs:
     needs: [draft-release, build-twice-and-compare]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    # Publishing waits for a human reviewer on this protected environment.
+    # Publishing is meant to wait for a human reviewer on this environment; the gate only
+    # exists once the environment has a required reviewer configured in the repository
+    # settings (on 2026-09-11 it had none and `v0.2.0-beta.1` published without a stop).
     environment:
       name: release-publish
     permissions:
@@ -177,4 +181,5 @@ jobs:
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           draft: false
+          prerelease: ${{ contains(needs.build-twice-and-compare.outputs.version, '-') }}
           tag_name: v${{ needs.build-twice-and-compare.outputs.version }}
