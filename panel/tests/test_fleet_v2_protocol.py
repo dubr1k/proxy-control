@@ -36,6 +36,11 @@ def test_unknown_protocol_state_or_extra_field_is_refused():
         PushRequest(expected_guid="g", generation=_doc(), secrets={}, shell="rm -rf /")
 
 
+def test_generation_must_be_at_least_one():
+    with pytest.raises(ValidationError):
+        _doc(generation=0, previous_generation=0)
+
+
 def test_push_secrets_must_reference_document_refs():
     with pytest.raises(ValidationError):
         PushRequest(expected_guid="n" * 36, generation=_doc(), secrets={"grant:zzz:1": "pw"})

@@ -10,7 +10,7 @@ NODE, MASTER, OTHER = "n" * 36, "m" * 36, "o" * 36
 
 def _doc(generation, master=MASTER, users=("alice",)):
     return GenerationDocument(node_guid=NODE, master_guid=master, generation=generation,
-                              previous_generation=generation - 1, created_at=1, created_by="x",
+                              previous_generation=max(generation - 1, 0), created_at=1, created_by="x",
                               resources=[Resource(ref=f"grant:{u}", protocol="naive", runtime_username=u,
                                                   desired_state="enabled", credential_ref=f"grant:{u}:1",
                                                   credential_origin="caller") for u in users])
@@ -30,20 +30,20 @@ def _accept(store, db, doc):
 def test_accept_records_master_and_rejects_lower_same_digest_and_foreign(store):
     managed, database = store
     with database.transaction() as db:
-        _accept(managed, db, _doc(1))
+        _accept(managed, db, _doc(2))
         assert managed.master_guid(db) == MASTER
-        _accept(managed, db, _doc(1))  # идемпотентный повтор
+        _accept(managed, db, _doc(2))  # идемпотентный повтор
         with pytest.raises(GenerationConflict) as stale:
-            _accept(managed, db, _doc(0))
+            _accept(managed, db, _doc(1))
         assert stale.value.code == "stale_generation"
         with pytest.raises(GenerationConflict) as conflict:
-            managed.accept(db, _doc(1, users=("bob",)), canonical_digest(_doc(1, users=("bob",))), node_guid=NODE)
+            managed.accept(db, _doc(2, users=("bob",)), canonical_digest(_doc(2, users=("bob",))), node_guid=NODE)
         assert conflict.value.code == "digest_conflict"
         with pytest.raises(GenerationConflict) as foreign:
-            _accept(managed, db, _doc(2, master=OTHER))
+            _accept(managed, db, _doc(3, master=OTHER))
         assert foreign.value.code == "foreign_master"
         with pytest.raises(GenerationConflict) as guid:
-            managed.accept(db, _doc(2), canonical_digest(_doc(2)), node_guid=OTHER)
+            managed.accept(db, _doc(3), canonical_digest(_doc(3)), node_guid=OTHER)
         assert guid.value.code == "guid_mismatch"
 
 
