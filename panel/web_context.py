@@ -135,15 +135,24 @@ def install_security_middleware(app, settings: Settings) -> None:
                 if len(body) > settings.body_limit_bytes
                 else await call_next(request)
             )
-        response.headers.update(
-            {
-                "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Referrer-Policy": "no-referrer",
-                "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-                "Cache-Control": "no-store",
-                "X-Request-Id": request.state.request_id,
-            }
-        )
+        headers = {
+            "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Referrer-Policy": "no-referrer",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+            "Cache-Control": "no-store",
+            "X-Request-Id": request.state.request_id,
+        }
+        if request.url.path.startswith("/s/"):
+            # A subscription is fetched by clients that revalidate with `If-None-Match`,
+            # so the route sets `private, no-cache` itself and it must survive; and the
+            # human-readable page carries its own inline stylesheet and QR images, but
+            # no script and nothing from anywhere else.
+            headers.pop("Cache-Control")
+            headers["Content-Security-Policy"] = (
+                "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+            )
+        response.headers.update(headers)
         return response

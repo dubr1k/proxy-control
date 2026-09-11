@@ -82,4 +82,5 @@ async def test_current_access_reads_the_live_link_from_the_user_listing():
         )
 
     access = await _client(listing).current_access("alice")
-    assert access == {"link": link, "secret": "ee" + "ab" * 16}
+    # The endpoint travels with the link: the panel has no other source for it.
+    assert access == {"link": link, "secret": "ee" + "ab" * 16, "server": "proxy.example.com", "port": 443}

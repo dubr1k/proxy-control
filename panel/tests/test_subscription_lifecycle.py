@@ -153,7 +153,7 @@ async def test_create_refuses_grants_without_escrowed_credentials(subscriptions,
 async def test_etag_follows_the_effective_set_not_the_fetch_time(subscriptions, client_id, clock):
     subscription, _ = subscriptions.create(client_id, **CTX)
     before = subscriptions.etag(subscriptions.effective_manifest(subscription, clock.time()), 1)
-    subscriptions.record_fetch(subscription.id, clock.time())
+    subscriptions.record_fetch(subscription, clock.time(), status=200, format="raw")
     # Reading the subscription is not a change to it.
     assert subscriptions.etag(subscriptions.effective_manifest(subscription, clock.time()), 1) == before
 
@@ -182,3 +182,45 @@ async def test_the_public_url_is_built_from_the_configured_base(subscriptions, c
     _, token = subscriptions.create(client_id, **CTX)
     subscriptions.public_base = "https://eclipse.example.com/"
     assert subscriptions.public_url(token) == f"https://eclipse.example.com/s/{token}"
+
+
+async def test_the_app_wires_the_generation_hook_to_every_change(tmp_path, login_user):
+    """Registering the hook once must cover every mutation path, not just direct ones."""
+    import httpx
+
+    from panel.app import Settings, create_app
+    from panel.mieru import MemoryMieru
+    from panel.naive import MemoryNaive
+    from panel.telemt import MemoryTelemt
+    from panel.versions import VersionClient
+
+    master_key = tmp_path / "panel-master-key"
+    Keyring.generate().save(master_key)
+    app = create_app(
+        Settings(
+            database_path=tmp_path / "panel.sqlite3", session_cookie_secure=False,
+            allowed_hosts=("testserver",), naive_public_host="naive.example.com",
+            naive_enabled=True, mieru_enabled=True, master_key_file=master_key,
+            subscription_url="https://eclipse.example.com", vnext_writer="domain",
+        ),
+        telemt=MemoryTelemt(), naive=MemoryNaive(), mieru=MemoryMieru(),
+        version_client=VersionClient(str(tmp_path / "missing.sock")),
+    )
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as http:
+        await login_user(http)
+        headers = {"X-CSRF-Token": http.cookies["panel_csrf"]}
+        await http.post("/api/naive/users", json={"username": "alice"}, headers=headers)
+
+        client_id = (await http.get("/api/clients")).json()["items"][0]["client"]["id"]
+        subscription, _ = app.state.subscriptions.create(
+            client_id, actor={"id": 1, "username": "owner"}, ip="127.0.0.1", request_id="req-1"
+        )
+        assert subscription.generation == 1
+
+        # A protocol endpoint the subscription knows nothing about still moves it.
+        await http.post("/api/naive/users/alice/disable", headers=headers)
+        assert app.state.subscriptions.get(client_id).generation == 2
+        assert app.state.subscriptions.public_base == "https://eclipse.example.com"

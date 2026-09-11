@@ -42,6 +42,10 @@ class MtproxyOptions(BaseModel):
     max_tcp_conns: int | None = _limit("max_tcp_conns", "concurrent TCP connections")
     max_unique_ips: int | None = _limit("max_unique_ips", "distinct source addresses")
     expiration: int | None = Field(default=None, strict=True, ge=0, le=2**63 - 1)
+    # Learned from the link Telemt returned, never configured: the panel has no other
+    # source for where the runtime listens, and a link rebuilt from escrow needs one.
+    host: str | None = Field(default=None, min_length=1, max_length=253)
+    port: int | None = Field(default=None, strict=True, ge=1, le=65535)
 
 
 class NaiveOptions(BaseModel):

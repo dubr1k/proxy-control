@@ -7,7 +7,10 @@ says so rather than inventing a link it cannot produce.
 """
 from __future__ import annotations
 
-from urllib.parse import quote
+import ipaddress
+import re
+from dataclasses import dataclass
+from urllib.parse import parse_qsl, quote, unquote, urlsplit
 
 from ..clients.models import AccessGrant, GrantIntent
 from ..mieru import MieruError
@@ -34,6 +37,110 @@ def share_url(username: str, password: str, host: str, *, port: int = 8443) -> s
         profile=quote(username),
         port=port,
     )
+
+
+@dataclass(frozen=True)
+class MieruShare:
+    """A `mierus://` link taken apart: what every client config is built from."""
+
+    username: str
+    password: str
+    host: str
+    is_ip: bool
+    profile: str
+    # Each binding is {"port": int} or {"portRange": "a-b"} plus {"protocol": TCP|UDP},
+    # in mita's own `portBindings` shape.
+    bindings: tuple[dict, ...]
+    mtu: int = 1400
+
+    @property
+    def exact_ports(self) -> list[int] | None:
+        """Ports as integers, or None when any binding is a range."""
+        ports = [binding["port"] for binding in self.bindings if "port" in binding]
+        return ports if len(ports) == len(self.bindings) else None
+
+
+def parse_share_url(value) -> MieruShare:
+    """Validate a `mierus://` link strictly; anything odd is a ValueError, never a guess."""
+    if not isinstance(value, str) or len(value) > 4096:
+        raise ValueError("share url is not a string of sane length")
+    parts = urlsplit(value)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    authority_port = parts.port  # raises ValueError on a malformed authority
+    values: dict[str, list[str]] = {}
+    for key, item in query:
+        values.setdefault(key, []).append(item)
+    ports = values.get("port", [])
+    protocols = values.get("protocol", [])
+    if (
+        parts.scheme != "mierus"
+        or not parts.username
+        or not parts.password
+        or not parts.hostname
+        or authority_port is not None
+        or parts.path not in ("", "/")
+        or parts.fragment
+        or len(values.get("profile", [])) != 1
+        or not values["profile"][0]
+        or not ports
+        or len(ports) != len(protocols)
+        or any(protocol not in {"TCP", "UDP"} for protocol in protocols)
+    ):
+        raise ValueError("share url has an unexpected shape")
+
+    bindings = []
+    for port, protocol in zip(ports, protocols, strict=True):
+        if re.fullmatch(r"[0-9]{1,5}", port) and 1 <= int(port) <= 65535:
+            bindings.append({"port": int(port), "protocol": protocol})
+            continue
+        match = re.fullmatch(r"([0-9]{1,5})-([0-9]{1,5})", port)
+        if not match or not 1 <= int(match[1]) <= int(match[2]) <= 65535:
+            raise ValueError("share url carries an invalid port")
+        bindings.append({"portRange": port, "protocol": protocol})
+
+    mtu_values = values.get("mtu", [])
+    if len(mtu_values) > 1 or (mtu_values and not re.fullmatch(r"[0-9]{4,5}", mtu_values[0])):
+        raise ValueError("share url carries an invalid mtu")
+    mtu = int(mtu_values[0]) if mtu_values else 1400
+    if not 1280 <= mtu <= 1500:
+        raise ValueError("share url carries an mtu out of range")
+
+    try:
+        host, is_ip = str(ipaddress.ip_address(parts.hostname)), True
+    except ValueError:
+        host, is_ip = parts.hostname, False
+    return MieruShare(
+        username=unquote(parts.username),
+        password=unquote(parts.password),
+        host=host,
+        is_ip=is_ip,
+        profile=values["profile"][0],
+        bindings=tuple(bindings),
+        mtu=mtu,
+    )
+
+
+def singbox_outbounds(share: MieruShare, *, tag) -> list[dict] | None:
+    """The `mieru` outbound Karing's sing-box core takes: one per exact port.
+
+    A port range has no place in that shape, so the answer is None rather than a
+    profile that silently drops bindings.
+    """
+    ports = share.exact_ports
+    if ports is None:
+        return None
+    return [
+        {
+            "type": "mieru",
+            "tag": tag(port, binding["protocol"]),
+            "server": share.host,
+            "server_port": port,
+            "transport": binding["protocol"],
+            "username": share.username,
+            "password": share.password,
+        }
+        for port, binding in zip(ports, share.bindings, strict=True)
+    ]
 
 
 def template_from(share_url_value: str, username: str, password: str) -> str | None:

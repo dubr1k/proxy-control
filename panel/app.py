@@ -15,6 +15,7 @@ from .clients.facade import DomainFacade
 from .clients.provisioning import ProvisioningService
 from .clients.service import ClientService
 from .database import Database
+from .events import EventBus
 from .fleet import FleetStore
 from .fleet_routes import register_fleet_routes
 from .keyring import Keyring
@@ -28,6 +29,8 @@ from .nodes.service import NodeLifecycleService
 from .secrets_store import SecretStore
 from .settings import Settings
 from .store import Store
+from .subscription_routes import register_subscription_admin_routes, register_subscription_routes
+from .subscriptions.service import SubscriptionService
 from .telemt import TelemtClient, TelemtError
 from .telemt_routes import register_telemt_dashboard_routes
 from .version_routes import register_version_routes
@@ -94,6 +97,14 @@ def create_app(
     app.state.domain_facade = DomainFacade(
         app.state.clients, app.state.provisioning, app.state.adapters
     )
+    app.state.events = EventBus(app.state.database)
+    app.state.subscriptions = SubscriptionService(
+        app.state.database, app.state.clients, app.state.secrets,
+        public_base=settings.subscription_url, events=app.state.events,
+    )
+    # Every grant mutation — saga, capture/adopt, the legacy façade — funnels through
+    # `ClientService.notify` inside its own transaction, so one hook covers them all.
+    app.state.clients.on_change.append(app.state.subscriptions.bump_generation)
     app.state.versions = version_client or VersionClient(settings.version_agent_socket)
     app.state.settings = settings
     app.state.reveals = {}
@@ -145,4 +156,6 @@ def create_app(
     register_fleet_routes(app, context)
     register_node_routes(app, context)
     register_client_routes(app, context)
+    register_subscription_admin_routes(app, context)
+    register_subscription_routes(app, context)
     return app

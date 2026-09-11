@@ -37,13 +37,19 @@ def _hash(token: str) -> str:
 
 
 class SubscriptionService:
-    def __init__(self, database, clients, secret_store, clock=time, public_base: str = ""):
+    def __init__(self, database, clients, secret_store, clock=time, public_base: str = "", events=None):
         self.database = database
         self.clients = clients
         self.secrets = secret_store
         self.clock = clock
         self.public_base = public_base
+        # Optional `EventBus`: events ride in the same transaction as the change they report.
+        self.events = events
         self.store = SubscriptionStore()
+
+    def _emit(self, db, name: str, payload: dict) -> None:
+        if self.events is not None:
+            self.events.emit(db, name, payload)
 
     # --- lifecycle ----------------------------------------------------------------
 
@@ -107,6 +113,9 @@ class SubscriptionService:
                 ip=ip, request_id=request_id, generation=subscription.generation,
                 detail={"client_id": client_id, "revoked": current.id},
             )
+            self._emit(db, "subscription.revoked", {
+                "subscription_id": current.id, "client_id": client_id, "reason": "rotated",
+            })
         return subscription, token
 
     def revoke(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None) -> None:
@@ -119,6 +128,9 @@ class SubscriptionService:
                 db, actor=actor, action="subscription.revoke", target=current.id,
                 ip=ip, request_id=request_id, detail={"client_id": client_id},
             )
+            self._emit(db, "subscription.revoked", {
+                "subscription_id": current.id, "client_id": client_id, "reason": "revoked",
+            })
 
     def get(self, client_id: str) -> Subscription | None:
         with self.database.connect() as db:
@@ -126,7 +138,12 @@ class SubscriptionService:
 
     def bump_generation(self, db, client_id: str) -> None:
         """Runs inside the caller's transaction: a rolled-back change bumps nothing."""
-        self.store.bump(db, client_id, now=int(self.clock.time()))
+        if not self.store.bump(db, client_id, now=int(self.clock.time())):
+            return
+        current = self.store.active(db, client_id)
+        self._emit(db, "subscription.generation.changed", {
+            "subscription_id": current.id, "client_id": client_id, "generation": current.generation,
+        })
 
     def resolve(self, token: str) -> Subscription | None:
         """Look a bearer token up by hash; an unknown or revoked one is simply absent."""
@@ -135,9 +152,14 @@ class SubscriptionService:
         with self.database.connect() as db:
             return self.store.by_hash(db, _hash(token))
 
-    def record_fetch(self, subscription_id: str, now: int) -> None:
+    def record_fetch(self, subscription: Subscription, now: int, *, status: int, format: str) -> None:
+        """One transaction: the last-fetched mark and the event that says a client came by."""
         with self.database.transaction() as db:
-            self.store.record_fetch(db, subscription_id, int(now))
+            self.store.record_fetch(db, subscription.id, int(now))
+            self._emit(db, "subscription.fetched", {
+                "subscription_id": subscription.id, "client_id": subscription.client_id,
+                "status": status, "format": format,
+            })
 
     # --- manifest -----------------------------------------------------------------
 
@@ -168,12 +190,14 @@ class SubscriptionService:
         )
 
     @staticmethod
-    def etag(manifest: Manifest, renderer_version: int) -> str:
+    def etag(manifest: Manifest, renderer_version: int, variant: str = "") -> str:
         """What the client would receive, not when it last asked.
 
         `generation` and `last_fetched_at` are excluded on purpose: they move for
         reasons a client cannot see in the body, and an ETag that changes without the
-        body changing defeats conditional requests.
+        body changing defeats conditional requests. `variant` names a per-client
+        rendering of the same format (the sing-box feed without mieru, for one), so
+        two bodies that differ never share a tag.
         """
         payload = {
             "grants": sorted(
@@ -195,6 +219,7 @@ class SubscriptionService:
                 key=lambda row: row["grant_id"],
             ),
             "renderer": renderer_version,
+            "variant": variant,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(canonical.encode()).hexdigest()

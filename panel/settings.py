@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 def _secret_setting(name: str, file_name: str) -> str:
@@ -43,6 +44,13 @@ class Settings:
     # exactly as v0.1.0 did; `domain` routes the same requests through clients/grants so
     # the panel owns the credential. Cutover order: import first, then flip this.
     vnext_writer: str = os.getenv("PANEL_VNEXT_WRITER", "legacy")
+    # Base of the subscription URL the panel hands out (`https://<subscription domain>`).
+    # It is a separate domain from the panel's own, so a subscriber never learns where
+    # the panel lives (plan, owner decision 1). Empty means "not published yet".
+    subscription_url: str = os.getenv("PANEL_SUBSCRIPTION_URL", "")
+    # The only Host `/s/{token}` answers on. Defaults to the URL's own host; empty
+    # means the public endpoint is switched off and every `/s/` request is a 404.
+    subscription_host: str = os.getenv("PANEL_SUBSCRIPTION_HOST", "").lower()
     version_agent_socket: str = os.getenv(
         "VERSION_AGENT_SOCKET", "/run/proxy-control/version-agent.sock"
     )
@@ -69,3 +77,8 @@ class Settings:
     reveal_ttl_seconds: int = 120
     body_limit_bytes: int = 65536
     login_verify_concurrency: int = 2
+
+    def __post_init__(self) -> None:
+        if not self.subscription_host and self.subscription_url:
+            host = (urlsplit(self.subscription_url).hostname or "").lower()
+            object.__setattr__(self, "subscription_host", host)

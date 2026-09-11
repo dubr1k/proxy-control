@@ -83,6 +83,12 @@ def _legacy_database(path: Path) -> None:
 def test_migrates_pre_v02_database_and_keeps_rows_readable(tmp_path):
     path = tmp_path / "panel.sqlite3"
     _legacy_database(path)
+    # `db-status` before the first migration is a question an operator asks; the
+    # answer is "nothing applied yet", and asking must not create the table.
+    before = migration_status(Database(path))
+    assert [row["applied"] for row in before] == [False] * len(MIGRATIONS)
+    with sqlite3.connect(path) as raw:
+        assert raw.execute("SELECT count(*) FROM sqlite_master WHERE name='schema_migrations'").fetchone()[0] == 0
     applied = apply_migrations(Database(path))
     assert applied == [migration.version for migration in MIGRATIONS]
     assert [row["username"] for row in Store(path).admins()] == ["owner"]

@@ -268,8 +268,17 @@ def apply_migrations(database: Database) -> list[int]:
 
 
 def migration_status(database: Database) -> list[dict]:
+    """Read-only: a v0.1.0 database has no migrations table yet, and that is an answer
+    ("nothing applied"), not an error. Only `apply_migrations` creates the table."""
     with database.connect() as db:
-        rows = {row["version"]: dict(row) for row in db.execute("SELECT * FROM schema_migrations")}
+        present = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
+        ).fetchone()
+        rows = (
+            {row["version"]: dict(row) for row in db.execute("SELECT * FROM schema_migrations")}
+            if present
+            else {}
+        )
     return [
         {
             "version": migration.version,
