@@ -6,6 +6,7 @@ the runtime holds now rather than guessing or creating a second account.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from urllib.parse import quote
 
 from ..clients.models import AccessGrant, GrantIntent
@@ -38,6 +39,8 @@ class TelemtAdapter:
     protocol = "mtproxy"
     credential_origin = "manager"
     capture_supported = True
+    accepts_caller_credential = True
+    UPDATABLE = set(OPTION_FIELDS)
 
     def __init__(self, client, *, public_host: str = "", public_port: int = 443):
         # Telemt owns the public host: it comes back inside the connection link, so the
@@ -106,25 +109,39 @@ class TelemtAdapter:
             return None
         return self._applied(username, access, enabled=True, recovered=True)
 
-    async def create(
-        self, operation_id: str, intent: GrantIntent, credential: CredentialPlan
-    ) -> AppliedGrant:
-        if credential.origin != "manager":
-            raise AdapterError("Telemt generates the MTProxy secret itself")
+    async def _create_with(self, username: str, secret: str | None):
         try:
-            created = await self.client.create_user(intent.runtime_username)
+            return await self.client.create_user(username, secret=secret)
         except TelemtIndeterminate:
-            recovered = await self._recover(intent.runtime_username)
+            recovered = await self._recover(username)
             if recovered is not None:
                 return recovered
             # Nothing was created, so a single retry is safe rather than a guess.
-            created = await self.client.create_user(intent.runtime_username)
+            return await self.client.create_user(username, secret=secret)
+
+    async def create(
+        self, operation_id: str, intent: GrantIntent, credential: CredentialPlan
+    ) -> AppliedGrant:
+        secret = credential.plaintext.decode() if credential.origin == "caller" else None
+        origin = credential.origin
+        try:
+            created = await self._create_with(intent.runtime_username, secret)
         except TelemtError as exc:
-            raise AdapterError("Telemt refused the request") from exc
+            if secret is None or getattr(exc, "status_code", 502) not in (400, 422):
+                raise AdapterError("Telemt refused the request") from exc
+            # This build generates its own secret: fall back and report the origin.
+            origin = "manager"
+            try:
+                created = await self._create_with(intent.runtime_username, None)
+            except TelemtError as inner:
+                raise AdapterError("Telemt refused the request") from inner
+        if isinstance(created, AppliedGrant):
+            return created
         access = self._link_access(created)
         if access is None:
             raise AdapterError("Telemt returned a user without a connection link")
-        return self._applied(intent.runtime_username, access, enabled=True, recovered=False)
+        applied = self._applied(intent.runtime_username, access, enabled=True, recovered=False)
+        return replace(applied, credential_origin=origin)
 
     async def _set_enabled(self, grant: GrantRef, enabled: bool) -> AppliedGrant:
         try:
@@ -140,24 +157,48 @@ class TelemtAdapter:
     async def disable(self, grant: GrantRef) -> AppliedGrant:
         return await self._set_enabled(grant, False)
 
+    async def _rotate_with(self, username: str, secret: str | None):
+        try:
+            return await self.client.rotate(username, secret=secret)
+        except TelemtIndeterminate:
+            recovered = await self._recover(username)
+            if recovered is not None:
+                return recovered
+            raise
+
     async def rotate(
         self, operation_id: str, grant: GrantRef, credential: CredentialPlan
     ) -> AppliedGrant:
-        if credential.origin != "manager":
-            raise AdapterError("Telemt generates the MTProxy secret itself")
+        secret = credential.plaintext.decode() if credential.origin == "caller" else None
+        origin = credential.origin
         try:
-            rotated = await self.client.rotate(grant.runtime_username)
-        except TelemtIndeterminate:
-            recovered = await self._recover(grant.runtime_username)
-            if recovered is None:
-                raise
-            return recovered
+            rotated = await self._rotate_with(grant.runtime_username, secret)
         except TelemtError as exc:
-            raise AdapterError("Telemt refused the request") from exc
+            if secret is None or getattr(exc, "status_code", 502) not in (400, 422):
+                raise AdapterError("Telemt refused the request") from exc
+            origin = "manager"
+            try:
+                rotated = await self._rotate_with(grant.runtime_username, None)
+            except TelemtError as inner:
+                raise AdapterError("Telemt refused the request") from inner
+        if isinstance(rotated, AppliedGrant):
+            return rotated
         access = self._link_access(rotated)
         if access is None:
             raise AdapterError("Telemt returned a user without a connection link")
-        return self._applied(grant.runtime_username, access, enabled=True, recovered=False)
+        applied = self._applied(grant.runtime_username, access, enabled=True, recovered=False)
+        return replace(applied, credential_origin=origin)
+
+    async def update_options(self, grant: GrantRef, options: dict) -> AppliedGrant | None:
+        fields = {key: options[key] for key in self.UPDATABLE if key in options}
+        if not fields:
+            return None
+        try:
+            await self.client.update_user(grant.runtime_username, fields)
+        except TelemtError as exc:
+            raise AdapterError("Telemt refused the request") from exc
+        access = await self.client.current_access(grant.runtime_username)
+        return self._applied(grant.runtime_username, access or {}, enabled=True, recovered=False)
 
     async def delete(self, grant: GrantRef) -> None:
         try:

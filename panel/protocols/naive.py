@@ -31,6 +31,7 @@ class NaiveAdapter:
     protocol = "naive"
     credential_origin = "caller"
     capture_supported = True
+    accepts_caller_credential = True
 
     def __init__(self, client, *, public_host: str):
         self.client = client
@@ -142,6 +143,20 @@ class NaiveAdapter:
             await self.client.delete(grant.runtime_username)
         except NaiveError as exc:
             raise AdapterError("NaiveProxy refused the request") from exc
+
+    async def update_options(self, grant: GrantRef, options: dict) -> AppliedGrant | None:
+        if "quota_bytes" not in options:
+            return None
+        try:
+            await self.client.set_quota(grant.runtime_username, options.get("quota_bytes"))
+        except NaiveError as exc:
+            raise AdapterError("NaiveProxy refused the request") from exc
+        return AppliedGrant(
+            runtime_username=grant.runtime_username,
+            enabled=True,
+            credential=b"",
+            artifact_template={"host": self.public_host},
+        )
 
     async def capture(self, grant: GrantRef) -> bytes | None:
         """The manager reveals the stored password, so adoption needs no rotation."""

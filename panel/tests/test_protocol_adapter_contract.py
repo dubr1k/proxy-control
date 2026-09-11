@@ -135,6 +135,11 @@ async def test_lost_response_after_manager_commit_never_creates_a_second_user(ad
 
 
 async def test_a_credential_plan_must_match_the_protocol(adapter):
+    if adapter.credential_origin == "manager" and adapter.accepts_caller_credential:
+        # Telemt's declared origin is still "manager" (the local provisioning path is
+        # unchanged), but it now also accepts a caller-chosen secret — so a "caller"
+        # plan is no longer a mismatch for it.
+        pytest.skip("this adapter also accepts a caller-supplied credential")
     wrong = (
         CredentialPlan("caller", b"caller-supplied-password-01")
         if adapter.credential_origin == "manager"
@@ -142,6 +147,11 @@ async def test_a_credential_plan_must_match_the_protocol(adapter):
     )
     with pytest.raises(Exception):
         await adapter.create("op-1", _intent(adapter.protocol), wrong)
+
+
+async def test_every_adapter_declares_caller_credential_support_and_update_options(adapter):
+    assert isinstance(adapter.accepts_caller_credential, bool)
+    assert hasattr(adapter, "update_options")
 
 
 async def test_manager_generated_mieru_credential_lost_requires_manual_intervention(backends):

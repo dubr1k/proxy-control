@@ -71,6 +71,10 @@ class AppliedGrant:
     artifact_template: dict = field(default_factory=dict)
     # True when the reply was lost and the outcome had to be read back or replayed.
     recovered: bool = False
+    # Who ended up choosing the credential actually applied. Usually matches the
+    # `CredentialPlan` the caller passed in, except when a runtime refuses a
+    # caller-supplied one and the adapter falls back to letting the manager generate it.
+    credential_origin: str = "caller"
 
 
 @dataclass(frozen=True)
@@ -89,6 +93,9 @@ class ProtocolAdapter(Protocol):
     protocol: str
     credential_origin: Literal["caller", "manager"]
     capture_supported: bool
+    # Whether `create`/`rotate` can accept a caller-chosen credential at all. Telemt's
+    # pinned build does; the fallback to a manager-generated one is a safety net.
+    accepts_caller_credential: bool
 
     async def discover(self) -> ObservedInventory: ...
     async def preflight(self, intent: GrantIntent) -> Preflight: ...
@@ -102,6 +109,7 @@ class ProtocolAdapter(Protocol):
     ) -> AppliedGrant: ...
     async def delete(self, grant: GrantRef) -> None: ...
     async def capture(self, grant: GrantRef) -> bytes | None: ...
+    async def update_options(self, grant: GrantRef, options: dict) -> AppliedGrant | None: ...
     def render_artifacts(
         self, grant: AccessGrant, credential: bytes, *, public_host: str
     ) -> list[AccessArtifact]: ...
