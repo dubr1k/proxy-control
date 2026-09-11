@@ -18,6 +18,7 @@ import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mier
 import { bindNodes, handleNodesClick, openNodeModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
 import { createPanelState } from "./state.js";
+import { createSubscriptionDialog } from "./subscriptions.js";
 import { createUi } from "./ui.js";
 import { bindUsers, handleUsersClick, handleUsersInput, openUserModal, renderUsers } from "./users.js";
 
@@ -143,6 +144,7 @@ function bindPanel(context) {
   bindNodes(context);
   bindManagement(context);
   context.access.bind();
+  context.subscriptions.bind();
 
   ui.view.addEventListener("input", (event) => {
     handleUsersInput(context, event.target) || handleNaiveInput(context, event.target);
@@ -197,9 +199,11 @@ export function boot(root = document) {
     state: createPanelState(),
     ui: createUi(root),
     access: null,
+    subscriptions: null,
     navigate: null,
   };
   context.access = createAccessDialogs(context);
+  context.subscriptions = createSubscriptionDialog(context);
   context.navigate = createNavigator(context);
   bindPanel(context);
   void initialise(context);

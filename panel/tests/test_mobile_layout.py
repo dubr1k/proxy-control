@@ -304,6 +304,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             <p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку.
               <button class="secondary" disabled>Принять доступ</button></p>
             <div class="client-actions">
+              <button class="secondary">Выдать доступ</button><button class="secondary">Подписка</button>
               <button class="secondary">Приостановить</button><button class="danger ghost">Архивировать</button>
             </div>
           </article>
@@ -437,6 +438,71 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         f"<style>{css}</style></head><body><main>{cards}</main>"
         f"<nav class='mobile-nav'>{buttons}</nav><script>{script}</script></body></html>"
+    )
+
+    rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")
+    errors = json.loads(rendered["errors"])
+    assert rendered["innerWidth"] == 390
+    assert rendered["result"] == "pass", errors
+
+
+def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -> None:
+    """The dialog is the real markup from index.html, opened and filled the way subscriptions.js fills it."""
+    import re
+
+    css = (ROOT / "static" / "style.css").read_text()
+    html = (ROOT / "static" / "index.html").read_text()
+    dialog = re.search(r'<dialog id="subscription-modal".*?</dialog>', html, re.DOTALL).group(0)
+    grants = "".join(
+        f"""<li class="grant-chip"><b>{protocol}</b><span>{user}</span>
+            <span class="auto-refresh" data-auto-refresh><small class="refresh-supported">karing</small><small class="refresh-unsupported">singbox</small><small class="refresh-unproven">mihomo</small></span>{note}</li>"""
+        for protocol, user, note in (
+            ("MTProxy", "alice-with-a-very-long-runtime-name", ""),
+            ("NaiveProxy", "alice", "<em>без секрета — в подписке как unsupported</em>"),
+            ("Mieru", "alice", "<em>выключен — в подписку не попадает</em>"),
+        )
+    )
+    variants = "".join(
+        f"""<label class="subscription-variant"><input type="radio" name="subscription-format" value="{name}"{" checked" if name == "singbox" else ""}>
+            <span><b>{name}</b> <small>Karing, sing-box ≥ 1.13</small><small>Попадёт: NaiveProxy и Mieru как outbound'ы. Не попадёт: MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже.</small></span></label>"""
+        for name in ("singbox", "clash", "raw")
+    )
+    token = "A" * 43
+    script = f"""
+      addEventListener("load", () => {{
+        const errors = [];
+        const tolerance = 1;
+        if (innerWidth !== 390) errors.push(`viewport is ${{innerWidth}}px instead of 390px`);
+        const dialog = document.querySelector("#subscription-modal");
+        document.querySelector("#subscription-status").textContent = "URL выдан 11.09.2026, 12:00, поколение 3. Последнее обновление клиентом: никогда. Интервал автообновления: 12 ч.";
+        document.querySelector("#subscription-grants").innerHTML = {json.dumps(grants)};
+        document.querySelector("#subscription-variants").innerHTML = {json.dumps(variants)};
+        document.querySelector("#subscription-url").value = "https://eclipse.sky.dubr1kkk.uk/s/{token}?format=singbox";
+        document.querySelector("#subscription-qr").src = "data:image/svg+xml;base64," + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>');
+        document.querySelector("#subscription-reveal").hidden = false;
+        document.querySelector("#subscription-actions").innerHTML = '<button type="button" class="secondary">Ротировать URL</button><button type="button" class="danger ghost">Отозвать</button>';
+        dialog.showModal();
+        const form = dialog.querySelector("form");
+        const formBox = form.getBoundingClientRect();
+        if (formBox.right > innerWidth + tolerance || formBox.left < -tolerance) errors.push("dialog wider than the viewport");
+        for (const node of dialog.querySelectorAll(".grant-chip, .subscription-variant, .subscription-reveal, .copy-field, .subscription-qr, footer button, #subscription-actions button, .subscription-warning")) {{
+          const box = node.getBoundingClientRect();
+          if (box.left < formBox.left - tolerance || box.right > formBox.right + tolerance) errors.push(`${{node.className || node.tagName}} escapes the dialog`);
+          if (node.scrollWidth > node.clientWidth + tolerance && !node.matches("input")) errors.push(`${{node.className || node.tagName}} overflows horizontally`);
+        }}
+        const reveal = document.querySelector("#subscription-reveal").getBoundingClientRect();
+        const variantsBox = document.querySelector(".subscription-formats").getBoundingClientRect();
+        if (reveal.top + tolerance < variantsBox.bottom) errors.push("reveal overlaps the variants");
+        if (form.scrollWidth > form.clientWidth + tolerance) errors.push("dialog scrolls horizontally");
+        document.body.dataset.result = errors.length ? "fail" : "pass";
+        document.body.dataset.errors = JSON.stringify(errors);
+      }});
+    """
+    page = tmp_path / "subscription-dialog.html"
+    page.write_text(
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<style>{css}</style></head><body><main></main>{dialog}<script>{script}</script></body></html>"
     )
 
     rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")
