@@ -5,7 +5,7 @@ import pytest
 
 from panel.api_keys import ApiKeyService, SCOPES
 from panel.database import Database
-from panel.fleet_v2.identity import ensure_guid
+from panel.fleet_v2.identity import ensure_guid, read_panel_version
 from panel.migrations import apply_migrations
 
 ACTOR = {"id": 1, "username": "owner"}
@@ -22,6 +22,16 @@ def test_guid_is_created_once_and_stable(database):
     first = ensure_guid(database)
     assert len(first) == 36
     assert ensure_guid(database) == first
+
+
+def test_panel_version_falls_back_to_dev_instead_of_crashing(tmp_path):
+    """Fix round 1, I2: a missing, unreadable or empty VERSION never stops the panel."""
+    assert read_panel_version(tmp_path / "absent") == "dev"
+    assert read_panel_version(tmp_path) == "dev"  # a directory raises OSError, not a crash-loop
+    (tmp_path / "VERSION").write_text("\n")
+    assert read_panel_version(tmp_path / "VERSION") == "dev"
+    (tmp_path / "VERSION").write_text("0.3.0\n")
+    assert read_panel_version(tmp_path / "VERSION") == "0.3.0"
 
 
 def test_create_returns_plaintext_once_and_stores_only_a_hash(database):

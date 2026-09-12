@@ -11,8 +11,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..mieru import MieruError
 from ..naive import NaiveError
+from ..naive_routes import safe_naive_traffic
 from ..protocols.base import AdapterError, GrantRef
 from ..schemas import VersionUpdate
+from ..secrets_store import SecretError
 from ..telemt import TelemtError
 from ..versions import VersionAgentError
 from ..web_context import RequestContext
@@ -106,11 +108,35 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         return JSONResponse(PushResponse(observed=observed, credentials=credentials).model_dump(), status,
                             headers=NO_STORE)
 
+    async def _traffic() -> dict[str, dict | None]:
+        """Bytes per protocol, best effort: what each manager exposes, `None` where it
+        exposes nothing (mita) or cannot answer right now."""
+
+        async def mtproxy():
+            try:
+                items = await app.state.telemt.list_users()
+            except TelemtError:
+                return None
+            # Telemt reports one counter per user, not a direction split (see /api/dashboard).
+            total = sum(value for item in items if isinstance(item, dict)
+                        for value in [item.get("total_octets")]
+                        if isinstance(value, int) and not isinstance(value, bool) and value >= 0)
+            return {"upload_bytes": None, "download_bytes": None, "total_bytes": total}
+
+        async def naive():
+            if not settings.naive_enabled:
+                return None
+            try:
+                aggregate = safe_naive_traffic(await app.state.naive.traffic())["aggregate"]
+            except NaiveError:
+                return None
+            return {key: aggregate[key] for key in ("upload_bytes", "download_bytes", "total_bytes")}
+
+        telemt, naive_counters = await asyncio.gather(mtproxy(), naive())
+        return {"mtproxy": telemt, "naive": naive_counters, "mieru": None}
+
     async def _unlink(actor: dict, request: Request) -> dict:
-        # A reconcile still running would re-register the resources it is applying.
-        await asyncio.gather(*background, return_exceptions=True)
-        with app.state.database.transaction() as db:
-            released = app.state.managed.unlink(db)
+        released = await app.state.reconciler.unlink()
         await context.audit(actor, "fleet.unlink", app.state.panel_guid, request, {"released": released})
         return {"released": released}
 
@@ -135,8 +161,11 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                  for protocol, rows in inventory.items()}
         with app.state.database.connect() as db:
             managed = len(app.state.managed.resources(db))
+        protocols, traffic = await asyncio.gather(_protocol_table(), _traffic())
+        for protocol, counters in traffic.items():
+            protocols[protocol]["traffic"] = counters
         return {"versions": versions, "host": host, "managed_resources": managed, "users": users,
-                "protocols": await _protocol_table()}
+                "protocols": protocols}
 
     @app.get("/api/fleet/v2/inventory")
     async def inventory(_key=Depends(context.fleet_key)):
@@ -154,6 +183,10 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                 await app.state.reconciler.store_secrets(db, body)
         except GenerationConflict as exc:
             return _conflict(exc.code, str(exc))
+        except SecretError as exc:
+            # No master key (ADR 005): the node cannot escrow what it was sent, and the
+            # transaction rolled the generation back with it. A code, so the central stops retrying.
+            return _conflict("secret_store_disabled", str(exc))
         await context.audit(key, "fleet.generation.accept", str(generation), request,
                             {"digest": digest, "resources": len(body.generation.resources)})
         # Adapter I/O never runs inside a transaction, and never gets cancelled by the
