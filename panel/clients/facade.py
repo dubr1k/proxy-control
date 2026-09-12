@@ -16,6 +16,8 @@ import time
 import uuid
 
 from ..audit import record
+from ..fleet_v2.guard import require_unmanaged
+from ..fleet_v2.managed import ManagedStore
 from ..protocols.base import GrantRef
 from .models import PROTOCOL_OPTIONS, AccessGrant, GrantIntent
 from .store import ClientConflict
@@ -25,17 +27,23 @@ DEFAULT_ENDPOINT = "default"
 
 
 class DomainFacade:
-    def __init__(self, clients, provisioning, adapters: dict, clock=time):
+    def __init__(self, clients, provisioning, adapters: dict, clock=time, managed: ManagedStore | None = None):
         self.clients = clients
         self.provisioning = provisioning
         self.adapters = adapters
         self.clock = clock
+        self.managed = managed or ManagedStore(clients.database)
 
     # --- lookups ------------------------------------------------------------------
 
     def grant(self, protocol: str, username: str):
         with self.clients.database.connect() as db:
             return self.clients.store.find_grant(db, protocol, LOCAL_NODE_ID, DEFAULT_ENDPOINT, username)
+
+    def _local_only(self, protocol: str, username: str) -> None:
+        """An account the central panel owns is not this façade's to write (ADR 003)."""
+        with self.clients.database.connect() as db:
+            require_unmanaged(db, self.managed, protocol, username)
 
     def _client_for(self, db, display_name: str) -> str:
         for existing in self.clients.store.clients(db):
@@ -45,6 +53,7 @@ class DomainFacade:
 
     def touch_import(self, protocol: str, username: str, *, enabled: bool, options: dict, actor, ip, request_id=None):
         """Record an account the panel did not create — one row, no credential, no merge."""
+        self._local_only(protocol, username)
         existing = self.grant(protocol, username)
         if existing is not None:
             return existing
@@ -118,6 +127,7 @@ class DomainFacade:
         self, protocol: str, username: str, enabled: bool, *, observed: dict, actor, ip, request_id=None
     ):
         """Mirror a runtime state change into the grant, adopting the row if needed."""
+        self._local_only(protocol, username)
         grant = self.grant(protocol, username) or self.touch_import(
             protocol, username, enabled=enabled, options=observed,
             actor=actor, ip=ip, request_id=request_id,
@@ -142,6 +152,7 @@ class DomainFacade:
 
     async def forget(self, protocol: str, username: str, *, actor, ip, request_id=None):
         """The runtime account is gone; the grant follows it instead of dangling."""
+        self._local_only(protocol, username)
         grant = self.grant(protocol, username)
         if grant is None:
             return
@@ -164,6 +175,7 @@ class DomainFacade:
 
     async def rotate(self, protocol: str, username: str, *, observed: dict, actor, ip, request_id=None) -> bytes:
         """Rotate through the adapter so the new credential lands in escrow, not a reply."""
+        self._local_only(protocol, username)
         grant = self.grant(protocol, username) or self.touch_import(
             protocol, username, enabled=True, options=observed,
             actor=actor, ip=ip, request_id=request_id,

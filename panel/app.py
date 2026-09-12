@@ -21,7 +21,9 @@ from .events import EventBus
 from .fleet import FleetStore
 from .fleet_routes import register_fleet_routes
 from .fleet_v2.identity import ensure_guid
+from .fleet_v2.managed import ManagedStore
 from .fleet_v2.node_routes import register_fleet_v2_node_routes
+from .fleet_v2.reconcile import Reconciler
 from .keyring import Keyring
 from .mieru import MieruClient, MieruError
 from .mieru_routes import register_mieru_routes
@@ -94,12 +96,15 @@ def create_app(
         "mieru": MieruAdapter(app.state.mieru),
     }
     app.state.clients.adapters = app.state.adapters
+    # Resources the central panel owns (ADR 003): every local writer asks here first.
+    app.state.managed = ManagedStore(app.state.database)
     app.state.domain_facade = None  # filled in below once provisioning exists
     app.state.provisioning = ProvisioningService(
-        app.state.database, app.state.secrets, app.state.adapters, app.state.clients
+        app.state.database, app.state.secrets, app.state.adapters, app.state.clients,
+        managed=app.state.managed,
     )
     app.state.domain_facade = DomainFacade(
-        app.state.clients, app.state.provisioning, app.state.adapters
+        app.state.clients, app.state.provisioning, app.state.adapters, managed=app.state.managed
     )
     app.state.events = EventBus(app.state.database)
     app.state.subscriptions = SubscriptionService(
@@ -119,6 +124,14 @@ def create_app(
     app.state.api_keys = ApiKeyService(app.state.database)
     app.state.key_rate = KeyRateLimiter(settings.api_key_rate_per_minute)
     app.state.panel_guid = ensure_guid(app.state.database)
+    version_file = settings.panel_version_file
+    app.state.panel_version = version_file.read_text().strip() if version_file.is_file() else "dev"
+    app.state.reconciler = Reconciler(
+        app.state.database, app.state.secrets, app.state.adapters, app.state.managed,
+        guid=app.state.panel_guid,
+    )
+    # A generation accepted before a restart is applied again (spec §5.3).
+    app.add_event_handler("startup", app.state.reconciler.run_pending)
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")

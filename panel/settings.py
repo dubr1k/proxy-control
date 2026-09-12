@@ -54,6 +54,11 @@ class Settings:
     version_agent_socket: str = os.getenv(
         "VERSION_AGENT_SOCKET", "/run/proxy-control/version-agent.sock"
     )
+    # The release's VERSION file: the repository root in a checkout, /app/VERSION in
+    # the image. Absent means the panel reports itself as "dev".
+    panel_version_file: Path = Path(
+        os.getenv("PANEL_VERSION_FILE", str(Path(__file__).resolve().parent.parent / "VERSION"))
+    )
     # Absent means "no secret store": the panel still starts, but only while the
     # database holds no encrypted rows (ADR 005).
     master_key_file: Path | None = field(

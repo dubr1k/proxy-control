@@ -58,6 +58,8 @@ _COPY_FILES = (
     "compose.naive.yaml",
     "uninstall.sh",
     "scripts/proxyctl.py",
+    # Mounted into the panel container: the version it reports to a central panel.
+    "VERSION",
 )
 # The overlays build their managers from this same context, so their
 # sources belong in the project directory too.

@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import Depends, HTTPException, Request
 
+from .fleet_v2.guard import require_unmanaged
 from .mieru import MieruError
 from .naive import NaiveError
 from .naive_routes import safe_naive_traffic
@@ -224,6 +225,10 @@ async def _domain_created(app, protocol: str, username: str, request: Request, u
 def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
     settings = context.settings
 
+    def local_only(username: str):
+        with app.state.database.connect() as db:
+            require_unmanaged(db, app.state.managed, "mtproxy", username)
+
     @app.get("/api/dashboard")
     async def dashboard(_user=Depends(context.current)):
         results = await asyncio.gather(
@@ -409,6 +414,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         request: Request,
         user=Depends(context.roles("owner", "admin")),
     ):
+        local_only(body.username)
         if settings.vnext_writer == "domain":
             # Same reply, different owner: the credential is escrowed before it is shown.
             data = await _domain_created(app, "mtproxy", body.username, request, user)
@@ -447,6 +453,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         request: Request,
         user=Depends(context.roles("owner", "admin")),
     ):
+        local_only(username)
         await app.state.telemt.delete_user(username)
         await context.audit(user, "user.delete", username, request)
 
@@ -460,6 +467,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         fields = body.model_dump(exclude_unset=True)
         if not fields:
             raise HTTPException(422, "at least one limit is required")
+        local_only(username)
         data = await app.state.telemt.update_user(username, fields)
         await context.audit(user, "user.limits", username, request, fields)
         return safe_user(data)
@@ -470,6 +478,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         request: Request,
         user=Depends(context.roles("owner", "admin")),
     ):
+        local_only(username)
         data = await app.state.telemt.reset_quota(username)
         await context.audit(user, "user.reset_quota", username, request)
         return safe_quota_reset(data)
@@ -481,6 +490,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         request: Request,
         user=Depends(context.roles("owner", "admin")),
     ):
+        local_only(username)
         if operation == "rotate":
             result = await app.state.telemt.rotate(username)
             data = {

@@ -7,6 +7,7 @@ from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import Depends, HTTPException, Request
 
+from .fleet_v2.guard import require_unmanaged
 from .naive import NaiveError
 from .reveals import karing_client, qr_data
 from .schemas import NaiveQuotaUpdate, NaiveUserCreate
@@ -137,6 +138,10 @@ def register_naive_routes(app, context: RequestContext) -> None:
     def require_naive():
         if not settings.naive_enabled:
             raise HTTPException(404, "feature unavailable")
+
+    def local_only(username: str):
+        with app.state.database.connect() as db:
+            require_unmanaged(db, app.state.managed, "naive", username)
 
     def naive_reveal(value, username: str) -> dict:
         if not isinstance(value, dict) or not isinstance(value.get("proxy_url"), str):
@@ -295,6 +300,7 @@ def register_naive_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_naive()
+        local_only(body.username)
         if context.settings.vnext_writer == "domain":
             data = naive_reveal(
                 await _domain_created(app, body.username, body.quota_bytes, request, user),
@@ -336,6 +342,7 @@ def register_naive_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_naive()
+        local_only(username)
         result = await app.state.naive.set_quota(username, body.quota_bytes)
         if not isinstance(result, dict):
             raise HTTPException(502, "Invalid NaiveProxy quota response")
@@ -365,6 +372,7 @@ def register_naive_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_naive()
+        local_only(username)
         if operation == "rotate":
             data = naive_reveal(await app.state.naive.rotate(username), username)
             result = {
@@ -396,6 +404,7 @@ def register_naive_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_naive()
+        local_only(username)
         data = await app.state.naive.reset_traffic(username)
         traffic = safe_naive_traffic(
             {
@@ -422,5 +431,6 @@ def register_naive_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_naive()
+        local_only(username)
         await app.state.naive.delete(username)
         await context.audit(user, "naive.delete", username, request)
