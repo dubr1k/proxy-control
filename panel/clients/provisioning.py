@@ -385,7 +385,12 @@ class ProvisioningService:
                 # Nothing reached the manager for this step, so there is nothing to undo.
                 self._mark_step(operation_id, step["grant_id"], "compensated")
                 continue
-            grant = self._grant(step["grant_id"])
+            try:
+                grant = self._grant(step["grant_id"])
+            except KeyError:
+                # Deleted by an operator and purged once its removal was confirmed: gone already.
+                self._mark_step(operation_id, step["grant_id"], "compensated")
+                continue
             with self.database.connect() as db:
                 remote = is_remote_node(db, grant.node_id)
             if remote:
@@ -417,6 +422,8 @@ class ProvisioningService:
             operation = self._operation(db, operation_id)
             compensated = [step["grant_id"] for step in operation["steps"] if step["status"] == "compensated"]
             for grant_id in compensated:
+                if db.execute("SELECT 1 FROM access_grants WHERE id=?", (grant_id,)).fetchone() is None:
+                    continue  # purged once its deletion was confirmed
                 self.clients.store.update_grant(
                     db, grant_id, desired_state="deleted", updated_at=int(self.clock.time()),
                 )
@@ -537,10 +544,13 @@ class ProvisioningService:
                 if step["status"] != "remote" or item is None:
                     continue
                 if item.state in ("enabled", "disabled"):
-                    self.confirm_credential(db, step["grant_id"])
-                    self.clients.store.update_grant(
-                        db, step["grant_id"], observed_state=item.state, updated_at=int(self.clock.time()),
-                    )
+                    try:
+                        self.confirm_credential(db, step["grant_id"])
+                        self.clients.store.update_grant(
+                            db, step["grant_id"], observed_state=item.state, updated_at=int(self.clock.time()),
+                        )
+                    except KeyError:
+                        continue  # purged once its deletion was confirmed; nothing waits on it
                     step["status"], step["error"], changed = "active", None, True
                 elif item.state == "failed" and step["error"] != item.error:
                     step["error"], changed = item.error, True
@@ -563,6 +573,18 @@ class ProvisioningService:
 
     # --- bundle ------------------------------------------------------------------
 
+    def _live_grant(self, db, step: dict) -> AccessGrant | None:
+        """The grant a step applied, if it is still one an operator may hand out: a step
+        withdrawn before the node applied it (`compensated`), a grant deleted since, or one
+        purged once its deletion was confirmed, has no bundle."""
+        if step["status"] != "active":
+            return None
+        try:
+            grant = self.clients.store.grant(db, step["grant_id"])
+        except KeyError:
+            return None
+        return None if grant.desired_state == "deleted" else grant
+
     def bundle(self, operation_id: str, *, public_hosts: dict[str, str]) -> dict:
         """Every artifact of one operation, rendered from escrow — no manager call."""
         state = self.status(operation_id)
@@ -571,8 +593,8 @@ class ProvisioningService:
         grants = []
         with self.database.connect() as db:
             for step in state["steps"]:
-                grant = self.clients.store.grant(db, step["grant_id"])
-                if grant.secret_ref is None:
+                grant = self._live_grant(db, step)
+                if grant is None or grant.secret_ref is None:
                     continue
                 plaintext = self.secrets.reveal(
                     db,

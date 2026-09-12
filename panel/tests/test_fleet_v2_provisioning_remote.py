@@ -104,7 +104,7 @@ async def test_a_failed_local_step_compensates_and_withdraws_the_remote_grant(pa
     assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]
     with central.state.database.connect() as db:
         alice = db.execute("SELECT observed_state FROM access_grants WHERE runtime_username='alice'").fetchone()
-    assert alice["observed_state"] == "missing"
+    assert alice is None  # the node confirmed it missing: the withdrawn row is purged, the name is free
 
 
 async def test_compensation_never_sends_a_node_confirmed_remote_step_to_a_local_manager(pair, monkeypatch):

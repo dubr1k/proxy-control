@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 from ..audit import digest, record
 from ..database import Database
-from ..secrets_store import SecretStore
+from ..secrets_store import SecretRef, SecretStore
 from .models import AccessGrant, Client
 from .store import ClientConflict, ClientStore
 
@@ -95,6 +95,20 @@ class ClientService:
         if adapter is None:
             raise ClientConflict(f"no adapter is configured for {protocol}")
         return adapter
+
+    def purge_grant(self, db, grant_id: str) -> None:
+        """The runtime account is confirmed gone: the row goes too, so the name can be
+        granted again, and every version of its credential is revoked. The secret rows
+        stay as an audit trail nothing renders; the provisioning journal keeps naming the
+        id, and its readers tolerate a grant that is no longer there. In the caller's
+        transaction, next to whatever confirmed the removal."""
+        secret_id = f"grant:{grant_id}"
+        live = db.execute(
+            "SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'", (secret_id,)
+        ).fetchall()
+        for row in live:
+            self.secrets.transition(db, SecretRef(secret_id, row["version"]), "revoked")
+        self.store.delete_grant(db, grant_id)
 
     def _escrow(self, grant: AccessGrant, plaintext: bytes, *, rotated: bool, actor, ip, request_id):
         """Store the credential and point the grant at it — one transaction, no plaintext logged."""

@@ -242,7 +242,9 @@ class FleetPusher:
 
         Only a report about the generation the central currently wants confirms a
         credential version or finishes an operation: a report about an older one says
-        nothing about the version the grant names now.
+        nothing about the version the grant names now. A deletion the node confirms
+        (`missing` for a grant the central wants `deleted`) purges the row, whatever the
+        generation: the account is gone, and the name is free to grant again.
         """
         now = int(self.clock.time())
         with self.database.transaction() as db:
@@ -263,6 +265,9 @@ class FleetPusher:
                 # error is in observed_generations and on the operation's step.
                 state = grant.desired_state if item.state == "drifted" else item.state
                 if state not in GRANT_STATES:
+                    continue
+                if state == "missing" and grant.desired_state == "deleted":
+                    self.clients.purge_grant(db, grant.id)
                     continue
                 returned = next((ref for ref in credentials if ref.startswith(item.ref + ":")), None)
                 if returned is not None:
