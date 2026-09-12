@@ -43,10 +43,17 @@ CREATED = ("applied", "escrowed", "active")
 SETTLED = ("active", "remote")
 
 
-def _new_credential(protocol: str) -> bytes:
+def new_credential(protocol: str) -> bytes:
     """Telemt wants 32 hex characters; a runtime handed anything else falls back to a
-    secret of its own choosing and the panel has to escrow that instead."""
+    secret of its own choosing and the panel has to escrow that instead. One rule for
+    every credential the central chooses — at provisioning and at every rotation."""
     return (secret_tokens.token_hex(16) if protocol == "mtproxy" else secret_tokens.token_urlsafe(24)).encode()
+
+
+def is_remote_node(db, node_id: str) -> bool:
+    """A grant on a linked panel is applied by that panel's reconcile, not by a manager here."""
+    row = db.execute("SELECT transport FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
+    return row is not None and row["transport"] == "panel"
 
 
 @dataclass(frozen=True)
@@ -120,12 +127,6 @@ class ProvisioningService:
 
     # --- start -------------------------------------------------------------------
 
-    @staticmethod
-    def _remote(db, node_id: str) -> bool:
-        """A grant on a linked panel is applied by that panel's reconcile, not by a manager here."""
-        row = db.execute("SELECT transport FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
-        return row is not None and row["transport"] == "panel"
-
     def _adapter(self, protocol: str):
         adapter = self.adapters.get(protocol)
         if adapter is None:
@@ -146,8 +147,11 @@ class ProvisioningService:
         if not intents:
             raise ClientConflict("an operation needs at least one grant")
         with self.database.connect() as db:
-            remote = {intent.node_id for intent in intents if self._remote(db, intent.node_id)}
+            remote = {intent.node_id for intent in intents if is_remote_node(db, intent.node_id)}
             for intent in intents:
+                if intent.node_id != "local" and intent.node_id not in remote:
+                    # Neither this runtime nor a linked panel: nothing here could apply it.
+                    raise ClientConflict(f"node {intent.node_id} is not a linked panel")
                 if intent.node_id == "local" and self.managed.is_managed(db, intent.protocol, intent.runtime_username):
                     raise ClientConflict(f"{intent.protocol}: runtime_username is managed by central")
         for intent in intents:
@@ -204,7 +208,7 @@ class ProvisioningService:
                         purpose=CREDENTIAL_PURPOSE,
                         grant_id=grant_id,
                         permitted_node_id=intent.node_id,
-                        plaintext=_new_credential(intent.protocol),
+                        plaintext=new_credential(intent.protocol),
                         state="pending",
                     )
                 steps.append({"grant_id": grant_id, "protocol": intent.protocol,
@@ -383,7 +387,7 @@ class ProvisioningService:
                 continue
             grant = self._grant(step["grant_id"])
             with self.database.connect() as db:
-                remote = self._remote(db, grant.node_id)
+                remote = is_remote_node(db, grant.node_id)
             if remote:
                 # `active` here means the node confirmed it (remote_applied), not that a
                 # manager of this panel created it: the local runtime may hold an unrelated
@@ -447,8 +451,10 @@ class ProvisioningService:
 
     def confirm_credential(self, db, grant_id: str) -> None:
         """The node reported the grant applied with the credential version the grant
-        names: `pending` becomes `active`. Any other state stands — a retiring version
-        is never resurrected, and a revoked one stays revoked."""
+        names: `pending` becomes `active`, and once that version is active the ones a
+        rotation left `retiring` are revoked — the node runs the new credential, so the
+        old one is history. Any other state stands: a retiring version is never
+        resurrected, and a revoked one stays revoked."""
         grant = self.clients.store.grant(db, grant_id)
         if grant.secret_ref is None:
             return
@@ -456,8 +462,18 @@ class ProvisioningService:
             "SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
             (grant.secret_ref.secret_id, grant.secret_ref.version),
         ).fetchone()
-        if row is not None and row["state"] == "pending":
+        state = None if row is None else row["state"]
+        if state == "pending":
             self.secrets.transition(db, grant.secret_ref, "active")
+            state = "active"
+        if state != "active":
+            return
+        retiring = db.execute(
+            "SELECT version FROM secret_versions WHERE secret_id=? AND state='retiring'",
+            (grant.secret_ref.secret_id,),
+        ).fetchall()
+        for old in retiring:
+            self.secrets.transition(db, SecretRef(grant.secret_ref.secret_id, old["version"]), "revoked")
 
     def escrow_returned_credential(self, db, grant_id: str, credential_ref: str, plaintext: str) -> None:
         """A credential the node's runtime chose itself, escrowed under exactly the
@@ -487,37 +503,63 @@ class ProvisioningService:
                 updated_at=int(self.clock.time()),
             )
 
-    def remote_applied(self, db, observed: ObservedGeneration) -> None:
-        """What one node reported, applied to the operations waiting for it: an `enabled`
-        grant finishes its `remote` step (credential active, grant `enabled`); a `failed`
-        one keeps the step and shows the node's error; the operation succeeds once every
-        step is active. An operation still `applying` locally only has its step marked —
-        `run()` settles its status when the local steps are done."""
-        reported = {item.ref.removeprefix("grant:"): item for item in observed.resources}
-        waiting = db.execute(
+    @staticmethod
+    def _waiting(db) -> list[str]:
+        rows = db.execute(
             "SELECT operation_id FROM provisioning_operations WHERE status IN ('pending_remote','applying')"
         ).fetchall()
-        for row in waiting:
-            operation = self._operation(db, row["operation_id"])
+        return [row["operation_id"] for row in rows]
+
+    @staticmethod
+    def _settled(operation: dict) -> str:
+        """The status of an operation once a node answered for one of its steps: unchanged
+        while a step still waits (`remote`) or `run()` is still applying the local steps
+        (it settles the status itself); otherwise `succeeded` if the node applied any
+        grant, `compensated` if every step was withdrawn before it did."""
+        steps = operation["steps"]
+        if operation["status"] != "pending_remote" or any(step["status"] == "remote" for step in steps):
+            return operation["status"]
+        return "succeeded" if any(step["status"] == "active" for step in steps) else "compensated"
+
+    def remote_applied(self, db, observed: ObservedGeneration) -> None:
+        """What one node reported, applied to the operations waiting for it: a grant the
+        node holds (`enabled`, or `disabled` because the central asked for that meanwhile)
+        finishes its `remote` step with its credential active; a `failed` one keeps the
+        step and shows the node's error; the operation settles once no step waits. An
+        operation still `applying` locally only has its step marked — `run()` settles its
+        status when the local steps are done."""
+        reported = {item.ref.removeprefix("grant:"): item for item in observed.resources}
+        for operation_id in self._waiting(db):
+            operation = self._operation(db, operation_id)
             changed = False
             for step in operation["steps"]:
                 item = reported.get(step["grant_id"])
                 if step["status"] != "remote" or item is None:
                     continue
-                if item.state == "enabled":
+                if item.state in ("enabled", "disabled"):
                     self.confirm_credential(db, step["grant_id"])
                     self.clients.store.update_grant(
-                        db, step["grant_id"], observed_state="enabled", updated_at=int(self.clock.time()),
+                        db, step["grant_id"], observed_state=item.state, updated_at=int(self.clock.time()),
                     )
                     step["status"], step["error"], changed = "active", None, True
                 elif item.state == "failed" and step["error"] != item.error:
                     step["error"], changed = item.error, True
-            if not changed:
-                continue
-            status = operation["status"]
-            if status == "pending_remote" and all(step["status"] == "active" for step in operation["steps"]):
-                status = "succeeded"
-            self._write(db, operation["operation_id"], status=status, steps=operation["steps"])
+            if changed:
+                self._write(db, operation_id, status=self._settled(operation), steps=operation["steps"])
+
+    def withdraw_remote(self, db, grant_id: str, *, reason: str) -> None:
+        """The grant was deleted before its node applied it: the `remote` step waiting for
+        that report will never see one, so it ends `compensated` (the next generation
+        withdraws the resource, nothing was created that stays) and the operation settles
+        now instead of waiting forever. In the caller's transaction, with the deletion."""
+        for operation_id in self._waiting(db):
+            operation = self._operation(db, operation_id)
+            changed = False
+            for step in operation["steps"]:
+                if step["grant_id"] == grant_id and step["status"] == "remote":
+                    step["status"], step["error"], changed = "compensated", reason, True
+            if changed:
+                self._write(db, operation_id, status=self._settled(operation), steps=operation["steps"])
 
     # --- bundle ------------------------------------------------------------------
 

@@ -6,6 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+# One shape for every node id a request may carry: a hostname-like label of up to 64 characters.
+NODE_RE = r"^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
+
 
 class Login(BaseModel):
     username: str = Field(min_length=1, max_length=64)
@@ -104,13 +107,13 @@ class VersionUpdate(BaseModel):
 
 
 class FleetNodeCreate(BaseModel):
-    node_id: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$")
+    node_id: str = Field(pattern=NODE_RE)
     display_name: str = Field(min_length=1, max_length=128)
     inventory: dict = Field(default_factory=dict)
 
 
 class NodeCreate(BaseModel):
-    node_id: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$")
+    node_id: str = Field(pattern=NODE_RE)
     display_name: str = Field(min_length=1, max_length=128)
 
 
@@ -175,6 +178,8 @@ class GrantAdoptBatch(GrantAdopt):
 
 class GrantRequest(BaseModel):
     protocol: Literal["mtproxy", "naive", "mieru"]
+    # This panel's own runtime, or a linked panel (spec §6); anything else is refused.
+    node_id: str = Field(default="local", pattern=NODE_RE)
     runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
     # Protocol-specific options are validated by the domain model, not here.
     options: dict = Field(default_factory=dict)

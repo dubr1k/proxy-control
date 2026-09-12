@@ -213,11 +213,14 @@ class DomainFacade:
                 plaintext=plaintext,
                 state="active",
             )
+            # Only the credential moved: a disabled account stays disabled after a rotation.
             self.clients.store.update_grant(
                 db, grant.id, secret_id=reference.secret_id, secret_version=reference.version,
-                observed_state="enabled", desired_state="enabled",
                 updated_at=int(self.clock.time()),
             )
+            if grant.secret_ref is not None:
+                # The runtime already runs the new credential: the old one is history.
+                self.clients.secrets.transition(db, grant.secret_ref, "revoked")
             record(
                 db,
                 actor=actor,
