@@ -179,3 +179,9 @@ class ClientStore:
         ).rowcount
         if changed != 1:
             raise KeyError(grant_id)
+
+    @staticmethod
+    def delete_grant(db, grant_id: str) -> None:
+        """Only once the runtime account is confirmed gone; the UNIQUE index frees the name."""
+        if db.execute("DELETE FROM access_grants WHERE id=?", (grant_id,)).rowcount != 1:
+            raise KeyError(grant_id)

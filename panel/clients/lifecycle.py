@@ -110,6 +110,11 @@ class GrantLifecycle:
             return self._audited(grant, action, actor=actor, ip=ip, request_id=request_id)
         with self.database.transaction() as db:
             grant = self._live(db, grant_id)
+            if grant.desired_state == state:
+                # Already what the central wants: the generation saying so exists (or is
+                # on its way), and `observed_state` stays what the node last reported —
+                # rewriting it `pending` would publish nothing and wait for nothing.
+                return grant
             return self._declare(
                 db, grant, action, actor=actor, ip=ip, request_id=request_id, desired_state=state
             )
@@ -151,9 +156,10 @@ class GrantLifecycle:
             )
 
     async def delete(self, grant_id: str, *, actor, ip, request_id=None) -> None:
-        """Local: the account is removed and the grant follows it (`forget`). Remote: the
-        grant is `deleted` for the next generation, `missing` once the node confirms; an
-        operation still waiting for the node to apply this grant is settled now."""
+        """Local: the account is removed, the grant follows it (`forget`) and the row is
+        purged at once, so the name can be granted again. Remote: the grant is `deleted`
+        for the next generation and purged by the pusher once the node reports it
+        `missing`; an operation still waiting for the node to apply it is settled now."""
         grant, remote = self._load(grant_id)
         if not remote:
             await self.facade.adapters[grant.protocol].delete(self._ref(grant))
@@ -162,6 +168,7 @@ class GrantLifecycle:
             )
             with self.database.transaction() as db:
                 self._audit(db, grant, "delete", actor=actor, ip=ip, request_id=request_id)
+                self.clients.purge_grant(db, grant.id)
             return
         with self.database.transaction() as db:
             grant = self._live(db, grant_id)
