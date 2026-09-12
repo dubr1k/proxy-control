@@ -382,6 +382,15 @@ class ProvisioningService:
                 self._mark_step(operation_id, step["grant_id"], "compensated")
                 continue
             grant = self._grant(step["grant_id"])
+            with self.database.connect() as db:
+                remote = self._remote(db, grant.node_id)
+            if remote:
+                # `active` here means the node confirmed it (remote_applied), not that a
+                # manager of this panel created it: the local runtime may hold an unrelated
+                # user of the same name. The `deleted` written below withdraws it from the
+                # node through the next generation.
+                self._mark_step(operation_id, grant.id, "compensated")
+                continue
             try:
                 if self.faults.pop("during_compensation", None):
                     raise AdapterError("injected during compensation")

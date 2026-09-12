@@ -6,16 +6,20 @@ generation, the latest one goes out with its credentials revealed for that node 
 and what the node reports lands in `observed_generations`, in the grants'
 `observed_state`, and in the operations that were waiting for it.
 
-The heartbeat cadence is the retry cadence: a failed push, a failed reconcile on the
-node, an unreachable node — all of them wait for the next tick, nothing retries in a
-loop of its own. Network calls never run inside a database transaction; one node's
-failure never stalls the others; a node is synced by one coroutine at a time.
+The heartbeat runs every tick regardless. A push is deferred with a per-node exponential
+backoff (30 s doubling to a 10 min cap) after the node reported the generation `failed`
+or rejected the push with a code the central cannot answer; the backoff is dropped as
+soon as a new generation exists for that node or the node reports converged (spec §6:
+«Ошибки → last_error, backoff»). An unreachable node simply waits for the next heartbeat.
+Network calls never run inside a database transaction; one node's failure never stalls
+the others; a node is synced by one coroutine at a time.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 
 from ..secrets_store import SecretError, SecretRef
 from .client import NodeAuthFailed, NodeRejected, NodeUnreachable
@@ -32,8 +36,19 @@ RESYNC_CODES = ("stale_generation", "digest_conflict")
 # same generation for this long, when the apply is presumed dead and the push goes again
 # (the node's accept is idempotent, and its reconcile is a no-op where it already converged).
 STALE_APPLY_SECONDS = 600
+# Re-push slots after a failed reconcile or a rejected push: 30 s, 60 s, …, capped at 10 min.
+BACKOFF_FIRST_SECONDS = 30.0
+BACKOFF_CAP_SECONDS = 600.0
 # Observed states a grant row can carry; `failed` and `drifted` are folded in `_absorb`.
 GRANT_STATES = ("enabled", "disabled", "missing")
+
+
+@dataclass
+class _Backoff:
+    """Why the next push of `generation` to one node waits until `until` (monotonic)."""
+    generation: int
+    failures: int
+    until: float
 
 
 def _describe(exc: Exception) -> str:
@@ -49,6 +64,8 @@ class FleetPusher:
         self.clients, self.provisioning, self.events = clients, provisioning, events
         self.interval, self.clock, self._stop = interval, clock, asyncio.Event()
         self._locks: dict[str, asyncio.Lock] = {}
+        # In memory on purpose: a restart is a fresh attempt, and nothing here is worth a column.
+        self._backoff: dict[str, _Backoff] = {}
 
     # --- loop -------------------------------------------------------------------
 
@@ -106,6 +123,8 @@ class FleetPusher:
             return
         if self._in_flight(latest, observed):
             await self._poll_observed(client, node_id)
+        elif self._deferred(node_id, latest["generation"]):
+            return  # heartbeat done; the re-push waits for its slot
         elif link["config_dirty"] or link["acknowledged_generation"] < latest["generation"]:
             await self._push(client, node_id, latest)
 
@@ -115,6 +134,27 @@ class FleetPusher:
             return False
         return (observed.applied_generation == latest["generation"] and observed.reconcile_state == "applying"
                 and self.clock.time() - latest["pushed_at"] < STALE_APPLY_SECONDS)
+
+    # --- backoff ----------------------------------------------------------------
+
+    def _defer(self, node_id: str, generation: int) -> None:
+        """One more failure of `generation` on this node: the next slot doubles, from 30 s to the cap."""
+        current = self._backoff.get(node_id)
+        failures = current.failures + 1 if current and current.generation == generation else 1
+        wait = min(BACKOFF_FIRST_SECONDS * 2 ** (failures - 1), BACKOFF_CAP_SECONDS)
+        self._backoff[node_id] = _Backoff(generation, failures, self.clock.monotonic() + wait)
+        log.info("fleet: node %s: generation %s deferred for %.0f s (failure %s)", node_id, generation, wait, failures)
+
+    def _deferred(self, node_id: str, generation: int) -> bool:
+        """True while the slot for this very generation has not come; a different (newer)
+        generation forgets the backoff outright — something changed for this node."""
+        current = self._backoff.get(node_id)
+        if current is None:
+            return False
+        if current.generation != generation:
+            del self._backoff[node_id]
+            return False
+        return self.clock.monotonic() < current.until
 
     def _emit(self, db, name: str | None, node_id: str) -> None:
         if name:
@@ -154,6 +194,8 @@ class FleetPusher:
                            (f"push {exc.status}: {exc.code or 'rejected'}"[:200], int(self.clock.time()), node_id))
             if exc.code in RESYNC_CODES:
                 await self._resync(client, node_id, latest)
+            else:
+                self._defer(node_id, document.generation)
             return
         except (NodeUnreachable, NodeAuthFailed) as exc:
             self._offline(node_id, exc)
@@ -207,6 +249,10 @@ class FleetPusher:
             self.desired.record_observed(db, node_id, observed)
             latest = self.desired.latest(db, node_id)
             current = latest is not None and observed.applied_generation == latest["generation"]
+            if observed.reconcile_state == "converged":
+                self._backoff.pop(node_id, None)
+            elif current and observed.reconcile_state == "failed":
+                self._defer(node_id, latest["generation"])
             grants = {grant.id: grant for grant in self.clients.store.grants(db, node_id=node_id, include_deleted=True)}
             for item in observed.resources:
                 grant = grants.get(item.ref.removeprefix("grant:"))

@@ -84,7 +84,8 @@ class Settings:
     login_verify_concurrency: int = 2
     api_key_rate_per_minute: int = 120
     # How often the central panel heartbeats every linked panel and delivers what it
-    # owes them (spec §6); it is also the retry cadence after a failed push.
+    # owes them (spec §6). A push the node failed or rejected is not repeated every
+    # heartbeat: it backs off per node (30 s doubling to 10 min) until something changes.
     fleet_heartbeat_seconds: int = int(os.getenv("PANEL_FLEET_HEARTBEAT_SECONDS", "15"))
 
     def __post_init__(self) -> None:

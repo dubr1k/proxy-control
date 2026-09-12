@@ -5,6 +5,7 @@ generation, one push and the absorption of what the node reported. Nothing here
 sleeps: the loop's cadence is injected and each test drives `tick()` by hand.
 """
 import asyncio
+import time
 
 import pytest
 
@@ -219,12 +220,36 @@ async def test_a_manager_chosen_credential_is_escrowed_under_the_version_the_doc
         assert central.state.desired.latest(db, node_id)["generation"] == 1
 
 
-async def test_a_failed_resource_is_reported_on_the_step_and_retried_on_the_next_tick(pair):
+class _Clock:
+    """Real time as a starting point, advanced by hand: the backoff slots are minutes."""
+
+    def __init__(self):
+        self.now, self.mono = time.time(), time.monotonic()
+
+    def time(self):
+        return self.now
+
+    def monotonic(self):
+        return self.mono
+
+    def advance(self, seconds):
+        self.now += seconds
+        self.mono += seconds
+
+
+async def _failing_alice(pair):
+    """A grant the node keeps refusing: a local user of the same name lives on the node (ADR 003)."""
     node, central, node_id, client = await _link(pair)
-    # A local user of the same name on the node: the node refuses to adopt it (ADR 003).
     await node.state.naive.create("alice", None, password="local-secret", operation_id="local")
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    clock = _Clock()
+    central.state.pusher.clock = clock
+    return node, central, node_id, client, operation, clock
+
+
+async def test_a_failed_resource_is_reported_on_the_step_and_re_pushed_with_backoff(pair):
+    node, central, node_id, client, operation, clock = await _failing_alice(pair)
     await central.state.pusher.tick()
     status = central.state.provisioning.status(operation)
     assert status["status"] == "pending_remote" and status["steps"][0]["status"] == "remote"
@@ -234,9 +259,102 @@ async def test_a_failed_resource_is_reported_on_the_step_and_retried_on_the_next
     assert link["config_dirty"] == 1 and link["status"] == "online"
     with central.state.database.connect() as db:
         assert central.state.desired.observed(db, node_id).reconcile_state == "failed"
-    await node.state.naive.delete("alice")
+    # The next ticks heartbeat but do not re-push: the first slot is 30 s.
     await central.state.pusher.tick()
-    assert _accepts(node) == 2  # the same generation went out again
+    clock.advance(29)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 1 and _link_row(central, node_id)["last_heartbeat_at"] is not None
+    clock.advance(2)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 2  # the slot passed; the same generation went out again and failed again
+    # Exponential: 60 s now, so 31 s later nothing goes out; 30 s more and it does.
+    clock.advance(31)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 2
+    clock.advance(30)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 3
+    # Once the node can apply it, the push that converges clears the backoff.
+    await node.state.naive.delete("alice")
+    clock.advance(121)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 4
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    assert _link_row(central, node_id)["config_dirty"] == 0 and node_id not in central.state.pusher._backoff
+
+
+async def test_backoff_is_capped_at_ten_minutes(pair):
+    node, central, node_id, client, operation, clock = await _failing_alice(pair)
+    pushes = 0
+    for slot in (30, 60, 120, 240, 480, 600, 600):
+        await central.state.pusher.tick()
+        pushes += 1
+        assert _accepts(node) == pushes
+        clock.advance(slot - 1)
+        await central.state.pusher.tick()
+        assert _accepts(node) == pushes
+        clock.advance(1)
+    await central.state.pusher.tick()
+    assert _accepts(node) == pushes + 1
+
+
+async def test_a_new_generation_resets_the_backoff(pair):
+    node, central, node_id, client, operation, clock = await _failing_alice(pair)
+    await central.state.pusher.tick()
+    await central.state.pusher.tick()
+    assert _accepts(node) == 1  # deferred
+    # Something changed for this node: the new generation goes out at once, not after the slot.
+    second = GrantIntent(protocol="naive", node_id=node_id, runtime_username="bob", options=NaiveOptions())
+    other = await central.state.provisioning.start(client.id, [second], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    assert _accepts(node) == 2
+    assert central.state.provisioning.status(other)["status"] == "succeeded"
+    assert central.state.provisioning.status(operation)["status"] == "pending_remote"
+    assert "bob" in [u["username"] for u in await node.state.naive.list_users()]
+    # alice still fails: the backoff starts over from the first slot for generation 2.
+    await central.state.pusher.tick()
+    assert _accepts(node) == 2
+    clock.advance(31)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 3
+
+
+async def test_a_rejected_push_is_retried_with_backoff_not_every_tick(pair):
+    from panel.fleet_v2.client import NodeRejected
+
+    node, central, node_id, client = await _link(pair)
+    clock = _Clock()
+    central.state.pusher.clock = clock
+    real = central.state.links.client_factory
+
+    def rejecting(url, key, **kw):
+        inner = real(url, key, **kw)
+
+        class Rejecting:
+            async def identity(self):
+                return await inner.identity()
+
+            async def status(self):
+                return await inner.status()
+
+            async def push(self, request):
+                raise NodeRejected(409, "guid_mismatch", "the request names another panel")
+
+        return Rejecting()
+
+    intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
+    operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    central.state.links.client_factory = rejecting
+    await central.state.pusher.tick()
+    link = _link_row(central, node_id)
+    assert link["last_error"] == "push 409: guid_mismatch" and "another panel" not in link["last_error"]
+    central.state.links.client_factory = real
+    await central.state.pusher.tick()
+    assert _accepts(node) == 0  # the node is fine again, but the push waits for its slot
+    assert central.state.provisioning.status(operation)["status"] == "pending_remote"
+    clock.advance(31)
+    await central.state.pusher.tick()
+    assert _accepts(node) == 1
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
 
 
