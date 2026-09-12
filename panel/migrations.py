@@ -229,9 +229,30 @@ LINKS_V11 = Migration(11, "fleet-v2-links", (
       resources_json TEXT NOT NULL, reported_at INTEGER NOT NULL)""",
 ))
 
+# An operation whose grants live on a linked panel waits for that node (spec §6):
+# `pending_remote` joins the status set. SQLite cannot widen a CHECK in place, so the
+# table is rebuilt the way the runner already rebuilds fleet_commands; nothing references
+# provisioning_operations, so the rename touches no other table.
+REMOTE_OPERATIONS_V12 = Migration(12, "provisioning-pending-remote", (
+    "DROP INDEX IF EXISTS provisioning_operations_client",
+    "ALTER TABLE provisioning_operations RENAME TO provisioning_operations_old",
+    """CREATE TABLE provisioning_operations (
+      operation_id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+      status TEXT NOT NULL CHECK(status IN
+        ('pending','pending_remote','applying','succeeded','compensating','compensated',
+         'manual_intervention_required')),
+      steps_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)""",
+    """INSERT INTO provisioning_operations SELECT operation_id,client_id,status,steps_json,created_at,updated_at
+       FROM provisioning_operations_old""",
+    "DROP TABLE provisioning_operations_old",
+    "CREATE INDEX provisioning_operations_client ON provisioning_operations(client_id)",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
-    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11,
+    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

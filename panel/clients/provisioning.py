@@ -9,6 +9,10 @@ Every run ends in exactly one of three outcomes — `succeeded`, `compensated`, 
 `manual_intervention_required`. The last one is not a failure to handle later: it means
 the runtime changed in a way the panel cannot undo safely, and it names the operation so
 a person can finish the job.
+
+A grant on a linked panel (spec §6) has no manager here to call: its step is `remote`,
+the operation waits as `pending_remote`, and the fleet pusher finishes the step from
+what the node reports (`remote_applied`).
 """
 from __future__ import annotations
 
@@ -20,6 +24,7 @@ from dataclasses import dataclass, field
 
 from ..audit import record
 from ..fleet_v2.managed import ManagedStore
+from ..fleet_v2.protocol import ObservedGeneration
 from ..protocols.base import (
     AdapterError,
     CredentialPlan,
@@ -34,6 +39,14 @@ from .store import ClientConflict
 TERMINAL = ("succeeded", "compensated", "manual_intervention_required")
 # A step never skips backwards: each transition is its own durable checkpoint.
 CREATED = ("applied", "escrowed", "active")
+# Steps `run()` has nothing to do for: finished, or waiting for a linked panel.
+SETTLED = ("active", "remote")
+
+
+def _new_credential(protocol: str) -> bytes:
+    """Telemt wants 32 hex characters; a runtime handed anything else falls back to a
+    secret of its own choosing and the panel has to escrow that instead."""
+    return (secret_tokens.token_hex(16) if protocol == "mtproxy" else secret_tokens.token_urlsafe(24)).encode()
 
 
 @dataclass(frozen=True)
@@ -107,6 +120,12 @@ class ProvisioningService:
 
     # --- start -------------------------------------------------------------------
 
+    @staticmethod
+    def _remote(db, node_id: str) -> bool:
+        """A grant on a linked panel is applied by that panel's reconcile, not by a manager here."""
+        row = db.execute("SELECT transport FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
+        return row is not None and row["transport"] == "panel"
+
     def _adapter(self, protocol: str):
         adapter = self.adapters.get(protocol)
         if adapter is None:
@@ -120,15 +139,20 @@ class ProvisioningService:
 
         Preflight asks each runtime whether the username is free before anything is
         written, which is why this is async: refusing here costs nothing, while
-        refusing halfway through would leave accounts to compensate.
+        refusing halfway through would leave accounts to compensate. A grant on a
+        linked panel skips it — the node answers through its generation instead — and
+        is reserved together with its credential and the generation that carries it.
         """
         if not intents:
             raise ClientConflict("an operation needs at least one grant")
         with self.database.connect() as db:
+            remote = {intent.node_id for intent in intents if self._remote(db, intent.node_id)}
             for intent in intents:
                 if intent.node_id == "local" and self.managed.is_managed(db, intent.protocol, intent.runtime_username):
                     raise ClientConflict(f"{intent.protocol}: runtime_username is managed by central")
         for intent in intents:
+            if intent.node_id in remote:
+                continue  # no manager to ask here: the node's own reconcile reports a taken name
             check = await self._adapter(intent.protocol).preflight(intent)
             if not check.ok:
                 raise ClientConflict(f"{intent.protocol}: {check.reason}")
@@ -138,7 +162,8 @@ class ProvisioningService:
         with self.database.transaction() as db:
             self.clients.store.client(db, client_id)
             for intent in intents:
-                adapter = self._adapter(intent.protocol)
+                is_remote = intent.node_id in remote
+                adapter = None if is_remote else self._adapter(intent.protocol)
                 taken = self.clients.store.find_grant(
                     db, intent.protocol, intent.node_id, intent.endpoint_id, intent.runtime_username
                 )
@@ -154,6 +179,9 @@ class ProvisioningService:
                         node_id=intent.node_id,
                         endpoint_id=intent.endpoint_id,
                         runtime_username=intent.runtime_username,
+                        # A remote grant points at its credential from the start: the
+                        # generation names that version, and a rotation must retire it.
+                        secret_ref=SecretRef(f"grant:{grant_id}", 1) if is_remote else None,
                         desired_state="enabled",
                         observed_state="pending",
                         valid_from=intent.valid_from,
@@ -164,9 +192,11 @@ class ProvisioningService:
                         updated_at=now,
                     ),
                 )
-                if adapter.credential_origin == "caller":
+                if is_remote or adapter.credential_origin == "caller":
                     # The panel escrows the credential before the manager ever sees it,
-                    # so a lost reply can never cost the subscriber their access.
+                    # so a lost reply can never cost the subscriber their access. A remote
+                    # grant always travels with one; a runtime that insists on choosing
+                    # its own hands it back through the push response.
                     self.secrets.store(
                         db,
                         secret_id=f"grant:{grant_id}",
@@ -174,16 +204,16 @@ class ProvisioningService:
                         purpose=CREDENTIAL_PURPOSE,
                         grant_id=grant_id,
                         permitted_node_id=intent.node_id,
-                        plaintext=secret_tokens.token_urlsafe(24).encode(),
+                        plaintext=_new_credential(intent.protocol),
                         state="pending",
                     )
-                steps.append(
-                    {"grant_id": grant_id, "protocol": intent.protocol, "status": "pending", "error": None}
-                )
+                steps.append({"grant_id": grant_id, "protocol": intent.protocol,
+                              "status": "remote" if is_remote else "pending", "error": None})
             db.execute(
                 """INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)
                    VALUES(?,?,?,?,?,?)""",
-                (operation_id, client_id, "pending", json.dumps(steps, sort_keys=True), now, now),
+                (operation_id, client_id, "pending_remote" if remote else "pending",
+                 json.dumps(steps, sort_keys=True), now, now),
             )
             record(
                 db,
@@ -194,6 +224,12 @@ class ProvisioningService:
                 request_id=request_id,
                 detail={"client_id": client_id, "protocols": [intent.protocol for intent in intents]},
             )
+            if remote:
+                # The generation that carries the remote grants is published in this same
+                # transaction: a rolled-back operation leaves nothing for the pusher.
+                self.clients.notify(db, client_id)
+            if self.faults.pop("before_remote_commit", None):
+                raise RuntimeError("injected before the remote commit")
         return operation_id
 
     # --- run ---------------------------------------------------------------------
@@ -284,10 +320,11 @@ class ProvisioningService:
             operation = self._operation(db, operation_id)
         if operation["status"] in TERMINAL:
             return self._result(operation_id)
-        self._mark_operation(operation_id, "applying")
+        if any(step["status"] not in SETTLED for step in operation["steps"]):
+            self._mark_operation(operation_id, "applying")
         for step in operation["steps"]:
-            if step["status"] == "active":
-                continue
+            if step["status"] in SETTLED:
+                continue  # a `remote` step is the node's to finish; see remote_applied()
             try:
                 await self._advance(operation_id, step)
             except ManualInterventionRequired as exc:
@@ -301,7 +338,12 @@ class ProvisioningService:
                 # An injected or unexpected crash leaves the journal where it is; the
                 # next run resumes from the last durable checkpoint.
                 raise
-        self._mark_operation(operation_id, "succeeded")
+        # The journal decides, not this loop's snapshot: a node may have reported a
+        # remote step applied while the local ones were running.
+        with self.database.connect() as db:
+            steps = self._operation(db, operation_id)["steps"]
+        waiting = any(step["status"] == "remote" for step in steps)
+        self._mark_operation(operation_id, "pending_remote" if waiting else "succeeded")
         return self._result(operation_id)
 
     async def _advance(self, operation_id: str, step: dict) -> None:
@@ -359,12 +401,16 @@ class ProvisioningService:
                     updated_at=int(self.clock.time()),
                 )
         with self.database.transaction() as db:
-            for step in self._operation(db, operation_id)["steps"]:
-                if step["status"] == "compensated":
-                    self.clients.store.update_grant(
-                        db, step["grant_id"], desired_state="deleted",
-                        updated_at=int(self.clock.time()),
-                    )
+            operation = self._operation(db, operation_id)
+            compensated = [step["grant_id"] for step in operation["steps"] if step["status"] == "compensated"]
+            for grant_id in compensated:
+                self.clients.store.update_grant(
+                    db, grant_id, desired_state="deleted", updated_at=int(self.clock.time()),
+                )
+            if compensated:
+                # A grant already published to a linked panel is withdrawn by the next
+                # generation; a local one leaves the subscription, which must move too.
+                self.clients.notify(db, operation["client_id"])
         with self.database.transaction() as db:
             record(
                 db,
@@ -387,6 +433,82 @@ class ProvisioningService:
                 for step in state["steps"]
             ],
         )
+
+    # --- remote (called by the fleet pusher, inside its transaction) ----------------
+
+    def confirm_credential(self, db, grant_id: str) -> None:
+        """The node reported the grant applied with the credential version the grant
+        names: `pending` becomes `active`. Any other state stands — a retiring version
+        is never resurrected, and a revoked one stays revoked."""
+        grant = self.clients.store.grant(db, grant_id)
+        if grant.secret_ref is None:
+            return
+        row = db.execute(
+            "SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
+            (grant.secret_ref.secret_id, grant.secret_ref.version),
+        ).fetchone()
+        if row is not None and row["state"] == "pending":
+            self.secrets.transition(db, grant.secret_ref, "active")
+
+    def escrow_returned_credential(self, db, grant_id: str, credential_ref: str, plaintext: str) -> None:
+        """A credential the node's runtime chose itself, escrowed under exactly the
+        `secret_id:version` the generation named (binding ruling). A bumped version would
+        be a new `credential_ref`, and the node would rotate the account on the next
+        generation for nothing. The row is replaced in place — `SecretStore.store` is a
+        plain INSERT — because the runtime's value is the truth whatever the version's
+        state was; it is `active` from here on."""
+        secret_id, _, version = credential_ref.rpartition(":")
+        if secret_id != f"grant:{grant_id}" or not version.isdigit():
+            raise ValueError("credential_ref does not belong to this grant")
+        grant = self.clients.store.grant(db, grant_id)
+        db.execute("DELETE FROM secret_versions WHERE secret_id=? AND version=?", (secret_id, int(version)))
+        reference = self.secrets.store(
+            db,
+            secret_id=secret_id,
+            version=int(version),
+            purpose=CREDENTIAL_PURPOSE,
+            grant_id=grant.id,
+            permitted_node_id=grant.node_id,
+            plaintext=plaintext.encode(),
+            state="active",
+        )
+        if grant.secret_ref is None:
+            self.clients.store.update_grant(
+                db, grant.id, secret_id=reference.secret_id, secret_version=reference.version,
+                updated_at=int(self.clock.time()),
+            )
+
+    def remote_applied(self, db, observed: ObservedGeneration) -> None:
+        """What one node reported, applied to the operations waiting for it: an `enabled`
+        grant finishes its `remote` step (credential active, grant `enabled`); a `failed`
+        one keeps the step and shows the node's error; the operation succeeds once every
+        step is active. An operation still `applying` locally only has its step marked —
+        `run()` settles its status when the local steps are done."""
+        reported = {item.ref.removeprefix("grant:"): item for item in observed.resources}
+        waiting = db.execute(
+            "SELECT operation_id FROM provisioning_operations WHERE status IN ('pending_remote','applying')"
+        ).fetchall()
+        for row in waiting:
+            operation = self._operation(db, row["operation_id"])
+            changed = False
+            for step in operation["steps"]:
+                item = reported.get(step["grant_id"])
+                if step["status"] != "remote" or item is None:
+                    continue
+                if item.state == "enabled":
+                    self.confirm_credential(db, step["grant_id"])
+                    self.clients.store.update_grant(
+                        db, step["grant_id"], observed_state="enabled", updated_at=int(self.clock.time()),
+                    )
+                    step["status"], step["error"], changed = "active", None, True
+                elif item.state == "failed" and step["error"] != item.error:
+                    step["error"], changed = item.error, True
+            if not changed:
+                continue
+            status = operation["status"]
+            if status == "pending_remote" and all(step["status"] == "active" for step in operation["steps"]):
+                status = "succeeded"
+            self._write(db, operation["operation_id"], status=status, steps=operation["steps"])
 
     # --- bundle ------------------------------------------------------------------
 

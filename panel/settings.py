@@ -83,6 +83,9 @@ class Settings:
     body_limit_bytes: int = 65536
     login_verify_concurrency: int = 2
     api_key_rate_per_minute: int = 120
+    # How often the central panel heartbeats every linked panel and delivers what it
+    # owes them (spec §6); it is also the retry cadence after a failed push.
+    fleet_heartbeat_seconds: int = int(os.getenv("PANEL_FLEET_HEARTBEAT_SECONDS", "15"))
 
     def __post_init__(self) -> None:
         if not self.subscription_host and self.subscription_url:

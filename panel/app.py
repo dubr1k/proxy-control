@@ -25,6 +25,7 @@ from .fleet_v2.identity import ensure_guid, read_panel_version
 from .fleet_v2.links import NodeLinkService
 from .fleet_v2.managed import ManagedStore
 from .fleet_v2.node_routes import register_fleet_v2_node_routes
+from .fleet_v2.pusher import FleetPusher
 from .fleet_v2.reconcile import Reconciler
 from .keyring import Keyring
 from .mieru import MieruClient, MieruError
@@ -45,6 +46,9 @@ from .version_routes import register_version_routes
 from .versions import VersionAgentError, VersionClient
 from .web_context import KeyRateLimiter, RequestContext, install_security_middleware
 
+# How long shutdown waits for a fleet tick in flight before cancelling it.
+PUSHER_STOP_GRACE = 5.0
+
 
 def create_app(
     settings: Settings | None = None,
@@ -61,6 +65,8 @@ def create_app(
         raise ValueError("NAIVE_PUBLIC_HOST is required when NaiveProxy is enabled")
     if settings.login_verify_concurrency < 1:
         raise ValueError("login_verify_concurrency must be positive")
+    if settings.fleet_heartbeat_seconds < 1:
+        raise ValueError("PANEL_FLEET_HEARTBEAT_SECONDS must be positive")
 
     app = FastAPI(
         title="Proxy Control API", docs_url=None, redoc_url=None, openapi_url=None
@@ -147,6 +153,26 @@ def create_app(
             publish(db, app.state.clients.store, app.state.desired, node_id=row["node_id"], master_guid=app.state.panel_guid)
 
     app.state.clients.on_change.append(publish_for_client)
+    app.state.pusher = FleetPusher(app.state.database, app.state.links, app.state.desired, app.state.secrets,
+                                   app.state.clients, app.state.provisioning, app.state.events,
+                                   interval=settings.fleet_heartbeat_seconds)
+
+    # The heartbeat/delivery loop lives as a background task for the process's lifetime:
+    # startup never waits on a node, and shutdown lets a tick in flight finish briefly
+    # before cancelling it (a push cut short is simply repeated after the restart).
+    async def _start_pusher():
+        app.state.pusher_task = asyncio.create_task(app.state.pusher.run_forever())
+
+    async def _stop_pusher():
+        task = app.state.pusher_task
+        app.state.pusher.stop()
+        done, _ = await asyncio.wait({task}, timeout=PUSHER_STOP_GRACE)
+        if not done:
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    app.add_event_handler("startup", _start_pusher)
+    app.add_event_handler("shutdown", _stop_pusher)
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")

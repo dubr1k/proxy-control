@@ -126,7 +126,7 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
         limit: int = Query(100, ge=1, le=MAX_PAGE),
         _user=Depends(context.current),
     ):
-        """Subscription events only, oldest first, paged by row id; every role may read them."""
+        """Subscription and node events, oldest first, paged by row id; every role may read them."""
         items = await asyncio.to_thread(app.state.events.since, after, limit)
         return {"items": items, "next_after": items[-1]["id"] if items else after}
 
