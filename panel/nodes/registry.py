@@ -1,6 +1,7 @@
 """Node rows: reads and writes that a caller composes into one transaction."""
 from __future__ import annotations
 
+import json
 import time
 
 from ..database import Database
@@ -13,25 +14,42 @@ class NodeRegistry:
         self.database = database
 
     @staticmethod
+    def link_row(row) -> dict:
+        """A node_links row as the services see it: JSON columns parsed, and only the
+        fact that a key exists — the key itself lives encrypted in secret_versions."""
+        value = dict(row)
+        value["identity"] = json.loads(value.pop("identity_json"))
+        value["status_json"] = json.loads(value["status_json"])
+        value["has_api_key"] = True
+        return value
+
+    @staticmethod
     def rows(db) -> list[dict]:
         # The operator's own host is what they look at first, and sorting by node_id would
         # bury it somewhere in the middle of the fleet.
-        return [
+        links = {row["node_id"]: NodeRegistry.link_row(row) for row in db.execute("SELECT * FROM node_links")}
+        values = [
             FleetStore._node(row)
             for row in db.execute(
                 "SELECT * FROM fleet_nodes ORDER BY CASE WHEN kind='local' THEN 0 ELSE 1 END, node_id"
             )
         ]
+        for value in values:
+            value["link"] = links.get(value["node_id"])
+        return values
 
     @staticmethod
     def row(db, node_id: str) -> dict:
         row = db.execute("SELECT * FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
         if row is None:
             raise KeyError(node_id)
-        return FleetStore._node(row)
+        value = FleetStore._node(row)
+        link = db.execute("SELECT * FROM node_links WHERE node_id=?", (node_id,)).fetchone()
+        value["link"] = None if link is None else NodeRegistry.link_row(link)
+        return value
 
     @staticmethod
-    def insert(db, node_id: str, display_name: str, *, kind: str = "remote") -> None:
+    def insert(db, node_id: str, display_name: str, *, kind: str = "remote", transport: str = "v1") -> None:
         """Same validation as FleetStore.register_node, but in the caller's transaction.
 
         Registration and its audit row must commit together, which a store method
@@ -46,9 +64,9 @@ class NodeRegistry:
         validate_inventory({})
         now = int(time.time())
         db.execute(
-            """INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at,kind)
-               VALUES(?,?,'unenrolled','{}',?,?,?)""",
-            (node_id, display_name.strip(), now, now, kind),
+            """INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at,kind,transport)
+               VALUES(?,?,'unenrolled','{}',?,?,?,?)""",
+            (node_id, display_name.strip(), now, now, kind, transport),
         )
 
     @staticmethod

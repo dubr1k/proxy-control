@@ -20,7 +20,9 @@ from .database import Database
 from .events import EventBus
 from .fleet import FleetStore
 from .fleet_routes import register_fleet_routes
+from .fleet_v2.generations import DesiredStore, publish
 from .fleet_v2.identity import ensure_guid, read_panel_version
+from .fleet_v2.links import NodeLinkService
 from .fleet_v2.managed import ManagedStore
 from .fleet_v2.node_routes import register_fleet_v2_node_routes
 from .fleet_v2.reconcile import Reconciler
@@ -131,6 +133,20 @@ def create_app(
     )
     # A generation accepted before a restart is applied again (spec §5.3).
     app.add_event_handler("startup", app.state.reconciler.run_pending)
+    # The central side (spec §6): linked panels and the generations compiled for them.
+    app.state.desired = DesiredStore(app.state.database)
+    app.state.links = NodeLinkService(app.state.database, app.state.secrets, app.state.nodes,
+                                      own_guid=app.state.panel_guid)
+
+    def publish_for_client(db, client_id):
+        # Every grant mutation funnels through ClientService.notify; publish for each
+        # linked node the client touches, inside the same transaction (spec §6).
+        rows = db.execute("""SELECT DISTINCT g.node_id FROM access_grants g JOIN node_links l ON l.node_id=g.node_id
+                             WHERE g.client_id=?""", (client_id,)).fetchall()
+        for row in rows:
+            publish(db, app.state.clients.store, app.state.desired, node_id=row["node_id"], master_guid=app.state.panel_guid)
+
+    app.state.clients.on_change.append(publish_for_client)
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")

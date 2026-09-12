@@ -34,3 +34,7 @@ class NodeView:
     last_checked_at: int | None
     certificates: list[CertificateInfo] = field(default_factory=list)
     pending_commands: int = 0
+    # `v1` = the mTLS agent transport; `panel` = a linked panel reached over HTTPS
+    # (Fleet v2). `link` describes that connection and never carries the API key.
+    transport: str = "v1"
+    link: dict | None = None
