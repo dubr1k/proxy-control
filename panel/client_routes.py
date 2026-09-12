@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict
+from typing import Literal
 
 from fastapi import Depends, HTTPException, Request
 
@@ -22,14 +23,12 @@ from .schemas import (
 from .web_context import RequestContext
 
 
+def _grant(grant) -> dict:
+    return {**grant.model_dump(), "secret_ref": asdict(grant.secret_ref) if grant.secret_ref else None}
+
+
 def _client(client, grants) -> dict:
-    return {
-        "client": client.model_dump(),
-        "grants": [
-            {**grant.model_dump(), "secret_ref": asdict(grant.secret_ref) if grant.secret_ref else None}
-            for grant in grants
-        ],
-    }
+    return {"client": client.model_dump(), "grants": [_grant(grant) for grant in grants]}
 
 
 def register_client_routes(app, context: RequestContext) -> None:
@@ -166,6 +165,37 @@ def register_client_routes(app, context: RequestContext) -> None:
                 adopted.append(result)
         return {"adopted": adopted, "refused": refused}
 
+    @app.post("/api/clients/grants/{grant_id}/{action}")
+    async def grant_action(
+        grant_id: str,
+        action: Literal["enable", "disable", "rotate", "delete"],
+        request: Request,
+        user=Depends(context.roles("owner", "admin")),
+    ):
+        """One grant, local or on a linked panel; a remote change only records what the
+        central wants and the pusher delivers it (the reply never carries a credential)."""
+        service = app.state.lifecycle
+        try:
+            if action in ("enable", "disable"):
+                grant = await service.set_enabled(grant_id, action == "enable", **_context(request, user))
+            elif action == "rotate":
+                grant = await service.rotate(grant_id, **_context(request, user))
+            else:
+                await service.delete(grant_id, **_context(request, user))
+                return {"ok": True}
+        except KeyError as exc:
+            raise HTTPException(404, "grant not found") from exc
+        except ClientConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ManualInterventionRequired as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except AdapterError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        except SecretError as exc:
+            # Without a master key a rotated credential has nowhere to go.
+            raise HTTPException(409, str(exc)) from exc
+        return _grant(grant)
+
     @app.post("/api/clients/{client_id}/grants")
     async def create_grants(
         client_id: str, body: GrantsCreate, request: Request, user=Depends(context.roles("owner", "admin"))
@@ -174,6 +204,7 @@ def register_client_routes(app, context: RequestContext) -> None:
             intents = [
                 GrantIntent(
                     protocol=item.protocol,
+                    node_id=item.node_id,
                     runtime_username=item.runtime_username,
                     options=PROTOCOL_OPTIONS[item.protocol].model_validate(item.options),
                     valid_from=item.valid_from,

@@ -14,6 +14,7 @@ from .api_keys import ApiKeyService
 from .auth_routes import register_auth_admin_audit_routes
 from .client_routes import register_client_routes
 from .clients.facade import DomainFacade
+from .clients.lifecycle import GrantLifecycle
 from .clients.provisioning import ProvisioningService
 from .clients.service import ClientService
 from .database import Database
@@ -113,6 +114,10 @@ def create_app(
     )
     app.state.domain_facade = DomainFacade(
         app.state.clients, app.state.provisioning, app.state.adapters, managed=app.state.managed
+    )
+    # Enable/disable/rotate/delete of one grant, on this runtime or on a linked panel (spec §7).
+    app.state.lifecycle = GrantLifecycle(
+        app.state.database, app.state.clients, app.state.secrets, app.state.domain_facade
     )
     app.state.events = EventBus(app.state.database)
     app.state.subscriptions = SubscriptionService(

@@ -62,7 +62,6 @@ async def test_offline_node_keeps_the_grant_pending_and_converges_later(pair, mo
     assert [e["name"] for e in central.state.events.since(0, 50)][-1] == "node.up"
 
 
-@pytest.mark.skip("Task 10")
 async def test_disable_rotate_and_delete_publish_new_generations(pair):
     node, central, node_id, client = await _link(pair)
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
