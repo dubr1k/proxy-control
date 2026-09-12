@@ -46,6 +46,18 @@ class GenerationDocument(_Strict):
     created_by: str = Field(max_length=128)
     resources: list[Resource] = Field(max_length=MAX_RESOURCES)
 
+    @model_validator(mode="after")
+    def resources_do_not_collide_on_the_same_runtime_user(self):
+        """Two resources naming the same (protocol, runtime_username) would race the
+        same runtime account and make `apply()`'s outcome depend on list order."""
+        seen: set[tuple[str, str]] = set()
+        for resource in self.resources:
+            key = (resource.protocol, resource.runtime_username)
+            if key in seen:
+                raise ValueError(f"duplicate resource for {resource.protocol}/{resource.runtime_username}")
+            seen.add(key)
+        return self
+
 
 def canonical_digest(document: GenerationDocument) -> str:
     payload = document.model_dump()
