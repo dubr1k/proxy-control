@@ -107,6 +107,45 @@ async def test_a_failed_local_step_compensates_and_withdraws_the_remote_grant(pa
     assert alice["observed_state"] == "missing"
 
 
+async def test_compensation_never_sends_a_node_confirmed_remote_step_to_a_local_manager(pair, monkeypatch):
+    from panel.fleet_v2.protocol import ObservedGeneration
+
+    node, central, node_id, client = await _linked(pair)
+    # An unrelated local user with the same runtime name on the central's own runtime.
+    await central.state.naive.create("alice", None, password="local-secret", operation_id="local")
+    remote = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
+    local = GrantIntent(protocol="naive", node_id="local", runtime_username="bob", options=NaiveOptions())
+    operation = await central.state.provisioning.start(client.id, [remote, local], actor=ACTOR, ip="x")
+    alice = next(g for g in central.state.clients.client_with_grants(client.id)[1] if g.runtime_username == "alice")
+    adapter = central.state.adapters["naive"]
+    create = adapter.create
+
+    async def create_while_the_node_confirms(operation_id, intent, credential):
+        applied = await create(operation_id, intent, credential)
+        # A tick lands while the local step is in flight: the node reports alice applied.
+        report = ObservedGeneration(applied_generation=1, digest="d", reconcile_state="converged", reported_at=1,
+                                    resources=[{"ref": f"grant:{alice.id}", "protocol": "naive",
+                                                "runtime_username": "alice", "state": "enabled"}])
+        with central.state.database.transaction() as db:
+            central.state.provisioning.remote_applied(db, report)
+        assert central.state.provisioning.status(operation)["status"] == "applying"
+        return applied
+
+    monkeypatch.setattr(adapter, "create", create_while_the_node_confirms)
+    central.state.provisioning.faults["after_apply"] = "naive"
+    result = await central.state.provisioning.run(operation)
+    assert result.status == "compensated" and sorted(step.status for step in result.steps) == ["compensated"] * 2
+    users = [u["username"] for u in await central.state.naive.list_users()]
+    assert "alice" in users and "bob" not in users  # the local runtime's alice is not the node's
+    with central.state.database.connect() as db:
+        latest = central.state.desired.latest(db, node_id)
+        states = {row["runtime_username"]: (row["desired_state"], row["observed_state"])
+                  for row in db.execute("SELECT runtime_username, desired_state, observed_state FROM access_grants")}
+    assert states == {"alice": ("deleted", "enabled"), "bob": ("deleted", "missing")}
+    assert latest["generation"] == 2 and [(r.ref, r.desired_state) for r in latest["document"].resources] == \
+        [(f"grant:{alice.id}", "deleted")]
+
+
 async def test_remote_applied_finishes_only_operations_whose_grants_the_node_confirmed(pair):
     from panel.fleet_v2.protocol import ObservedGeneration
 
