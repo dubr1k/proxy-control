@@ -19,6 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from ..audit import record
+from ..fleet_v2.managed import ManagedStore
 from ..protocols.base import (
     AdapterError,
     CredentialPlan,
@@ -51,12 +52,15 @@ class OperationResult:
 
 
 class ProvisioningService:
-    def __init__(self, database, secret_store, adapters: dict, clients: ClientService, clock=time):
+    def __init__(self, database, secret_store, adapters: dict, clients: ClientService, clock=time,
+                 managed: ManagedStore | None = None):
         self.database = database
         self.secrets = secret_store
         self.adapters = adapters
         self.clients = clients
         self.clock = clock
+        # Runtime users the central panel owns (ADR 003) are never provisioned over.
+        self.managed = managed or ManagedStore(database)
         # Test hook only: production leaves this empty and never reads a fault from it.
         self.faults: dict = {}
 
@@ -120,6 +124,10 @@ class ProvisioningService:
         """
         if not intents:
             raise ClientConflict("an operation needs at least one grant")
+        with self.database.connect() as db:
+            for intent in intents:
+                if intent.node_id == "local" and self.managed.is_managed(db, intent.protocol, intent.runtime_username):
+                    raise ClientConflict(f"{intent.protocol}: runtime_username is managed by central")
         for intent in intents:
             check = await self._adapter(intent.protocol).preflight(intent)
             if not check.ok:

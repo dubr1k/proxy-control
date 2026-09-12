@@ -7,6 +7,7 @@ from typing import Literal
 
 from fastapi import Depends, HTTPException, Request
 
+from .fleet_v2.guard import require_unmanaged
 from .mieru import MieruError
 from .protocols.mieru import parse_share_url, singbox_outbounds
 from .reveals import karing_client, qr_data
@@ -103,6 +104,10 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         if not context.settings.mieru_enabled:
             raise HTTPException(404, "feature unavailable")
 
+    def local_only(username: str):
+        with app.state.database.connect() as db:
+            require_unmanaged(db, app.state.managed, "mieru", username)
+
     @app.get("/api/mieru/users")
     async def mieru_users(_user=Depends(context.current)):
         require_mieru()
@@ -169,6 +174,7 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_mieru()
+        local_only(body.username)
         payload = body.model_dump()
         payload["quotas"] = [item.model_dump() for item in body.quotas]
         payload["elevated"] = user["role"] == "owner" and (
@@ -206,6 +212,7 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_mieru()
+        local_only(username)
         payload = {
             "expected_revision": body.expected_revision,
             "quotas": [item.model_dump() for item in body.quotas],
@@ -227,6 +234,7 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_mieru()
+        local_only(username)
         data = await app.state.mieru.reset_metrics(username)
         await context.audit(user, "mieru.metrics.baseline", username, request)
         return data
@@ -240,6 +248,7 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_mieru()
+        local_only(username)
         data = await app.state.mieru.operation(
             username, operation, body.expected_revision
         )
@@ -267,6 +276,7 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         user=Depends(context.roles("owner", "admin")),
     ):
         require_mieru()
+        local_only(username)
         data = await app.state.mieru.delete(username, body.expected_revision)
         await context.audit(user, "mieru.delete", username, request)
         return data

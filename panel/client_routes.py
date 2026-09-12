@@ -58,6 +58,7 @@ def register_client_routes(app, context: RequestContext) -> None:
             mieru_enabled=context.settings.mieru_enabled,
             store=service.store,
             database=service.database,
+            managed=app.state.managed,
         )
 
     @app.get("/api/clients")

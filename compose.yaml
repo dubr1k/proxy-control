@@ -95,6 +95,8 @@ services:
       # Read-only: connecting to the agent socket needs no write access, and a
       # writable mount would let the panel unlink it.
       - /run/proxy-control:/run/proxy-control:ro
+      # The release version the panel reports to a central panel (Fleet v2 identity).
+      - ./VERSION:/app/VERSION:ro
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=0700

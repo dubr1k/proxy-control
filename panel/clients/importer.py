@@ -92,8 +92,10 @@ async def _nothing():
 
 
 async def inventory(
-    telemt, naive, mieru, *, naive_enabled: bool, mieru_enabled: bool, store: ClientStore, database
+    telemt, naive, mieru, *, naive_enabled: bool, mieru_enabled: bool, store: ClientStore, database, managed
 ) -> list[InventoryItem]:
+    """What the managers run and this panel may adopt. Accounts the central panel owns
+    (`managed_resources`, ADR 003) are its to import, so they never appear here."""
     telemt_rows, naive_rows, mieru_rows = await asyncio.gather(
         _read(telemt.list_users, TelemtError),
         _read(naive.list_users, NaiveError) if naive_enabled else _nothing(),
@@ -110,6 +112,7 @@ async def inventory(
         if isinstance(row, dict) and isinstance(row.get("username"), str):
             collected.append(("mieru", row, _mieru_options(row)))
     with database.connect() as db:
+        central = managed.resources(db)
         return [
             InventoryItem(
                 protocol=protocol,
@@ -119,6 +122,7 @@ async def inventory(
                 imported_grant_id=_existing(store, db, protocol, row["username"]),
             )
             for protocol, row, options in collected
+            if (protocol, row["username"]) not in central
         ]
 
 
