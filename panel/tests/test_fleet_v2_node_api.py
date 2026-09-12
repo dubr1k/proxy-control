@@ -1,6 +1,10 @@
+import asyncio
+
 import pytest
 
 from panel.fleet_v2.protocol import GenerationDocument, Resource
+from panel.naive import NaiveError
+from panel.secrets_store import SecretStore
 
 pytestmark = pytest.mark.anyio
 
@@ -110,6 +114,81 @@ async def test_owner_unlinks_from_the_ui_but_a_node_key_may_not_use_that_route(c
     assert (await client.get("/api/fleet/v2/identity", headers=headers)).json()["master_guid"] is None
     inventory = (await client.get("/api/fleet/v2/inventory", headers=headers)).json()
     assert next(r for r in inventory["protocols"]["naive"] if r["runtime_username"] == "alice")["ownership"] == "local"
+
+
+async def test_a_push_landing_during_unlink_cannot_resurrect_managed_rows(client, login_user, naive):
+    """Fix round 1, I1: unlink is serialised under the reconciler's lock. A generation
+    accepted while unlink is already waiting is applied after it — and finds nothing to
+    apply — instead of re-registering rows the unlink just released."""
+    headers = await _node_key(client, login_user)
+    guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]
+    adapter = client._transport.app.state.adapters["naive"]
+    entered = {"alice": asyncio.Event(), "zed": asyncio.Event()}
+    gates = {"alice": asyncio.Event(), "zed": asyncio.Event()}
+    original = adapter.create
+
+    async def slow_create(operation_id, intent, credential):
+        entered[intent.runtime_username].set()
+        await gates[intent.runtime_username].wait()
+        return await original(operation_id, intent, credential)
+
+    adapter.create = slow_create
+    first = asyncio.create_task(_push(client, headers, guid, 1))
+    await entered["alice"].wait()  # generation 1 is inside the adapter, placeholder row written
+    unlinking = asyncio.create_task(client.post("/api/fleet/v2/unlink", headers=headers))
+    await asyncio.sleep(0.05)
+    assert not unlinking.done()  # waiting for the reconcile, not racing it
+    second = asyncio.create_task(_push(client, headers, guid, 2, users=("alice", "zed")))
+    await asyncio.sleep(0.05)  # accepted, now queued behind the unlink for the lock
+    gates["alice"].set()
+    assert (await first).status_code == 200
+    released = await unlinking
+    assert released.json()["released"] == 1
+    gates["zed"].set()
+    superseded = await second
+    assert superseded.status_code == 409 and superseded.json()["code"] == "stale_generation"
+    # Nothing the second generation touched survived the unlink, and zed was never created.
+    assert (await client.get("/api/fleet/v2/identity", headers=headers)).json()["master_guid"] is None
+    assert (await client.get("/api/fleet/v2/observed", headers=headers)).json()["applied_generation"] == 0
+    inventory = (await client.get("/api/fleet/v2/inventory", headers=headers)).json()
+    assert [r["runtime_username"] for r in inventory["protocols"]["naive"] if r["ownership"] == "central"] == []
+    assert "zed" not in [u["username"] for u in await naive.list_users()]
+    await login_user(client)
+    freed = await client.delete("/api/naive/users/alice", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
+    assert freed.status_code == 204
+
+
+async def test_status_reports_best_effort_traffic_per_protocol(client, login_user, naive, telemt):
+    """Fix round 1, I3: bytes per protocol where the manager exposes them, null elsewhere."""
+    headers = await _node_key(client, login_user)
+    naive.seed("bob", "hunter2")
+    naive.seed("eve", "hunter3")
+    naive.set_traffic("bob", upload=10, download=20)
+    naive.set_traffic("eve", upload=1, download=2)
+    await telemt.create_user("carl")
+    telemt.users["carl"]["total_octets"] = 7
+    protocols = (await client.get("/api/fleet/v2/status", headers=headers)).json()["protocols"]
+    assert protocols["naive"]["traffic"] == {"upload_bytes": 11, "download_bytes": 22, "total_bytes": 33}
+    assert protocols["mtproxy"]["traffic"] == {"upload_bytes": None, "download_bytes": None, "total_bytes": 7}
+    assert protocols["mieru"]["traffic"] is None
+
+    async def broken():
+        raise NaiveError("manager down", 503)
+
+    naive.traffic = broken
+    status = await client.get("/api/fleet/v2/status", headers=headers)
+    assert status.status_code == 200 and status.json()["protocols"]["naive"]["traffic"] is None
+
+
+async def test_push_without_a_secret_store_is_a_coded_409_and_accepts_nothing(client, login_user):
+    """Fix round 1: no master key (ADR 005) → the central sees why, and nothing half-lands."""
+    headers = await _node_key(client, login_user)
+    guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]
+    client._transport.app.state.reconciler.secrets = SecretStore(None)
+    refused = await _push(client, headers, guid, 1)
+    assert refused.status_code == 409 and refused.json()["code"] == "secret_store_disabled"
+    assert (await client.get("/api/fleet/v2/observed", headers=headers)).json()["applied_generation"] == 0
+    assert (await client.get("/api/fleet/v2/identity", headers=headers)).json()["master_guid"] is None
 
 
 async def test_capture_unlink_and_versions_update(client, login_user, naive):

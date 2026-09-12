@@ -20,7 +20,7 @@ from .database import Database
 from .events import EventBus
 from .fleet import FleetStore
 from .fleet_routes import register_fleet_routes
-from .fleet_v2.identity import ensure_guid
+from .fleet_v2.identity import ensure_guid, read_panel_version
 from .fleet_v2.managed import ManagedStore
 from .fleet_v2.node_routes import register_fleet_v2_node_routes
 from .fleet_v2.reconcile import Reconciler
@@ -124,8 +124,7 @@ def create_app(
     app.state.api_keys = ApiKeyService(app.state.database)
     app.state.key_rate = KeyRateLimiter(settings.api_key_rate_per_minute)
     app.state.panel_guid = ensure_guid(app.state.database)
-    version_file = settings.panel_version_file
-    app.state.panel_version = version_file.read_text().strip() if version_file.is_file() else "dev"
+    app.state.panel_version = read_panel_version(settings.panel_version_file)
     app.state.reconciler = Reconciler(
         app.state.database, app.state.secrets, app.state.adapters, app.state.managed,
         guid=app.state.panel_guid,

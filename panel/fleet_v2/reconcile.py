@@ -74,6 +74,14 @@ class Reconciler:
         async with self._lock:
             return await self._apply(generation)
 
+    async def unlink(self) -> int:
+        """Forget the master under the same lock `apply()` holds: a reconcile in flight would
+        otherwise re-register the rows this releases (and then crash on the generation it
+        no longer finds). Returns how many resources became local."""
+        async with self._lock:
+            with self.database.transaction() as db:
+                return self.managed.unlink(db)
+
     async def run_pending(self) -> None:
         """At startup: an accepted generation that never converged is applied again."""
         with self.database.connect() as db:
