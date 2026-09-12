@@ -203,9 +203,35 @@ MANAGED_V10 = Migration(10, "fleet-v2-managed", (
       PRIMARY KEY(protocol, runtime_username))""",
 ))
 
+# Central side of Fleet v2 (spec §4): how to reach a linked panel, what was asked of it
+# and what it last reported. `api_key_secret_id` points into secret_versions.
+LINKS_V11 = Migration(11, "fleet-v2-links", (
+    "ALTER TABLE fleet_nodes ADD COLUMN transport TEXT NOT NULL DEFAULT 'v1' CHECK(transport IN ('v1','panel'))",
+    """CREATE TABLE IF NOT EXISTS node_links (
+      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      panel_url TEXT NOT NULL, tls_verify TEXT NOT NULL CHECK(tls_verify IN ('verify','pin')),
+      pinned_cert_sha256 TEXT, api_key_secret_id TEXT NOT NULL, allow_private_address INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('unknown','online','offline')),
+      latency_ms INTEGER, panel_version TEXT, identity_json TEXT NOT NULL DEFAULT '{}',
+      status_json TEXT NOT NULL DEFAULT '{}', last_heartbeat_at INTEGER, last_error TEXT,
+      config_dirty INTEGER NOT NULL DEFAULT 0, desired_generation INTEGER NOT NULL DEFAULT 0,
+      acknowledged_generation INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS desired_generations (
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      generation INTEGER NOT NULL, digest TEXT NOT NULL, content_digest TEXT NOT NULL,
+      document_json TEXT NOT NULL,
+      previous_generation INTEGER NOT NULL, created_at INTEGER NOT NULL, created_by TEXT NOT NULL,
+      pushed_at INTEGER, acknowledged_at INTEGER, PRIMARY KEY(node_id, generation))""",
+    """CREATE TABLE IF NOT EXISTS observed_generations (
+      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      applied_generation INTEGER NOT NULL, digest TEXT NOT NULL, reconcile_state TEXT NOT NULL,
+      resources_json TEXT NOT NULL, reported_at INTEGER NOT NULL)""",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
-    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10,
+    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
