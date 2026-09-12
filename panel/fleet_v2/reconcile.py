@@ -13,12 +13,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import Counter
 
 from ..clients.models import PROTOCOL_OPTIONS, GrantIntent
 from ..protocols.base import AdapterError, AppliedGrant, CredentialPlan, GrantRef, ObservedGrant
 from ..secrets_store import SecretRef
 from .managed import ManagedStore
-from .protocol import ObservedGeneration, PushRequest, Resource
+from .protocol import ObservedGeneration, ObservedResource, PushRequest, Resource
+
+
+class _RuntimeCollision(AdapterError):
+    """A pushed resource names a runtime user this node never recorded as its own.
+
+    Never persisted to `managed_resources` (see `_apply_resource`'s docstring): a stored
+    row — in *any* state — would make the next `apply()` treat the collision as the
+    crash-recovery case and rotate a credential onto an account that was never ours.
+    """
+
 
 MANAGED_PURPOSE = "fleet-managed"
 # Options the runtime teaches the panel (Telemt's endpoint, mita's share link): they are
@@ -97,22 +108,43 @@ class Reconciler:
 
     async def _apply_resource(self, adapter, resource: Resource, item: ObservedGrant | None, record: dict | None,
                               generation: int, credentials: dict[str, str]) -> tuple[str, str | None]:
-        """Bring one runtime user to the resource's desired state; returns (state, revision)."""
+        """Bring one runtime user to the resource's desired state; returns (state, revision).
+
+        Ownership rule (ADR 003, ruling on finding I1): a runtime user this node did not
+        record as ours is never touched, managed or deleted just because its name matches
+        a pushed resource — that would silently adopt a local (or someone else's) account.
+        `record` is `None` exactly when `managed_resources` holds no row for this
+        (protocol, runtime_username); in that case `item is not None` is a name collision
+        and this call always raises `_RuntimeCollision` instead of acting — a collision is
+        never written to the store (see that class's docstring), so it stays a permanent,
+        stable "no" rather than becoming an accidental adoption after a retry.
+
+        The one case that legitimately needs recovery is a crash between `adapter.create`
+        succeeding and `_record` persisting its row: that would otherwise look identical to
+        a collision on the next `apply()`. To make it distinguishable, a "create" always
+        writes a placeholder row *before* calling the adapter (see below), so a resource
+        this node itself started always leaves `record` non-`None` even if the process dies
+        right after `adapter.create` returns. Recovery there is `rotate` — idempotent, and
+        it proves the runtime now holds the credential the placeholder could not confirm.
+        """
         ref = GrantRef(resource.protocol, resource.runtime_username)
         operation_id = f"{self.guid}:{generation}:{resource.ref}"
+        if item is not None and record is None:
+            raise _RuntimeCollision("runtime user exists and is not managed")
         if resource.desired_state == "deleted":
-            # Only a user the store knows is the central's; a local one with the same name stays.
-            if item is not None and record is not None:
+            if item is not None:
                 await adapter.delete(ref)
             return "missing", None
         if item is None:
+            # Placeholder written before the call: see the docstring above.
+            self._record(generation, resource, "failed", error="create in flight; will retry on the next apply")
             applied = await adapter.create(operation_id, self._intent(resource), self._plan(resource))
             self._collect(credentials, resource, applied)
             state, revision, current = _state(applied.enabled), applied.revision, None
         else:
             state, revision, current = _state(item.enabled), item.revision, item.options or {}
-            stored = (record or {}).get("credential_ref")
-            if stored and stored != resource.credential_ref:
+            stored = record.get("credential_ref")
+            if stored != resource.credential_ref and (stored is not None or adapter.accepts_caller_credential):
                 applied = await adapter.rotate(f"{operation_id}:rotate", ref, self._plan(resource))
                 self._collect(credentials, resource, applied)
                 revision = applied.revision or revision
@@ -135,7 +167,8 @@ class Reconciler:
         return state, revision
 
     async def _apply_protocol(self, protocol: str, resources: list[Resource], orphans: list[str],
-                              known: dict, generation: int, credentials: dict[str, str]) -> bool:
+                              known: dict, generation: int, credentials: dict[str, str],
+                              collisions: list[ObservedResource]) -> bool:
         """Apply one protocol's resources and drop its orphans; True when anything failed."""
         adapter = self.adapters.get(protocol)
         try:
@@ -144,8 +177,19 @@ class Reconciler:
             inventory = await adapter.discover()
         except Exception as exc:  # noqa: BLE001 — every failure is reported, none is fatal
             log.warning("fleet: discover on %s failed: %s", protocol, exc)
+            error = str(exc)[:200]
             for resource in resources:
-                self._record(generation, resource, "failed", error=str(exc)[:200])
+                self._record(generation, resource, "failed", error=error)
+            # Orphans exist only in the store (no adapter, or discover() is broken): without
+            # this they would never be reported and `apply()` would hang on them forever
+            # (finding I3) — mark them `failed` too, using what the store already knows.
+            for username in orphans:
+                stored = known.get((protocol, username), {})
+                with self.database.transaction() as db:
+                    self.managed.upsert_resource(db, protocol=protocol, username=username,
+                                                 ref=stored.get("ref", username), generation=generation,
+                                                 state="failed", error=error,
+                                                 credential_ref=stored.get("credential_ref"))
             return True
         observed = {item.runtime_username: item for item in inventory.items}
         failed = False
@@ -154,6 +198,13 @@ class Reconciler:
             try:
                 state, revision = await self._apply_resource(adapter, resource, observed.get(resource.runtime_username),
                                                              record, generation, credentials)
+            except _RuntimeCollision as exc:
+                failed = True
+                log.warning("fleet: %s/%s (%s) failed: %s", protocol, resource.runtime_username, resource.ref, exc)
+                # Reported, never persisted — see `_RuntimeCollision`'s docstring.
+                collisions.append(ObservedResource(ref=resource.ref, protocol=protocol,
+                                                   runtime_username=resource.runtime_username,
+                                                   state="failed", error=str(exc)[:200]))
             except Exception as exc:  # noqa: BLE001
                 failed = True
                 log.warning("fleet: %s/%s (%s) failed: %s", protocol, resource.runtime_username, resource.ref, exc)
@@ -192,14 +243,33 @@ class Reconciler:
             known = self.managed.resources(db)
         wanted = {(r.protocol, r.runtime_username) for r in document.resources}
         credentials: dict[str, str] = {}
+        unmanaged: list[ObservedResource] = []  # I1 collisions: reported, never persisted
         failed = False
-        for protocol in sorted({r.protocol for r in document.resources} | {key[0] for key in known}):
-            resources = [r for r in document.resources if r.protocol == protocol]
+        # Defence in depth (finding I2): `GenerationDocument` already rejects two resources
+        # naming the same (protocol, runtime_username), but a document built without going
+        # through that validator (e.g. internally) must not let the two race one runtime
+        # user — neither is applied; both are reported `failed`. Their shared username still
+        # counts as `wanted` above so it is never swept up as an orphan.
+        counts = Counter((r.protocol, r.runtime_username) for r in document.resources)
+        colliding = {key for key, n in counts.items() if n > 1}
+        applicable = []
+        for resource in document.resources:
+            if (resource.protocol, resource.runtime_username) in colliding:
+                failed = True
+                self._record(generation, resource, "failed",
+                             error="duplicate protocol/runtime_username in this generation")
+            else:
+                applicable.append(resource)
+        for protocol in sorted({r.protocol for r in applicable} | {key[0] for key in known}):
+            resources = [r for r in applicable if r.protocol == protocol]
             orphans = [key[1] for key in known if key[0] == protocol and key not in wanted]
-            failed |= await self._apply_protocol(protocol, resources, orphans, known, generation, credentials)
+            failed |= await self._apply_protocol(protocol, resources, orphans, known, generation, credentials,
+                                                 unmanaged)
         with self.database.transaction() as db:
             self.managed.set_state(db, generation, "failed" if failed else "converged")
             observed = self.managed.observed(db)
+            if unmanaged:
+                observed = observed.model_copy(update={"resources": [*observed.resources, *unmanaged]})
             # A deleted resource is reported once as `missing`, then forgotten; one whose
             # delete failed stays known, so the retry still recognises it as the central's.
             missing = {(r.protocol, r.runtime_username) for r in observed.resources if r.state == "missing"}

@@ -46,3 +46,12 @@ def test_push_secrets_must_reference_document_refs():
         PushRequest(expected_guid="n" * 36, generation=_doc(), secrets={"grant:zzz:1": "pw"})
     ok = PushRequest(expected_guid="n" * 36, generation=_doc(), secrets={"grant:a:1": "pw"})
     assert ok.secrets["grant:a:1"] == "pw"
+
+
+def test_two_resources_cannot_name_the_same_protocol_and_runtime_user():
+    """Finding I2: without this, whichever resource `apply()` processes last would win,
+    making the outcome depend on document order instead of on what the panel intended."""
+    colliding = Resource(ref="grant:a-again", protocol="naive", runtime_username="alice",
+                         desired_state="disabled", credential_ref="grant:a:2", credential_origin="caller")
+    with pytest.raises(ValidationError):
+        _doc(resources=[_doc().resources[0], colliding])
