@@ -56,6 +56,14 @@ async def _local_services(app, settings) -> dict[str, str]:
     return {"telemt": telemt, "naive": naive, "mieru": mieru}
 
 
+def _local_identity(app) -> dict:
+    """Who this panel is and who manages it (spec §7): what the owner types into a central
+    to link this panel, and the badge/unlink button once a central has done so."""
+    with app.state.database.connect() as db:
+        master = app.state.managed.master_guid(db)
+    return {"guid": app.state.panel_guid, "master_guid": master}
+
+
 def register_node_routes(app, context: RequestContext) -> None:
     def _context(request: Request, user: dict) -> dict:
         return {
@@ -68,6 +76,7 @@ def register_node_routes(app, context: RequestContext) -> None:
         view = _view(node)
         if node.kind == "local":
             view["services"] = await _local_services(app, context.settings)
+            view["identity"] = await asyncio.to_thread(_local_identity, app)
         return view
 
     @app.get("/api/nodes")

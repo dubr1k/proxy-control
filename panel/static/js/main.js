@@ -5,6 +5,7 @@ import { bindClients, handleClientsClick, openClientModal, renderClients } from 
 import { query, queryAll } from "./common.js";
 import { renderDashboard } from "./dashboard.js";
 import { handleFleetChange, handleFleetClick, handleFleetSubmit } from "./fleet.js";
+import { bindKeys, handleKeysClick } from "./keys.js";
 import {
   bindManagement,
   handleManagementChange,
@@ -15,7 +16,7 @@ import {
   ROLE_NAMES,
 } from "./management.js";
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
-import { bindNodes, handleNodesClick, openNodeModal, renderNodes } from "./nodes.js";
+import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
 import { createPanelState } from "./state.js";
 import { createSubscriptionDialog } from "./subscriptions.js";
@@ -29,8 +30,8 @@ const TITLES = {
   users: ["MTProxy", "Пользователи, ссылки и ключи доступа"],
   naive: ["NaiveProxy", "HTTPS-прокси, конфигурации и доступы"],
   versions: ["Версии", "Проверенные обновления runtime-компонентов"],
-  fleet: ["Узлы", "Enrollment, транспорт и состояние демонов; raw-команды Telemt v1 — в Advanced"],
-  admins: ["Администраторы", "Роли и доступ к панели"],
+  fleet: ["Узлы", "Связанные панели, этот сервер и узлы v1; raw-команды Telemt v1 — в Advanced"],
+  admins: ["Администраторы", "Роли, доступ к панели и API-ключи"],
   audit: ["Журнал действий", "Изменения, входы и операции с ключами"],
 };
 
@@ -65,7 +66,7 @@ function createNavigator(context) {
     query("#add-label", context.root).textContent = {
       admins: "Администратора",
       clients: "Клиента",
-      fleet: "Узел",
+      fleet: "Панель",
       naive: "Naive доступ",
       mieru: "Mieru доступ",
       users: "Подключение",
@@ -115,7 +116,7 @@ function bindPanel(context) {
   query("#add", root).addEventListener("click", () => {
     if (context.state.view === "admins") openAdminModal(context);
     else if (context.state.view === "clients") openClientModal(context);
-    else if (context.state.view === "fleet") openNodeModal(context);
+    else if (context.state.view === "fleet") openLinkModal(context);
     else if (context.state.view === "naive") openNaiveModal(context);
     else if (context.state.view === "mieru") openMieruModal(context);
     else openUserModal(context);
@@ -143,6 +144,7 @@ function bindPanel(context) {
   bindNaive(context);
   bindNodes(context);
   bindManagement(context);
+  bindKeys(context);
   context.access.bind();
   context.subscriptions.bind();
 
@@ -168,6 +170,7 @@ function bindPanel(context) {
     if (handleNodesClick(context, button)) return;
     if (handleFleetClick(context, button)) return;
     if (handleManagementClick(context, button)) return;
+    if (handleKeysClick(context, button)) return;
     if (handleMieruClick(context, button)) return;
     if (handleNaiveClick(context, button)) return;
     handleUsersClick(context, button);

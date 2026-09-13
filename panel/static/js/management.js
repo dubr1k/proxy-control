@@ -1,4 +1,5 @@
 import { cssEscape, date, esc, initials, query } from "./common.js";
+import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
 const ROLE_NAMES = { owner: "Владелец", admin: "Администратор", viewer: "Наблюдатель" };
@@ -53,7 +54,11 @@ export async function renderAdmins(context, generation) {
     const lastOwner = admin.role === "owner" && admin.active && activeOwners === 1;
     return `<div class="data-row admin-grid"><div class="identity"><span class="user-glyph">${esc(initials(admin.username))}</span><span><b>${esc(admin.username)}</b><small>Создан ${date(admin.created_at)}</small></span></div><div class="cell"><b>${esc(ROLE_NAMES[admin.role] || admin.role)}</b></div><div class="cell"><span class="status-pill ${admin.active ? "active" : "blocked"}"><i></i>${admin.active ? "Активен" : "Отключён"}</span></div><div class="row-actions"><button class="action-button" data-management-action="edit-admin" data-admin-id="${admin.id}">Настроить</button><button class="action-button ${lastOwner ? "" : "danger-text"}" data-management-action="toggle-admin" data-admin-id="${admin.id}" ${lastOwner ? "disabled title=\"Нельзя отключить последнего владельца\"" : ""}>${admin.active ? "Отключить" : "Включить"}</button></div></div>`;
   }).join("");
-  context.ui.view.innerHTML = `<section class="data-panel"><div class="data-head admin-grid"><span>Администратор</span><span>Роль</span><span>Статус</span><span class="align-right">Действия</span></div>${rows || '<div class="empty-state"><h3>Администраторы не найдены</h3></div>'}</section>`;
+  context.ui.view.innerHTML = `<section class="data-panel"><div class="data-head admin-grid"><span>Администратор</span><span>Роль</span><span>Статус</span><span class="align-right">Действия</span></div>${rows || '<div class="empty-state"><h3>Администраторы не найдены</h3></div>'}</section>
+    <section id="api-keys" class="keys-section"><div class="skeleton-grid"><i></i><i></i></div></section>`;
+  // API keys are the second half of this view (spec §7); they load after the table so a
+  // slow key listing never delays the administrators.
+  await renderKeys(context, query("#api-keys", context.ui.view));
 }
 
 export function openAdminModal(context, admin = null) {

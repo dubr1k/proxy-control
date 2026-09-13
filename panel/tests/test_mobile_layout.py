@@ -289,6 +289,41 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
           </article>
         """
 
+    def linked_node_card() -> str:
+        """A linked panel (transport `panel`) carries a tab strip and a tab body instead of
+        certificates and the v1 drawer, so it is measured as its own variant."""
+        return """
+          <article class="data-row node-card linked-node">
+            <span class="user-glyph">FR</span>
+            <div class="node-identity"><b>Frankfurt panel with a very long display name</b><small>https://panel-with-a-very-long-hostname.example.org:8443 · панель 0.3.0-beta.1 · пауза</small></div>
+            <span class="status-pill active"><i></i>На связи</span>
+            <div class="node-tabs" role="tablist">
+              <button class="active" role="tab" aria-selected="true">Обзор</button>
+              <button role="tab" aria-selected="false">Пользователи</button>
+              <button role="tab" aria-selected="false">Обновления</button>
+            </div>
+            <div class="node-tab-body">
+              <dl class="node-facts">
+                <div><dt>Связь</dt><dd>На связи · 42 мс · heartbeat 12.09.2026, 12:00</dd></div>
+                <div><dt>Панель</dt><dd>0.3.0-beta.1 · GUID 0c2d8f1e-6b0a-4c7e-9a41-2f3d5e6a7b8c</dd></div>
+                <div><dt>Поколение</dt><dd>desired 7 · applied 6 · есть недоставленные изменения</dd></div>
+                <div><dt>Пользователи</dt><dd>центр 12 · локальные 3</dd></div>
+                <div><dt>Трафик</dt><dd>1.2 ГБ</dd></div>
+              </dl>
+              <div class="node-services"><ul>
+                <li><span class="status-pill"><i></i>Telemt · работает</span></li>
+                <li><span class="status-pill blocked"><i></i>NaiveProxy · недоступен</span></li>
+                <li><span class="status-pill muted"><i></i>Mieru · выключен</span></li>
+              </ul></div>
+              <p class="form-hint node-error">Ошибка: the node is unreachable: ConnectTimeout while pushing generation 7 to https://panel-with-a-very-long-hostname.example.org:8443</p>
+            </div>
+            <div class="node-actions">
+              <button class="secondary">Возобновить</button><button class="secondary">Проверить</button>
+              <button class="secondary">Изменить</button><button class="danger ghost">Удалить</button>
+            </div>
+          </article>
+        """
+
     def client_card() -> str:
         """The client card carries grant chips instead of traffic cells, so it is its own variant."""
         return """
@@ -297,9 +332,12 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             <div class="client-identity"><b>Ноутбук Сергея с очень длинным именем</b><small>Доступов: 3</small></div>
             <span class="status-pill active"><i></i>Активен</span>
             <ul class="client-grants">
-              <li class="grant-chip"><b>MTProxy</b><span>alice</span><small>включён</small></li>
-              <li class="grant-chip"><b>NaiveProxy</b><span>alice</span><small>включён</small><em>· без секрета</em></li>
-              <li class="grant-chip"><b>Mieru</b><span>alice-with-a-very-long-runtime-name</span><small>выключен</small></li>
+              <li class="grant-chip"><b>MTProxy</b><span>alice</span><small>включён</small>
+                <span class="grant-tools"><button class="ghost">Выключить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
+              <li class="grant-chip"><b>NaiveProxy</b><span>alice</span><small>ожидает узел</small><span class="grant-node">· Frankfurt panel</span><em>· без секрета</em>
+                <span class="grant-tools"><button class="ghost">Выключить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
+              <li class="grant-chip"><b>Mieru</b><span>alice-with-a-very-long-runtime-name</span><small>выключен</small>
+                <span class="grant-tools"><button class="ghost">Включить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
             </ul>
             <p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку.
               <button class="secondary" disabled>Принять доступ</button></p>
@@ -317,6 +355,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             card("data-row naive-grid", "NP", "naive-user-with-a-very-long-name", "HTTPS · HTTP/2 CONNECT", "Конфигурация"),
             node_card("edge-node-with-a-very-long-name"),
             local_node_card(),
+            linked_node_card(),
             client_card(),
         )
     )
@@ -349,7 +388,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
           }
         }
         // The node card uses its own grid areas, so it gets its own stacking check.
-        for (const card of document.querySelectorAll(".node-card:not(.local-node)")) {
+        for (const card of document.querySelectorAll(".node-card:not(.local-node):not(.linked-node)")) {
           const cardBox = card.getBoundingClientRect();
           for (const region of card.children) {
             const box = region.getBoundingClientRect();
@@ -391,6 +430,34 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             const box = pill.getBoundingClientRect();
             if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
               errors.push("service pill escapes card");
+            }
+          }
+        }
+        // A linked panel stacks identity → tabs → tab body → actions; the tab strip wraps
+        // instead of scrolling and no pill, fact or button may leave the card.
+        for (const card of document.querySelectorAll(".linked-node")) {
+          const cardBox = card.getBoundingClientRect();
+          for (const region of card.children) {
+            const box = region.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance || region.scrollWidth > region.clientWidth + tolerance) {
+              errors.push("linked node card content escapes horizontally");
+            }
+          }
+          if (card.querySelector(".advanced-drawer") || card.querySelector(".node-certificates")) {
+            errors.push("linked node card offers v1 controls");
+          }
+          const identity = card.querySelector(".node-identity").getBoundingClientRect();
+          const tabs = card.querySelector(".node-tabs").getBoundingClientRect();
+          const body = card.querySelector(".node-tab-body").getBoundingClientRect();
+          const actions = card.querySelector(".node-actions").getBoundingClientRect();
+          if (tabs.top + tolerance < identity.bottom) errors.push("linked node tabs overlap identity");
+          if (body.top + tolerance < tabs.bottom) errors.push("linked node tab body overlaps tabs");
+          if (actions.top + tolerance < body.bottom) errors.push("linked node actions overlap tab body");
+          if (card.querySelectorAll(".node-tabs button").length !== 3) errors.push("linked node card lacks its three tabs");
+          for (const node of card.querySelectorAll("button, .status-pill, .node-facts > div, .node-error")) {
+            const box = node.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
+              errors.push(`linked node ${node.className || node.tagName} escapes card`);
             }
           }
         }
