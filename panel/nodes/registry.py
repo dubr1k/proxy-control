@@ -100,10 +100,12 @@ class NodeRegistry:
 
     @staticmethod
     def provisioned_grants(db, node_id: str) -> int:
-        """Grants this panel created on the node and has not deleted: the accounts that
-        exist only because of the link (an imported one existed before it)."""
+        """Grants this panel created on the node, in any state: the accounts that exist
+        only because of the link (an imported one existed before it). A `deleted` row
+        counts too — a deletion the node confirmed is purged, so one still here is a
+        deletion the node has not applied yet, and the account is still live there."""
         return db.execute(
-            "SELECT count(*) FROM access_grants WHERE node_id=? AND desired_state<>'deleted' AND origin<>'imported'",
+            "SELECT count(*) FROM access_grants WHERE node_id=? AND origin<>'imported'",
             (node_id,),
         ).fetchone()[0]
 

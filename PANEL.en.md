@@ -315,8 +315,8 @@ health per protocol, users (central vs local), best-effort traffic, `desired` vs
 versions from the node's version-agent with an update button). Owner actions:
 **Пауза / Возобновить** (the heartbeat and delivery skip a paused link; "disable" on such a
 node means the same), **Проверить** (heartbeat and delivery now), **Изменить** (name,
-URL, key, TLS) and **Удалить**, which is refused while the panel still carries grants
-that are not deleted. The API key is never displayed again (`has_api_key`).
+URL, key, TLS) and **Удалить**, which is refused while the panel still carries provisioned
+grants, unconfirmed deletions included. The API key is never displayed again (`has_api_key`).
 
 **v1 nodes.** «Зарегистрировать узел v1 (mTLS-агент)» in the toolbar creates the node
 and immediately shows the enrollment checklist; the panel cannot issue the certificate

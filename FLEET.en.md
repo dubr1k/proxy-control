@@ -290,8 +290,11 @@ heartbeat and the delivery for that node; subscribers keep working. «Возоб
 undoes it.
 
 **Delete on the central** («Удалить», `DELETE /api/nodes/{id}`) is refused with 409
-while any *provisioned* grant on the node is not `deleted` — delete the client's accesses
-first, so that subscribers do not lose them silently. *Imported* grants do not block it
+while any *provisioned* grant on the node remains — deletions the node has not confirmed
+yet included (a confirmed one is purged, so a `deleted` row still here is an account
+still alive on the node) — delete the client's accesses first and wait for the node's
+report, so that subscribers do not lose them silently and no account escapes as a live
+local user. *Imported* grants do not block it
 and are **released**, not deleted: those users existed before the link and stay on the
 node as local users, untouched; the central drops their grant rows and revokes the
 credentials it captured (the audit row records `released_imported`). It then tells the
