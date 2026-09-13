@@ -18,7 +18,15 @@ export function createPanelState() {
     fleet: [],
     fleetSelection: "",
     fleetCommands: [],
+    // Linked panels (Fleet v2): the open tab per node, the inventory of the nodes whose
+    // «Пользователи» tab is open, and the last successful probe of the link dialog.
+    nodeTab: {},
+    nodeInventory: {},
+    linkProbe: null,
     admins: [],
+    keys: [],
+    // The plaintext of a freshly created API key lives here only while #key-reveal is open.
+    keyPlaintext: null,
     audit: {
       items: [],
       nextCursor: null,

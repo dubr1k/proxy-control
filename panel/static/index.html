@@ -167,6 +167,7 @@
       <div class="modal-head"><div><span class="eyebrow">ДОСТУПЫ</span><h2>Выдать доступы</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <p class="modal-copy">Панель создаст учётные записи в выбранных протоколах одной операцией. Если один из менеджеров откажет, уже созданное будет удалено — кроме того, что существовало до операции.</p>
       <label>Имя учётной записи<input id="grant-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop" required><small>Одинаковое имя в разных протоколах — это разные учётные записи</small></label>
+      <label>Узел<select id="grant-node" name="node_id"><option value="local">Этот сервер</option></select><small>Этот сервер или связанная панель, не стоящая на паузе; доступ на панели появится после доставки узлу</small></label>
       <fieldset class="grant-protocols">
         <legend>Протоколы</legend>
         <label class="grant-protocol"><input type="checkbox" value="mtproxy" checked> MTProxy</label>
@@ -225,6 +226,67 @@
       <label>Повторите ID узла<input id="node-revoke-confirm" maxlength="64" autocomplete="off" required></label>
       <div class="form-error" id="node-revoke-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="danger" id="confirm-node-revoke" type="button">Отозвать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="link-modal" class="sheet wide">
+    <form method="dialog" id="link-form">
+      <div class="modal-head"><div><span class="eyebrow">СВЯЗАННАЯ ПАНЕЛЬ</span><h2 id="link-title">Добавить панель</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Центр сам опрашивает панель по HTTPS с её ключом node-sync и доставляет ей доступы. Ключ хранится зашифрованно и никогда не показывается снова.</p>
+      <input id="link-node-id" type="hidden">
+      <div class="link-grid">
+        <label>Имя<input id="link-name" maxlength="128" autocomplete="off" placeholder="например, Frankfurt panel" required></label>
+        <label>URL панели<input id="link-url" type="url" maxlength="512" autocomplete="off" placeholder="https://panel.example.org" required><small>Только https; приватный адрес — с галочкой ниже</small></label>
+      </div>
+      <label>API-ключ<input id="link-key" type="password" maxlength="256" autocomplete="off" placeholder="pc_…"><small id="link-key-hint">Ключ со scope node-sync, созданный на добавляемой панели</small></label>
+      <fieldset class="grant-protocols link-tls">
+        <legend>Проверка TLS</legend>
+        <label class="grant-protocol"><input type="radio" name="tls_verify" value="verify" checked> verify — сертификат панели подписан доверенным CA</label>
+        <label class="grant-protocol"><input type="radio" name="tls_verify" value="pin"> pin — доверять только этому отпечатку SHA-256 (самоподписанный сертификат)</label>
+        <label class="link-pin">Отпечаток SHA-256<span class="copy-field"><input id="link-pinned" pattern="[0-9a-fA-F]{64}" maxlength="64" autocomplete="off" placeholder="64 шестнадцатеричных символа"><button type="button" id="link-fingerprint">Получить отпечаток</button></span><small>Панель запросит сертификат по URL; сверьте отпечаток с тем, что показывает сама добавляемая панель</small></label>
+      </fieldset>
+      <label class="grant-protocol" id="link-private-row"><input type="checkbox" id="link-private"> Разрешить приватный адрес (лаборатория, внутренняя сеть)</label>
+      <div id="link-result" class="link-result" hidden>
+        <p class="form-hint"><b>Панель ответила.</b> Ниже — что она о себе сообщила и кого можно забрать под управление центра.</p>
+        <div id="link-result-facts"></div>
+        <div id="node-import-list"></div>
+      </div>
+      <div class="form-error" id="link-error" role="alert"></div>
+      <footer><button class="secondary" id="link-test" type="button">Проверить</button><span class="spacer"></span><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="link-save" type="button">Добавить</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="unlink-modal" class="sheet">
+    <form method="dialog" id="unlink-form">
+      <div class="modal-head"><div><span class="eyebrow">ЭТОТ СЕРВЕР</span><h2>Отвязать от центра</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Панель перестанет принимать поколения от центра <code id="unlink-master"></code>. Учётные записи в протоколах остаются как есть и снова управляются локально; сам центр об этом не узнает, пока не опросит панель.</p>
+      <div class="form-error" id="unlink-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="danger" id="confirm-unlink" type="button" data-node-action="unlink">Отвязать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="key-modal" class="sheet">
+    <form method="dialog" id="key-form">
+      <div class="modal-head"><div><span class="eyebrow">API-КЛЮЧ</span><h2>Создать ключ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Ключ показывается один раз после создания. В базе хранится только его хеш; отзыв действует немедленно.</p>
+      <label>Название<input id="key-name" maxlength="64" autocomplete="off" placeholder="например, central-ams" required><small>Под этим именем ключ виден в журнале действий: key:&lt;название&gt;</small></label>
+      <label>Scope<select id="key-scope"><option value="node-sync">node-sync — синхронизация с центральной панелью</option><option value="monitor">monitor — только чтение</option><option value="admin">admin — полный доступ владельца</option></select></label>
+      <label>Срок действия<input id="key-expires" type="datetime-local"><small>Пустое поле — бессрочный ключ</small></label>
+      <div class="form-error" id="key-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-key" type="button">Создать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="key-reveal" class="sheet">
+    <form method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">API-КЛЮЧ СОЗДАН</span><h2>Скопируйте ключ сейчас</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Показывается один раз: после закрытия окна ключ не восстановить, только создать новый.</p>
+      <div class="key-reveal">
+        <small id="key-reveal-name"></small>
+        <label>Ключ<span class="copy-field"><input id="key-plaintext" readonly aria-label="API-ключ"><button type="button" id="copy-key">Скопировать</button></span></label>
+      </div>
+      <div class="security-note">Ключ даёт доступ к панели без пароля. Не публикуйте его и не пересылайте открытым текстом.</div>
+      <footer><button class="primary" value="cancel" formnovalidate>Готово</button></footer>
     </form>
   </dialog>
 

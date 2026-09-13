@@ -15,16 +15,48 @@ const GRANT_STATE = {
   deleted: "удалён",
 };
 
-function grantChip(grant) {
-  const state = GRANT_STATE[grant.desired_state] || grant.desired_state;
+// What the node last reported about a grant, when it differs from what the panel wants:
+// a grant on a linked panel stays `pending` until the pusher delivers it (spec §7).
+const OBSERVED_STATE = {
+  pending: "ожидает узел",
+  failed: "ошибка",
+  drifted: "расхождение",
+  missing: "удалён",
+};
+
+function grantStatus(grant) {
+  const observed = OBSERVED_STATE[grant.observed_state];
+  if (!observed) return GRANT_STATE[grant.desired_state] || grant.desired_state;
+  return grant.observed_state === "failed" && grant.last_error ? `${observed}: ${grant.last_error}` : observed;
+}
+
+function nodeLabel(context, grant) {
+  if (!grant.node_id || grant.node_id === "local") return "";
+  const node = context.state.nodes.find((item) => item.node_id === grant.node_id);
+  return `<span class="grant-node">· ${esc(node?.display_name || grant.node_id)}</span>`;
+}
+
+// Enable/disable/rotate/delete of one grant go through /api/clients/grants/{id}/{action};
+// on a linked panel they only record what the central wants and the pusher delivers it.
+function grantTools(grant) {
+  if (grant.desired_state === "deleted") return "";
+  const toggle = grant.desired_state === "enabled"
+    ? '<button class="ghost" data-client-action="grant-disable">Выключить</button>'
+    : '<button class="ghost" data-client-action="grant-enable">Включить</button>';
+  return `<span class="grant-tools">${toggle}<button class="ghost" data-client-action="grant-rotate">Ротировать</button><button class="ghost danger-text" data-client-action="grant-delete">Удалить</button></span>`;
+}
+
+function grantChip(context, grant, canWrite) {
   const orphan = grant.secret_ref === null
     ? '<em title="Панель не хранит его секрет, поэтому доступ не попадает в подписку">· без секрета</em>'
     : "";
-  return `<li class="grant-chip" data-grant-protocol="${esc(grant.protocol)}">
+  return `<li class="grant-chip" data-grant-protocol="${esc(grant.protocol)}" data-grant-id="${esc(grant.id)}">
     <b>${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}</b>
     <span>${esc(grant.runtime_username)}</span>
-    <small>${esc(state)}</small>
+    <small>${esc(grantStatus(grant))}</small>
+    ${nodeLabel(context, grant)}
     ${orphan}
+    ${canWrite ? grantTools(grant) : ""}
   </li>`;
 }
 
@@ -69,6 +101,7 @@ function actions(context, client) {
 function clientCard(context, entry) {
   const { client, grants } = entry;
   const [tone, label] = CLIENT_STATE[client.state] || ["blocked", client.state];
+  const canWrite = context.state.me?.role !== "viewer" && client.state !== "archived";
   return `<article class="data-row client-card" data-client-id="${esc(client.id)}">
     <span class="user-glyph">${esc(initials(client.display_name))}</span>
     <div class="client-identity">
@@ -77,7 +110,7 @@ function clientCard(context, entry) {
     </div>
     <span class="status-pill ${tone}"><i></i>${esc(label)}</span>
     <ul class="client-grants">${grants.length
-      ? grants.map(grantChip).join("")
+      ? grants.map((grant) => grantChip(context, grant, canWrite)).join("")
       : '<li class="grant-chip empty"><small>Доступов пока нет — импортируйте существующие</small></li>'}</ul>
     ${adoptNote(context, grants)}
     ${actions(context, client)}
@@ -85,9 +118,11 @@ function clientCard(context, entry) {
 }
 
 export async function renderClients(context, generation) {
-  const data = await context.api("/api/clients");
+  // Nodes are read alongside: a grant on a linked panel is labelled with the panel's name.
+  const [data, nodes] = await Promise.all([context.api("/api/clients"), context.api("/api/nodes")]);
   if (!isCurrent(context.state, generation, "clients")) return;
   context.state.clients = data.items || [];
+  context.state.nodes = nodes.items || [];
   const canImport = context.state.me?.role !== "viewer";
   context.ui.view.innerHTML = `<div class="toolbar">
       ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
@@ -166,12 +201,30 @@ function collectDecisions(context) {
   }));
 }
 
-export function openGrantModal(context, clientId) {
+// The node a grant lives on: this panel's own runtime or a linked panel that is not
+// paused (spec §7). Anything else is refused by the API, so it is not offered.
+function nodeOptions(nodes) {
+  return nodes
+    .filter((node) => node.node_id === "local" || (node.transport === "panel" && node.link?.enabled === true))
+    .map((node) => `<option value="${esc(node.node_id)}">${esc(node.node_id === "local" ? "Этот сервер" : node.display_name)}</option>`)
+    .join("");
+}
+
+export async function openGrantModal(context, clientId) {
   const form = query("#grant-form", context.root);
   form.reset();
   query("#grant-client-id", context.root).value = clientId;
   query("#grant-error", context.root).textContent = "";
+  const select = query("#grant-node", context.root);
+  select.innerHTML = '<option value="local">Этот сервер</option>';
   context.ui.openModal("#grant-modal", "#grant-username");
+  try {
+    const nodes = await context.api("/api/nodes");
+    context.state.nodes = nodes.items || [];
+    if (query("#grant-modal", context.root).open) select.innerHTML = nodeOptions(context.state.nodes) || select.innerHTML;
+  } catch (exception) {
+    context.ui.toast(`Список узлов не загружен: ${exception.message}`, "error");
+  }
 }
 
 const OPERATION_MESSAGE = {
@@ -208,6 +261,7 @@ export function bindClients(context) {
     if (!form.reportValidity()) return;
     const username = query("#grant-username", root).value.trim();
     const clientId = query("#grant-client-id", root).value;
+    const nodeId = query("#grant-node", root).value || "local";
     const protocols = [...queryAll(".grant-protocol input:checked", root)].map((box) => box.value);
     error.textContent = "";
     if (!protocols.length) {
@@ -219,7 +273,7 @@ export function bindClients(context) {
       const result = await api(`/api/clients/${encodeURIComponent(clientId)}/grants`, {
         method: "POST",
         body: JSON.stringify({
-          grants: protocols.map((protocol) => ({ protocol, runtime_username: username, options: {} })),
+          grants: protocols.map((protocol) => ({ protocol, node_id: nodeId, runtime_username: username, options: {} })),
         }),
       });
       query("#grant-modal", root).close();
@@ -313,6 +367,40 @@ async function adopt(context, button) {
   }
 }
 
+const GRANT_CONFIRMATION = {
+  rotate: ["Ротировать доступ?", "выпустит новый секрет: старая ссылка перестанет работать, клиенту понадобится новая.", "Ротировать"],
+  delete: ["Удалить доступ?", "будет удалён из протокола; на связанной панели — после доставки узлу.", "Удалить"],
+};
+
+async function grantAction(context, button) {
+  const chip = button.closest("[data-grant-id]");
+  const card = button.closest("[data-client-id]");
+  const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
+  const grant = entry?.grants.find((item) => item.id === chip?.dataset.grantId);
+  if (!grant) return;
+  const action = button.dataset.clientAction.slice("grant-".length);
+  const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
+  try {
+    if (GRANT_CONFIRMATION[action]) {
+      const [title, text, ok] = GRANT_CONFIRMATION[action];
+      if (!await context.ui.confirmed(title, `${label} ${text}`, ok)) return;
+    }
+    context.ui.setBusy(button, true);
+    await context.api(`/api/clients/grants/${encodeURIComponent(grant.id)}/${action}`, { method: "POST" });
+    context.ui.toast({
+      enable: "Доступ включён",
+      disable: "Доступ выключен",
+      rotate: "Секрет ротирован; выдайте клиенту новую ссылку",
+      delete: "Доступ удалён",
+    }[action]);
+    await context.navigate("clients");
+  } catch (exception) {
+    context.ui.toast(exception.message, "error");
+  } finally {
+    context.ui.setBusy(button, false);
+  }
+}
+
 export function handleClientsClick(context, button) {
   const action = button.dataset.clientAction;
   if (!action) return false;
@@ -324,9 +412,13 @@ export function handleClientsClick(context, button) {
     void adopt(context, button);
     return true;
   }
+  if (action.startsWith("grant-")) {
+    void grantAction(context, button);
+    return true;
+  }
   if (action === "grant") {
     const card = button.closest("[data-client-id]");
-    if (card) openGrantModal(context, card.dataset.clientId);
+    if (card) void openGrantModal(context, card.dataset.clientId);
     return true;
   }
   if (action === "subscription") {

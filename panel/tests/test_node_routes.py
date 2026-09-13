@@ -99,8 +99,10 @@ async def test_local_node_is_listed_first_with_manager_health(client, login_user
     assert [item["node_id"] for item in items] == ["local", "edge-01"]
     assert items[0]["kind"] == "local"
     assert items[0]["services"] == {"telemt": "ok", "naive": "ok", "mieru": "ok"}
-    # A remote node is managed over the transport, so it carries no local services block.
-    assert "services" not in items[1]
+    # The owner's own card shows who this panel is and who manages it (nobody, until a
+    # central links it); a remote node carries neither block.
+    assert items[0]["identity"] == {"guid": client._transport.app.state.panel_guid, "master_guid": None}
+    assert "services" not in items[1] and "identity" not in items[1]
     assert (await client.get("/api/nodes/local")).json()["services"]["telemt"] == "ok"
 
 

@@ -61,6 +61,49 @@
 .enrollment-checklist code{display:block;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-2)}
 @media(max-width:560px){.client-card{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "grants grants" "note note" "actions actions"}.client-card>.status-pill{justify-self:start}.client-actions button{flex:1 1 100%}}
 @media(max-width:560px){.node-card{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "facts facts" "detail detail" "actions actions" "advanced advanced"}.node-card>.status-pill{justify-self:start}.node-actions button{flex:1 1 100%}}
+.node-card.linked-node{grid-template-areas:"glyph identity pill" "tabs tabs tabs" "body body body" "actions actions actions"}
+.node-card>.node-tabs{grid-area:tabs;display:flex;flex-wrap:wrap;gap:6px;margin:0;min-width:0}
+.node-tabs button{flex:0 0 auto;min-height:32px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--muted);font-size:11px;max-width:100%}
+.node-tabs button:hover,.node-tabs button.active{border-color:rgba(110,107,234,.45);background:rgba(110,107,234,.14);color:var(--text)}
+.node-card>.node-tab-body{grid-area:body;display:flex;flex-direction:column;gap:10px;min-width:0}
+.node-error{color:#f4929a;overflow-wrap:anywhere}
+.node-import-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.node-components{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.node-component{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+.node-component>span{display:grid;flex:1 1 180px;min-width:0}
+.node-component b{font-size:12px;font-weight:540}
+.node-component small{color:var(--muted);font-size:10px}
+.node-component select{flex:1 1 160px;width:auto;min-height:32px;font-size:11px}
+.node-card>.node-local-link{grid-area:actions;display:flex;flex-direction:column;gap:8px;min-width:0;border-top:1px solid var(--line);padding-top:10px}
+.node-local-link code{overflow-wrap:anywhere}
+.node-link-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.node-link-actions .status-pill{max-width:100%;overflow-wrap:anywhere;white-space:normal}
+.sheet.wide{width:min(720px,calc(100vw - 28px))}
+.link-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+.link-tls .grant-protocol,.sheet #link-private-row{display:flex;align-items:flex-start;margin:6px 0;font-size:11px}
+.link-tls .grant-protocol input,#link-private-row input{margin-top:2px}
+.link-tls .link-pin{margin:8px 0 0}
+.link-pin .copy-field input{border-radius:7px 0 0 7px}
+.link-result{display:flex;flex-direction:column;gap:10px;margin:14px 0 0;padding:12px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2)}
+.link-result .node-facts{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.link-result .import-table-wrap{max-height:16rem;overflow:auto}
+.keys-section{margin-top:22px}
+.keys-head{align-items:flex-start;gap:12px}
+.keys-head span{display:block;margin-top:3px}
+.key-grid{grid-template-columns:minmax(170px,1.3fr) minmax(90px,.6fr) minmax(110px,.7fr) minmax(130px,.8fr) minmax(90px,.6fr) minmax(170px,.9fr)}
+.key-grid .identity small{overflow-wrap:anywhere}
+.key-reveal{display:grid;gap:6px}
+.key-reveal>small{color:var(--muted);font-size:10px}
+.key-reveal .copy-field input{font-size:11px}
+.grant-chip{flex-wrap:wrap;max-width:100%;min-width:0;row-gap:4px}
+.grant-chip>span:not(.grant-tools):not(.grant-node){overflow-wrap:anywhere;min-width:0}
+.grant-node{color:var(--muted);font-size:10px}
+.grant-tools{display:inline-flex;flex-wrap:wrap;gap:2px;margin-left:2px}
+.grant-tools button{min-height:22px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:10px}
+.grant-tools button:hover{border-color:var(--line);color:var(--text)}
+.grant-tools button.danger-text{color:#d97880}
+@media(max-width:560px){.node-card.linked-node{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "tabs tabs" "body body" "actions actions"}.node-tabs button{flex:1 1 auto;min-height:38px}.link-grid{grid-template-columns:1fr}.node-component>span,.node-component select{flex-basis:100%}.node-component button{flex:1 1 100%}.node-import-actions button{flex:1 1 100%}.grant-tools{flex-basis:100%;margin-left:0}}
+@media(max-width:900px){.key-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.key-grid.data-head{display:none}.key-grid .row-actions{grid-column:1 / -1;justify-content:flex-start}}
 .subscription-grants{margin:10px 0}.subscription-grants .auto-refresh{display:inline-flex;gap:4px}.subscription-grants .auto-refresh small{padding:1px 6px;border-radius:99px;border:1px solid var(--line);font-size:9px}.refresh-supported{color:var(--green);border-color:rgba(45,186,116,.4)!important}.refresh-unsupported{color:var(--quiet)}.refresh-unproven{color:var(--amber);border-color:rgba(231,168,75,.4)!important}
 .subscription-formats{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:12px 0;display:grid;gap:8px}.subscription-formats legend{padding:0 6px;color:var(--muted);font-size:11px}.subscription-variant{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer}.subscription-variant input{margin-top:3px}.subscription-variant span{display:grid;gap:2px}.subscription-variant b{font-weight:560}.subscription-variant small{color:var(--muted);font-size:10px;overflow-wrap:anywhere}
 .subscription-reveal{display:grid;gap:10px;padding:12px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);margin:12px 0}.subscription-reveal label{display:grid;gap:6px;color:var(--text-2);font-size:10px}.subscription-qr{width:180px;height:180px;background:#fff;border-radius:7px;padding:8px;justify-self:center}
