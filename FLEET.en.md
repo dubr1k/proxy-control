@@ -158,7 +158,7 @@ session is refused, and a `node-sync` key is refused everywhere outside this pre
 | `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` is the node's `MTPROXY_DOMAIN` (its first allowed host when unset); a grant's own `host`/`port`, learned from the link Telemt served, win over it when a link is rendered |
 | `GET /api/fleet/v2/status` | versions and host facts from the node's version-agent (or `version_agent_unavailable`), `managed_resources`, `users` per protocol `{central, local}`, `protocols[*].traffic` (best effort: Telemt total only, NaiveProxy up/down/total, Mieru `null`) |
 | `GET /api/fleet/v2/inventory` | runtime users per protocol: `{runtime_username, enabled, options, ownership: central\|local, ref}` — no secrets; for MTProxy `options` also carries the `host`/`port` of the link Telemt serves, so an imported grant renders at the runtime's endpoint |
-| `PUT /api/fleet/v2/generation` | the push: `{expected_guid, generation, secrets}`, body ≤ 64 KiB. 409 with a `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 for an unknown field or protocol. `200 {observed, credentials}` when the reconcile finished within 25 s, `202 {observed}` when it continues in the background. `credentials` returns only credentials the node's runtime chose itself; `Cache-Control: no-store` |
+| `PUT /api/fleet/v2/generation` | the push: `{expected_guid, generation, secrets}`, body ≤ 64 KiB. 409 with a `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 for an unknown field or protocol. `200 {observed, credentials}` when the reconcile finished within 25 s, `202 {observed}` when it continues in the background. `credentials` returns the credentials the node's runtime chose itself and the runtime's own reframed form of a caller credential (Telemt's Fake-TLS `ee…` secret for the bare one pushed); `Cache-Control: no-store` |
 | `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision, learned}], reported_at}` — `learned` is what the runtime taught the node about the link (Telemt's `host`/`port`, mita's `share_template`), never a credential. A report may gain fields; a central ignores the ones it does not know |
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru is always `unsupported` |
 | `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → the node's own version-agent |
@@ -170,7 +170,7 @@ of their own, `POST /api/nodes/local/unlink` («Отвязать» on the card �
 
 ### Central API
 
-Owner-only over a session or an `admin` key; reads (`GET`) also for `admin`:
+Owner-only over a session or an `admin` key; reads (`GET`) also for administrators (role `admin`):
 `POST /api/nodes/{id}/pause` and `/resume` (a paused link is skipped by the heartbeat
 and push loop; «Отключить» on such a node means the same), `POST /api/nodes/{id}/probe`
 (heartbeat and delivery now), `GET /api/nodes/{id}/inventory` (the node's users with the
@@ -243,8 +243,11 @@ From the link dialog (after «Проверить») or later from the node card'
    nothing is created, rotated or deleted by adopting (ADR 003 `adopted`).
 
 A grant imported without a credential (Mieru) renders in the client's subscription as
-`unsupported: no stored credential` until you press **«Ротация»** on it: the new
-version becomes the credential of the next generation and the node rotates the account.
+`unsupported: no stored credential` — and while the client has such a grant, a
+subscription cannot be **created or rotated** for it at all (409 from
+`SubscriptionService`: every grant must be renderable first) — until you press
+**«Ротация»** on it: the new version becomes the credential of the next generation and
+the node rotates the account.
 
 ## Rotate, disable, delete
 
@@ -276,7 +279,8 @@ moves `observed_state`. Until then the UI shows the grant as **«ожидает 
   runtime's endpoint rather than the node's panel domain and a default port.
 - **Delete** — `desired_state = deleted`; the node removes the account it owns and
   reports `missing`; the central then **purges** the grant row and revokes every version
-  of its credential, so the same `runtime_username` can be granted again. An operation
+  of its credential, so the same `runtime_username` can be granted again on the central
+  (the NaiveProxy and Mieru managers retire the name on the node). An operation
   still waiting for a grant deleted before the node applied it settles as
   `compensated` instead of waiting forever.
 
@@ -334,8 +338,9 @@ link first.
 - **Scopes.** `admin` = the owner role on the whole API (a session-less owner — treat
   it like the owner's password), `monitor` = the viewer role (reads only), `node-sync`
   = **only** `/api/fleet/v2/*` — anything else is 403. Managing keys (`/api/keys*`)
-  needs the owner role; a Bearer request carries no cookie, so there is no CSRF token
-  to check. Give a central a `node-sync` key, never `admin`.
+  needs the owner role — which an `admin`-scope key **holds**: such a key can mint and
+  revoke keys, including further `admin` ones; a Bearer request carries no cookie, so
+  there is no CSRF token to check. Give a central a `node-sync` key, never `admin`.
 - **The key travels one way.** The central holds the node's key encrypted under its
   master key (`secret_versions`, bound to that node's GUID); the node holds nothing of
   the central's. A compromised node learns nothing about the others; a compromised
