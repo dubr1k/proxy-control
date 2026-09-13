@@ -99,7 +99,9 @@ services:
       - ./VERSION:/app/VERSION:ro
     read_only: true
     tmpfs:
-      - /tmp:size=16m,mode=0700
+      # Owned by the panel user (uid 10001, gid 101): the process runs unprivileged on a
+      # read-only root, and a root-only /tmp would leave it no writable temp directory.
+      - /tmp:size=16m,mode=1777,uid=10001,gid=101
       - /run/panel:size=1m,mode=0700
     cap_drop:
       - ALL

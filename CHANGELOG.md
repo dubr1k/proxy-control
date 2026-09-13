@@ -105,6 +105,13 @@ check.
   the node reports `missing`).
 - `read_panel_version` tolerates a missing, unreadable or empty `VERSION` (`dev`) instead
   of keeping the panel from starting.
+- Found on the live check (AMS_Z ↔ ams-test): `DELETE /api/nodes/{id}` on a containerised
+  central answered 500 `disk I/O error`. The panel runs as uid 10001 on a read-only root
+  while `compose.yaml` mounted `/tmp` as a root-only tmpfs, so SQLite had no writable temp
+  directory once the statement journal of the cascading delete (`fleet_nodes` →
+  `node_links`, `desired_generations`, `observed_generations`) outgrew its 64 KiB
+  in-memory threshold. `Database.connect()` now sets `PRAGMA temp_store=MEMORY`, and the
+  `/tmp` tmpfs of the panel (and of the v1 fleet ingress) is owned by the service user.
 
 ### Not in this release
 

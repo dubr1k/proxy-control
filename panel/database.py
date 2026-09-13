@@ -47,6 +47,12 @@ class Database:
         db = sqlite3.connect(self.path, timeout=self.timeout)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
+        # Temporary storage in memory, never in a temp directory: the panel runs as an
+        # unprivileged user on a read-only root filesystem, where SQLite may find no writable
+        # temp directory at all. A statement journal that outgrows SQLite's in-memory
+        # threshold (64 KiB) would then spill to disk and fail with "disk I/O error" — seen
+        # on a central unlinking a node whose cascaded generations carried a few hundred KB.
+        db.execute("PRAGMA temp_store=MEMORY")
         return db
 
     @contextmanager
