@@ -17,10 +17,13 @@ what the node reports (`remote_applied`).
 from __future__ import annotations
 
 import json
+import logging
 import secrets as secret_tokens
 import time
 import uuid
 from dataclasses import dataclass, field
+
+from pydantic import ValidationError
 
 from ..audit import record
 from ..fleet_v2.managed import ManagedStore
@@ -35,6 +38,8 @@ from ..secrets_store import SecretRef
 from .models import AccessGrant, GrantIntent
 from .service import CREDENTIAL_PURPOSE, ClientService
 from .store import ClientConflict
+
+log = logging.getLogger(__name__)
 
 TERMINAL = ("succeeded", "compensated", "manual_intervention_required")
 # A step never skips backwards: each transition is its own durable checkpoint.
@@ -303,7 +308,16 @@ class ProvisioningService:
         }
         if not learned or all(getattr(grant.options, key, None) == value for key, value in learned.items()):
             return
-        options = grant.options.model_copy(update=learned)
+        try:
+            # Through the options model's validators, never `model_copy`: what a linked
+            # panel reports is wire input, and a value the model refuses (an over-long or
+            # credential-carrying share template, a string port) must not be stored where
+            # every later load of the grant would fail on it.
+            options = type(grant.options).model_validate({**grant.options.model_dump(), **learned})
+        except ValidationError as exc:
+            log.warning("grant %s: learned options refused, keeping the current ones: %s",
+                        grant.id, str(exc).splitlines()[0][:200])
+            return
         self.clients.store.update_grant(
             db, grant.id, protocol_options_json=options.model_dump_json(),
             updated_at=int(self.clock.time()),

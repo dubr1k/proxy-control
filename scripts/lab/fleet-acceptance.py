@@ -116,7 +116,8 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="the installer's TDLib resPQ probe; empty skips the MTProxy client check")
     parser.add_argument("--mtproxy-domain", default="proxy.lab.test", help="the node's MTProxy (Fake-TLS) domain")
     parser.add_argument("--client-ca-file", default=None, type=Path,
-                        help="CA the client cores trust instead of the system store (the lab's own CA); unset = WebPKI")
+                        help="CA the node session and the client cores trust in addition to / instead of the system "
+                             "store (the lab's own CA); unset = WebPKI")
     parser.add_argument("--heartbeat-seconds", type=int, default=3, help="PANEL_FLEET_HEARTBEAT_SECONDS of the central")
     parser.add_argument("--bulk-grants", type=int, default=20, help="grants issued before the restart in step 8")
     parser.add_argument("--allow-private-address", action="store_true", help="the node URL is a private/lab address")
@@ -259,17 +260,23 @@ def leaf_fingerprint(host: str, port: int, *, timeout: float = 5.0) -> str:
 class Panel:
     """Cookie session (CSRF header on writes) or Bearer key against one panel base URL."""
 
-    def __init__(self, base_url: str, *, bearer: str | None = None, timeout: float = 30.0) -> None:
+    def __init__(self, base_url: str, *, bearer: str | None = None, timeout: float = 30.0,
+                 ca_file: Path | None = None) -> None:
         self.base_url = base_url.rstrip("/")
-        self.bearer, self.timeout = bearer, timeout
+        self.bearer, self.timeout, self.ca_file = bearer, timeout, ca_file
         self.jar = http.cookiejar.CookieJar()
+        context = ssl.create_default_context()
+        if ca_file is not None:
+            # The lab's own CA next to the system store: the node's certificate chains to it,
+            # and the host's trust store is not this script's to rely on.
+            context.load_verify_locations(cafile=str(ca_file))
         self.opener = urllib.request.build_opener(
-            urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+            urllib.request.HTTPSHandler(context=context),
             urllib.request.HTTPCookieProcessor(self.jar),
         )
 
     def with_bearer(self, token: str) -> Panel:
-        return Panel(self.base_url, bearer=token, timeout=self.timeout)
+        return Panel(self.base_url, bearer=token, timeout=self.timeout, ca_file=self.ca_file)
 
     def _csrf(self) -> str:
         return next((c.value for c in self.jar if c.name == "panel_csrf"), "")
@@ -1002,8 +1009,8 @@ def main(argv=None) -> int:
         print(f"FAILED: {args.source} has no panel package", file=sys.stderr)
         return 2
     central_url = f"http://{args.central_host}:{args.central_port}"
-    scenario = Scenario(args, node=Panel(args.node_url), central=Panel(central_url), process=CentralProcess(args),
-                        docker=Docker(), probes=Probes(args))
+    scenario = Scenario(args, node=Panel(args.node_url, ca_file=args.client_ca_file), central=Panel(central_url),
+                        process=CentralProcess(args), docker=Docker(), probes=Probes(args))
     ok = scenario.run()
     if args.cleanup:
         shutil.rmtree(args.central_dir, ignore_errors=True)

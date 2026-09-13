@@ -289,7 +289,10 @@ umask 077
 mkdir -p "$ca_dir"
 if [[ ! -f $ca_dir/ca.crt ]]; then
   openssl req -x509 -newkey rsa:2048 -nodes -days 30     -subj "/CN=Proxy Control lab CA"     -addext "basicConstraints=critical,CA:TRUE,pathlen:0"     -addext "keyUsage=critical,keyCertSign,cRLSign"     -keyout "$ca_dir/ca.key" -out "$ca_dir/ca.crt" >/dev/null 2>&1
-  if [[ $(id -u) -eq 0 && -d /usr/local/share/ca-certificates ]]; then
+  # Only the real lab lineage under /etc/letsencrypt becomes host-trusted: a unit test
+  # driving this generator with a temporary LETSENCRYPT_ROOT as root must not replace the
+  # CA the installed node's certificates chain to.
+  if [[ $(id -u) -eq 0 && -d /usr/local/share/ca-certificates && $letsencrypt_root == /etc/letsencrypt ]]; then
     install -m 0644 "$ca_dir/ca.crt" /usr/local/share/ca-certificates/proxy-control-lab-ca.crt
     update-ca-certificates >/dev/null 2>&1
   fi

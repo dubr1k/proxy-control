@@ -67,3 +67,23 @@ def test_observed_resource_carries_learned_link_facts_but_never_a_credential():
     with pytest.raises(ValueError):
         ObservedResource(ref="grant:1", protocol="mtproxy", runtime_username="a", state="enabled",
                          learned={f"k{i}": i for i in range(9)})
+
+
+def test_observed_reports_ignore_unknown_fields_but_the_node_still_refuses_them():
+    """Fix round 1 (Task 14 review, I1): nodes are upgraded before the central, so a report
+    from a newer node may carry a field this central does not know — it is dropped, not
+    refused. What the node validates (the document, the push) keeps refusing unknown fields."""
+    from panel.fleet_v2.protocol import ObservedGeneration, ObservedResource, PushResponse
+
+    payload = {"applied_generation": 1, "digest": "d", "reconcile_state": "converged", "reported_at": 1,
+               "resources": [{"ref": "grant:1", "protocol": "naive", "runtime_username": "a", "state": "enabled",
+                              "future_field": {"x": 1}}],
+               "another_future_field": True}
+    observed = ObservedGeneration.model_validate(payload)
+    assert not hasattr(observed, "another_future_field") and "another_future_field" not in observed.model_dump()
+    assert observed.resources[0].learned == {} and "future_field" not in observed.resources[0].model_dump()
+    assert ObservedResource.model_validate({**payload["resources"][0], "state": "missing"}).state == "missing"
+    response = PushResponse.model_validate({"observed": payload, "credentials": {}, "future": 1})
+    assert "future" not in response.model_dump()
+    with pytest.raises(ValidationError):
+        GenerationDocument.model_validate({**_doc().model_dump(), "future_field": 1})
