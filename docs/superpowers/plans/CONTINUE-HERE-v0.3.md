@@ -1,12 +1,17 @@
 # CONTINUE HERE — v0.3 центральная панель
 
-Обновлено: 2026-09-13 (Task 16 — релизный гейт пройден; ветка готова к финальному ревью и слиянию).
+Обновлено: 2026-09-13 (фикс-волна финального ревью применена, гейт пройден повторно; ветка готова к слиянию).
 
 ## Где мы
 
 - Ветка: `feature/vnext-v0.3-fleet-v2` (от `feature/vnext-v0.2-local-control-plane`, `v0.2.0-beta.1`).
-  HEAD — коммит `release: гейт v0.3.0-beta.1 пройден на стенде` поверх `9a4d80d` (только документация:
-  релизная заметка, скриншоты, `docs/UPGRADING*.md`, этот файл). Код ветки = дерево `9a4d80d`.
+  HEAD — коммит `release: гейт v0.3.0-beta.1 пройден повторно после фикс-волны финального ревью` поверх
+  `4d61396` (только документация: таблица гейта релизной заметки и этот файл). Код ветки = дерево `4d61396`.
+  **Фикс-волна финального ревью применена** (`e89d2c9`…`4d61396`): C1 пин сертификата в TLS-рукопожатии;
+  I5 гейт ADR 003 до адаптера на локальных путях узла; I4 удаление узла отклоняется при неподтверждённом
+  удалении гранта; I2 повторный capture креда Telemt (re-PUT и 202/poll); I7 отчёт `missing` переживает 202;
+  I3 импортированные MTProxy-доступы несут host/port ссылки Telemt (+ `MTPROXY_DOMAIN` панели);
+  I6 честная копия диалога отвязки; I8 правдивость документации.
 - Спека: `docs/superpowers/specs/2026-09-11-v0.3-central-panel-design.md` + `docs/adr/008-panel-to-panel-transport.md`.
 - План (Tasks 0–16): `docs/superpowers/plans/2026-09-11-v0.3-central-panel.md`. **Все 17 задач закрыты** (0–15 —
   реализация и ревью, 16 — релизный гейт); ledger — `.superpowers/sdd/2026-09-11-v0.3-central-panel/progress.md`
@@ -17,15 +22,15 @@
   На стенде оставлена установка `lab-host` с узлом v0.3 (`https://panel.lab.test`, `LAB_KEEP_INSTALL=1`); центр
   приёмки остановлен, узел отвязан, данных приёмки на узле нет.
 
-## Гейт v0.3.0-beta.1 (2026-09-13, дерево `9a4d80d`, чистое)
+## Гейт v0.3.0-beta.1 (2026-09-13 16:31–16:48 UTC, дерево `4d61396`, чистое — после фикс-волны)
 
 | Tier | Маркер | Итог |
 | --- | --- | --- |
-| `remote-gate.sh full` | `REMOTE_GATE_FULL_OK` | 1743 passed / 2 skipped (pytest, 361 с), unittest `tests/test_deploy.py` 31 OK, ruff, doc-links, JS, shellcheck, systemd-analyze, `git diff --check`; 379 с |
-| `remote-gate.sh compose` | `REMOTE_GATE_COMPOSE_OK` | 5 compose-моделей (core, +Naive, +Mieru, agent, fleet-central), образы agent/ingress, uid ingress 10001; 9 с |
-| `LAB_RESET=1 LAB_KEEP_INSTALL=1 remote-gate.sh lab-host` | `REMOTE_GATE_LAB_HOST_OK` | `LAB_HOST_EXIT=0`, 18 сценариев passed (environment-preflight, release-artifact-integrity, audit, plan, nginx-multi-map, coexist-existing-xui, uninstall-foreign-identity, dns-tls-preflight, install 102 с, docker-build, repair 37 с, idempotence, reboot-recovery 61 с, crash-every-phase, report, `fleet` 167 с, secrets-scan), `uninstall`/`coexistence` skipped по `LAB_KEEP_INSTALL=1`; 445 с |
-| `remote-gate.sh fleet` | `FLEET_ACCEPTANCE_OK` + `REMOTE_GATE_FLEET_OK` | 84 проверки, все пройдены, 165 с (link online 3,1 с, доступы enabled 4,1 с, offline-конвергенция 1,0 с, 20 доступов при рестарте узла 10,2 с, purge 10,1 с; `lab-results/fleet/report.json` на стенде); 181 с |
-| `lab-sha256` архива гейта | `d68fabf187c20c2c8b2be3a722d3b42159382bc6a34d7e9c32e52d802198a13f` | `/root/lab-host.sha` на `ams-test` = `dist/SHA256SUMS` в `/root/dev/proxy-control`; архив `proxy-control-v0.3.0-beta.1.tar.gz` из дерева `9a4d80d` |
+| `remote-gate.sh full` | `REMOTE_GATE_FULL_OK` | 1753 passed / 2 skipped (pytest, 357 с), unittest `tests/test_deploy.py` 31 OK, ruff, doc-links, JS, shellcheck, systemd-analyze, `git diff --check`; ≈ 395 с |
+| `remote-gate.sh compose` | `REMOTE_GATE_COMPOSE_OK` | 5 compose-моделей (core, +Naive, +Mieru, agent, fleet-central), образы agent/ingress, uid ingress 10001; ≈ 10 с |
+| `LAB_RESET=1 LAB_KEEP_INSTALL=1 remote-gate.sh lab-host` | `REMOTE_GATE_LAB_HOST_OK` | `LAB_HOST_EXIT=0`, 18 сценариев passed (environment-preflight 38 с, release-artifact-integrity, audit, plan, nginx-multi-map, coexist-existing-xui, uninstall-foreign-identity, dns-tls-preflight, install 103 с, docker-build, repair 37 с, idempotence, reboot-recovery 62 с, crash-every-phase, report, `fleet` 166 с, secrets-scan), `uninstall`/`coexistence` skipped по `LAB_KEEP_INSTALL=1`; ≈ 420 с |
+| `remote-gate.sh fleet` | `FLEET_ACCEPTANCE_OK` + `REMOTE_GATE_FLEET_OK` | 84 проверки, все пройдены, 166 с (link online 2,0 с, доступы enabled 5,1 с, offline-конвергенция 1,0 с, 20 доступов при рестарте узла 10,2 с, purge 10,2 с; `lab-results/fleet/report.json` на стенде); ≈ 180 с |
+| `lab-sha256` архива гейта | `570b37c566c40a9893f49f3c18527bfbb31fc559f157a6fac371f99d4d7de81f` | `/root/lab-host.sha` на `ams-test` = `dist/SHA256SUMS` в `/root/dev/proxy-control`; архив `proxy-control-v0.3.0-beta.1.tar.gz` из дерева `4d61396` |
 
 Живая проверка (Task 15, 2026-09-13 14:02–14:22 UTC): боевой узел `AMS_Z` обновлён v0.1 → v0.3 на месте и
 привязан к стендовому центру; импорт 12 учётных записей, тестовый клиент с тремя доступами (sing-box, mihomo,
