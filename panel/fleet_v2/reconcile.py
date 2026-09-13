@@ -300,10 +300,20 @@ class Reconciler:
         if latest is None or latest["generation"] != generation:
             raise KeyError(generation)
         document = latest["document"]
+        refs = {(r.protocol, r.runtime_username): r.ref for r in document.resources}
         with self.database.transaction() as db:
             self.managed.set_state(db, generation, "applying")
             known = self.managed.resources(db)
-        wanted = {(r.protocol, r.runtime_username) for r in document.resources}
+            # A `missing` row lingers so the one-time report survives a 202 (see the tail of this
+            # method). A generation naming that user under ANOTHER ref proves the central saw the
+            # report (the name is UNIQUE there until the deleted grant is purged): the row is
+            # retired here, before the apply — never afterwards, when `_record` may already have
+            # rewritten the same (protocol, username) row for the regrant.
+            for key, row in list(known.items()):
+                if row["state"] == "missing" and refs.get(key, row["ref"]) != row["ref"]:
+                    self.managed.remove_resource(db, *key)
+                    del known[key]
+        wanted = set(refs)
         credentials: dict[str, str] = {}
         unmanaged: list[ObservedResource] = []  # I1 collisions: reported, never persisted
         failed = False
@@ -333,17 +343,9 @@ class Reconciler:
             if unmanaged:
                 observed = observed.model_copy(update={"resources": [*observed.resources, *unmanaged]})
             # A deleted resource stays in the store as `missing` until a generation omits its
-            # name (the orphan pass above drops it then): the central may only learn of the
-            # deletion from a later `GET observed` (a push answered 202), and a report that
-            # vanished after one apply would leave the grant `deleted/pending` there forever.
-            # The row owns nothing meanwhile — see `_apply_resource` and `ManagedStore.is_managed`.
-            # A generation naming the same user under another ref proves the central saw the
-            # report (the name is UNIQUE there until the deleted grant is purged): drop it now.
-            refs = {(r.protocol, r.runtime_username): r.ref for r in document.resources}
-            for (protocol, username), row in known.items():
-                if row["state"] == "missing" and refs.get((protocol, username), row["ref"]) != row["ref"]:
-                    self.managed.remove_resource(db, protocol, username)
-            observed = observed.model_copy(update={"resources": [
-                r for r in observed.resources
-                if not (r.state == "missing" and refs.get((r.protocol, r.runtime_username), r.ref) != r.ref)]})
+            # name (the orphan pass above drops it then) or names it under another ref (retired
+            # before the apply, above): the central may only learn of the deletion from a later
+            # `GET observed` (a push answered 202), and a report that vanished after one apply
+            # would leave the grant `deleted/pending` there forever. The row owns nothing
+            # meanwhile — see `_apply_resource` and `ManagedStore.is_managed`.
         return observed, credentials

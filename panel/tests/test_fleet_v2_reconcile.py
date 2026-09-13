@@ -411,3 +411,26 @@ async def test_a_regrant_under_a_new_ref_retires_the_missing_row_and_still_respe
     observed, _ = await reconciler.apply(3)
     assert [(r.ref, r.state) for r in observed.resources] == [("grant:alice-2", "enabled")]
     assert naive.users["alice"]["password"] == "central-pw"
+
+
+async def test_a_regrant_under_a_new_ref_is_owned_under_that_ref_after_the_apply(world):
+    """Round 2, N1: the `missing` row must be retired *before* the new resource is applied, or
+    the post-apply cleanup would delete the row `_record` just wrote for the regrant — leaving
+    the user present and unowned (a permanent collision) from the next generation on."""
+    database, managed, reconciler, telemt, naive, mieru = world
+    await _accept(world, _push(1, [_resource("naive", "alice")], {"grant:alice:1": "pw"}))
+    await reconciler.apply(1)
+    await _accept(world, _push(2, [_resource("naive", "alice", "deleted")], {}))
+    await reconciler.apply(2)
+    regrant = Resource(ref="grant:alice-2", protocol="naive", runtime_username="alice", desired_state="enabled",
+                       credential_ref="grant:alice-2:1", credential_origin="caller", options={})
+    await _accept(world, _push(3, [regrant], {"grant:alice-2:1": "central-pw"}))
+    observed, _ = await reconciler.apply(3)
+    assert [(r.ref, r.state) for r in observed.resources] == [("grant:alice-2", "enabled")]
+    with database.connect() as db:
+        row = managed.resources(db)[("naive", "alice")]
+        assert (row["ref"], row["state"]) == ("grant:alice-2", "enabled")
+        assert managed.is_managed(db, "naive", "alice")
+    again, _ = await reconciler.apply(3)  # still ours on the next apply: no collision
+    assert [(r.ref, r.state) for r in again.resources] == [("grant:alice-2", "enabled")]
+    assert naive.users["alice"]["password"] == "central-pw"
