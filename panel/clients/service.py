@@ -13,6 +13,8 @@ from collections.abc import Callable
 
 from ..audit import digest, record
 from ..database import Database
+from ..fleet_v2.guard import require_unmanaged
+from ..fleet_v2.managed import ManagedStore
 from ..secrets_store import SecretRef, SecretStore
 from .models import AccessGrant, Client
 from .store import ClientConflict, ClientStore
@@ -27,6 +29,8 @@ class ClientService:
         self.secrets = secret_store
         self.clock = clock
         self.store = ClientStore(database)
+        # Resources the central panel owns (ADR 003); capture/adopt ask here before the adapter.
+        self.managed = ManagedStore(database)
         self.on_change: list[Callable[[object, str], None]] = []
         # Filled in by create_app; adoption needs the protocol adapters.
         self.adapters: dict = {}
@@ -146,10 +150,17 @@ class ClientService:
             self.notify(db, current.client_id)
             return self.store.grant(db, grant.id)
 
-    async def capture_credential(self, grant_id: str, *, actor: dict, ip: str, request_id: str | None = None):
-        """Read the live credential and escrow it, without touching the runtime."""
+    def _local_writable(self, grant_id: str) -> AccessGrant:
+        """The grant, if this panel may write its account (ADR 003): one the central panel
+        owns is refused before any adapter I/O, with the same 409 the routes use."""
         with self.database.connect() as db:
             grant = self.store.grant(db, grant_id)
+            require_unmanaged(db, self.managed, grant.protocol, grant.runtime_username)
+        return grant
+
+    async def capture_credential(self, grant_id: str, *, actor: dict, ip: str, request_id: str | None = None):
+        """Read the live credential and escrow it, without touching the runtime."""
+        grant = self._local_writable(grant_id)
         adapter = self._adapter(grant.protocol)
         if not adapter.capture_supported:
             raise ClientConflict(f"{grant.protocol} credential requires rotation: it cannot be read back")
@@ -164,8 +175,7 @@ class ClientService:
         self, grant_id: str, *, allow_rotation: bool, actor: dict, ip: str, request_id: str | None = None
     ):
         """Make an imported grant renderable, rotating only when the operator allowed it."""
-        with self.database.connect() as db:
-            grant = self.store.grant(db, grant_id)
+        grant = self._local_writable(grant_id)
         if grant.secret_ref is not None:
             raise ClientConflict("the grant already has a stored credential")
         adapter = self._adapter(grant.protocol)

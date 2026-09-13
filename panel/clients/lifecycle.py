@@ -14,6 +14,7 @@ from __future__ import annotations
 import time
 
 from ..audit import record
+from ..fleet_v2.guard import require_unmanaged
 from ..protocols.base import GrantRef
 from .facade import LOCAL_NODE_ID, DomainFacade
 from .models import AccessGrant
@@ -50,10 +51,14 @@ class GrantLifecycle:
     def _load(self, grant_id: str) -> tuple[AccessGrant, bool]:
         """The grant and where it lives. A node this panel has no writer for is refused
         here: the façade looks accounts up by name on the local runtime and would adopt
-        an unrelated one."""
+        an unrelated one. A local account the central panel owns (ADR 003) is refused
+        here too — before any manager is called, not after (the façade's own gate runs
+        second and would otherwise only report a mutation that already happened)."""
         with self.database.connect() as db:
             grant = self._live(db, grant_id)
             remote = self.is_remote(db, grant)
+            if not remote and grant.node_id == LOCAL_NODE_ID:
+                require_unmanaged(db, self.facade.managed, grant.protocol, grant.runtime_username)
         if not remote and grant.node_id != LOCAL_NODE_ID:
             raise ClientConflict(f"node {grant.node_id} has no writer on this panel")
         return grant, remote

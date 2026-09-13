@@ -340,3 +340,35 @@ async def test_a_grant_on_a_node_this_panel_cannot_write_is_refused_before_anyth
     assert refused.status_code == 409 and "nowhere" in refused.json()["detail"]
     assert (await client.get(f"/api/clients/{client_id}")).json()["grants"] == []
     assert "alice" not in [u["username"] for u in await naive.list_users()]
+
+
+async def test_local_lifecycle_and_adoption_refuse_a_central_owned_account_before_any_adapter_call(pair):
+    """ADR 003 on the node's own «Клиенты» page: a local grant row that names an account the
+    central now owns (the node owner imported it in v0.2, the central imported it in v0.3) is
+    refused with 409/managed_by_central *before* the manager is asked to do anything."""
+    from fastapi import HTTPException
+    node, central, plaintext = pair
+    node.state.naive.seed("bob", "pw-bob")
+    grant = node.state.domain_facade.touch_import("naive", "bob", enabled=True, options={}, actor=ACTOR, ip="x")
+    with node.state.database.transaction() as db:
+        node.state.managed.upsert_resource(db, protocol="naive", username="bob", ref="grant:bob", generation=1,
+                                           state="enabled")
+    node.state.naive.calls.clear()
+    lifecycle, clients = node.state.lifecycle, node.state.clients
+    attempts = [
+        lambda: lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x"),
+        lambda: lifecycle.rotate(grant.id, actor=ACTOR, ip="x"),
+        lambda: lifecycle.delete(grant.id, actor=ACTOR, ip="x"),
+        lambda: clients.capture_credential(grant.id, actor=ACTOR, ip="x"),
+        lambda: clients.adopt_credential(grant.id, allow_rotation=True, actor=ACTOR, ip="x"),
+    ]
+    for attempt in attempts:
+        with pytest.raises(HTTPException) as refused:
+            await attempt()
+        assert refused.value.status_code == 409 and refused.value.headers["X-Reason"] == "managed_by_central"
+    assert node.state.naive.calls == [], "the manager must not be reached for a central-owned account"
+    bob = node.state.naive.users["bob"]
+    assert (bob["enabled"], bob["password"]) == (True, "pw-bob")
+    with node.state.database.connect() as db:
+        row = node.state.clients.store.grant(db, grant.id)  # the row is still there, untouched
+    assert (row.desired_state, row.secret_ref) == ("enabled", None)
