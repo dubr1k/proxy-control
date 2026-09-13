@@ -7,6 +7,7 @@ import socket
 import ssl
 from urllib.parse import urlsplit
 
+import httpcore
 import httpx
 
 from .protocol import ObservedGeneration, PushRequest, PushResponse
@@ -58,23 +59,70 @@ def fingerprint(url: str, *, timeout: float = 5.0) -> str:
             return hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
 
 
+class _PinningStream(httpcore.AsyncNetworkStream):
+    """A plaintext stream whose `start_tls` refuses to return until the peer's leaf certificate
+    matches the pin — so no HTTP byte (the bearer key, a generation's credentials) is ever
+    written to an unpinned peer. httpcore calls `start_tls` once per connection, before
+    `handle_async_request` writes the first request line."""
+
+    def __init__(self, inner: httpcore.AsyncNetworkStream, expected: str):
+        self._inner, self._expected = inner, expected
+
+    async def read(self, max_bytes, timeout=None):
+        return await self._inner.read(max_bytes, timeout)
+
+    async def write(self, buffer, timeout=None):
+        await self._inner.write(buffer, timeout)
+
+    async def aclose(self):
+        await self._inner.aclose()
+
+    def get_extra_info(self, info):
+        return self._inner.get_extra_info(info)
+
+    async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+        tls = await self._inner.start_tls(ssl_context, server_hostname=server_hostname, timeout=timeout)
+        ssl_object = tls.get_extra_info("ssl_object")
+        certificate = ssl_object.getpeercert(binary_form=True) if ssl_object is not None else None
+        if certificate is None or hashlib.sha256(certificate).hexdigest() != self._expected:
+            await tls.aclose()
+            raise httpcore.ConnectError("pinned certificate mismatch")
+        return tls
+
+
+class _PinningBackend(httpcore.AsyncNetworkBackend):
+    """Wrap the anyio backend so every TCP connection's TLS handshake is pinned (see `_PinningStream`)."""
+
+    def __init__(self, expected: str):
+        self._inner, self._expected = httpcore.AnyIOBackend(), expected
+
+    async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        stream = await self._inner.connect_tcp(host, port, timeout=timeout, local_address=local_address,
+                                               socket_options=socket_options)
+        return _PinningStream(stream, self._expected)
+
+    async def connect_unix_socket(self, path, timeout=None, socket_options=None):  # pragma: no cover
+        raise httpcore.ConnectError("pinned transport is TCP-only")
+
+    async def sleep(self, seconds):
+        await self._inner.sleep(seconds)
+
+
 class _PinnedTransport(httpx.AsyncHTTPTransport):
-    """Verify the leaf certificate by SHA-256 instead of by chain (self-signed/lab certs)."""
+    """Verify the leaf certificate by SHA-256 instead of by chain (self-signed/lab certs).
+    Chain verification is off (`CERT_NONE`), so the pin is the only trust anchor — it is
+    checked inside the handshake (`_PinningStream.start_tls`), never after a response."""
 
     def __init__(self, expected: str, **kw):
         context = ssl.create_default_context()
         context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
         super().__init__(verify=context, **kw)
         self.expected = expected.lower()
-
-    async def handle_async_request(self, request):
-        response = await super().handle_async_request(request)
-        stream = response.extensions.get("network_stream")
-        certificate = stream.get_extra_info("ssl_object").getpeercert(binary_form=True) if stream else None
-        if certificate is None or hashlib.sha256(certificate).hexdigest() != self.expected:
-            await response.aclose()
-            raise ssl.SSLCertVerificationError("pinned certificate mismatch")
-        return response
+        # Replace httpx's pool with one whose network backend pins the handshake (httpx exposes no hook
+        # for the backend); the pool limits are httpx's defaults (100 / 20 / 5 s), HTTP/1.1 only.
+        self._pool = httpcore.AsyncConnectionPool(
+            ssl_context=context, network_backend=_PinningBackend(self.expected),
+            max_connections=100, max_keepalive_connections=20, keepalive_expiry=5.0, http1=True, http2=False)
 
 
 class NodeClient:

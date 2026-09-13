@@ -176,6 +176,7 @@ class _EmptyHandler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        self.server.requests.append(self.path)
         self.send_response(200)
         self.send_header("content-length", "0")
         self.end_headers()
@@ -183,6 +184,7 @@ class _EmptyHandler(http.server.BaseHTTPRequestHandler):
 
 def _start_tls_server(cert, key):
     server = _OneShotTLSServer(("127.0.0.1", 0), _EmptyHandler)
+    server.requests = []  # every HTTP request the handler saw; a pin mismatch must leave it empty
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(str(cert), str(key))
     server.socket = context.wrap_socket(server.socket, server_side=True)
@@ -215,10 +217,14 @@ async def test_pinned_transport_accepts_matching_and_rejects_mismatched_pin(tmp_
         base_url = f"https://127.0.0.1:{server.server_port}"
         good = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256=expected)
         assert (await good.identity()) == {}
+        assert server.requests == ["/api/fleet/v2/identity"]
 
+        # A pin mismatch is an active MITM by definition: the handshake must fail before a
+        # single byte of HTTP (the bearer key, the credentials of a push) reaches the peer.
         bad = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256="0" * 64)
         with pytest.raises(NodeUnreachable):
             await bad.identity()
+        assert server.requests == ["/api/fleet/v2/identity"], "the mismatched server must not see a request"
     finally:
         server.shutdown()
         thread.join(timeout=2)
