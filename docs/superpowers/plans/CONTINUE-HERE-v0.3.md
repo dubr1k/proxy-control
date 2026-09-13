@@ -1,12 +1,42 @@
 # CONTINUE HERE — v0.3 центральная панель
 
-Обновлено: 2026-09-13 (фикс-волна финального ревью применена, гейт пройден повторно; ветка готова к слиянию).
+Обновлено: 2026-09-13 вечер (третья пауза владельца — после раунда 2 финального ревью, до его re-review и
+повторного гейта).
+
+## Точка продолжения (завтра, новый контекст)
+
+Осталось довести финальное whole-branch ревью до чистого состояния и закрыть ветку:
+
+1. **Scoped re-review раунда 2** — `scripts/review-package <plan> 193dcfa d6c4f57` → `re-review-prompt.md` (opus)
+   с findings N1–N3 (см. ниже), report `final-fix-report.md` (секция `## Round 2 (interrupted)`).
+2. **Повторный релизный гейт на итоговом дереве кода** (`d6c4f57` или новее, если re-review потребует правок):
+   `scripts/dev/remote-gate.sh full && scripts/dev/remote-gate.sh compose && LAB_RESET=1 LAB_KEEP_INSTALL=1
+   scripts/dev/remote-gate.sh lab-host && scripts/dev/remote-gate.sh fleet` (~30 мин); `lab-sha256` = `/root/lab-host.sha`.
+3. **Docs-only коммит:** таблица гейта в `docs/releases/v0.3.0-beta.1.md` (дерево, дата, digest), блок «Где мы»
+   этого файла, убрать две ссылки на gitignored `task-15-report.md`/`task-16-report.md` (описать факты inline).
+4. **Адjudication остатков** финального ревью (out-of-scope, не блокируют): `escrow_returned_credential` переписывает
+   активную версию при каждом push (пропускать при неизменном plaintext); I4 «мёртвый узел» с `deleted/pending`
+   provisioned-грантом не удалить (409 навсегда — нужен owner-override или описанный DB-выход);
+   `capture/adopt_credential` зовут локальный адаптер для любого grant id (pre-existing); FIX SOON-список из
+   триажа финального ревью — в post-merge issues.
+5. `rm -rf .superpowers/sdd/2026-09-11-v0.3-central-panel` (после чистого re-review) → `superpowers:finishing-a-development-branch`
+   → push.
+
+Findings раунда 2 (регрессии фикс-волны, исправлены в `d6c4f57`, targeted 55 passed; re-review НЕ проведён):
+- N1 — хвост `Reconciler._apply` удалял `missing`-строку по устаревшему снимку после того, как `_record` уже
+  переписал её на новый ref регранта → строка владения терялась, дальше вечная коллизия. Фикс: `missing`-строки,
+  чьё имя документ называет под другим ref, снимаются **до** apply (в транзакции `set_state(applying)`).
+- N2 — `_capture_pending` не учитывал лимит узла 200 ресурсов на capture → 422 → ложный offline/`node.down`.
+  Фикс: `CAPTURE_MAX_RESOURCES = 200` в `protocol.py` (общий), батчи, ошибка capture → warning + absorb без кредов.
+- N3 — capture/escrow из отчёта `applying` активировал pre-rotation секрет. Фикс: `SETTLED_STATES`; capture,
+  escrow/confirm и `remote_applied` только при `converged|failed`, `applying` лишь записывается и чистит `missing`.
 
 ## Где мы
 
 - Ветка: `feature/vnext-v0.3-fleet-v2` (от `feature/vnext-v0.2-local-control-plane`, `v0.2.0-beta.1`).
-  HEAD — коммит `release: гейт v0.3.0-beta.1 пройден повторно после фикс-волны финального ревью` поверх
-  `4d61396` (только документация: таблица гейта релизной заметки и этот файл). Код ветки = дерево `4d61396`.
+  HEAD — `d6c4f57` (раунд 2 финального ревью) поверх `193dcfa` (docs-only после гейта на `4d61396`).
+  Гейт ниже относится к дереву `4d61396`; код после него менялся (`d6c4f57`: `reconcile.py`, `pusher.py`,
+  `protocol.py`, `node_routes.py` + тесты) — **повторный гейт обязателен** (п. 2 выше).
   **Фикс-волна финального ревью применена** (`e89d2c9`…`4d61396`): C1 пин сертификата в TLS-рукопожатии;
   I5 гейт ADR 003 до адаптера на локальных путях узла; I4 удаление узла отклоняется при неподтверждённом
   удалении гранта; I2 повторный capture креда Telemt (re-PUT и 202/poll); I7 отчёт `missing` переживает 202;
