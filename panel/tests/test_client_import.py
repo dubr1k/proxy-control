@@ -236,3 +236,57 @@ async def test_a_username_the_runtime_already_uses_is_refused_before_anything_is
     )
     assert refused.status_code == 409 and "already" in refused.json()["detail"]
     assert (await client.get(f"/api/clients/{client_id}")).json()["grants"] == []
+
+
+def _render(app, client_id: str) -> dict[str, str]:
+    """Every link of the client's subscription bundle, by runtime username."""
+    from panel.fleet_v2.central_routes import public_hosts_for
+    from panel.subscriptions.renderers.base import resolve_artifacts
+    subscription, _token = app.state.subscriptions.create(client_id, actor={"id": 1, "username": "owner"}, ip="x")
+    manifest = app.state.subscriptions.effective_manifest(subscription, 10**9)
+    with app.state.database.connect() as db:
+        artifacts = resolve_artifacts(manifest, app.state.secrets, app.state.adapters, db,
+                                      public_hosts=lambda node_id: public_hosts_for(app.state, node_id))
+    return {grant.runtime_username: artifacts[grant.grant_id][0].value for grant in manifest.grants}
+
+
+async def test_a_locally_imported_mtproxy_user_renders_with_telemts_link_host(client, login_user, telemt, naive, mieru):
+    """Final review I3: the panel is not configured with Telemt's endpoint — the link is. An
+    imported user must carry the host/port of the link Telemt serves, not the panel's domain."""
+    telemt.public_host, telemt.public_port = "relay.example.net", 8443
+    headers = await _seed(client, login_user, telemt, naive, mieru)
+    decisions = [{"display_name": "alice", "client_id": None, "items": [["mtproxy", "alice"]]}]
+    assert (await client.post("/api/clients/import", json={"decisions": decisions}, headers=headers)).status_code == 200
+    item = (await client.get("/api/clients")).json()["items"][0]
+    grant = item["grants"][0]
+    assert (grant["options"]["host"], grant["options"]["port"]) == ("relay.example.net", 8443)
+    adopted = await client.post(f"/api/clients/grants/{grant['id']}/adopt", json={"allow_rotation": False}, headers=headers)
+    assert adopted.status_code == 200 and adopted.json()["adopted"] is True
+    link = _render(client._transport.app, item["client"]["id"])["alice"]
+    assert "server=relay.example.net" in link and "port=8443" in link and "testserver" not in link
+    assert (await telemt.current_access("alice"))["secret"] in link
+
+
+async def test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_link_host(pair):
+    """The same for a linked panel: the node's inventory carries the endpoint from the link,
+    the imported grant records it, and the node's adoption re-teaches it as `learned`."""
+    from panel.fleet_v2.importing import ImportItem, import_resources
+    actor = {"id": 1, "username": "owner"}
+    node, central, plaintext = pair
+    node.state.telemt.public_host, node.state.telemt.public_port = "relay.node.example", 8443
+    await node.state.telemt.create_user("dave")
+    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=actor, ip="x")
+    result = await import_resources(central.state, node_id, [ImportItem("mtproxy", "dave", "new")], actor=actor, ip="x")
+    assert result["without_credential"] == []
+    grant = central.state.clients.client_with_grants(result["imported"][0]["client_id"])[1][0]
+    assert (grant.options.host, grant.options.port) == ("relay.node.example", 8443)
+    link = _render(central, grant.client_id)["dave"]
+    assert "server=relay.node.example&port=8443&" in link  # Telemt's endpoint, not the panel's host
+    assert "server=testserver" not in link and "server=node.example" not in link
+    # The node adopts the user on the next push and reports what its runtime taught.
+    await central.state.pusher.tick()
+    with node.state.database.connect() as db:
+        learned = node.state.managed.resources(db)[("mtproxy", "dave")]["learned_json"]
+    assert '"host": "relay.node.example"' in learned and '"port": 8443' in learned
+    grant = central.state.clients.client_with_grants(grant.client_id)[1][0]
+    assert (grant.options.host, grant.options.port, grant.observed_state) == ("relay.node.example", 8443, "enabled")

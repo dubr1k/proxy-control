@@ -155,9 +155,9 @@ session is refused, and a `node-sync` key is refused everywhere outside this pre
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` |
+| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` is the node's `MTPROXY_DOMAIN` (its first allowed host when unset); a grant's own `host`/`port`, learned from the link Telemt served, win over it when a link is rendered |
 | `GET /api/fleet/v2/status` | versions and host facts from the node's version-agent (or `version_agent_unavailable`), `managed_resources`, `users` per protocol `{central, local}`, `protocols[*].traffic` (best effort: Telemt total only, NaiveProxy up/down/total, Mieru `null`) |
-| `GET /api/fleet/v2/inventory` | runtime users per protocol: `{runtime_username, enabled, options, ownership: central\|local, ref}` — no secrets |
+| `GET /api/fleet/v2/inventory` | runtime users per protocol: `{runtime_username, enabled, options, ownership: central\|local, ref}` — no secrets; for MTProxy `options` also carries the `host`/`port` of the link Telemt serves, so an imported grant renders at the runtime's endpoint |
 | `PUT /api/fleet/v2/generation` | the push: `{expected_guid, generation, secrets}`, body ≤ 64 KiB. 409 with a `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 for an unknown field or protocol. `200 {observed, credentials}` when the reconcile finished within 25 s, `202 {observed}` when it continues in the background. `credentials` returns only credentials the node's runtime chose itself; `Cache-Control: no-store` |
 | `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision, learned}], reported_at}` — `learned` is what the runtime taught the node about the link (Telemt's `host`/`port`, mita's `share_template`), never a credential. A report may gain fields; a central ignores the ones it does not know |
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru is always `unsupported` |
@@ -233,8 +233,9 @@ From the link dialog (after «Проверить») or later from the node card'
    MTProxy and NaiveProxy hand their credential back; Mieru cannot (it stores a hash),
    so those users come back `unsupported`.
 3. One transaction: a client per user (named after the runtime username) or an
-   attachment to the client you picked, a grant with `origin = imported` and the
-   observed enabled/disabled state, secret version 1 `active` where a credential came
+   attachment to the client you picked, a grant with `origin = imported`, the
+   observed enabled/disabled state and the runtime's options (for MTProxy: the
+   `host`/`port` of the link Telemt serves), secret version 1 `active` where a credential came
    back, an audit row `node.import` naming the accounts (never the credentials), and
    the generation that carries them.
 4. On the next push the node **adopts** these users: it records them in

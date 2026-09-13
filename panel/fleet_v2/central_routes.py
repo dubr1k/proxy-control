@@ -46,7 +46,7 @@ def public_hosts_for(state, node_id: str) -> dict[str, str]:
     settings = state.settings
     return {
         "naive": settings.naive_public_host,
-        "mtproxy": settings.allowed_hosts[0] if settings.allowed_hosts else "",
+        "mtproxy": settings.mtproxy_host,
         "mieru": settings.naive_public_host,
     }
 

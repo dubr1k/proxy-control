@@ -119,8 +119,17 @@ class Reconciler:
     def _learned(resource: Resource, applied: AppliedGrant) -> dict:
         """The facts the runtime taught about the link — only those the protocol's options
         model has a field for (Telemt: host, port; mita: share_template), never a credential."""
+        return Reconciler._learned_from(resource, applied.artifact_template)
+
+    @staticmethod
+    def _learned_from_inventory(resource: Resource, item: ObservedGrant) -> dict | None:
+        """The same facts read off the inventory row an adoption is based on, or None."""
+        return Reconciler._learned_from(resource, item.options or {}) or None
+
+    @staticmethod
+    def _learned_from(resource: Resource, reported: dict) -> dict:
         fields = PROTOCOL_OPTIONS[resource.protocol].model_fields
-        return {key: value for key, value in applied.artifact_template.items()
+        return {key: value for key, value in reported.items()
                 if key in fields and key in LEARNED_OPTIONS and value not in (None, "")}
 
     # ---- applying (adapter I/O only, no database connection open) -------------------
@@ -164,10 +173,14 @@ class Reconciler:
             # credential it holds today, which the pushed `credential_ref` now names. No
             # adapter call: nothing is created, rotated or deleted by adopting. A `deleted`
             # resource never adopts — adopting and deleting are two separate decisions.
+            # What the inventory knows about the link (Telemt's host/port, mita's share
+            # template) is recorded as `learned` — the same facts create/rotate teach.
+            learned = self._learned_from_inventory(resource, item)
             self._record(generation, resource, _state(item.enabled), revision=item.revision,
-                         credential_ref=resource.credential_ref)
+                         credential_ref=resource.credential_ref, learned=learned)
             record = {"credential_ref": resource.credential_ref}
-        learned: dict | None = None
+        else:
+            learned = None
         if resource.desired_state == "deleted":
             if item is not None:
                 await adapter.delete(ref)
@@ -182,6 +195,9 @@ class Reconciler:
             state, revision, current = _state(applied.enabled), applied.revision, None
         else:
             state, revision, current = _state(item.enabled), item.revision, item.options or {}
+            # A row adopted before the inventory carried the endpoint learns it now (no I/O:
+            # the inventory is already in hand); create/rotate below may refine it.
+            learned = learned or self._learned_from_inventory(resource, item)
             stored = record.get("credential_ref")
             if stored != resource.credential_ref and (stored is not None or adapter.accepts_caller_credential):
                 plan = self._plan(resource)

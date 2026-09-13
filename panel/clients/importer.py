@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from ..mieru import MieruError
 from ..naive import NaiveError
-from ..telemt import TelemtError
+from ..telemt import TelemtError, access_from_user
 from .models import PROTOCOL_OPTIONS, AccessGrant, MieruOptions, MtproxyOptions, NaiveOptions
 from .store import ClientStore
 
@@ -61,12 +61,21 @@ def _integer(value):
 def _mtproxy_options(row: dict) -> dict:
     # Telemt reports expiration as an RFC 3339 string; MtproxyOptions holds an epoch,
     # so an imported grant carries no expiration until the operator sets one.
+    # The endpoint comes from the link Telemt serves (a raw runtime row, local import) or
+    # from a linked panel's inventory options (`TelemtAdapter.discover`, remote import): the
+    # panel has no configured value for it, and a link rendered from escrow must point
+    # where the runtime actually listens (spec §11), not at the panel's own domain.
+    access = access_from_user(row) or {}
+    host = row.get("host") or access.get("server")
+    port = _integer(row.get("port")) or access.get("port")
     return MtproxyOptions(
         data_quota_bytes=_integer(row.get("data_quota_bytes")),
         rate_limit_up_bps=_integer(row.get("rate_limit_up_bps")),
         rate_limit_down_bps=_integer(row.get("rate_limit_down_bps")),
         max_tcp_conns=_integer(row.get("max_tcp_conns")),
         max_unique_ips=_integer(row.get("max_unique_ips")),
+        host=host if isinstance(host, str) and 0 < len(host) <= 253 else None,
+        port=port if isinstance(port, int) and 1 <= port <= 65535 else None,
     ).model_dump()
 
 

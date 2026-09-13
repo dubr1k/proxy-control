@@ -75,10 +75,10 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             _daemon(app.state.naive, NaiveError) if settings.naive_enabled else asyncio.sleep(0, "off"),
             _daemon(app.state.mieru, MieruError) if settings.mieru_enabled else asyncio.sleep(0, "off"),
         )
-        # The public hosts are the ones this node's own subscription renderer assumes.
+        # The public hosts are the ones this node's own subscription renderer assumes; a
+        # grant's own `host`/`port`, learned from the link Telemt served, win over these.
         return {
-            "mtproxy": {"enabled": True, "public_host": settings.allowed_hosts[0] if settings.allowed_hosts else "",
-                        "public_port": 443, "daemon": telemt},
+            "mtproxy": {"enabled": True, "public_host": settings.mtproxy_host, "public_port": 443, "daemon": telemt},
             "naive": {"enabled": settings.naive_enabled, "public_host": settings.naive_public_host,
                       "public_port": 443, "daemon": naive},
             "mieru": {"enabled": settings.mieru_enabled, "public_host": settings.naive_public_host,
