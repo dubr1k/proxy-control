@@ -55,6 +55,14 @@ class TelemtAdapter:
                 return row
         return None
 
+    @staticmethod
+    def _endpoint(row: dict) -> dict:
+        """Where the user's link points (`host`/`port` of `MtproxyOptions`), never its secret:
+        Telemt owns the endpoint, so an inventory row is the only place to learn it from."""
+        access = access_from_user(row) or {}
+        return {key: value for key, value in (("host", access.get("server")), ("port", access.get("port")))
+                if value not in (None, "")}
+
     async def discover(self) -> ObservedInventory:
         rows = await self.client.list_users()
         return ObservedInventory(
@@ -62,7 +70,7 @@ class TelemtAdapter:
                 ObservedGrant(
                     runtime_username=row["username"],
                     enabled=row.get("enabled") is not False,
-                    options={key: row[key] for key in OPTION_FIELDS if key in row},
+                    options={**{key: row[key] for key in OPTION_FIELDS if key in row}, **self._endpoint(row)},
                 )
                 for row in rows
                 if isinstance(row, dict) and isinstance(row.get("username"), str)

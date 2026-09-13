@@ -76,8 +76,12 @@ scoped API-ключами ([FLEET.ru.md](../FLEET.ru.md), [ADR
 сервер» на экране «Узлы» с GUID панели, URL для центра и — когда панелью управляют —
 кнопкой «Отвязать»; кнопка «+ Панель» в шапке экрана «Узлы»; связанные панели в выборе
 узла при «Выдать доступ»; `/api/fleet/v2/*` на каждой панели, отвечающий только на API-ключ
-`node-sync` или `admin` (иначе 401); `Authorization: Bearer` на всём `/api/*`; настройка
-`PANEL_FLEET_HEARTBEAT_SECONDS` (по умолчанию 15) для центра.
+`node-sync` или `admin` (401 без ключа; 403 для сессии или ключа `monitor`);
+`Authorization: Bearer` на всём `/api/*`; настройка `PANEL_FLEET_HEARTBEAT_SECONDS` (по
+умолчанию 15) для центра; `compose.yaml` теперь передаёт контейнеру панели ещё и
+`MTPROXY_DOMAIN` (он уже есть в `.env` для сервисов `mask` и `mtproxy`) — endpoint MTProxy,
+который панель сообщает центру и подставляет в ссылку, пока не выучила его из Telemt;
+настраивать ничего не нужно.
 
 **Что не меняется.** Fleet v1 (mTLS-агент, `/api/fleet/nodes*`, `/agent/v1/*`) работает
 байт-в-байт как прежде; protocol endpoints, `PANEL_VNEXT_WRITER`, подписки и требование

@@ -98,10 +98,11 @@ def create_app(
     app.state.mieru = mieru or MieruClient(
         settings.mieru_socket, settings.mieru_token
     )
-    # Only NaiveProxy's public host is panel configuration; Telemt and mita report
-    # theirs inside the link they return.
+    # NaiveProxy's public host is panel configuration; Telemt and mita report theirs
+    # inside the link they return — `MTPROXY_DOMAIN` is only the fallback for a grant
+    # that has not learned its endpoint yet.
     app.state.adapters = {
-        "mtproxy": TelemtAdapter(app.state.telemt),
+        "mtproxy": TelemtAdapter(app.state.telemt, public_host=settings.mtproxy_public_host),
         "naive": NaiveAdapter(app.state.naive, public_host=settings.naive_public_host),
         "mieru": MieruAdapter(app.state.mieru),
     }

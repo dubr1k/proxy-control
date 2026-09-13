@@ -153,9 +153,9 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 
 | Метод и путь | Назначение |
 | --- | --- |
-| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` |
+| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` — это `MTPROXY_DOMAIN` узла (первый разрешённый хост, если не задан); собственные `host`/`port` доступа, выученные из ссылки Telemt, при рендере ссылки важнее |
 | `GET /api/fleet/v2/status` | версии и факты о хосте от version-agent узла (или `version_agent_unavailable`), `managed_resources`, `users` по протоколам `{central, local}`, `protocols[*].traffic` (best effort: у Telemt только total, у NaiveProxy up/down/total, у Mieru `null`) |
-| `GET /api/fleet/v2/inventory` | учётные записи runtime по протоколам: `{runtime_username, enabled, options, ownership: central\|local, ref}` — без секретов |
+| `GET /api/fleet/v2/inventory` | учётные записи runtime по протоколам: `{runtime_username, enabled, options, ownership: central\|local, ref}` — без секретов; у MTProxy в `options` ещё `host`/`port` ссылки, которую отдаёт Telemt, чтобы импортированный доступ рендерился на endpoint runtime |
 | `PUT /api/fleet/v2/generation` | push: `{expected_guid, generation, secrets}`, тело ≤ 64 KiB. 409 с `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 — неизвестное поле или протокол. `200 {observed, credentials}`, если reconcile уложился в 25 с, `202 {observed}` — если продолжается в фоне. В `credentials` только учётные данные, которые runtime узла сгенерировал сам; `Cache-Control: no-store` |
 | `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision, learned}], reported_at}` — `learned` — что runtime сообщил узлу о ссылке (`host`/`port` Telemt, `share_template` mita), никогда не секрет. Отчёт может обрастать полями; центр игнорирует незнакомые |
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru всегда `unsupported` |
@@ -232,8 +232,9 @@ web-сессия отвергается, а ключ `node-sync` отверга�
    импортированного клиента. MTProxy и NaiveProxy отдают секрет; Mieru не может (хранит
    хеш), такие пользователи возвращаются как `unsupported`.
 3. Одна транзакция: клиент на каждого пользователя (с именем учётной записи) или
-   привязка к выбранному вами клиенту, доступ с `origin = imported` и наблюдаемым
-   состоянием вкл/выкл, версия секрета 1 `active` там, где секрет вернулся, строка аудита
+   привязка к выбранному вами клиенту, доступ с `origin = imported`, наблюдаемым
+   состоянием вкл/выкл и опциями runtime (у MTProxy — `host`/`port` ссылки, которую
+   отдаёт Telemt), версия секрета 1 `active` там, где секрет вернулся, строка аудита
    `node.import` с именами учётных записей (никогда — с секретами) и поколение, которое
    их несёт.
 4. При следующем push узел **присваивает** этих пользователей: записывает их в

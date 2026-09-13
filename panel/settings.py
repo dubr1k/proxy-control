@@ -30,6 +30,11 @@ class Settings:
         )
     )
     naive_public_host: str = os.getenv("NAIVE_PUBLIC_HOST", "")
+    # Telemt's Fake-TLS domain (compose `MTPROXY_DOMAIN`): the fallback host of an MTProxy
+    # link when a grant has not learned one from the link Telemt served, and what this
+    # panel reports as `protocols.mtproxy.public_host` to a central. Empty falls back to
+    # the panel's own first allowed host (the pre-v0.3 behaviour).
+    mtproxy_public_host: str = os.getenv("MTPROXY_DOMAIN", "")
     naive_enabled: bool = os.getenv("NAIVE_ENABLED", "false").lower() == "true"
     mieru_socket: str = os.getenv(
         "MIERU_MANAGER_SOCKET", "/run/mieru-manager/manager.sock"
@@ -87,6 +92,11 @@ class Settings:
     # owes them (spec §6). A push the node failed or rejected is not repeated every
     # heartbeat: it backs off per node (30 s doubling to 10 min) until something changes.
     fleet_heartbeat_seconds: int = int(os.getenv("PANEL_FLEET_HEARTBEAT_SECONDS", "15"))
+
+    @property
+    def mtproxy_host(self) -> str:
+        """The MTProxy endpoint this panel would put in a link it cannot learn from Telemt."""
+        return self.mtproxy_public_host or (self.allowed_hosts[0] if self.allowed_hosts else "")
 
     def __post_init__(self) -> None:
         if not self.subscription_host and self.subscription_url:

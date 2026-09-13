@@ -74,8 +74,11 @@ reads as `dev` and never blocks startup).
 «Узлы» with the panel's GUID, the URL for a central and — once managed — «Отвязать»; the
 header button «+ Панель» on «Узлы»; linked panels in the node picker of «Выдать доступ»;
 `/api/fleet/v2/*` on every panel, answering only to a `node-sync` or `admin` API key
-(401 otherwise); `Authorization: Bearer` on the whole `/api/*`; the setting
-`PANEL_FLEET_HEARTBEAT_SECONDS` (default 15) for a central.
+(401 without a key; 403 for a session or a `monitor` key); `Authorization: Bearer` on the
+whole `/api/*`; the setting `PANEL_FLEET_HEARTBEAT_SECONDS` (default 15) for a central;
+`compose.yaml` now also hands the panel container `MTPROXY_DOMAIN` (already in `.env` for
+the `mask` and `mtproxy` services) — the MTProxy endpoint the panel reports to a central
+and falls back to for a link it has not learned from Telemt; nothing to configure.
 
 **What does not change.** Fleet v1 (mTLS agent, `/api/fleet/nodes*`, `/agent/v1/*`)
 keeps working byte-for-byte; the protocol endpoints, `PANEL_VNEXT_WRITER`, subscriptions
