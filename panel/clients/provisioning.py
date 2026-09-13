@@ -285,25 +285,29 @@ class ProvisioningService:
                 )
 
     def _remember_template(self, grant: AccessGrant, artifact_template: dict) -> None:
+        with self.database.transaction() as db:
+            self.remember_template(db, grant, artifact_template)
+
+    def remember_template(self, db, grant: AccessGrant, artifact_template: dict) -> None:
         """Keep the shape the runtime reported, so a link can be rebuilt without it.
 
         Only what the protocol's options model has a field for is kept: Mieru's share
         template, Telemt's host and port. Everything else the adapter reported is
-        transient.
+        transient. Inside the caller's transaction: the local saga calls it after an
+        adapter applied a grant, the pusher when a linked panel reports what it learned.
         """
         learned = {
             key: value
             for key, value in artifact_template.items()
             if key in type(grant.options).model_fields and value not in (None, "")
         }
-        if not learned:
+        if not learned or all(getattr(grant.options, key, None) == value for key, value in learned.items()):
             return
         options = grant.options.model_copy(update=learned)
-        with self.database.transaction() as db:
-            self.clients.store.update_grant(
-                db, grant.id, protocol_options_json=options.model_dump_json(),
-                updated_at=int(self.clock.time()),
-            )
+        self.clients.store.update_grant(
+            db, grant.id, protocol_options_json=options.model_dump_json(),
+            updated_at=int(self.clock.time()),
+        )
 
     def _activate(self, grant: AccessGrant) -> None:
         reference = SecretRef(f"grant:{grant.id}", 1)

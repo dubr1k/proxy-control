@@ -159,7 +159,7 @@ session is refused, and a `node-sync` key is refused everywhere outside this pre
 | `GET /api/fleet/v2/status` | versions and host facts from the node's version-agent (or `version_agent_unavailable`), `managed_resources`, `users` per protocol `{central, local}`, `protocols[*].traffic` (best effort: Telemt total only, NaiveProxy up/down/total, Mieru `null`) |
 | `GET /api/fleet/v2/inventory` | runtime users per protocol: `{runtime_username, enabled, options, ownership: central\|local, ref}` — no secrets |
 | `PUT /api/fleet/v2/generation` | the push: `{expected_guid, generation, secrets}`, body ≤ 64 KiB. 409 with a `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 for an unknown field or protocol. `200 {observed, credentials}` when the reconcile finished within 25 s, `202 {observed}` when it continues in the background. `credentials` returns only credentials the node's runtime chose itself; `Cache-Control: no-store` |
-| `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision}], reported_at}` |
+| `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision, learned}], reported_at}` — `learned` is what the runtime taught the node about the link (Telemt's `host`/`port`, mita's `share_template`), never a credential |
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru is always `unsupported` |
 | `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → the node's own version-agent |
 | `POST /api/fleet/v2/unlink` | forget the master; central-owned users become local; the runtime is untouched |
@@ -266,7 +266,13 @@ moves `observed_state`. Until then the UI shows the grant as **«ожидает 
   caller's secret (the pinned fork was probed on the lab host: `TELEMT_CALLER_SECRET =
   supported`); a runtime that insists on its own credential returns it in the push
   response (`credential_origin = manager`) and the central escrows it under the same
-  version.
+  version. Telemt frames the caller's secret as Fake-TLS (`ee` + secret + domain): the
+  node hands that form back too, and the central escrows it, so the `tg://` link the
+  subscription renders is the one the runtime serves. Likewise the node reports what
+  the runtime taught it about the link — Telemt's public host and port, mita's share
+  template with its real port — as `learned` per resource, and the central keeps it in
+  the grant's options exactly as the local saga does, so a remote grant renders with the
+  runtime's endpoint rather than the node's panel domain and a default port.
 - **Delete** — `desired_state = deleted`; the node removes the account it owns and
   reports `missing`; the central then **purges** the grant row and revokes every version
   of its credential, so the same `runtime_username` can be granted again. An operation
@@ -284,12 +290,15 @@ heartbeat and the delivery for that node; subscribers keep working. «Возоб
 undoes it.
 
 **Delete on the central** («Удалить», `DELETE /api/nodes/{id}`) is refused with 409
-while any grant on the node is not `deleted` — delete the client's accesses first, so
-that subscribers do not lose them silently. It then tells the node to forget its master
-(best effort — a revoked key must not make a link undeletable; the audit row
-`node.unlink` records `node_released: true|false`), and removes the node's grant
-history, the encrypted key and the `fleet_nodes` row with its link, desired and observed
-generations.
+while any *provisioned* grant on the node is not `deleted` — delete the client's accesses
+first, so that subscribers do not lose them silently. *Imported* grants do not block it
+and are **released**, not deleted: those users existed before the link and stay on the
+node as local users, untouched; the central drops their grant rows and revokes the
+credentials it captured (the audit row records `released_imported`). It then tells the
+node to forget its master (best effort — a revoked key must not make a link undeletable;
+the audit row `node.unlink` records `node_released: true|false`), and removes the node's
+grant history, the encrypted key and the `fleet_nodes` row with its link, desired and
+observed generations.
 
 **Unlink on the node** («Отвязать» on the card «Этот сервер», owner session
 `POST /api/nodes/local/unlink`, or the central's `POST /api/fleet/v2/unlink`) releases
@@ -302,8 +311,8 @@ re-adopted, provisioned ones failing as collisions).
 
 **Rolling a node back** to a previous panel image follows the general rule of
 [UPGRADING](docs/UPGRADING.md): restore the complete previous generation, database
-included. A v0.2 image refuses to start on a database migrated to schema 12
-(«database schema 12 is newer than this code»), so the previous image alone is not a
+included. A v0.2 image refuses to start on a database migrated to schema 13
+(«database schema 13 is newer than this code»), so the previous image alone is not a
 rollback. Nothing on the node's runtime was touched by the upgrade itself:
 `managed_resources` stays empty until a central pushes a generation, so restoring the
 pre-upgrade database loses no fleet state on a node that was never linked. Unlink

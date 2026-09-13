@@ -91,7 +91,9 @@ case $LEVEL in
     # The install scenario drops the SSH session (the host's firewall changes reset
     # established connections), so the runner is detached from it: it writes its own log
     # on the host and this side only follows the log until the exit marker appears.
-    remote "rm -f /root/lab-host.log; setsid nohup bash -c 'LAB_RESET=1 bash /tmp/proxy-control-release/proxy-control/scripts/lab/guest-runner.sh host \"\$(cat /root/lab-host.sha)\"; echo LAB_HOST_EXIT=\$?' > /root/lab-host.log 2>&1 < /dev/null &"
+    # LAB_KEEP_INSTALL=1 leaves the installed node running (uninstall/coexistence are
+    # reported as skipped) so the `fleet` tier has a live node to link.
+    remote "rm -f /root/lab-host.log; setsid nohup bash -c 'LAB_RESET=1 LAB_KEEP_INSTALL=${LAB_KEEP_INSTALL:-0} bash /tmp/proxy-control-release/proxy-control/scripts/lab/guest-runner.sh host \"\$(cat /root/lab-host.sha)\"; echo LAB_HOST_EXIT=\$?' > /root/lab-host.log 2>&1 < /dev/null &"
     shown=0
     while :; do
       sleep 30
@@ -110,8 +112,21 @@ case $LEVEL in
       fi
     done
     ;;
+  fleet)
+    # Fleet v2 end to end against the node `lab-host` left installed (LAB_KEEP_INSTALL=1):
+    # a second panel is started in-process from this tree and linked to it. Only the
+    # tree is synced; nothing is rebuilt or reinstalled.
+    sync_tree
+    remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
+      --node-url https://panel.lab.test \
+      --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+      --central-dir /root/lab-central --central-port 8791 --output lab-results/fleet \
+      --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain proxy.lab.test \
+      --client-ca-file /etc/letsencrypt/lab-ca/ca.crt $* \
+      && echo REMOTE_GATE_FLEET_OK"
+    ;;
   *)
-    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host}" >&2
+    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>}" >&2
     exit 2
     ;;
 esac

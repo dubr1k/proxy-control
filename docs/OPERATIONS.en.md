@@ -200,7 +200,7 @@ something changes. A v0.2 panel has no `/api/fleet/v2/*` at all and cannot be ad
 
 1. **Upgrade the nodes first, then the central.** On every host, in the project
    directory: `docker compose up -d --build --wait panel` with the persisted overlay set.
-   Migrations 9–12 apply at start; `panel_guid` is created on first start
+   Migrations 9–13 apply at start; `panel_guid` is created on first start
    ([UPGRADING](UPGRADING.md)).
 2. On each node create a `node-sync` key («Администраторы → API-ключи → Создать ключ»).
 3. On the central add the panels («Узлы → + Панель → Проверить → Добавить») and import
@@ -251,7 +251,7 @@ changes; subscribers are unaffected.
 
 Rolling a **node** back to the previous panel image follows the general rule: restore the
 complete previous generation, database included ([UPGRADING](UPGRADING.md)). A v0.2 image
-refuses to start on a database at schema 12 («database schema 12 is newer than this
+refuses to start on a database at schema 13 («database schema 13 is newer than this
 code»), so the previous image alone is not a rollback. On a node that was never linked the
 upgrade touched no runtime user and `managed_resources` is empty, so the pre-upgrade
 database loses no fleet state. A node that was managed: unlink it first (its users become

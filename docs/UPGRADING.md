@@ -53,7 +53,7 @@ domains with scoped API keys ([FLEET.en.md](../FLEET.en.md), [ADR
 upgrade — `docker compose up -d --build --wait panel` with the persisted overlay set —
 and adds no service, port, secret file or host component.
 
-**Migrations 9–12** run at the first start (or `python -m panel.cli db-migrate`) and are
+**Migrations 9–13** run at the first start (or `python -m panel.cli db-migrate`) and are
 additive:
 
 | # | Name | Adds |
@@ -62,8 +62,9 @@ additive:
 | 10 | `fleet-v2-managed` | `managed_generations`, `managed_resources` — the node side: accepted generations and the runtime users owned for a central |
 | 11 | `fleet-v2-links` | `node_links`, `desired_generations`, `observed_generations` and `fleet_nodes.transport` (`v1` for every existing node) — the central side |
 | 12 | `provisioning-pending-remote` | widens the `provisioning_operations.status` CHECK with `pending_remote`; SQLite cannot alter a CHECK in place, so the table is rebuilt with every row, index and foreign key preserved |
+| 13 | `fleet-v2-learned-options` | `managed_resources.learned_json` — what the runtime taught the node about a resource it owns for a central (Telemt's host and port, mita's share template), reported with every observed generation |
 
-`python -m panel.cli db-status` lists all twelve as applied. A `panel_guid` (uuid4) is
+`python -m panel.cli db-status` lists all thirteen as applied. A `panel_guid` (uuid4) is
 minted on the first start and never changes; the panel's `VERSION` is reported to a
 central through `PANEL_VERSION_FILE` (default `/app/VERSION`, bind-mounted from the
 project directory by `compose.yaml`; the installer copies `VERSION` there; a missing file
@@ -93,8 +94,8 @@ release.
 reports `dev` ([OPERATIONS](OPERATIONS.en.md), section 11).
 
 **Rollback** follows the general procedure above — the complete previous generation,
-database included: a v0.2 image refuses to start on a database at schema 12 («database
-schema 12 is newer than this code»). On a node that was never linked the upgrade touched
+database included: a v0.2 image refuses to start on a database at schema 13 («database
+schema 13 is newer than this code»). On a node that was never linked the upgrade touched
 no runtime user, so restoring the pre-upgrade database loses no fleet state; unlink a
 managed node («Отвязать») before rolling it back.
 

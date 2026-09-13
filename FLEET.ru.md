@@ -157,7 +157,7 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 | `GET /api/fleet/v2/status` | версии и факты о хосте от version-agent узла (или `version_agent_unavailable`), `managed_resources`, `users` по протоколам `{central, local}`, `protocols[*].traffic` (best effort: у Telemt только total, у NaiveProxy up/down/total, у Mieru `null`) |
 | `GET /api/fleet/v2/inventory` | учётные записи runtime по протоколам: `{runtime_username, enabled, options, ownership: central\|local, ref}` — без секретов |
 | `PUT /api/fleet/v2/generation` | push: `{expected_guid, generation, secrets}`, тело ≤ 64 KiB. 409 с `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 — неизвестное поле или протокол. `200 {observed, credentials}`, если reconcile уложился в 25 с, `202 {observed}` — если продолжается в фоне. В `credentials` только учётные данные, которые runtime узла сгенерировал сам; `Cache-Control: no-store` |
-| `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision}], reported_at}` |
+| `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision, learned}], reported_at}` — `learned` — что runtime сообщил узлу о ссылке (`host`/`port` Telemt, `share_template` mita), никогда не секрет |
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru всегда `unsupported` |
 | `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → собственный version-agent узла |
 | `POST /api/fleet/v2/unlink` | забыть мастера; учётные записи центра становятся локальными; runtime не трогается |
@@ -263,7 +263,13 @@ web-сессия отвергается, а ключ `node-sync` отверга�
   версия становится `active`, а retiring — `revoked`. Telemt принимает секрет от
   вызывающего (пиннутый форк проверен на стенде: `TELEMT_CALLER_SECRET = supported`);
   runtime, который настаивает на собственном секрете, возвращает его в ответе на push
-  (`credential_origin = manager`), и центр эскроуит его под той же версией.
+  (`credential_origin = manager`), и центр эскроуит его под той же версией. Telemt
+  оборачивает секрет вызывающего в Fake-TLS (`ee` + секрет + домен): узел возвращает и
+  эту форму, центр эскроуит её — ссылка `tg://` в подписке та же, что отдаёт runtime.
+  Так же узел сообщает, чему runtime научил его о ссылке — публичный хост и порт Telemt,
+  share-шаблон mita с реальным портом — полем `learned` у каждого ресурса, а центр хранит
+  это в опциях доступа ровно как локальная сага, поэтому удалённый доступ рендерится с
+  адресом runtime, а не с доменом панели узла и портом по умолчанию.
 - **Удаление** — `desired_state = deleted`; узел удаляет принадлежащую центру учётную
   запись и отчитывается `missing`; после этого центр **вычищает** строку доступа и
   отзывает все версии её секрета, поэтому тот же `runtime_username` можно выдать снова.
@@ -280,8 +286,12 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 этого узла и heartbeat, и доставку; абоненты продолжают работать. «Возобновить» отменяет её.
 
 **Удаление на центре** («Удалить», `DELETE /api/nodes/{id}`) отклоняется с 409, пока хоть
-один доступ на узле не в состоянии `deleted` — сначала удалите доступы клиентов, чтобы
-абоненты не потеряли их молча. Затем центр говорит узлу забыть мастера (best effort —
+один *выданный* (provisioned) доступ на узле не в состоянии `deleted` — сначала удалите
+доступы клиентов, чтобы абоненты не потеряли их молча. *Импортированные* доступы не
+мешают удалению и **освобождаются**, а не удаляются: эти пользователи существовали до
+связи и остаются на узле локальными, нетронутыми; центр удаляет их строки доступов и
+отзывает захваченные при импорте креды (строка аудита фиксирует `released_imported`).
+Затем центр говорит узлу забыть мастера (best effort —
 отозванный ключ не должен делать связь неудаляемой; строка аудита `node.unlink` фиксирует
 `node_released: true|false`) и удаляет историю доступов узла, зашифрованный ключ и строку
 `fleet_nodes` вместе со связью, желаемыми и наблюдаемыми поколениями.
@@ -297,8 +307,8 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 
 **Откат узла** на предыдущий образ панели подчиняется общему правилу
 [UPGRADING](docs/UPGRADING.ru.md): восстанавливается полная предыдущая генерация, включая
-базу. Образ v0.2 отказывается стартовать на базе, мигрированной до схемы 12 («database
-schema 12 is newer than this code»), поэтому один предыдущий образ — это ещё не откат. В
+базу. Образ v0.2 отказывается стартовать на базе, мигрированной до схемы 13 («database
+schema 13 is newer than this code»), поэтому один предыдущий образ — это ещё не откат. В
 runtime узла само обновление ничего не тронуло: `managed_resources` пуст, пока центр не
 прислал поколение, так что восстановление базы до обновления не теряет никакого
 fleet-состояния на узле, который никто не подключал. Узел, которым управляли, отвяжите

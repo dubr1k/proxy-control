@@ -55,3 +55,15 @@ def test_two_resources_cannot_name_the_same_protocol_and_runtime_user():
                          desired_state="disabled", credential_ref="grant:a:2", credential_origin="caller")
     with pytest.raises(ValidationError):
         _doc(resources=[_doc().resources[0], colliding])
+
+
+def test_observed_resource_carries_learned_link_facts_but_never_a_credential():
+    from panel.fleet_v2.protocol import ObservedResource
+
+    item = ObservedResource(ref="grant:1", protocol="mtproxy", runtime_username="a", state="enabled",
+                            learned={"host": "proxy.example", "port": 443})
+    assert item.learned == {"host": "proxy.example", "port": 443}
+    assert ObservedResource(ref="grant:1", protocol="naive", runtime_username="a", state="enabled").learned == {}
+    with pytest.raises(ValueError):
+        ObservedResource(ref="grant:1", protocol="mtproxy", runtime_username="a", state="enabled",
+                         learned={f"k{i}": i for i in range(9)})

@@ -157,12 +157,16 @@ class NodeLinkService:
                    request_id=request_id)
 
     async def delete(self, node_id: str, *, actor, ip, request_id=None) -> None:
-        """Refused while a grant on the node is not deleted. Tells the node to forget its
-        master (best effort) and removes the row, its generations and its key."""
+        """Refused while a provisioned grant on the node is not deleted: those accounts exist
+        only because of the link, and a subscriber would lose them silently. Imported grants
+        are released, not deleted — the users existed before the link (ADR 003 `adopted`)
+        and stay on the node as local users; their rows go and their credentials are
+        revoked here. Tells the node to forget its master (best effort) and removes the
+        row, its generations and its key."""
         with self.database.connect() as db:
             link = self.link(db, node_id)
-            if NodeRegistry.active_grants(db, node_id):
-                raise LinkConflict("the node still carries grants that are not deleted")
+            if NodeRegistry.provisioned_grants(db, node_id):
+                raise LinkConflict("the node still carries provisioned grants that are not deleted")
             key = self._reveal_key(db, link)
         try:
             await self._client(link, key).unlink()
@@ -171,8 +175,18 @@ class NodeLinkService:
             # The node's owner can still cut the link from that panel's own UI.
             released = False
         with self.database.transaction() as db:
-            if NodeRegistry.active_grants(db, node_id):
-                raise LinkConflict("the node still carries grants that are not deleted")
+            if NodeRegistry.provisioned_grants(db, node_id):
+                raise LinkConflict("the node still carries provisioned grants that are not deleted")
+            imported = db.execute(
+                "SELECT id FROM access_grants WHERE node_id=? AND origin='imported' AND desired_state<>'deleted'",
+                (node_id,)).fetchall()
+            for row in imported:
+                # The credential was the node's own (captured at import): nothing on the node
+                # changes, but this panel must not keep a usable copy of an account it no
+                # longer manages.
+                for version in db.execute("SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'",
+                                          (f"grant:{row['id']}",)).fetchall():
+                    self.secrets.transition(db, SecretRef(f"grant:{row['id']}", version["version"]), "revoked")
             # Deleted grants are history the node no longer needs, and they would keep the
             # node row alive (ON DELETE RESTRICT). fleet_nodes cascades to node_links,
             # desired_generations and observed_generations.
@@ -181,7 +195,7 @@ class NodeLinkService:
                        (link["api_key_secret_id"], KEY_PURPOSE))
             db.execute("DELETE FROM fleet_nodes WHERE node_id=?", (node_id,))
             record(db, actor=actor, action="node.unlink", target=node_id, ip=ip, request_id=request_id,
-                   detail={"node_released": released})
+                   detail={"node_released": released, "released_imported": len(imported)})
 
     # --- heartbeat bookkeeping ---------------------------------------------------
 

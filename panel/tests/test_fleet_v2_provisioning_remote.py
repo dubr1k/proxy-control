@@ -6,7 +6,7 @@ applied. Local grants keep the saga exactly as it was.
 """
 import pytest
 
-from panel.clients.models import GrantIntent, MtproxyOptions, NaiveOptions
+from panel.clients.models import GrantIntent, MieruOptions, MtproxyOptions, NaiveOptions
 
 pytestmark = pytest.mark.anyio
 
@@ -188,3 +188,33 @@ async def test_escrow_returned_credential_replaces_the_pending_version_in_place(
                                                  permitted_node_id=node_id)
     assert [tuple(row) for row in rows] == [(1, "active")] and plaintext == b"ee" + b"a" * 32
     assert central.state.clients.client_with_grants(client.id)[1][0].secret_ref.version == 1
+
+
+# ---- lab finding (Task 14): a remote MTProxy/Mieru link must be the runtime's ----------
+
+
+async def test_remote_links_render_with_the_nodes_runtime_host_port_and_fake_tls_secret(pair):
+    """Before the node reported anything, the central knew only a bare 32-hex secret and
+    the node's panel domain: a `tg://` link built from those is not Fake-TLS and names the
+    wrong host. Once the node applies the grant, the central escrows Telemt's own secret
+    form and keeps the host/port/share template it learned — the bundle and the
+    subscription then carry what the runtime actually serves (spec §6, ADR 003)."""
+    node, central, node_id, client = await _linked(pair)
+    node.state.telemt.public_host, node.state.telemt.public_port = "proxy.node.example", 8443
+    intents = [GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions()),
+               GrantIntent(protocol="mieru", node_id=node_id, runtime_username="alice", options=MieruOptions(quotas=[]))]
+    operation = await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
+    await central.state.provisioning.run(operation)
+    await central.state.pusher.tick()
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    grants = {g.protocol: g for g in central.state.clients.client_with_grants(client.id)[1]}
+    assert grants["mtproxy"].options.host == "proxy.node.example" and grants["mtproxy"].options.port == 8443
+    assert grants["mieru"].options.share_template.startswith("mierus://{username}:{password}@mieru.example.com")
+    bundle = central.state.provisioning.bundle(operation, public_hosts={"mtproxy": "panel.node.example", "mieru": "x"})
+    links = {g["protocol"]: g["artifacts"][0]["value"] for g in bundle["grants"]}
+    assert links["mtproxy"].startswith("tg://proxy?server=proxy.node.example&port=8443&secret=ee")
+    assert links["mieru"].startswith("mierus://alice:") and "@mieru.example.com" in links["mieru"]
+    with central.state.database.connect() as db:
+        state = db.execute("SELECT state FROM secret_versions WHERE secret_id=?",
+                           (f"grant:{grants['mtproxy'].id}",)).fetchall()
+    assert [row["state"] for row in state] == ["active"]
