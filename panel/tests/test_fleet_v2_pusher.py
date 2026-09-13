@@ -424,3 +424,38 @@ async def test_the_app_starts_the_loop_in_the_background_and_stops_it_on_shutdow
     assert isinstance(task, asyncio.Task) and not task.done()
     await central.router.shutdown()
     assert task.done() and not task.cancelled()
+
+
+# ---- fix round 1 (Task 14 review, I2): learned link facts are wire input -----------------
+
+
+async def test_learned_options_the_model_refuses_are_logged_and_never_stored(pair, monkeypatch, caplog):
+    """A node's `learned` goes through the options model's validators before it lands in
+    the grant: an over-long share template (or one carrying a credential, a string port)
+    is refused and logged — stored as-is it would make every later load of the grant
+    fail and the next generation 422 on the node."""
+    from dataclasses import replace
+
+    from panel.clients.models import MieruOptions
+
+    node, central, node_id, client = await _link(pair)
+    intent = GrantIntent(protocol="mieru", node_id=node_id, runtime_username="alice", options=MieruOptions(quotas=[]))
+    operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    original = node.state.adapters["mieru"].create
+
+    async def teaches_garbage(operation_id, intent, credential):
+        applied = await original(operation_id, intent, credential)
+        template = "mierus://{username}:{password}@" + "x" * 600 + "?port=1"
+        return replace(applied, artifact_template={"share_template": template})
+
+    monkeypatch.setattr(node.state.adapters["mieru"], "create", teaches_garbage)
+    with caplog.at_level("WARNING"):
+        await central.state.pusher.tick()
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    grant = central.state.clients.client_with_grants(client.id)[1][0]  # still loadable
+    assert grant.observed_state == "enabled" and grant.options.share_template is None
+    assert any("learned options refused" in record.message for record in caplog.records)
+    # What the node reported did carry the bad template: the refusal happened on the central.
+    with central.state.database.connect() as db:
+        observed = central.state.desired.observed(db, node_id)
+    assert len(observed.resources[0].learned["share_template"]) > 512

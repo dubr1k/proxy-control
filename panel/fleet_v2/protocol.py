@@ -21,7 +21,17 @@ class GenerationConflict(Exception):
 
 
 class _Strict(BaseModel):
+    """What the node validates before acting on it: an unknown field is a 422."""
+
     model_config = ConfigDict(extra="forbid")
+
+
+class _Report(BaseModel):
+    """What the node reports and the central reads: a report may gain fields (a newer node
+    talking to an older central — nodes are upgraded first), and a central ignores the
+    ones it does not know instead of refusing the whole report."""
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class Resource(_Strict):
@@ -84,7 +94,7 @@ class PushRequest(_Strict):
         return self
 
 
-class ObservedResource(_Strict):
+class ObservedResource(_Report):
     ref: str
     protocol: str
     runtime_username: str
@@ -97,7 +107,7 @@ class ObservedResource(_Strict):
     learned: dict[str, str | int] = Field(default_factory=dict, max_length=8)
 
 
-class ObservedGeneration(_Strict):
+class ObservedGeneration(_Report):
     applied_generation: int
     digest: str
     reconcile_state: Literal["idle", "applying", "converged", "failed"]
@@ -105,6 +115,6 @@ class ObservedGeneration(_Strict):
     reported_at: int
 
 
-class PushResponse(_Strict):
+class PushResponse(_Report):
     observed: ObservedGeneration
     credentials: dict[str, str] = Field(default_factory=dict)
