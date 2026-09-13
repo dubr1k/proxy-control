@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Request
 from .clients import importer
 from .clients.models import PROTOCOL_OPTIONS, GrantIntent
 from .clients.store import ClientConflict
+from .fleet_v2.central_routes import public_hosts_for
 from .protocols.base import AdapterError, ManualInterventionRequired
 from .secrets_store import SecretError
 from .schemas import (
@@ -243,15 +244,12 @@ def register_client_routes(app, context: RequestContext) -> None:
 
     @app.post("/api/operations/{operation_id}/bundle")
     async def bundle(operation_id: str, _request: Request, user=Depends(context.roles("owner", "admin"))):
-        """One reveal for every artifact of the operation, rendered from escrow."""
-        hosts = {
-            "naive": context.settings.naive_public_host,
-            "mtproxy": context.settings.allowed_hosts[0] if context.settings.allowed_hosts else "",
-            "mieru": context.settings.naive_public_host,
-        }
+        """One reveal for every artifact of the operation, rendered from escrow, each grant
+        with the public hosts of the node it lives on."""
         try:
             payload = await asyncio.to_thread(
-                app.state.provisioning.bundle, operation_id, public_hosts=hosts
+                app.state.provisioning.bundle, operation_id,
+                public_hosts=lambda node_id: public_hosts_for(app.state, node_id),
             )
         except KeyError as exc:
             raise HTTPException(404, "operation not found") from exc

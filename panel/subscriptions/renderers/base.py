@@ -11,6 +11,7 @@ a silently shortened profile is worse than an honest error.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 from urllib.parse import quote, urlsplit
 
@@ -49,8 +50,26 @@ def finish(body: bytes) -> bytes:
     return body
 
 
+PublicHosts = dict[str, str] | Callable[[str], dict[str, str]]
+
+
+def hosts_by_node(public_hosts: PublicHosts) -> Callable[[str], dict[str, str]]:
+    """One table of public hosts per node: a callable is asked once per node it is given
+    (a linked panel reports its own hosts), a plain dict serves every node."""
+    if not callable(public_hosts):
+        return lambda _node_id: public_hosts
+    known: dict[str, dict[str, str]] = {}
+
+    def lookup(node_id: str) -> dict[str, str]:
+        if node_id not in known:
+            known[node_id] = public_hosts(node_id)
+        return known[node_id]
+
+    return lookup
+
+
 def resolve_artifacts(
-    manifest: Manifest, secrets, adapters: dict, db, *, public_hosts: dict[str, str]
+    manifest: Manifest, secrets, adapters: dict, db, *, public_hosts: PublicHosts
 ) -> dict[str, list[AccessArtifact]]:
     """Reveal each effective grant's credential in memory and render its artifacts.
 
@@ -58,7 +77,9 @@ def resolve_artifacts(
     a suspended or credential-less grant gets no artifacts, so no renderer can turn it
     into a link by accident. The grant row comes from the database rather than being
     rebuilt from the manifest, because adapters render from the row's typed options.
+    `public_hosts` is a table per protocol, or a callable giving one per `node_id`.
     """
+    hosts = hosts_by_node(public_hosts)
     result: dict[str, list[AccessArtifact]] = {}
     for grant in manifest.grants:
         if not grant.enabled or grant.secret_version < 1:
@@ -75,7 +96,7 @@ def resolve_artifacts(
             permitted_node_id=grant.node_id,
         )
         result[grant.grant_id] = adapter.render_artifacts(
-            row, plaintext, public_host=public_hosts.get(grant.protocol, "")
+            row, plaintext, public_host=hosts(grant.node_id).get(grant.protocol, "")
         )
     return result
 

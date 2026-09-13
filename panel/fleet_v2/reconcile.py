@@ -123,9 +123,11 @@ class Reconciler:
         a pushed resource — that would silently adopt a local (or someone else's) account.
         `record` is `None` exactly when `managed_resources` holds no row for this
         (protocol, runtime_username); in that case `item is not None` is a name collision
-        and this call always raises `_RuntimeCollision` instead of acting — a collision is
+        and this call raises `_RuntimeCollision` instead of acting — a collision is
         never written to the store (see that class's docstring), so it stays a permanent,
-        stable "no" rather than becoming an accidental adoption after a retry.
+        stable "no" rather than becoming an accidental adoption after a retry. The one
+        deliberate adoption is an `imported` resource (spec §6): the operator chose that
+        user from this node's inventory, and the row is written without touching it.
 
         The one case that legitimately needs recovery is a crash between `adapter.create`
         succeeding and `_record` persisting its row: that would otherwise look identical to
@@ -138,7 +140,16 @@ class Reconciler:
         ref = GrantRef(resource.protocol, resource.runtime_username)
         operation_id = f"{self.guid}:{generation}:{resource.ref}"
         if item is not None and record is None:
-            raise _RuntimeCollision("runtime user exists and is not managed")
+            if resource.origin != "imported" or resource.desired_state == "deleted":
+                raise _RuntimeCollision("runtime user exists and is not managed")
+            # Explicit adoption (ADR 003 `adopted`, spec §6): the operator imported this user
+            # from the node's own inventory, so it is the central's from here on — with the
+            # credential it holds today, which the pushed `credential_ref` now names. No
+            # adapter call: nothing is created, rotated or deleted by adopting. A `deleted`
+            # resource never adopts — adopting and deleting are two separate decisions.
+            self._record(generation, resource, _state(item.enabled), revision=item.revision,
+                         credential_ref=resource.credential_ref)
+            record = {"credential_ref": resource.credential_ref}
         if resource.desired_state == "deleted":
             if item is not None:
                 await adapter.delete(ref)

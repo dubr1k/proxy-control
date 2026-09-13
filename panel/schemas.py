@@ -199,3 +199,51 @@ class ApiKeyCreate(BaseModel):
 
 class ApiKeyEnabled(BaseModel):
     enabled: bool
+
+
+# --- linked panels (Fleet v2, spec §6): what the central's operator sends -----------------
+
+PANEL_URL_MAX = 512
+SHA256_RE = r"^[0-9a-fA-F]{64}$"
+
+
+class NodeFingerprint(BaseModel):
+    url: str = Field(min_length=1, max_length=PANEL_URL_MAX)
+
+
+class NodeLinkTest(BaseModel):
+    url: str = Field(min_length=1, max_length=PANEL_URL_MAX)
+    # Shape is not checked here: a key the node refuses is the node's 401 → 409, not a 422.
+    api_key: str = Field(min_length=1, max_length=256)
+    tls_verify: Literal["verify", "pin"] = "verify"
+    pinned_sha256: str | None = Field(default=None, pattern=SHA256_RE)
+    allow_private_address: bool = False
+
+
+class NodeLinkCreate(NodeLinkTest):
+    display_name: str = Field(min_length=1, max_length=128)
+
+
+class NodeLinkUpdate(BaseModel):
+    """Only the fields given change; `allow_private_address` stays what it was at link time."""
+
+    display_name: str | None = Field(default=None, min_length=1, max_length=128)
+    url: str | None = Field(default=None, min_length=1, max_length=PANEL_URL_MAX)
+    api_key: str | None = Field(default=None, min_length=1, max_length=256)
+    tls_verify: Literal["verify", "pin"] | None = None
+    pinned_sha256: str | None = Field(default=None, pattern=SHA256_RE)
+
+
+class NodeImportItem(BaseModel):
+    protocol: Literal["mtproxy", "naive", "mieru"]
+    runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
+    # `new` creates a client named after the runtime user; anything else is an existing client id.
+    client: str = Field(min_length=1, max_length=64)
+
+
+class NodeImport(BaseModel):
+    resources: list[NodeImportItem] = Field(min_length=1, max_length=200)
+
+
+class NodeVersionUpdate(VersionUpdate):
+    """`{version, expected_current}` for one component of a linked panel; the component is in the path."""

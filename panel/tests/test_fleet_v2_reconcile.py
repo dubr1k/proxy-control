@@ -282,3 +282,47 @@ async def test_store_secrets_is_idempotent_on_a_repeat_push(world):
     again, _ = await reconciler.apply(1)
     assert again.model_copy(update={"reported_at": 0}) == observed.model_copy(update={"reported_at": 0})
     assert naive.calls.count(("create", "alice")) == 1
+
+
+# ---- Task 11: explicit adoption of imported resources (spec §6, ADR 003 `adopted`) ----
+
+
+def _imported(protocol, user, state="enabled"):
+    return Resource(**{**_resource(protocol, user, state).model_dump(), "origin": "imported"})
+
+
+async def test_imported_resource_adopts_an_existing_unmanaged_runtime_user_untouched(world):
+    """An `imported` resource is the operator's explicit import decision: the runtime user
+    it names becomes the central's without a single adapter call — its credential stays
+    what it is, the managed row records the pushed `credential_ref`. A `provisioned`
+    resource in the same situation is still the I1 collision."""
+    database, managed, reconciler, telemt, naive, mieru = world
+    naive.seed("bob", "hunter2")      # imported on the central from this node's inventory
+    naive.seed("mallory", "local-pw")  # never imported: a provisioned grant merely shares the name
+    imported = _imported("naive", "bob")
+    await _accept(world, _push(1, [imported, _resource("naive", "mallory")],
+                               {"grant:bob:1": "hunter2", "grant:mallory:1": "pw"}))
+    observed, _ = await reconciler.apply(1)
+    states = {r.runtime_username: r.state for r in observed.resources}
+    assert states == {"bob": "enabled", "mallory": "failed"}
+    assert naive.calls == []  # neither create, rotate nor delete: adoption changes nothing on the runtime
+    assert naive.users["bob"]["password"] == "hunter2"
+    with database.connect() as db:
+        assert managed.is_managed(db, "naive", "bob") and not managed.is_managed(db, "naive", "mallory")
+        assert managed.resources(db)[("naive", "bob")]["credential_ref"] == "grant:bob:1"
+    # From here on the account is the central's: a later `disabled` lands like any other.
+    await _accept(world, _push(2, [imported.model_copy(update={"desired_state": "disabled"})], {}))
+    observed, _ = await reconciler.apply(2)
+    assert observed.resources[0].state == "disabled" and ("enabled", "bob", False) in naive.calls
+
+
+async def test_deleted_imported_resource_never_adopts_and_deletes_in_one_step(world):
+    """A `deleted` resource naming a user this node never recorded stays the collision,
+    imported or not: adoption never deletes."""
+    database, managed, reconciler, telemt, naive, mieru = world
+    naive.seed("bob", "hunter2")
+    await _accept(world, _push(1, [_imported("naive", "bob", "deleted")], {}))
+    observed, _ = await reconciler.apply(1)
+    assert observed.resources[0].state == "failed"
+    assert ("delete", "bob") not in naive.calls
+    assert "bob" in [u["username"] for u in await naive.list_users()]

@@ -79,6 +79,11 @@ def _mieru_options(row: dict) -> dict:
     return MieruOptions(quotas=quotas if isinstance(quotas, list) else []).model_dump()
 
 
+# What a runtime reports about a user, reduced to the options the panel may own. A linked
+# panel's inventory (Fleet v2) carries the same keys, so its import goes through here too.
+OPTIONS_FROM_RUNTIME = {"mtproxy": _mtproxy_options, "naive": _naive_options, "mieru": _mieru_options}
+
+
 async def _read(call, error):
     """A manager that cannot be read contributes nothing; import is never blocked by it."""
     try:
