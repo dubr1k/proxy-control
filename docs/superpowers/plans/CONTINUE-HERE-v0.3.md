@@ -56,10 +56,9 @@ resPQ — успех), ротация, удаление, отвязка — уз
    --version "$(cat /root/release-check/VERSION)"` → `dist/SHA256SUMS` (rsync-копия `/root/dev/proxy-control`
    тоже годится, но там нужен `--allow-dirty` из-за неотслеживаемых lab-файлов — сначала убедиться, что
    `git rev-parse HEAD` = тегируемый SHA и `git diff --stat` пуст).
-   Если тегируется ровно коммит `release: гейт v0.3.0-beta.1 пройден на стенде` без изменений, digest его архива
-   записан в `task-16-report.md` (раздел «Digest финального коммита»); от архива гейта `d68fabf187c20c2c8b2be3a722d3b42159382bc6a34d7e9c32e52d802198a13f` он отличается
-   только файлами документации этого коммита — код тот же `9a4d80d`. Любой новый коммит поверх (в т.ч. merge-коммит)
-   меняет digest — пересобрать.
+   Digest в заметке не хранится и ни в каком отчёте не ищется: архив тегируемого коммита собирается на стенде
+   (`python3 release/build.py …`, как это делает `remote-gate.sh lab-host`), и именно его `dist/SHA256SUMS`
+   идёт в аннотацию тега. Любой новый коммит поверх (в т.ч. merge-коммит) меняет digest — пересобрать.
 2. **Раскатка — сначала узлы, затем центр** (`docs/OPERATIONS.ru.md` §11, `docs/UPGRADING.ru.md` «до v0.3»).
    - `AMS_P`, `AMS_R` — путь v0.1 → v0.3, как на `AMS_Z` (Task 15): резервные копии (`panel.sqlite3` онлайн-бэкап,
      tar кода, теги образов `*:rollback-<ts>`) → `rsync panel/ naive_manager/ mieru_manager/ compose*.yaml VERSION`

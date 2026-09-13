@@ -48,8 +48,8 @@ cookie. Keys are created by the owner on the «Администраторы» sc
   central panel needs a `node-sync` key from each panel it manages, nothing more.
 - **The plaintext is shown once**, in the form `pc_<prefix>_<secret>`; the database
   stores the 8-hex lookup prefix and a SHA-256 hash of the whole key. A lost key is
-  replaced, never recovered. `GET /api/keys` lists name, scope, expiry, status and last
-  use — never the key.
+  replaced, never recovered. `GET /api/keys` lists name, scope, expiry, status, last
+  use and the lookup `prefix` — never the key.
 - **Revocation is immediate**: a disabled (`POST /api/keys/{id}/enabled {enabled: false}`),
   deleted (`DELETE /api/keys/{id}`) or expired key answers 401 on the next request.
 - **Rate limit**: 120 requests per minute per key (429), counted in the panel process.

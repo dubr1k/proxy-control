@@ -156,7 +156,7 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 | `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` — это `MTPROXY_DOMAIN` узла (первый разрешённый хост, если не задан); собственные `host`/`port` доступа, выученные из ссылки Telemt, при рендере ссылки важнее |
 | `GET /api/fleet/v2/status` | версии и факты о хосте от version-agent узла (или `version_agent_unavailable`), `managed_resources`, `users` по протоколам `{central, local}`, `protocols[*].traffic` (best effort: у Telemt только total, у NaiveProxy up/down/total, у Mieru `null`) |
 | `GET /api/fleet/v2/inventory` | учётные записи runtime по протоколам: `{runtime_username, enabled, options, ownership: central\|local, ref}` — без секретов; у MTProxy в `options` ещё `host`/`port` ссылки, которую отдаёт Telemt, чтобы импортированный доступ рендерился на endpoint runtime |
-| `PUT /api/fleet/v2/generation` | push: `{expected_guid, generation, secrets}`, тело ≤ 64 KiB. 409 с `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 — неизвестное поле или протокол. `200 {observed, credentials}`, если reconcile уложился в 25 с, `202 {observed}` — если продолжается в фоне. В `credentials` только учётные данные, которые runtime узла сгенерировал сам; `Cache-Control: no-store` |
+| `PUT /api/fleet/v2/generation` | push: `{expected_guid, generation, secrets}`, тело ≤ 64 KiB. 409 с `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 — неизвестное поле или протокол. `200 {observed, credentials}`, если reconcile уложился в 25 с, `202 {observed}` — если продолжается в фоне. В `credentials` — учётные данные, которые runtime узла сгенерировал сам, и собственная форма runtime для присланного центром секрета (Fake-TLS `ee…` Telemt вместо голого); `Cache-Control: no-store` |
 | `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision, learned}], reported_at}` — `learned` — что runtime сообщил узлу о ссылке (`host`/`port` Telemt, `share_template` mita), никогда не секрет. Отчёт может обрастать полями; центр игнорирует незнакомые |
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru всегда `unsupported` |
 | `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → собственный version-agent узла |
@@ -168,7 +168,7 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 
 ### API центра
 
-Только владелец через сессию или ключ `admin`; чтение (`GET`) — также роль `admin`:
+Только владелец через сессию или ключ `admin`; чтение (`GET`) — также администраторам (роль `admin`):
 `POST /api/nodes/{id}/pause` и `/resume` (связь на паузе пропускается циклом heartbeat и
 доставки; «Отключить» для такого узла означает то же самое), `POST /api/nodes/{id}/probe`
 (heartbeat и доставка сейчас), `GET /api/nodes/{id}/inventory` (пользователи узла с
@@ -242,7 +242,9 @@ web-сессия отвергается, а ключ `node-sync` отверга�
    адаптера — присвоение ничего не создаёт, не ротирует и не удаляет (ADR 003 `adopted`).
 
 Доступ, импортированный без секрета (Mieru), в подписке клиента показывается как
-`unsupported: no stored credential`, пока вы не нажмёте **«Ротация»**: новая версия
+`unsupported: no stored credential` — а пока у клиента есть такой доступ, подписку для
+него нельзя **создать или ротировать** вовсе (409 от `SubscriptionService`: каждый доступ
+сначала должен быть рендерируемым), — пока вы не нажмёте **«Ротация»**: новая версия
 становится секретом следующего поколения, и узел ротирует учётную запись.
 
 ## Ротация, выключение, удаление
@@ -273,7 +275,8 @@ web-сессия отвергается, а ключ `node-sync` отверга�
   адресом runtime, а не с доменом панели узла и портом по умолчанию.
 - **Удаление** — `desired_state = deleted`; узел удаляет принадлежащую центру учётную
   запись и отчитывается `missing`; после этого центр **вычищает** строку доступа и
-  отзывает все версии её секрета, поэтому тот же `runtime_username` можно выдать снова.
+  отзывает все версии её секрета, поэтому тот же `runtime_username` можно выдать снова на
+  центре (менеджеры NaiveProxy и Mieru на узле имя выводят из оборота).
   Операция, ожидавшая доступ, удалённый до того, как узел его применил, завершается как
   `compensated`, а не ждёт вечно.
 
@@ -328,8 +331,9 @@ fleet-состояния на узле, который никто не подк�
 - **Scope.** `admin` = роль владельца на всём API (владелец без сессии — относитесь как к
   паролю владельца), `monitor` = роль наблюдателя (только чтение), `node-sync` =
   **только** `/api/fleet/v2/*` — всё остальное 403. Управление ключами (`/api/keys*`)
-  требует роли владельца; Bearer-запрос не несёт cookie, так что CSRF-токена для проверки
-  нет. Центру выдавайте ключ `node-sync`, никогда — `admin`.
+  требует роли владельца — и ключ scope `admin` ею **обладает**: такой ключ может выпускать
+  и отзывать ключи, в том числе новые `admin`; Bearer-запрос не несёт cookie, так что
+  CSRF-токена для проверки нет. Центру выдавайте ключ `node-sync`, никогда — `admin`.
 - **Ключ едет в одну сторону.** Центр хранит ключ узла зашифрованным под своим
   мастер-ключом (`secret_versions`, привязка к GUID узла); узел не хранит ничего от центра.
   Компрометация узла ничего не говорит об остальных; компрометация центра достаёт до всех

@@ -24,3 +24,12 @@ def test_js_uses_only_the_documented_endpoints():
 def test_no_plaintext_key_is_kept_after_the_reveal_closes():
     keys = (STATIC / "js/keys.js").read_text()
     assert "state.keyPlaintext = null" in keys or "keyPlaintext = \"\"" in keys
+
+
+def test_unlink_dialog_tells_the_truth_about_re_mastering():
+    """Unlinking releases ownership only: the same central re-masters the panel on its next
+    heartbeat unless its key is disabled or the node is deleted there (FLEET, «Unlink on the node»)."""
+    html = (STATIC / "index.html").read_text()
+    dialog = html[html.index('id="unlink-modal"'):html.index('id="key-modal"')]
+    assert "перестанет принимать поколения" not in dialog
+    assert 'id="unlink-master"' in dialog and "node-sync" in dialog and "удалите узел на центре" in dialog
