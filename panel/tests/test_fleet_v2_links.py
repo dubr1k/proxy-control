@@ -35,16 +35,24 @@ async def test_wrong_key_and_foreign_master_are_refused(pair):
 
 
 async def test_delete_refuses_while_grants_exist_and_unlinks_the_node(pair):
+    """A provisioned grant blocks the deletion in every state — `deleted/pending` included:
+    a confirmed deletion is purged, so a `deleted` row still there is one the node has not
+    applied yet, and dropping the link now would leave the account alive as a local user."""
     node, central, plaintext = pair
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
     with central.state.database.transaction() as db:
         db.execute("INSERT INTO clients VALUES('c1','A','active','{}',0,0)")
         db.execute("""INSERT INTO access_grants(id,client_id,protocol,node_id,runtime_username,desired_state,origin,created_at,updated_at)
                       VALUES('g1','c1','naive',?,'alice','enabled','provisioned',0,0)""", (node_id,))
-    with pytest.raises(LinkConflict):
+    with pytest.raises(LinkConflict, match="1 provisioned grant"):
         await central.state.links.delete(node_id, actor=ACTOR, ip="x")
     with central.state.database.transaction() as db:
-        db.execute("UPDATE access_grants SET desired_state='deleted'")
+        db.execute("UPDATE access_grants SET desired_state='deleted', observed_state='pending'")
+    with pytest.raises(LinkConflict, match="confirms the deletion of 1 grant"):
+        await central.state.links.delete(node_id, actor=ACTOR, ip="x")
+    assert node_id in [n.node_id for n in central.state.nodes.list()]
+    with central.state.database.transaction() as db:
+        db.execute("DELETE FROM access_grants WHERE id='g1'")  # what the pusher does once the node reports `missing`
     await central.state.links.delete(node_id, actor=ACTOR, ip="x")
     assert node_id not in [n.node_id for n in central.state.nodes.list()]
 

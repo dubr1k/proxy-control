@@ -156,17 +156,32 @@ class NodeLinkService:
             record(db, actor=actor, action="node.resume" if enabled else "node.pause", target=node_id, ip=ip,
                    request_id=request_id)
 
+    @staticmethod
+    def _refuse_provisioned(db, node_id: str) -> None:
+        """A provisioned grant in any state blocks the deletion: those accounts exist only
+        because of the link and a subscriber would lose them silently — and a row still
+        `deleted` is a deletion the node has not confirmed yet, so cutting the link now
+        would leave that account alive on the node as a local user."""
+        remaining = NodeRegistry.provisioned_grants(db, node_id)
+        if not remaining:
+            return
+        pending = db.execute(
+            "SELECT count(*) FROM access_grants WHERE node_id=? AND origin<>'imported' AND desired_state='deleted'",
+            (node_id,)).fetchone()[0]
+        if pending == remaining:
+            raise LinkConflict(f"wait until the node confirms the deletion of {pending} grant(s)")
+        raise LinkConflict(f"{remaining} provisioned grant(s) still exist on the node: delete the clients' accesses "
+                           "first and wait until the node confirms")
+
     async def delete(self, node_id: str, *, actor, ip, request_id=None) -> None:
-        """Refused while a provisioned grant on the node is not deleted: those accounts exist
-        only because of the link, and a subscriber would lose them silently. Imported grants
-        are released, not deleted — the users existed before the link (ADR 003 `adopted`)
-        and stay on the node as local users; their rows go and their credentials are
-        revoked here. Tells the node to forget its master (best effort) and removes the
-        row, its generations and its key."""
+        """Refused while any provisioned grant on the node remains, unconfirmed deletions
+        included (`_refuse_provisioned`). Imported grants are released, not deleted — the
+        users existed before the link (ADR 003 `adopted`) and stay on the node as local
+        users; their rows go and their credentials are revoked here. Tells the node to
+        forget its master (best effort) and removes the row, its generations and its key."""
         with self.database.connect() as db:
             link = self.link(db, node_id)
-            if NodeRegistry.provisioned_grants(db, node_id):
-                raise LinkConflict("the node still carries provisioned grants that are not deleted")
+            self._refuse_provisioned(db, node_id)
             key = self._reveal_key(db, link)
         try:
             await self._client(link, key).unlink()
@@ -175,8 +190,7 @@ class NodeLinkService:
             # The node's owner can still cut the link from that panel's own UI.
             released = False
         with self.database.transaction() as db:
-            if NodeRegistry.provisioned_grants(db, node_id):
-                raise LinkConflict("the node still carries provisioned grants that are not deleted")
+            self._refuse_provisioned(db, node_id)
             imported = db.execute(
                 "SELECT id FROM access_grants WHERE node_id=? AND origin='imported' AND desired_state<>'deleted'",
                 (node_id,)).fetchall()
