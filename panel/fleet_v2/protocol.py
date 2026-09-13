@@ -9,6 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MAX_PUSH_BYTES = 65536
 MAX_RESOURCES = 500
+# A node reads back at most this many credentials per `POST credentials/capture`; a central
+# asking for more (a generation may carry MAX_RESOURCES) batches its request.
+CAPTURE_MAX_RESOURCES = 200
 SCHEMA_VERSION = 1
 CONFLICT_CODES = ("guid_mismatch", "foreign_master", "stale_generation", "digest_conflict", "digest_invalid")
 

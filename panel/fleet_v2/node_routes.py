@@ -18,7 +18,14 @@ from ..secrets_store import SecretError
 from ..telemt import TelemtError
 from ..versions import VersionAgentError
 from ..web_context import RequestContext
-from .protocol import GenerationConflict, ObservedGeneration, PushRequest, PushResponse, canonical_digest
+from .protocol import (
+    CAPTURE_MAX_RESOURCES,
+    GenerationConflict,
+    ObservedGeneration,
+    PushRequest,
+    PushResponse,
+    canonical_digest,
+)
 
 # The central reads a push for 30 s (spec §6): the node answers 202 before that and the
 # reconcile keeps running in the background.
@@ -37,7 +44,7 @@ class CaptureItem(BaseModel):
 
 class CaptureRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    resources: list[CaptureItem] = Field(max_length=200)
+    resources: list[CaptureItem] = Field(max_length=CAPTURE_MAX_RESOURCES)
 
 
 class VersionUpdateRequest(VersionUpdate):

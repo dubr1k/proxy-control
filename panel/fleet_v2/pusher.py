@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from ..secrets_store import SecretError, SecretRef
 from .client import NodeAuthFailed, NodeRejected, NodeUnreachable
 from .generations import compile, content_digest
-from .protocol import ObservedGeneration, PushRequest, canonical_digest
+from .protocol import CAPTURE_MAX_RESOURCES, ObservedGeneration, PushRequest, canonical_digest
 
 log = logging.getLogger(__name__)
 CREDENTIAL_PURPOSE = "grant.credential"
@@ -41,6 +41,10 @@ BACKOFF_FIRST_SECONDS = 30.0
 BACKOFF_CAP_SECONDS = 600.0
 # Observed states a grant row can carry; `failed` and `drifted` are folded in `_absorb`.
 GRANT_STATES = ("enabled", "disabled", "missing")
+# A report about a finished apply. An `applying` one is provisional: rows the apply has not
+# reached yet still carry the previous generation's state, so nothing is captured, escrowed
+# or confirmed from it — `_in_flight` polls again on the next tick.
+SETTLED_STATES = ("converged", "failed")
 
 
 @dataclass
@@ -229,20 +233,31 @@ class FleetPusher:
     # --- absorbing what the node reported ---------------------------------------
 
     async def _poll_observed(self, client, node_id: str) -> None:
-        """A push answered 202 carried no credentials: what the node's runtime chose (or
-        reframed — Telemt's `ee…` form of a caller secret) is captured here before the
-        report is absorbed, so `confirm_credential` never activates the bare value."""
+        """A push answered 202 carried no credentials: once the node's report is settled, what
+        its runtime chose (or reframed — Telemt's `ee…` form of a caller secret) is captured
+        here before the report is absorbed, so `confirm_credential` never activates the bare
+        value. A capture the node refuses or cannot answer is not a heartbeat failure: the
+        report is absorbed without credentials and the next poll asks again."""
         try:
             observed = await client.observed()
-            credentials = await self._capture_pending(client, node_id, observed)
         except CLIENT_ERRORS as exc:
             self._offline(node_id, exc)
             return
+        credentials: dict[str, str] = {}
+        if observed.reconcile_state in SETTLED_STATES:
+            try:
+                credentials = await self._capture_pending(client, node_id, observed)
+            except CLIENT_ERRORS as exc:
+                log.warning("fleet: node %s: credential capture failed (%s); report absorbed without credentials",
+                            node_id, _describe(exc))
         self._absorb(node_id, observed, credentials)
 
     async def _capture_pending(self, client, node_id: str, observed: ObservedGeneration) -> dict[str, str]:
         """The runtime's credential for every grant the report shows present whose version
-        the in-flight document names is still `pending`, keyed by that `credential_ref`."""
+        the in-flight document names is still `pending`, keyed by that `credential_ref`;
+        asked in batches of at most `CAPTURE_MAX_RESOURCES` (the node's cap per call)."""
+        if observed.reconcile_state not in SETTLED_STATES:
+            return {}
         present = {item.ref for item in observed.resources if item.state in ("enabled", "disabled", "drifted")}
         wanted: dict[str, dict] = {}
         with self.database.connect() as db:
@@ -259,10 +274,12 @@ class FleetPusher:
                     wanted[f"{resource.protocol}:{resource.runtime_username}"] = {
                         "credential_ref": resource.credential_ref,
                         "resource": {"protocol": resource.protocol, "runtime_username": resource.runtime_username}}
-        if not wanted:
-            return {}
-        answer = await client.capture([entry["resource"] for entry in wanted.values()])
-        returned = answer.get("credentials") or {}
+        returned: dict = {}
+        labels = list(wanted)
+        for start in range(0, len(labels), CAPTURE_MAX_RESOURCES):
+            batch = labels[start:start + CAPTURE_MAX_RESOURCES]
+            answer = await client.capture([wanted[label]["resource"] for label in batch])
+            returned.update(answer.get("credentials") or {})
         return {entry["credential_ref"]: returned[label] for label, entry in wanted.items()
                 if isinstance(returned.get(label), str) and returned[label]}
 
@@ -277,17 +294,21 @@ class FleetPusher:
         """One transaction: the report itself, each grant's observed state, credentials
         the runtime chose, and the operations that waited for this node.
 
-        Only a report about the generation the central currently wants confirms a
-        credential version or finishes an operation: a report about an older one says
-        nothing about the version the grant names now. A deletion the node confirms
-        (`missing` for a grant the central wants `deleted`) purges the row, whatever the
-        generation: the account is gone, and the name is free to grant again.
+        Only a settled report (`SETTLED_STATES`) about the generation the central currently
+        wants escrows or confirms a credential version or finishes an operation: a report
+        about an older generation says nothing about the version the grant names now, and
+        an `applying` one still shows rows the apply has not reached with their previous
+        state — a rotation not yet applied would otherwise be confirmed with the old secret.
+        A deletion the node confirms (`missing` for a grant the central wants `deleted`)
+        purges the row, whatever the generation: the account is gone, and the name is free
+        to grant again.
         """
         now = int(self.clock.time())
         with self.database.transaction() as db:
             self.desired.record_observed(db, node_id, observed)
             latest = self.desired.latest(db, node_id)
-            current = latest is not None and observed.applied_generation == latest["generation"]
+            settled = observed.reconcile_state in SETTLED_STATES
+            current = settled and latest is not None and observed.applied_generation == latest["generation"]
             if observed.reconcile_state == "converged":
                 self._backoff.pop(node_id, None)
             elif current and observed.reconcile_state == "failed":
@@ -307,7 +328,7 @@ class FleetPusher:
                     self.clients.purge_grant(db, grant.id)
                     continue
                 returned = next((ref for ref in credentials if ref.startswith(item.ref + ":")), None)
-                if returned is not None and self._names(grant, returned):
+                if settled and returned is not None and self._names(grant, returned):
                     self.provisioning.escrow_returned_credential(db, grant.id, returned, credentials[returned])
                 if item.learned and state != "missing":
                     # Telemt's host/port, mita's share template: the link renders from these.

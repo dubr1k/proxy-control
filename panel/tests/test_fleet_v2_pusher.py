@@ -567,9 +567,108 @@ async def test_a_deletion_confirmed_after_a_202_is_still_reported_and_purged(pai
         with pytest.raises(KeyError):
             central.state.clients.store.grant(db, grant.id)
     assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]
-    # The name is free again on the central, and the node forgets the row once a generation omits it.
+    # The name is free again on the central; the regrant arrives while the node still holds the
+    # `missing` row (no generation omitted the name meanwhile) and must end up OWNED under the new ref.
     again = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     operation = await central.state.provisioning.start(client.id, [again], actor=ACTOR, ip="x")
     await central.state.pusher.tick()
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
     assert "alice" in [u["username"] for u in await node.state.naive.list_users()]
+    regrant = next(g for g in central.state.clients.client_with_grants(client.id)[1] if g.runtime_username == "alice")
+    with node.state.database.connect() as db:
+        owned = node.state.managed.owned(db)
+    assert ("naive", "alice") in owned and owned[("naive", "alice")]["ref"] == f"grant:{regrant.id}"
+    # One more generation (another grant) keeps her the central's, enabled — not a collision.
+    bob = GrantIntent(protocol="naive", node_id=node_id, runtime_username="bob", options=NaiveOptions())
+    await central.state.provisioning.start(client.id, [bob], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    states = {g.runtime_username: g.observed_state for g in central.state.clients.client_with_grants(client.id)[1]}
+    assert states == {"alice": "enabled", "bob": "enabled"}
+    with node.state.database.connect() as db:
+        rows = node.state.managed.owned(db)
+    assert rows[("naive", "alice")]["state"] == "enabled" and rows[("naive", "alice")]["ref"] == f"grant:{regrant.id}"
+
+
+async def test_capture_after_a_202_is_batched_to_the_nodes_cap_and_never_marks_the_node_offline(pair):
+    """Round 2, N2: the node accepts at most `CAPTURE_MAX_RESOURCES` per capture call while a
+    generation may carry 500 resources. The poll after a 202 must batch, and a refused capture
+    must not turn a reachable node offline — the report is absorbed and the next poll retries."""
+    from panel.fleet_v2.protocol import ObservedGeneration, ObservedResource
+
+    node, central, node_id, client = await _link(pair)
+    names = [f"bulk-{i:03d}" for i in range(250)]
+    for name in names:
+        node.state.naive.seed(name, f"pw-{name}")
+    intents = [GrantIntent(protocol="naive", node_id=node_id, runtime_username=n, options=NaiveOptions()) for n in names]
+    operation = await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
+    grants = {g.runtime_username: g for g in central.state.clients.client_with_grants(client.id)[1]}
+    # The converged report a node gives after a 202: every resource present, no credentials in it.
+    report = ObservedGeneration(applied_generation=1, digest="d", reconcile_state="converged", reported_at=1, resources=[
+        ObservedResource(ref=f"grant:{g.id}", protocol="naive", runtime_username=n, state="enabled") for n, g in grants.items()])
+    real = central.state.links.client_for(node_id)
+    calls = []
+
+    class Polled:
+        async def observed(self):
+            return report
+
+        async def capture(self, resources):
+            calls.append(len(resources))
+            return await real.capture(resources)  # the real node route: its cap applies
+
+    await central.state.pusher._poll_observed(Polled(), node_id)
+    assert calls == [200, 50]
+    assert "node.down" not in [e["name"] for e in central.state.events.since(0, 100)]
+    assert _link_row(central, node_id)["status"] != "offline"
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    with central.state.database.connect() as db:
+        states = {row["state"] for row in db.execute("SELECT state FROM secret_versions WHERE purpose='grant.credential'")}
+        sample = grants["bulk-249"]
+        escrowed = central.state.secrets.reveal(db, sample.secret_ref, purpose="grant.credential", grant_id=sample.id,
+                                                permitted_node_id=node_id).decode()
+    assert states == {"active"} and escrowed == "pw-bulk-249"
+
+
+async def test_an_applying_report_is_provisional_and_never_activates_a_pre_rotation_secret(pair, monkeypatch):
+    """Round 2, N3: while the node is still applying, its report lists rows the apply has not
+    reached with the previous generation's state. Capturing or confirming from it would escrow
+    the pre-rotation secret as the new active version; only a settled report may do that."""
+    from panel.fleet_v2 import node_routes
+
+    node, central, node_id, client = await _link(pair)
+    intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
+    await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    grant = central.state.clients.client_with_grants(client.id)[1][0]
+    before = (await node.state.telemt.current_access("alice"))["secret"]
+    rotated = await central.state.lifecycle.rotate(grant.id, actor=ACTOR, ip="x")
+    assert rotated.secret_ref.version == 2
+    gate = asyncio.Event()
+    rotate = node.state.telemt.rotate
+
+    async def blocked_rotate(*args, **kwargs):
+        await gate.wait()
+        return await rotate(*args, **kwargs)
+
+    monkeypatch.setattr(node.state.telemt, "rotate", blocked_rotate)
+    monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 0.001)
+    await central.state.pusher.tick()  # 202: the rotate is blocked mid-apply
+    await central.state.pusher.tick()  # a poll while still `applying`
+
+    def versions():
+        with central.state.database.connect() as db:
+            return [tuple(r) for r in db.execute("SELECT version, state FROM secret_versions WHERE secret_id=? ORDER BY version",
+                                                 (f"grant:{grant.id}",))]
+
+    with central.state.database.connect() as db:
+        assert central.state.desired.observed(db, node_id).reconcile_state == "applying"
+    assert versions() == [(1, "retiring"), (2, "pending")]  # nothing confirmed, nothing escrowed yet
+    assert (await node.state.telemt.current_access("alice"))["secret"] == before
+    gate.set()
+    await asyncio.sleep(0.05)  # the node's background apply finishes
+    await central.state.pusher.tick()  # the settled report: capture, escrow, confirm
+    after = (await node.state.telemt.current_access("alice"))["secret"]
+    assert after != before and after.startswith("ee")
+    assert versions() == [(1, "revoked"), (2, "active")]
+    current = central.state.clients.client_with_grants(client.id)[1][0]
+    assert _escrowed(central, node_id, current) == after
