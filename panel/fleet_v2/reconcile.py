@@ -151,6 +151,11 @@ class Reconciler:
         """
         ref = GrantRef(resource.protocol, resource.runtime_username)
         operation_id = f"{self.guid}:{generation}:{resource.ref}"
+        if record is not None and record.get("state") == "missing":
+            # The account was deleted for the central; the row only lingers so the one-time
+            # `missing` report survives a 202 (see `_apply`). It owns nothing: whatever now
+            # lives under that name is someone else's, exactly as if no row existed.
+            record = None
         if item is not None and record is None:
             if resource.origin != "imported" or resource.desired_state == "deleted":
                 raise _RuntimeCollision("runtime user exists and is not managed")
@@ -184,7 +189,10 @@ class Reconciler:
                 self._collect(credentials, resource, applied, plan)
                 learned = self._learned(resource, applied)
                 revision = applied.revision or revision
-            elif resource.credential_origin == "manager" and adapter.capture_supported:
+            elif adapter.capture_supported and "manager" in (resource.credential_origin, adapter.credential_origin):
+                # The runtime holds the credential in its own form (Telemt reframes a caller's
+                # bare secret as the Fake-TLS `ee…` link secret): hand it back on every apply, so
+                # a re-PUT after a lost reply still gives the central the form the link needs.
                 captured = await adapter.capture(ref)
                 if captured:
                     credentials[resource.credential_ref] = captured.decode()
@@ -248,10 +256,11 @@ class Reconciler:
             else:
                 self._record(generation, resource, state, revision=revision, credential_ref=resource.credential_ref,
                              learned=learned)
-        # Orphans: central-owned users this generation no longer names (spec §5.3).
+        # Orphans: central-owned users this generation no longer names (spec §5.3). A row
+        # left `missing` owned nothing any more: a same-named user present now is local.
         for username in orphans:
             try:
-                if username in observed:
+                if username in observed and known.get((protocol, username), {}).get("state") != "missing":
                     await adapter.delete(GrantRef(protocol, username))
                 with self.database.transaction() as db:
                     self.managed.remove_resource(db, protocol, username)
@@ -307,10 +316,18 @@ class Reconciler:
             observed = self.managed.observed(db)
             if unmanaged:
                 observed = observed.model_copy(update={"resources": [*observed.resources, *unmanaged]})
-            # A deleted resource is reported once as `missing`, then forgotten; one whose
-            # delete failed stays known, so the retry still recognises it as the central's.
-            missing = {(r.protocol, r.runtime_username) for r in observed.resources if r.state == "missing"}
-            for resource in document.resources:
-                if resource.desired_state == "deleted" and (resource.protocol, resource.runtime_username) in missing:
-                    self.managed.remove_resource(db, resource.protocol, resource.runtime_username)
+            # A deleted resource stays in the store as `missing` until a generation omits its
+            # name (the orphan pass above drops it then): the central may only learn of the
+            # deletion from a later `GET observed` (a push answered 202), and a report that
+            # vanished after one apply would leave the grant `deleted/pending` there forever.
+            # The row owns nothing meanwhile — see `_apply_resource` and `ManagedStore.is_managed`.
+            # A generation naming the same user under another ref proves the central saw the
+            # report (the name is UNIQUE there until the deleted grant is purged): drop it now.
+            refs = {(r.protocol, r.runtime_username): r.ref for r in document.resources}
+            for (protocol, username), row in known.items():
+                if row["state"] == "missing" and refs.get((protocol, username), row["ref"]) != row["ref"]:
+                    self.managed.remove_resource(db, protocol, username)
+            observed = observed.model_copy(update={"resources": [
+                r for r in observed.resources
+                if not (r.state == "missing" and refs.get((r.protocol, r.runtime_username), r.ref) != r.ref)]})
         return observed, credentials

@@ -89,7 +89,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         """Runtime users per protocol and who owns each; a dead manager contributes no rows."""
         table: dict[str, list] = {"mtproxy": [], "naive": [], "mieru": []}
         with app.state.database.connect() as db:
-            managed = app.state.managed.resources(db)
+            managed = app.state.managed.owned(db)
         for protocol, adapter in app.state.adapters.items():
             if not _enabled(protocol):
                 continue
@@ -160,7 +160,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                             "local": sum(row["ownership"] == "local" for row in rows)}
                  for protocol, rows in inventory.items()}
         with app.state.database.connect() as db:
-            managed = len(app.state.managed.resources(db))
+            managed = len(app.state.managed.owned(db))
         protocols, traffic = await asyncio.gather(_protocol_table(), _traffic())
         for protocol, counters in traffic.items():
             protocols[protocol]["traffic"] = counters

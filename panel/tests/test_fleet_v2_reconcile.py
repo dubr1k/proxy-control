@@ -358,3 +358,56 @@ async def test_create_reports_what_the_runtime_taught_about_the_link(world):
     observed, credentials = await reconciler.apply(2)
     assert observed.resources[0].learned == {"host": "proxy.node.example", "port": 8443}
     assert credentials == {"grant:dave:2": "ee" + "1" * 32}
+
+
+async def test_a_missing_row_lingers_for_repeat_reports_and_never_claims_a_new_local_user(world):
+    """Final review I7: the `missing` row stays until a generation omits the name, so every
+    `GET observed` after a 202 still carries the one-time report — but it owns nothing: a
+    user the node's owner re-creates under that name meanwhile is neither swept as an orphan
+    nor adopted by a later push naming it (ADR 003)."""
+    database, managed, reconciler, telemt, naive, mieru = world
+    await _accept(world, _push(1, [_resource("naive", "alice")], {"grant:alice:1": "pw"}))
+    await reconciler.apply(1)
+    await _accept(world, _push(2, [_resource("naive", "alice", "deleted")], {}))
+    observed, _ = await reconciler.apply(2)
+    assert [r.state for r in observed.resources] == ["missing"]
+    with database.connect() as db:
+        assert managed.resources(db)[("naive", "alice")]["state"] == "missing"
+        assert not managed.is_managed(db, "naive", "alice")  # the name is the node's again
+        assert managed.owned(db) == {}
+    again, _ = await reconciler.apply(2)  # a startup retry / re-PUT reports it once more
+    assert [r.state for r in again.resources] == ["missing"]
+    naive.seed("alice", "local-pw")  # the owner re-creates the name locally in the window
+    await _accept(world, _push(3, [], {}))
+    observed, _ = await reconciler.apply(3)  # the generation omits the name: row dropped, user kept
+    assert observed.resources == [] and naive.users["alice"]["password"] == "local-pw"
+    with database.connect() as db:
+        assert managed.resources(db) == {}
+    await _accept(world, _push(4, [_resource("naive", "alice", version=2)], {"grant:alice:2": "central-pw"}))
+    observed, _ = await reconciler.apply(4)
+    assert [r.state for r in observed.resources] == ["failed"]  # a collision, not an adoption
+    assert naive.users["alice"]["password"] == "local-pw"
+
+
+async def test_a_regrant_under_a_new_ref_retires_the_missing_row_and_still_respects_a_local_user(world):
+    """The central can only grant the name again once it purged the deleted grant — which it
+    does on seeing `missing` — so a generation naming the user under another ref proves the
+    report was received: the lingering row goes, and the new resource is judged on its own."""
+    database, managed, reconciler, telemt, naive, mieru = world
+    await _accept(world, _push(1, [_resource("naive", "alice")], {"grant:alice:1": "pw"}))
+    await reconciler.apply(1)
+    await _accept(world, _push(2, [_resource("naive", "alice", "deleted")], {}))
+    await reconciler.apply(2)
+    naive.seed("alice", "local-pw")
+    regrant = Resource(ref="grant:alice-2", protocol="naive", runtime_username="alice", desired_state="enabled",
+                       credential_ref="grant:alice-2:1", credential_origin="caller", options={})
+    await _accept(world, _push(3, [regrant], {"grant:alice-2:1": "central-pw"}))
+    observed, _ = await reconciler.apply(3)
+    assert [(r.ref, r.state) for r in observed.resources] == [("grant:alice-2", "failed")]
+    assert naive.users["alice"]["password"] == "local-pw"
+    with database.connect() as db:
+        assert managed.resources(db) == {}
+    naive.users.pop("alice")  # the owner removes the local user: the central's resource now applies
+    observed, _ = await reconciler.apply(3)
+    assert [(r.ref, r.state) for r in observed.resources] == [("grant:alice-2", "enabled")]
+    assert naive.users["alice"]["password"] == "central-pw"

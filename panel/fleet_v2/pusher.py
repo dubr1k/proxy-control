@@ -229,12 +229,49 @@ class FleetPusher:
     # --- absorbing what the node reported ---------------------------------------
 
     async def _poll_observed(self, client, node_id: str) -> None:
+        """A push answered 202 carried no credentials: what the node's runtime chose (or
+        reframed — Telemt's `ee…` form of a caller secret) is captured here before the
+        report is absorbed, so `confirm_credential` never activates the bare value."""
         try:
             observed = await client.observed()
+            credentials = await self._capture_pending(client, node_id, observed)
         except CLIENT_ERRORS as exc:
             self._offline(node_id, exc)
             return
-        self._absorb(node_id, observed, {})
+        self._absorb(node_id, observed, credentials)
+
+    async def _capture_pending(self, client, node_id: str, observed: ObservedGeneration) -> dict[str, str]:
+        """The runtime's credential for every grant the report shows present whose version
+        the in-flight document names is still `pending`, keyed by that `credential_ref`."""
+        present = {item.ref for item in observed.resources if item.state in ("enabled", "disabled", "drifted")}
+        wanted: dict[str, dict] = {}
+        with self.database.connect() as db:
+            latest = self.desired.latest(db, node_id)
+            if latest is None or observed.applied_generation != latest["generation"]:
+                return {}
+            for resource in latest["document"].resources:
+                if resource.ref not in present or resource.desired_state == "deleted":
+                    continue
+                secret_id, _, version = resource.credential_ref.rpartition(":")
+                row = db.execute("SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
+                                 (secret_id, int(version))).fetchone()
+                if row is not None and row["state"] == "pending":
+                    wanted[f"{resource.protocol}:{resource.runtime_username}"] = {
+                        "credential_ref": resource.credential_ref,
+                        "resource": {"protocol": resource.protocol, "runtime_username": resource.runtime_username}}
+        if not wanted:
+            return {}
+        answer = await client.capture([entry["resource"] for entry in wanted.values()])
+        returned = answer.get("credentials") or {}
+        return {entry["credential_ref"]: returned[label] for label, entry in wanted.items()
+                if isinstance(returned.get(label), str) and returned[label]}
+
+    @staticmethod
+    def _names(grant, credential_ref: str) -> bool:
+        """The grant still points at the version the node answered for. A rotation published
+        meanwhile moved it on: escrowing the old value would resurrect a `retiring` version
+        as `active`, and the node rotates to the new one on the next generation anyway."""
+        return grant.secret_ref is None or credential_ref == f"{grant.secret_ref.secret_id}:{grant.secret_ref.version}"
 
     def _absorb(self, node_id: str, observed: ObservedGeneration, credentials: dict[str, str]) -> None:
         """One transaction: the report itself, each grant's observed state, credentials
@@ -270,7 +307,7 @@ class FleetPusher:
                     self.clients.purge_grant(db, grant.id)
                     continue
                 returned = next((ref for ref in credentials if ref.startswith(item.ref + ":")), None)
-                if returned is not None:
+                if returned is not None and self._names(grant, returned):
                     self.provisioning.escrow_returned_credential(db, grant.id, returned, credentials[returned])
                 if item.learned and state != "missing":
                     # Telemt's host/port, mita's share template: the link renders from these.
