@@ -102,7 +102,7 @@ managed node («Отвязать») before rolling it back.
 Verify after the upgrade (the health check needs the `Host` header as before):
 
 ```bash
-docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 12
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 13
 curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: panel.example.com' http://127.0.0.1:8787/api/fleet/v2/identity   # 401: routes present, key required
 ```
 
