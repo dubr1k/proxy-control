@@ -1,10 +1,11 @@
-# vNext architecture (v0.2)
+# vNext architecture (v0.2 and v0.3)
 
 This document is the architectural record for the v0.2 line: a local control
 plane with a reserved local node identity, a `Client`/`AccessGrant` domain model,
 encrypted secret storage and a stable, revocable subscription URL. Decisions are
 recorded one per file in [ADR 001–007](#decision-records); this page is the map
-between them.
+between them. The v0.2 text below is kept as written; the section [v0.3 — Fleet
+v2](#v03--fleet-v2) records what the next release added on top of it.
 
 ## Goal of v0.2
 
@@ -73,7 +74,8 @@ SecretVersion
 
 `DesiredGeneration`, `ObservedGeneration`, `RoutingPolicy`, `EgressProvider`,
 `EnforcementBackend` and `CompiledRoutingGeneration` belong to v0.3–v0.5 and are
-described in the design document; v0.2 does not implement them.
+described in the design document; v0.2 does not implement them (v0.3 implements the
+first two — see below).
 
 Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
 `drifted`, `tombstoned` (see ADR 003).
@@ -136,6 +138,57 @@ with a reason — never as a plausible-looking link.
 The public endpoint lives on its own domain (`PANEL_SUBSCRIPTION_HOST`), not on
 the panel domain, and that vhost logs no access lines.
 
+## v0.3 — Fleet v2
+
+v0.3 turns the v0.2 control plane into a fleet: one panel (the central) manages other
+panels (the nodes) over their own HTTPS panel domains with scoped Bearer API keys. The
+decision is [ADR 008](adr/008-panel-to-panel-transport.md), which supersedes the
+transport direction of ADR 001 (pull-only mTLS) while keeping its typed-payload rule and
+applying ADR 002 (immutable generations) and ADR 003 (one writer per resource) unchanged.
+Design: `superpowers/specs/2026-09-11-v0.3-central-panel-design.md`; operator
+documentation: [FLEET.en.md](../FLEET.en.md).
+
+What v0.3 adds, and what it deliberately does not:
+
+- Enrollment is three UI actions (a `node-sync` key on the node, «Добавить панель» on the
+  central, import); nothing is installed on a host beyond the panel image.
+- The node's desired state is a `DesiredGeneration` — an immutable, numbered, digested,
+  secret-free `GenerationDocument` compiled from the central's grants; the node answers
+  with an `ObservedGeneration`. Credentials travel next to the document by reference.
+- A node records the GUID of the first central whose generation it accepts (one master
+  per node) and refuses generations from any other until unlinked.
+- Ownership on the node follows ADR 003: `central` vs `local` runtime users, adoption
+  only for explicitly imported users, collisions reported `failed`, orphans deleted,
+  local users never touched.
+- Fleet v1 stays frozen and byte-compatible; routing (v0.4) and the Xray router (v0.5)
+  remain roadmap. There are no transitive nodes, no metric history and no
+  panel-to-panel mTLS.
+
+Components (all under `panel/` unless stated):
+
+| File | Responsibility |
+| --- | --- |
+| `migrations.py` | migrations 9–12: `panel_settings` + `api_keys`; `managed_generations` + `managed_resources`; `node_links` + `desired_generations` + `observed_generations` + `fleet_nodes.transport`; `provisioning_operations` rebuilt with `pending_remote` |
+| `api_keys.py`, `api_key_routes.py` | `ApiKeyService` — issue / list / enable-disable / delete / authenticate, scope → role; `/api/keys*` (owner) |
+| `web_context.py` | `Authorization: Bearer` in `RequestContext.current`, the `fleet_key` dependency, `KeyRateLimiter` (120/min per key) |
+| `fleet_v2/identity.py` | the panel's `panel_guid` and `fleet_master_guid`, `VERSION` → `panel_version` |
+| `fleet_v2/protocol.py` | wire models `Resource`, `GenerationDocument`, `PushRequest`, `ObservedGeneration`, `PushResponse`; canonical digest; conflict codes |
+| `fleet_v2/managed.py` | node: `ManagedStore` — accepted generations, owned resources, ownership check, unlink |
+| `fleet_v2/reconcile.py` | node: `Reconciler` — discover / plan / apply / verify through the protocol adapters, startup retry |
+| `fleet_v2/guard.py` | node: `require_unmanaged` — 409 `managed_by_central` for every local writer |
+| `fleet_v2/node_routes.py` | node: `/api/fleet/v2/*`, `POST /api/nodes/local/unlink` |
+| `fleet_v2/client.py` | central: `NodeClient` (httpx, `verify`/`pin`), `fingerprint()`, `validate_panel_url()` |
+| `fleet_v2/links.py` | central: `NodeLinkService` — test / add / update / pause / probe / delete, heartbeat bookkeeping |
+| `fleet_v2/generations.py` | central: `DesiredStore`, `compile()`, `publish()` (content digest) |
+| `fleet_v2/pusher.py` | central: `FleetPusher` — heartbeat, delivery, 202 polling, resync, per-node backoff, `node.up`/`node.down` |
+| `fleet_v2/importing.py` | central: import of a node's runtime users → clients + `origin=imported` grants, credential capture |
+| `fleet_v2/central_routes.py` | central: `/api/nodes/fingerprint\|test\|link`, `/api/nodes/{id}/link\|pause\|resume\|probe\|inventory\|import\|versions\|generations`, `DELETE /api/nodes/{id}`, `public_hosts_for()` |
+| `clients/lifecycle.py`, `clients/provisioning.py` | grants: enable / disable / rotate / delete for local and remote nodes; the `remote` step and `pending_remote` operations |
+| `protocols/telemt.py`, `telemt.py` | caller-supplied secret with manager fallback (`credential_origin`), `update_options` |
+| `protocols/naive.py`, `protocols/mieru.py` | `update_options`, capture support flags |
+| `subscription_routes.py`, `client_routes.py`, `subscriptions/renderers/base.py` | public hosts per node in subscriptions and bundles |
+| `static/js/keys.js`, `nodes.js`, `clients.js`, `index.html`, `style.css` | UI: «API-ключи», «Добавить панель», linked node card, «ожидает узел» |
+
 ## Release train
 
 - Every gate runs on the disposable lab host `ams-test`: repository suite,
@@ -146,7 +199,9 @@ the panel domain, and that vhost logs no access lines.
   bytes match the archive that passed `ams-test` (`expected_sha256`), attests
   provenance and publishes after a human approval.
 - Tags: `v0.2.0-alpha.1` → `v0.2.0-beta.1` → `v0.2.0`; the workflow accepts
-  pre-release suffixes.
+  pre-release suffixes. v0.3 follows the same train: `v0.3.0-beta.1` → `v0.3.0`; its
+  gate gains a `fleet` lab tier (two panels on the lab host) before the tag, tracked in
+  `releases/v0.3.0-beta.1.md`.
 - Graphify is rerun after each architecture-scale change and before final review.
 
 ## Decision records

@@ -45,6 +45,66 @@ It adds a new active key, re-encrypts every stored secret in batches, verifies
 the result, and only then narrows the keyring to the new key — an interrupted
 rotation leaves everything readable.
 
+## Upgrading to v0.3: linked panels
+
+v0.3 lets one panel (the central) manage others (the nodes) over their HTTPS panel
+domains with scoped API keys ([FLEET.en.md](../FLEET.en.md), [ADR
+008](adr/008-panel-to-panel-transport.md)). The upgrade itself is the ordinary panel
+upgrade — `docker compose up -d --build --wait panel` with the persisted overlay set —
+and adds no service, port, secret file or host component.
+
+**Migrations 9–12** run at the first start (or `python -m panel.cli db-migrate`) and are
+additive:
+
+| # | Name | Adds |
+| --- | --- | --- |
+| 9 | `panel-settings-and-api-keys` | `panel_settings` (the panel's `panel_guid`, later its `fleet_master_guid`) and `api_keys` (prefix + SHA-256 hash, scope, expiry) |
+| 10 | `fleet-v2-managed` | `managed_generations`, `managed_resources` — the node side: accepted generations and the runtime users owned for a central |
+| 11 | `fleet-v2-links` | `node_links`, `desired_generations`, `observed_generations` and `fleet_nodes.transport` (`v1` for every existing node) — the central side |
+| 12 | `provisioning-pending-remote` | widens the `provisioning_operations.status` CHECK with `pending_remote`; SQLite cannot alter a CHECK in place, so the table is rebuilt with every row, index and foreign key preserved |
+
+`python -m panel.cli db-status` lists all twelve as applied. A `panel_guid` (uuid4) is
+minted on the first start and never changes; the panel's `VERSION` is reported to a
+central through `PANEL_VERSION_FILE` (default `/app/VERSION`, bind-mounted from the
+project directory by `compose.yaml`; the installer copies `VERSION` there; a missing file
+reads as `dev` and never blocks startup).
+
+**What appears.** «Администраторы → API-ключи» (owner only); the card «Этот сервер» on
+«Узлы» with the panel's GUID, the URL for a central and — once managed — «Отвязать»; the
+header button «+ Панель» on «Узлы»; linked panels in the node picker of «Выдать доступ»;
+`/api/fleet/v2/*` on every panel, answering only to a `node-sync` or `admin` API key
+(401 otherwise); `Authorization: Bearer` on the whole `/api/*`; the setting
+`PANEL_FLEET_HEARTBEAT_SECONDS` (default 15) for a central.
+
+**What does not change.** Fleet v1 (mTLS agent, `/api/fleet/nodes*`, `/agent/v1/*`)
+keeps working byte-for-byte; the protocol endpoints, `PANEL_VNEXT_WRITER`, subscriptions
+and the master-key requirement are the same as in v0.2; local users are untouched;
+nothing talks to any other panel until an owner creates a `node-sync` key and a central
+adds the panel with it. A panel without a master key still starts and works locally; it
+cannot be managed by a central (a push answers 409 `secret_store_disabled`).
+
+**Same build on both ends.** The generation document is validated strictly on the node,
+so a node on an older build refuses a document with a field it does not know (422) and
+the central backs off; a v0.2 panel has no `/api/fleet/v2/*` and cannot be added.
+Upgrade the **nodes first, then the central**; keep every panel of one fleet on the same
+release.
+
+**Hosts updated by rsync** must receive `VERSION` together with the code, or the node
+reports `dev` ([OPERATIONS](OPERATIONS.en.md), section 11).
+
+**Rollback** follows the general procedure above — the complete previous generation,
+database included: a v0.2 image refuses to start on a database at schema 12 («database
+schema 12 is newer than this code»). On a node that was never linked the upgrade touched
+no runtime user, so restoring the pre-upgrade database loses no fleet state; unlink a
+managed node («Отвязать») before rolling it back.
+
+Verify after the upgrade (the health check needs the `Host` header as before):
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 12
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: panel.example.com' http://127.0.0.1:8787/api/fleet/v2/identity   # 401: routes present, key required
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

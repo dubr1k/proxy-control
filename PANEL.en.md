@@ -27,12 +27,38 @@ Passwords require at least 12 characters and are stored with Argon2id. SQLite st
 - `PANEL_COOKIE_SECURE=true`: keep enabled with HTTPS; set temporarily to `false` only for direct local HTTP testing.
 - `PANEL_DATABASE=/data/panel.sqlite3`: SQLite database on the `panel-data` volume.
 - `TELEMT_API_TOKEN_FILE=/run/secrets/telemt-api-token`: internal API-token transport.
+- `PANEL_FLEET_HEARTBEAT_SECONDS=15`: how often a central panel polls every linked panel and delivers pending changes (minimum 1; see [FLEET.en.md](FLEET.en.md)).
+- `PANEL_VERSION_FILE=/app/VERSION`: the release version this panel reports to a central panel; `compose.yaml` bind-mounts `./VERSION` there, and a missing file reads as `dev`.
 
 `owner` manages administrators and users; `admin` manages users and reads audit; `viewer` is read-only. The last active owner cannot be removed or demoted. Disabling an administrator invalidates their sessions. Every mutation requires CSRF and is audited without passwords, tokens, links, or proxy secrets.
 
 `GET /api/audit` remains a read-only `items` response and supports `limit` (1–200), `before_id`, and equality filters for `actor`, `action`, and `target` (`actor` is case-insensitive). When more matching rows exist, `next_cursor` is the `before_id` value for the next page.
 
-The panel also contains a durable fleet registry and typed per-node command queue. Its Fleet view, direct mTLS pull ingress, manual CSR enrollment, and outbound node service are documented in [FLEET.en.md](FLEET.en.md).
+Since v0.3 a panel can manage other panels: the central adds a panel by URL and a `node-sync` API key, imports its users and issues, rotates and revokes accesses on it; the linked panel keeps its own owner and UI. The whole model — linked panels, generations, heartbeat, the legacy mTLS transport v1 — is documented in [FLEET.en.md](FLEET.en.md).
+
+## API keys and Bearer authentication
+
+Every `/api/*` route accepts `Authorization: Bearer <key>` in place of the session
+cookie. Keys are created by the owner on the «Администраторы» screen, section
+**«API-ключи»** («Создать ключ»), or with `POST /api/keys {name, scope, expires_at}`:
+
+- **Scope** decides the role of the request. `admin` acts as an owner (a session-less
+  owner — guard it like the owner's password), `monitor` as a viewer (reads only), and
+  `node-sync` reaches **only** `/api/fleet/v2/*` — every other path answers 403. A
+  central panel needs a `node-sync` key from each panel it manages, nothing more.
+- **The plaintext is shown once**, in the form `pc_<prefix>_<secret>`; the database
+  stores the 8-hex lookup prefix and a SHA-256 hash of the whole key. A lost key is
+  replaced, never recovered. `GET /api/keys` lists name, scope, expiry, status and last
+  use — never the key.
+- **Revocation is immediate**: a disabled (`POST /api/keys/{id}/enabled {enabled: false}`),
+  deleted (`DELETE /api/keys/{id}`) or expired key answers 401 on the next request.
+- **Rate limit**: 120 requests per minute per key (429), counted in the panel process.
+- **No CSRF for Bearer**: a key request carries no cookie, so the `X-CSRF-Token` check
+  does not apply to it; the role check does.
+- **Audit**: a key acts as `key:<name>` in `actor_username`; request bodies are never
+  recorded. `last_used_at` is updated at most once a minute.
+
+Managing keys (`/api/keys*`) requires the owner role.
 
 For owners and administrators, the Connections view can create, block, unblock, rotate, and remove individual proxy access records. An active Telegram link and QR code can be reopened through the explicit “QR and link” action. Every reveal is audited, while the link and secret are excluded from audit records and user-list responses.
 
@@ -253,41 +279,57 @@ of starting over, so a duplicate account with the same name never appears.
 After success the panel shows every link of the operation once. The same token does not
 open twice — it is a one-time reveal.
 
-A node that still carries grants cannot be disabled; subscribers would lose access
-silently. Delete the grants first, then disable the node.
+A v1 node that still carries grants cannot be disabled; subscribers would lose access
+silently. Delete the grants first, then disable the node. Disabling a linked panel
+only pauses its link (see below).
+
+The node picker in "Issue access" lists linked panels next to this server. A grant on
+a linked panel is declarative: the operation waits as `pending_remote` and the grant
+shows **«ожидает узел»** until that panel reports the account applied; enable, disable,
+rotate and delete work the same way, through a new generation rather than a manager
+call ([FLEET.en.md](FLEET.en.md)).
 
 ## The Nodes screen
 
-A node card shows four things: identity (name, `node_id`, "this server" or "remote
-[REDACTED:API key param]"), enrollment state, transport (when the node last checked in) and daemon
-state. Certificates are listed with their expiry; anything expiring within two weeks
-is highlighted.
+The screen lists three kinds of nodes: this server, **linked panels** (Fleet v2) and
+legacy **v1 nodes** (the mTLS agent). The reserved "this server" node exists in every
+installation — a database migration creates it, not the operator — and is always listed
+first.
 
-Owner actions:
+**This server.** Instead of certificates, the card shows the health of the three
+managers — Telemt, NaiveProxy, Mieru: "ok", "unavailable", or "disabled" for a protocol
+this installation does not run — plus what a central needs to link this panel: its GUID
+and the URL to enter there, with a hint to create a `node-sync` key. Once a central has
+pushed a generation, the card shows «управляется центром <GUID>» and, for the owner,
+**«Отвязать»**: the panel forgets its master, the accounts the central owned become local
+again and nothing on the runtime changes. It can be renamed, but not disabled and not
+revoked; the `node_id` `local` is reserved.
 
-- **Register** (the Add button) creates the node and immediately shows the
-  enrollment checklist. The panel cannot issue the certificate for you: the private
-  key is generated on the node and never copied anywhere.
-- **Rename** changes the display name only. `node_id` is immutable because
-  certificates and grants are bound to it.
-- **Disable / Enable**: a disabled node fails transport authentication. The panel
-  refuses to disable a node that still has pending commands — they would otherwise
-  sit in the queue with nobody to run them.
-- **Revoke all certificates** requires retyping `node_id` in the dialog; the node
-  stays off the transport until a new certificate is issued and bound.
+**Linked panels.** The header button **«+ Панель»** opens the dialog «Добавить панель»
+(name, `https://` URL, API key, TLS `verify` or `pin` with «Получить отпечаток»,
+«Разрешить приватный адрес», **«Проверить»**, an import list). A linked card shows
+online/offline with latency and the last heartbeat, the node's panel version, daemon
+health per protocol, users (central vs local), best-effort traffic, `desired` vs
+`applied` generation and the last error, in three tabs — **Обзор**, **Пользователи**
+(the node's accounts with **«Импортировать выбранных»**) and **Обновления** (component
+versions from the node's version-agent with an update button). Owner actions:
+**Пауза / Возобновить** (the heartbeat and delivery skip a paused link; "disable" on such a
+node means the same), **Проверить** (heartbeat and delivery now), **Изменить** (name,
+URL, key, TLS) and **Удалить**, which is refused while the panel still carries grants
+that are not deleted. The API key is never displayed again (`has_api_key`).
 
-The reserved "this server" node exists in every installation — a database migration
-creates it, not the operator — and it is always listed first. It has no enrollment
-actions at all: local protocols are managed directly, with no command queue and no
-certificates. Instead of a certificate list, its card shows the health of the three
-managers — Telemt, NaiveProxy, Mieru: "ok", "unavailable", or "disabled" for a
-protocol this installation does not run. It can be renamed, but not disabled and not
-revoked; the `node_id` `local` is reserved, so registering an ordinary node under it
-is refused.
+**v1 nodes.** «Зарегистрировать узел v1 (mTLS-агент)» in the toolbar creates the node
+and immediately shows the enrollment checklist; the panel cannot issue the certificate
+for you, because the private key is generated on the node and never copied anywhere. The
+card shows identity (name, `node_id`), enrollment state, transport (last check-in) and
+daemon state, and lists certificates with their expiry (anything within two weeks is
+highlighted). **Rename** changes the display name only — `node_id` is immutable because
+certificates and grants are bound to it. **Disable / Enable**: a disabled node fails
+transport authentication; the panel refuses to disable a node with pending commands or
+with grants that are not deleted. **Revoke all certificates** requires retyping `node_id`.
+Raw Telemt v1 typed commands live in the card's "Advanced: transport v1" drawer.
 
-Raw Telemt v1 typed commands live in the card's "Advanced: transport v1" drawer —
-the same interface as before, simply not on the first screen. See also
-[FLEET.en.md](FLEET.en.md).
+Details of both transports: [FLEET.en.md](FLEET.en.md).
 
 ## Master key and rotation
 

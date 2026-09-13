@@ -1,157 +1,485 @@
-# Безопасный fleet transport Proxy Control (mTLS v1)
+# Fleet в Proxy Control: связанные панели (v2) и legacy mTLS-транспорт (v1)
 
 [English](FLEET.en.md) · **Русский**
 
-Fleet nodes создают только **исходящие HTTPS/mTLS подключения** к central ingress. Панель не получает SSH, Docker socket, arbitrary shell commands/URLs или public Telemt API.
+## Обзор
 
-> [!WARNING]
-> Создание узла в web UI создаёт registry record со статусом `unenrolled`. Это не enrollment. Полный enrollment требует node-local key/CSR, offline CA signing, central binding, mTLS authorization и успешный command/result cycle.
+С v0.3 одна панель — **центр** — управляет другими панелями — **узлами** — по HTTPS-домену
+самой панели узла, аутентифицируясь scoped Bearer API-ключом
+([ADR 008](docs/adr/008-panel-to-panel-transport.md)). Подключение панели — три действия
+в web-интерфейсе; на хостах не появляется ничего, кроме образа панели: ни ingress, ни
+агента, ни CA, ни CSR.
 
-## Security contract
+Каждый образ панели несёт обе половины. Половина узла отвечает на `/api/fleet/v2/*`;
+половина центра владеет экраном «Узлы», маршрутами `/api/nodes/*` и циклом heartbeat.
+Какие из новых таблиц заполнены на конкретной панели, зависит от её роли в связи:
 
-- Server identity: обычный WebPKI certificate для exact hostname `FLEET_CENTRAL_URL`.
-- Client identity: отдельный certificate с единственным URI SAN `urn:mtproxy-panel:node:<node-id>`.
-- Central дополнительно сверяет node ID, serial, SHA-256 fingerprint и validity с active DB record.
-- TLS 1.2+, mandatory client certificate, без bearer fallback и identity headers.
-- Request bounds: bounded line/headers/body, без chunked bodies, timeout и per-certificate rate limit.
-- Commands содержат version, UUID, node, monotonic sequence, idempotency key, typed allowlisted operation, expected revision, expiry и payload hash.
-- Agent durable-journals receipt до mutation; result хранится в outbox до acknowledgment. Crash residue становится `indeterminate` и не re-execute.
-- Локальная authority ограничена fixed loopback Telemt URL и allowlisted method/path/body.
+| Роль | Таблицы | Что хранят |
+| --- | --- | --- |
+| любая панель | `panel_settings`, `api_keys` | собственный `panel_guid`, `fleet_master_guid` после первого принятого поколения, хеши API-ключей |
+| узел | `managed_generations`, `managed_resources` | принятые поколения и учётные записи runtime, которыми узел владеет от имени центра |
+| центр | `node_links`, `desired_generations`, `observed_generations`, `fleet_nodes.transport = 'panel'` | как достучаться до каждой панели, что ей поручено и что она сообщила последним |
 
-## Central deployment
+По связи ходят только типизированные документы без секретов: неизменяемый нумерованный
+**документ поколения** с digest, скомпилированный из доступов центра (ADR 002), отчёт
+узла **observed** и ограниченный набор операций (identity, status, inventory, capture
+учётных данных, обновление компонента, unlink). Ни shell, ни URL, ни HTTP method, ни YAML,
+ни готовые конфиги по связи не передаются. Учётные данные едут рядом с документом в том
+же TLS-запросе, а внутри документа — только по ссылке.
 
-Panel и ingress используют одну `PANEL_DATABASE`; перед первым ingress startup сделайте SQLite-safe backup.
+mTLS pull-агент Fleet v1 не тронут и продолжает работать; он описан в разделе
+[Legacy transport v1](#legacy-transport-v1) в конце.
 
-### 1. Offline client CA
+## Подключение панели
 
-На защищённой operator system:
+Три действия. Скриншоты двух экранов (view `fleet` и `admins`) собираются для выпуска в
+[docs/releases/v0.3.0-beta.1.md](docs/releases/v0.3.0-beta.1.md).
 
-```bash
+### 1. На панели, которая станет узлом: создать ключ `node-sync`
+
+«Администраторы» → секция **«API-ключи»** → **«Создать ключ»** (только владелец): имя,
+scope `node-sync`, необязательный срок действия. Ключ показывается **один раз** в виде
+`pc_<prefix>_<secret>` (8 hex-символов префикса для поиска и 43 URL-safe символа секрета);
+в базе остаются только префикс и SHA-256 всего ключа. Скопируйте его сейчас — показать
+повторно нельзя, только выпустить новый. Карточка «Этот сервер» на экране «Узлы»
+показывает GUID панели и URL, который нужно ввести на центре.
+
+### 2. На центре: «Узлы» → «+ Панель» → «Проверить»
+
+Диалог «Добавить панель» запрашивает имя, URL панели (только `https://`, необязательные
+порт и базовый путь, без query string), API-ключ и способ проверки TLS:
+
+- **`verify`** (по умолчанию) — сертификат узла должен строиться до системного хранилища
+  доверия, как в браузере; все боевые хосты уже отдают панель с WebPKI-сертификатом.
+- **`pin`** — должен совпасть SHA-256 листового сертификата, предъявленного по этому URL.
+  «Получить отпечаток» подключается по URL, игнорирует цепочку и показывает digest —
+  сверьте его с тем, что показывает сама панель узла, прежде чем доверять. Для
+  самоподписанных и лабораторных сертификатов; режима «не проверять» намеренно нет.
+
+Приватный, loopback, link-local или `*.local` адрес отклоняется, пока не отмечено
+«Разрешить приватный адрес» (лаборатория, внутренняя сеть).
+
+**«Проверить»** вызывает `identity`, `status` и `inventory` узла с этим ключом и ничего
+не сохраняет. Диалог показывает, что панель сообщила о себе (GUID, версия, протоколы и их
+демоны, latency), и перечисляет её учётные записи с чекбоксами для шага импорта ниже.
+Отказы явные: панель не говорит на Fleet API v2 (панель v0.2 отвечает 404), ею уже
+управляет другой центр, она уже подключена здесь, это та же самая панель, ключ неверный
+(401/403 → «the node refused the API key») или панель недоступна.
+
+### 3. «Добавить» — и, при желании, импорт
+
+Одна транзакция на центре: строка `fleet_nodes`, где `node_id` — GUID узла
+(`transport = 'panel'`, `auth_state = 'linked'`), строка `node_links` (URL, режим TLS,
+отпечаток, `allow_private_address`) и ключ, зашифрованный в `secret_versions`
+(`purpose = 'node-api-key'`, привязан к этому GUID). В ответах API и в UI есть только
+`has_api_key: true`; плейнтекст больше не показывается. Отмеченные в диалоге
+пользователи импортируются сразу после (см. [Импорт существующих
+пользователей](#импорт-существующих-пользователей)).
+
+Связь начинается в состоянии `unknown` и становится **online** на первом heartbeat (в
+пределах `PANEL_FLEET_HEARTBEAT_SECONDS`, по умолчанию 15 с) с событием `node.up`. Узел
+запоминает GUID центра как своего мастера при **первом принятом поколении**, а не при
+добавлении: подключённая панель, которой ещё ничего не прислали, пока никем не управляется.
+
+Эквивалентный API, всё только для владельца: `POST /api/nodes/fingerprint {url}` →
+`{sha256}`; `POST /api/nodes/test` и `POST /api/nodes/link {display_name, url, api_key,
+tls_verify, pinned_sha256?, allow_private_address}` (201 `{node_id}`);
+`POST /api/nodes/{id}/link` меняет только переданные поля (имя, URL, ключ, режим TLS,
+отпечаток — новый ключ становится новой строкой секрета, старая отзывается; флаг
+приватного адреса остаётся таким, каким был при подключении).
+
+## Что синхронизируется
+
+### Поколения
+
+Всё, что центр хочет видеть на узле, — один **документ поколения**: доступы узла
+(`access_grants` с `node_id` = GUID узла и `origin ∈ provisioned | imported`) в виде
+записей `Resource`. Каждый ресурс несёт `ref = grant:<id>`, `protocol`, `runtime_username`,
+`desired_state ∈ enabled | disabled | deleted`, `credential_ref = grant:<id>:<version>`,
+`credential_origin ∈ caller | manager`, `origin`, опции протокола и
+`valid_from`/`valid_until`. Сам документ — `schema_version: 1` с `node_guid`,
+`master_guid`, `generation`, `previous_generation`, `created_at`, `created_by` и не более
+500 ресурсов; два ресурса не могут называть одну пару (протокол, учётная запись).
+Учётных данных в документе нет никогда: push-запрос везёт их отдельно как
+`secrets: {credential_ref: plaintext}`, а секреты для ссылок, которых нет в документе,
+узел отвергает.
+
+Поколение **компилируется, а не редактируется**. Каждая мутация доступа на центре —
+выдача, включение, выключение, ротация, удаление, импорт — проходит через
+`ClientService.notify`, который публикует поколение в той же транзакции: откатившееся
+изменение ничего не публикует. Новая строка появляется, только когда изменилось
+*содержимое* (те же ресурсы с новым номером — не новое поколение); номер растёт на
+единицу, связь помечается `config_dirty`. Поколения неизменяемы и только растут: узел
+отвергает меньший номер (409 `stale_generation`) и тот же номер с другим digest
+(409 `digest_conflict`); откат — это новое, большее поколение с центра (ADR 002).
+
+### Владение на узле
+
+Учётная запись в runtime узла принадлежит либо центру (`central`), либо самому узлу
+(`local`); реестр — `managed_resources` (ADR 003). Правила, которые reconcile узла
+применяет к каждому ресурсу последнего принятого поколения:
+
+- **нет в runtime** → создаётся через адаптер протокола с присланным секретом (строка-
+  заглушка пишется до вызова, поэтому падение между `create` и записью восстанавливается
+  идемпотентной ротацией при следующем apply);
+- **есть и принадлежит центру** → ротация при смене `credential_ref`, включение/выключение
+  по желаемому состоянию, обновление опций там, где адаптер умеет (неприменимая опция
+  оставляет ресурс `drifted`, состояние вкл/выкл при этом верное);
+- **есть, но центру не принадлежит** → для ресурса `provisioned` это **коллизия** с
+  локальной (или чужой) учётной записью: ресурс отчитывается `failed` («runtime user
+  exists and is not managed») и никогда не присваивается и не трогается. Единственное
+  осознанное присвоение — ресурс `imported`: оператор выбрал этого пользователя из
+  inventory самого узла, и он записывается как ресурс центра **без единого вызова
+  адаптера**;
+- **`deleted`** → удаляется из runtime, если принадлежит центру, один раз отчитывается
+  `missing` и затем забывается узлом;
+- **сирота** — учётная запись центра, которую текущий документ больше не называет →
+  удаляется;
+- **локальные пользователи не трогаются**, а собственные UI и API узла отказывают в
+  мутации учётной записи центра с 409 `managed_by_central` (заголовок `X-Reason`): один
+  писатель на ресурс.
+
+Сбой одного ресурса не останавливает остальные: поколение завершается `failed` с
+раскладкой по ресурсам и применяется заново, когда центр повторит push (см. backoff
+ниже). Поколение, принятое до рестарта, применяется заново при старте панели; apply
+идемпотентен по discover, поэтому ничего не создаётся дважды. Полученные секреты узел
+эскроуит в собственном `secret_versions` (`purpose = 'fleet-managed'`) до apply — узел
+без мастер-ключа этого не может и отвечает 409 `secret_store_disabled` (ADR 005).
+
+### API узла v2
+
+Каждый маршрут требует API-ключ `node-sync` или `admin` (`Authorization: Bearer`);
+web-сессия отвергается, а ключ `node-sync` отвергается везде за пределами этого префикса.
+
+| Метод и путь | Назначение |
+| --- | --- |
+| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` |
+| `GET /api/fleet/v2/status` | версии и факты о хосте от version-agent узла (или `version_agent_unavailable`), `managed_resources`, `users` по протоколам `{central, local}`, `protocols[*].traffic` (best effort: у Telemt только total, у NaiveProxy up/down/total, у Mieru `null`) |
+| `GET /api/fleet/v2/inventory` | учётные записи runtime по протоколам: `{runtime_username, enabled, options, ownership: central\|local, ref}` — без секретов |
+| `PUT /api/fleet/v2/generation` | push: `{expected_guid, generation, secrets}`, тело ≤ 64 KiB. 409 с `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 — неизвестное поле или протокол. `200 {observed, credentials}`, если reconcile уложился в 25 с, `202 {observed}` — если продолжается в фоне. В `credentials` только учётные данные, которые runtime узла сгенерировал сам; `Cache-Control: no-store` |
+| `GET /api/fleet/v2/observed` | `{applied_generation, digest, reconcile_state: idle\|applying\|converged\|failed, resources: [{ref, protocol, runtime_username, state: enabled\|disabled\|missing\|failed\|drifted, error, revision}], reported_at}` |
+| `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru всегда `unsupported` |
+| `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → собственный version-agent узла |
+| `POST /api/fleet/v2/unlink` | забыть мастера; учётные записи центра становятся локальными; runtime не трогается |
+
+Повторный push того же поколения идемпотентен: reconcile проходит по уже сошедшемуся
+как no-op, ответ той же формы. У владельца узла есть один собственный сессионный маршрут —
+`POST /api/nodes/local/unlink` («Отвязать» в карточке «Этот сервер»).
+
+### API центра
+
+Только владелец через сессию или ключ `admin`; чтение (`GET`) — также роль `admin`:
+`POST /api/nodes/{id}/pause` и `/resume` (связь на паузе пропускается циклом heartbeat и
+доставки; «Отключить» для такого узла означает то же самое), `POST /api/nodes/{id}/probe`
+(heartbeat и доставка сейчас), `GET /api/nodes/{id}/inventory` (пользователи узла с
+доступом, который эта панель уже держит для каждого, — `linked_grant_id`),
+`POST /api/nodes/{id}/import`, `POST /api/nodes/{id}/versions/{component}`,
+`GET /api/nodes/{id}/generations` (желаемое и наблюдаемое: номера, digest, состояния по
+ресурсам — учётные данные только по ссылкам), `DELETE /api/nodes/{id}`. Отказ узла
+возвращается с кодом, на который UI умеет реагировать: `node_unreachable` (502),
+`node_auth_failed` (409) или собственный код узла.
+
+## Heartbeat и здоровье
+
+Центр держит один цикл на весь fleet, каждые `PANEL_FLEET_HEARTBEAT_SECONDS` (по
+умолчанию 15, минимум 1). Один тик обходит все включённые связи параллельно, узлы
+изолированы друг от друга, а ручное «Проверить» сериализовано с циклом, чтобы они не
+перемешивались:
+
+1. **Heartbeat** — `GET identity` + `GET status`. Успех записывает `online`, latency,
+   `panel_version`, JSON identity и status и очищает `last_error`; транспортная ошибка
+   или любой статус ошибки (401/403 при плохом ключе, 404 от панели без этого API, 429,
+   5xx) записывает `offline` с классом и кодом сбоя (никогда — телом ответа) в
+   `last_error`, сохраняя последний хороший отчёт. Событие — `node.up` или `node.down`
+   (`GET /api/events`) — порождает только переход состояния.
+2. **Доставка** — когда узел должен центру поколение (`config_dirty` либо подтверждённое
+   поколение отстаёт), отправляется последнее с учётными данными, раскрытыми только для
+   этого узла. `202` опрашивается через `GET observed` на следующих тиках (повторный push,
+   если узел `applying` одно и то же поколение уже 10 минут). Отчёт ложится в
+   `observed_generations`, в `observed_state` каждого доступа, в ожидавшие его операции
+   выдачи и — для секрета, выбранного самим runtime, — в эскроу ровно под тем
+   `secret_id:version`, который назвал документ.
+3. **Backoff** — после того как узел отчитался о поколении `failed` или отверг push с
+   кодом, на который центр не может ответить (`guid_mismatch`, `foreign_master`,
+   `secret_store_disabled`, 422 от более старой сборки), повторный push этого поколения
+   ждёт 30 с, затем 60 с, удваиваясь до потолка 10 минут. Backoff сбрасывается, как
+   только для узла появляется новое поколение или узел сообщает `converged`; сам
+   heartbeat никогда не замедляется. На `stale_generation` и `digest_conflict` ответ
+   другой: центр переиздаёт то же содержимое поверх номера, который сообщает узел (база,
+   восстановленная из бэкапа; связь, разорванная и созданная заново). Недоступный узел
+   просто ждёт следующего heartbeat; периодический ретрай живёт на центре, узел
+   повторяет apply только при собственном старте.
+
+Карточка узла («Обзор») различает **здоровье транспорта** (online/offline, latency,
+последний heartbeat, `last_error`) и **здоровье демонов** (`ok | down | off` по
+протоколам, из собственных health-проверок узла), показывает версии от version-agent
+узла, пользователей по протоколам (центр против локальных), best-effort трафик и
+поколение `desired` против `applied` с пометкой, пока есть недоставленные изменения.
+«Проверить» выполняет тот же heartbeat и доставку немедленно.
+
+## Импорт существующих пользователей
+
+Импорт делает пользователей, которых узел уже обслуживает, ресурсами центра — **не трогая
+их**. Из диалога подключения (после «Проверить») или позже из вкладки «Пользователи»
+карточки узла → «Импортировать выбранных»:
+
+1. Центр читает `GET /api/fleet/v2/inventory`; пользователи, у которых здесь уже есть
+   доступ, помечены и пропускаются (`already_linked`). Пользователь, которым уже владеет
+   другой центр (`ownership: central`), отклоняется — никогда двух мастеров на одну
+   учётную запись, никогда тихого перехвата.
+2. Он запрашивает у узла текущие учётные данные (`POST credentials/capture`) **до того,
+   как что-либо записать**: узел, который не отвечает, не оставляет наполовину
+   импортированного клиента. MTProxy и NaiveProxy отдают секрет; Mieru не может (хранит
+   хеш), такие пользователи возвращаются как `unsupported`.
+3. Одна транзакция: клиент на каждого пользователя (с именем учётной записи) или
+   привязка к выбранному вами клиенту, доступ с `origin = imported` и наблюдаемым
+   состоянием вкл/выкл, версия секрета 1 `active` там, где секрет вернулся, строка аудита
+   `node.import` с именами учётных записей (никогда — с секретами) и поколение, которое
+   их несёт.
+4. При следующем push узел **присваивает** этих пользователей: записывает их в
+   `managed_resources` с присланным `credential_ref` и не делает ни одного вызова
+   адаптера — присвоение ничего не создаёт, не ротирует и не удаляет (ADR 003 `adopted`).
+
+Доступ, импортированный без секрета (Mieru), в подписке клиента показывается как
+`unsupported: no stored credential`, пока вы не нажмёте **«Ротация»**: новая версия
+становится секретом следующего поколения, и узел ротирует учётную запись.
+
+## Ротация, выключение, удаление
+
+Доступы на связанной панели обслуживаются с экрана «Клиенты» так же, как локальные;
+разница в том, что удалённое изменение **декларативно**. Включение, выключение, ротация и
+удаление пишут строку доступа, строку аудита и новое поколение в одной транзакции и не
+вызывают ни одного менеджера; доставляет pusher, а `observed_state` двигает отчёт узла. До
+тех пор UI показывает доступ как **«ожидает узел»** (`observed_state = pending`).
+
+- **Выдача доступа** клиенту на связанной панели: доступ, его секрет в состоянии `pending`
+  и поколение пишутся вместе; операция ждёт как `pending_remote` и завершается, когда узел
+  сообщает учётную запись `enabled` (или `disabled`, если вы успели её выключить).
+  Одноразовый набор ссылок доступен после этого.
+- **Включить / выключить** — новое `desired_state`; запрос состояния, которое у доступа
+  уже есть, ничего не меняет.
+- **Ротация** — новая версия секрета `pending`, текущая `retiring`; изменившийся
+  `credential_ref` заставляет узел ротировать учётную запись; когда узел подтвердил, новая
+  версия становится `active`, а retiring — `revoked`. Telemt принимает секрет от
+  вызывающего (пиннутый форк проверен на стенде: `TELEMT_CALLER_SECRET = supported`);
+  runtime, который настаивает на собственном секрете, возвращает его в ответе на push
+  (`credential_origin = manager`), и центр эскроуит его под той же версией.
+- **Удаление** — `desired_state = deleted`; узел удаляет принадлежащую центру учётную
+  запись и отчитывается `missing`; после этого центр **вычищает** строку доступа и
+  отзывает все версии её секрета, поэтому тот же `runtime_username` можно выдать снова.
+  Операция, ожидавшая доступ, удалённый до того, как узел его применил, завершается как
+  `compensated`, а не ждёт вечно.
+
+Собственные UI и protocol API узла отказывают включить/выключить/ротировать/удалить
+учётную запись центра с 409 `managed_by_central`; локальных пользователей узла всё это не
+касается.
+
+## Отвязка и откат
+
+**Пауза** (`POST /api/nodes/{id}/pause`, «Пауза») сохраняет связь и останавливает для
+этого узла и heartbeat, и доставку; абоненты продолжают работать. «Возобновить» отменяет её.
+
+**Удаление на центре** («Удалить», `DELETE /api/nodes/{id}`) отклоняется с 409, пока хоть
+один доступ на узле не в состоянии `deleted` — сначала удалите доступы клиентов, чтобы
+абоненты не потеряли их молча. Затем центр говорит узлу забыть мастера (best effort —
+отозванный ключ не должен делать связь неудаляемой; строка аудита `node.unlink` фиксирует
+`node_released: true|false`) и удаляет историю доступов узла, зашифрованный ключ и строку
+`fleet_nodes` вместе со связью, желаемыми и наблюдаемыми поколениями.
+
+**Отвязка на узле** («Отвязать» в карточке «Этот сервер», сессия владельца
+`POST /api/nodes/local/unlink`, либо `POST /api/fleet/v2/unlink` со стороны центра)
+освобождает владение: `managed_resources` и `managed_generations` очищаются,
+`fleet_master_guid` удаляется. В runtime ничего не меняется — каждый пользователь,
+импортированный или выданный, продолжает работать и просто снова локальный. Центр сам об
+этом не узнаёт и продолжает держать связь; удалите узел и там, иначе следующее
+опубликованное поколение будет принято и снова сделает его мастером (импортированные
+пользователи присвоятся заново, выданные упадут как коллизии).
+
+**Откат узла** на предыдущий образ панели подчиняется общему правилу
+[UPGRADING](docs/UPGRADING.ru.md): восстанавливается полная предыдущая генерация, включая
+базу. Образ v0.2 отказывается стартовать на базе, мигрированной до схемы 12 («database
+schema 12 is newer than this code»), поэтому один предыдущий образ — это ещё не откат. В
+runtime узла само обновление ничего не тронуло: `managed_resources` пуст, пока центр не
+прислал поколение, так что восстановление базы до обновления не теряет никакого
+fleet-состояния на узле, который никто не подключал. Узел, которым управляли, отвяжите
+перед откатом; на центре сначала удалите его доступы и связь.
+
+## Модель безопасности
+
+- **Ключи.** Хранятся хешем (SHA-256 всего ключа, сравнение за постоянное время, префикс
+  для поиска), показываются один раз, отзываются: выключение или удаление ключа действует
+  со следующего запроса (401). Срок действия необязателен. Ключ действует как
+  псевдопользователь `key:<имя>` в журнале аудита; тела запросов и ответов не попадают ни
+  в аудит, ни в логи. `last_used_at` обновляется не чаще раза в минуту. Каждый ключ
+  ограничен **120 запросами в минуту** (429), счёт ведётся на процесс панели.
+- **Scope.** `admin` = роль владельца на всём API (владелец без сессии — относитесь как к
+  паролю владельца), `monitor` = роль наблюдателя (только чтение), `node-sync` =
+  **только** `/api/fleet/v2/*` — всё остальное 403. Управление ключами (`/api/keys*`)
+  требует роли владельца; Bearer-запрос не несёт cookie, так что CSRF-токена для проверки
+  нет. Центру выдавайте ключ `node-sync`, никогда — `admin`.
+- **Ключ едет в одну сторону.** Центр хранит ключ узла зашифрованным под своим
+  мастер-ключом (`secret_versions`, привязка к GUID узла); узел не хранит ничего от центра.
+  Компрометация узла ничего не говорит об остальных; компрометация центра достаёт до всех
+  его узлов — та же граница, которую принимает 3x-ui.
+- **TLS.** `verify` (WebPKI, системное хранилище, проверка имени) по умолчанию; `pin`
+  (SHA-256 листа) для самоподписанных и лабораторных сертификатов; режима «не проверять»
+  нет. `http://` отклоняется. Приватные и локальные адреса — только с явным
+  `allow_private_address`.
+- **Один мастер на узел.** Узел запоминает GUID первого центра, чьё поколение принял, и
+  отвечает 409 `foreign_master` любому другому до отвязки. Добавление панели, которая уже
+  сообщает чужой `master_guid`, центр отклоняет ещё до записи.
+- **Ограниченная типизированная поверхность.** Тело запроса ≤ 64 KiB (выше — 413),
+  ≤ 500 ресурсов в документе, ≤ 200 элементов в capture или импорте; pydantic-модели с
+  `extra = forbid`. Узел принимает только документы и типизированные операции — никогда
+  shell, URL, HTTP method/path, YAML или конфиги.
+- **Секрет не утекает случайно.** `Cache-Control: no-store` на каждом ответе панели, кроме
+  `/s/` (у него собственное кеширование); учётные данные появляются только внутри
+  push-запроса, push-ответа и ответа capture; `identity`, `inventory`, `observed`,
+  карточка узла, `GET /api/nodes/{id}/generations` и строки аудита несут только ссылки и
+  имена. `last_error` фиксирует класс и код сбоя, никогда — тело.
+
+## Legacy transport v1
+
+Fleet v1 — исходящий mTLS pull-агент, поставлявшийся до v0.3. Он заморожен,
+байт-совместим и в v0.3 не изменён — `panel/fleet.py`, маршруты реестра
+`/api/fleet/nodes*`, пути ingress `/agent/v1/*`, форма `TypedCommand` и семантика
+sequence/outbox — и остаётся только для Telemt. Новые узлы следует подключать как панели;
+текст ниже сохранён для установок, где узлы v1 уже зарегистрированы, и для раздела
+«Advanced: транспорт v1» карточки узла v1 (сырые typed-команды). Узел v1 показан на экране
+«Узлы» с `transport = v1` рядом со связанными панелями; «Зарегистрировать узел v1
+(mTLS-агент)» в тулбаре открывает чек-лист enrollment.
+
+### Контракт
+
+- Узлы создают только **исходящие HTTPS-подключения** к отдельному central ingress, который
+  сам терминирует TLS и выводит идентичность узла из проверенного клиентского сертификата —
+  без identity-заголовков и без bearer fallback.
+- Идентичность сервера: WebPKI-сертификат на точное имя `FLEET_CENTRAL_URL`, проверяемый по
+  системному хранилищу (`FLEET_SERVER_CA` — только для приватного тестового PKI).
+  Идентичность клиента: приватный CA выдаёт по сертификату на узел с единственным URI SAN
+  `urn:mtproxy-panel:node:<node-id>`; центр дополнительно требует активную запись в базе с
+  совпадающими node ID, serial, SHA-256 fingerprint и сроком.
+- TLS 1.2+, обязательный клиентский сертификат, без компрессии. Неизвестный CA падает на
+  handshake; сертификат другого узла, незарегистрированный serial/fingerprint или отозванный
+  приложением сертификат получают 403.
+- Границы: 4 KiB request line, 8 KiB заголовков, лимит тела ≤ 64 KiB (по умолчанию 16 KiB),
+  без chunked-тел, long poll 30 с, rate limit на сертификат внутри процесса (по умолчанию
+  120/мин, сбрасывается при рестарте).
+- Команда несёт версию протокола, UUID, node ID, монотонный sequence, idempotency key,
+  allowlisted-операцию, ожидаемую ревизию Telemt, actor, срок, канонический SHA-256
+  payload и типизированный payload; состояния `queued`, `dispatched`, `succeeded`,
+  `failed`, `indeterminate`. Просроченная команда всё равно доставляется по порядку и
+  журналируется как failed no-op, так что срок никогда не выполняет мутацию и не оставляет
+  разрыва в sequence.
+- Агент журналирует получение (SQLite WAL, `synchronous=FULL`) до вызова Telemt;
+  завершённые результаты образуют durable outbox; потерянное подтверждение повторяет
+  отправку сохранённого результата, а не мутацию; остатки после падения — `indeterminate` и
+  не выполняются повторно. Единственная его authority — фиксированный loopback URL Telemt с
+  локальным bearer; каждый method/path/body берётся из типизированного allowlist, мутации
+  несут `If-Match`.
+- Разрешённые операции: обновление инвентаря, включение, выключение, изменение лимитов,
+  сброс квоты. Create/delete/rotate/reveal и операции Mieru отклоняются — именно это дают
+  связанные панели.
+
+### Развёртывание центра
+
+Панель и ingress работают с **одной** `PANEL_DATABASE`; сделайте бэкап перед первым стартом.
+
+1. Получите WebPKI-сертификат сервера с SAN на имя ingress (`fleet.example.com` ниже).
+   Никогда не используйте fleet client CA как публичную идентичность сервера.
+2. Инициализируйте offline client CA на защищённой операторской системе, не в контейнере
+   панели:
+
+   ```sh
+   python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
+     fleet-ca-init --ca-dir /root/mtproxy-fleet-ca
+   install -m 0644 /root/mtproxy-fleet-ca/ca.crt /etc/mtproxy-panel/fleet-client-ca.crt
+   # ca.key остаётся offline/root-only; ingress нужен только ca.crt.
+   ```
+
+3. Установите `deploy/mtproxy-fleet-ingress.service` с `deploy/fleet-ingress.env.example`,
+   поправив root-only пути Certbot и имя хоста. Root-only шаги `ExecStartPre=+` юнита
+   копируют сертификат (`0444`) и ключ (`0400`) владельцем `panel:panel` в его runtime-каталог
+   `/run/mtproxy-fleet-ingress` с режимом `0700`; сам процесс работает как `panel:panel`.
+   После продления сертификата перезапускайте юнит (`systemctl restart
+   mtproxy-fleet-ingress.service` из root-owned deploy hook). Наружу выставляется только
+   TCP-порт ingress; слушатель терминирует mTLS сам.
+4. Для контейнеров `compose.fleet-central.yaml` — hardened overlay того же проекта
+   `mtproxy` с общим `panel-data`; вызывайте его вместе с `compose.yaml`, никогда отдельно.
+   Смонтированные ключи ingress должны быть читаемы только UID/GID 10001 (образ агента
+   работает под UID 10002).
+
+### Enrollment узла (`example-node-02`)
+
+Регистрация, переименование, отключение и отзыв сертификатов живут на экране «Узлы»; шаги
+ниже остаются ручными ровно потому, что приватный ключ не покидает узел. После
+«Зарегистрировать» панель показывает этот чек-лист прямо в диалоге.
+
+```sh
+# центр: регистрация
 python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-ca-init --ca-dir /root/mtproxy-fleet-ca
-install -m 0644 /root/mtproxy-fleet-ca/ca.crt \
-  /etc/mtproxy-panel/fleet-client-ca.crt
-```
+  fleet-register-node example-node-02 --display-name 'Example Region 2'
 
-`ca.key` остаётся offline/root-only. Ingress получает только `ca.crt`.
-
-### 2. Ingress TLS
-
-Получите WebPKI certificate для `fleet.example.com`. Не используйте fleet client CA как public server identity. Установите `deploy/mtproxy-fleet-ingress.service` + `deploy/fleet-ingress.env.example` или используйте `compose.fleet-central.yaml` как overlay того же project `mtproxy`.
-
-Private key source остаётся root-only; unit staging-copy размещает его в protected runtime directory для service identity. После certificate renewal перезапустите ingress через root-owned deploy hook.
-
-```bash
-export COMPOSE_FILE=compose.yaml:compose.fleet-central.yaml
-docker compose config -q
-docker compose up -d --build fleet-ingress panel
-```
-
-## Экран «Узлы» в панели
-
-С v0.2 регистрация, переименование, отключение и отзыв сертификатов живут на экране
-«Узлы»; шаги ниже остаются ручными ровно потому, что приватный ключ не покидает
-узел. После `Добавить → Зарегистрировать` панель показывает их списком прямо в диалоге.
-Сырые typed-команды Telemt v1 убраны в раздел «Advanced: транспорт v1» карточки узла.
-
-## Enrollment узла
-
-### 1. Зарегистрировать node
-
-Через owner UI или CLI:
-
-```bash
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-register-node node-1 --display-name 'Node 1'
-```
-
-State: `unenrolled`.
-
-### 2. Создать key и CSR на узле
-
-```bash
+# узел: ключ и CSR локально
 install -d -m 0700 /etc/mtproxy-agent
-openssl req -new -newkey rsa:3072 -nodes -sha256 \
-  -subj '/CN=node-1' \
-  -keyout /etc/mtproxy-agent/node-1.key \
-  -out /etc/mtproxy-agent/node-1.csr
-chmod 0600 /etc/mtproxy-agent/node-1.key
-```
+openssl req -new -newkey rsa:3072 -nodes -sha256 -subj '/CN=example-node-02' \
+  -keyout /etc/mtproxy-agent/example-node-02.key -out /etc/mtproxy-agent/example-node-02.csr
+chmod 0600 /etc/mtproxy-agent/example-node-02.key
 
-Private key никогда не покидает узел. Передайте только CSR в offline CA environment.
+# CA-система: подпись (signer игнорирует запрошенные расширения и пишет канонический URI SAN)
+python -m panel.cli fleet-sign-csr example-node-02 --ca-dir /root/mtproxy-fleet-ca \
+  --csr /secure-inbox/example-node-02.csr --out /secure-outbox/example-node-02.crt --days 90
 
-### 3. Подписать CSR
-
-```bash
-python -m panel.cli fleet-sign-csr node-1 \
-  --ca-dir /root/mtproxy-fleet-ca \
-  --csr /secure-inbox/node-1.csr \
-  --out /secure-outbox/node-1.crt \
-  --days 90
-```
-
-Signer игнорирует requested identity extensions и создаёт canonical URI SAN.
-
-### 4. Bind certificate central-side
-
-```bash
+# центр: привязка точного serial/fingerprint/срока
 python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-bind-cert node-1 --cert /secure-inbox/node-1.crt
+  fleet-bind-cert example-node-02 --cert /secure-inbox/example-node-02.crt
 ```
 
-State: `enrolled`.
+Между системами перемещайте только CSR и выпущенный сертификат — никогда
+`example-node-02.key` или `ca.key`. На узле установите пакет/venv,
+`deploy/mtproxy-agent.service` и `deploy/agent.env.example`; локальный bearer Telemt храните
+как `/etc/mtproxy-agent/telemt-api-token`, доступный только службе. Служба требует ключ без
+group/world-битов и пишет только в `/var/lib/mtproxy-agent`. Затем
+`systemctl daemon-reload && systemctl enable --now mtproxy-agent` и проверьте
+`journalctl -u mtproxy-agent --since -5m`. `auth_state` проходит `unenrolled` → `enrolled`
+(сертификат привязан) → `connected` (mTLS-авторизация прошла). Первой поставьте
+короткоживущую команду инвентаризации и посмотрите её результат до любой мутации.
 
-### 5. Установить agent
+Необязательный `compose.agent.yaml` входит в ту же приватную сеть Compose, обращается к
+Telemt только как `http://mtproxy:9091`, не монтирует Docker socket и не публикует портов;
+он валиден только как overlay `compose.yaml`, bind ключа — `0400`/`0600` владельцем UID 10002.
 
-Верните на node public certificate и CA certificate, но не `ca.key`. Установите `deploy/mtproxy-agent.service` + `deploy/agent.env.example`; local Telemt token храните mode-restricted. Agent пишет только в `/var/lib/mtproxy-agent`.
+### Ротация, отзыв и проверки
 
-```bash
-systemctl daemon-reload
-systemctl enable --now mtproxy-agent
-journalctl -u mtproxy-agent --since=-5m --no-pager
-```
+Ротация overlap-first: новый ключ и CSR на узле → `fleet-sign-csr` → `fleet-bind-cert` (оба
+serial принимаются) → атомарная замена и рестарт агента → `auth_state=connected` и
+завершённая команда инвентаризации → отзыв старого serial:
 
-Compose agent overlay публикует 0 ports, не монтирует Docker socket и обращается к Telemt только как `http://mtproxy:9091` внутри private network.
-
-### 6. Acceptance
-
-После успешной mTLS authorization state становится `connected`. Первой отправьте короткоживущую inventory command и дождитесь durable success result. Только затем переходите к mutations.
-
-## Rotation
-
-Rotation overlap-first:
-
-1. создать новый key/CSR на node;
-2. подписать и bind новый cert central-side;
-3. atomically заменить node certificate/key и restart agent;
-4. подтвердить `connected` и inventory success;
-5. revoke старый serial:
-
-```bash
+```sh
 python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-revoke-cert node-1 --serial OLD_HEX_SERIAL
+  fleet-revoke-cert example-node-02 --serial OLD_HEX_SERIAL
 ```
 
-При compromise сначала revoke, затем stop agent и выдайте новый key/cert. V1 не публикует OCSP/CRL; revocation проверяется application database после TLS.
+Отзыв приложением действует немедленно для новых запросов, даже пока TLS-цепочка валидна;
+при компрометации сначала отзовите, остановите агент, затем выпустите новые ключ и
+сертификат. Инструменты CA v1 не публикуют OCSP и CRL — никогда не полагайтесь только на
+отзыв на уровне handshake.
 
-## Negative tests
+Операционные проверки: `openssl s_client` без клиентского сертификата и сертификат другого
+CA должны падать на handshake; валидный сертификат на пути другого узла и отозванный serial
+должны получать 403; проверьте `auth_state`, `last_seen_at`, `dispatched_at`, статус
+завершения и отсутствие незагруженных завершённых записей журнала; убедитесь, что Telemt
+слушает только loopback и ни один Compose-файл не монтирует `/var/run/docker.sock`.
 
-- без client certificate TLS handshake fails;
-- cert от другой CA fails;
-- cert node A на path node B получает 403;
-- unbound/revoked serial получает 403;
-- expired command доставляется как durable failed no-op и не выполняет mutation;
-- local Telemt API не опубликован;
-- agent не имеет Docker socket;
-- completed outbox не остаётся unacknowledged после recovery.
+### Ограничения v1
 
-## Ограничения v1
+Одобрение enrollment и передача CSR ручные по замыслу (bearer-эндпоинта enrollment нет);
+отзыв проверяется после TLS базой центра; rate limiter — на процесс ingress; в allowlist
+только пять операций Telemt выше. Ни один боевой хост в v1 так и не был зарегистрирован;
+артефакты и процедура готовы, но реальное развёртывание всё ещё требует DNS/WebPKI-
+сертификата, согласованного порта и передачи CSR. Для всего, что выходит за инвентарь и
+лимиты, подключайте панель.
 
-- CSR transfer/approval manual;
-- rate limiter per-process и сбрасывается при restart;
-- allowlisted только Telemt inventory refresh, enable, disable, limit updates и quota reset;
-- Mieru operations, create/delete/rotate/reveal и secret-bearing apply не объявляются и отклоняются;
-- web registry operation не заменяет PKI enrollment;
-- production ingress/enrollment end-to-end пока не заявлен как completed gate.
-
-См. [operations](docs/OPERATIONS.ru.md), [backup](docs/BACKUP_RESTORE.ru.md), [security](SECURITY.md) и [troubleshooting](docs/TROUBLESHOOTING.ru.md).
+См. также [operations](docs/OPERATIONS.ru.md), [upgrading](docs/UPGRADING.ru.md),
+[backup](docs/BACKUP_RESTORE.ru.md), [security](SECURITY.md) и
+[troubleshooting](docs/TROUBLESHOOTING.ru.md).
