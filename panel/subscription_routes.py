@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from .clients.models import effective_enabled
 from .clients.store import ClientConflict
 from .events import MAX_PAGE
+from .fleet_v2.central_routes import public_hosts_for
 from .reveals import qr_data
 from .subscriptions.compatibility import MATRIX, NOTES
 from .subscriptions.renderers import RENDERERS, resolve_artifacts
@@ -159,14 +160,6 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
 def register_subscription_routes(app, context: RequestContext) -> None:
     settings = context.settings
 
-    def public_hosts() -> dict[str, str]:
-        """Fallback hosts for grants provisioned before the saga learned the endpoint."""
-        return {
-            "naive": settings.naive_public_host,
-            "mtproxy": settings.allowed_hosts[0] if settings.allowed_hosts else "",
-            "mieru": settings.naive_public_host,
-        }
-
     def refuse(status: int = 404, detail: str = "not found") -> JSONResponse:
         # One body and one branch for every refusal, so none of them says more than
         # "no such thing here".
@@ -178,8 +171,10 @@ def register_subscription_routes(app, context: RequestContext) -> None:
     def render(manifest, renderer, client: str | None) -> bytes:
         """Reveal and render in one thread; the plaintext never outlives this call."""
         with app.state.database.connect() as db:
+            # Each grant renders with the public hosts of the node it lives on (spec §6).
             artifacts = resolve_artifacts(
-                manifest, app.state.secrets, app.state.adapters, db, public_hosts=public_hosts()
+                manifest, app.state.secrets, app.state.adapters, db,
+                public_hosts=lambda node_id: public_hosts_for(app.state, node_id),
             )
         if client is not None:
             return renderer.render(manifest, artifacts, client=client)

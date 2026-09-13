@@ -21,6 +21,7 @@ from .database import Database
 from .events import EventBus
 from .fleet import FleetStore
 from .fleet_routes import register_fleet_routes
+from .fleet_v2.central_routes import register_fleet_v2_central_routes
 from .fleet_v2.generations import DesiredStore, publish
 from .fleet_v2.identity import ensure_guid, read_panel_version
 from .fleet_v2.links import NodeLinkService
@@ -148,6 +149,8 @@ def create_app(
     app.state.desired = DesiredStore(app.state.database)
     app.state.links = NodeLinkService(app.state.database, app.state.secrets, app.state.nodes,
                                       own_guid=app.state.panel_guid)
+    # "Disable" on a linked panel is pausing its link; the v1 switch has nothing to cut there.
+    app.state.nodes.links = app.state.links
 
     def publish_for_client(db, client_id):
         # Every grant mutation funnels through ClientService.notify; publish for each
@@ -217,6 +220,7 @@ def create_app(
     register_auth_admin_audit_routes(app, context, static)
     register_api_key_routes(app, context)
     register_fleet_v2_node_routes(app, context)
+    register_fleet_v2_central_routes(app, context)
     register_version_routes(app, context)
     register_telemt_dashboard_routes(app, context)
     register_naive_routes(app, context)

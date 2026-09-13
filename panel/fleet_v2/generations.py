@@ -85,7 +85,7 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
         resources.append(Resource(
             ref=f"grant:{grant.id}", protocol=grant.protocol, runtime_username=grant.runtime_username,
             desired_state=grant.desired_state, credential_ref=f"grant:{grant.id}:{version}", credential_origin="caller",
-            options=options, valid_from=grant.valid_from, valid_until=grant.valid_until))
+            origin=grant.origin, options=options, valid_from=grant.valid_from, valid_until=grant.valid_until))
     resources.sort(key=lambda item: item.ref)
     return GenerationDocument(node_guid=node_guid, master_guid=master_guid, generation=generation,
                               previous_generation=previous, created_at=now, created_by=created_by, resources=resources)

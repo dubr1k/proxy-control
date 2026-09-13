@@ -31,6 +31,10 @@ class Resource(_Strict):
     desired_state: Literal["enabled", "disabled", "deleted"]
     credential_ref: str = Field(min_length=1, max_length=160)
     credential_origin: Literal["caller", "manager"]
+    # `imported`: the operator adopted a user already running on the node (ADR 003
+    # `adopted`), so the node may claim that user as the central's without touching it.
+    # A `provisioned` resource never adopts: a runtime user of the same name is a collision.
+    origin: Literal["provisioned", "imported"] = "provisioned"
     options: dict = Field(default_factory=dict)
     valid_from: int | None = None
     valid_until: int | None = None

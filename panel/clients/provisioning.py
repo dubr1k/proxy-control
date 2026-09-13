@@ -585,8 +585,10 @@ class ProvisioningService:
             return None
         return None if grant.desired_state == "deleted" else grant
 
-    def bundle(self, operation_id: str, *, public_hosts: dict[str, str]) -> dict:
-        """Every artifact of one operation, rendered from escrow — no manager call."""
+    def bundle(self, operation_id: str, *, public_hosts) -> dict:
+        """Every artifact of one operation, rendered from escrow — no manager call.
+        `public_hosts`: a table per protocol, or a callable giving one per `node_id`."""
+        hosts = public_hosts if callable(public_hosts) else (lambda _node_id: public_hosts)
         state = self.status(operation_id)
         if state["status"] != "succeeded":
             raise ClientConflict("only a succeeded operation has a bundle")
@@ -605,7 +607,7 @@ class ProvisioningService:
                 )
                 adapter = self._adapter(grant.protocol)
                 artifacts = adapter.render_artifacts(
-                    grant, plaintext, public_host=public_hosts.get(grant.protocol, "")
+                    grant, plaintext, public_host=hosts(grant.node_id).get(grant.protocol, "")
                 )
                 grants.append(
                     {
