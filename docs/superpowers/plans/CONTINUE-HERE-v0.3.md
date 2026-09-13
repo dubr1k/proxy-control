@@ -1,71 +1,93 @@
 # CONTINUE HERE — v0.3 центральная панель
 
-Обновлено: 2026-09-12 (вторая пауза владельца — после fix round 1 Task 10, до его scoped re-review).
+Обновлено: 2026-09-13 (Task 16 — релизный гейт пройден; ветка готова к финальному ревью и слиянию).
 
 ## Где мы
 
 - Ветка: `feature/vnext-v0.3-fleet-v2` (от `feature/vnext-v0.2-local-control-plane`, `v0.2.0-beta.1`).
+  HEAD — коммит `release: гейт v0.3.0-beta.1 пройден на стенде` поверх `9a4d80d` (только документация:
+  релизная заметка, скриншоты, `docs/UPGRADING*.md`, этот файл). Код ветки = дерево `9a4d80d`.
 - Спека: `docs/superpowers/specs/2026-09-11-v0.3-central-panel-design.md` + `docs/adr/008-panel-to-panel-transport.md`.
-- План (Tasks 0–16): `docs/superpowers/plans/2026-09-11-v0.3-central-panel.md`.
-- Исполнение — `superpowers:subagent-driven-development`: свежий субагент на задачу, ревью после каждой,
-  ledger в `.superpowers/sdd/2026-09-11-v0.3-central-panel/progress.md` (gitignored — если каталога нет,
-  восстановить из этого файла; brief'ы для Tasks 0–16 и report'ы там же; `scripts/task-brief` пересоздаст brief'ы).
-- Все проверки — только `scripts/dev/remote-gate.sh quick|full|compose|lab-host` на `ams-test`.
-  Живой стенд v0.2 на `ams-test` стоит (checkout `/root/dev/proxy-control`, rsync-копия).
+- План (Tasks 0–16): `docs/superpowers/plans/2026-09-11-v0.3-central-panel.md`. **Все 17 задач закрыты** (0–15 —
+  реализация и ревью, 16 — релизный гейт); ledger — `.superpowers/sdd/2026-09-11-v0.3-central-panel/progress.md`
+  (gitignored; brief'ы и report'ы там же, `task-16-report.md` — протокол гейта).
+- `VERSION` = `0.3.0-beta.1`; релизная заметка — `docs/releases/v0.3.0-beta.1.md` (двуязычная, гейт и живая
+  проверка заполнены, скриншоты — `docs/releases/assets/v0.3.0-beta.1/`).
+- Все проверки — только `scripts/dev/remote-gate.sh quick|full|compose|lab-host|fleet` на `ams-test`.
+  На стенде оставлена установка `lab-host` с узлом v0.3 (`https://panel.lab.test`, `LAB_KEEP_INSTALL=1`); центр
+  приёмки остановлен, узел отвязан, данных приёмки на узле нет.
 
-## Сделано (коммиты в порядке)
+## Гейт v0.3.0-beta.1 (2026-09-13, дерево `9a4d80d`, чистое)
 
-| Task | Коммиты | Итог ревью |
+| Tier | Маркер | Итог |
 | --- | --- | --- |
-| 0 — probe Telemt caller-secret | `4fdcbbf`, `da33107` | `TELEMT_CALLER_SECRET = supported`; чисто |
-| 1 — `panel_settings` + GUID + `api_keys` + `ApiKeyService` (миграция 9) | `a787459` | чисто |
-| 2 — Bearer в `RequestContext.current`, scope-гейты, `KeyRateLimiter`, `/api/keys*` | `8be3d60` | чисто |
-| 3 — `protocol.py` + `managed.py` (`ManagedStore`, миграция 10) | `fee90b5`, `8207bc6` | чисто |
-| 4 — Telemt caller-secret + fallback, `update_options`, `credential_origin` | `02b9445`, `ac74a94` | чисто |
-| 5 — `reconcile.py` (`Reconciler`) | `fbcbdec`, fix `6a8e90d` | fix round 1: 4/4 addressed; чисто |
-| 6 — Fleet API v2 узла + гейт `managed_by_central` | `da9df48`, fix `4eb4e53` | fix round 1: 4/4 addressed; чисто |
-| 7 — `client.py` (`NodeClient`, `fingerprint`, `validate_panel_url`) | `505f40e` | чисто |
-| 8 — миграция 11, `links.py`, `generations.py`, `nodes/*` read model | `f285194` | чисто (12 minor в ledger) |
-| 9 — `pusher.py` (heartbeat/push/backoff), events, provisioning `remote`, миграция 12 | `e68b187`, fix `83d206d` | fix round 1: 2/2 addressed; чисто |
-| 10 — `clients/lifecycle.py` (enable/disable/rotate/delete local+remote), маршруты | `e8428c1`, fix `cf6b34a` | **fix round 1 закоммичен, scoped re-review не запущен** |
+| `remote-gate.sh full` | `REMOTE_GATE_FULL_OK` | 1743 passed / 2 skipped (pytest, 361 с), unittest `tests/test_deploy.py` 31 OK, ruff, doc-links, JS, shellcheck, systemd-analyze, `git diff --check`; 379 с |
+| `remote-gate.sh compose` | `REMOTE_GATE_COMPOSE_OK` | 5 compose-моделей (core, +Naive, +Mieru, agent, fleet-central), образы agent/ingress, uid ingress 10001; 9 с |
+| `LAB_RESET=1 LAB_KEEP_INSTALL=1 remote-gate.sh lab-host` | `REMOTE_GATE_LAB_HOST_OK` | `LAB_HOST_EXIT=0`, 18 сценариев passed (environment-preflight, release-artifact-integrity, audit, plan, nginx-multi-map, coexist-existing-xui, uninstall-foreign-identity, dns-tls-preflight, install 102 с, docker-build, repair 37 с, idempotence, reboot-recovery 61 с, crash-every-phase, report, `fleet` 167 с, secrets-scan), `uninstall`/`coexistence` skipped по `LAB_KEEP_INSTALL=1`; 445 с |
+| `remote-gate.sh fleet` | `FLEET_ACCEPTANCE_OK` + `REMOTE_GATE_FLEET_OK` | 84 проверки, все пройдены, 165 с (link online 3,1 с, доступы enabled 4,1 с, offline-конвергенция 1,0 с, 20 доступов при рестарте узла 10,2 с, purge 10,1 с; `lab-results/fleet/report.json` на стенде); 181 с |
+| `lab-sha256` архива гейта | `d68fabf187c20c2c8b2be3a722d3b42159382bc6a34d7e9c32e52d802198a13f` | `/root/lab-host.sha` на `ams-test` = `dist/SHA256SUMS` в `/root/dev/proxy-control`; архив `proxy-control-v0.3.0-beta.1.tar.gz` из дерева `9a4d80d` |
 
-Полный suite на стенде после `cf6b34a`: `1713 passed, 2 skipped`, ruff чисто.
+Живая проверка (Task 15, 2026-09-13 14:02–14:22 UTC): боевой узел `AMS_Z` обновлён v0.1 → v0.3 на месте и
+привязан к стендовому центру; импорт 12 учётных записей, тестовый клиент с тремя доступами (sing-box, mihomo,
+resPQ — успех), ротация, удаление, отвязка — узел завершил ровно как был найден. Найденный баг (500 на «Удалить»
+связанной панели в контейнере: tmpfs `/tmp` без прав для uid панели) исправлен в `67bda99` и покрыт тестами;
+гейт выше прошёл уже на исправленном дереве. Подробно — раздел «Живая проверка» релизной заметки и
+`task-15-report.md`.
 
-## Следующий шаг: Task 10, scoped re-review fix round 1
+## Что дальше по ветке
 
-1. `scripts/review-package <plan> e8428c1 HEAD` → diff-файл.
-2. Dispatch `re-review-prompt.md` (sonnet) с findings I1–I3 (ниже), brief `task-10-brief.md`, report `task-10-report.md`
-   (секция `## Fix round 1`).
-3. При «all addressed» → ledger `Task 10: fix round 1/5 (3 addressed, 0 open; commits e8428c1..cf6b34a)` +
-   `Task 10: complete (commits 83d206d..cf6b34a, review clean)` → Task 11 (brief `task-11-brief.md` уже есть).
+Финальное whole-branch ревью и слияние ведёт контроллер после Task 16 (триаж всех `minor (deferred)` из ledger,
+`finishing-a-development-branch`). Эта заметка их не описывает.
 
-Findings Task 10 (из ревью, fix round 1 их закрыл по отчёту):
-- I1 — идемпотентный remote enable/disable писал `observed_state='pending'`, а `publish` ничего не вставлял → грант
-  застревал. Фикс: `set_enabled` — no-op (без audit/notify), если `desired_state` уже такой.
-- I2 — `bundle()` рендерил креды удалённых/withdrawn грантов. Фикс: пропуск не-`active` шагов, `deleted` и purged
-  грантов (`_live_grant`).
-- I3 (plan-mandated) — tombstone `deleted/missing|pending` + `find_grant` + UNIQUE index блокировали повторную выдачу
-  того же `runtime_username`. Рулинг: **purge** гранта после подтверждённого удаления (local — сразу после `forget`
-  в транзакции с audit; remote — в `FleetPusher._absorb` при observed `missing` для `deleted`), все `secret_versions`
-  гранта → `revoked` (строки остаются), шаги provisioning с purged-грантом терпимы; `find_grant`/index не трогали,
-  миграции нет.
+## Действия владельца
 
-## Дальше по плану
-
-- Task 11 — маршруты центра (`central_routes.py`, `importing.py`, схемы, `nodes/service.py` `set_disabled` → `links.set_enabled`,
-  публичные хосты по узлу в подписках/бандлах). Факты для dispatch: `NodeLinkService` API в `links.py:34-214`;
-  `importer.inventory` в `clients/importer.py:94`; панельные узлы уже попадают в v1 `/api/fleet/nodes` (решить —
-  фильтровать или нет); два флага disabled (`fleet_nodes.disabled` vs `node_links.enabled`); `NodeView.last_seen_at`
-  = None для panel-узлов.
-- Task 12 — UI (`keys.js`, `nodes.js`, `clients.js`, `index.html`, `style.css`); карточка узла показывает
-  `status_json.protocols[*].traffic` (реализовано в Task 6); ключевать observed по `(protocol, runtime_username)`.
-- Task 13 — документация (двуязычная), CHANGELOG, VERSION; описать rsync `VERSION` для хостов, обновляемых rsync'ом
-  (bind-mount `./VERSION:/app/VERSION:ro`), и `PANEL_FLEET_HEARTBEAT_SECONDS`.
-- Task 14 — `scripts/lab/fleet-acceptance.py` + tier `fleet` в `remote-gate.sh`.
-- Task 15 — живая проверка AMS_Z (узел) ↔ ams-test (центр): **обязательно rsync `VERSION`** на AMS_Z вместе с кодом;
-  не удалять чужих пользователей; свой тестовый клиент удалить; «Отвязать от центра» в конце.
-- Task 16 — релизный гейт `v0.3.0-beta.1` (`remote-gate.sh full` + `lab-host`), потом финальное whole-branch ревью
-  (opus) с триажем всех `minor (deferred)` из ledger, `finishing-a-development-branch`.
+1. **Тег.** После того как финальный коммит окажется на нужной ветке (fast-forward или как удобнее):
+   `git tag -a v0.3.0-beta.1 -m 'lab-sha256: <digest>'` на этом коммите и `git push --tags`.
+   Важно: `release/build.py` кладёт в архив **все отслеживаемые файлы** (включая `docs/`) с mtime = время
+   коммита, а релизный workflow (`build-twice-and-compare`) собирает архив из тегированного коммита и отказывается
+   публиковать байты, отличные от `lab-sha256` в аннотации тега. Поэтому digest в аннотации должен быть digest'ом
+   архива **именно тегируемого коммита**, и он не может лежать внутри дерева. Как получить: собрать архив
+   этого коммита **на стенде** (`ams-test`, Ubuntu 24.04 — тот же zlib, что в CI; сборка на macOS даёт другой
+   gzip при байт-идентичном tar — проверено на `9a4d80d`): либо `LAB_RESET=1 LAB_KEEP_INSTALL=1
+   scripts/dev/remote-gate.sh lab-host` с дерева этого коммита (`/root/lab-host.sha`; заодно повторный гейт
+   установки, ~8 мин), либо вручную на стенде из чистого checkout нужного SHA:
+   `git clone <repo> /root/release-check && git -C /root/release-check checkout <sha> &&
+   python3 /root/release-check/release/build.py --source /root/release-check --output /root/release-check/dist
+   --version "$(cat /root/release-check/VERSION)"` → `dist/SHA256SUMS` (rsync-копия `/root/dev/proxy-control`
+   тоже годится, но там нужен `--allow-dirty` из-за неотслеживаемых lab-файлов — сначала убедиться, что
+   `git rev-parse HEAD` = тегируемый SHA и `git diff --stat` пуст).
+   Если тегируется ровно коммит `release: гейт v0.3.0-beta.1 пройден на стенде` без изменений, digest его архива
+   записан в `task-16-report.md` (раздел «Digest финального коммита»); от архива гейта `d68fabf187c20c2c8b2be3a722d3b42159382bc6a34d7e9c32e52d802198a13f` он отличается
+   только файлами документации этого коммита — код тот же `9a4d80d`. Любой новый коммит поверх (в т.ч. merge-коммит)
+   меняет digest — пересобрать.
+2. **Раскатка — сначала узлы, затем центр** (`docs/OPERATIONS.ru.md` §11, `docs/UPGRADING.ru.md` «до v0.3»).
+   - `AMS_P`, `AMS_R` — путь v0.1 → v0.3, как на `AMS_Z` (Task 15): резервные копии (`panel.sqlite3` онлайн-бэкап,
+     tar кода, теги образов `*:rollback-<ts>`) → `rsync panel/ naive_manager/ mieru_manager/ compose*.yaml VERSION`
+     в `/opt/mtproxy-shared443/` → `docker compose build panel naive-manager mieru-manager` →
+     `python -m panel.cli master-key-init` (файл `secrets/panel-master-key`, 0600) **до** `up` →
+     `docker compose up -d --wait --no-deps panel naive-manager mieru-manager`. `--no-deps` обязателен, если
+     лежащий на хосте `compose.yaml` правился руками и отстал от дерева (на `AMS_Z` у `mtproxy` не было
+     `expose: 9091`) — иначе обычный `up -d` пересоздаст боевой Telemt; сравнить `compose.yaml` хоста с деревом
+     до раскатки. `AMS_R` — с `--env-file .env --env-file .optional.env`. Сразу сохранить
+     `secrets/panel-master-key` по `docs/BACKUP_RESTORE.ru.md` («Мастер-ключ панели»). Проверка: `db-status` →
+     13 applied, `/app/VERSION` = `0.3.0-beta.1`, `GET /api/fleet/v2/identity` без ключа → 401, списки
+     пользователей трёх протоколов не изменились.
+   - `ams-server` — центр: git clone + Syncthing (`/var/syncthing/Development/proxy-control`, см.
+     `docs/OPERATIONS.ru.md` и заметки о хостах), `git fetch && git reset --mixed` на тег (не `--hard`:
+     локальные правки `probe/`, `scripts/caddy-naive-adapt`), `master-key-init`, `docker compose up -d --build --wait panel`
+     с прежним набором overlays. Опционально `PANEL_FLEET_HEARTBEAT_SECONDS` (по умолчанию 15 с).
+   - На каждом узле: «Администраторы → API-ключи → Создать ключ» (`node-sync`). На `ams-server`:
+     «Узлы → + Панель → Проверить → Добавить» ×3 (`AMS_P`, `AMS_R`, `AMS_Z`; TLS `verify` при публичном
+     сертификате панели, как у `AMS_Z`, иначе `pin` + «Получить отпечаток»), затем «Пользователи → Импортировать выбранных» на каждой карточке. Первый heartbeat делает
+     карточку `online`.
+3. **`AMS_Z` уже на v0.3 и отвязан** — только привязать его с `ams-server` (ключ `node-sync` создать заново, старый
+   удалён при отвязке). Копия его мастер-ключа и набор для отката лежат в `/root/v03-live/` на `AMS_Z`
+   (только root): `panel-master-key-20260913T140225Z.json`, `panel-pre-v0.3-20260913T140225Z.sqlite3`,
+   `code-pre-v0.3-20260913T140225Z.tgz`, образы `*:rollback-20260913T140225Z`. Мастер-ключ сохранить по
+   `docs/BACKUP_RESTORE.ru.md` (без него зашифрованные учётные данные центра не восстановить); имена
+   `live-probe-*` в менеджерах NaiveProxy/Mieru узла tombstoned и не переиспользуются.
+4. Стенд `ams-test` — одноразовый: установку `lab-host` можно снести следующим `LAB_RESET=1` или оставить как
+   учебный узел; production-хосты гейт не трогал.
 
 ## Рулинги, принятые за владельца (в итоговый отчёт)
 
@@ -92,7 +114,16 @@ Findings Task 10 (из ревью, fix round 1 их закрыл по отчёт
   при новом поколении или `converged`, heartbeat не откладывается. Миграция 12 (rebuild `provisioning_operations`
   ради `pending_remote`) принята как additive по духу (строки/индексы/FK сохранены).
 - Task 10: disable до применения **не** отменяет операцию (узел создаёт аккаунт выключенным, `remote_applied`
-  принимает `disabled` как завершение); purge гранта после подтверждённого удаления (см. I3 выше).
+  принимает `disabled` как завершение); purge гранта после подтверждённого удаления (local — сразу после `forget`
+  в транзакции с audit; remote — в `FleetPusher._absorb` при observed `missing` для `deleted`), все `secret_versions`
+  гранта → `revoked`.
+- Task 14: observed-модели центра терпимы к незнакомым полям (`extra=ignore`), документ поколения и push — строгие;
+  `learned` валидируется; `DELETE /api/nodes/{id}` освобождает imported-гранты и отказывает только при
+  provisioned-гранте не в `deleted` (спека §6 дополнена).
+- Task 15: живая проверка = обновление узла v0.1 → v0.3 на месте с резервными копиями; `--no-deps` при дрейфе
+  `compose.yaml` хоста; фикс `temp_store=MEMORY` + tmpfs `/tmp` под uid панели (`67bda99`).
+- Task 16: `lab-host` в релизном гейте — с `LAB_KEEP_INSTALL=1` (tier `fleet` нужна живая установка); скриншоты —
+  только стендовые данные (центр запущен как в `fleet-acceptance.py`, узел — установка `lab-host`), не `AMS_Z`.
 
 ## Отложенные minor по задачам (для финального ревью ветки)
 
@@ -114,8 +145,6 @@ Findings Task 10 (из ревью, fix round 1 их закрыл по отчёт
 - T10: порядок ADR 003-гейта в локальном пути; façade re-resolve по имени с DEFAULT_ENDPOINT; гонка эскроу → две
   `active` версии; дубли audit-имён; inline `token_urlsafe` в façade; drifted local grant не удаляется при
   AdapterError; `compensated` шаг внутри `applying`; локальный грант после компенсации саги оставляет tombstone.
-
-## Действия владельца
-
-- Ничего до Task 16; production-хосты не трогались. `AMS_Z` разрешён только для живой проверки Task 15 после
-  зелёного гейта (rsync кода **и `VERSION`**).
+- T14: `_SECRET_SHAPES` в `fleet-acceptance.py` расширить (422 detail с путями/паролем); нет теста mixed
+  imported+provisioned delete → 409; adoption пишет `learned=None`.
+- T15: `compose.naive/mieru/agent.yaml` оставляют root-only tmpfs `/tmp` (латентный паттерн; панель и ingress исправлены).
