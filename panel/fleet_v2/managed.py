@@ -79,9 +79,15 @@ class ManagedStore:
     def remove_resource(db, protocol: str, username: str) -> None:
         db.execute("DELETE FROM managed_resources WHERE protocol=? AND runtime_username=?", (protocol, username))
 
+    @classmethod
+    def owned(cls, db) -> dict[tuple[str, str], dict]:
+        """Resources the central owns right now: `resources()` without the rows left
+        `missing` — a confirmed deletion kept only so the report can be repeated."""
+        return {key: row for key, row in cls.resources(db).items() if row["state"] != "missing"}
+
     @staticmethod
     def is_managed(db, protocol: str, username: str) -> bool:
-        return db.execute("SELECT 1 FROM managed_resources WHERE protocol=? AND runtime_username=?",
+        return db.execute("SELECT 1 FROM managed_resources WHERE protocol=? AND runtime_username=? AND state<>'missing'",
                           (protocol, username)).fetchone() is not None
 
     def observed(self, db) -> ObservedGeneration | None:

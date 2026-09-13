@@ -7,6 +7,7 @@ sleeps: the loop's cadence is injected and each test drives `tick()` by hand.
 import asyncio
 import time
 
+import httpx
 import pytest
 
 from panel.clients.models import GrantIntent, MtproxyOptions, NaiveOptions
@@ -459,3 +460,116 @@ async def test_learned_options_the_model_refuses_are_logged_and_never_stored(pai
     with central.state.database.connect() as db:
         observed = central.state.desired.observed(db, node_id)
     assert len(observed.resources[0].learned["share_template"]) > 512
+
+
+# --- final review, I2 / I7: what a lost reply or a 202 must not lose ---------------------
+
+class _LossyTransport(httpx.AsyncBaseTransport):
+    """Lets the node handle the request in full, then loses the reply — once per path."""
+
+    def __init__(self, inner, lose_path):
+        self.inner, self.lose_path, self.lost = inner, lose_path, 0
+
+    async def handle_async_request(self, request):
+        response = await self.inner.handle_async_request(request)
+        if request.url.path == self.lose_path and self.lost == 0:
+            self.lost += 1
+            await response.aclose()
+            raise httpx.ReadError("reply lost after the node applied the generation")
+        return response
+
+
+def _escrowed(central, node_id, grant) -> str:
+    with central.state.database.connect() as db:
+        return central.state.secrets.reveal(db, grant.secret_ref, purpose="grant.credential", grant_id=grant.id,
+                                            permitted_node_id=node_id).decode()
+
+
+async def test_a_lost_push_reply_still_escrows_telemts_reframed_credential(pair):
+    """The central escrows a bare 32-hex secret for a remote MTProxy grant and relies on the
+    node's reply to replace it with Telemt's Fake-TLS `ee…` form. When that reply is lost,
+    the idempotent re-PUT must capture the runtime's form again (spec §5.2, §11)."""
+    from panel.fleet_v2.client import NodeClient
+
+    node, central, node_id, client = await _link(pair)
+    lossy = _LossyTransport(httpx.ASGITransport(app=node), "/api/fleet/v2/generation")
+    central.state.links.client_factory = lambda url, key, **kw: NodeClient(url, key, transport=lossy, **kw)
+    intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
+    operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    assert lossy.lost == 1 and "alice" in node.state.telemt.users  # applied, reply lost
+    assert central.state.provisioning.status(operation)["status"] == "pending_remote"
+    await central.state.pusher.tick()  # the re-PUT: accept is idempotent, the apply finds alice in place
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    grant = central.state.clients.client_with_grants(client.id)[1][0]
+    runtime = (await node.state.telemt.current_access("alice"))["secret"]
+    assert runtime.startswith("ee") and _escrowed(central, node_id, grant) == runtime
+    with central.state.database.connect() as db:
+        rows = db.execute("SELECT version, state FROM secret_versions WHERE secret_id=?", (f"grant:{grant.id}",)).fetchall()
+    assert [tuple(row) for row in rows] == [(1, "active")]
+
+
+async def test_a_202_poll_captures_telemts_reframed_credential_before_activating_it(pair, monkeypatch):
+    """A push answered 202 carries no credentials; the poll that follows must capture the
+    runtime's form of a caller credential rather than activate the bare one the central pushed."""
+    from panel.fleet_v2 import node_routes
+
+    node, central, node_id, client = await _link(pair)
+    create = node.state.telemt.create_user
+
+    async def slow_create(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return await create(*args, **kwargs)
+
+    monkeypatch.setattr(node.state.telemt, "create_user", slow_create)
+    monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 0.001)
+    intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
+    operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    assert central.state.provisioning.status(operation)["status"] == "pending_remote"
+    await asyncio.sleep(0.1)  # the node's background apply finishes
+    await central.state.pusher.tick()  # observed is polled, the credential captured
+    assert _accepts(node) == 1
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    grant = central.state.clients.client_with_grants(client.id)[1][0]
+    runtime = (await node.state.telemt.current_access("alice"))["secret"]
+    assert runtime.startswith("ee") and _escrowed(central, node_id, grant) == runtime
+
+
+async def test_a_deletion_confirmed_after_a_202_is_still_reported_and_purged(pair, monkeypatch):
+    """The one-time `missing` report must survive a 202: a later `GET observed` still carries
+    it, so the central purges the `deleted/pending` grant and frees the username."""
+    from panel.fleet_v2 import node_routes
+
+    node, central, node_id, client = await _link(pair)
+    intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
+    await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    grant = central.state.clients.client_with_grants(client.id)[1][0]
+    await central.state.lifecycle.delete(grant.id, actor=ACTOR, ip="x")
+    delete = node.state.naive.delete
+
+    async def slow_delete(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return await delete(*args, **kwargs)
+
+    monkeypatch.setattr(node.state.naive, "delete", slow_delete)
+    monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 0.001)
+    await central.state.pusher.tick()  # 202: the node is still deleting alice
+    with central.state.database.connect() as db:
+        assert central.state.clients.store.grant(db, grant.id).desired_state == "deleted"  # not purged yet
+    await asyncio.sleep(0.1)
+    with node.state.database.connect() as db:
+        reported = {r.runtime_username: r.state for r in node.state.managed.observed(db).resources}
+    assert reported == {"alice": "missing"}
+    await central.state.pusher.tick()  # the poll sees `missing` and purges the grant
+    with central.state.database.connect() as db:
+        with pytest.raises(KeyError):
+            central.state.clients.store.grant(db, grant.id)
+    assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]
+    # The name is free again on the central, and the node forgets the row once a generation omits it.
+    again = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
+    operation = await central.state.provisioning.start(client.id, [again], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    assert "alice" in [u["username"] for u in await node.state.naive.list_users()]

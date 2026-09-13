@@ -117,7 +117,7 @@ async def inventory(
         if isinstance(row, dict) and isinstance(row.get("username"), str):
             collected.append(("mieru", row, _mieru_options(row)))
     with database.connect() as db:
-        central = managed.resources(db)
+        central = managed.owned(db)  # a row left `missing` owns nothing (I7): the name is local again
         return [
             InventoryItem(
                 protocol=protocol,
