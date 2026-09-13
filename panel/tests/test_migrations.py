@@ -251,3 +251,16 @@ def test_a_database_that_never_becomes_writable_fails_with_a_named_error(tmp_pat
     finally:
         holder.close()
         plain.close()
+
+
+def test_connections_keep_temporary_storage_in_memory(tmp_path):
+    """The panel runs unprivileged on a read-only root: SQLite may find no writable temp
+    directory there, and a statement journal past its in-memory threshold would fail with
+    "disk I/O error" (the central's unlink of a node with many generations did). Every
+    connection therefore keeps temporary storage in memory (`temp_store` 2 = MEMORY)."""
+    database = Database(tmp_path / "panel.sqlite3")
+    with database.connect() as db:
+        assert db.execute("PRAGMA temp_store").fetchone()[0] == 2
+        assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+    with database.transaction() as db:
+        assert db.execute("PRAGMA temp_store").fetchone()[0] == 2

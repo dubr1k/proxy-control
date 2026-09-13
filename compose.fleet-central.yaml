@@ -22,6 +22,7 @@ services:
       - ${FLEET_SERVER_KEY:?required}:/run/fleet/server.key:ro
       - ${FLEET_CLIENT_CA:?required}:/run/fleet/client-ca.crt:ro
     read_only: true
-    tmpfs: [/tmp:size=8m,mode=0700]
+    # Owned by the ingress user (10001:10001), same reason as the panel's /tmp in compose.yaml.
+    tmpfs: [/tmp:size=8m,mode=1777,uid=10001,gid=10001]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

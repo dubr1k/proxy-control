@@ -288,6 +288,16 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("  mask:\n", mask)
         self.assertIn("    init: true\n", mask)
 
+    def test_panel_tmpfs_is_writable_by_the_panel_user(self):
+        """The panel runs as uid 10001 on a read-only root; a root-owned /tmp leaves SQLite no
+        temp directory and a large cascading delete fails with "disk I/O error"."""
+        compose = (ROOT / "compose.yaml").read_text()
+        panel = compose.split("  panel:", 1)[1].split("\nsecrets:", 1)[0]
+        self.assertIn("      - /tmp:size=16m,mode=1777,uid=10001,gid=101\n", panel)
+        self.assertIn("      - /run/panel:size=1m,mode=0700\n", panel)
+        central = (ROOT / "compose.fleet-central.yaml").read_text()
+        self.assertIn("tmpfs: [/tmp:size=8m,mode=1777,uid=10001,gid=10001]", central)
+
     def test_version_agent_runtime_directory_is_bootstrap_provisioned(self):
         tmpfiles = (ROOT / "deploy/proxy-control-version-agent.tmpfiles.conf").read_text()
         self.assertIn("d /run/proxy-control 0770 root 10001 -", tmpfiles)

@@ -262,3 +262,37 @@ async def test_a_panel_cannot_link_itself(pair):
     central.state.links.client_factory = lambda url, key, **kw: NodeClient(url, key, transport=httpx.ASGITransport(app=central), **kw)
     with pytest.raises(LinkConflict, match="itself"):
         await central.state.links.add("Me", "https://central.example", own_key, "verify", None, False, actor=ACTOR, ip="x")
+
+
+async def test_delete_of_a_node_with_large_generations_needs_no_temp_directory(pair, monkeypatch, tmp_path):
+    """Regression for the live check of v0.3.0-beta.1: the central's `DELETE FROM fleet_nodes`
+    cascades into `node_links`, `desired_generations` and `observed_generations`; once the
+    generations carry a few hundred KB the statement journal outgrows SQLite's 64 KiB
+    in-memory threshold and spills to a temp file — and the panel container (unprivileged
+    user, read-only root, root-owned `/tmp`) had no writable directory for it: 500
+    "disk I/O error". `Database.connect()` now keeps temporary storage in memory.
+
+    The negative case cannot be forced in-process: SQLite falls back from `SQLITE_TMPDIR`
+    and `TMPDIR` to `/var/tmp`, `/usr/tmp`, `/tmp` and the working directory, one of which
+    is always writable here. The environment is still pointed at a directory that does not
+    exist, the connection is checked for the pragma, and the delete must succeed on a
+    node whose generations are as large as the live one's were."""
+    node, central, plaintext = pair
+    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
+    document = '{"resources": [' + ",".join('{"ref": "%d", "options": "%s"}' % (i, "o" * 400) for i in range(24)) + "]}"
+    observed = "[" + ",".join('{"ref": "%d", "state": "converged", "learned": "%s"}' % (i, "l" * 300) for i in range(24)) + "]"
+    with central.state.database.transaction() as db:
+        for generation in range(1, 18):
+            db.execute("""INSERT INTO desired_generations(node_id,generation,digest,content_digest,document_json,
+                          previous_generation,created_at,created_by) VALUES(?,?,?,?,?,?,0,'owner')""",
+                       (node_id, generation, "d" * 64, "c" * 64, document, generation - 1))
+        db.execute("INSERT INTO observed_generations VALUES(?,17,'x','converged',?,0)", (node_id, observed))
+        assert db.execute("PRAGMA temp_store").fetchone()[0] == 2
+    missing = tmp_path / "no-such-temp-dir"
+    monkeypatch.setenv("SQLITE_TMPDIR", str(missing))
+    monkeypatch.setenv("TMPDIR", str(missing))
+    await central.state.links.delete(node_id, actor=ACTOR, ip="x")
+    with central.state.database.connect() as db:
+        for table in ("node_links", "desired_generations", "observed_generations"):
+            assert db.execute(f"SELECT count(*) FROM {table} WHERE node_id=?", (node_id,)).fetchone()[0] == 0
+    assert node_id not in [n.node_id for n in central.state.nodes.list()]
