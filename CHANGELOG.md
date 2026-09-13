@@ -4,6 +4,93 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-09-13
+
+Fleet v2: one central panel manages linked panels over their own HTTPS domains with
+scoped API keys — three UI actions, nothing installed on a host beyond the panel image
+(`docs/adr/008-panel-to-panel-transport.md`, spec
+`docs/superpowers/specs/2026-09-11-v0.3-central-panel-design.md`). Gated on the lab
+host; the release note `docs/releases/v0.3.0-beta.1.md` tracks the gate and the live
+check.
+
+### Added
+
+- Scoped API keys (`api_keys`, migration 9): name, scope `admin | monitor | node-sync`,
+  optional expiry; SHA-256 at rest, the plaintext `pc_<prefix>_<secret>` shown once;
+  enable/disable/delete take effect on the next request. `Authorization: Bearer` on the
+  whole `/api/*` (`admin` → owner, `monitor` → viewer, `node-sync` → `/api/fleet/v2/*`
+  only), 120 requests per minute per key, audit as `key:<name>`; `/api/keys*` for the
+  owner and the section «API-ключи» on the «Администраторы» screen.
+- A stable `panel_guid` per panel (`panel_settings`), minted on first start, and the
+  release version reported from `VERSION` (`PANEL_VERSION_FILE`, bind-mounted by
+  `compose.yaml`, copied into the project directory by the installer; `dev` when absent).
+- Node side of Fleet v2 (migration 10, `panel/fleet_v2/{protocol,managed,reconcile,
+  guard,node_routes}.py`): `/api/fleet/v2/identity|status|inventory|generation|observed|
+  credentials/capture|versions/update|unlink`; typed, secret-free, digested
+  `GenerationDocument` (≤ 64 KiB, ≤ 500 resources) with 409 codes `guid_mismatch`,
+  `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; a
+  reconciler that creates, rotates, enables/disables and updates options through the
+  protocol adapters, deletes orphans, reports collisions with local users as `failed`,
+  adopts only explicitly imported users, re-applies an unfinished generation at start and
+  answers 202 when an apply exceeds 25 s; one master per node; 409 `managed_by_central`
+  for every local writer that touches a central-owned user; «Отвязать» on the card «Этот
+  сервер» (`POST /api/nodes/local/unlink`).
+- Central side of Fleet v2 (migration 11, `panel/fleet_v2/{client,links,generations,
+  pusher,importing,central_routes}.py`): `NodeClient` with TLS `verify` or `pin` and an
+  SSRF guard on the panel URL; «Добавить панель» (`/api/nodes/fingerprint|test|link`),
+  pause/resume/probe/edit/delete (`DELETE` refused while grants remain); generations
+  compiled from grants and published only when their content changes; a heartbeat and
+  delivery loop (`PANEL_FLEET_HEARTBEAT_SECONDS`, default 15) with `node.up`/`node.down`
+  events, 202 polling, resync on `stale_generation`/`digest_conflict` and a per-node
+  backoff (30 s → 10 min) after a failed or rejected generation; import of a node's
+  runtime users as clients and `origin=imported` grants with credential capture (Mieru
+  without a credential until rotation); `GET /api/nodes/{id}/generations`; per-node
+  public hosts in subscriptions and bundles.
+- Grant lifecycle for linked panels (`panel/clients/lifecycle.py`, migration 12
+  `pending_remote`): issue, enable, disable, rotate and delete are declarative — row,
+  audit and generation in one transaction, «ожидает узел» until the node reports; a
+  confirmed deletion purges the grant and revokes its credential versions so the name can
+  be granted again; a manager-chosen credential returned by the node is escrowed under the
+  version the document named.
+- UI: «API-ключи» section, the «+ Панель» dialog with «Проверить», «Получить отпечаток»
+  and the import list, the linked-panel card (Обзор / Пользователи / Обновления, Пауза /
+  Проверить / Изменить / Удалить), GUID and «Отвязать» on «Этот сервер», linked panels in
+  the node picker of «Выдать доступ».
+- Telemt: the pinned fork accepts a caller-supplied `secret` on create and rotate
+  (probed on the lab host, `scripts/lab/telemt-secret-probe.py`); a runtime that refuses
+  falls back to a manager-generated secret and says so (`credential_origin`);
+  `update_options` on all three adapters.
+- ADR 008; `FLEET.*.md` rewritten for v2 with v1 as «Legacy transport v1»; `PANEL.*.md`
+  (API keys), `docs/OPERATIONS.*.md` §11, `docs/UPGRADING*.md` («Upgrading to v0.3»),
+  `docs/COMPATIBILITY.md` (frozen `panel_guid`, `/api/fleet/v2/*`, `pc_` keys, wire
+  fields), `docs/VNEXT_ARCHITECTURE.md` (v0.3 section), `docs/releases/v0.3.0-beta.1.md`.
+
+### Changed
+
+- `compose.yaml` bind-mounts `./VERSION:/app/VERSION:ro` and the installer copies
+  `VERSION` into the project directory; hosts updated by rsync must ship it with the code.
+- `fleet_nodes` gained `transport` (`v1` for every existing node, `panel` for a linked
+  one); a linked panel appears on the «Узлы» screen next to v1 nodes and the local node,
+  and «Отключить» on it pauses the link instead of cutting a transport it does not have.
+- `provisioning_operations` was rebuilt to admit the status `pending_remote` (rows, index
+  and foreign key preserved).
+- The `TelemtIndeterminate` outcome propagates raw through the caller-secret fallback so
+  the saga resumes instead of compensating.
+
+### Fixed
+
+- A deleted grant no longer blocks re-granting the same `runtime_username` forever: the
+  row is purged once the deletion is confirmed (locally right away, on a linked panel when
+  the node reports `missing`).
+- `read_panel_version` tolerates a missing, unreadable or empty `VERSION` (`dev`) instead
+  of keeping the panel from starting.
+
+### Not in this release
+
+Routing (v0.4) and the Xray router (v0.5); transitive nodes, metric history and
+panel-to-panel mTLS (ADR 008 non-goals); remote update of a node's panel itself (the
+version-agent handles `telemt | naive | mita` only).
+
 ## [0.2.0-beta.1] - 2026-09-11
 
 The local control plane (vNext v0.2): the panel owns clients, their accesses and the

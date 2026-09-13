@@ -79,11 +79,11 @@ HTTP health and an open port do not prove MTProto.
 
 ### Roles
 
-- `owner`: administrators, users, reveal/rotation, and fleet registry;
+- `owner`: administrators, users, reveal/rotation, API keys, the fleet registry and linked panels;
 - `admin`: protocol users and audit within allowed boundaries;
 - `viewer`: read-only, with no reveal, reset, or mutations.
 
-Every mutation endpoint must require CSRF. Audit stores action/actor/target/result but never credentials, URLs, QR payloads, or reveal tokens.
+Every mutation over a session requires CSRF; a Bearer request carries no cookie and is gated by its key's scope instead. Audit stores action/actor/target/result but never credentials, URLs, QR payloads, or reveal tokens.
 
 ### One-time credentials
 
@@ -113,7 +113,7 @@ docker compose logs --since=15m --tail=300 panel mtproxy
 journalctl -u nginx -u caddy-naive -u mita --since=-15m --no-pager
 ```
 
-Before sharing logs, remove passwords, complete access URLs, QR/reveal payloads, tokens, cookies/CSRF values, and PKI material. Keep infrastructure identity only in an approved private incident channel.
+Before sharing logs, remove passwords, complete access URLs, QR/reveal payloads, tokens, API keys (`pc_…`), cookies/CSRF values, and PKI material. Keep infrastructure identity only in an approved private incident channel.
 
 ### Subscriptions: logs and rotation
 
@@ -166,7 +166,7 @@ sudo python3 scripts/proxyctl.py repair
 1. Stop new mutations without destroying process/state.
 2. Capture service status, exact revision, bounded logs, and listener ownership.
 3. Create a forensic backup of the current generation.
-4. Isolate the boundary: Nginx, panel, Telemt, Caddy/Naive, mita/Mieru, or fleet.
+4. Isolate the boundary: Nginx, panel, Telemt, Caddy/Naive, mita/Mieru, the link to a central or linked panel, or fleet v1.
 5. Run negative and positive probes for that boundary.
 6. Repair or roll back only after establishing root cause.
 7. Run complete protocol regression, including adjacent SNI routes.
@@ -182,3 +182,78 @@ See [Troubleshooting](TROUBLESHOOTING.en.md).
 - SQLite integrity and backup checksums pass;
 - temporary configs, clients, worktrees, packages, and caches are removed;
 - no production credential remains in shell history, logs, or artifacts.
+
+## 11. Central panel and linked panels (Fleet v2)
+
+Since v0.3 a panel can manage other panels over HTTPS with a `node-sync` API key; the
+model is in [FLEET.en.md](../FLEET.en.md). What the runbook adds is the order of
+operations on a fleet of hosts.
+
+### Rollout order
+
+The central and its nodes must run the **same v0.3 build**. A node validates the
+generation document strictly (`extra = forbid`), so a node on an older build refuses a
+document with a field it does not know (for example `origin`) with 422; the central then
+records `last_error: push 422: rejected` for that node and backs off (30 s → 10 min) until
+something changes. A v0.2 panel has no `/api/fleet/v2/*` at all and cannot be added
+(«the node answered 404»). Therefore:
+
+1. **Upgrade the nodes first, then the central.** On every host, in the project
+   directory: `docker compose up -d --build --wait panel` with the persisted overlay set.
+   Migrations 9–12 apply at start; `panel_guid` is created on first start
+   ([UPGRADING](UPGRADING.md)).
+2. On each node create a `node-sync` key («Администраторы → API-ключи → Создать ключ»).
+3. On the central add the panels («Узлы → + Панель → Проверить → Добавить») and import
+   their users. The first heartbeat (≤ `PANEL_FLEET_HEARTBEAT_SECONDS`, default 15 s)
+   turns the card `online`.
+
+**Hosts updated by rsync.** The panel reports the version it finds in `VERSION`,
+bind-mounted read-only at `/app/VERSION` by `compose.yaml`; the installer copies that
+file into the project directory itself. A host you update by rsync must receive
+`VERSION` **together with the code** — otherwise the node reports `dev` to the central
+and its card reads «панель dev». A missing or unreadable file never stops the panel.
+
+### Heartbeat and daily health
+
+`PANEL_FLEET_HEARTBEAT_SECONDS` in the central's environment sets the cadence (default
+15, minimum 1; the lab uses 3). One tick costs two requests per node (`identity`,
+`status`) plus a push when a generation is pending, all under the node's 120/min key
+limit. On the central's «Узлы» screen every linked card should be `online`, show
+`desired` equal to `applied` with no «есть недоставленные изменения» marker, and carry no
+`last_error`; `GET /api/events` lists `node.up`/`node.down` transitions. On a node, the
+card «Этот сервер» names the central that manages it; users the central owns are shown
+as «управляется центром» and refuse local mutation with 409 `managed_by_central`.
+
+### Pause, unlink, delete
+
+- **Pause** («Пауза», or «Отключить» on a linked panel): the heartbeat and delivery skip
+  the node, the link and its grants stay, subscribers keep working. Use it during a
+  maintenance window on the node.
+- **Unlink on the node** («Отвязать» on the card «Этот сервер», owner only, or
+  `POST /api/nodes/local/unlink`): the node forgets its master and every account it held
+  for the central becomes local again; the runtime is untouched. The central keeps its
+  link and would re-master the node with the next generation it publishes, so remove the
+  node there too.
+- **Delete on the central** («Удалить», `DELETE /api/nodes/{id}`): refused (409) while the
+  panel carries grants that are not `deleted` — delete the clients' accesses on that node
+  first and wait for them to report `missing`; the row is purged and the runtime user is
+  gone. Deleting the link then unlinks the node best-effort and removes the encrypted key.
+
+### Rotating or revoking a node's key
+
+Create a new `node-sync` key on the node, enter it on the central with «Изменить», then
+disable or delete the old key on the node — the central stores the new key as a new
+secret row and revokes the old one. Disabling the key on the node without updating the
+central turns that node `offline` (`node.down`) on the next heartbeat and nothing else
+changes; subscribers are unaffected.
+
+### Rollback
+
+Rolling a **node** back to the previous panel image follows the general rule: restore the
+complete previous generation, database included ([UPGRADING](UPGRADING.md)). A v0.2 image
+refuses to start on a database at schema 12 («database schema 12 is newer than this
+code»), so the previous image alone is not a rollback. On a node that was never linked the
+upgrade touched no runtime user and `managed_resources` is empty, so the pre-upgrade
+database loses no fleet state. A node that was managed: unlink it first (its users become
+local and keep working), then roll back. A **central**: pause or delete its links first;
+its nodes keep serving whatever generation they last applied.

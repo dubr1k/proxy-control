@@ -44,7 +44,7 @@ What you get:
 | **Mieru** | An obfuscated proxy with its own protocol over TCP and UDP. The panel issues a one-time `mierus://` link and QR. |
 | **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.7.0` and creates those inbounds. |
 | **Panel** | Owner, administrator, and viewer roles. Secret-free audit, one-time credential reveal, quota management. |
-| **Fleet** *(optional)* | Inventory and limited management of remote nodes over mTLS. Installed by hand. |
+| **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
 
 Traffic accounting differs per protocol, and the panel does not hide that:
 Telemt separates the process counter from quota consumption, Naive counts
@@ -524,10 +524,17 @@ tooling.
 duplicate its management, it makes sure you can both live on one 443 without
 conflict.
 
-### Fleet mTLS
+### Fleet: linked panels and the legacy mTLS transport
 
-An optional boundary: inventory and limited management of remote nodes over
-outbound connections. The installer does **not** deploy it.
+Since v0.3 a panel links other panels from the web UI: on the node panel the owner
+creates a `node-sync` API key, on the central «Узлы → + Панель» takes the URL and the
+key, then existing users are imported. From there the central keeps the link itself
+(heartbeat), issues, rotates and revokes accesses on the node and updates its
+components; nothing beyond the panel image appears on a host. Full description:
+[FLEET.en.md](FLEET.en.md).
+
+Legacy Fleet v1 is an optional boundary: inventory and limited management of remote
+nodes over outbound mTLS connections. The installer does **not** deploy it.
 
 Creating a node record in the panel with status `unenrolled` is not enrollment.
 Enrollment needs a local key and CSR on the node, an offline CA signature, a

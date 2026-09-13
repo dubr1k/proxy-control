@@ -16,17 +16,17 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Протоколы и панель
 
-- [Панель, роли, Telemt и NaiveProxy](../PANEL.ru.md)
+- [Панель, роли, API-ключи, Telemt и NaiveProxy](../PANEL.ru.md)
 - [MTProto за Nginx SNI](../DOCKER_DEPLOYMENT.ru.md)
 - [Mieru/mita](../MIERU.ru.md)
 - [Выдача Mieru URL, QR и client config](MIERU_SHARING.ru.md)
-- [Fleet mTLS и enrollment](../FLEET.ru.md)
+- [Связанные панели (Fleet v2) и legacy mTLS-транспорт v1](../FLEET.ru.md)
 
 ### Эксплуатация
 
 - [Ежедневный операционный runbook](OPERATIONS.ru.md)
 - [Backup и restore](BACKUP_RESTORE.ru.md)
-- [Upgrade и rollback](UPGRADING.md)
+- [Upgrade и rollback](UPGRADING.ru.md)
 - [Troubleshooting](TROUBLESHOOTING.ru.md)
 - [Accounting semantics](ACCOUNTING.md)
 - [Validation gates](VALIDATION.md)
@@ -44,6 +44,13 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 005 — секреты по ссылкам](adr/005-secret-references.md)
 - [ADR 006 — нейтральный routing IR](adr/006-routing-policy-ir.md)
 - [ADR 007 — владение enforcement маршрутизации](adr/007-routing-enforcement-ownership.md)
+- [ADR 008 — транспорт панель→панель со scoped API-ключами](adr/008-panel-to-panel-transport.md)
+
+### Выпуски
+
+- [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — центральная панель и связанные панели (гейт в работе)
+- [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — локальный control plane, подписки
+- [v0.1.0](releases/v0.1.0.md)
 
 ## English
 
@@ -57,11 +64,11 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Protocols and panel
 
-- [Panel, roles, Telemt, and NaiveProxy](../PANEL.en.md)
+- [Panel, roles, API keys, Telemt, and NaiveProxy](../PANEL.en.md)
 - [MTProto behind Nginx SNI](../DOCKER_DEPLOYMENT.md)
 - [Mieru/mita](../MIERU.en.md)
 - [Mieru URL, QR, and client config sharing](MIERU_SHARING.en.md)
-- [Fleet mTLS and enrollment](../FLEET.en.md)
+- [Linked panels (Fleet v2) and the legacy mTLS transport v1](../FLEET.en.md)
 
 ### Operations
 
@@ -85,6 +92,13 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 005 — secret references](adr/005-secret-references.md)
 - [ADR 006 — engine-neutral routing IR](adr/006-routing-policy-ir.md)
 - [ADR 007 — routing enforcement ownership](adr/007-routing-enforcement-ownership.md)
+- [ADR 008 — panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md)
+
+### Releases
+
+- [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — central panel and linked panels (gate in progress)
+- [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — local control plane, subscriptions
+- [v0.1.0](releases/v0.1.0.md)
 
 ## Common rules
 
@@ -95,4 +109,4 @@ This index separates **installation**, **protocol configuration**, **operations*
 - Back up a complete generation before changing runtime, state, identities, ports, or routes.
 - A healthy process is not a protocol test. Validate MTProto `resPQ`, Naive authenticated CONNECT, and Mieru end-to-end transport.
 - Never claim unavailable accounting precision.
-- Fleet registry creation is not enrollment; enrollment requires certificate issuance, binding, mTLS authorization, and a successful command/result cycle.
+- A linked panel (Fleet v2) is added by URL and a `node-sync` API key and is managed only after it accepted a generation; for the legacy Fleet v1, registry creation is not enrollment — enrollment requires certificate issuance, binding, mTLS authorization, and a successful command/result cycle.
