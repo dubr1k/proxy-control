@@ -106,17 +106,29 @@ class Reconciler:
                            valid_from=resource.valid_from, valid_until=resource.valid_until)
 
     @staticmethod
-    def _collect(credentials: dict[str, str], resource: Resource, applied: AppliedGrant) -> None:
-        """A credential the manager chose is unknown to the central until the node hands it back."""
+    def _collect(credentials: dict[str, str], resource: Resource, applied: AppliedGrant, plan: CredentialPlan) -> None:
+        """A credential the central does not hold in the form the runtime serves is handed
+        back: one the manager chose, or the runtime's own framing of the caller's (Telemt
+        turns a bare 32-hex secret into the Fake-TLS `ee` + secret + domain the link needs)."""
         manager_chose = applied.credential_origin == "manager" or resource.credential_origin == "manager"
-        if manager_chose and applied.credential:
+        reframed = plan.plaintext is not None and applied.credential not in (None, plan.plaintext)
+        if applied.credential and (manager_chose or reframed):
             credentials[resource.credential_ref] = applied.credential.decode()
+
+    @staticmethod
+    def _learned(resource: Resource, applied: AppliedGrant) -> dict:
+        """The facts the runtime taught about the link — only those the protocol's options
+        model has a field for (Telemt: host, port; mita: share_template), never a credential."""
+        fields = PROTOCOL_OPTIONS[resource.protocol].model_fields
+        return {key: value for key, value in applied.artifact_template.items()
+                if key in fields and key in LEARNED_OPTIONS and value not in (None, "")}
 
     # ---- applying (adapter I/O only, no database connection open) -------------------
 
     async def _apply_resource(self, adapter, resource: Resource, item: ObservedGrant | None, record: dict | None,
-                              generation: int, credentials: dict[str, str]) -> tuple[str, str | None]:
-        """Bring one runtime user to the resource's desired state; returns (state, revision).
+                              generation: int, credentials: dict[str, str]) -> tuple[str, str | None, dict | None]:
+        """Bring one runtime user to the resource's desired state; returns (state, revision,
+        learned) — `learned` is what create/rotate taught about the link, None otherwise.
 
         Ownership rule (ADR 003, ruling on finding I1): a runtime user this node did not
         record as ours is never touched, managed or deleted just because its name matches
@@ -150,22 +162,27 @@ class Reconciler:
             self._record(generation, resource, _state(item.enabled), revision=item.revision,
                          credential_ref=resource.credential_ref)
             record = {"credential_ref": resource.credential_ref}
+        learned: dict | None = None
         if resource.desired_state == "deleted":
             if item is not None:
                 await adapter.delete(ref)
-            return "missing", None
+            return "missing", None, None
         if item is None:
             # Placeholder written before the call: see the docstring above.
             self._record(generation, resource, "failed", error="create in flight; will retry on the next apply")
-            applied = await adapter.create(operation_id, self._intent(resource), self._plan(resource))
-            self._collect(credentials, resource, applied)
+            plan = self._plan(resource)
+            applied = await adapter.create(operation_id, self._intent(resource), plan)
+            self._collect(credentials, resource, applied, plan)
+            learned = self._learned(resource, applied)
             state, revision, current = _state(applied.enabled), applied.revision, None
         else:
             state, revision, current = _state(item.enabled), item.revision, item.options or {}
             stored = record.get("credential_ref")
             if stored != resource.credential_ref and (stored is not None or adapter.accepts_caller_credential):
-                applied = await adapter.rotate(f"{operation_id}:rotate", ref, self._plan(resource))
-                self._collect(credentials, resource, applied)
+                plan = self._plan(resource)
+                applied = await adapter.rotate(f"{operation_id}:rotate", ref, plan)
+                self._collect(credentials, resource, applied, plan)
+                learned = self._learned(resource, applied)
                 revision = applied.revision or revision
             elif resource.credential_origin == "manager" and adapter.capture_supported:
                 captured = await adapter.capture(ref)
@@ -183,7 +200,7 @@ class Reconciler:
                     state = "drifted"
                 else:
                     revision = applied.revision or revision
-        return state, revision
+        return state, revision, learned
 
     async def _apply_protocol(self, protocol: str, resources: list[Resource], orphans: list[str],
                               known: dict, generation: int, credentials: dict[str, str],
@@ -215,8 +232,8 @@ class Reconciler:
         for resource in resources:
             record = known.get((protocol, resource.runtime_username))
             try:
-                state, revision = await self._apply_resource(adapter, resource, observed.get(resource.runtime_username),
-                                                             record, generation, credentials)
+                state, revision, learned = await self._apply_resource(
+                    adapter, resource, observed.get(resource.runtime_username), record, generation, credentials)
             except _RuntimeCollision as exc:
                 failed = True
                 log.warning("fleet: %s/%s (%s) failed: %s", protocol, resource.runtime_username, resource.ref, exc)
@@ -229,7 +246,8 @@ class Reconciler:
                 log.warning("fleet: %s/%s (%s) failed: %s", protocol, resource.runtime_username, resource.ref, exc)
                 self._record(generation, resource, "failed", error=str(exc)[:200])
             else:
-                self._record(generation, resource, state, revision=revision, credential_ref=resource.credential_ref)
+                self._record(generation, resource, state, revision=revision, credential_ref=resource.credential_ref,
+                             learned=learned)
         # Orphans: central-owned users this generation no longer names (spec §5.3).
         for username in orphans:
             try:
@@ -245,11 +263,11 @@ class Reconciler:
     # ---- recording (the one place that writes managed_resources) --------------------
 
     def _record(self, generation: int, resource: Resource, state: str, *, error: str | None = None,
-                revision: str | None = None, credential_ref: str | None = None) -> None:
+                revision: str | None = None, credential_ref: str | None = None, learned: dict | None = None) -> None:
         with self.database.transaction() as db:
             self.managed.upsert_resource(db, protocol=resource.protocol, username=resource.runtime_username,
                                          ref=resource.ref, generation=generation, state=state, error=error,
-                                         revision=revision, credential_ref=credential_ref)
+                                         revision=revision, credential_ref=credential_ref, learned=learned)
 
     async def _apply(self, generation: int) -> tuple[ObservedGeneration, dict[str, str]]:
         with self.database.connect() as db:

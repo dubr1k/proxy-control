@@ -64,6 +64,17 @@ check.
   (API keys), `docs/OPERATIONS.*.md` §11, `docs/UPGRADING*.md` («Upgrading to v0.3»),
   `docs/COMPATIBILITY.md` (frozen `panel_guid`, `/api/fleet/v2/*`, `pc_` keys, wire
   fields), `docs/VNEXT_ARCHITECTURE.md` (v0.3 section), `docs/releases/v0.3.0-beta.1.md`.
+- Lab tier `fleet` (`scripts/lab/fleet-acceptance.py`, `scripts/dev/remote-gate.sh fleet`,
+  the case `fleet` of `guest-runner.sh host`, `docs/VALIDATION.md`): the installed node
+  linked to an in-process central over HTTPS with a `node-sync` key — key → link →
+  import → grants on all three protocols proven with sing-box, mihomo and the TDLib
+  resPQ probe → disable/rotate/delete → offline convergence → restart mid-apply → key
+  revoke → unlink, the node left exactly as found. `LAB_KEEP_INSTALL=1` keeps the
+  `lab-host` install for it.
+- The node reports what its runtime taught it about a link (`ObservedResource.learned`:
+  Telemt's public host and port, mita's share template; migration 13) and hands back
+  Telemt's Fake-TLS form of a caller secret; the central escrows the latter and keeps the
+  former in the grant's options, so a remote grant renders the link the runtime serves.
 
 ### Changed
 
@@ -79,6 +90,16 @@ check.
 
 ### Fixed
 
+- Found on the lab tier `fleet`: a remote MTProxy grant rendered a bare 32-hex secret and
+  the node's panel domain (`tg://proxy?server=<panel>…&secret=<hex>`) instead of the
+  Fake-TLS secret and Telemt's server; a remote Mieru grant rendered the node's Naive host
+  and port 8443 instead of mita's share URL — both links unusable. Fixed by the learned
+  link facts above.
+- Found on the lab tier `fleet`: `DELETE /api/nodes/{id}` refused a link whose node
+  carried imported users (their grants are never `deleted` without deleting the accounts),
+  so such a link could not be removed without destroying the users. Imported grants are
+  now released (rows dropped, captured credentials revoked, audit `released_imported`);
+  only provisioned grants still block.
 - A deleted grant no longer blocks re-granting the same `runtime_username` forever: the
   row is purged once the deletion is confirmed (locally right away, on a linked panel when
   the node reports `missing`).

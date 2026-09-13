@@ -62,7 +62,10 @@ async def test_first_generation_creates_users_on_all_protocols_and_never_touches
     observed, credentials = await reconciler.apply(1)
     assert observed.reconcile_state == "converged"
     assert {r.runtime_username: r.state for r in observed.resources} == {"alice": "enabled", "carol": "enabled", "dave": "enabled"}
-    assert credentials == {}
+    # Telemt frames the caller's secret as a Fake-TLS one (`ee` + secret + domain): the
+    # runtime's own form of a credential travels back so the central renders a working
+    # link. Naive and Mieru run the password exactly as pushed, so nothing comes back.
+    assert credentials == {"grant:dave:1": "ee" + "0" * 32}
     assert "local-bob" in [u["username"] for u in await naive.list_users()]
     with database.connect() as db:
         assert managed.is_managed(db, "naive", "alice") and not managed.is_managed(db, "naive", "local-bob")
@@ -326,3 +329,32 @@ async def test_deleted_imported_resource_never_adopts_and_deletes_in_one_step(wo
     assert observed.resources[0].state == "failed"
     assert ("delete", "bob") not in naive.calls
     assert "bob" in [u["username"] for u in await naive.list_users()]
+
+
+# ---- lab finding (Task 14): the central renders links from what the node learned -----
+
+
+async def test_create_reports_what_the_runtime_taught_about_the_link(world):
+    """Telemt owns the MTProxy host and port, mita its share URL: the node learns them at
+    create/rotate and reports them per resource so the central's subscription can carry
+    them (the local saga keeps the same facts through `_remember_template`)."""
+    database, managed, reconciler, telemt, naive, mieru = world
+    telemt.public_host, telemt.public_port = "proxy.node.example", 8443
+    request = _push(1, [_resource("mtproxy", "dave"), _resource("mieru", "carol"), _resource("naive", "alice")],
+                    {"grant:dave:1": "0" * 32, "grant:carol:1": "pw-c", "grant:alice:1": "pw-a"})
+    await _accept(world, request)
+    observed, credentials = await reconciler.apply(1)
+    learned = {r.runtime_username: r.learned for r in observed.resources}
+    assert learned["dave"] == {"host": "proxy.node.example", "port": 8443}
+    assert learned["carol"]["share_template"].startswith("mierus://{username}:{password}@mieru.example.com")
+    assert learned["alice"] == {}  # NaiveProxy's host is panel configuration, not learned
+    assert credentials == {"grant:dave:1": "ee" + "0" * 32}
+    # Persisted with the resource: a later report (observed poll, restart) still carries it.
+    with database.connect() as db:
+        again = {r.runtime_username: r.learned for r in managed.observed(db).resources}
+    assert again == learned
+    # A rotation re-learns; a second apply of the same generation keeps what was learned.
+    await _accept(world, _push(2, [_resource("mtproxy", "dave", version=2)], {"grant:dave:2": "1" * 32}))
+    observed, credentials = await reconciler.apply(2)
+    assert observed.resources[0].learned == {"host": "proxy.node.example", "port": 8443}
+    assert credentials == {"grant:dave:2": "ee" + "1" * 32}

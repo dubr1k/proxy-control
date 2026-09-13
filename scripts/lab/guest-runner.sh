@@ -42,7 +42,9 @@ selected() {
 }
 
 emit() {
-  local name=$1 status=$2 started=$3 message=${4:-}
+  # A fifth argument `requested` marks a skip the operator asked for (LAB_KEEP_INSTALL):
+  # it is reported like any other skip but does not fail the run.
+  local name=$1 status=$2 started=$3 message=${4:-} requested=${5:-}
   local elapsed
   elapsed=$(python3 - "$started" <<'PY'
 import sys,time
@@ -55,7 +57,16 @@ PY
   # the first 4000 characters of a Python traceback say only where it started.
   ((${#message} > 4000)) && message="...${message: -4000}"
   printf 'LAB_RESULT\t%s\t%s\t%s\t%s\n' "$name" "$status" "$elapsed" "$message"
-  [[ $status == passed ]] || RESULTS_FAILED=1
+  [[ $status == passed || $requested == requested ]] || RESULTS_FAILED=1
+}
+
+# A scenario the operator chose not to run: reported as skipped, exit code unaffected.
+case_skip() {
+  local name=$1 reason=$2 started
+  selected "$name" || return 0
+  started=$(python3 -c 'import time; print(time.time())')
+  CASE_STATUS[$name]=skipped
+  emit "$name" skipped "$started" "$reason" requested
 }
 
 case_run() {
@@ -1250,6 +1261,36 @@ host_report() {
   ! grep -Eiq '(password|token|secret|privateKey)' /var/lib/proxy-control/reports/report.json
 }
 
+# Fleet v2 on the stand (v0.3 spec §10): the node just installed is linked to a second,
+# in-process central panel started from the release bytes under test, and the whole
+# flow (key → link → import → grants → disable/rotate/delete → offline convergence →
+# restart mid-apply → key revoke → unlink) runs over HTTPS with real clients. The
+# central is started by the dev venv's interpreter — the system python3 has neither
+# FastAPI nor uvicorn — but imports `panel` from the release tree ($ROOT).
+DEV_PYTHON=${LAB_DEV_PYTHON:-/root/dev/proxy-control/.venv/bin/python}
+# The same pinned cores subscription-acceptance was proven with (v0.2 Task 19A).
+LAB_SINGBOX_IMAGE=${LAB_SINGBOX_IMAGE:-ghcr.io/sagernet/sing-box@sha256:4bed9332a0013fef72c31200a84e8fc0ed91a5ab2fe373a69f0acbbbbfbef3c5}
+LAB_MIHOMO_IMAGE=${LAB_MIHOMO_IMAGE:-metacubex/mihomo@sha256:baf38d282b785d7037337676714a69e3fdd1f2d9bf748dfd25fce681a624ea74}
+
+host_fleet() {
+  if [[ ! -x $DEV_PYTHON ]]; then
+    printf 'fleet: %s is missing: the fleet scenario needs the dev venv of /root/dev/proxy-control (scripts/dev/remote-gate.sh quick creates it)\n' \
+      "$DEV_PYTHON" >&2
+    return 1
+  fi
+  install -d -m 0755 "$CLIENT_RESULTS/fleet"
+  "$DEV_PYTHON" "$ROOT/scripts/lab/fleet-acceptance.py" \
+    --python "$DEV_PYTHON" --source "$ROOT" \
+    --node-url "https://$PANEL" \
+    --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+    --central-dir /root/lab-central --central-port 8791 \
+    --output "$CLIENT_RESULTS/fleet" \
+    --singbox-image "$LAB_SINGBOX_IMAGE" --mihomo-image "$LAB_MIHOMO_IMAGE" \
+    --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain "$PROXY" \
+    --client-ca-file /etc/letsencrypt/lab-ca/ca.crt \
+    --cleanup
+}
+
 host_uninstall() {
   container_cmd uninstall --json >/tmp/uninstall.json
   container_cmd uninstall --json >/tmp/uninstall-again.json
@@ -1261,8 +1302,10 @@ host_uninstall() {
 }
 
 host_secrets_scan() {
+  # The fleet report and the rendered feeds it saved are scanned like every other artefact.
   if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
-      /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json 2>/dev/null; then
+      /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json "$CLIENT_RESULTS/fleet/report.json" \
+      "$CLIENT_RESULTS/fleet/central.log" 2>/dev/null; then
     return 1
   fi
   test "$(stat -c %a /opt/mtproxy-shared443/secrets 2>/dev/null || echo 700)" = 700
@@ -1363,9 +1406,18 @@ elif [[ $MODE == host ]]; then
   case_run reboot-recovery host_reboot_recovery idempotence
   case_run crash-every-phase host_crash_every_phase reboot-recovery
   case_run report host_report crash-every-phase
+  # The fleet scenario needs the live node; a failure there must not hide what the
+  # remaining cases say, so they keep depending on `report`, not on `fleet`.
+  case_run fleet host_fleet report
   case_run secrets-scan host_secrets_scan report
-  case_run uninstall host_uninstall secrets-scan
-  case_run coexistence host_coexistence uninstall
+  if [[ ${LAB_KEEP_INSTALL:-0} == 1 ]]; then
+    # The install stays for the `fleet` tier (and a live central) to use afterwards.
+    case_skip uninstall "LAB_KEEP_INSTALL=1: the install is kept for the fleet tier"
+    case_skip coexistence "LAB_KEEP_INSTALL=1: the install is kept for the fleet tier"
+  else
+    case_run uninstall host_uninstall secrets-scan
+    case_run coexistence host_coexistence uninstall
+  fi
 else
   printf 'unknown mode: %s\n' "$MODE" >&2
   exit 2

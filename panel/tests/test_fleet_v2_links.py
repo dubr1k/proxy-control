@@ -49,6 +49,35 @@ async def test_delete_refuses_while_grants_exist_and_unlinks_the_node(pair):
     assert node_id not in [n.node_id for n in central.state.nodes.list()]
 
 
+async def test_delete_releases_imported_grants_instead_of_refusing(pair):
+    """Imported users existed before the link (ADR 003 `adopted`): removing the link gives
+    them back to the node — their grant rows go, their credentials are revoked, and no
+    generation asks the node to delete the accounts. Only a provisioned grant blocks."""
+    node, central, plaintext = pair
+    await node.state.naive.create("alice", None, password="alice-secret", operation_id="pre")
+    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
+    from panel.fleet_v2.importing import ImportItem, import_resources
+    await import_resources(central.state, node_id, [ImportItem("naive", "alice", "new")], actor=ACTOR, ip="x")
+    await central.state.pusher.tick()  # the node adopts alice as the central's
+    with node.state.database.connect() as db:
+        assert ("naive", "alice") in node.state.managed.resources(db)
+    with central.state.database.connect() as db:
+        grant = db.execute("SELECT id FROM access_grants WHERE runtime_username='alice'").fetchone()["id"]
+        assert db.execute("SELECT count(*) FROM secret_versions WHERE secret_id=? AND state='active'",
+                          (f"grant:{grant}",)).fetchone()[0] == 1
+    await central.state.links.delete(node_id, actor=ACTOR, ip="x")
+    with central.state.database.connect() as db:
+        assert db.execute("SELECT count(*) FROM access_grants").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM secret_versions WHERE secret_id=? AND state<>'revoked'",
+                          (f"grant:{grant}",)).fetchone()[0] == 0
+        audit = db.execute("SELECT detail_json FROM audit_log WHERE action='node.unlink'").fetchone()
+    assert '"released_imported": 1' in audit["detail_json"]
+    # The account is untouched and local again on the node.
+    assert "alice" in [u["username"] for u in await node.state.naive.list_users()]
+    with node.state.database.connect() as db:
+        assert node.state.managed.resources(db) == {} and node.state.managed.master_guid(db) is None
+
+
 async def test_heartbeat_transitions_emit_events(pair):
     node, central, plaintext = pair
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")

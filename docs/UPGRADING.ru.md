@@ -55,7 +55,7 @@ scoped API-ключами ([FLEET.ru.md](../FLEET.ru.md), [ADR
 `docker compose up -d --build --wait panel` с сохранённым набором overlays, — и не добавляет
 ни службы, ни порта, ни файла секрета, ни компонента на хосте.
 
-**Миграции 9–12** выполняются при первом старте (или `python -m panel.cli db-migrate`) и
+**Миграции 9–13** выполняются при первом старте (или `python -m panel.cli db-migrate`) и
 аддитивны:
 
 | № | Имя | Добавляет |
@@ -64,8 +64,9 @@ scoped API-ключами ([FLEET.ru.md](../FLEET.ru.md), [ADR
 | 10 | `fleet-v2-managed` | `managed_generations`, `managed_resources` — сторона узла: принятые поколения и учётные записи runtime, которыми узел владеет для центра |
 | 11 | `fleet-v2-links` | `node_links`, `desired_generations`, `observed_generations` и `fleet_nodes.transport` (`v1` у всех существующих узлов) — сторона центра |
 | 12 | `provisioning-pending-remote` | расширяет CHECK `provisioning_operations.status` значением `pending_remote`; SQLite не умеет менять CHECK на месте, поэтому таблица пересобирается с сохранением всех строк, индекса и внешнего ключа |
+| 13 | `fleet-v2-learned-options` | `managed_resources.learned_json` — что runtime сообщил узлу о ресурсе, которым тот владеет для центра (хост и порт Telemt, share-шаблон mita); отдаётся с каждым наблюдаемым поколением |
 
-`python -m panel.cli db-status` показывает все двенадцать как применённые. `panel_guid`
+`python -m panel.cli db-status` показывает все тринадцать как применённые. `panel_guid`
 (uuid4) создаётся при первом старте и больше не меняется; `VERSION` панели сообщается
 центру через `PANEL_VERSION_FILE` (по умолчанию `/app/VERSION`, монтируется из каталога
 проекта `compose.yaml`; установщик копирует `VERSION` туда сам; отсутствующий файл читается
@@ -94,7 +95,7 @@ backoff; у панели v0.2 нет `/api/fleet/v2/*`, и добавить её
 `dev` ([OPERATIONS](OPERATIONS.ru.md), раздел 11).
 
 **Откат** идёт по общему порядку выше — полная предыдущая генерация вместе с базой: образ
-v0.2 отказывается стартовать на базе со схемой 12 («database schema 12 is newer than this
+v0.2 отказывается стартовать на базе со схемой 13 («database schema 13 is newer than this
 code»). На узле, который никто не подключал, обновление не тронуло ни одной учётной записи
 runtime, так что база до обновления не теряет никакого fleet-состояния; узел, которым
 управляли, сначала отвяжите («Отвязать»), затем откатывайте.

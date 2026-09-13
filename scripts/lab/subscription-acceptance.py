@@ -146,19 +146,30 @@ def _socks5_udp_dns(proxy_port: int, name: str = "cloudflare.com") -> bool:
         control.close()
 
 
-def core_checks(output: Path, *, singbox_image: str, mihomo_image: str) -> dict:
-    """Load the rendered feeds into the real cores and push traffic through them."""
+def core_checks(output: Path, *, singbox_image: str, mihomo_image: str, ca_file: Path | None = None) -> dict:
+    """Load the rendered feeds into the real cores and push traffic through them.
+
+    `ca_file`: a certificate the TLS outbounds trust instead of the system store — the
+    lab issues its certificates from its own CA, which the cores' images do not know.
+    A production run leaves it unset and verifies against WebPKI like any client."""
     result: dict[str, object] = {}
     direct = _ip_through(None)
     result["direct_ip"] = direct
     work = output / "cores"
     work.mkdir(exist_ok=True)
     work.chmod(0o755)
+    if ca_file is not None:
+        (work / "ca.pem").write_bytes(Path(ca_file).read_bytes())
+        (work / "ca.pem").chmod(0o644)
 
     if singbox_image:
         feed = json.loads((output / "subscription.singbox-official").read_bytes())
         outbounds = feed["outbounds"]
         result["singbox_outbounds"] = [o["type"] for o in outbounds]
+        if ca_file is not None:
+            for outbound in outbounds:
+                if isinstance(outbound.get("tls"), dict):
+                    outbound["tls"]["certificate_path"] = "/cfg/ca.pem"
         config = {
             "log": {"level": "warn"},
             "inbounds": [{"type": "mixed", "tag": "in", "listen": "127.0.0.1", "listen_port": SINGBOX_PORT}],
@@ -219,6 +230,8 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path, help="directory for the rendered bodies")
     parser.add_argument("--singbox-image", default="", help="pinned official sing-box image; empty skips the check")
     parser.add_argument("--mihomo-image", default="", help="pinned mihomo image; empty skips the check")
+    parser.add_argument("--client-ca-file", default=None, type=Path,
+                        help="CA the cores trust instead of the system store (lab certificates); unset = WebPKI")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     report: dict[str, object] = {}
@@ -334,7 +347,8 @@ def main() -> int:
     # 7. the real cores, if asked: the feeds must load and carry traffic, not just parse.
     if args.singbox_image or args.mihomo_image:
         report["cores"] = core_checks(
-            args.output, singbox_image=args.singbox_image, mihomo_image=args.mihomo_image
+            args.output, singbox_image=args.singbox_image, mihomo_image=args.mihomo_image,
+            ca_file=args.client_ca_file,
         )
         for name, value in report["cores"].items():
             if isinstance(value, bool):

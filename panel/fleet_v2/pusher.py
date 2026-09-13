@@ -272,6 +272,9 @@ class FleetPusher:
                 returned = next((ref for ref in credentials if ref.startswith(item.ref + ":")), None)
                 if returned is not None:
                     self.provisioning.escrow_returned_credential(db, grant.id, returned, credentials[returned])
+                if item.learned and state != "missing":
+                    # Telemt's host/port, mita's share template: the link renders from these.
+                    self.provisioning.remember_template(db, grant, item.learned)
                 if current and state != "missing":
                     self.provisioning.confirm_credential(db, grant.id)
                 self.clients.store.update_grant(db, grant.id, observed_state=state, updated_at=now)

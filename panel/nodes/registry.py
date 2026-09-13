@@ -99,6 +99,15 @@ class NodeRegistry:
         ).fetchone()[0]
 
     @staticmethod
+    def provisioned_grants(db, node_id: str) -> int:
+        """Grants this panel created on the node and has not deleted: the accounts that
+        exist only because of the link (an imported one existed before it)."""
+        return db.execute(
+            "SELECT count(*) FROM access_grants WHERE node_id=? AND desired_state<>'deleted' AND origin<>'imported'",
+            (node_id,),
+        ).fetchone()[0]
+
+    @staticmethod
     def pending_commands(db, node_id: str) -> int:
         return db.execute(
             "SELECT count(*) FROM fleet_commands WHERE node_id=? AND status IN ('queued','dispatched')",

@@ -2,6 +2,7 @@
 central panel. Every method runs inside the caller's transaction (spec §4, §5.3)."""
 from __future__ import annotations
 
+import json
 import time
 
 from .identity import MASTER_KEY, read_setting, write_setting
@@ -59,15 +60,19 @@ class ManagedStore:
 
     @staticmethod
     def upsert_resource(db, *, protocol, username, ref, generation, state, error=None, revision=None,
-                        credential_ref=None) -> None:
+                        credential_ref=None, learned=None) -> None:
+        """`credential_ref` and `learned` are kept from the previous row when the caller
+        passes None: a state change does not forget what create/rotate established."""
         db.execute(
             """INSERT INTO managed_resources(protocol,runtime_username,ref,credential_ref,generation,state,
-               last_error,revision,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
+               last_error,revision,updated_at,learned_json) VALUES(?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(protocol,runtime_username) DO UPDATE SET
                ref=excluded.ref, credential_ref=COALESCE(excluded.credential_ref, managed_resources.credential_ref),
                generation=excluded.generation, state=excluded.state,
-               last_error=excluded.last_error, revision=excluded.revision, updated_at=excluded.updated_at""",
-            (protocol, username, ref, credential_ref, generation, state, error, revision, int(time.time())),
+               last_error=excluded.last_error, revision=excluded.revision, updated_at=excluded.updated_at,
+               learned_json=COALESCE(excluded.learned_json, managed_resources.learned_json)""",
+            (protocol, username, ref, credential_ref, generation, state, error, revision, int(time.time()),
+             None if learned is None else json.dumps(learned, sort_keys=True)),
         )
 
     @staticmethod
@@ -87,7 +92,8 @@ class ManagedStore:
         return ObservedGeneration(
             applied_generation=latest["generation"], digest=latest["digest"], reconcile_state=state,
             resources=[ObservedResource(ref=r["ref"], protocol=r["protocol"], runtime_username=r["runtime_username"],
-                                        state=r["state"], error=r["last_error"], revision=r["revision"])
+                                        state=r["state"], error=r["last_error"], revision=r["revision"],
+                                        learned=json.loads(r.get("learned_json") or "{}"))
                        for r in self.resources(db).values()],
             reported_at=int(time.time()),
         )

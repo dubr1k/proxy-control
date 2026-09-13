@@ -91,6 +91,10 @@ class ObservedResource(_Strict):
     state: Literal["enabled", "disabled", "missing", "failed", "drifted"]
     error: str | None = None
     revision: str | None = None
+    # What the runtime taught the node about this resource and the central cannot know
+    # otherwise — Telemt's public host and port, mita's share template: the options the
+    # protocol model has a field for (`Reconciler.LEARNED_OPTIONS`). Never a credential.
+    learned: dict[str, str | int] = Field(default_factory=dict, max_length=8)
 
 
 class ObservedGeneration(_Strict):

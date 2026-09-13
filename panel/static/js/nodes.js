@@ -651,7 +651,7 @@ async function linkLifecycle(context, node, action, button) {
     if (action === "remove") {
       const confirmed = await context.ui.confirmed(
         "Удалить связь с панелью?",
-        `${node.display_name} перестанет управляться этим центром. Панель откажет, пока на узле остаются неудалённые доступы.`,
+        `${node.display_name} перестанет управляться этим центром. Импортированные пользователи останутся на узле локальными; панель откажет, пока остаются неудалённые выданные доступы.`,
         "Удалить",
       );
       if (!confirmed) return;

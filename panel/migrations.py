@@ -250,9 +250,16 @@ REMOTE_OPERATIONS_V12 = Migration(12, "provisioning-pending-remote", (
     "CREATE INDEX provisioning_operations_client ON provisioning_operations(client_id)",
 ))
 
+# What the runtime taught the node about a resource it owns for the central (Telemt's
+# host and port, mita's share template): reported with every observed generation so the
+# central's subscription renders the link the runtime actually serves (lab finding, Task 14).
+LEARNED_V13 = Migration(13, "fleet-v2-learned-options", (
+    "ALTER TABLE managed_resources ADD COLUMN learned_json TEXT",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
-    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12,
+    SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
