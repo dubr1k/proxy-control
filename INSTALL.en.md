@@ -9,8 +9,10 @@ audit → plan → install → repair → uninstall
 ```
 
 The installer always deploys Telemt/MTProxy and the panel. Selected profiles add
-NaiveProxy and/or Mieru in the same transaction after core acceptance. Fleet
-remains a separate manual integration.
+NaiveProxy and/or Mieru in the same transaction after core acceptance. Linked
+panels (Fleet v2, since v0.3) are set up from the panel's UI after the install —
+[FLEET.en.md](FLEET.en.md); legacy Fleet v1 remains a separate manual
+integration.
 
 ## The primary install path: a verified release
 
@@ -20,7 +22,8 @@ deployment and for reviewing what the installer does.
 
 Download the archive, `SHA256SUMS`, `release-manifest.json`, and
 `sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
-attestation. `sha256sum` checks the three payload files named by the downloaded
+attestation; from v0.2.0-beta.1 on, the release workflow publishes a provenance
+attestation of the archive. `sha256sum` checks the three payload files named by the downloaded
 `SHA256SUMS`; the checksum file itself remains trusted as downloaded from the
 release page. Then extract the bootstrap from the verified archive — all before
 anything runs with privilege:
@@ -39,6 +42,19 @@ compares the archive against the published checksum, requires the manifest to
 name the same archive and digest, refuses a version with a prerelease suffix, and preflights
 the archive for absolute or escaping members before its single `exec sudo`.
 Nothing is ever downloaded and executed in one step.
+
+**Beta releases** (`v0.2.0-beta.1`, `v0.3.0-beta.1`) are refused by
+`install-bootstrap` because of the pre-release suffix. They are installed
+without it: the same `SHA256SUMS` check, then extract the archive and run the
+wizard from the extracted `proxy-control/` directory — exactly how the release
+gate installs a beta on the lab host:
+
+```bash installer-check
+sha256sum --check SHA256SUMS
+tar -xzf proxy-control-v0.3.0-beta.1.tar.gz
+cd proxy-control
+sudo python3 -m installer.cli wizard
+```
 
 With no further arguments the installer starts a bilingual wizard that writes a
 configuration file, shows a plan, and applies nothing until you confirm the plan
