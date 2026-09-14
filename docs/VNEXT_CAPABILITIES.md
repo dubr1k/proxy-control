@@ -28,8 +28,8 @@ but not demonstrated on the lab host, **n/a** = `out_of_scope` for that row.
 | `stable_access_artifact` | no | yes | yes | no |
 | `credential_capture_without_rotation` | no | yes | yes | no |
 | `whole_service_socks_upstream` | n/a | n/a | yes | yes |
-| `cidr_routing` | n/a | n/a | unproven | unproven |
-| `domain_routing` | n/a | n/a | unproven | unproven |
+| `cidr_routing` | n/a | n/a | yes | yes |
+| `domain_routing` | n/a | n/a | yes | yes |
 | `per_client_routing` | n/a | n/a | unproven | unproven |
 | `hot_reload` | n/a | yes | yes | yes |
 | `rollback` | no | no | no | no |
@@ -56,9 +56,13 @@ The cells that shape v0.2 most:
   `AccessGrant.valid_until` is a control-plane concept enforced by disabling.
 - **`rollback` is `no` everywhere.** There is no generation history in v0.2
   (ADR 002 lands with Fleet v2).
-- **Every routing cell is `unproven` or `n/a`.** Nothing routes per rule today:
-  Naive and Mieru have one whole-service SOCKS5 egress each, and MTProxy is
-  outside routing scope entirely (ADR 006).
+- **Routing (v0.4).** `domain_routing` and `cidr_routing` are `supported` on both
+  native backends within what the spike proved (`spikes/VNEXT_ROUTING_ENGINE.md`):
+  NaiveProxy blocks by domain and CIDR beside a direct default and has no
+  selective rule (one upstream per service; forwardproxy skips its ACL when an
+  upstream is set); Mieru blocks and selects by domain (suffix) and by literal-IP
+  CIDR, applied by a restart of mita. `per_client_routing` stays `unproven` and
+  MTProxy is outside routing scope entirely (ADR 006) — [ROUTING](ROUTING.en.md).
 
 ## Subscription clients
 

@@ -115,6 +115,26 @@ smaller number (409 `stale_generation`) and the same number with a different dig
 (409 `digest_conflict`); a rollback is a new, higher generation from the central (ADR
 002).
 
+**Egress (v0.4).** A generation may carry an optional `egress` section — per protocol
+(`naive`, `mieru`) an `EgressDocument {backend, policy_id, policy_revision, document,
+digest}`: the routing policy of that node compiled for the node's backend
+([docs/ROUTING.en.md](docs/ROUTING.en.md)). The central includes it only for a node
+whose `identity.capabilities` lists `egress.v1` (a v0.3 node's strict model would refuse
+the whole document), and only the policies the operator applied (or rolled back): a draft
+is never published. The field is left out of the wire form and of the digest when there
+is nothing to say, so every document without egress keeps the digest it had in v0.3 in
+both directions of a mixed-version link. On the node the section is applied **after the
+resources**, through the same manager adapters the local screen uses, idempotently
+(the manager already running that digest is not asked again), with `operation_id =
+<guid>:<generation>:egress:<protocol>`; a failed section fails the generation the way a
+resource does — the users are provisioned regardless — and the report carries
+`egress: {protocol: {state: converged | failed | unsupported, revision, digest, error}}`
+(`managed_egress` on the node). The central moves the policy to `applied` at the
+revision the section named, or to `failed` with the node's code, from a settled report
+about the generation it currently wants; a section absent from a later generation means
+«leave the egress as it is», and `unlink` never touches the data plane. While a central
+manages a node, the node's own routing screen refuses to apply (`managed_by_central`).
+
 ### Ownership on the node
 
 A runtime user on a node belongs either to the central (`central`) or to the node

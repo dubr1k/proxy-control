@@ -21,6 +21,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Mieru/mita](../MIERU.ru.md)
 - [Выдача Mieru URL, QR и client config](MIERU_SHARING.ru.md)
 - [Связанные панели (Fleet v2) и legacy mTLS-транспорт v1](../FLEET.ru.md)
+- [Маршрутизация: egress-политики NaiveProxy и Mieru (v0.4)](ROUTING.ru.md)
 
 ### Эксплуатация
 
@@ -42,13 +43,14 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 003 — один писатель на ресурс](adr/003-one-writer-per-resource.md)
 - [ADR 004 — Client, AccessGrant и подписка](adr/004-client-access-grant-subscription.md)
 - [ADR 005 — секреты по ссылкам](adr/005-secret-references.md)
-- [ADR 006 — нейтральный routing IR](adr/006-routing-policy-ir.md)
+- [ADR 006 — нейтральный routing IR (accepted, v0.4)](adr/006-routing-policy-ir.md)
 - [ADR 007 — владение enforcement маршрутизации](adr/007-routing-enforcement-ownership.md)
 - [ADR 008 — транспорт панель→панель со scoped API-ключами](adr/008-panel-to-panel-transport.md)
 
 ### Выпуски
 
-- [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — центральная панель и связанные панели (гейт в работе)
+- [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — маршрутизация: egress-политики с предпросмотром (гейт в работе)
+- [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — центральная панель и связанные панели
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — локальный control plane, подписки
 - [v0.1.0](releases/v0.1.0.md)
 
@@ -69,6 +71,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Mieru/mita](../MIERU.en.md)
 - [Mieru URL, QR, and client config sharing](MIERU_SHARING.en.md)
 - [Linked panels (Fleet v2) and the legacy mTLS transport v1](../FLEET.en.md)
+- [Routing: egress policies of NaiveProxy and Mieru (v0.4)](ROUTING.en.md)
 
 ### Operations
 
@@ -90,13 +93,14 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 003 — one writer per resource](adr/003-one-writer-per-resource.md)
 - [ADR 004 — Client, AccessGrant and subscription](adr/004-client-access-grant-subscription.md)
 - [ADR 005 — secret references](adr/005-secret-references.md)
-- [ADR 006 — engine-neutral routing IR](adr/006-routing-policy-ir.md)
+- [ADR 006 — engine-neutral routing IR (accepted, v0.4)](adr/006-routing-policy-ir.md)
 - [ADR 007 — routing enforcement ownership](adr/007-routing-enforcement-ownership.md)
 - [ADR 008 — panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md)
 
 ### Releases
 
-- [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — central panel and linked panels (gate in progress)
+- [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — routing: egress policies with a preview (gate in progress)
+- [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — central panel and linked panels
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — local control plane, subscriptions
 - [v0.1.0](releases/v0.1.0.md)
 

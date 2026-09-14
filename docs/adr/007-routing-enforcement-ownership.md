@@ -1,6 +1,7 @@
 # ADR 007: Routing enforcement ownership
 
-Status: proposed (v0.5)
+Status: accepted for the native backends (v0.4.0-beta.1, 2026-09-14); the
+`xray-router` part stays proposed (v0.5)
 
 ## Context
 
@@ -12,7 +13,19 @@ template is exactly the drift ADR 003 forbids.
 
 ## Decision
 
-Enforcement backends are separate and explicitly owned:
+Enforcement backends are separate and explicitly owned. **Native backends (v0.4):** the
+egress configuration of a data plane belongs to the manager of that service and to
+nobody else — the naive-manager owns the marked block `# BEGIN NAIVE-MANAGER EGRESS …
+# END` inside `forward_proxy` of its Caddyfile, the mieru-manager owns the `egress`
+section of mita's config. The installer seeds the initial state once (the way it seeds
+the bootstrap user) and never touches it on upgrade or repair; the panel is the only
+client of the managers' egress API (`GET /v1/egress`, `POST /v1/egress/plan | apply |
+rollback`); an `upstream` or an `egress` written by hand is adopted as `custom` on the
+first apply and restored verbatim by a rollback, never silently overwritten. A node
+managed by a central applies what the central's generation says and refuses a local
+apply (`managed_by_central`, ADR 003).
+
+For the dedicated router of v0.5:
 
 - the 3x-ui-owned Xray serves 3x-ui's own inbounds only. Proxy Control never
   writes policy generations into it;

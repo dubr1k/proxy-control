@@ -257,3 +257,32 @@ upgrade touched no runtime user and `managed_resources` is empty, so the pre-upg
 database loses no fleet state. A node that was managed: unlink it first (its users become
 local and keep working), then roll back. A **central**: pause or delete its links first;
 its nodes keep serving whatever generation they last applied.
+
+## 12. Routing (v0.4)
+
+An egress policy is applied by a service's **manager**, never by editing a config by
+hand: the naive-manager owns `# BEGIN NAIVE-MANAGER EGRESS … # END` inside
+`/var/lib/naive-manager/Caddyfile` (reload, no restart), the mieru-manager owns mita's
+`egress` section (a restart of mita: every Mieru session reconnects once). A hand-written
+`upstream` or `egress` is left alone until the first apply adopts it, and a rollback
+brings it back verbatim — [ROUTING](ROUTING.en.md).
+
+- **Before applying WARP** the preview must show `warp: доступен`; a WARP that does not
+  answer fails closed (`provider_unreachable` / `egress_unreachable`) and nothing changes
+  on the node. `NAIVE_EGRESS_WARP` / `MIERU_EGRESS_WARP` in `.env` name the endpoint.
+- **Check after applying**: the badge «применено (rev N)»; `curl --proxy https://<naive
+  host>` with a client credential to a blocked and to an allowed target; a Mieru client
+  the same way; the cover site `https://<naive host>/` still answers 200; `nginx -T` and
+  `nft list ruleset` unchanged (routing never touches them).
+- **A failed apply** leaves the last applied revision running (`state = failed`,
+  `last_error` names the code); «Откатить» returns the manager's previous entry;
+  `manual_intervention_required` means the manager could not restore its config after a
+  readback mismatch — its backups are in `/var/lib/naive-manager/backups` and the
+  mieru-manager's journal, and `docker compose logs naive-manager mieru-manager` says
+  which file.
+- **Linked panels**: the central applies through the next generation; the node card and
+  the routing screen say «применяется…» until the node's report arrives (one heartbeat);
+  the node's own screen refuses to apply while a central manages it
+  (`managed_by_central`). Unlinking leaves the egress as it is.
+- Audit: `routing.policy.update | apply | rollback | delete` on the panel that applied.
+

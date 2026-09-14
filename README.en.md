@@ -19,7 +19,7 @@ that either finishes the job or puts the server back the way it was.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!WARNING]
-> **The current release is [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1)** (linked panels). Before it: [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All three are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
+> **The current release is [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1)** (routing: egress policies with a preview). Before it: [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — linked panels; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All of them are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
@@ -46,6 +46,7 @@ What you get:
 | **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. |
 | **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
 | **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
+| **Routing** | Since v0.4 — an egress policy per node and service: NaiveProxy and Mieru direct or through WARP, block by domain and CIDR, selective rules on Mieru; the preview tells exactly what the node's backend will enforce, and apply is transactional with a rollback — locally and on linked panels ([docs/ROUTING.en.md](docs/ROUTING.en.md)). |
 
 Traffic accounting differs per protocol, and the panel does not hide that:
 Telemt separates the process counter from quota consumption, Naive counts
@@ -231,18 +232,18 @@ suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
 
-**Beta releases (v0.2.0-beta.1, v0.3.0-beta.1).** `install-bootstrap` refuses a
+**Beta releases (v0.2.0-beta.1, v0.3.0-beta.1, v0.4.0-beta.1).** `install-bootstrap` refuses a
 version with a pre-release suffix, so a beta is installed without it: the same
 four files from the release page, the same `SHA256SUMS` check, then extract the
 archive and run the wizard from the extracted directory — it writes the
 configuration, shows the plan and applies nothing until you confirm the plan
 digest. This is the path the release gate takes on the lab host
 (`scripts/lab/guest-runner.sh host` installs the beta from the extracted
-archive), and it is how v0.2 and v0.3 were installed:
+archive), and it is how v0.2, v0.3 and v0.4 were installed:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.3.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
@@ -659,16 +660,22 @@ client, verifies SHA-256, registers it, enables `warp-svc`, and selects proxy
 mode. This is an optional proprietary external dependency: it is not covered
 by the project's MIT licence and is not bundled in the release archive.
 
-The settings live under `[three_xui]`. `warp_port` defaults to `40000` and is
-passed to every consumer; an explicitly configured alternative is preserved.
-An existing foreign WARP installation is never adopted or reconfigured: it
-requires a separate, explicit migration.
+Since v0.4 the settings live under `[egress]` (`warp`, `warp_port`, and the
+initial choice per service — `naive`, `mieru` = `direct | warp`); the old
+`[three_xui].warp` / `warp_port` are still read, with one warning. `warp_port`
+defaults to `40000` and is passed to every consumer; an explicitly configured
+alternative is preserved. An existing foreign WARP installation is never adopted
+or reconfigured: it requires a separate, explicit migration.
 
 | Protocol | What goes through WARP |
 |---|---|
 | **Xray / managed 3x-ui** | Domains in `warp_domains`, with the rule following blocking rules. Adopted (`existing`) routing is not changed. |
-| **NaiveProxy** | With empty `warp_domains`, all tunnelled traffic through `upstream socks5://127.0.0.1:40000`; with domain selectors it stays direct. |
-| **Mieru** | With empty `warp_domains`, all egress traffic; with domain selectors it stays `DIRECT`. |
+| **NaiveProxy** | The installer seeds `[egress].naive` once (`warp` = `upstream socks5://127.0.0.1:40000` for the whole service); from then on the panel's **routing policy** decides — whole service direct or through WARP, plus block rules — [docs/ROUTING.en.md](docs/ROUTING.en.md). |
+| **Mieru** | The installer seeds `[egress].mieru` once; from then on the routing policy decides — whole service, block rules, and selective rules by domain and CIDR. |
+
+The managers learn the endpoint through `NAIVE_EGRESS_WARP` / `MIERU_EGRESS_WARP`
+in `.env`; the panel never sends an address, only `warp` by name, and the
+routing screen previews exactly what each backend will enforce.
 
 With `warp = false`, WARP is not installed. Acceptance requires a fully
 configured pinned package, an active and boot-enabled service, a loopback
