@@ -49,7 +49,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Выпуски
 
-- [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — маршрутизация: egress-политики с предпросмотром (гейт в работе)
+- [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — маршрутизация: egress-политики с предпросмотром
 - [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — центральная панель и связанные панели
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — локальный control plane, подписки
 - [v0.1.0](releases/v0.1.0.md)
@@ -99,7 +99,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Releases
 
-- [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — routing: egress policies with a preview (gate in progress)
+- [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — routing: egress policies with a preview
 - [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — central panel and linked panels
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — local control plane, subscriptions
 - [v0.1.0](releases/v0.1.0.md)

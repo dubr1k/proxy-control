@@ -1,18 +1,23 @@
 # CONTINUE HERE — v0.4 маршрутизация
 
-Обновлено: 2026-09-14, вечер (Tasks 0–12 сделаны; идёт Task 13 — гейт релиза и живая проверка).
+Обновлено: 2026-09-14, вечер. **Tasks 0–13 сделаны: гейт зелёный, живая проверка на AMS_Z
+пройдена, релизная заметка заполнена.** Осталось только действие владельца — тег (и решение о
+merge/раскатке), см. «Что дальше».
 
 ## Где мы
 
 - Ветка: `feature/vnext-v0.4-routing` (от `feature/vnext-v0.3-fleet-v2` = `v0.3.0-beta.1`, `ecfdcc3`).
-  `VERSION` = `0.4.0-beta.1`. Рабочее дерево чистое, кроме этой заметки/плана/release note.
-- Спека: `docs/superpowers/specs/2026-09-14-v0.4-routing-design.md` (§13 — решения, принятые за
-  владельца, п. 8 — URL провайдера не покидает менеджер); план (Tasks 0–13):
-  `docs/superpowers/plans/2026-09-14-v0.4-routing.md` — галочки актуальны.
+  `VERSION` = `0.4.0-beta.1`. Гейт пройден на дереве `841a086` (`lab-sha256`
+  `4d1e96d4dbf638fd846c8b43a86c78223571b25ebfcceb41df8a6034c27e6d24`); коммиты после него —
+  только `scripts/dev/remote-gate.sh` (`e7c180c`, env-файлы tier `routing`), документация и план.
+- Спека: `docs/superpowers/specs/2026-09-14-v0.4-routing-design.md` (§13 — решения за владельца, п. 8 —
+  URL провайдера не покидает менеджер); план: `docs/superpowers/plans/2026-09-14-v0.4-routing.md` —
+  все галочки Tasks 0–13 стоят; релизная заметка: `docs/releases/v0.4.0-beta.1.md` (таблица гейта +
+  живая проверка AMS_Z, RU/EN).
 - Поручение владельца (2026-09-14): «приступай к работе над версией 0.4, создай новую ветку, принимай
   решения автономно, всё проверяешь на ssh ams-test; также можешь тестить на AMS_Z».
 
-## Сделано (коммиты по порядку)
+## Коммиты ветки (по порядку)
 
 | Коммит | Task | Что |
 | --- | --- | --- |
@@ -20,67 +25,53 @@
 | `3929da2`, `45703d7`, `013840f` | 1 | фикс-волна v0.3 (центр, узел, UI/стенд/compose tmpfs) |
 | `751e93f` | 2 | spike: `socks5-stub.py`, `routing-spike.py`, `docs/spikes/VNEXT_ROUTING_ENGINE.md` |
 | `0911494` | 3 | установщик `[egress]` (dual-read, `effective_egress`, мастер, compose env) |
-| `6eff402` | 4 | naive-manager egress API (`naive_manager/egress.py`, `/v1/egress*`) |
+| `6eff402` | 4 | naive-manager egress API |
 | `a7e8283` | 5 | mieru-manager egress API (restart-транзакция, журнал, host network) |
-| `11ac905` | 6 | клиенты панели + `EgressTarget/AppliedEgress` адаптеров + `egress.v1` в identity; `panel/routing/document.py` |
+| `11ac905` | 6 | клиенты панели + `EgressTarget/AppliedEgress` + `egress.v1` в identity; `panel/routing/document.py` |
 | `ca98bee` | 7 | `panel/routing/` models/compiler/store + миграция 14 |
-| `6371bb8` | 8 | `RoutingService` + `/api/routing/*` (локальный узел), `docs/AUDIT_EVENTS.md` |
-| `f2a685f` | 9 | Fleet v2: `EgressDocument`, `GenerationDocument.egress` (wire/digest без поля при None), узел применяет egress после ресурсов, pusher переводит политику в applied/failed, remote apply/rollback, `managed_by_central` |
-| `e877fbb` | 10 | UI «Маршрутизация» (`routing.js`), строка на карточке узла, контрактный тест, mobile-layout |
-| `b84414e`, `fcf452b` | 11 | лаборатория: `fleet-acceptance.py --routing` (r01…r11), `remote-gate.sh routing`, `guest-runner LAB_ROUTING=1` |
-| `4373edb`, `996352f` | 12 | VERSION 0.4.0-beta.1, CHANGELOG, `docs/ROUTING.en/ru.md`, ADR 006 accepted / ADR 007 (нативные backend), PANEL/FLEET/UPGRADING/OPERATIONS/COMPATIBILITY/README/матрица возможностей, черновик `docs/releases/v0.4.0-beta.1.md` |
-| `d93b598` | lab | LAB_RESET убирает `lab-adjacent.conf` (иначе dpkg configure nginx падал в preflight) |
-| `1b2eeed` | fix | голый 5xx от reverse proxy перед остановленной панелью = offline (`pusher._refusal`) — нашёл `lab-host fleet` |
-| `efb568c` | fix | установщик пишет `NAIVE_EGRESS_WARP`/`MIERU_EGRESS_WARP` в `.env.naive`/`.env.mieru` (`warp-provider` действия); `planner.profile_environment` — мёртвый код, живут только тесты |
+| `6371bb8` | 8 | `RoutingService` + `/api/routing/*` |
+| `f2a685f` | 9 | Fleet v2: секция `egress`, узел, pusher, remote apply/rollback, `managed_by_central` |
+| `e877fbb` | 10 | UI «Маршрутизация» |
+| `b84414e`, `fcf452b`, `e7c180c` | 11 | лаборатория: `fleet-acceptance.py --routing`, tier `routing` |
+| `4373edb`, `996352f` | 12 | VERSION/CHANGELOG, ROUTING.en/ru, ADR 006/007, PANEL/FLEET/UPGRADING/OPERATIONS/COMPATIBILITY/README |
+| `d93b598`, `1b2eeed`, `efb568c` | гейт | preflight/nginx fixture; голый 5xx = offline; установщик пишет `*_EGRESS_WARP` в env-оверлеи |
+| `841a086` + финальный docs-коммит | 13 | точка продолжения, гейт, живая проверка |
 
-## Гейт (Task 13) — статус
+## Гейт (Task 13) — итог
 
-| Гейт | Статус |
-| --- | --- |
-| `quick` (весь набор) | зелёный после Task 9 (EXIT=0); после `efb568c` — `tests/` зелёные, `panel/tests` частично |
-| `compose` | `REMOTE_GATE_COMPOSE_OK` после Task 5 |
-| `lab-host` (LAB_RESET=1 LAB_KEEP_INSTALL=1) | прогон 1 (дерево `4373edb`): установка/repair/reboot/crash — passed; сценарий `fleet` упал на s07/s09 offline-detection → фикс `1b2eeed`. **Повторить на финальном дереве** (архив = `git ls-files`, поэтому сначала всё закоммитить) |
-| `routing` | `ROUTING_ACCEPTANCE_OK` 2026-09-14: 154/154 проверок (70 routing), 261 с — на узле первого lab-host |
-| `fleet` | ещё не гонялся отдельно (внутри `routing` шаги 1–10 fleet проходят) |
-| `full` | запущен после `fcf452b`; результат — в `scratchpad/full-gate.log` сессии или перезапустить |
-| живая проверка AMS_Z | не начата |
+`full` (1978 passed / 2 skipped, 427 с), `compose`, `lab-host` (17 сценариев, `fleet` 169 с),
+`fleet` (84/84, 173 с), `routing` (154/154, 70 routing, 262 с) — все `REMOTE_GATE_*_OK`
+2026-09-14. Живая проверка AMS_Z 17:20–17:41 UTC: обновление v0.3 → v0.4 на месте, naive «весь через
+WARP» (`warp=on`, exit `104.28.219.140` ≠ прямой `194.87.220.7`) → откат байт-в-байт к privoxy-строке,
+mieru «WARP + block example.com» → откат к снимку, всё удалено; Caddyfile/mita/пользователи = снимку.
+Отчёт: `/root/v04-live/routing-live-report.json` на AMS_Z (root); точки отката `/root/v04-live/`.
+AMS_Z **остался на v0.4** с `NAIVE_EGRESS_WARP`/`MIERU_EGRESS_WARP=socks5://127.0.0.1:45000` в `.env`.
 
-## Как продолжать
+## Что дальше (владелец)
 
-1. `scripts/dev/remote-gate.sh full` → `REMOTE_GATE_FULL_OK`; `compose` → `REMOTE_GATE_COMPOSE_OK`.
-2. `LAB_RESET=1 LAB_KEEP_INSTALL=1 scripts/dev/remote-gate.sh lab-host` (≈ 10 мин; runner отвязан от
-   SSH, лог `/root/lab-host.log`); запомнить `/root/lab-host.sha` для аннотации тега.
-3. `scripts/dev/remote-gate.sh fleet` → `REMOTE_GATE_FLEET_OK`; `scripts/dev/remote-gate.sh routing` →
-   `REMOTE_GATE_ROUTING_OK` (ставит `NAIVE_EGRESS_WARP`/`MIERU_EGRESS_WARP=socks5://127.0.0.1:45000` в
-   `.env` узла и пересоздаёт менеджеры; stub стартует сам скрипт; отчёт `lab-results/routing/report.json`).
-4. Живая проверка `AMS_Z` (разрешение владельца 2026-09-14; хост на v0.3, rsync-раскатка,
-   `/opt/mtproxy-shared443`, `.env` с `COMPOSE_FILE=…`, Caddyfile содержит рукописный
-   `upstream http://127.0.0.1:8118` (privoxy) + `disable_insecure_upstreams_check`, mita — `egress`
-   с warp `127.0.0.1:45000` и правилом `* → PROXY`; WARP proxy mode слушает `127.0.0.1:45000`):
-   снимок (Caddyfile sha256, `mita describe config`, списки пользователей, `.env*`, db backup, теги
-   образов `:rollback-<ts>`) → rsync `panel/ naive_manager/ mieru_manager/ compose*.yaml VERSION` →
-   добавить `NAIVE_EGRESS_WARP=socks5://127.0.0.1:45000` и `MIERU_EGRESS_WARP=…` в `.env` →
-   `docker compose build panel naive-manager mieru-manager` → `up -d --wait --no-deps panel
-   naive-manager mieru-manager` (миграция 14; mieru-manager пересоздаётся в host network) → как owner
-   через API узла: `GET /api/routing/targets` (naive `mode=custom`, `adopts_unmanaged_upstream`; mieru
-   `mode=proxy`, `adopts_unmanaged_egress`) → политика naive «весь через WARP» → preview → apply →
-   exit-IP через живой клиент = IP WARP (104.28.x) → rollback → Caddyfile sha256 = снимку → mieru:
-   apply «весь через WARP» = no-op по digest? (секция уже warp — документ совпадёт, менеджер применит
-   идемпотентно) + block тестового домена → rollback → `mita describe config` = снимку → удалить
-   политики; пользователи не трогаются; хост остаётся на v0.4 (как в v0.3 живой проверке), `.env`
-   с переменными провайдера — оставить (честное состояние хоста с WARP) или убрать — решить и записать.
-5. Заполнить таблицу гейта и живую проверку в `docs/releases/v0.4.0-beta.1.md`, README «текущий
-   выпуск» уже указывает на v0.4; обновить эту заметку; `graphify update .`; финальное ревью ветки;
-   commit `docs: гейт v0.4.0-beta.1 и точка продолжения`. Тег — действие владельца
-   (`git tag -a v0.4.0-beta.1 -m '…' -m 'lab-sha256: <digest>'`).
+1. Тег: `git tag -a v0.4.0-beta.1 -m 'Proxy Control v0.4.0-beta.1 — маршрутизация' -m 'lab-sha256: <digest архива тегируемого дерева>'`
+   — архив пересобирается `release/build.py` из тегируемого дерева; `4d1e96d4…` относится к `841a086`.
+2. Merge ветки (v0.3-ветка `feature/vnext-v0.3-fleet-v2` — по-прежнему не слита в `main`; см. память
+   `proxy-control-vnext-v03-branch`) и раскатка `ams-server`/`AMS_P`/`AMS_R` — только владелец;
+   порядок «узлы → центр» (`docs/UPGRADING.ru.md`, раздел v0.4); хосты, обновляемые rsync, задают
+   `NAIVE_EGRESS_WARP`/`MIERU_EGRESS_WARP` в `.env` сами.
+3. Стенд `ams-test`: узел v0.4 (`lab-host`, LAB_KEEP_INSTALL=1) оставлен установленным с провайдером-stub
+   в `.env`/`.env.naive`/`.env.mieru` (`socks5://127.0.0.1:45000`, сам stub не запущен) — при следующем
+   `lab-host` с `LAB_RESET=1` всё переустановится.
 
-## Известные ограничения/решения (для ревью)
+## Известные ограничения/решения (для ревью и v0.5)
 
 - Удалённый rollback (связанная панель) — один шаг к предыдущему `applied`-документу из
-  `routing_applies` центра, не стек; локальный — журнал менеджера (стек до «пола» — перенятых строк).
-- «Сбросить и применить» у naive оставляет пустой управляемый блок (маркеры) — файл не байт-в-байт
-  равен свежей установке; откат к «полу» через журнал менеджера возвращает байты. Возможное улучшение:
-  не писать маркеры для пустого документа.
-- `providers` без URL везде (спека §13 п. 8); `manager_unavailable`, `egress_no_previous`,
-  `managed_by_central`, `backend_mismatch`, `node_not_found` — коды сверх спеки, в COMPATIBILITY.
-- Reachability-проба провайдера идёт при каждом heartbeat (identity) — на loopback это мгновенно.
+  `routing_applies` центра, не стек; локальный — журнал менеджера (стек до «пола»).
+- «Сбросить и применить» у naive оставляет пустой управляемый блок (маркеры); байт-в-байт к свежей
+  установке возвращает только откат к «полу». Возможное улучшение: не писать маркеры для пустого документа.
+- Предупреждение об adoption: у naive — от файла (каждый раз, пока строка не под маркерами), у mieru — от
+  журнала (только до первого применения). Косметика, отмечено в release note.
+- `providers` без URL везде (спека §13 п. 8); коды сверх спеки (`manager_unavailable`,
+  `egress_no_previous`, `managed_by_central`, `backend_mismatch`, `node_not_found`) — в COMPATIBILITY.
+- Reachability-проба провайдера при каждом heartbeat (identity) и каждом `targets` — на loopback мгновенна.
+- `installer/planner.profile_environment` — мёртвый код (только тесты); env пишут адаптеры. Кандидат на
+  удаление в v0.5.
+- `/code-review high` в сессии недоступен; финальная самопроверка: RBAC маршрутов, отсутствие секретов в
+  targets/identity/observed/audit (проверено на стенде и AMS_Z), FK-каскады миграции 14, wire/digest
+  совместимость v0.3↔v0.4 (unit + lab).
