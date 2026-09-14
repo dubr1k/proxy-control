@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import re
 import secrets
@@ -70,6 +71,23 @@ class TelemtClient:
         self.auth_header = auth_header
         self.timeout = timeout
         self.transport = transport
+        # Inside `batch()`: the user table as last read, or None when it must be read again.
+        self._batching, self._inventory = False, None
+
+    @contextlib.asynccontextmanager
+    async def batch(self):
+        """One read of the user table serves every `list_users`/`current_access` inside
+        (a reconcile reads the link of each of its resources back), until a call that
+        changes a link — create, rotate, delete — drops the snapshot. Enable/disable
+        and option updates leave the link alone and keep it."""
+        self._batching, self._inventory = True, None
+        try:
+            yield
+        finally:
+            self._batching, self._inventory = False, None
+
+    def _forget(self) -> None:
+        self._inventory = None
 
     async def _request(self, method, path, json=None):
         try:
@@ -94,19 +112,30 @@ class TelemtClient:
             raise TelemtError("Telemt API rejected request")
         return body.get("data"), body.get("revision")
 
-    async def list_users(self): return (await self._request("GET", "/v1/users"))[0]
+    async def list_users(self):
+        if self._batching and self._inventory is not None:
+            return copy.deepcopy(self._inventory)
+        rows = (await self._request("GET", "/v1/users"))[0]
+        if self._batching:
+            self._inventory = copy.deepcopy(rows)
+        return rows
 
     async def create_user(self, username, secret=None):
         body = {"username": username}
         if secret is not None:
             body["secret"] = secret
+        self._forget()
         return (await self._request("POST", "/v1/users", body))[0]
 
-    async def delete_user(self, username): return (await self._request("DELETE", f"/v1/users/{quote(username)}"))[0]
+    async def delete_user(self, username):
+        self._forget()
+        return (await self._request("DELETE", f"/v1/users/{quote(username)}"))[0]
+
     async def set_enabled(self, username, enabled): return (await self._request("POST", f"/v1/users/{quote(username)}/{'enable' if enabled else 'disable'}"))[0]
 
     async def rotate(self, username, secret=None):
         body = {} if secret is None else {"secret": secret}
+        self._forget()
         return (await self._request("POST", f"/v1/users/{quote(username)}/rotate-secret", body))[0]
     async def update_user(self, username, fields): return (await self._request("PATCH", f"/v1/users/{quote(username)}", fields))[0]
     async def reset_quota(self, username): return (await self._request("POST", f"/v1/users/{quote(username)}/reset-quota", {}))[0]

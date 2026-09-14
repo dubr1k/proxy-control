@@ -602,6 +602,12 @@ async def test_capture_after_a_202_is_batched_to_the_nodes_cap_and_never_marks_t
     intents = [GrantIntent(protocol="naive", node_id=node_id, runtime_username=n, options=NaiveOptions()) for n in names]
     operation = await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
     grants = {g.runtime_username: g for g in central.state.clients.client_with_grants(client.id)[1]}
+    # The node has applied the generation (the users are the central's there): an escrow
+    # capture answers only for users the node records as managed (post-merge re-review).
+    with node.state.database.transaction() as db:
+        for name, grant in grants.items():
+            node.state.managed.upsert_resource(db, protocol="naive", username=name, ref=f"grant:{grant.id}", generation=1,
+                                               state="enabled", credential_ref=f"grant:{grant.id}:1")
     # The converged report a node gives after a 202: every resource present, no credentials in it.
     report = ObservedGeneration(applied_generation=1, digest="d", reconcile_state="converged", reported_at=1, resources=[
         ObservedResource(ref=f"grant:{g.id}", protocol="naive", runtime_username=n, state="enabled") for n, g in grants.items()])

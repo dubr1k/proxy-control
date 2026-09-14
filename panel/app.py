@@ -150,8 +150,7 @@ def create_app(
     app.state.desired = DesiredStore(app.state.database)
     app.state.links = NodeLinkService(app.state.database, app.state.secrets, app.state.nodes,
                                       own_guid=app.state.panel_guid)
-    # "Disable" on a linked panel is pausing its link; the v1 switch has nothing to cut there.
-    app.state.nodes.links = app.state.links
+    app.state.links.provisioning = app.state.provisioning
 
     def publish_for_client(db, client_id):
         # Every grant mutation funnels through ClientService.notify; publish for each

@@ -8,6 +8,11 @@ from ..database import Database
 from ..fleet import NODE_RE, FleetStore, ProtocolError, validate_inventory
 from .models import LOCAL_NODE_ID
 
+# A link with what the node last reported beside it (the view tells "not applied yet"
+# from "applied, a credential still to be captured" by these two columns).
+LINK_WITH_OBSERVED = """SELECT l.*, o.applied_generation AS observed_generation, o.reconcile_state AS observed_state
+                        FROM node_links l LEFT JOIN observed_generations o ON o.node_id=l.node_id"""
+
 
 class NodeRegistry:
     def __init__(self, database: Database):
@@ -27,7 +32,7 @@ class NodeRegistry:
     def rows(db) -> list[dict]:
         # The operator's own host is what they look at first, and sorting by node_id would
         # bury it somewhere in the middle of the fleet.
-        links = {row["node_id"]: NodeRegistry.link_row(row) for row in db.execute("SELECT * FROM node_links")}
+        links = {row["node_id"]: NodeRegistry.link_row(row) for row in db.execute(LINK_WITH_OBSERVED)}
         values = [
             FleetStore._node(row)
             for row in db.execute(
@@ -44,7 +49,7 @@ class NodeRegistry:
         if row is None:
             raise KeyError(node_id)
         value = FleetStore._node(row)
-        link = db.execute("SELECT * FROM node_links WHERE node_id=?", (node_id,)).fetchone()
+        link = db.execute(f"{LINK_WITH_OBSERVED} WHERE l.node_id=?", (node_id,)).fetchone()
         value["link"] = None if link is None else NodeRegistry.link_row(link)
         return value
 

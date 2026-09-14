@@ -29,8 +29,6 @@ class NodeLifecycleService:
         self.clock = clock
         self.nodes = NodeRegistry(database)
         self.certificates = CertificateRegistry(database)
-        # Set by create_app once the link service exists (it needs this service first).
-        self.links = None
 
     def _view(self, db, row: dict) -> NodeView:
         return derive(
@@ -86,10 +84,16 @@ class NodeLifecycleService:
     def set_disabled(self, node_id: str, disabled: bool, *, actor: dict, ip: str, request_id: str | None = None) -> NodeView:
         with self.database.connect() as db:
             transport = self.nodes.row(db, node_id)["transport"]
-        if transport == "panel" and self.links is not None:
+        if transport == "panel":
             # A linked panel has no v1 transport to switch off: disabling it is pausing the
             # link (spec §6) — the heartbeat and push loop skip it, subscribers keep working.
-            self.links.set_enabled(node_id, not disabled, actor=actor, ip=ip, request_id=request_id)
+            # The row write needs no link service (the CLI builds none): `node_links.enabled`
+            # is the one flag a linked panel has, so `fleet_nodes.disabled` is never touched.
+            from ..fleet_v2.links import NodeLinkService
+
+            with self.database.transaction() as db:
+                NodeLinkService.write_enabled(db, node_id, not disabled, actor=actor, ip=ip, request_id=request_id,
+                                              now=int(self.clock.time()))
             return self.get(node_id)
         with self.database.transaction() as db:
             row = self.nodes.row(db, node_id)

@@ -88,9 +88,12 @@ def resolve_artifacts(
         if adapter is None:
             continue
         row = ClientStore.grant(db, grant.grant_id)
+        version = _in_force(db, grant)
+        if version is None:
+            continue  # nothing the node runs yet: not a link a subscriber can use
         plaintext = secrets.reveal(
             db,
-            SecretRef(f"grant:{grant.grant_id}", grant.secret_version),
+            SecretRef(f"grant:{grant.grant_id}", version),
             purpose=CREDENTIAL_PURPOSE,
             grant_id=grant.grant_id,
             permitted_node_id=grant.node_id,
@@ -99,6 +102,26 @@ def resolve_artifacts(
             row, plaintext, public_host=hosts(grant.node_id).get(grant.protocol, "")
         )
     return result
+
+
+def _in_force(db, grant: ManifestGrant) -> int | None:
+    """The version the node actually runs, or None. `SecretStore.reveal` refuses only
+    `revoked`; the version a grant names is `pending` while a remote node has not applied
+    it — the bare value the central generated, which the runtime may still reframe
+    (Telemt's `ee…`) or never receive — and then the `retiring` one it replaces is what
+    still works, so a subscriber keeps a usable link through the rotation."""
+    secret_id = f"grant:{grant.grant_id}"
+    row = db.execute("SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
+                     (secret_id, grant.secret_version)).fetchone()
+    if row is None:
+        return None
+    if row["state"] == "active":
+        return grant.secret_version
+    if row["state"] == "pending":
+        retiring = db.execute("SELECT max(version) FROM secret_versions WHERE secret_id=? AND state='retiring'",
+                              (secret_id,)).fetchone()[0]
+        return retiring
+    return None
 
 
 def credential_reason(grant: ManifestGrant, artifacts: dict[str, list[AccessArtifact]]) -> str | None:

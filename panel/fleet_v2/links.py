@@ -27,6 +27,8 @@ class NodeLinkService:
     def __init__(self, database, secrets, nodes, *, own_guid: str, client_factory=NodeClient, clock=time):
         self.database, self.secrets, self.nodes = database, secrets, nodes
         self.own_guid, self.client_factory, self.clock = own_guid, client_factory, clock
+        # Set by create_app: a forced deletion withdraws the operations waiting for the node.
+        self.provisioning = None
 
     # --- rows -------------------------------------------------------------------
 
@@ -149,12 +151,19 @@ class NodeLinkService:
     def set_enabled(self, node_id: str, enabled: bool, *, actor, ip, request_id=None) -> None:
         """Pause/resume: a paused link is skipped by the heartbeat and push loop."""
         with self.database.transaction() as db:
-            changed = db.execute("UPDATE node_links SET enabled=?,updated_at=? WHERE node_id=?",
-                                 (1 if enabled else 0, int(self.clock.time()), node_id)).rowcount
-            if changed != 1:
-                raise KeyError(node_id)
-            record(db, actor=actor, action="node.resume" if enabled else "node.pause", target=node_id, ip=ip,
-                   request_id=request_id)
+            self.write_enabled(db, node_id, enabled, actor=actor, ip=ip, request_id=request_id, now=int(self.clock.time()))
+
+    @staticmethod
+    def write_enabled(db, node_id: str, enabled: bool, *, actor, ip, request_id=None, now: int) -> None:
+        """The pause/resume row change with its audit, inside the caller's transaction — the
+        link's `enabled` is the one flag a linked panel has (`fleet_nodes.disabled` is v1's),
+        so the node lifecycle service and the CLI write the same row without this service."""
+        changed = db.execute("UPDATE node_links SET enabled=?,updated_at=? WHERE node_id=?",
+                             (1 if enabled else 0, now, node_id)).rowcount
+        if changed != 1:
+            raise KeyError(node_id)
+        record(db, actor=actor, action="node.resume" if enabled else "node.pause", target=node_id, ip=ip,
+               request_id=request_id)
 
     @staticmethod
     def _refuse_provisioned(db, node_id: str) -> None:
@@ -173,34 +182,47 @@ class NodeLinkService:
         raise LinkConflict(f"{remaining} provisioned grant(s) still exist on the node: delete the clients' accesses "
                            "first and wait until the node confirms")
 
-    async def delete(self, node_id: str, *, actor, ip, request_id=None) -> None:
+    async def delete(self, node_id: str, *, actor, ip, request_id=None, force: bool = False) -> None:
         """Refused while any provisioned grant on the node remains, unconfirmed deletions
-        included (`_refuse_provisioned`). Imported grants are released, not deleted — the
-        users existed before the link (ADR 003 `adopted`) and stay on the node as local
-        users; their rows go and their credentials are revoked here. Tells the node to
-        forget its master (best effort) and removes the row, its generations and its key."""
+        included (`_refuse_provisioned`) — unless the owner forces it: a node that is gone
+        for good would otherwise block its own removal forever (finding I4). A forced
+        deletion abandons those grants (the accounts, if the node still runs, stay as its
+        local users) and says so in the audit row. Imported grants are released, not
+        deleted — the users existed before the link (ADR 003 `adopted`) and stay on the
+        node as local users; their rows go and their credentials are revoked here. Tells
+        the node to forget its master (best effort; the class of failure is audited) and
+        removes the row, its generations and its key."""
         with self.database.connect() as db:
             link = self.link(db, node_id)
-            self._refuse_provisioned(db, node_id)
+            if not force:
+                self._refuse_provisioned(db, node_id)
             key = self._reveal_key(db, link)
+        released, node_error = True, None
         try:
             await self._client(link, key).unlink()
-            released = True
-        except CLIENT_ERRORS:
+        except CLIENT_ERRORS as exc:
             # The node's owner can still cut the link from that panel's own UI.
-            released = False
+            released, node_error = False, self._describe(exc)
         with self.database.transaction() as db:
-            self._refuse_provisioned(db, node_id)
+            abandoned = 0
+            if force:
+                abandoned = NodeRegistry.provisioned_grants(db, node_id)
+            else:
+                self._refuse_provisioned(db, node_id)
             imported = db.execute(
                 "SELECT id FROM access_grants WHERE node_id=? AND origin='imported' AND desired_state<>'deleted'",
                 (node_id,)).fetchall()
-            for row in imported:
-                # The credential was the node's own (captured at import): nothing on the node
-                # changes, but this panel must not keep a usable copy of an account it no
-                # longer manages.
+            # Released (imported) and, when forced, abandoned (provisioned) grants alike: the
+            # credential stays the node's — this panel must not keep a usable copy of an
+            # account it no longer manages, and no operation may keep waiting for the node.
+            let_go = db.execute("SELECT id FROM access_grants WHERE node_id=?", (node_id,)).fetchall() if force \
+                else imported
+            for row in let_go:
                 for version in db.execute("SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'",
                                           (f"grant:{row['id']}",)).fetchall():
                     self.secrets.transition(db, SecretRef(f"grant:{row['id']}", version["version"]), "revoked")
+                if force and self.provisioning is not None:
+                    self.provisioning.withdraw_remote(db, row["id"], reason="node unlinked (forced)")
             # Deleted grants are history the node no longer needs, and they would keep the
             # node row alive (ON DELETE RESTRICT). fleet_nodes cascades to node_links,
             # desired_generations and observed_generations.
@@ -208,8 +230,19 @@ class NodeLinkService:
             db.execute("DELETE FROM secret_versions WHERE secret_id=? AND purpose=?",
                        (link["api_key_secret_id"], KEY_PURPOSE))
             db.execute("DELETE FROM fleet_nodes WHERE node_id=?", (node_id,))
-            record(db, actor=actor, action="node.unlink", target=node_id, ip=ip, request_id=request_id,
-                   detail={"node_released": released, "released_imported": len(imported)})
+            detail = {"node_released": released, "released_imported": len(imported)}
+            if node_error is not None:
+                detail["node_error"] = node_error
+            if force:
+                detail.update({"forced": True, "abandoned_provisioned": abandoned})
+            record(db, actor=actor, action="node.unlink", target=node_id, ip=ip, request_id=request_id, detail=detail)
+
+    @staticmethod
+    def _describe(exc: Exception) -> str:
+        """The class of the node's failure and its status/code — never a detail (an echoed
+        request could carry a key)."""
+        code = f": {exc.code or exc.status}" if isinstance(exc, NodeRejected) else ""
+        return f"{type(exc).__name__}{code}"[:100]
 
     # --- heartbeat bookkeeping ---------------------------------------------------
 

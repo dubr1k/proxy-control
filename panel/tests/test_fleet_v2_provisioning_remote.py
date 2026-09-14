@@ -141,7 +141,9 @@ async def test_compensation_never_sends_a_node_confirmed_remote_step_to_a_local_
         latest = central.state.desired.latest(db, node_id)
         states = {row["runtime_username"]: (row["desired_state"], row["observed_state"])
                   for row in db.execute("SELECT runtime_username, desired_state, observed_state FROM access_grants")}
-    assert states == {"alice": ("deleted", "enabled"), "bob": ("deleted", "missing")}
+    # The remote grant is withdrawn through the next generation; the local one, confirmed
+    # gone by its manager, leaves no tombstone (post-merge T10).
+    assert states == {"alice": ("deleted", "enabled")}
     assert latest["generation"] == 2 and [(r.ref, r.desired_state) for r in latest["document"].resources] == \
         [(f"grant:{alice.id}", "deleted")]
 
