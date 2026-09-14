@@ -132,9 +132,13 @@ case $LEVEL in
     # scenarios (routing-01…10) beside the usual flow. The stub itself is started and
     # stopped by the acceptance script. Nothing is rebuilt or reinstalled.
     sync_tree
+    # The installer writes the key (empty) into the runtime's own overlay (.env.naive /
+    # .env.mieru), which Compose reads after .env: the value has to land in every file that
+    # defines the key, or the overlay's empty value would win.
     remote "cd /opt/mtproxy-shared443 \
-      && for key in NAIVE_EGRESS_WARP MIERU_EGRESS_WARP; do \
-           grep -q \"^\$key=\" .env && sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" .env || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
+      && for key in NAIVE_EGRESS_WARP MIERU_EGRESS_WARP; do hit=0; \
+           for file in .env .env.naive .env.mieru; do test -f \$file && grep -q \"^\$key=\" \$file && { sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" \$file; hit=1; }; done; \
+           test \$hit = 1 || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
       && files=(--env-file .env -f compose.yaml) \
       && for runtime in mieru naive; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
       && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait naive-manager mieru-manager"
