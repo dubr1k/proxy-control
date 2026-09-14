@@ -209,10 +209,13 @@ never interleave:
 
 1. **Heartbeat** — `GET identity` + `GET status`. Success records `online`, latency,
    `panel_version`, the identity and status JSON and clears `last_error`; a transport
-   error or any error status (401/403 for a bad key, 404 from a panel without the
-   API, 429, 5xx) records `offline` with the failure class and code (never a
-   response body) in `last_error`, keeping the last good report. Only a transition
-   emits an event, `node.up` or `node.down` (`GET /api/events`).
+   error or an error status (401/403 for a bad key, 404 from a panel without the
+   API, a bare 502/503/504 page from the reverse proxy in front of a stopped panel)
+   records `offline` with the failure class and code (never a response body) in
+   `last_error`, keeping the last good report. A **refusal the panel itself wrote** —
+   429, or a 5xx with the panel's JSON `{detail, code}` (a manager hiccup) — only
+   records the error and backs the delivery off: the node is up, not down. Only a
+   transition emits an event, `node.up` or `node.down` (`GET /api/events`).
 2. **Delivery** — when the node owes the central a generation (`config_dirty`, or the
    acknowledged generation is behind), the latest one is pushed with its credentials
    revealed for that node only. A `202` is polled with `GET observed` on the following

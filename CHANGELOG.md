@@ -77,8 +77,10 @@ of narrowing a rule silently — [ROUTING](docs/ROUTING.en.md),
 
 ### Changed
 
-- **Fix-wave of the v0.3 post-merge findings**: a node answering 429/5xx keeps
-  its link status (backoff, not `offline`); escrow only from a report about the
+- **Fix-wave of the v0.3 post-merge findings**: a node answering 429, or a 5xx it
+  wrote itself (JSON `{detail, code}`), keeps its link status (backoff, not
+  `offline`) — a bare 502/503/504 page from the proxy in front of a stopped panel
+  is still `offline`; escrow only from a report about the
   current generation; unchanged plaintext is not re-escrowed; heartbeat bodies
   capped at 1 MiB; `POST credentials/capture` takes `purpose: escrow | import`
   and refuses unmanaged users for escrow; `DELETE /api/nodes/{id}?force=1`;
