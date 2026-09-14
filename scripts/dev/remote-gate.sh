@@ -21,7 +21,7 @@ sync_tree() {
     --exclude .venv --exclude .lab-state --exclude lab-results --exclude lab-results-container \
     --exclude dist --exclude dist-again --exclude __pycache__ --exclude .pytest_cache \
     --exclude .ruff_cache --exclude node_modules --exclude .DS_Store --exclude .hermes \
-    --exclude secrets --exclude .env --exclude graphify-out/cache \
+    --exclude secrets --exclude .env --exclude graphify-out \
     "$ROOT/" "$HOST:$REMOTE/"
 }
 
