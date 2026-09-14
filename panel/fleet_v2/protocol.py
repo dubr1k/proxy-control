@@ -7,7 +7,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ..routing.document import canonical, document_digest
+
 MAX_PUSH_BYTES = 65536
+# A compiled egress document per protocol (spec §5 limits); the push stays within MAX_PUSH_BYTES.
+MAX_EGRESS_BYTES = 16384
 MAX_RESOURCES = 500
 # A node reads back at most this many credentials per `POST credentials/capture`; a central
 # asking for more (a generation may carry MAX_RESOURCES) batches its request.
@@ -53,6 +57,25 @@ class Resource(_Strict):
     valid_until: int | None = None
 
 
+class EgressDocument(_Strict):
+    """What one protocol's egress should be on the node (v0.4, spec §8.3): the compiled
+    document the manager validates, named by the policy revision it came from."""
+
+    backend: Literal["naive_native", "mieru_native"]
+    policy_id: str = Field(min_length=1, max_length=64)
+    policy_revision: int = Field(ge=1)
+    document: dict
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def digest_names_the_document(self):
+        if len(canonical(self.document)) > MAX_EGRESS_BYTES:
+            raise ValueError("egress document too large")
+        if document_digest(self.document) != self.digest:
+            raise ValueError("egress digest does not match the document")
+        return self
+
+
 class GenerationDocument(_Strict):
     schema_version: Literal[1] = SCHEMA_VERSION
     node_guid: str = Field(min_length=1, max_length=64)
@@ -62,6 +85,17 @@ class GenerationDocument(_Strict):
     created_at: int
     created_by: str = Field(max_length=128)
     resources: list[Resource] = Field(max_length=MAX_RESOURCES)
+    # Egress per protocol (v0.4). Absent = leave the node's egress as it is. Never sent to a
+    # node without `egress.v1` — its strict model would refuse the whole generation — and
+    # left out of the wire form and the digest when None, so a v0.3 central and a v0.4 node
+    # (or the reverse) agree on every document that carries no egress.
+    egress: dict[Literal["naive", "mieru"], EgressDocument] | None = None
+
+    def wire(self) -> dict:
+        payload = self.model_dump()
+        if payload.get("egress") is None:
+            payload.pop("egress", None)
+        return payload
 
     @model_validator(mode="after")
     def resources_do_not_collide_on_the_same_runtime_user(self):
@@ -77,7 +111,7 @@ class GenerationDocument(_Strict):
 
 
 def canonical_digest(document: GenerationDocument) -> str:
-    payload = document.model_dump()
+    payload = document.wire()
     payload["resources"] = sorted(payload["resources"], key=lambda item: item["ref"])
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -96,6 +130,9 @@ class PushRequest(_Strict):
             raise ValueError(f"secrets for unknown refs: {sorted(stray)}")
         return self
 
+    def wire(self) -> dict:
+        return {"expected_guid": self.expected_guid, "generation": self.generation.wire(), "secrets": dict(self.secrets)}
+
 
 class ObservedResource(_Report):
     ref: str
@@ -110,12 +147,26 @@ class ObservedResource(_Report):
     learned: dict[str, str | int] = Field(default_factory=dict, max_length=8)
 
 
+class ObservedEgress(_Report):
+    """What the node did with one protocol's egress section (v0.4): `converged` at the
+    manager's revision and the digest it runs, `failed` with the manager's code, or
+    `unsupported` when the protocol has no egress here."""
+
+    state: Literal["converged", "failed", "unsupported"]
+    revision: str | None = None
+    digest: str | None = None
+    error: str | None = None
+
+
 class ObservedGeneration(_Report):
     applied_generation: int
     digest: str
     reconcile_state: Literal["idle", "applying", "converged", "failed"]
     resources: list[ObservedResource]
     reported_at: int
+    # Per protocol, the egress the node last applied for a generation (v0.4); an older
+    # central ignores the field.
+    egress: dict[str, ObservedEgress] = Field(default_factory=dict)
 
 
 class PushResponse(_Report):

@@ -58,16 +58,22 @@ def target_from_identity(protocol: str, entry: dict | None) -> EgressTarget | No
 
 class RoutingService:
     def __init__(self, database: Database, store: RoutingStore, adapters: dict, nodes: NodeRegistry, *,
-                 enabled: Callable[[str], bool] = lambda protocol: True, publisher=None, clock=time):
+                 enabled: Callable[[str], bool] = lambda protocol: True, publisher=None, managed=None, clock=time):
         self.database = database
         self.store = store
         self.adapters = adapters
         self.nodes = nodes
         self.enabled = enabled
-        # Task 9: the remote path — `publisher(db, node_id)` compiles a generation with the
-        # node's applying policies; None means this panel applies locally only.
+        # The remote path (spec §8.3): `publisher(db, node_id)` publishes a generation carrying
+        # the node's desired egress sections; None means this panel applies locally only.
         self.publisher = publisher
+        # The node side of a link (ADR 003): while a central manages this panel, its egress is
+        # the central's to set — a local apply would race the next generation.
+        self.managed = managed
         self.clock = clock
+
+    def _master(self, db) -> str | None:
+        return None if self.managed is None else self.managed.master_guid(db)
 
     # -- targets -----------------------------------------------------------------------
 
@@ -100,6 +106,7 @@ class RoutingService:
         with self.database.connect() as db:
             rows = [row for row in self.nodes.rows(db) if self._kind(row) != "v1"]
             policies = {(policy.node_id, policy.protocol): policy for policy in self.store.list(db)}
+            master = self._master(db)
         items = []
         for row in rows:
             node_id, kind = row["node_id"], self._kind(row)
@@ -109,15 +116,21 @@ class RoutingService:
                         "mode": None, "policy": None, "reason": None}
                 policy = policies.get((node_id, protocol))
                 if policy is not None:
+                    enabled_rules = [rule for rule in policy.rules if rule.enabled]
                     item["policy"] = {"id": policy.id, "revision": policy.revision, "state": policy.state,
                                       "applied_revision": policy.applied_revision, "applied_current": policy.applied_current,
-                                      "last_error": policy.last_error}
+                                      "last_error": policy.last_error, "default_action": policy.default_action,
+                                      "default_egress": policy.default_egress,
+                                      "rules": {action: sum(rule.action == action for rule in enabled_rules)
+                                                for action in ("block", "direct", "egress")}}
                 if protocol not in BACKEND_FOR:
                     item["reason"] = "protocol_out_of_scope"
                     items.append(item)
                     continue
                 if kind == "remote" and row["link"].get("status") != "online":
                     item["reason"] = "node_offline"
+                elif kind == "local" and master is not None:
+                    item["reason"] = "managed_by_central"
                 try:
                     target, egress_v1 = await self._target(row, protocol)
                 except AdapterError as exc:
@@ -244,20 +257,28 @@ class RoutingService:
                                     digest=applied.digest if applied is not None else compiled.digest,
                                     backend=policy.backend, outcome=outcome, detail=json.dumps(detail, sort_keys=True),
                                     actor=actor["username"], runtime_version=compiled.runtime_version,
-                                    compiler_version=compiled.compiler_version, now=now)
+                                    compiler_version=compiled.compiler_version,
+                                    document=compiled.document if outcome == "applied" else None, now=now)
             audit.record(db, actor=actor, action=action, target=policy.id, ip=ip, request_id=request_id,
                          detail={"node_id": policy.node_id, "protocol": policy.protocol, "revision": policy.revision,
                                  "outcome": outcome, "digest": compiled.digest, **detail})
             return self.store.get_by_id(db, policy.id)
 
-    async def apply(self, node_id: str, protocol: str, *, expected_revision: int, actor: dict, ip: str,
-                    request_id: str | None = None) -> dict:
-        """compile → plan → apply on the manager, then the outcome in one transaction."""
+    def _for_change(self, node_id: str, protocol: str, expected_revision: int) -> tuple[RoutingPolicy, dict]:
         with self.database.connect() as db:
             policy = self._policy(db, node_id, protocol)
             row = self._node(db, node_id)
+            master = self._master(db)
         if expected_revision != policy.revision:
             raise RoutingError(409, "policy_conflict", f"policy revision is {policy.revision}")
+        if self._kind(row) == "local" and master is not None:
+            raise RoutingError(409, "managed_by_central", "a central panel manages this node's egress")
+        return policy, row
+
+    async def apply(self, node_id: str, protocol: str, *, expected_revision: int, actor: dict, ip: str,
+                    request_id: str | None = None) -> dict:
+        """compile → plan → apply on the manager, then the outcome in one transaction."""
+        policy, row = self._for_change(node_id, protocol, expected_revision)
         try:
             target, egress_v1 = await self._target(row, protocol)
         except AdapterError as exc:
@@ -281,26 +302,52 @@ class RoutingService:
                                request_id=request_id, action="routing.policy.apply")
         return {"policy": updated, "applied": applied, "compiled": compiled}
 
-    async def _apply_remote(self, policy: RoutingPolicy, compiled: Compiled, *, actor, ip, request_id) -> dict:
+    def _publish_desired(self, policy: RoutingPolicy, desired: dict, *, action: str, detail: dict, actor, ip,
+                         request_id) -> RoutingPolicy:
+        """The remote path (spec §8.3): the policy's desired egress section joins the node's
+        next generation; the node's report (pusher) then moves the policy on."""
         if self.publisher is None:
             raise RoutingError(409, "node_not_local", "this panel applies routing locally only")
         now = int(self.clock.time())
         with self.database.transaction() as db:
+            self.store.set_desired(db, policy.id, desired, now=now)
             self.store.mark(db, policy.id, state="applying", now=now)
-            self.publisher(db, policy.node_id)
-            audit.record(db, actor=actor, action="routing.policy.apply", target=policy.id, ip=ip, request_id=request_id,
+            if action == "routing.policy.rollback":
+                self.store.record_apply(db, policy.id, revision=policy.revision, digest=desired["digest"],
+                                        backend=policy.backend, outcome="rolled_back",
+                                        detail=json.dumps(detail, sort_keys=True), actor=actor["username"], now=now)
+            generation = self.publisher(db, policy.node_id)
+            audit.record(db, actor=actor, action=action, target=policy.id, ip=ip, request_id=request_id,
                          detail={"node_id": policy.node_id, "protocol": policy.protocol, "revision": policy.revision,
-                                 "outcome": "applying", "digest": compiled.digest})
-            updated = self.store.get_by_id(db, policy.id)
+                                 "outcome": "applying", "generation": generation, **detail})
+            return self.store.get_by_id(db, policy.id)
+
+    async def _apply_remote(self, policy: RoutingPolicy, compiled: Compiled, *, actor, ip, request_id) -> dict:
+        desired = {"backend": policy.backend, "policy_id": policy.id, "policy_revision": policy.revision,
+                   "document": compiled.document, "digest": compiled.digest}
+        updated = self._publish_desired(policy, desired, action="routing.policy.apply", detail={"digest": compiled.digest},
+                                        actor=actor, ip=ip, request_id=request_id)
+        return {"policy": updated, "applied": None, "compiled": compiled}
+
+    async def _rollback_remote(self, policy: RoutingPolicy, *, actor, ip, request_id) -> dict:
+        """Back to the document of the previous successful apply in the central's own history
+        (the manager's journal is the node's); one step, not a stack."""
+        with self.database.connect() as db:
+            previous = self.store.last_applied(db, policy.id)
+        if previous is None or previous.get("document") is None:
+            raise RoutingError(409, "egress_no_previous", "no previous applied document to return to")
+        desired = {"backend": policy.backend, "policy_id": policy.id, "policy_revision": previous["revision"],
+                   "document": previous["document"], "digest": previous["digest"]}
+        updated = self._publish_desired(policy, desired, action="routing.policy.rollback",
+                                        detail={"to_revision": previous["revision"], "digest": previous["digest"]},
+                                        actor=actor, ip=ip, request_id=request_id)
+        compiled = Compiled(status="supported", backend=policy.backend, digest=previous["digest"],
+                            document=previous["document"])
         return {"policy": updated, "applied": None, "compiled": compiled}
 
     async def rollback(self, node_id: str, protocol: str, *, expected_revision: int, actor: dict, ip: str,
                        request_id: str | None = None) -> dict:
-        with self.database.connect() as db:
-            policy = self._policy(db, node_id, protocol)
-            row = self._node(db, node_id)
-        if expected_revision != policy.revision:
-            raise RoutingError(409, "policy_conflict", f"policy revision is {policy.revision}")
+        policy, row = self._for_change(node_id, protocol, expected_revision)
         if self._kind(row) != "local":
             return await self._rollback_remote(policy, actor=actor, ip=ip, request_id=request_id)
         try:
@@ -316,6 +363,3 @@ class RoutingService:
         updated = self._record(policy, compiled, outcome="rolled_back", applied=applied, error=None, actor=actor, ip=ip,
                                request_id=request_id, action="routing.policy.rollback")
         return {"policy": updated, "applied": applied, "compiled": compiled}
-
-    async def _rollback_remote(self, policy: RoutingPolicy, *, actor, ip, request_id) -> dict:
-        raise RoutingError(409, "node_not_local", "rollback on a linked panel is not available yet")

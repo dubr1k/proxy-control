@@ -20,7 +20,7 @@ from ..clients.models import PROTOCOL_OPTIONS, GrantIntent
 from ..protocols.base import AdapterError, AppliedGrant, CredentialPlan, GrantRef, ObservedGrant
 from ..secrets_store import SecretRef
 from .managed import ManagedStore
-from .protocol import ObservedGeneration, ObservedResource, PushRequest, Resource
+from .protocol import EgressDocument, ObservedGeneration, ObservedResource, PushRequest, Resource
 
 
 class GenerationSuperseded(KeyError):
@@ -299,6 +299,50 @@ class Reconciler:
                                          ref=resource.ref, generation=generation, state=state, error=error,
                                          revision=revision, credential_ref=credential_ref, learned=learned)
 
+    # ---- egress (v0.4, spec §8.3): after the resources, one section per protocol ------
+
+    def _record_egress(self, protocol: str, generation: int, state: str, *, revision: str | None = None,
+                       digest: str | None = None, error: str | None = None) -> None:
+        with self.database.transaction() as db:
+            self.managed.upsert_egress(db, protocol=protocol, generation=generation, state=state, revision=revision,
+                                       digest=digest, error=error)
+
+    async def _apply_egress_section(self, protocol: str, entry: EgressDocument, generation: int) -> None:
+        adapter = self.adapters.get(protocol)
+        target = None if adapter is None else await adapter.egress_target()
+        if target is None:
+            raise AdapterError(f"{protocol} has no egress on this node", code="egress_unsupported")
+        if target.backend != entry.backend:
+            raise AdapterError(f"{protocol} runs {target.backend}, not {entry.backend}", code="egress_unsupported")
+        if target.applied is not None and target.applied["digest"] == entry.digest:
+            # Already what the runtime runs: a re-PUT or a restart re-applies nothing.
+            self._record_egress(protocol, generation, "converged", revision=target.revision, digest=entry.digest)
+            return
+        applied = await adapter.apply_egress(entry.document, expected_revision=target.revision,
+                                             operation_id=f"{self.guid}:{generation}:egress:{protocol}")
+        self._record_egress(protocol, generation, "converged", revision=applied.revision, digest=applied.digest)
+
+    async def _apply_egress(self, egress: dict[str, EgressDocument] | None, generation: int) -> bool:
+        """Apply each protocol's egress section; True when any failed. No section at all
+        means the central has nothing to say about egress: the node leaves it as it is."""
+        if not egress:
+            return False
+        failed = False
+        for protocol, entry in egress.items():
+            try:
+                await self._apply_egress_section(protocol, entry, generation)
+            except AdapterError as exc:
+                failed = True
+                code = exc.code or "manager_unavailable"
+                log.warning("fleet: egress for %s failed: %s", protocol, code)
+                self._record_egress(protocol, generation, "unsupported" if code == "egress_unsupported" else "failed",
+                                    error=code)
+            except Exception as exc:  # noqa: BLE001 — reported, never fatal
+                failed = True
+                log.warning("fleet: egress for %s failed: %s", protocol, exc)
+                self._record_egress(protocol, generation, "failed", error=str(exc)[:200])
+        return failed
+
     async def _apply(self, generation: int) -> tuple[ObservedGeneration, dict[str, str]]:
         with self.database.connect() as db:
             latest = self.managed.latest(db)
@@ -346,6 +390,9 @@ class Reconciler:
             async with (batch() if batch is not None else contextlib.nullcontext()):
                 failed |= await self._apply_protocol(protocol, resources, orphans, known, generation, credentials,
                                                      unmanaged)
+        # Egress after the resources (spec §8.3): the users are provisioned whatever the
+        # routing outcome; a failed section fails the generation the way a resource does.
+        failed |= await self._apply_egress(document.egress, generation)
         with self.database.transaction() as db:
             self.managed.set_state(db, generation, "failed" if failed else "converged")
             observed = self.managed.observed(db)

@@ -138,22 +138,47 @@ class RoutingStore:
     @staticmethod
     def record_apply(db, policy_id: str, *, revision: int, digest: str | None, backend: str, outcome: str,
                      detail: str | None = None, actor: str = "system", runtime_version: str | None = None,
-                     compiler_version: str = COMPILER_VERSION, now: int | None = None) -> None:
+                     compiler_version: str = COMPILER_VERSION, document: dict | None = None,
+                     now: int | None = None) -> None:
         now = int(time.time()) if now is None else now
         db.execute(
             "INSERT INTO routing_applies(policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,detail,"
-            "actor,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (policy_id, revision, digest, backend, compiler_version, runtime_version, outcome, detail, actor, now))
+            "document_json,actor,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (policy_id, revision, digest, backend, compiler_version, runtime_version, outcome, detail,
+             None if document is None else json.dumps(document, sort_keys=True), actor, now))
 
     @staticmethod
-    def history(db, policy_id: str, limit: int = HISTORY_LIMIT) -> list[dict]:
+    def _apply_row(row) -> dict:
+        value = dict(row)
+        raw = value.pop("document_json", None)
+        value["document"] = None if raw is None else json.loads(raw)
+        return value
+
+    @classmethod
+    def history(cls, db, policy_id: str, limit: int = HISTORY_LIMIT) -> list[dict]:
         rows = db.execute("SELECT * FROM routing_applies WHERE policy_id=? ORDER BY id DESC LIMIT ?",
                           (policy_id, limit)).fetchall()
-        return [dict(row) for row in rows]
+        return [cls._apply_row(row) for row in rows]
 
-    @staticmethod
-    def last_applied(db, policy_id: str) -> dict | None:
+    @classmethod
+    def last_applied(cls, db, policy_id: str) -> dict | None:
         """The most recent successful apply before the current one — what a rollback returns to."""
         rows = db.execute("SELECT * FROM routing_applies WHERE policy_id=? AND outcome='applied' ORDER BY id DESC LIMIT 2",
                           (policy_id,)).fetchall()
-        return None if len(rows) < 2 else dict(rows[1])
+        return None if len(rows) < 2 else cls._apply_row(rows[1])
+
+    # -- the egress section a linked panel's generations carry (spec §8.3) ---------------
+
+    @staticmethod
+    def set_desired(db, policy_id: str, desired: dict | None, *, now: int | None = None) -> None:
+        """`desired` is the EgressDocument (as a dict) the node should run for this policy;
+        None withdraws it — later generations then leave the node's egress as it is."""
+        now = int(time.time()) if now is None else now
+        db.execute("UPDATE routing_policies SET desired_json=?, updated_at=? WHERE id=?",
+                   (None if desired is None else json.dumps(desired, sort_keys=True), now, policy_id))
+
+    @staticmethod
+    def desired_for_node(db, node_id: str) -> dict[str, dict]:
+        rows = db.execute("SELECT protocol, desired_json FROM routing_policies WHERE node_id=? AND desired_json IS NOT NULL"
+                          " ORDER BY protocol", (node_id,)).fetchall()
+        return {row["protocol"]: json.loads(row["desired_json"]) for row in rows}

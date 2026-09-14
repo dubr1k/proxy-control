@@ -17,10 +17,12 @@ the others; a node is synced by one coroutine at a time.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from dataclasses import dataclass
 
+from ..routing.store import PolicyNotFound
 from ..secrets_store import SecretError, SecretRef
 from .client import NodeAuthFailed, NodeRejected, NodeUnreachable
 from .generations import compile, content_digest
@@ -73,9 +75,13 @@ def _describe(exc: Exception) -> str:
 
 
 class FleetPusher:
-    def __init__(self, database, links, desired, secrets, clients, provisioning, events, *, interval=15.0, clock=time):
+    def __init__(self, database, links, desired, secrets, clients, provisioning, events, *, interval=15.0, clock=time,
+                 routing=None):
         self.database, self.links, self.desired, self.secrets = database, links, desired, secrets
         self.clients, self.provisioning, self.events = clients, provisioning, events
+        # The routing store (v0.4): a republish carries the node's egress section, and the
+        # node's report moves each policy to `applied`/`failed`. None on a central without it.
+        self.routing = routing
         self.interval, self.clock, self._stop = interval, clock, asyncio.Event()
         self._locks: dict[str, asyncio.Lock] = {}
         # In memory on purpose: a restart is a fresh attempt, and nothing here is worth a column.
@@ -249,7 +255,7 @@ class FleetPusher:
                 return
             document = compile(db, self.clients.store, node_id=node_id, node_guid=node_id, master_guid=self.links.own_guid,
                                previous=observed.applied_generation, generation=observed.applied_generation + 1,
-                               now=int(self.clock.time()), created_by="system")
+                               now=int(self.clock.time()), created_by="system", routing=self.routing)
             self.desired.insert(db, node_id, document, canonical_digest(document), content_digest(document))
         log.warning("fleet: node %s holds generation %s; republished as %s", node_id, observed.applied_generation,
                     document.generation)
@@ -335,6 +341,40 @@ class FleetPusher:
                          (grant.secret_ref.secret_id, grant.secret_ref.version)).fetchone()
         return row is not None and row["state"] == "pending"
 
+    def _absorb_egress(self, db, latest: dict, observed: ObservedGeneration, now: int) -> None:
+        """The node's word on each egress section of the generation the central wants (v0.4,
+        spec §8.3): `converged` makes the policy `applied` at the revision the section named,
+        anything else `failed` with the node's code. Recorded once per outcome, not per tick."""
+        egress = latest["document"].egress
+        if self.routing is None or not egress:
+            return
+        for protocol, entry in egress.items():
+            report = observed.egress.get(protocol)
+            if report is None:
+                continue
+            try:
+                policy = self.routing.get_by_id(db, entry.policy_id)
+            except PolicyNotFound:
+                continue
+            detail = {"generation": latest["generation"], "manager_revision": report.revision}
+            if report.state == "converged":
+                if (policy.state, policy.applied_revision, policy.applied_digest) == ("applied", entry.policy_revision,
+                                                                                      entry.digest):
+                    continue
+                self.routing.mark(db, policy.id, state="applied", applied_revision=entry.policy_revision,
+                                  applied_digest=entry.digest, now=now)
+                self.routing.record_apply(db, policy.id, revision=entry.policy_revision, digest=entry.digest,
+                                          backend=entry.backend, outcome="applied", detail=json.dumps(detail, sort_keys=True),
+                                          actor="node", document=entry.document, now=now)
+            else:
+                error = report.error or report.state
+                if policy.state == "failed" and policy.last_error == error:
+                    continue
+                self.routing.mark(db, policy.id, state="failed", last_error=error, now=now)
+                self.routing.record_apply(db, policy.id, revision=entry.policy_revision, digest=entry.digest,
+                                          backend=entry.backend, outcome="failed",
+                                          detail=json.dumps({**detail, "error": error}, sort_keys=True), actor="node", now=now)
+
     def _absorb(self, node_id: str, observed: ObservedGeneration, credentials: dict[str, str]) -> None:
         """One transaction: the report itself, each grant's observed state, credentials
         the runtime chose, and the operations that waited for this node.
@@ -395,6 +435,7 @@ class FleetPusher:
                 self.clients.store.update_grant(db, grant.id, observed_state=state, updated_at=now)
             if current:
                 self.provisioning.remote_applied(db, observed, withheld=withheld, withheld_error=NOT_CAPTURED)
+                self._absorb_egress(db, latest, observed, now)
             self.desired.record_observed(db, node_id, observed, acknowledge=not withheld)
         if not (current and withheld):
             self._withheld.pop(node_id, None)

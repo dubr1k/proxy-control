@@ -6,7 +6,7 @@ import json
 import time
 
 from .identity import MASTER_KEY, read_setting, write_setting
-from .protocol import GenerationConflict, GenerationDocument, ObservedGeneration, ObservedResource
+from .protocol import GenerationConflict, GenerationDocument, ObservedEgress, ObservedGeneration, ObservedResource
 
 
 class ManagedStore:
@@ -90,6 +90,23 @@ class ManagedStore:
         return db.execute("SELECT 1 FROM managed_resources WHERE protocol=? AND runtime_username=? AND state<>'missing'",
                           (protocol, username)).fetchone() is not None
 
+    # -- egress (v0.4): what each protocol's egress section came to, per generation ------
+
+    @staticmethod
+    def egress_rows(db) -> dict[str, dict]:
+        return {row["protocol"]: dict(row) for row in db.execute("SELECT * FROM managed_egress")}
+
+    @staticmethod
+    def upsert_egress(db, *, protocol: str, generation: int, state: str, revision: str | None = None,
+                      digest: str | None = None, error: str | None = None) -> None:
+        db.execute(
+            """INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at)
+               VALUES(?,?,?,?,?,?,?)
+               ON CONFLICT(protocol) DO UPDATE SET generation=excluded.generation, revision=excluded.revision,
+               digest=excluded.digest, state=excluded.state, last_error=excluded.last_error,
+               updated_at=excluded.updated_at""",
+            (protocol, generation, revision, digest, state, error, int(time.time())))
+
     def observed(self, db) -> ObservedGeneration | None:
         latest = self.latest(db)
         if latest is None:
@@ -101,14 +118,19 @@ class ManagedStore:
                                         state=r["state"], error=r["last_error"], revision=r["revision"],
                                         learned=json.loads(r.get("learned_json") or "{}"))
                        for r in self.resources(db).values()],
+            egress={protocol: ObservedEgress(state=row["state"], revision=row["revision"], digest=row["digest"],
+                                             error=row["last_error"])
+                    for protocol, row in self.egress_rows(db).items()},
             reported_at=int(time.time()),
         )
 
     @staticmethod
     def unlink(db) -> int:
-        """Forget the master; runtime users stay and become local (spec §5.2)."""
+        """Forget the master; runtime users stay and become local (spec §5.2). The egress each
+        service runs stays too (spec §8.3) — only the bookkeeping about generations goes."""
         released = db.execute("SELECT count(*) FROM managed_resources").fetchone()[0]
         db.execute("DELETE FROM managed_resources")
+        db.execute("DELETE FROM managed_egress")
         db.execute("DELETE FROM managed_generations")
         write_setting(db, MASTER_KEY, None)
         return released
