@@ -74,6 +74,12 @@ of narrowing a rule silently — [ROUTING](docs/ROUTING.en.md),
   WARP through a logging SOCKS5 stub, block by domain and CIDR with the cover
   site alive, Mieru's selective rule, rollback byte for byte, a provider down
   → fail-closed, nginx and nftables untouched.
+- **`scripts/install-release.sh`**: fetches the four release files, checks
+  `SHA256SUMS`, the manifest, optionally a pinned digest (`--sha256`) and the
+  GitHub attestation, extracts and hands over to the installer's wizard through
+  one `sudo`; `--requirements` prints what the host needs and what gets
+  installed. The same path README documents for beta releases. A Russian
+  changelog starts with this release: [CHANGELOG.ru.md](CHANGELOG.ru.md).
 
 ### Changed
 

@@ -43,7 +43,7 @@ name the same archive and digest, refuses a version with a prerelease suffix, an
 the archive for absolute or escaping members before its single `exec sudo`.
 Nothing is ever downloaded and executed in one step.
 
-**Beta releases** (`v0.2.0-beta.1`, `v0.3.0-beta.1`) are refused by
+**Beta releases** (`v0.2.0-beta.1`, `v0.3.0-beta.1`, `v0.4.0-beta.1`) are refused by
 `install-bootstrap` because of the pre-release suffix. They are installed
 without it: the same `SHA256SUMS` check, then extract the archive and run the
 wizard from the extracted `proxy-control/` directory — exactly how the release
@@ -51,10 +51,15 @@ gate installs a beta on the lab host:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.3.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
+
+The same steps are what [`scripts/install-release.sh`](scripts/install-release.sh) performs
+(`--version 0.4.0-beta.1`, optionally `--sha256 <lab-sha256>` from the release note): it
+fetches the four files, verifies them unprivileged, extracts and starts the wizard through
+one `sudo`; `--requirements` prints what the host needs and what gets installed.
 
 With no further arguments the installer starts a bilingual wizard that writes a
 configuration file, shows a plan, and applies nothing until you confirm the plan

@@ -116,7 +116,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: panel.example.com' http://12
 v0.4 добавляет egress-политики по узлам и сервисам ([ROUTING](ROUTING.ru.md)).
 Обновление обычное — пересобираются панель **и оба менеджера**, потому что egress API
 живёт в менеджерах: `docker compose up -d --build --wait panel naive-manager
-mieru-manager` с сохранённым набором оверлеев (`upgrade` установщика делает ровно это).
+mieru-manager` с сохранённым набором оверлеев после того, как в каталог проекта
+(`/opt/mtproxy-shared443` у установщика) скопированы `panel/`, `naive_manager/`, `mieru_manager/`,
+`compose*.yaml` и `VERSION` нового выпуска — так обновлён боевой узел при живой проверке v0.4.
 Нового порта, файла секрета или компонента хоста нет.
 
 **Миграция 14** (`routing-policies`) выполняется при первом старте и аддитивна:

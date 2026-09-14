@@ -248,6 +248,19 @@ cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
 
+The same four steps are what [`scripts/install-release.sh`](scripts/install-release.sh)
+does (from a clone of the repository, or downloaded on its own and read before it runs): it
+fetches the four release files to disk, checks `SHA256SUMS` and the manifest, with `--sha256`
+also the pinned archive digest (the `lab-sha256` of the tag annotation), with `gh` present the
+attestation, extracts and hands over to the wizard through one `sudo`. Like
+`install-bootstrap` it refuses to run as root; `--requirements` prints what the host needs and
+what gets installed, `--check-only` downloads and verifies only:
+
+```bash
+scripts/install-release.sh --requirements
+scripts/install-release.sh --version 0.4.0-beta.1 --sha256 <lab-sha256 from the release note>
+```
+
 The installer does not run from a Git clone: there is no `release/release.json`.
 
 ### Step 2. Answer the wizard

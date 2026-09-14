@@ -43,17 +43,22 @@ chmod 700 install-bootstrap
 перед единственным `exec sudo`. Ничто никогда не скачивается и не исполняется
 одной командой.
 
-**Бета-выпуски** (`v0.2.0-beta.1`, `v0.3.0-beta.1`) `install-bootstrap` из-за
+**Бета-выпуски** (`v0.2.0-beta.1`, `v0.3.0-beta.1`, `v0.4.0-beta.1`) `install-bootstrap` из-за
 prerelease-суффикса отклоняет. Их ставят без него: та же сверка `SHA256SUMS`,
 затем распаковка архива и мастер из распакованного каталога `proxy-control/` —
 ровно так релизный гейт ставит бету на стенде:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.3.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
+
+Те же шаги выполняет [`scripts/install-release.sh`](scripts/install-release.sh) (`--version
+0.4.0-beta.1`, при желании `--sha256 <lab-sha256>` из заметки о выпуске): скачивает четыре
+файла, проверяет их без привилегий, распаковывает и одним `sudo` запускает мастер;
+`--requirements` печатает, что нужно хосту и что устанавливается.
 
 Без дальнейших аргументов установщик запускает двуязычный мастер: он пишет файл
 конфигурации, показывает план и ничего не применяет, пока вы не подтвердите

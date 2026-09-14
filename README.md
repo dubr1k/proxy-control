@@ -19,7 +19,7 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!WARNING]
-> **Текущий выпуск — [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1)** (маршрутизация: egress-политики с предпросмотром). До него: [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — связанные панели; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — клиенты, зашифрованные учётные данные и подписки; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — транзакционный установщик, единственный выпуск без prerelease-суффикса, который принимает `install-bootstrap`. Всё это бета: ставьте на новые или изолированные серверы либо только после резервной копии конфигурации и мастер-ключа панели. Что изменилось — [CHANGELOG.md](CHANGELOG.md); порядок обновления — [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md).
+> **Текущий выпуск — [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1)** (маршрутизация: egress-политики с предпросмотром). До него: [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — связанные панели; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — клиенты, зашифрованные учётные данные и подписки; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — транзакционный установщик, единственный выпуск без prerelease-суффикса, который принимает `install-bootstrap`. Всё это бета: ставьте на новые или изолированные серверы либо только после резервной копии конфигурации и мастер-ключа панели. Что изменилось — [CHANGELOG.ru.md](CHANGELOG.ru.md) (английский [CHANGELOG.md](CHANGELOG.md) — основной, с историей всех выпусков); порядок обновления — [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md).
 
 > [!IMPORTANT]
 > Проект рассчитан на людей, которые понимают, что такое DNS, TLS, Nginx и
@@ -244,6 +244,19 @@ sha256sum --check SHA256SUMS
 tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
+```
+
+Те же четыре шага делает [`scripts/install-release.sh`](scripts/install-release.sh)
+(из клона репозитория или скачанный отдельно и прочитанный перед запуском): скачивает четыре
+файла выпуска на диск, сверяет `SHA256SUMS` и манифест, при `--sha256` — ещё и закреплённый
+digest архива (`lab-sha256` из аннотации тега), при наличии `gh` — attestation, распаковывает и
+одним `sudo` передаёт управление мастеру. Он отказывается работать от root, как и
+`install-bootstrap`; `--requirements` печатает, что нужно хосту и что устанавливается,
+`--check-only` только скачивает и проверяет:
+
+```bash
+scripts/install-release.sh --requirements
+scripts/install-release.sh --version 0.4.0-beta.1 --sha256 <lab-sha256 из заметки о выпуске>
 ```
 
 Из клона Git установщик не работает: там нет `release/release.json`.
