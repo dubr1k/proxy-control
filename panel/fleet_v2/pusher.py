@@ -56,7 +56,16 @@ NOT_CAPTURED = "credential not captured yet"
 # A node that answers the heartbeat with these is up but refusing — rate limit, a manager
 # hiccup behind a 5xx: the link keeps its status, the error is recorded, and nothing is pushed
 # until it answers again. Any other refusal (a 404: no Fleet v2 at that URL) is `offline`.
+# A 5xx counts only when the panel wrote it (its JSON `{detail, code}`): a bare 502/503/504
+# page is the reverse proxy in front of a dead panel, and that node is down (lab finding,
+# v0.4 gate: a stopped panel container behind nginx must go `offline` within the deadline).
 REFUSING_STATUSES = frozenset({429}) | frozenset(range(500, 600))
+
+
+def _refusal(exc: NodeRejected) -> bool:
+    if exc.status == 429:
+        return True
+    return exc.status in REFUSING_STATUSES and bool(exc.detail or exc.code)
 
 
 @dataclass
@@ -132,7 +141,7 @@ class FleetPusher:
             identity = await client.identity()
             status = await client.status()
         except NodeRejected as exc:
-            if exc.status in REFUSING_STATUSES:
+            if _refusal(exc):
                 self._refusing(node_id, exc)
             else:
                 self._offline(node_id, exc)

@@ -74,6 +74,19 @@ async def test_a_429_or_5xx_heartbeat_answer_is_not_offline(pair, code):
     assert _link_row(central, node_id)["last_error"] is None and _events(central) == ["node.up"]
 
 
+@pytest.mark.parametrize("code", [502, 503, 504])
+async def test_a_bare_gateway_5xx_is_offline(pair, code):
+    """[v0.4 lab] a 5xx page without the panel's JSON is the reverse proxy in front of a dead
+    panel container: the node is down, not refusing — `offline` and `node.down`."""
+    node, central, node_id, client = await _link(pair)
+    await central.state.pusher.tick()
+    html = b"<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center></body></html>"
+    _transport(central, node, _Answering(httpx.ASGITransport(app=node), "/api/fleet/v2/identity", code, html))
+    await central.state.pusher.tick()
+    link = _link_row(central, node_id)
+    assert link["status"] == "offline" and _events(central) == ["node.up", "node.down"]
+
+
 async def test_a_404_heartbeat_answer_is_still_offline(pair):
     """Anything else the node refuses (a panel without Fleet v2 at that URL) stays a down link."""
     node, central, node_id, client = await _link(pair)
