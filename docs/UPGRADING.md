@@ -109,6 +109,57 @@ docker compose exec panel python -m panel.cli db-status | python3 -m json.tool |
 curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: panel.example.com' http://127.0.0.1:8787/api/fleet/v2/identity   # 401: routes present, key required
 ```
 
+## Upgrading to v0.4: routing
+
+v0.4 adds egress policies per node and service ([ROUTING](ROUTING.en.md)). The upgrade
+is the ordinary one — the panel **and both managers** are rebuilt, because the egress API
+lives in the managers: `docker compose up -d --build --wait panel naive-manager
+mieru-manager` with the persisted overlay set (the installer's `upgrade` does exactly
+that). No new port, secret file or host component.
+
+**Migration 14** (`routing-policies`) runs at the first start and is additive:
+`routing_policies`, `routing_rules`, `routing_applies` (the central's and the local
+policies with their history) and `managed_egress` (what egress a node runs for a
+central). `python -m panel.cli db-status` lists fourteen as applied.
+
+**What changes on the host.**
+
+- `compose.mieru.yaml` puts the mieru-manager container on the **host network** (it had
+  none of its own; still `read_only`, `cap_drop: ALL`, no listening socket) so it can
+  probe the WARP endpoint on the host loopback before it applies a policy. `up -d`
+  recreates the container once.
+- `.env` gains `NAIVE_EGRESS_WARP` and `MIERU_EGRESS_WARP` — the WARP proxy-mode endpoint
+  each manager may route its service through (`socks5://127.0.0.1:<port>`), empty when the
+  host has no WARP. The installer writes them from the new `[egress]` section (with
+  `[three_xui].warp` / `warp_port` still honoured, one warning); a **host assembled or
+  updated by hand** sets them itself before `up -d`, otherwise the routing screen shows no
+  `warp` provider for that node (`provider_unavailable`) — a truthful state, not an error.
+- The managers seed nothing: an `upstream` a hand-written Caddyfile already carries, or
+  an `egress` section mita already has, is reported as `custom` and stays until the first
+  policy is applied; that apply moves it under the manager's ownership and keeps the
+  original lines for a rollback. Nothing changes in either config until an owner applies
+  a policy.
+
+**Order in a fleet.** Upgrade the **nodes first, then the central**: a v0.4 central sends
+the `egress` section only to a node that declares `egress.v1`, and a document without one
+keeps the digest it had in v0.3 in both directions — a mixed fleet keeps working, and
+the routing screen marks an older node «узел нужно обновить до v0.4» instead of failing.
+A v0.3 central talking to a v0.4 node ignores the node's egress report.
+
+**Rollback** follows the general procedure — the previous generation, database included:
+a v0.3 image refuses a database at schema 14. A rollback of the panel does not undo an
+applied policy: reset it to «напрямую» and apply before, or roll back the manager's block
+by hand (`# BEGIN NAIVE-MANAGER EGRESS … # END`; mita's `egress` section) from the
+manager's backups (`/var/lib/naive-manager/backups`, the mieru-manager's journal).
+
+Verify after the upgrade:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 14
+curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets   # 401 without a session: the routes are present
+docker inspect proxy-control-mieru-manager --format '{{.HostConfig.NetworkMode}}'   # host
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

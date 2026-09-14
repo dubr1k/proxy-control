@@ -160,9 +160,10 @@ What v0.3 adds, and what it deliberately does not:
 - Ownership on the node follows ADR 003: `central` vs `local` runtime users, adoption
   only for explicitly imported users, collisions reported `failed`, orphans deleted,
   local users never touched.
-- Fleet v1 stays frozen and byte-compatible; routing (v0.4) and the Xray router (v0.5)
-  remain roadmap. There are no transitive nodes, no metric history and no
-  panel-to-panel mTLS.
+- Fleet v1 stays frozen and byte-compatible; routing shipped in v0.4 as capability-limited
+  native egress policies (`docs/ROUTING.en.md`, ADR 006 accepted, ADR 007 for the native
+  backends); the Xray router (v0.5) remains roadmap. There are no transitive nodes, no
+  metric history and no panel-to-panel mTLS.
 
 Components (all under `panel/` unless stated):
 

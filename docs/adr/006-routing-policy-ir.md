@@ -1,6 +1,6 @@
 # ADR 006: Engine-neutral routing policy IR
 
-Status: proposed (v0.4)
+Status: accepted (v0.4.0-beta.1, 2026-09-14)
 
 ## Context
 
@@ -47,3 +47,17 @@ Routing policy is stored as an engine-neutral intermediate representation:
 - Pools, health-based failover and per-grant selective routing before the
   capability cells are proven.
 - Exposing Xray JSON as the domain model.
+
+## As shipped in v0.4
+
+`panel/routing/models.py` is the IR (`RoutingPolicy`, `RoutingRule`, `RuleMatch`,
+`PolicyInput`); `panel/routing/compiler.py` compiles it for `naive_native` (Caddy
+forwardproxy `upstream` + `acl`) and `mieru_native` (mita `egress`) against the
+capabilities each manager declares — the cells proved on the stand
+(`docs/spikes/VNEXT_ROUTING_ENGINE.md`), not the engines' documentation. The backend is a
+field of the policy; the only egress is the host's WARP (`warp`), extensible without a
+migration; pools and named egress endpoints were left out until they have a consumer.
+What a backend cannot enforce is `unsupported` with the rule named, in the preview and
+the API; a WARP the node reports as down fails closed unless the policy chose
+`fallback = approved_direct`, and then the substitution is shown, never silent.
+`docs/ROUTING.en.md` describes the result.

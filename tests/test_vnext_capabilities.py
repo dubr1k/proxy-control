@@ -33,7 +33,10 @@ def test_every_cell_is_explicit_and_required_conclusions_hold():
     assert rows["fleet_v1"]["create"]["status"] == "unsupported"
     assert rows["naive"]["whole_service_socks_upstream"]["status"] == "supported"
     assert rows["naive"]["per_client_routing"]["status"] == "unproven"
-    assert rows["mieru"]["domain_routing"]["status"] == "unproven"
+    # v0.4: the spike proved domain and CIDR routing on both native backends; per-client stays unproven.
+    assert rows["mieru"]["domain_routing"]["status"] == "supported"
+    assert rows["naive"]["cidr_routing"]["status"] == "supported" and rows["mieru"]["cidr_routing"]["status"] == "supported"
+    assert rows["mieru"]["per_client_routing"]["status"] == "unproven"
     assert rows["mieru"]["credential_capture_without_rotation"]["status"] == "unsupported"
     assert rows["mtproxy"]["credential_capture_without_rotation"]["status"] == "supported"
     for routing in ("cidr_routing", "domain_routing", "per_client_routing", "whole_service_socks_upstream"):

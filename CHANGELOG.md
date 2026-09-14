@@ -10,7 +10,7 @@ Routing: the operator sets, per node and per proxy service, where the clients'
 traffic leaves — directly, through the host's WARP, or not at all — as an
 engine-neutral policy that the panel compiles for the backend the node actually
 runs and applies transactionally with a rollback, locally and on linked panels.
-The design is [ADR 006](docs/adr/006-routing-engine-neutral-ir.md) (accepted)
+The design is [ADR 006](docs/adr/006-routing-policy-ir.md) (accepted)
 and [ADR 007](docs/adr/007-routing-enforcement-ownership.md); the spec
 `docs/superpowers/specs/2026-09-14-v0.4-routing-design.md`; the spike that
 fixed what each backend can honestly enforce —

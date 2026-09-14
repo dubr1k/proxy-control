@@ -331,6 +331,27 @@ Raw Telemt v1 typed commands live in the card's "Advanced: transport v1" drawer.
 
 Details of both transports: [FLEET.en.md](FLEET.en.md).
 
+## The Routing screen (v0.4)
+
+**«Маршрутизация»** sets, per node and per service, where the clients' traffic leaves:
+a node selector (this server and the linked panels), the tabs NaiveProxy / Mieru / MTProxy
+(the last one says «вне области маршрутизации»), and for each policy the defaults
+(«По умолчанию: Напрямую | Через WARP», «При недоступности WARP: отказать | напрямую»)
+and the ordered rules — enabled, domains, CIDRs, ports, action (Блокировать / Напрямую /
+Через WARP), a note — with ↑/↓ and drag, «Добавить правило», «Сбросить» (direct, no
+rules) and «Сохранить». The preview beside the editor follows every change (400 ms
+debounce): the status, the reasons an unsupported rule is named with, the warnings
+(WARP down, a hand-written upstream that will be adopted), the diff against what the node
+runs, whether a restart is needed and the rollback target. **«Применить»** is active only
+for a saved, supported policy; **«Откатить»** once something was applied; **«История»**
+lists `routing_applies`; **«Удалить политику»** only after «Сбросить» + «Применить». The
+card's badge reads «применено (rev N)», «есть неприменённые изменения», «применяется…» or
+«ошибка: …»; a linked panel older than v0.4 shows «узел нужно обновить до v0.4», and on a
+node a central manages the screen says so and keeps the pen with the central. The node
+card on «Узлы» carries the line «Маршрутизация: naive → WARP, 2 блокир.; mieru →
+напрямую». Every role may read and preview; the owner applies. What each backend can
+enforce, the API (`/api/routing/*`) and the audit events: [docs/ROUTING.en.md](docs/ROUTING.en.md).
+
 ## Master key and rotation
 
 Since v0.2 the panel can store a client credential so that a subscription still
