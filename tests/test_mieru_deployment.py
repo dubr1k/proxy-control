@@ -136,7 +136,7 @@ def test_mieru_overlay_has_only_intended_writable_runtime_mounts():
         item["target"] for item in manager["volumes"] if not item.get("read_only", False)
     }
     assert writable_targets == {"/var/lib/mieru-manager", "/run/mieru-manager"}
-    assert manager["tmpfs"] == ["/tmp:size=8m,mode=0700"]
+    assert manager["tmpfs"] == ["/tmp:size=8m,mode=1777,uid=10005,gid=10005"]
     assert manager["pids_limit"] == 128
 
 

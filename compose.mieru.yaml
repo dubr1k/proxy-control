@@ -40,7 +40,8 @@ services:
       - mieru-manager-run:/run/mieru-manager
     read_only: true
     tmpfs:
-      - /tmp:size=8m,mode=0700
+      # Owned by the manager user (10005:10005), same reason as the panel's /tmp in compose.yaml.
+      - /tmp:size=8m,mode=1777,uid=10005,gid=10005
     pids_limit: 128
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

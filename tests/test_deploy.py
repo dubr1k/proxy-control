@@ -297,6 +297,12 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("      - /run/panel:size=1m,mode=0700\n", panel)
         central = (ROOT / "compose.fleet-central.yaml").read_text()
         self.assertIn("tmpfs: [/tmp:size=8m,mode=1777,uid=10001,gid=10001]", central)
+        # The same pattern for every other unprivileged, read-only container (post-merge T15).
+        for overlay, owner in (("compose.naive.yaml", "uid=10002,gid=101"), ("compose.agent.yaml", "uid=10002,gid=101"),
+                               ("compose.mieru.yaml", "uid=10005,gid=10005")):
+            text = (ROOT / overlay).read_text()
+            self.assertIn(f"      - /tmp:size=8m,mode=1777,{owner}\n", text, overlay)
+            self.assertNotIn("/tmp:size=8m,mode=0700", text, overlay)
 
     def test_version_agent_runtime_directory_is_bootstrap_provisioned(self):
         tmpfiles = (ROOT / "deploy/proxy-control-version-agent.tmpfiles.conf").read_text()

@@ -128,8 +128,21 @@ export async function renderClients(context, generation) {
       ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
     </div>
     <section class="client-list">${context.state.clients.length
-      ? context.state.clients.map((entry) => clientCard(context, entry)).join("")
+      ? context.state.clients.map((entry) => safeCard(context, entry)).join("")
       : '<div class="empty-state"><span>◇</span><h3>Клиентов пока нет</h3><p>Импортируйте пользователей, которые уже работают на этом сервере, — панель ничего в них не меняет.</p></div>'}</section>`;
+}
+
+// One malformed entry (an option shape a newer node reports, say) must not take the whole
+// list down: the card says what it could not render, the rest of the clients stay visible.
+function safeCard(context, entry) {
+  try {
+    return clientCard(context, entry);
+  } catch (error) {
+    console.error("client card failed to render", error);
+    const name = entry?.client?.display_name || entry?.client?.id || "?";
+    return `<article class="data-row client-card client-card-error"><b>${esc(String(name))}</b>
+      <small>Карточку не удалось отобразить — обновите страницу или проверьте консоль браузера.</small></article>`;
+  }
 }
 
 export function openClientModal(context) {

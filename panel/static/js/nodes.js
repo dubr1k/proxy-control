@@ -131,7 +131,8 @@ function daemonsBlock(link) {
   const protocols = link.status_json?.protocols || link.identity?.protocols || {};
   const items = DAEMONS.map(([protocol, label]) => {
     const entry = protocols[protocol] || {};
-    const [tone, word] = entry.enabled === false ? DAEMON_STATE.off : DAEMON_STATE[entry.daemon] || ["muted", "неизвестно"];
+    const known = Object.hasOwn(DAEMON_STATE, entry.daemon) ? DAEMON_STATE[entry.daemon] : ["muted", "неизвестно"];
+    const [tone, word] = entry.enabled === false ? DAEMON_STATE.off : known;
     return `<li><span class="status-pill ${tone}"><i></i>${esc(label)} · ${esc(word)}</span></li>`;
   }).join("");
   return `<div class="node-services"><ul>${items}</ul></div>`;
@@ -160,6 +161,15 @@ function usersSummary(link) {
   return `центр ${number(central)} · локальные ${number(local)}`;
 }
 
+// `config_dirty` stays set until every credential the generation names is in escrow
+// (spec §6), so a node that has applied the generation and only owes a credential is
+// told apart from one that has not applied it yet.
+function generationNote(link) {
+  if (!link.config_dirty) return "";
+  const applied = link.observed_generation === link.desired_generation && link.observed_state === "converged";
+  return applied ? " · применено, ожидает учётные данные" : " · есть недоставленные изменения";
+}
+
 function overviewTab(node) {
   const link = node.link;
   const [, status] = LINK_STATUS[link.status] || ["muted", link.status];
@@ -168,7 +178,7 @@ function overviewTab(node) {
   const summary = [
     ["Связь", `${status}${latency} · ${heartbeat}`],
     ["Панель", `${link.panel_version || link.identity?.panel_version || "версия не определена"} · GUID ${node.node_id}`],
-    ["Поколение", `desired ${number(link.desired_generation)} · applied ${number(link.acknowledged_generation)}${link.config_dirty ? " · есть недоставленные изменения" : ""}`],
+    ["Поколение", `desired ${number(link.desired_generation)} · applied ${number(link.acknowledged_generation)}${generationNote(link)}`],
     ["Пользователи", usersSummary(link)],
     ["Трафик", trafficTotal(link)],
   ];
