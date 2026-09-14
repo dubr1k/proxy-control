@@ -7,6 +7,10 @@ services:
       context: .
       dockerfile: mieru_manager/Dockerfile
     restart: unless-stopped
+    # Host network (v0.4): the egress API checks the WARP proxy-mode endpoint on the host's
+    # loopback before writing it into mita's config. The manager listens on its Unix socket
+    # only, so no port of it becomes reachable; the other restrictions below stay.
+    network_mode: host
     user: "10005:10005"
     group_add:
       - ${MIERU_MITA_GID:?set the host mita socket group GID}

@@ -12,10 +12,23 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from .egress import EgressInvalid, EgressUnreachable
 from .service import ConfigConflict, MitaError, ValidationError
 
 LOGGER = logging.getLogger("mieru_manager")
 CONNECTION_LOST = (BrokenPipeError, ConnectionResetError)
+
+
+def _conflict_code(exc: ConfigConflict) -> str | None:
+    """The bounded reason a client can act on, for the conflicts the egress API raises."""
+    text = str(exc)
+    if "revision does not match" in text:
+        return "egress_conflict"
+    if "no previous egress" in text:
+        return "egress_no_previous"
+    if "operation id" in text:
+        return "operation_conflict"
+    return None
 
 
 class ManagerHTTPServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
@@ -101,6 +114,21 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.manager.list_users())
             if self.command == "GET" and path == "/v1/metrics":
                 return self._send(200, self.server.manager.metrics())
+            if self.command == "GET" and path == "/v1/egress":
+                return self._send(200, self.server.manager.egress())
+            if self.command == "POST" and path == "/v1/egress/plan":
+                body = self._body()
+                self._exact(body, {"expected_revision", "document"})
+                return self._send(200, self.server.manager.egress_plan(body["expected_revision"], body["document"]))
+            if self.command == "POST" and path == "/v1/egress/apply":
+                body = self._body()
+                self._exact(body, {"expected_revision", "document", "operation_id"})
+                return self._send(200, self.server.manager.egress_apply(
+                    body["expected_revision"], body["document"], body["operation_id"]))
+            if self.command == "POST" and path == "/v1/egress/rollback":
+                body = self._body()
+                self._exact(body, {"expected_revision"})
+                return self._send(200, self.server.manager.egress_rollback(body["expected_revision"]))
             lifecycle_prefix = "/v1/lifecycle/"
             if self.command == "POST" and path.startswith(lifecycle_prefix):
                 action = path[len(lifecycle_prefix) :]
@@ -190,12 +218,22 @@ class ManagerHandler(BaseHTTPRequestHandler):
         except CONNECTION_LOST:
             # The client hung up mid-response; nothing left to answer on.
             self.close_connection = True
-        except ConfigConflict:
-            return self._send_error(409, {"detail": "configuration conflict"})
+        except EgressInvalid as exc:
+            return self._send_error(422, {"detail": str(exc), "code": "egress_invalid"})
+        except EgressUnreachable as exc:
+            return self._send_error(409, {"detail": str(exc), "code": "egress_unreachable"})
+        except ConfigConflict as exc:
+            return self._send_error(409, {"detail": "configuration conflict", "code": _conflict_code(exc)})
         except ValidationError:
             return self._send_error(422, {"detail": "invalid request"})
-        except MitaError:
-            return self._send_error(503, {"detail": "manager operation failed"})
+        except MitaError as exc:
+            # A transaction that could not restore mita is the one case a person must finish.
+            code = "manual_intervention_required" if "requires recovery" in str(exc) else "egress_readback_mismatch" \
+                if "readback" in str(exc) else None
+            payload = {"detail": "manager operation failed"}
+            if code:
+                payload["code"] = code
+            return self._send_error(503, payload)
 
     def _send_error(self, status: int, payload: dict) -> None:
         """Report a failure, tolerating a client that already hung up."""

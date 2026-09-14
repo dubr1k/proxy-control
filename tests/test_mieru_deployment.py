@@ -111,6 +111,10 @@ def test_mieru_overlay_supplies_pinned_host_binary_and_read_only_uds_access():
     assert source_model.count("create_host_path: false") == 3
     assert manager["group_add"] == ["321"]
     assert manager["user"] == "10005:10005"
+    # Host network for the loopback reachability check of the egress API (v0.4); the
+    # manager has no listener but its Unix socket, so nothing new is exposed.
+    assert manager["network_mode"] == "host" and "ports" not in manager
+    assert manager["environment"]["MIERU_EGRESS_WARP"] == ""
     assert manager["environment"]["MIERU_MITA_SHA256"] == MITA_AMD64_EXECUTABLE_SHA256
     assert manager["read_only"] is True
     assert manager["environment"]["TMPDIR"] == "/run/mieru-manager"

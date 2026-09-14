@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from decimal import Decimal, InvalidOperation
+import difflib
 import fcntl
 import hashlib
 import hmac
@@ -24,6 +25,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import quote, urlencode
+
+from . import egress as egress_section
+from .egress import EgressUnreachable
 
 
 SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.(?:35|36)\.\d+)\Z")
@@ -60,6 +64,10 @@ TRANSACTION_MODES = {
     "user.disable": "restart",
     "user.delete": "restart",
     "user.quotas": "reload",
+    # An egress change takes effect only after mita restarts (routing spike, 2026-09-14):
+    # `mita reload` re-reads users, not the egress section.
+    "egress.apply": "restart",
+    "egress.rollback": "restart",
 }
 _DURATION_UNITS_NS = {
     "ns": Decimal(1),
@@ -399,9 +407,10 @@ def validate_config(config: Any, *, elevated: bool = False) -> dict:
 _STATE_KEYS = frozenset(
     {"version", "generation", "revision", "config_hash", "disabled", "tombstones", "metric_baselines"}
 )
-# `operations` appears the first time an idempotent request is recorded, so a state file
+# `operations` appears the first time an idempotent request is recorded, and `egress` (the
+# v0.4 journal of applied egress documents) the first time one is applied, so a state file
 # written by an older manager stays readable.
-_OPTIONAL_STATE_KEYS = frozenset({"operations"})
+_OPTIONAL_STATE_KEYS = frozenset({"operations", "egress"})
 # A caller may supply the credential so the panel can escrow it before mita commits.
 PASSWORD = re.compile(r"^[A-Za-z0-9_.~-]{16,128}$")
 OPERATION_ID = re.compile(r"^[A-Za-z0-9_:.-]{1,128}$")
@@ -717,9 +726,14 @@ class MieruManager:
         protocol_probe: Callable[[], None] | None = None,
         status_timeout: float = 10,
         status_poll_interval: float = 0.05,
+        provider_url: str | None = None,
     ):
         self.mita, self.state_dir, self.public_host = mita, Path(state_dir), public_host
         self.protocol_probe = protocol_probe or mita.probe
+        # The host's WARP proxy-mode endpoint (`MIERU_EGRESS_WARP`), or None without WARP; the
+        # only address the egress API ever writes into mita's config (v0.4 routing).
+        self.provider_url = provider_url
+        self.reachability: Callable[[str, float], bool] = egress_section.check_reachable
         self.status_timeout = status_timeout
         self.status_poll_interval = status_poll_interval
         self._lock = threading.RLock()
@@ -1346,6 +1360,145 @@ class MieruManager:
                     config, state, mode="reload", operation="user.quotas"
                 ),
             }
+
+    # ------------------------------------------------------------------
+    # egress (v0.4 routing): the `egress` section of mita's config
+    # ------------------------------------------------------------------
+
+    def _providers(self, *, probe: bool) -> dict:
+        if not self.provider_url:
+            return {}
+        reachable = self.reachability(self.provider_url, 3.0) if probe else None
+        return {"warp": {"url": self.provider_url, "reachable": reachable}}
+
+    @staticmethod
+    def _journal(state: dict) -> dict:
+        journal = state.get("egress")
+        if journal is None:
+            return {"history": []}
+        if not isinstance(journal, dict) or not isinstance(journal.get("history"), list):
+            raise ConfigConflict("invalid egress journal")
+        return journal
+
+    def _observed_consistent(self, state: dict) -> dict:
+        observed = self.mita.observe()
+        validate_config(observed, elevated=True)
+        if _hash(observed) != state["config_hash"]:
+            raise ConfigConflict("observed config changed outside manager")
+        return observed
+
+    def _egress_view(self, state: dict, observed: dict, *, probe: bool) -> dict:
+        section = observed.get("egress")
+        document = egress_section.from_mita(section, self.provider_url)
+        history = self._journal(state)["history"]
+        if document is None:
+            mode = "custom"
+        elif any(rule["action"] == "PROXY" for rule in document["rules"]):
+            mode = "proxy"
+        else:
+            mode = "direct"
+        current = history[-1] if history else None
+        return {
+            "revision": state["revision"], "mode": mode, "document": document,
+            "raw": section if document is None else None,
+            "managed": bool(current) and current.get("document") is not None,
+            "providers": self._providers(probe=probe), "capabilities": list(egress_section.CAPABILITIES),
+            "restart_required": True,
+            "warnings": ["adopts_unmanaged_egress"] if section is not None and not history else [],
+            "previous": None if len(history) < 2 else {"applied_at": history[-2].get("applied_at")},
+            "current": None if current is None else {key: current.get(key) for key in ("operation_id", "applied_at", "digest")},
+        }
+
+    def egress(self) -> dict:
+        with self._writer():
+            state = self._state()
+            return self._egress_view(state, self._observed_consistent(state), probe=True)
+
+    def egress_plan(self, expected_revision: str, document: object) -> dict:
+        with self._writer():
+            normalised = egress_section.validate_document(document)
+            state = self._state()
+            self._check_revision(state, expected_revision)
+            observed = self._observed_consistent(state)
+            target = egress_section.to_mita(normalised, self.provider_url)
+            before = json.dumps(observed.get("egress"), indent=1, sort_keys=True).splitlines()
+            after = json.dumps(target or None, indent=1, sort_keys=True).splitlines()
+            diff = [line for line in difflib.unified_diff(before, after, "current", "planned", lineterm="", n=0)
+                    if not line.startswith(("---", "+++", "@@"))]
+            reachability = {}
+            if normalised["proxies"]:
+                reachability["warp"] = self.reachability(self.provider_url, 3.0)
+            return {"revision": state["revision"], "target": target, "diff": diff, "reachability": reachability,
+                    "restart_required": True,
+                    "warnings": ["adopts_unmanaged_egress"] if observed.get("egress") is not None
+                    and not self._journal(state)["history"] else []}
+
+    def egress_apply(self, expected_revision: str, document: object, operation_id: str) -> dict:
+        """Replace the `egress` section through the transaction (restart mode: mita only
+        picks it up after a restart) and push the entry on the journal. Idempotent by
+        `operation_id`: a retry after a lost reply gets the same answer without a second
+        restart."""
+        with self._writer():
+            if not isinstance(operation_id, str) or OPERATION_ID.fullmatch(operation_id) is None:
+                raise ValidationError("invalid operation id")
+            normalised = egress_section.validate_document(document)
+            state = self._state()
+            history = self._journal(state)["history"]
+            current = history[-1] if history else None
+            if current is not None and current.get("operation_id") == operation_id:
+                if current.get("document") != normalised:
+                    raise ConfigConflict("operation id already used for another request")
+                return {"revision": state["revision"], "applied": current["document"], "replayed": True}
+            self._check_revision(state, expected_revision)
+            observed = self._observed_consistent(state)
+            target = egress_section.to_mita(normalised, self.provider_url)
+            if normalised["proxies"] and not self.reachability(self.provider_url, 3.0):
+                raise EgressUnreachable("egress provider warp is unreachable")
+            entry = {"document": normalised, "digest": egress_section.document_digest(normalised),
+                     "operation_id": operation_id, "applied_at": datetime.now(UTC).isoformat()}
+            revision = self._egress_transaction(state, observed, target, entry, operation="egress.apply")
+            return {"revision": revision, "applied": normalised, "replayed": False}
+
+    def egress_rollback(self, expected_revision: str) -> dict:
+        """Back to the previous journal entry: a managed document, or the section mita had
+        before the first apply (restored verbatim)."""
+        with self._writer():
+            state = self._state()
+            self._check_revision(state, expected_revision)
+            observed = self._observed_consistent(state)
+            history = self._journal(state)["history"]
+            if len(history) < 2:
+                raise ConfigConflict("no previous egress to roll back to")
+            previous = history[-2]
+            if previous.get("document") is not None:
+                target = egress_section.to_mita(previous["document"], self.provider_url)
+                if previous["document"]["proxies"] and not self.reachability(self.provider_url, 3.0):
+                    raise EgressUnreachable("egress provider warp is unreachable")
+            else:
+                target = previous.get("raw") or {}
+            entry = {**previous, "applied_at": datetime.now(UTC).isoformat()}
+            revision = self._egress_transaction(state, observed, target, entry, operation="egress.rollback")
+            return {"revision": revision, "applied": entry.get("document"), "replayed": False}
+
+    def _egress_transaction(self, state: dict, observed: dict, target: dict, entry: dict, *, operation: str) -> str:
+        """The journal is a stack of what was applied, oldest first; its floor is the section
+        mita had before the first apply (kept verbatim). An apply pushes, a rollback pops."""
+        history = list(self._journal(state)["history"])
+        if operation == "egress.rollback":
+            history = history[:-1]
+            history[-1] = entry
+        else:
+            if not history:
+                history = [{"document": None, "raw": copy.deepcopy(observed.get("egress")), "digest": None,
+                            "operation_id": None, "applied_at": None}]
+            history = [*history, entry][-10:]
+        desired = copy.deepcopy(observed)
+        if target:
+            desired["egress"] = copy.deepcopy(target)
+        else:
+            desired.pop("egress", None)
+        state["egress"] = {"history": history}
+        return self._transaction(desired, state, mode="restart", operation=operation)
 
     def _share(self, username: str, password: str, config: dict) -> str:
         if "trafficPattern" in config:

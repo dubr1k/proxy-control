@@ -20,6 +20,8 @@ def main() -> None:
         ),
         state_dir=Path(os.getenv("MIERU_MANAGER_STATE", "/var/lib/mieru-manager")),
         public_host=os.environ["MIERU_PUBLIC_HOST"],
+        # The WARP proxy-mode endpoint the egress API may route the service through (v0.4).
+        provider_url=os.getenv("MIERU_EGRESS_WARP", "").strip() or None,
     )
     manager.bootstrap()
     server = ManagerHTTPServer(
