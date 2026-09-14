@@ -1,78 +1,65 @@
 # CONTINUE HERE — v0.3 центральная панель
 
-Обновлено: 2026-09-13 вечер (третья пауза владельца — после раунда 2 финального ревью, до его re-review и
-повторного гейта).
+Обновлено: 2026-09-14 (финальное whole-branch ревью закрыто, релизный гейт пройден на итоговом дереве кода
+`ade7fcc`; ветка готова к слиянию).
 
-## Точка продолжения (завтра, новый контекст)
+## Точка продолжения
 
-Осталось довести финальное whole-branch ревью до чистого состояния и закрыть ветку:
-
-1. **Scoped re-review раунда 2** — `scripts/review-package <plan> 193dcfa d6c4f57` → `re-review-prompt.md` (opus)
-   с findings N1–N3 (см. ниже), report `final-fix-report.md` (секция `## Round 2 (interrupted)`).
-2. **Повторный релизный гейт на итоговом дереве кода** (`d6c4f57` или новее, если re-review потребует правок):
-   `scripts/dev/remote-gate.sh full && scripts/dev/remote-gate.sh compose && LAB_RESET=1 LAB_KEEP_INSTALL=1
-   scripts/dev/remote-gate.sh lab-host && scripts/dev/remote-gate.sh fleet` (~30 мин); `lab-sha256` = `/root/lab-host.sha`.
-3. **Docs-only коммит:** таблица гейта в `docs/releases/v0.3.0-beta.1.md` (дерево, дата, digest), блок «Где мы»
-   этого файла, убрать две ссылки на gitignored `task-15-report.md`/`task-16-report.md` (описать факты inline).
-4. **Адjudication остатков** финального ревью (out-of-scope, не блокируют): `escrow_returned_credential` переписывает
-   активную версию при каждом push (пропускать при неизменном plaintext); I4 «мёртвый узел» с `deleted/pending`
-   provisioned-грантом не удалить (409 навсегда — нужен owner-override или описанный DB-выход);
-   `capture/adopt_credential` зовут локальный адаптер для любого grant id (pre-existing); FIX SOON-список из
-   триажа финального ревью — в post-merge issues.
-5. `rm -rf .superpowers/sdd/2026-09-11-v0.3-central-panel` (после чистого re-review) → `superpowers:finishing-a-development-branch`
-   → push.
-
-Findings раунда 2 (регрессии фикс-волны, исправлены в `d6c4f57`, targeted 55 passed; re-review НЕ проведён):
-- N1 — хвост `Reconciler._apply` удалял `missing`-строку по устаревшему снимку после того, как `_record` уже
-  переписал её на новый ref регранта → строка владения терялась, дальше вечная коллизия. Фикс: `missing`-строки,
-  чьё имя документ называет под другим ref, снимаются **до** apply (в транзакции `set_state(applying)`).
-- N2 — `_capture_pending` не учитывал лимит узла 200 ресурсов на capture → 422 → ложный offline/`node.down`.
-  Фикс: `CAPTURE_MAX_RESOURCES = 200` в `protocol.py` (общий), батчи, ошибка capture → warning + absorb без кредов.
-- N3 — capture/escrow из отчёта `applying` активировал pre-rotation секрет. Фикс: `SETTLED_STATES`; capture,
-  escrow/confirm и `remote_applied` только при `converged|failed`, `applying` лишь записывается и чистит `missing`.
+Разработка по плану завершена; из работ по ветке остались только «Действия владельца» ниже (тег, раскатка).
+Что было закрыто на финише: финальное whole-branch ревью (`bb0336b..ab9e841`, opus) → фикс-волна в три
+раунда (`e89d2c9`…`ade7fcc`, каждый раунд с scoped re-review; третий чистый) → релизный гейт на `ade7fcc`
+(таблица ниже). Триаж всех отложенных minor и out-of-scope наблюдений ревью — в
+`2026-09-14-v0.3-post-merge-issues.md` (не блокируют релиз). Ledger SDD (`.superpowers/sdd/…`, gitignored)
+удалён при закрытии ветки; история — в git и в этой заметке.
 
 ## Где мы
 
 - Ветка: `feature/vnext-v0.3-fleet-v2` (от `feature/vnext-v0.2-local-control-plane`, `v0.2.0-beta.1`).
-  HEAD — `d6c4f57` (раунд 2 финального ревью) поверх `193dcfa` (docs-only после гейта на `4d61396`).
-  Гейт ниже относится к дереву `4d61396`; код после него менялся (`d6c4f57`: `reconcile.py`, `pusher.py`,
-  `protocol.py`, `node_routes.py` + тесты) — **повторный гейт обязателен** (п. 2 выше).
-  **Фикс-волна финального ревью применена** (`e89d2c9`…`4d61396`): C1 пин сертификата в TLS-рукопожатии;
-  I5 гейт ADR 003 до адаптера на локальных путях узла; I4 удаление узла отклоняется при неподтверждённом
-  удалении гранта; I2 повторный capture креда Telemt (re-PUT и 202/poll); I7 отчёт `missing` переживает 202;
-  I3 импортированные MTProxy-доступы несут host/port ссылки Telemt (+ `MTPROXY_DOMAIN` панели);
-  I6 честная копия диалога отвязки; I8 правдивость документации.
+  Итоговое дерево кода — `ade7fcc`; поверх него только docs-коммиты (эта заметка, релизная заметка, CHANGELOG,
+  список post-merge).
+  **Фикс-волна финального ревью** (три раунда):
+  - раунд 1 (`e89d2c9`…`4d61396`): C1 пин сертификата проверяется в TLS-рукопожатии, до отправки запроса;
+    I2 повторный capture креда Telemt (re-PUT и 202/poll); I3 импортированные MTProxy-доступы несут host/port
+    ссылки Telemt (+ `MTPROXY_DOMAIN` панели); I4 удаление узла отклоняется при неподтверждённом удалении гранта;
+    I5 гейт ADR 003 до адаптера на локальных путях узла; I6 честная копия диалога отвязки; I7 отчёт `missing`
+    переживает 202; I8 правдивость документации;
+  - раунд 2 (`d6c4f57`, регрессии раунда 1): N1 регрант под новым ref не теряет строку владения (`missing`-строки
+    с именем под другим ref снимаются до apply); N2 capture батчами по `CAPTURE_MAX_RESOURCES = 200`, ошибка
+    capture не переводит узел в `offline`; N3 capture/escrow/confirm только по settled-отчёту (`converged|failed`),
+    `applying` лишь записывается;
+  - раунд 3 (`ade7fcc`, регрессия раунда 2): N4 сбой capture (ошибка транспорта, 4xx/5xx узла или `null` для
+    manager-origin креда) не активирует несхваченный кред и не завершает операцию — версия остаётся `pending`,
+    подтверждение поколения удерживается, центр повторяет PUT того же поколения на следующем тике;
+    `TelemtAdapter.capture` оборачивает `TelemtError` (узел отвечает `null`, а не 500).
 - Спека: `docs/superpowers/specs/2026-09-11-v0.3-central-panel-design.md` + `docs/adr/008-panel-to-panel-transport.md`.
 - План (Tasks 0–16): `docs/superpowers/plans/2026-09-11-v0.3-central-panel.md`. **Все 17 задач закрыты** (0–15 —
-  реализация и ревью, 16 — релизный гейт); ledger — `.superpowers/sdd/2026-09-11-v0.3-central-panel/progress.md`
-  (gitignored; brief'ы и report'ы там же, `task-16-report.md` — протокол гейта).
+  реализация и ревью, 16 — релизный гейт); протокол гейта — таблица ниже и релизная заметка.
 - `VERSION` = `0.3.0-beta.1`; релизная заметка — `docs/releases/v0.3.0-beta.1.md` (двуязычная, гейт и живая
   проверка заполнены, скриншоты — `docs/releases/assets/v0.3.0-beta.1/`).
 - Все проверки — только `scripts/dev/remote-gate.sh quick|full|compose|lab-host|fleet` на `ams-test`.
-  На стенде оставлена установка `lab-host` с узлом v0.3 (`https://panel.lab.test`, `LAB_KEEP_INSTALL=1`); центр
-  приёмки остановлен, узел отвязан, данных приёмки на узле нет.
+  На стенде оставлена установка `lab-host` с узлом v0.3 из дерева `ade7fcc` (`https://panel.lab.test`,
+  `LAB_KEEP_INSTALL=1`); центр приёмки остановлен, узел отвязан, данных приёмки на узле нет.
 
-## Гейт v0.3.0-beta.1 (2026-09-13 16:31–16:48 UTC, дерево `4d61396`, чистое — после фикс-волны)
+## Гейт v0.3.0-beta.1 (2026-09-14 11:42–11:59 UTC, дерево `ade7fcc`, чистое — после трёх раундов фикс-волны)
 
 | Tier | Маркер | Итог |
 | --- | --- | --- |
-| `remote-gate.sh full` | `REMOTE_GATE_FULL_OK` | 1753 passed / 2 skipped (pytest, 357 с), unittest `tests/test_deploy.py` 31 OK, ruff, doc-links, JS, shellcheck, systemd-analyze, `git diff --check`; ≈ 395 с |
+| `remote-gate.sh full` | `REMOTE_GATE_FULL_OK` | 1762 passed / 2 skipped (pytest, 377 с), unittest `tests/test_deploy.py` 31 OK, ruff, doc-links, JS, shellcheck, systemd-analyze, `git diff --check`; ≈ 415 с |
 | `remote-gate.sh compose` | `REMOTE_GATE_COMPOSE_OK` | 5 compose-моделей (core, +Naive, +Mieru, agent, fleet-central), образы agent/ingress, uid ingress 10001; ≈ 10 с |
-| `LAB_RESET=1 LAB_KEEP_INSTALL=1 remote-gate.sh lab-host` | `REMOTE_GATE_LAB_HOST_OK` | `LAB_HOST_EXIT=0`, 18 сценариев passed (environment-preflight 38 с, release-artifact-integrity, audit, plan, nginx-multi-map, coexist-existing-xui, uninstall-foreign-identity, dns-tls-preflight, install 103 с, docker-build, repair 37 с, idempotence, reboot-recovery 62 с, crash-every-phase, report, `fleet` 166 с, secrets-scan), `uninstall`/`coexistence` skipped по `LAB_KEEP_INSTALL=1`; ≈ 420 с |
-| `remote-gate.sh fleet` | `FLEET_ACCEPTANCE_OK` + `REMOTE_GATE_FLEET_OK` | 84 проверки, все пройдены, 166 с (link online 2,0 с, доступы enabled 5,1 с, offline-конвергенция 1,0 с, 20 доступов при рестарте узла 10,2 с, purge 10,2 с; `lab-results/fleet/report.json` на стенде); ≈ 180 с |
-| `lab-sha256` архива гейта | `570b37c566c40a9893f49f3c18527bfbb31fc559f157a6fac371f99d4d7de81f` | `/root/lab-host.sha` на `ams-test` = `dist/SHA256SUMS` в `/root/dev/proxy-control`; архив `proxy-control-v0.3.0-beta.1.tar.gz` из дерева `4d61396` |
+| `LAB_RESET=1 LAB_KEEP_INSTALL=1 remote-gate.sh lab-host` | `REMOTE_GATE_LAB_HOST_OK` | `LAB_HOST_EXIT=0`, 17 сценариев passed (environment-preflight 37 с, release-artifact-integrity, audit, plan, nginx-multi-map, coexist-existing-xui, uninstall-foreign-identity, dns-tls-preflight, install 105 с, docker-build, repair 37 с, idempotence, reboot-recovery 61 с, crash-every-phase, report, `fleet` 169 с, secrets-scan), `uninstall`/`coexistence` skipped по `LAB_KEEP_INSTALL=1`; ≈ 400 с |
+| `remote-gate.sh fleet` | `FLEET_ACCEPTANCE_OK` + `REMOTE_GATE_FLEET_OK` | 84 проверки, все пройдены, 170 с (link online 3,1 с, доступы enabled 4,1 с, offline-конвергенция < 0,1 с, 20 доступов при рестарте узла 11,2 с, purge 10,3 с; `lab-results/fleet/report.json` на стенде); ≈ 180 с |
+| `lab-sha256` архива гейта | `e449b1d1eb40b0abd56a2713e288862408e8a9b21be250a91c51ae3e9ec417c5` | `/root/lab-host.sha` на `ams-test` = `dist/SHA256SUMS` в `/root/dev/proxy-control`; архив `proxy-control-v0.3.0-beta.1.tar.gz` из дерева `ade7fcc` |
 
 Живая проверка (Task 15, 2026-09-13 14:02–14:22 UTC): боевой узел `AMS_Z` обновлён v0.1 → v0.3 на месте и
 привязан к стендовому центру; импорт 12 учётных записей, тестовый клиент с тремя доступами (sing-box, mihomo,
 resPQ — успех), ротация, удаление, отвязка — узел завершил ровно как был найден. Найденный баг (500 на «Удалить»
 связанной панели в контейнере: tmpfs `/tmp` без прав для uid панели) исправлен в `67bda99` и покрыт тестами;
-гейт выше прошёл уже на исправленном дереве. Подробно — раздел «Живая проверка» релизной заметки и
-`task-15-report.md`.
+гейт выше прошёл уже на исправленном дереве. Подробно — раздел «Живая проверка» релизной заметки.
 
 ## Что дальше по ветке
 
-Финальное whole-branch ревью и слияние ведёт контроллер после Task 16 (триаж всех `minor (deferred)` из ledger,
-`finishing-a-development-branch`). Эта заметка их не описывает.
+Слияние в `main` и тег — за владельцем («Действия владельца»). Работы после слияния —
+`2026-09-14-v0.3-post-merge-issues.md`.
 
 ## Действия владельца
 
@@ -158,27 +145,20 @@ resPQ — успех), ротация, удаление, отвязка — уз
   `compose.yaml` хоста; фикс `temp_store=MEMORY` + tmpfs `/tmp` под uid панели (`67bda99`).
 - Task 16: `lab-host` в релизном гейте — с `LAB_KEEP_INSTALL=1` (tier `fleet` нужна живая установка); скриншоты —
   только стендовые данные (центр запущен как в `fleet-acceptance.py`, узел — установка `lab-host`), не `AMS_Z`.
+- Финальное ревью: одна фикс-волна = C1 + I2–I8 + docs-однострочники тех же файлов; FIX SOON-пункты триажа —
+  задачи после слияния (`2026-09-14-v0.3-post-merge-issues.md`), не блокируют релиз.
+- Финальное ревью: регрессии, внесённые самой фикс-волной (N1–N3 после раунда 1, N4 после раунда 2), закрыты
+  отдельными целевыми раундами с scoped re-review каждого — осознанное отклонение от правила «второй волны нет»
+  (иначе релиз ушёл бы с дефектами, внесёнными в последний день); гейт всех четырёх tier'ов повторён на итоговом
+  дереве `ade7fcc`.
+- Раунд 3 (N4): два наблюдения re-review вне диффа — `TelemtError` не оборачивался в `capture` (узел отвечал 500)
+  и `null` для manager-origin креда всё равно подтверждал «голое» значение — включены в N4 как один дефект «сбой
+  capture в любой форме не активирует несхваченный кред». Механизм повтора — удержание подтверждения поколения
+  (`config_dirty` остаётся, центр повторяет PUT того же поколения), без нового планировщика.
+- Пре-релизная проверка 2026-09-14 шла на `ams-test` параллельно с re-review (baseline на `d6c4f57` — все четыре
+  tier'а зелёные, `lab-sha256` `e22c9263…`), затем повторена на `ade7fcc` — релизной считается только вторая.
 
-## Отложенные minor по задачам (для финального ревью ветки)
+## Отложенные minor и out-of-scope наблюдения
 
-Полный список — в ledger (`Task N: minor (deferred)`); ключевые:
-- T1: `authenticate()` коммитит `last_used_at` посреди итерации; ветка set/skip не покрыта.
-- T2: rate-limit тест не доказывает порядок 429-до-403; нет тестов на пустой `Bearer ` / регистр.
-- T3: `Resource.options` нетипизирован; `latest()` возвращает лишний `master_guid`; `remove_resource` без теста.
-- T4: fallback 400/422 дублируется; контрактный тест skip'ает Telemt.
-- T5: порядок `ObservedGeneration.resources` (коллизии в конце); last-write-wins дубликатов; нет теста rotate-failure.
-- T6: `except KeyError` маскирует баги как `stale_generation`; `run_pending` блокирует старт; нет shutdown для
-  `background`; `ClientConflict` без `X-Reason` на пути provisioning; `local_only` ×4; `adopt_credential` без гейта;
-  `capture` без audit; `status` делает discover+health на каждый вызов; пробелы покрытия.
-- T7: новый `AsyncClient` на вызов (нет keep-alive); IDN обходит private-check.
-- T8: `delete()` оставляет ротированные ключи и сиротит секреты грантов; не проверяет `master_guid` перед `unlink`;
-  `compile()` ValidationError может 500-нуть мутацию клиента через `on_change`; heartbeat JSON не ограничен;
-  `record_observed` не сверяет digest; panel-узлы в v1-листинге; `last_seen_at` None; два флага disabled.
-- T9: NodeRejected на identity/status флапает offline; `_in_flight` смешивает часы; `_secrets_for` молча глотает
-  SecretError; SQLite+AES на event loop; гонка эскроу N vs N+1; миграция 12 без теста с данными; реальные sleep в тесте.
-- T10: порядок ADR 003-гейта в локальном пути; façade re-resolve по имени с DEFAULT_ENDPOINT; гонка эскроу → две
-  `active` версии; дубли audit-имён; inline `token_urlsafe` в façade; drifted local grant не удаляется при
-  AdapterError; `compensated` шаг внутри `applying`; локальный грант после компенсации саги оставляет tombstone.
-- T14: `_SECRET_SHAPES` в `fleet-acceptance.py` расширить (422 detail с путями/паролем); нет теста mixed
-  imported+provisioned delete → 409; adoption пишет `learned=None`.
-- T15: `compose.naive/mieru/agent.yaml` оставляют root-only tmpfs `/tmp` (латентный паттерн; панель и ingress исправлены).
+Триаж финального ревью (FIX SOON / ACCEPT) и наблюдения re-review трёх раундов сведены в
+`2026-09-14-v0.3-post-merge-issues.md`; docs-однострочники того же триажа закрыты в `4d61396`.

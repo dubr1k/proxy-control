@@ -4,7 +4,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-## [0.3.0-beta.1] - 2026-09-13
+## [0.3.0-beta.1] - 2026-09-14
 
 Fleet v2: one central panel manages linked panels over their own HTTPS domains with
 scoped API keys — three UI actions, nothing installed on a host beyond the panel image
@@ -112,6 +112,24 @@ check.
   `node_links`, `desired_generations`, `observed_generations`) outgrew its 64 KiB
   in-memory threshold. `Database.connect()` now sets `PRAGMA temp_store=MEMORY`, and the
   `/tmp` tmpfs of the panel (and of the v1 fleet ingress) is owned by the service user.
+- Found in the final whole-branch review (three fix rounds, each re-reviewed): the TLS `pin`
+  of a linked panel is now checked inside the handshake, before any request leaves the
+  central (previously the leaf was compared after the response — the Bearer key and the
+  generation had already been sent); ADR 003 is enforced before the adapter is called on
+  the node's local lifecycle paths, and `capture`/`adopt` are gated the same way; a node
+  whose runtime reframes a caller secret (Telemt's Fake-TLS form) is re-asked for it after a
+  lost push reply or a 202, and a one-time `missing` report survives a 202; imported MTProxy
+  grants render Telemt's host and port (`MTPROXY_DOMAIN` of the panel is the identity
+  fallback); `DELETE /api/nodes/{id}` refuses while any provisioned grant is not confirmed
+  deleted; the node's unlink dialog says what unlink does. Regressions of that wave, fixed
+  in turn: a re-granted name under a new ref kept its ownership row; credential capture
+  asks the node in batches of `CAPTURE_MAX_RESOURCES` (200) and a capture failure never
+  marks the node offline; capture, escrow and confirmation happen only on a settled report
+  (`converged | failed`, never `applying`); a capture failure of any kind (transport error,
+  node 4xx/5xx, `null` for a manager-chosen credential) leaves the version `pending`,
+  withholds the generation's acknowledgement and re-sends the same generation next tick
+  instead of activating an un-captured secret; `TelemtAdapter.capture` wraps `TelemtError`
+  like every other adapter call.
 
 ### Not in this release
 
