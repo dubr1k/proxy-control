@@ -747,6 +747,9 @@ class MieruAdapter:
                     "transports=" + _encode_transports(transports),
                     f"egress={egress}",
                     f"warp-port={config.effective_egress.warp_port}",
+                    # The endpoint the manager may route the service through later (the
+                    # panel's routing policy, v0.4): the host's WARP, or nothing.
+                    f"warp-provider={config.effective_egress.provider_url() or ''}",
                 ),
                 preconditions=(
                     "the Core runtime is verified",
@@ -953,6 +956,9 @@ class MieruAdapter:
             f"MIERU_MITA_GID={mita_gid}\n"
             f"MIERU_MANAGER_STATE_DIR={self.paths.manager_state}\n"
             f"MIERU_MANAGER_TOKEN_FILE={self.paths.manager_token}\n"
+            # The WARP endpoint the manager's egress API may write into mita's config (v0.4);
+            # empty on a host without WARP, and the routing preview then says so.
+            f"MIERU_EGRESS_WARP={selected.get('warp_provider', '')}\n"
         )
 
     # ------------------------------------------------------------------
@@ -1249,7 +1255,7 @@ class MieruAdapter:
             "transports",
             "egress",
         }
-        optional = {"package", "warp-port"}
+        optional = {"package", "warp-port", "warp-provider"}
         if not required <= set(values) or set(values) - required - optional:
             raise MieruError("Mieru action is invalid")
         if (
@@ -1275,8 +1281,16 @@ class MieruAdapter:
         warp_port = int(values.get("warp-port", "45000"))
         if not 1024 <= warp_port <= 65535:
             raise MieruError("invalid WARP port")
+        # An action from before v0.4 has no provider: the seed alone says whether the
+        # host's WARP exists (`egress=proxy` cannot hold without it).
+        provider = values.get("warp-provider", f"socks5://127.0.0.1:{warp_port}" if values["egress"] == "proxy" else "")
+        if provider not in ("", f"socks5://127.0.0.1:{warp_port}"):
+            raise MieruError("invalid WARP provider")
+        if values["egress"] == "proxy" and not provider:
+            raise MieruError("Mieru action is invalid")
         return {
             "warp_port": warp_port,
+            "warp_provider": provider,
             "mieru_host": values["mieru-host"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "architecture": values["architecture"],

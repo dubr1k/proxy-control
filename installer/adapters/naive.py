@@ -807,6 +807,9 @@ class NaiveAdapter:
                     # an old configuration derives it from `[three_xui].warp*` unchanged.
                     f"egress={'proxy' if config.effective_egress.naive is EgressChoice.WARP else 'direct'}",
                     f"warp-port={config.effective_egress.warp_port}",
+                    # The endpoint the manager may route the service through later (the
+                    # panel's routing policy, v0.4): the host's WARP, or nothing.
+                    f"warp-provider={config.effective_egress.provider_url() or ''}",
                 ),
                 preconditions=(
                     "the Core runtime and the Naive certificate are verified",
@@ -949,6 +952,9 @@ class NaiveAdapter:
         env = (
             f"NAIVE_PUBLIC_HOST={domain}\n"
             f"NAIVE_DATA_DIR={self.paths.data_dir}\n"
+            # The WARP endpoint the manager's egress API may write into the Caddyfile (v0.4);
+            # empty on a host without WARP, and the routing preview then says so.
+            f"NAIVE_EGRESS_WARP={selected['warp_provider']}\n"
         )
         unit_source = self.source_dir / "deploy" / "caddy-naive.service"
         try:
@@ -1280,7 +1286,7 @@ class NaiveAdapter:
             "adjacent-sni",
             "egress",
         }
-        if not required <= set(values) or set(values) - required - {"warp-port"}:
+        if not required <= set(values) or set(values) - required - {"warp-port", "warp-provider"}:
             raise NaiveError("Naive action is invalid")
         if (
             values["project"] != self.paths.project_dir
@@ -1303,8 +1309,16 @@ class NaiveAdapter:
         warp_port = int(values.get("warp-port", "45000"))
         if not 1024 <= warp_port <= 65535:
             raise NaiveError("invalid WARP port")
+        # An action from before v0.4 has no provider: the seed alone says whether the
+        # host's WARP exists (`egress=proxy` cannot hold without it).
+        provider = values.get("warp-provider", f"socks5://127.0.0.1:{warp_port}" if values["egress"] == "proxy" else "")
+        if provider not in ("", f"socks5://127.0.0.1:{warp_port}"):
+            raise NaiveError("invalid WARP provider")
+        if values["egress"] == "proxy" and not provider:
+            raise NaiveError("Naive action is invalid")
         return {
             "warp_port": warp_port,
+            "warp_provider": provider,
             "naive_domain": values["naive-domain"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "adjacent_sni": _decode_adjacent_routes(values["adjacent-sni"]),
