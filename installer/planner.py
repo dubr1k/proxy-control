@@ -379,7 +379,7 @@ def adapters_for(
     if config.host_mode.value == "fresh" and config.firewall.manage_ufw:
         selected.append("firewall")
     selected.append("core")
-    if config.three_xui.warp:
+    if config.effective_egress.warp:
         selected.append("warp")
     if config.profile.includes_naive:
         selected.append("naive")
@@ -422,6 +422,14 @@ def profile_environment(config: InstallerConfig) -> str:
         lines.append(f"NAIVE_PUBLIC_HOST={config.domains.naive}")
     if config.profile.includes_mieru and config.domains.mieru is not None:
         lines.append(f"MIERU_PUBLIC_HOST={config.domains.mieru}")
+    # The WARP proxy-mode endpoint each manager may route its service through (v0.4 egress
+    # API); empty when the host has no WARP, and the routing preview then says `warp` is
+    # unavailable on this node rather than guessing a port.
+    provider = config.effective_egress.provider_url() or ""
+    if config.profile.includes_naive:
+        lines.append(f"NAIVE_EGRESS_WARP={provider}")
+    if config.profile.includes_mieru:
+        lines.append(f"MIERU_EGRESS_WARP={provider}")
     rendered = "\n".join(lines) + "\n"
     _assert_secret_free({"environment": rendered})
     return rendered

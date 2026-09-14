@@ -9,6 +9,8 @@ from typing import Any, TypeVar
 
 from installer.model import (
     DomainConfig,
+    EgressChoice,
+    EgressConfig,
     FirewallConfig,
     HostMode,
     InstallerConfig,
@@ -55,7 +57,7 @@ def parse_config(text: str) -> InstallerConfig:
             "three_xui",
             "firewall",
         },
-        optional={"mieru"},
+        optional={"mieru", "egress"},
     )
 
     schema = _integer(root["schema"], "schema")
@@ -72,7 +74,11 @@ def parse_config(text: str) -> InstallerConfig:
 
     domains = _parse_domains(root["domains"], profile)
     mieru = _parse_mieru(root.get("mieru"), profile)
-    three_xui = _parse_three_xui(root["three_xui"])
+    three_xui = _parse_three_xui(root["three_xui"], explicit_egress="egress" in root)
+    egress = _parse_egress(root.get("egress"), three_xui, profile, three_xui_raw=_table(root["three_xui"], "three_xui"))
+    if egress is not None:
+        # The old keys mirror the section: everything that still reads them sees one truth.
+        three_xui = ThreeXuiConfig(**{**_as_dict(three_xui), "warp": egress.warp, "warp_port": egress.warp_port})
     firewall = _parse_firewall(root["firewall"])
 
     if host_mode is HostMode.COEXIST and firewall.manage_ufw:
@@ -88,6 +94,7 @@ def parse_config(text: str) -> InstallerConfig:
         mieru=mieru,
         three_xui=three_xui,
         firewall=firewall,
+        egress=egress,
     )
     _reject_duplicate_tcp_sni_domains(config)
     return config
@@ -121,6 +128,15 @@ def render_config(config: InstallerConfig) -> str:
                 f"udp_ports = {_toml_array(config.mieru.udp_ports)}",
             ]
         )
+
+    if config.egress is not None:
+        lines.extend(["", "[egress]", f"warp = {_toml_boolean(config.egress.warp)}"])
+        if config.egress.warp_port != 40000:
+            lines.append(f"warp_port = {config.egress.warp_port}")
+        if config.profile.includes_naive:
+            lines.append(f"naive = {_toml_string(config.egress.naive.value)}")
+        if config.profile.includes_mieru:
+            lines.append(f"mieru = {_toml_string(config.egress.mieru.value)}")
 
     lines.extend(["", "[three_xui]", f"mode = {_toml_string(config.three_xui.mode.value)}"])
     for name in (
@@ -194,7 +210,7 @@ def _parse_mieru(value: object, profile: Profile) -> MieruConfig | None:
     return MieruConfig(tcp_ports=tcp_ports, udp_ports=udp_ports)
 
 
-def _parse_three_xui(value: object) -> ThreeXuiConfig:
+def _parse_three_xui(value: object, *, explicit_egress: bool = False) -> ThreeXuiConfig:
     raw = _table(value, "three_xui")
     if "mode" not in raw:
         raise ConfigError("missing key: three_xui.mode")
@@ -219,11 +235,12 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
             optional={*domain_names, "warp", "warp_port"},
         )
     else:
+        # With an explicit [egress] the managed mode need not repeat `warp` here.
         _keys(
             raw,
             path="three_xui",
-            required={"mode", "warp", "warp_domains", *domain_names},
-            optional={"warp_port", "subscription_domain"},
+            required={"mode", "warp_domains", *domain_names} | (set() if explicit_egress else {"warp"}),
+            optional={"warp_port", "subscription_domain"} | ({"warp"} if explicit_egress else set()),
         )
 
     parsed_domains = {
@@ -236,8 +253,8 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
         if "warp_domains" in raw
         else ()
     )
-    if not warp and warp_domains:
-        raise ConfigError("three_xui.warp_domains requires warp = true")
+    if not warp and warp_domains and not (explicit_egress and "warp" not in raw):
+        raise ConfigError("three_xui.warp_domains requires warp = true")  # or egress.warp, checked there
     warp_port = _integer(raw.get("warp_port", 40000), "three_xui.warp_port")
     if not 1024 <= warp_port <= 65535:
         raise ConfigError("three_xui.warp_port must be between 1024 and 65535")
@@ -252,6 +269,42 @@ def _parse_three_xui(value: object) -> ThreeXuiConfig:
         warp_port=warp_port,
         subscription_domain=_domain(raw["subscription_domain"], "three_xui.subscription_domain") if "subscription_domain" in raw else None,
     )
+
+
+def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *, three_xui_raw: Mapping[str, Any]) -> EgressConfig | None:
+    """`[egress]` when written, None otherwise (`InstallerConfig.effective_egress` then
+    derives it from the pre-v0.4 `[three_xui].warp*` keys, so an old configuration plans
+    unchanged). Both spellings present must agree."""
+    if value is None:
+        return None
+    raw = _table(value, "egress")
+    _keys(raw, path="egress", required=set(), optional={"warp", "warp_port", "naive", "mieru"})
+    warp = _boolean(raw["warp"], "egress.warp") if "warp" in raw else False
+    warp_port = _integer(raw.get("warp_port", 40000), "egress.warp_port")
+    if not 1024 <= warp_port <= 65535:
+        raise ConfigError("egress.warp_port must be between 1024 and 65535")
+    if "warp" in three_xui_raw and three_xui.warp != warp:
+        raise ConfigError("three_xui.warp disagrees with egress.warp")
+    if "warp_port" in three_xui_raw and three_xui.warp_port != warp_port:
+        raise ConfigError("three_xui.warp_port disagrees with egress.warp_port")
+    if three_xui.warp_domains and not warp:
+        raise ConfigError("three_xui.warp_domains requires egress.warp = true")
+    default = EgressChoice.WARP if warp else EgressChoice.DIRECT
+    choices = {}
+    for service, present in (("naive", profile.includes_naive), ("mieru", profile.includes_mieru)):
+        if service not in raw:
+            choices[service] = default if present else EgressChoice.DIRECT
+            continue
+        if not present:
+            raise ConfigError(f"egress.{service} is not part of profile {profile.value}")
+        choices[service] = _enum(raw[service], EgressChoice, f"egress.{service}")
+        if choices[service] is EgressChoice.WARP and not warp:
+            raise ConfigError(f"egress.{service} requires warp = true")
+    return EgressConfig(warp=warp, warp_port=warp_port, naive=choices["naive"], mieru=choices["mieru"])
+
+
+def _as_dict(config: ThreeXuiConfig) -> dict[str, Any]:
+    return {name: getattr(config, name) for name in ThreeXuiConfig.__dataclass_fields__}
 
 
 def _warp_domains(value: object) -> tuple[str, ...]:

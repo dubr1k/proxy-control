@@ -40,13 +40,13 @@ class WarpAdapter:
         self.runner = runner
 
     def plan(self, config: InstallerConfig, facts: AuditFacts) -> tuple[Action, ...]:
-        if not config.three_xui.warp:
+        if not config.effective_egress.warp:
             return ()
         if getattr(facts, "hard_stops", ()):
             raise WarpError("host audit contains blocking findings")
         return (Action(
             id="warp.runtime", adapter=self.name, owner="proxy-control:warp",
-            mutations=(f"port={config.three_xui.warp_port}",),
+            mutations=(f"port={config.effective_egress.warp_port}",),
             preconditions=("no foreign WARP package, registration or listener exists",),
             verification=("official WARP proxy returns a distinct tunneled external IP",),
             inverse=("remove only the installer-owned WARP package and registration",),

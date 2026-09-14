@@ -27,7 +27,7 @@ from installer.adapters.core import (
     _path_sha256,
     _valid_adjacent_backend,
 )
-from installer.model import InstallerConfig
+from installer.model import EgressChoice, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.transaction import (
     atomic_write,
@@ -803,8 +803,10 @@ class NaiveAdapter:
                     f"manager-uid={_MANAGER_UID}",
                     f"manager-gid={_MANAGER_GID}",
                     f"adjacent-sni={_encode_adjacent_routes(adjacent)}",
-                    f"egress={'proxy' if config.three_xui.warp and not config.three_xui.warp_domains else 'direct'}",
-                    f"warp-port={config.three_xui.warp_port}",
+                    # `[egress]` (v0.4): the seed the manager owns from here on (ADR 007);
+                    # an old configuration derives it from `[three_xui].warp*` unchanged.
+                    f"egress={'proxy' if config.effective_egress.naive is EgressChoice.WARP else 'direct'}",
+                    f"warp-port={config.effective_egress.warp_port}",
                 ),
                 preconditions=(
                     "the Core runtime and the Naive certificate are verified",

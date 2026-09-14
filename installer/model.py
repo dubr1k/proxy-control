@@ -61,6 +61,39 @@ class ThreeXuiConfig:
     subscription_domain: str | None = None
 
 
+class EgressChoice(StrEnum):
+    DIRECT = "direct"
+    WARP = "warp"
+
+
+@dataclass(frozen=True)
+class EgressConfig:
+    """Where NaiveProxy and Mieru send their clients' traffic when installed (v0.4, `[egress]`).
+
+    The installer seeds this once; afterwards the managers own it (ADR 007) and the
+    panel's routing changes it. `InstallerConfig.egress` holds the section only when it
+    was written (wizard or by hand); `InstallerConfig.effective_egress` derives it from
+    the pre-v0.4 `[three_xui].warp*` keys otherwise."""
+
+    warp: bool = False
+    warp_port: int = 40000
+    naive: EgressChoice = EgressChoice.DIRECT
+    mieru: EgressChoice = EgressChoice.DIRECT
+
+    def provider_url(self) -> str | None:
+        """The WARP proxy-mode endpoint the managers are told about, or None without WARP."""
+        return f"socks5://127.0.0.1:{self.warp_port}" if self.warp else None
+
+    @classmethod
+    def derived(cls, three_xui: ThreeXuiConfig) -> EgressConfig:
+        """Exactly what the pre-v0.4 keys meant — including the v0.1 coupling that left
+        NaiveProxy and Mieru direct whenever the managed 3x-ui had domain-scoped WARP — so
+        an old configuration plans unchanged."""
+        whole = three_xui.warp and not three_xui.warp_domains
+        choice = EgressChoice.WARP if whole else EgressChoice.DIRECT
+        return cls(warp=three_xui.warp, warp_port=three_xui.warp_port, naive=choice, mieru=choice)
+
+
 @dataclass(frozen=True)
 class FirewallConfig:
     manage_ufw: bool
@@ -77,6 +110,12 @@ class InstallerConfig:
     mieru: MieruConfig | None
     three_xui: ThreeXuiConfig
     firewall: FirewallConfig
+    # The written `[egress]` section, or None for a configuration from before it existed.
+    egress: EgressConfig | None = None
+
+    @property
+    def effective_egress(self) -> EgressConfig:
+        return self.egress if self.egress is not None else EgressConfig.derived(self.three_xui)
 
     def required_domains(self) -> tuple[str, ...]:
         values = (

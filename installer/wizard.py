@@ -13,6 +13,8 @@ from installer.config import ConfigError, parse_config, render_config
 from installer.i18n import Locale, locale_from_environment, parse_locale, text
 from installer.model import (
     DomainConfig,
+    EgressChoice,
+    EgressConfig,
     FirewallConfig,
     HostMode,
     InstallerConfig,
@@ -421,6 +423,7 @@ class TerminalWizard:
             # NaiveProxy and Mieru read this to choose their own egress, so the
             # question belongs to those profiles rather than to 3x-ui.
             values["warp"] = self.io.yes_no(text(self.locale, "warp"), default=False)
+        self._egress_choices(values)
         values["acme_email"] = self.io.validated(
             text(self.locale, "acme_email"), _email
         )
@@ -483,6 +486,23 @@ class TerminalWizard:
                 self.io.write(text(self.locale, "invalid_password"))
                 continue
             return first
+
+    def _egress_choices(self, values: dict[str, object]) -> None:
+        """With WARP on the host, each proxy service chooses its initial egress (`[egress]`,
+        v0.4). The default repeats what v0.1–v0.3 did implicitly: the whole service through
+        WARP, unless a managed 3x-ui routes only a domain list — then direct."""
+        assert self.locale is not None
+        profile = values["profile"]
+        assert isinstance(profile, Profile)
+        if not values.get("warp"):
+            values.pop("warp_naive", None)
+            values.pop("warp_mieru", None)
+            return
+        default = not values.get("warp_domains")
+        if profile.includes_naive:
+            values["warp_naive"] = self.io.yes_no(text(self.locale, "warp_naive"), default=default)
+        if profile.includes_mieru:
+            values["warp_mieru"] = self.io.yes_no(text(self.locale, "warp_mieru"), default=default)
 
     def _managed_xui(self) -> dict[str, object]:
         assert self.locale is not None
@@ -566,6 +586,11 @@ class TerminalWizard:
                 warp_domains=values.get("warp_domains", ()),
             ),
             firewall=FirewallConfig(manage_ufw=bool(values["manage_ufw"])),
+            egress=EgressConfig(
+                warp=bool(values.get("warp", False)),
+                naive=EgressChoice.WARP if values.get("warp_naive") else EgressChoice.DIRECT,
+                mieru=EgressChoice.WARP if values.get("warp_mieru") else EgressChoice.DIRECT,
+            ),
         )
         return parse_config(render_config(candidate))
 
@@ -674,8 +699,11 @@ class TerminalWizard:
                 text(self.locale, "warp"), default=bool(values.get("warp", False))
             )
             values["warp_domains"] = (
-                self._domains(text(self.locale, "warp_domains")) if values["warp"] else ()
+                self._domains(text(self.locale, "warp_domains"))
+                if values["warp"] and values["xui_mode"] is ThreeXuiMode.MANAGED_NEW
+                else ()
             )
+            self._egress_choices(values)
         else:
             values["manage_ufw"] = self.io.yes_no(
                 text(self.locale, "manage_ufw"), default=bool(values["manage_ufw"])
