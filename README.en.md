@@ -19,7 +19,7 @@ that either finishes the job or puts the server back the way it was.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!WARNING]
-> **The current public release is [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0).** Use it on new or isolated installations, or only after backing up the server's current configuration.
+> **The current release is [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1)** (linked panels). Before it: [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All three are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
@@ -43,7 +43,8 @@ What you get:
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. One access works as both HTTPS and HTTP/2. Per-user quota and traffic accounting included. |
 | **Mieru** | An obfuscated proxy with its own protocol over TCP and UDP. The panel issues a one-time `mierus://` link and QR. |
 | **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.7.0` and creates those inbounds. |
-| **Panel** | Owner, administrator, and viewer roles. Secret-free audit, one-time credential reveal, quota management. |
+| **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. |
+| **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
 | **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
 
 Traffic accounting differs per protocol, and the panel does not hide that:
@@ -209,7 +210,8 @@ names exactly which domain failed which check.
 
 Download all four files under Assets: the archive, `SHA256SUMS`,
 `release-manifest.json`, and `sbom.spdx.json`. v0.1.0 has no published GitHub
-attestation. The command below checks the three payload files named by the
+attestation; from v0.2.0-beta.1 on, the release workflow publishes a provenance
+attestation of the archive in the repository. The command below checks the three payload files named by the
 downloaded `SHA256SUMS`; the checksum file itself remains trusted as downloaded
 from the release page, with no independent provenance proof. After that check,
 extract the bootstrap from the verified archive before allowing any root step:
@@ -228,6 +230,24 @@ manifest names the same archive, that the manifest version has no prerelease
 suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
+
+**Beta releases (v0.2.0-beta.1, v0.3.0-beta.1).** `install-bootstrap` refuses a
+version with a pre-release suffix, so a beta is installed without it: the same
+four files from the release page, the same `SHA256SUMS` check, then extract the
+archive and run the wizard from the extracted directory — it writes the
+configuration, shows the plan and applies nothing until you confirm the plan
+digest. This is the path the release gate takes on the lab host
+(`scripts/lab/guest-runner.sh host` installs the beta from the extracted
+archive), and it is how v0.2 and v0.3 were installed:
+
+```bash installer-check
+sha256sum --check SHA256SUMS
+tar -xzf proxy-control-v0.3.0-beta.1.tar.gz
+cd proxy-control
+sudo python3 -m installer.cli wizard
+```
+
+The installer does not run from a Git clone: there is no `release/release.json`.
 
 ### Step 2. Answer the wizard
 
@@ -404,7 +424,8 @@ it is no longer needed.
 
 Roles:
 
-- **owner** — administrators, users, credential rotation, the Fleet registry;
+- **owner** — administrators, API keys, clients and accesses, rotation, linked
+  panels and the Fleet registry;
 - **admin** — protocol users and audit within allowed boundaries;
 - **viewer** — read only.
 
@@ -415,6 +436,54 @@ Naive and Mieru credentials are revealed **once**, with `Cache-Control:
 no-store`. User lists contain no secrets. An existing Mieru password cannot be
 shown again — there is only **New link + QR**, which rotates the access and
 revokes the old one.
+
+## Clients, accesses and subscriptions
+
+Since v0.2 the panel is not just a window onto three managers — it owns the
+accounts. The "Clients" screen keeps a person and their accesses to MTProxy,
+NaiveProxy and Mieru together, while the protocol screens keep working as
+before.
+
+- **Import and adoption.** Existing manager users are imported read-only —
+  nothing changes on the server. "Adopt access" takes the credentials into the
+  panel: MTProxy and NaiveProxy by reading them, Mieru only through an explicit
+  rotation, because `mita` never hands a password back.
+- **Issuing.** A new access is one journaled operation that ends in exactly one
+  of `succeeded`, `compensated` (everything done so far rolled back) or
+  `manual_intervention_required` (the panel says plainly that it could neither
+  finish nor undo; `operations-resume` in the CLI continues after a lost
+  manager reply).
+- **Encrypted store.** Credentials live in the database under a master key
+  (AES-256-GCM, a separate AAD per row). The installer creates and preserves
+  the key (`secrets/panel-master-key`); without it, while secrets exist, the
+  panel refuses to start — protection, not a bug. `master-key-init | rotate |
+  verify` in the CLI; **the key's backup lives apart from the database** —
+  [BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md).
+- **Subscription.** Each client gets one link
+  `https://<subscription domain>/s/<token>` for all of their accesses: `raw`
+  (plain text, no base64), `singbox` (Karing; `&client=singbox` for the
+  official sing-box), `clash` (mihomo, TCP and UDP), `manifest`, `html`. The
+  token is stored as a hash and shown once; the `ETag` changes with the set of
+  accesses, `304` on `If-None-Match`, `Profile-Update-Interval`, a per-address
+  rate limit; no access log anywhere on the path — uvicorn or Nginx. The
+  compatibility matrix names what a client cannot consume instead of shipping
+  a link it cannot parse. Revocation is immediate; the old link stops
+  answering.
+- **Subscription domain.** A separate name (`domains.subscription` in
+  `install.toml`; the wizard asks for it): a SAN on the certificate, its own
+  SNI route and its own Nginx `server` with `access_log off`; on the panel's
+  own domain the path `/s/` does not exist.
+- **Database and audit.** One database boundary, versioned migrations
+  (`db-migrate`, `db-status`), a v0.1.0 database upgrades in place; every audit
+  row is written in the transaction of the change and carries `X-Request-Id`,
+  so a response and its trail match.
+- **Writer flag** `PANEL_VNEXT_WRITER=legacy|domain`: the old protocol APIs are
+  indistinguishable from the outside in both modes; the switch to `domain` is
+  described in [PANEL.en.md](PANEL.en.md).
+
+Details: [PANEL.en.md](PANEL.en.md); the architecture —
+[docs/VNEXT_ARCHITECTURE.md](docs/VNEXT_ARCHITECTURE.md); what each client can
+consume — [docs/VNEXT_CAPABILITIES.md](docs/VNEXT_CAPABILITIES.md).
 
 ## The protocols
 
@@ -526,12 +595,47 @@ conflict.
 
 ### Fleet: linked panels and the legacy mTLS transport
 
-Since v0.3 a panel links other panels from the web UI: on the node panel the owner
-creates a `node-sync` API key, on the central «Узлы → + Панель» takes the URL and the
-key, then existing users are imported. From there the central keeps the link itself
-(heartbeat), issues, rotates and revokes accesses on the node and updates its
-components; nothing beyond the panel image appears on a host. Full description:
-[FLEET.en.md](FLEET.en.md).
+Since v0.3 one panel becomes the **central panel** and manages other panels over
+their own HTTPS domains. Three actions in the UI: on the node panel the owner
+creates an API key scoped `node-sync` («Администраторы → API-ключи»), on the
+central «Узлы → + Панель» takes the URL and the key, then "Import" the existing
+users. Nothing beyond the panel image appears on a host — no agent, no
+certificates, no open ports.
+
+- **Keys.** `admin | monitor | node-sync`, an optional expiry; only the SHA-256
+  is stored, the plaintext `pc_<prefix>_<secret>` is shown once; `node-sync`
+  opens `/api/fleet/v2/*` only; 120 requests per minute per key; audited as
+  `key:<name>`. Disabling or deleting a key takes effect on the next request.
+- **Trust.** TLS `verify` (WebPKI) or `pin` — the SHA-256 of the leaf
+  certificate («Получить отпечаток»), checked inside the handshake before
+  anything is sent; private addresses only behind an explicit checkbox;
+  «Проверить» saves nothing. The node's key is stored on the central encrypted
+  under the master key.
+- **Generations.** The desired state of a node is an immutable, numbered,
+  digested document compiled from the accesses. The node refuses a lower
+  number, a digest conflict and a foreign central (one master per node),
+  applies the document through its own adapters, deletes orphans, never touches
+  local users, reports a name collision with a local user as `failed`, and
+  answers 409 `managed_by_central` to a local mutation of a central-owned
+  resource. A heartbeat every 15 s, `node.up`/`node.down` events, a redelivery
+  backoff of 30 s → 10 min.
+- **Accesses on the node.** Issue, enable, disable, rotate and delete are
+  declarative ("waiting for the node"); a secret the runtime chose itself
+  (Telemt's Fake-TLS form) is captured by the central and kept under the same
+  version; a confirmed deletion purges the access, and the name can be granted
+  again. A client's subscription merges the accesses of every node with each
+  node's public hosts.
+- **Unlinking.** «Отвязать» on the card «Этот сервер» releases the central's
+  ownership; the users on the node stay as they are.
+- **Upgrade order** — nodes first, then the central
+  ([docs/UPGRADING.md](docs/UPGRADING.md)); the panel-to-panel contract is
+  frozen in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). All of it is
+  checked on the lab host by a dedicated `fleet` tier — from the key to the
+  unlink, with the real sing-box, mihomo and the `resPQ` probe — and was
+  checked live against a production node
+  ([release note](docs/releases/v0.3.0-beta.1.md)).
+
+Full description: [FLEET.en.md](FLEET.en.md).
 
 Legacy Fleet v1 is an optional boundary: inventory and limited management of remote
 nodes over outbound mTLS connections. The installer does **not** deploy it.
@@ -597,11 +701,11 @@ payloads, tokens, cookies, certificates, and private keys.
 
 | Boundary | Complete generation |
 |---|---|
-| Panel | SQLite through an online backup, or the database with `-wal`/`-shm` while the writer is stopped |
+| Panel | SQLite through an online backup, or the database with `-wal`/`-shm` while the writer is stopped; the **master key** `secrets/panel-master-key` apart from the database — without it the encrypted credentials and node keys cannot be restored |
 | Telemt | The `telemt-config` volume, `secrets/users.conf`, the API token, and the exact image version |
 | Naive | The whole data directory, the Caddyfile, `users.json`, paired backups, `transaction.json`, the accounting database with WAL/SHM, the binary, the unit, and log permissions |
 | Mieru | The state directory, `journal.json` together with its original `journal.key`, backups, the token, the binary, the unit, and the `mita` configuration |
-| Fleet | The panel database and the ingress configuration; the offline CA key is stored separately |
+| Fleet | v2 — the central's database together with the master key (node keys are encrypted in it); legacy v1 — the ingress configuration, the offline CA key stored separately |
 | Nginx | stream/http configuration, certificates, owners, modes, and the ownership manifest |
 | Deployment | The Git revision, the complete `COMPOSE_FILE`, image digests, binary versions, and unit files |
 
@@ -823,8 +927,18 @@ Also validated: the 3x-ui subscription public contract (public SNI endpoints on
 TCP, VLESS Reality XHTTP, and Hysteria2, and issues SSL certificates for the
 3x-ui panel, Hysteria2, and the separate subscription.
 
-Not claimed as completed: production Fleet enrollment and billing-grade traffic
-accounting.
+Since v0.2 the lab host also runs the live subscription acceptance — the
+official sing-box carries traffic through NaiveProxy and mihomo through Mieru
+over TCP and UDP, a canary scan of the logs and of a database dump finds no
+token and no password — and a restore drill of the "database + master key"
+pair. Since v0.3 — the `fleet` tier: the installed node is linked to a central,
+users imported, accesses on all three protocols, disable, rotation, deletion,
+convergence after being offline, a node restart mid-apply, key revocation and
+unlink; v0.3 was also checked live against a production node.
+
+Not claimed as completed: routing (v0.4) and the Xray router (v0.5), transitive
+nodes, metric history and updating a node's own panel from the central, and
+billing-grade traffic accounting.
 
 ## Acknowledgements
 
