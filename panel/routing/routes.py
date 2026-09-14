@@ -1,0 +1,93 @@
+"""The routing API (spec §8.1): owner for mutations, any role for reading and previewing."""
+from __future__ import annotations
+
+from fastapi import Depends, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+
+from ..web_context import RequestContext
+from .models import PolicyInput, RoutingPolicy
+from .service import RoutingError
+
+
+class PolicyPut(PolicyInput):
+    """The policy plus the revision the operator edited; None on a first save."""
+
+    expected_revision: int | None = Field(default=None, ge=0)
+
+
+class RevisionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=1)
+
+
+def policy_view(policy: RoutingPolicy) -> dict:
+    return {**policy.model_dump(), "applied_current": policy.applied_current}
+
+
+def _refusal(exc: RoutingError) -> JSONResponse:
+    body = {"detail": str(exc), "code": exc.code}
+    if exc.compiled is not None:
+        body["compiled"] = exc.compiled.model_dump()
+    return JSONResponse(body, exc.status)
+
+
+def register_routing_routes(app, context: RequestContext) -> None:
+    service = app.state.routing
+    anyone = context.roles("owner", "admin", "viewer")
+    owner = context.roles("owner")
+
+    def _ctx(request: Request, user: dict) -> dict:
+        return {"actor": user, "ip": context.client_ip(request), "request_id": getattr(request.state, "request_id", None)}
+
+    @app.exception_handler(RoutingError)
+    async def routing_error(_request, exc: RoutingError):
+        return _refusal(exc)
+
+    @app.get("/api/routing/targets")
+    async def targets(_user=Depends(context.current)):
+        return {"items": await service.targets()}
+
+    @app.get("/api/routing/policies/{node_id}/{protocol}")
+    async def get_policy(node_id: str, protocol: str, _user=Depends(context.current)):
+        return policy_view(service.get(node_id, protocol))
+
+    @app.put("/api/routing/policies/{node_id}/{protocol}")
+    async def put_policy(node_id: str, protocol: str, body: PolicyPut, request: Request, user=Depends(owner)):
+        draft = PolicyInput.model_validate(body.model_dump(exclude={"expected_revision"}))
+        policy = service.save(node_id, protocol, draft, expected_revision=body.expected_revision, **_ctx(request, user))
+        return policy_view(policy)
+
+    @app.delete("/api/routing/policies/{node_id}/{protocol}", status_code=204)
+    async def delete_policy(node_id: str, protocol: str, request: Request, user=Depends(owner)):
+        service.delete(node_id, protocol, **_ctx(request, user))
+
+    @app.post("/api/routing/policies/{node_id}/{protocol}/preview")
+    async def preview(node_id: str, protocol: str, request: Request, body: PolicyInput | None = None,
+                      _user=Depends(anyone)):
+        return (await service.preview(node_id, protocol, body)).model_dump()
+
+    @app.post("/api/routing/policies/{node_id}/{protocol}/apply")
+    async def apply(node_id: str, protocol: str, body: RevisionBody, request: Request, user=Depends(owner)):
+        result = await service.apply(node_id, protocol, expected_revision=body.expected_revision, **_ctx(request, user))
+        return _outcome(result)
+
+    @app.post("/api/routing/policies/{node_id}/{protocol}/rollback")
+    async def rollback(node_id: str, protocol: str, body: RevisionBody, request: Request, user=Depends(owner)):
+        result = await service.rollback(node_id, protocol, expected_revision=body.expected_revision,
+                                        **_ctx(request, user))
+        return _outcome(result)
+
+    @app.get("/api/routing/policies/{node_id}/{protocol}/history")
+    async def history(node_id: str, protocol: str, _user=Depends(context.current)):
+        return {"items": service.history(node_id, protocol)}
+
+
+def _outcome(result: dict) -> dict:
+    applied = result["applied"]
+    return {
+        "policy": policy_view(result["policy"]),
+        "applied": None if applied is None else {"revision": applied.revision, "digest": applied.digest,
+                                                 "readback_sha256": applied.readback_sha256, "replayed": applied.replayed},
+        "compiled": result["compiled"].model_dump(),
+    }

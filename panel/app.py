@@ -37,6 +37,9 @@ from .naive_routes import register_naive_routes
 from .node_routes import register_node_routes
 from .protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
 from .nodes.service import NodeLifecycleService
+from .routing.routes import register_routing_routes
+from .routing.service import RoutingService
+from .routing.store import RoutingStore
 from .secrets_store import SecretStore
 from .settings import Settings
 from .store import Store
@@ -164,6 +167,11 @@ def create_app(
     app.state.pusher = FleetPusher(app.state.database, app.state.links, app.state.desired, app.state.secrets,
                                    app.state.clients, app.state.provisioning, app.state.events,
                                    interval=settings.fleet_heartbeat_seconds)
+    # Routing (v0.4, spec §8): egress policies for this node's services and the linked panels'.
+    app.state.routing = RoutingService(
+        app.state.database, RoutingStore(app.state.database), app.state.adapters, app.state.nodes.nodes,
+        enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled}.get(protocol, True),
+    )
 
     # The heartbeat/delivery loop lives as a background task for the process's lifetime:
     # startup never waits on a node, and shutdown lets a tick in flight finish briefly
@@ -230,4 +238,5 @@ def create_app(
     register_client_routes(app, context)
     register_subscription_admin_routes(app, context)
     register_subscription_routes(app, context)
+    register_routing_routes(app, context)
     return app

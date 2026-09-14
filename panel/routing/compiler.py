@@ -71,6 +71,12 @@ def _naive_document(default_action: str, rules: list[RoutingRule]) -> dict:
     return {"schema": 1, "upstream": {"provider": "warp"} if default_action == "egress" else None, "acl": acl}
 
 
+def direct_document(backend: str) -> dict:
+    """What «reset» applies: the whole service direct, no rules — the state a policy may be
+    deleted in (spec §8.1)."""
+    return (_naive_document if backend == "naive_native" else _mieru_document)("direct", [])
+
+
 def _mieru_document(default_action: str, rules: list[RoutingRule]) -> dict:
     compiled = []
     for rule in rules:
@@ -159,9 +165,15 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     if default_action == "direct" and not rules:
         warnings.append("policy_empty")
     applied = target.applied
+    digest = document_digest(document)
+    if applied is not None and applied.get("document") is None:
+        # A linked panel reports only the digest of what it runs: same digest, no change to
+        # show; otherwise the whole planned document is the diff.
+        diff = [] if applied.get("digest") == digest else _diff(None, document)
+    else:
+        diff = _diff(None if applied is None else applied["document"], document)
     return Compiled(
-        status="supported", reasons=[], warnings=warnings, document=document, digest=document_digest(document),
-        diff=_diff(None if applied is None else applied["document"], document),
+        status="supported", reasons=[], warnings=warnings, document=document, digest=digest, diff=diff,
         restart_required=target.restart_required,
         rollback=None if applied is None else {"to_revision": applied["revision"], "to_digest": applied["digest"]},
         compiler_version=COMPILER_VERSION, backend=target.backend, runtime_version=target.runtime_version,
