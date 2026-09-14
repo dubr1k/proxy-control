@@ -4,6 +4,98 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - 2026-09-14
+
+Routing: the operator sets, per node and per proxy service, where the clients'
+traffic leaves — directly, through the host's WARP, or not at all — as an
+engine-neutral policy that the panel compiles for the backend the node actually
+runs and applies transactionally with a rollback, locally and on linked panels.
+The design is [ADR 006](docs/adr/006-routing-engine-neutral-ir.md) (accepted)
+and [ADR 007](docs/adr/007-routing-enforcement-ownership.md); the spec
+`docs/superpowers/specs/2026-09-14-v0.4-routing-design.md`; the spike that
+fixed what each backend can honestly enforce —
+`docs/spikes/VNEXT_ROUTING_ENGINE.md`. The Xray router (v0.5) stays roadmap:
+this release is capability-limited on purpose, and the preview says so instead
+of narrowing a rule silently — [ROUTING](docs/ROUTING.en.md),
+[release note](docs/releases/v0.4.0-beta.1.md).
+
+### Added
+
+- **Routing policies** (migration 14: `routing_policies`, `routing_rules`,
+  `routing_applies`, `managed_egress`): one policy per (node, protocol) for
+  NaiveProxy and Mieru — a default (`direct` | `egress: warp`), a fallback when
+  WARP is down (`fail_closed` | `approved_direct`) and ordered first-match rules
+  (`domains`, `cidrs`, `ports`; `direct` | `block` | `egress`), with optimistic
+  revisions. MTProxy is out of scope (`protocol_out_of_scope`).
+- **Compiler and preview** (`panel/routing/compiler.py`): the policy compiled
+  into the document the node's manager validates — `naive_native` (Caddy
+  forwardproxy `upstream` + `acl`) or `mieru_native` (mita `egress`) — against
+  the capabilities the manager declares. Whatever a backend cannot enforce
+  comes back as `unsupported` with the rule named: NaiveProxy has one upstream
+  per service and no selective rules, and forwardproxy skips its ACL beside an
+  upstream, so a block rule cannot hold with a WARP default; block by port is
+  not a deny in either engine; loopback, link-local and private networks may be
+  blocked but never opened. A reachable-but-down WARP fails closed unless the
+  policy chose `approved_direct`, shown as a warning.
+- **Egress API of the managers** (`/v1/egress`, `/v1/egress/plan|apply|rollback`
+  on both UDS): the naive-manager owns a marked block inside `forward_proxy`
+  (an `upstream` written by hand is adopted as `custom` and restored verbatim
+  on rollback), the mieru-manager owns mita's `egress` section (applied by a
+  restart — `mita reload` does not pick it up). Revision CAS, a reachability
+  probe of the provider before apply, a readback after reload, a journal of
+  the last ten entries; `egress_conflict`, `egress_invalid`,
+  `egress_unreachable`, `egress_readback_mismatch`,
+  `manual_intervention_required`. The mieru-manager container moves to the
+  host network for the probe (still `read_only`, `cap_drop: ALL`, no listener).
+- **Installer `[egress]`** (`warp`, `warp_port`, `naive`, `mieru`): WARP moves
+  out of `[three_xui]` (dual-read of the old keys, one warning) and each
+  service chooses its egress; `NAIVE_EGRESS_WARP` / `MIERU_EGRESS_WARP` reach
+  the managers through `.env` and Compose. The initial egress is seeded once;
+  upgrade and repair leave it alone — [INSTALLER_REFERENCE](docs/INSTALLER_REFERENCE.en.md).
+- **Routing over Fleet v2**: a node declares `egress.v1` and its egress targets
+  in `identity`; a generation carries an optional `egress` section (omitted
+  from the wire and the digest when absent, so a v0.3 node or central still
+  agrees on every document without one); the node applies it after the
+  resources, idempotently by digest, and reports `converged | failed |
+  unsupported` per protocol; the central moves the policy to `applied` /
+  `failed` from that report. A local apply is refused while a central manages
+  the node (`managed_by_central`).
+- **`/api/routing/*`**: targets (nodes × protocols with backend, capabilities,
+  providers — never the provider's endpoint — and the policy's state), `GET`/
+  `PUT`/`DELETE` of a policy, `preview` of a draft without saving, `apply`,
+  `rollback`, `history`; audited as `routing.policy.update | apply | rollback |
+  delete` — [PANEL](PANEL.en.md), [AUDIT_EVENTS](docs/AUDIT_EVENTS.md).
+- **UI «Маршрутизация»**: node and protocol tabs, the policy editor (defaults,
+  rules with ↑/↓ and drag), a live preview (status, reasons tied to the rule,
+  warnings, diff, rollback target), «Применить» only for a saved supported
+  policy, history; the node card gains the line «Маршрутизация: …».
+- **Lab tier `routing`** (`scripts/dev/remote-gate.sh routing`,
+  `fleet-acceptance.py --routing`, `scripts/lab/socks5-stub.py`): whole-service
+  WARP through a logging SOCKS5 stub, block by domain and CIDR with the cover
+  site alive, Mieru's selective rule, rollback byte for byte, a provider down
+  → fail-closed, nginx and nftables untouched.
+
+### Changed
+
+- **Fix-wave of the v0.3 post-merge findings**: a node answering 429/5xx keeps
+  its link status (backoff, not `offline`); escrow only from a report about the
+  current generation; unchanged plaintext is not re-escrowed; heartbeat bodies
+  capped at 1 MiB; `POST credentials/capture` takes `purpose: escrow | import`
+  and refuses unmanaged users for escrow; `DELETE /api/nodes/{id}?force=1`;
+  «применено, ожидает учётные данные» on the node card; tmpfs `/tmp` for the
+  managers and the agent; audit event names unified in `docs/AUDIT_EVENTS.md`.
+- `GenerationDocument.canonical_digest` is computed over the wire form
+  (`egress` left out when absent); every document without egress keeps the
+  digest it had in v0.3.
+
+### Security
+
+- Routing documents, policies, `identity`, observed reports and audit rows
+  carry no secret and no provider endpoint: the WARP URL lives only in the
+  managers' environment. A `direct`/`egress` rule for loopback or a private
+  network is refused at compile time (`private_destination`); the manager
+  refuses the same in its own validation.
+
 ## [0.3.0-beta.1] - 2026-09-14
 
 Fleet v2: one panel becomes the **central panel** and manages other panels over
