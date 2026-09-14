@@ -61,6 +61,15 @@ checks the fleet and grant names against this file.
 | `node.version.update` | node guid | updating a component on a linked panel |
 | `node.unlink` | node guid | «Удалить» a linked panel (`node_released`, `node_error` — the class of the node's refusal, `released_imported`; a forced deletion adds `forced` and `abandoned_provisioned`) |
 
+## Routing (v0.4)
+
+| Action | Target | Recorded by |
+| --- | --- | --- |
+| `routing.policy.update` | policy id | `PUT /api/routing/policies/{node}/{protocol}` (`node_id`, `protocol`, `revision`, `rules`, `default_action`) |
+| `routing.policy.apply` | policy id | apply — local: the manager's outcome (`outcome`: `applied` or `failed`, `digest`, `manager_revision`, `readback_sha256`, `replayed` / `error`); linked panel: `outcome: applying` when the generation is published, then the node's report through the pusher |
+| `routing.policy.rollback` | policy id | rollback to the manager's previous egress entry (`to_revision` — the policy revision it matches, or null for a hand-written section) |
+| `routing.policy.delete` | policy id | `DELETE …` once the node runs «direct, no rules» |
+
 ## Nodes (node side, through the central's key)
 
 | Action | Target | Recorded by |
