@@ -302,7 +302,9 @@ class Panel:
             detail = ""
             with contextlib.suppress(ValueError):
                 detail = json.loads(body).get("detail", "") if body else ""
-            raise Check(f"{method} {self.base_url}{path} -> {status} {str(detail)[:200]}")
+            # A 422 detail echoes the request (a login password, a reveal path with its
+            # token): the message is redacted here, before it can reach a log or a report.
+            raise Check(f"{method} {self.base_url}{redact(path)} -> {status} {redact(str(detail))[:200]}")
         return json.loads(body) if body else {}
 
     def login(self, username: str, password: str) -> None:

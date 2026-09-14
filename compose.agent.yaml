@@ -26,7 +26,8 @@ services:
       - fleet-agent-data:/data
     read_only: true
     tmpfs:
-      - /tmp:size=8m,mode=0700
+      # Owned by the agent user (10002:101), same reason as the panel's /tmp in compose.yaml.
+      - /tmp:size=8m,mode=1777,uid=10002,gid=101
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 
