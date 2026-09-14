@@ -23,6 +23,12 @@ export function createPanelState() {
     nodeTab: {},
     nodeInventory: {},
     linkProbe: null,
+    // Routing (v0.4): the targets table, the node × protocol on screen, and the editor's
+    // draft/preview state (`routing`, built lazily by routing.js).
+    routingTargets: [],
+    routingNode: null,
+    routingProtocol: null,
+    routing: null,
     admins: [],
     keys: [],
     // The plaintext of a freshly created API key lives here only while #key-reveal is open.

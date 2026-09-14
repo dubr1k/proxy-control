@@ -18,6 +18,14 @@ import {
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
 import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
+import {
+  bindRouting,
+  handleRoutingChange,
+  handleRoutingClick,
+  handleRoutingInput,
+  handleRoutingSubmit,
+  renderRouting,
+} from "./routing.js";
 import { createPanelState } from "./state.js";
 import { createSubscriptionDialog } from "./subscriptions.js";
 import { createUi } from "./ui.js";
@@ -31,6 +39,7 @@ const TITLES = {
   naive: ["NaiveProxy", "HTTPS-прокси, конфигурации и доступы"],
   versions: ["Версии", "Проверенные обновления runtime-компонентов"],
   fleet: ["Узлы", "Связанные панели, этот сервер и узлы v1; raw-команды Telemt v1 — в Advanced"],
+  routing: ["Маршрутизация", "Куда сервисы выпускают трафик: напрямую, через WARP или блокировка — с честным предпросмотром по backend узла"],
   admins: ["Администраторы", "Роли, доступ к панели и API-ключи"],
   audit: ["Журнал действий", "Изменения, входы и операции с ключами"],
 };
@@ -43,6 +52,7 @@ const RENDERERS = {
   naive: renderNaive,
   versions: renderVersions,
   fleet: renderNodes,
+  routing: renderRouting,
   admins: renderAdmins,
   audit: renderAudit,
 };
@@ -143,20 +153,21 @@ function bindPanel(context) {
   bindMieru(context);
   bindNaive(context);
   bindNodes(context);
+  bindRouting(context);
   bindManagement(context);
   bindKeys(context);
   context.access.bind();
   context.subscriptions.bind();
 
   ui.view.addEventListener("input", (event) => {
-    handleUsersInput(context, event.target) || handleNaiveInput(context, event.target);
+    handleRoutingInput(context, event.target) || handleUsersInput(context, event.target) || handleNaiveInput(context, event.target);
   });
   ui.view.addEventListener("change", (event) => {
-    handleManagementChange(context, event.target) || handleFleetChange(context, event.target);
+    handleRoutingChange(context, event.target) || handleManagementChange(context, event.target) || handleFleetChange(context, event.target);
   });
   ui.view.addEventListener("submit", (event) => {
     event.preventDefault();
-    handleFleetSubmit(context, event.target) || handleAuditSubmit(context, event.target);
+    handleRoutingSubmit(context, event.target) || handleFleetSubmit(context, event.target) || handleAuditSubmit(context, event.target);
   });
   ui.view.addEventListener("click", (event) => {
     const button = event.target.closest("button");
@@ -166,6 +177,7 @@ function bindPanel(context) {
       return;
     }
     if (handleAuditClick(context, button)) return;
+    if (handleRoutingClick(context, button)) return;
     if (handleClientsClick(context, button)) return;
     if (handleNodesClick(context, button)) return;
     if (handleFleetClick(context, button)) return;
