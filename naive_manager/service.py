@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import difflib
 import functools
+import hashlib
 import json
 import os
 import re
@@ -15,6 +17,8 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import quote
 
+from . import egress as egress_block
+from .egress import EgressUnreachable
 from .traffic import (
     ACCOUNTING_ROLL_KEEP,
     ACCOUNTING_ROLL_SIZE_BYTES,
@@ -165,6 +169,10 @@ class NaiveCredentialManager:
     probe: Callable[[], None]
     caddyfile_mode: int = 0o640
     traffic: TrafficCollector | None = None
+    # The host's WARP proxy-mode endpoint (`NAIVE_EGRESS_WARP`), or None without WARP; the
+    # only address the egress API ever writes into the Caddyfile (v0.4 routing).
+    provider_url: str | None = None
+    reachability: Callable[[str, float], bool] = egress_block.check_reachable
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
     _recovery_failed: bool = field(default=False, init=False, repr=False)
 
@@ -472,6 +480,230 @@ class NaiveCredentialManager:
         for row in state["tombstones"]:
             self.traffic.archive_user(row["username"])
 
+    # ------------------------------------------------------------------
+    # egress (v0.4 routing): the managed block inside forward_proxy
+    # ------------------------------------------------------------------
+
+    def _providers(self, *, probe: bool) -> dict:
+        if not self.provider_url:
+            return {}
+        return {"warp": {"url": self.provider_url, "reachable": self.reachability(self.provider_url, 3.0) if probe else None}}
+
+    def _egress_document(self, parsed: egress_block.ParsedEgress) -> dict | None:
+        """The compiled document the block (or the adopted line) amounts to, or None for a
+        `custom` upstream this host has no provider for."""
+        if parsed.upstream is None:
+            upstream = None
+        elif self.provider_url and parsed.upstream == self.provider_url:
+            upstream = {"provider": "warp"}
+        else:
+            return None
+        acl = [{"deny": list(parsed.acl_deny)}] if parsed.acl_deny else []
+        return {"schema": egress_block.SCHEMA, "upstream": upstream, "acl": acl}
+
+    def _egress_view(self, state: dict, parsed: egress_block.ParsedEgress, *, probe: bool) -> dict:
+        document = self._egress_document(parsed)
+        mode = parsed.mode
+        if mode == "custom" and document is not None:
+            mode = "proxy"  # an unmanaged line that already names the provider
+        journal = state["egress"]
+        return {
+            "revision": parsed.revision, "mode": mode, "upstream": parsed.upstream, "acl": list(parsed.acl_deny),
+            "document": document, "managed": parsed.managed, "providers": self._providers(probe=probe),
+            "capabilities": list(egress_block.CAPABILITIES), "restart_required": False,
+            "warnings": ["adopts_unmanaged_upstream"] if parsed.upstream and not parsed.managed else [],
+            "previous": None if journal["previous"] is None else {"revision": journal["previous"]["revision"]},
+            "current": None if journal["current"] is None else {
+                key: journal["current"][key] for key in ("revision", "rendered_sha256", "operation_id", "applied_at")},
+        }
+
+    @synchronized
+    def egress(self) -> dict:
+        state = self._read_state()
+        parsed = egress_block.parse(self.caddyfile.read_text())
+        return self._egress_view(state, parsed, probe=True)
+
+    def _egress_target(self, expected_revision: str, document: object) -> tuple[dict, egress_block.ParsedEgress, dict, str]:
+        """Validate, check the revision, render: what every plan/apply starts with."""
+        normalised = egress_block.validate_document(document)
+        state = self._read_state()
+        self._assert_consistent(state)
+        text = self.caddyfile.read_text()
+        parsed = egress_block.parse(text)
+        if not isinstance(expected_revision, str) or not secrets.compare_digest(parsed.revision, expected_revision):
+            raise ManagerConflict("egress revision does not match", "egress_conflict")
+        rendered = egress_block.render(text, normalised, self.provider_url)
+        return state, parsed, normalised, rendered
+
+    @synchronized
+    def egress_plan(self, expected_revision: str, document: object) -> dict:
+        state, parsed, normalised, rendered = self._egress_target(expected_revision, document)
+        before = "\n".join(parsed.raw_lines).splitlines()
+        after = "\n".join(egress_block.parse(rendered).raw_lines).splitlines()
+        diff = [line for line in difflib.unified_diff(before, after, "current", "planned", lineterm="", n=0)
+                if not line.startswith(("---", "+++", "@@"))]
+        reachability = {}
+        if normalised["upstream"] is not None:
+            reachability["warp"] = self.reachability(self.provider_url, 3.0)
+        return {
+            "revision": parsed.revision, "target_revision": egress_block.revision_of(rendered),
+            "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest(), "diff": diff,
+            "warnings": ["adopts_unmanaged_upstream"] if parsed.upstream and not parsed.managed else [],
+            "reachability": reachability, "restart_required": False,
+        }
+
+    @lifecycle_synchronized
+    def egress_apply(self, expected_revision: str, document: object, operation_id: str) -> dict:
+        """Write the block, reload, read the running config back; the previous entry stays in
+        the journal for `egress_rollback`. Idempotent by `operation_id`: a retry after a lost
+        reply gets the same answer without a second reload."""
+        if not isinstance(operation_id, str) or OPERATION_ID.fullmatch(operation_id) is None:
+            raise ValueError("invalid operation id")
+        normalised = egress_block.validate_document(document)
+        state = self._read_state()
+        current = state["egress"]["current"]
+        if current is not None and current.get("operation_id") == operation_id:
+            if current["document"] != normalised:
+                raise ManagerConflict("operation id already used for another request", "operation_conflict")
+            return {"revision": current["revision"], "applied": current["document"],
+                    "readback_sha256": current["rendered_sha256"], "replayed": True}
+        state, parsed, normalised, rendered = self._egress_target(expected_revision, document)
+        if normalised["upstream"] is not None and not self.reachability(self.provider_url, 3.0):
+            raise EgressUnreachable("egress provider warp is unreachable")
+        entry = {"document": normalised, "revision": egress_block.revision_of(rendered),
+                 "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest(),
+                 "operation_id": operation_id, "applied_at": _now()}
+        self._egress_transaction(state, rendered, entry, parsed)
+        return {"revision": entry["revision"], "applied": normalised, "readback_sha256": entry["rendered_sha256"],
+                "replayed": False}
+
+    @lifecycle_synchronized
+    def egress_rollback(self, expected_revision: str) -> dict:
+        """Back to the previous journal entry: a managed document, or the unmanaged lines the
+        first apply adopted (restored verbatim)."""
+        state = self._read_state()
+        self._assert_consistent(state)
+        text = self.caddyfile.read_text()
+        parsed = egress_block.parse(text)
+        if not isinstance(expected_revision, str) or not secrets.compare_digest(parsed.revision, expected_revision):
+            raise ManagerConflict("egress revision does not match", "egress_conflict")
+        previous = state["egress"]["previous"]
+        if previous is None:
+            raise ManagerConflict("no previous egress to roll back to", "egress_no_previous")
+        if previous.get("document") is not None:
+            rendered = egress_block.render(text, previous["document"], self.provider_url)
+            if previous["document"]["upstream"] is not None and not self.reachability(self.provider_url, 3.0):
+                raise EgressUnreachable("egress provider warp is unreachable")
+        else:
+            rendered = egress_block.render_raw(text, tuple(previous["raw_lines"]))
+        entry = {"document": previous.get("document"), "revision": egress_block.revision_of(rendered),
+                 "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest(),
+                 "operation_id": None, "applied_at": _now(), "raw_lines": previous.get("raw_lines")}
+        self._egress_transaction(state, rendered, entry, parsed, rollback=True)
+        return {"revision": entry["revision"], "applied": entry["document"], "readback_sha256": entry["rendered_sha256"]}
+
+    def _egress_transaction(self, state: dict, rendered: str, entry: dict, parsed: egress_block.ParsedEgress,
+                            *, rollback: bool = False) -> None:
+        """The journal is a stack of what was applied, oldest first; its floor is what the
+        Caddyfile had before the first apply (the adopted lines, kept verbatim). An apply
+        pushes, a rollback pops — so repeated rollbacks walk back to the floor."""
+        history = list(state["egress"]["history"])
+        if rollback:
+            history = history[:-1]
+            history[-1] = entry  # the restored entry, re-stamped
+        else:
+            if state["egress"]["current"] is None:
+                history = [{"document": None, "revision": parsed.revision, "raw_lines": list(parsed.raw_lines),
+                            "rendered_sha256": None, "operation_id": None, "applied_at": None}]
+            history = [*history, entry][-10:]
+        desired = copy.deepcopy(state)
+        desired["egress"] = {"current": history[-1], "previous": history[-2] if len(history) > 1 else None,
+                             "history": history}
+        self._commit(rendered, desired, readback=self._egress_readback(entry))
+
+    def _egress_readback(self, entry: dict) -> Callable[[dict], None]:
+        expected_upstream = None
+        expected_deny: list[str] = []
+        if entry.get("document") is not None:
+            expected_upstream = egress_block.resolve_provider(entry["document"], self.provider_url)
+            expected_deny = [item for rule in entry["document"]["acl"] for item in rule["deny"]]
+        elif entry.get("raw_lines"):
+            parsed = egress_block.parse("forward_proxy {\n" + "\n".join(entry["raw_lines"]) + "\n}\n")
+            expected_upstream, expected_deny = parsed.upstream, list(parsed.acl_deny)
+
+        def check(config: dict) -> None:
+            handler = self._forward_proxy_handler(config)
+            if handler.get("upstream") != expected_upstream:
+                raise ManagerConflict("running upstream differs from the applied egress", "egress_readback_mismatch")
+            subjects = [item for rule in handler.get("acl") or [] for item in rule.get("subjects", [])]
+            if sorted(subjects) != sorted(expected_deny):
+                raise ManagerConflict("running acl differs from the applied egress", "egress_readback_mismatch")
+
+        return check
+
+    @staticmethod
+    def _forward_proxy_handler(config: dict) -> dict:
+        found = []
+
+        def walk(value) -> None:
+            if isinstance(value, dict):
+                if value.get("handler") == "forward_proxy":
+                    found.append(value)
+                for child in value.values():
+                    walk(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk(child)
+
+        walk(config)
+        if len(found) != 1:
+            raise ManagerConflict("unexpected proxy handler", "egress_readback_mismatch")
+        return found[0]
+
+    def _commit(self, rendered: str, desired: dict, *, readback: Callable[[dict], None] | None = None) -> None:
+        """`_apply`'s transaction for a rendered Caddyfile that is not a user change: backup,
+        write, reload, probe, read back — and restore the previous bytes on any failure."""
+        if self._recovery_failed or self._transaction_file.exists():
+            raise ManagerRecoveryError("transaction recovery required before mutation")
+        config_before = self.caddyfile.read_bytes()
+        state_before = self.state_file.read_bytes()
+        _durable_mkdir(self.backup_dir)
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+        config_backup = self.backup_dir / f"{stamp}.Caddyfile"
+        state_backup = self.backup_dir / f"{stamp}.users.json"
+        _atomic_write(config_backup, config_before)
+        _atomic_write(state_backup, state_before)
+        transaction = {"version": 1, "phase": "prepared", "config_backup": config_backup.name,
+                       "state_backup": state_backup.name}
+        self._write_transaction(transaction)
+        try:
+            self._write_validated_config(rendered)
+            _atomic_write(self.state_file, self._encode_state(desired))
+            transaction["phase"] = "rollback_pending"
+            self._write_transaction(transaction)
+            self.reload()
+            self.probe()
+            if readback is not None:
+                readback(self.validate(self.caddyfile))
+        except BaseException as operation_error:
+            self._recovery_failed = True
+            transaction["phase"], transaction["recovery_from"] = "recovery_failed", transaction["phase"]
+            try:
+                self._write_transaction(transaction)
+                _atomic_write(self.caddyfile, config_before, self.caddyfile_mode)
+                _atomic_write(self.state_file, state_before)
+                self._validate_config(self.caddyfile)
+                self.reload()
+                self.probe()
+            except Exception as rollback_error:
+                raise ManagerRecoveryError("rollback failed; manager requires recovery") from rollback_error
+            self._clear_transaction()
+            self._recovery_failed = False
+            self._prune_backups()
+            raise operation_error
+        self._clear_transaction()
+        self._prune_backups()
+
     def _apply(self, desired: dict) -> None:
         if self._recovery_failed or self._transaction_file.exists():
             raise ManagerRecoveryError("transaction recovery required before mutation")
@@ -599,10 +831,15 @@ class NaiveCredentialManager:
             raise ManagerConflict("invalid manager state") from exc
         if state.get("version") != 1 or state.get("host") != self.public_host or not isinstance(state.get("users"), list):
             raise ManagerConflict("unsupported manager state")
-        if set(state) - {"version", "host", "users", "tombstones", "operations"}:
+        if set(state) - {"version", "host", "users", "tombstones", "operations", "egress"}:
             raise ManagerConflict("unsupported manager state")
         state["operations"] = self._pruned_operations(state.get("operations"))
         state.setdefault("tombstones", [])
+        # The egress journal (v0.4) is optional: a state file from an older manager has none.
+        journal = state.setdefault("egress", {"current": None, "previous": None, "history": []})
+        if (not isinstance(journal, dict) or set(journal) != {"current", "previous", "history"}
+                or not isinstance(journal["history"], list)):
+            raise ManagerConflict("invalid egress journal")
         if not isinstance(state["tombstones"], list):
             raise ManagerConflict("invalid tombstone state")
         seen = set()

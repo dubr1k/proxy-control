@@ -15,7 +15,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .service import ManagerConflict, ManagerNotFound, NaiveCredentialManager
+from .egress import EgressInvalid, EgressUnreachable
+from .service import ManagerConflict, ManagerNotFound, ManagerRecoveryError, NaiveCredentialManager
 from .traffic import (
     ACCOUNTING_MAX_VERIFY_BYTES,
     ACCOUNTING_ROLL_KEEP,
@@ -160,6 +161,19 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.manager.list_users())
             if self.command == "GET" and path == "/v1/traffic":
                 return self._send(200, self.server.manager.traffic_report())
+            if path == "/v1/egress" and self.command == "GET":
+                return self._send(200, self.server.manager.egress())
+            if self.command == "POST" and path in {"/v1/egress/plan", "/v1/egress/apply", "/v1/egress/rollback"}:
+                body = self._body()
+                revision = body.get("expected_revision")
+                if not isinstance(revision, str):
+                    raise ValueError("expected_revision is required")
+                if path.endswith("/plan"):
+                    return self._send(200, self.server.manager.egress_plan(revision, body.get("document")))
+                if path.endswith("/apply"):
+                    return self._send(200, self.server.manager.egress_apply(
+                        revision, body.get("document"), _optional_text(body, "operation_id") or ""))
+                return self._send(200, self.server.manager.egress_rollback(revision))
             if self.command == "POST" and path == "/v1/users":
                 body = self._body()
                 return self._send(
@@ -212,8 +226,15 @@ class ManagerHandler(BaseHTTPRequestHandler):
             self.close_connection = True
         except ManagerNotFound:
             self._send_error(404, {"detail": "not found"})
+        except EgressInvalid as exc:
+            self._send_error(422, {"detail": str(exc), "code": "egress_invalid"})
+        except EgressUnreachable as exc:
+            self._send_error(409, {"detail": str(exc), "code": "egress_unreachable"})
+        except ManagerRecoveryError as exc:
+            self._send_error(503, {"detail": str(exc), "code": "manual_intervention_required"})
         except ManagerConflict as exc:
-            self._send_error(409, {"detail": "configuration conflict", "code": exc.code})
+            status = 502 if exc.code == "egress_readback_mismatch" else 409
+            self._send_error(status, {"detail": "configuration conflict", "code": exc.code})
         except (ValueError, json.JSONDecodeError):
             self._send_error(422, {"detail": "invalid request"})
         except Exception:
@@ -317,6 +338,8 @@ def build_manager() -> NaiveCredentialManager:
         validate=command_validate,
         reload=command_reload,
         probe=lambda: https_probe(host),
+        # The WARP proxy-mode endpoint the egress API may route the service through (v0.4).
+        provider_url=os.getenv("NAIVE_EGRESS_WARP", "").strip() or None,
     )
     manager.traffic = TrafficCollector(
         Path(os.getenv("NAIVE_TRAFFIC_LOG", "/logs/access.json")),
