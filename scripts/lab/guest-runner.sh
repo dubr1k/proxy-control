@@ -1148,6 +1148,10 @@ host_setup() {
     groupdel mita >/dev/null 2>&1 || true
     systemctl daemon-reload
     rm -f /etc/nginx/conf.d/proxy-control-*.conf
+    # The adjacent-site fixture of the previous run names a certificate the reset above
+    # removed with /etc/letsencrypt; left in place it fails `nginx -t`, and with it every
+    # dpkg configure of nginx the preflight's apt-get triggers.
+    rm -f /etc/nginx/conf.d/lab-adjacent.conf
     # The identity-collision scenario creates this group; a previous run that
     # stopped early can leave it behind and block the next audit.
     groupdel foreign-accounting >/dev/null 2>&1 || true
