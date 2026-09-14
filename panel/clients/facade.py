@@ -138,10 +138,13 @@ class DomainFacade:
                 db, grant.id, desired_state=state, observed_state=state,
                 updated_at=int(self.clock.time()),
             )
+            # One name per operator action wherever the account lives (`docs/AUDIT_EVENTS.md`):
+            # the grant lifecycle records the same `grant.enable|disable|rotate|delete` for a
+            # remote grant, and relies on this row for a local one.
             record(
                 db,
                 actor=actor,
-                action=f"grant.{state}",
+                action="grant.enable" if enabled else "grant.disable",
                 target=grant.id,
                 ip=ip,
                 request_id=request_id,
@@ -164,7 +167,7 @@ class DomainFacade:
             record(
                 db,
                 actor=actor,
-                action="grant.deleted",
+                action="grant.delete",
                 target=grant.id,
                 ip=ip,
                 request_id=request_id,
@@ -224,7 +227,7 @@ class DomainFacade:
             record(
                 db,
                 actor=actor,
-                action="grant.credential.rotate",
+                action="grant.rotate",
                 target=grant.id,
                 ip=ip,
                 request_id=request_id,

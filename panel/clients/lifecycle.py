@@ -15,7 +15,7 @@ import time
 
 from ..audit import record
 from ..fleet_v2.guard import require_unmanaged
-from ..protocols.base import GrantRef
+from ..protocols.base import AdapterError, GrantRef
 from .facade import LOCAL_NODE_ID, DomainFacade
 from .models import AccessGrant
 from .provisioning import is_remote_node, new_credential
@@ -85,10 +85,11 @@ class GrantLifecycle:
             detail={"protocol": grant.protocol, "runtime_username": grant.runtime_username, "node_id": grant.node_id},
         )
 
-    def _audited(self, grant: AccessGrant, action: str, *, actor, ip, request_id) -> AccessGrant:
-        """The operator's action on a local grant, once the façade has mirrored the runtime."""
-        with self.database.transaction() as db:
-            self._audit(db, grant, action, actor=actor, ip=ip, request_id=request_id)
+    def _fresh(self, grant: AccessGrant) -> AccessGrant:
+        """The local grant once the façade has mirrored the runtime — and recorded the
+        action under the same `grant.*` name this class records for a remote grant, so
+        one operator action is one audit row wherever the account lives."""
+        with self.database.connect() as db:
             return self.clients.store.grant(db, grant.id)
 
     def _declare(self, db, grant: AccessGrant, action: str, *, actor, ip, request_id, **fields) -> AccessGrant:
@@ -112,7 +113,7 @@ class GrantLifecycle:
                 grant.protocol, grant.runtime_username, enabled, observed=self._observed(grant),
                 actor=actor, ip=ip, request_id=request_id,
             )
-            return self._audited(grant, action, actor=actor, ip=ip, request_id=request_id)
+            return self._fresh(grant)
         with self.database.transaction() as db:
             grant = self._live(db, grant_id)
             if grant.desired_state == state:
@@ -134,7 +135,7 @@ class GrantLifecycle:
                 grant.protocol, grant.runtime_username, observed=self._observed(grant),
                 actor=actor, ip=ip, request_id=request_id,
             )
-            return self._audited(grant, "rotate", actor=actor, ip=ip, request_id=request_id)
+            return self._fresh(grant)
         with self.database.transaction() as db:
             grant = self._live(db, grant_id)
             secret_id = f"grant:{grant.id}"
@@ -167,12 +168,18 @@ class GrantLifecycle:
         `missing`; an operation still waiting for the node to apply it is settled now."""
         grant, remote = self._load(grant_id)
         if not remote:
-            await self.facade.adapters[grant.protocol].delete(self._ref(grant))
+            try:
+                await self.facade.adapters[grant.protocol].delete(self._ref(grant))
+            except AdapterError as exc:
+                # The runtime no longer has the user (deleted behind the panel's back, the
+                # grant drifted): the outcome the operator asked for already holds, so the
+                # row follows it instead of a 502 that keeps the grant forever.
+                if not exc.already_gone:
+                    raise
             await self.facade.forget(
                 grant.protocol, grant.runtime_username, actor=actor, ip=ip, request_id=request_id
             )
             with self.database.transaction() as db:
-                self._audit(db, grant, "delete", actor=actor, ip=ip, request_id=request_id)
                 self.clients.purge_grant(db, grant.id)
             return
         with self.database.transaction() as db:

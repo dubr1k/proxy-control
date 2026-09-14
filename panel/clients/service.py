@@ -15,6 +15,7 @@ from ..audit import digest, record
 from ..database import Database
 from ..fleet_v2.guard import require_unmanaged
 from ..fleet_v2.managed import ManagedStore
+from ..nodes.models import LOCAL_NODE_ID
 from ..secrets_store import SecretRef, SecretStore
 from .models import AccessGrant, Client
 from .store import ClientConflict, ClientStore
@@ -152,9 +153,13 @@ class ClientService:
 
     def _local_writable(self, grant_id: str) -> AccessGrant:
         """The grant, if this panel may write its account (ADR 003): one the central panel
-        owns is refused before any adapter I/O, with the same 409 the routes use."""
+        owns is refused before any adapter I/O, with the same 409 the routes use; one
+        that lives on another node has no manager here at all — the local adapter would
+        read (or rotate!) an unrelated account of the same name."""
         with self.database.connect() as db:
             grant = self.store.grant(db, grant_id)
+            if grant.node_id != LOCAL_NODE_ID:
+                raise ClientConflict(f"the grant lives on another node ({grant.node_id}); use its lifecycle")
             require_unmanaged(db, self.managed, grant.protocol, grant.runtime_username)
         return grant
 

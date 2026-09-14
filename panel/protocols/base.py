@@ -15,7 +15,14 @@ from ..clients.models import AccessGrant, GrantIntent
 
 
 class AdapterError(RuntimeError):
-    """A refused or failed protocol operation. Messages never carry a credential."""
+    """A refused or failed protocol operation. Messages never carry a credential.
+
+    `already_gone`: the runtime answered "no such user" to a delete — the outcome the
+    caller wanted already holds, so a lifecycle may treat it as done."""
+
+    def __init__(self, message: str = "", *, already_gone: bool = False):
+        super().__init__(message)
+        self.already_gone = already_gone
 
 
 class ManualInterventionRequired(AdapterError):
