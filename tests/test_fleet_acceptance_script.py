@@ -56,6 +56,33 @@ def test_interpreter_and_source_are_independent_and_cores_can_be_skipped(tmp_pat
     assert args.cleanup is True and args.bulk_grants == 5
 
 
+def test_routing_scenarios_are_opt_in_and_sit_after_the_grants(tmp_path):
+    """[v0.4] `--routing` inserts the routing step right after the grants (it needs the probe
+    user's credentials); the defaults name the stub, the Caddyfile and the probe targets."""
+    plain = fa.parse_args(REQUIRED)
+    assert plain.routing is False and plain.stub_listen == "127.0.0.1:45000"
+    assert plain.caddyfile == Path("/var/lib/naive-manager/Caddyfile")
+    assert plain.routing_allowed == "https://api.ipify.org" and plain.routing_blocked_host == "example.com"
+    assert plain.routing_cidr == "1.1.1.0/24" and plain.routing_cidr_target.startswith("https://1.1.1.1/")
+    scenario = fa.Scenario(plain, node=None, central=None, process=None, docker=None, probes=None)
+    assert "step_05r_routing" not in scenario.steps() and scenario.steps() == fa.Scenario.STEPS
+    routing = fa.parse_args(REQUIRED + ["--routing", "--stub-listen", "127.0.0.1:45001"])
+    scenario = fa.Scenario(routing, node=None, central=None, process=None, docker=None, probes=None,
+                           stub=fa.Stub("127.0.0.1:45001", tmp_path / "stub.log"), host=fa.Host(tmp_path / "Caddyfile"),
+                           routing_probes=None)
+    steps = scenario.steps()
+    assert steps.index("step_05r_routing") == steps.index("step_05_grants") + 1
+    assert steps.index("step_05r_routing") < steps.index("step_06_disable_rotate_delete")
+    assert scenario.stub.listen == "127.0.0.1:45001" and scenario.stub.lines() == []
+
+
+def test_stub_log_lines_name_the_connect_targets(tmp_path):
+    log = tmp_path / "stub.log"
+    log.write_text("1\tapi.ipify.org\t443\n2\t1.1.1.1\t443\nnoise\n")
+    stub = fa.Stub("127.0.0.1:45000", log)
+    assert stub.hosts_since(0) == ["api.ipify.org", "1.1.1.1"] and stub.hosts_since(1) == ["1.1.1.1"]
+
+
 def test_required_arguments_are_enforced():
     with pytest.raises(SystemExit):
         fa.parse_args(["--node-url", "https://panel.lab.test"])

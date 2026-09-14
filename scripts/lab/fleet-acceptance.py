@@ -30,6 +30,7 @@ of booleans, counts and short details; the exit code is non-zero when a check fa
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import hashlib
 import http.cookiejar
@@ -122,6 +123,20 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--bulk-grants", type=int, default=20, help="grants issued before the restart in step 8")
     parser.add_argument("--allow-private-address", action="store_true", help="the node URL is a private/lab address")
     parser.add_argument("--cleanup", action="store_true", help="remove --central-dir at the end")
+    # Routing (v0.4, spec §11): the scenarios routing-01…10 run after the grants, against a
+    # SOCKS5 stub this script starts as the node's «WARP» (the managers must already point
+    # at it: NAIVE_EGRESS_WARP / MIERU_EGRESS_WARP = socks5://<--stub-listen>).
+    parser.add_argument("--routing", action="store_true", help="run the v0.4 routing scenarios")
+    parser.add_argument("--stub-listen", default="127.0.0.1:45000", help="where the SOCKS5 stub listens")
+    parser.add_argument("--caddyfile", type=Path, default=Path("/var/lib/naive-manager/Caddyfile"),
+                        help="the node's NaiveProxy Caddyfile on the host (digest before/after)")
+    parser.add_argument("--routing-allowed", default="https://api.ipify.org", help="a target every policy lets through")
+    parser.add_argument("--routing-blocked-host", default="example.com", help="the host the block-domain rule names")
+    parser.add_argument("--routing-cidr-target", default="https://1.1.1.1/cdn-cgi/trace",
+                        help="a literal-IP target inside --routing-cidr")
+    parser.add_argument("--routing-cidr", default="1.1.1.0/24", help="the network the block-cidr rule names")
+    parser.add_argument("--routing-other", default="https://www.cloudflare.com/cdn-cgi/trace",
+                        help="a target outside the selective rule, expected through the stub")
     args = parser.parse_args(argv)
     args.source = Path(args.source).resolve()
     # Docker bind mounts (the cores read their config from here) need an absolute path.
@@ -454,14 +469,153 @@ class Probes:
         return completed.returncode == 0, re.sub(r"[0-9a-fA-F]{32,}", "[REDACTED]", detail)
 
 
+# --- routing (v0.4) collaborators ---------------------------------------------------------
+
+class Stub:
+    """`scripts/lab/socks5-stub.py` as the node's «WARP»: started here, on the host loopback,
+    logging every CONNECT target so «went through the egress» is a fact, not an IP guess."""
+
+    def __init__(self, listen: str, log: Path) -> None:
+        self.listen, self.log = listen, log
+        self.process: subprocess.Popen | None = None
+
+    def start(self) -> None:
+        self.log.parent.mkdir(parents=True, exist_ok=True)
+        self.process = subprocess.Popen(
+            [sys.executable, str(HERE / "socks5-stub.py"), "--listen", self.listen, "--log", str(self.log)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
+        host, _, port = self.listen.rpartition(":")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection((host or "127.0.0.1", int(port)), timeout=1):
+                    return
+            except OSError:
+                time.sleep(0.2)
+        raise Check(f"socks5 stub did not listen on {self.listen}")
+
+    def stop(self) -> None:
+        if self.process is not None:
+            _terminate(self.process.pid, self.process)
+            self.process = None
+
+    def lines(self) -> list[str]:
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def hosts_since(self, mark: int) -> list[str]:
+        return [line.split("\t")[1] for line in self.lines()[mark:] if line.count("\t") >= 2]
+
+
+class Host:
+    """Digests of what routing must not touch (nginx, nftables) and of what it does (the
+    Caddyfile, mita's config) — read on the node's host, where this script runs."""
+
+    def __init__(self, caddyfile: Path) -> None:
+        self.caddyfile = caddyfile
+
+    @staticmethod
+    def _run(*argv: str) -> tuple[int, str]:
+        completed = subprocess.run(argv, capture_output=True, text=True, timeout=120, check=False)
+        return completed.returncode, completed.stdout
+
+    def caddyfile_sha256(self) -> str:
+        return hashlib.sha256(self.caddyfile.read_bytes()).hexdigest()
+
+    def caddyfile_text(self) -> str:
+        return self.caddyfile.read_text()
+
+    def nginx_sha256(self) -> str:
+        completed = subprocess.run(["nginx", "-T"], capture_output=True, text=True, timeout=60, check=False)
+        return hashlib.sha256((completed.stdout + completed.stderr).encode()).hexdigest()
+
+    def nft_sha256(self) -> str:
+        return hashlib.sha256(self._run("nft", "list", "ruleset")[1].encode()).hexdigest()
+
+    def mita_egress(self) -> dict | None:
+        code, out = self._run("mita", "describe", "config")
+        if code != 0:
+            raise Check(f"mita describe config -> {code}")
+        return json.loads(out).get("egress")
+
+
+class RoutingProbes:
+    """The clients of the routing scenarios: curl as NaiveProxy's HTTPS-proxy client with
+    the probe grant's credential (the spike's proven path), and one mihomo container
+    speaking Mieru — both on the host, targets chosen by the scenario."""
+
+    MIHOMO_PORT = 18089
+
+    def __init__(self, args: argparse.Namespace, work: Path) -> None:
+        self.args, self.work = args, work
+        self.naive_artifact: str | None = None
+        self.mihomo_up = False
+
+    @staticmethod
+    def _run(*argv: str, timeout: int = 40) -> tuple[int, str]:
+        completed = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+        return completed.returncode, (completed.stdout + completed.stderr)[-400:]
+
+    def naive(self, target: str) -> tuple[bool, str]:
+        parts = urllib.parse.urlsplit(self.naive_artifact.replace("naive+https://", "https://", 1))
+        auth = f"{urllib.parse.unquote(parts.username)}:{urllib.parse.unquote(parts.password)}"
+        token = base64.b64encode(auth.encode()).decode()
+        argv = ["curl", "--silent", "--show-error", "--max-time", "25", "--output", "/dev/null", "--write-out", "%{http_code}",
+                "--proxy", f"https://{parts.hostname}:{parts.port or 443}", "--proxy-header", f"Proxy-Authorization: Basic {token}"]
+        if self.args.client_ca_file:
+            argv += ["--proxy-cacert", str(self.args.client_ca_file)]
+        code, out = self._run(*argv, target)
+        return code == 0 and out.endswith("200"), redact(f"curl {code} {out}")
+
+    def mieru_start(self, share_url: str) -> None:
+        if not self.args.mihomo_image:
+            return
+        parts = urllib.parse.urlsplit(share_url)
+        pairs = urllib.parse.parse_qsl(parts.query)
+        ports = [int(value) for key, value in pairs if key == "port"]
+        protocols = [value for key, value in pairs if key == "protocol"]
+        tcp = next((port for port, protocol in zip(ports, protocols) if protocol == "TCP"), ports[0])
+        config = (f"mixed-port: {self.MIHOMO_PORT}\nbind-address: '127.0.0.1'\nallow-lan: false\nmode: rule\n"
+                  f"log-level: warning\nproxies:\n  - name: lab\n    type: mieru\n    server: {parts.hostname}\n"
+                  f"    port: {tcp}\n    transport: TCP\n    username: {urllib.parse.unquote(parts.username)}\n"
+                  f"    password: {urllib.parse.unquote(parts.password)}\n    udp: true\n"
+                  "proxy-groups: []\nrules:\n  - MATCH,lab\n")
+        self.work.mkdir(parents=True, exist_ok=True)
+        self.work.chmod(0o755)
+        (self.work / "mihomo.yaml").write_text(config)
+        (self.work / "mihomo.yaml").chmod(0o644)
+        self._run("docker", "rm", "-f", "pc-routing-mihomo")
+        code, out = self._run("docker", "run", "-d", "--name", "pc-routing-mihomo", "--network", "host", "-v",
+                              f"{self.work}:/cfg", self.args.mihomo_image, "-d", "/cfg", "-f", "/cfg/mihomo.yaml", timeout=180)
+        if code != 0:
+            raise Check(f"mihomo did not start: {out}")
+        time.sleep(4)
+        self.mihomo_up = True
+
+    def mieru(self, target: str) -> tuple[bool, str]:
+        if not self.mihomo_up:
+            return True, "skipped"
+        code, out = self._run("curl", "--silent", "--show-error", "--max-time", "25", "--output", "/dev/null",
+                              "--write-out", "%{http_code}", "--proxy", f"socks5h://127.0.0.1:{self.MIHOMO_PORT}", target)
+        return code == 0 and out.endswith("200"), f"curl {code} {out}"
+
+    def stop(self) -> None:
+        if self.mihomo_up:
+            self._run("docker", "rm", "-f", "pc-routing-mihomo")
+            self.mihomo_up = False
+        with contextlib.suppress(OSError):
+            (self.work / "mihomo.yaml").unlink()
+
+
 # --- the scenario ----------------------------------------------------------------------
 
 class Scenario:
     def __init__(self, args, *, node: Panel, central: Panel, process, docker, probes, clock=time,
-                 fingerprint=leaf_fingerprint, fetch=fetch) -> None:
+                 fingerprint=leaf_fingerprint, fetch=fetch, stub=None, host=None, routing_probes=None) -> None:
         self.args, self.node, self.central = args, node, central
         self.process, self.docker, self.probes, self.clock = process, docker, probes, clock
         self.fingerprint, self.fetch = fingerprint, fetch
+        # Routing (v0.4): the stub, the host digests and the routing clients; None unless --routing.
+        self.stub, self.host, self.routing_probes = stub, host, routing_probes
         self.output = Path(args.output)
         self.report: dict = {"checks": {}, "details": {}, "counts": {}, "cleanup": []}
         self.node_bearer: Panel | None = None
@@ -932,12 +1086,20 @@ class Scenario:
              "step_06_disable_rotate_delete", "step_07_offline_convergence", "step_08_restart_mid_apply",
              "step_09_key_revoke", "step_10_cleanup_unlink")
 
+    def steps(self) -> tuple[str, ...]:
+        """The routing scenarios (v0.4) sit right after the grants: they need the probe user's
+        credentials and must be over before disable/rotate/delete take them away."""
+        if not self.args.routing:
+            return self.STEPS
+        index = self.STEPS.index("step_05_grants") + 1
+        return (*self.STEPS[:index], "step_05r_routing", *self.STEPS[index:])
+
     def run(self) -> bool:
         self.output.mkdir(parents=True, exist_ok=True)
         self.started = self.clock.monotonic()
         failure: str | None = None
         try:
-            for name in self.STEPS:
+            for name in self.steps():
                 started = self.clock.monotonic()
                 try:
                     getattr(self, name)()
@@ -950,12 +1112,239 @@ class Scenario:
             failure = f"{type(exc).__name__}: {exc}"
             self.report["aborted"] = failure
         finally:
+            self._restore_routing()
             self._restore_node()
             with contextlib.suppress(Exception):
                 self.step_11_central_down()
             self._remove_feeds()
             self._write_report(failure)
         return self.report["ok"]
+
+    # --- routing (v0.4, spec §11: routing-01 … routing-10) ---
+
+    def _policy_path(self, protocol: str) -> str:
+        return f"/api/routing/policies/{self.node_id}/{protocol}"
+
+    def _policy(self, protocol: str) -> dict | None:
+        status, _, body = self.central.request(self._policy_path(protocol))
+        return json.loads(body) if status == 200 else None
+
+    def _put_policy(self, protocol: str, *, default: str = "direct", rules: list[dict] | None = None,
+                    fallback: str = "fail_closed") -> dict:
+        current = self._policy(protocol)
+        body = {"default_action": default, "default_egress": "warp" if default == "egress" else None, "fallback": fallback,
+                "rules": rules or [], "expected_revision": current["revision"] if current else None}
+        return self.central.json(self._policy_path(protocol), method="PUT", payload=body)
+
+    def _apply_policy(self, protocol: str, *, expect=(200,)) -> tuple[int, dict]:
+        policy = self._policy(protocol)
+        status, _, body = self.central.request(f"{self._policy_path(protocol)}/apply", method="POST",
+                                               payload={"expected_revision": policy["revision"]})
+        parsed = json.loads(body) if body else {}
+        if status not in expect:
+            raise Check(f"apply {protocol} -> {status} {redact(json.dumps(parsed))[:300]}")
+        return status, parsed
+
+    def _wait_applied(self, protocol: str, revision: int, seconds: float = 90) -> tuple[dict | None, float]:
+        """Until the node's report moved the policy to `applied` at `revision` (pusher, heartbeat)."""
+        def settled():
+            policy = self._policy(protocol)
+            if policy and policy["state"] == "applied" and policy["applied_revision"] == revision:
+                return policy
+            return policy if policy and policy["state"] == "failed" else None  # a refusal settles it too
+        policy, elapsed = self.wait(settled, seconds, f"{protocol} policy applied")
+        return (policy if policy and policy["state"] == "applied" else None), elapsed
+
+    def _apply_and_wait(self, label: str, protocol: str, *, default: str = "direct", rules: list[dict] | None = None,
+                        fallback: str = "fail_closed") -> dict | None:
+        policy = self._put_policy(protocol, default=default, rules=rules, fallback=fallback)
+        preview = self.central.json(f"{self._policy_path(protocol)}/preview", method="POST")
+        if not self.check(f"{label}_{protocol}_preview_supported", preview.get("status") == "supported",
+                          json.dumps(preview.get("reasons"))[:300]):
+            return None
+        self._apply_policy(protocol)
+        applied, elapsed = self._wait_applied(protocol, policy["revision"])
+        self.report["counts"][f"{label}_{protocol}_applied_seconds"] = elapsed
+        self.check(f"{label}_{protocol}_applied", bool(applied), f"not applied after {elapsed}s: {self._policy(protocol)}")
+        return applied
+
+    def _probe(self, protocol: str, target: str) -> tuple[bool, str]:
+        return self.routing_probes.naive(target) if protocol == "naive" else self.routing_probes.mieru(target)
+
+    def _targets(self) -> dict[str, dict]:
+        return {item["protocol"]: item for item in self.central.json("/api/routing/targets")["items"]
+                if item["node_id"] == self.node_id}
+
+    def step_05r_routing(self) -> None:
+        args = self.args
+        allowed, other = args.routing_allowed, args.routing_other
+        blocked = f"https://{args.routing_blocked_host}/"
+        self.stub.start()
+        self.routing_probes.naive_artifact = self.credentials.get("naive")
+        self.routing_probes.mieru_start(self.credentials.get("mieru", ""))
+        protocols = [p for p in ("naive", "mieru") if p == "naive" or self.routing_probes.mihomo_up]
+        baseline = {"caddyfile": self.host.caddyfile_sha256(), "nginx": self.host.nginx_sha256(),
+                    "nft": self.host.nft_sha256(), "mita": self.host.mita_egress()}
+        self.report["routing_initial_mita_egress"] = baseline["mita"] is None
+
+        # routing-01: targets — naive/mieru with egress.v1 and a reachable warp, mtproxy out of scope,
+        # the node's own screen says the central holds the pen.
+        def warp_reachable():
+            table = self._targets()
+            ready = all(table.get(p, {}).get("providers", {}).get("warp", {}).get("reachable") is True for p in protocols)
+            return table if ready else None
+
+        targets, elapsed = self.wait(warp_reachable, 30, "warp reachable in targets")
+        targets = targets or self._targets()
+        for protocol in protocols:
+            item = targets.get(protocol, {})
+            self.check(f"r01_{protocol}_target", item.get("egress_v1") is True and item.get("backend") == f"{protocol}_native"
+                       and item.get("providers", {}).get("warp", {}).get("reachable") is True and not item.get("reason"),
+                       json.dumps(item)[:300])
+        self.check("r01_mtproxy_out_of_scope", targets.get("mtproxy", {}).get("reason") == "protocol_out_of_scope")
+        local = {item["protocol"]: item for item in self.node.json("/api/routing/targets")["items"] if item["node_id"] == "local"}
+        self.check("r01_node_local_managed_by_central", local.get("naive", {}).get("reason") == "managed_by_central",
+                   json.dumps(local.get("naive"))[:200])
+        self.check("r01_targets_secret_free", "socks5://" not in json.dumps(targets))
+
+        # routing-02/03: whole service through warp — the stub sees the CONNECT target.
+        for protocol in protocols:
+            if self._apply_and_wait("r02" if protocol == "naive" else "r03", protocol, default="egress") is None:
+                continue
+            mark = len(self.stub.lines())
+            ok, detail = self._probe(protocol, allowed)
+            hosts = self.stub.hosts_since(mark)
+            label = "r02" if protocol == "naive" else "r03"
+            self.check(f"{label}_{protocol}_whole_warp_works", ok, detail)
+            self.check(f"{label}_{protocol}_stub_saw_target", any(h == urllib.parse.urlsplit(allowed).hostname for h in hosts),
+                       str(hosts[-3:]))
+        self.check("r02_naive_caddyfile_has_upstream", "upstream socks5://" in self.host.caddyfile_text())
+
+        # routing-04: block by domain (default direct) — the target is refused, the rest goes.
+        for protocol in protocols:
+            rule = {"action": "block", "match": {"domains": [args.routing_blocked_host, f"*.{args.routing_blocked_host}"]}}
+            if self._apply_and_wait("r04", protocol, rules=[rule]) is None:
+                continue
+            refused, detail = self._probe(protocol, blocked)
+            self.check(f"r04_{protocol}_blocked_domain_refused", not refused, detail)
+            ok, detail = self._probe(protocol, allowed)
+            self.check(f"r04_{protocol}_other_target_works", ok, detail)
+        cover = self.node_identity()["protocols"]["naive"]["public_host"]
+        code, out = RoutingProbes._run("curl", "--silent", "--max-time", "20", "--output", "/dev/null", "--write-out", "%{http_code}",
+                                       *(["--cacert", str(args.client_ca_file)] if args.client_ca_file else []), f"https://{cover}/")
+        self.check("r04_naive_cover_site_alive", code == 0 and out.endswith("200"), f"curl {code} {out}")
+
+        # routing-05: block by CIDR — a literal-IP target inside the network is refused.
+        for protocol in protocols:
+            rule = {"action": "block", "match": {"cidrs": [args.routing_cidr]}}
+            if self._apply_and_wait("r05", protocol, rules=[rule]) is None:
+                continue
+            refused, detail = self._probe(protocol, args.routing_cidr_target)
+            self.check(f"r05_{protocol}_blocked_cidr_refused", not refused, detail)
+            ok, detail = self._probe(protocol, allowed)
+            self.check(f"r05_{protocol}_other_target_works", ok, detail)
+
+        # routing-06: selective — mieru sends one domain direct and the rest through warp;
+        # naive cannot, and the preview says so instead of applying something else.
+        selective = [{"action": "direct", "match": {"domains": [urllib.parse.urlsplit(allowed).hostname]}}]
+        naive_policy = self._put_policy("naive", default="egress", rules=selective)
+        preview = self.central.json(f"{self._policy_path('naive')}/preview", method="POST")
+        self.check("r06_naive_selective_unsupported", preview.get("status") == "unsupported"
+                   and any(r.get("code") == "backend_capability_missing" and r.get("rule_id") for r in preview.get("reasons", [])),
+                   json.dumps(preview.get("reasons"))[:300])
+        status, refused = self._apply_policy("naive", expect=(422,))
+        self.check("r06_naive_selective_apply_is_422", status == 422 and refused.get("code") == "unsupported", json.dumps(refused)[:200])
+        self.check("r06_naive_policy_still_applied_at_previous_revision",
+                   (p := self._policy("naive")) is not None and p["applied_revision"] == naive_policy["revision"] - 1, str(self._policy("naive")))
+        if "mieru" in protocols and self._apply_and_wait("r06", "mieru", default="egress", rules=selective) is not None:
+            mark = len(self.stub.lines())
+            ok, detail = self._probe("mieru", allowed)
+            direct_hosts = self.stub.hosts_since(mark)
+            self.check("r06_mieru_direct_exception_works", ok, detail)
+            self.check("r06_mieru_direct_exception_bypasses_stub", urllib.parse.urlsplit(allowed).hostname not in direct_hosts,
+                       str(direct_hosts))
+            mark = len(self.stub.lines())
+            ok, detail = self._probe("mieru", other)
+            self.check("r06_mieru_other_target_through_stub", ok and urllib.parse.urlsplit(other).hostname in self.stub.hosts_since(mark),
+                       f"{detail} {self.stub.hosts_since(mark)[-3:]}")
+
+        # routing-07: rollback — the manager's previous entry comes back byte for byte.
+        for protocol in protocols:
+            before = self._apply_and_wait("r07a", protocol, rules=[{"action": "block", "match": {"cidrs": [args.routing_cidr]}}])
+            if before is None:
+                continue
+            snapshot = self.host.caddyfile_sha256() if protocol == "naive" else json.dumps(self.host.mita_egress(), sort_keys=True)
+            after = self._apply_and_wait("r07b", protocol, default="egress")
+            if after is None:
+                continue
+            self.central.json(f"{self._policy_path(protocol)}/rollback", method="POST", payload={"expected_revision": after["revision"]})
+            rolled, elapsed = self._wait_applied(protocol, before["revision"])
+            self.check(f"r07_{protocol}_rolled_back", bool(rolled), f"after {elapsed}s: {self._policy(protocol)}")
+            restored = self.host.caddyfile_sha256() if protocol == "naive" else json.dumps(self.host.mita_egress(), sort_keys=True)
+            self.check(f"r07_{protocol}_config_restored_exactly", restored == snapshot, f"{snapshot[:16]} != {restored[:16]}")
+            ok, detail = self._probe(protocol, allowed)
+            self.check(f"r07_{protocol}_still_serving", ok, detail)
+
+        # routing-08: the provider is down — fail-closed, nothing on the node changes.
+        self.stub.stop()
+        down, elapsed = self.wait(lambda: self._targets().get("naive", {}).get("providers", {}).get("warp", {}).get("reachable") is False,
+                                  60, "warp unreachable in targets")
+        self.check("r08_targets_report_warp_unreachable", bool(down), f"after {elapsed}s")
+        snapshot = self.host.caddyfile_sha256()
+        self._put_policy("naive", default="egress")
+        status, refused = self._apply_policy("naive", expect=(409, 422))
+        codes = {refused.get("code")} | {r.get("code") for r in (refused.get("compiled") or {}).get("reasons", [])}
+        self.check("r08_apply_refused_fail_closed", bool(codes & {"provider_unreachable", "egress_unreachable"}),
+                   f"{status} {json.dumps(refused)[:300]}")
+        self.check("r08_caddyfile_unchanged", self.host.caddyfile_sha256() == snapshot)
+        self.check("r08_policy_not_applied", (p := self._policy("naive")) is not None and p["applied_current"] is False, str(p))
+        self.stub.start()
+        up, elapsed = self.wait(lambda: self._targets().get("naive", {}).get("providers", {}).get("warp", {}).get("reachable") is True,
+                                60, "warp reachable again")
+        self.check("r08_targets_report_warp_back", bool(up), f"after {elapsed}s")
+
+        # routing-09: the capability handshake is covered by unit tests (a v0.3 node is not
+        # on this stand); the real capability is what routing-01 read.
+        self.report["routing_09_legacy_capability"] = "unit-tested (panel/tests/test_routing_fleet.py)"
+
+        # routing-10: what routing never touches. Then the reset: direct, no rules, applied
+        # and the policies gone — the node keeps only the managers' journal.
+        self.check("r10_nginx_untouched", self.host.nginx_sha256() == baseline["nginx"])
+        self.check("r10_nft_untouched", self.host.nft_sha256() == baseline["nft"])
+        for protocol in protocols:
+            self._apply_and_wait("r11", protocol)
+            status, _, body = self.central.request(self._policy_path(protocol), method="DELETE")
+            self.check(f"r11_{protocol}_policy_deleted", status == 204, f"{status} {body[:200]!r}")
+            ok, detail = self._probe(protocol, allowed)
+            self.check(f"r11_{protocol}_direct_again", ok, detail)
+        self.check("r11_mita_egress_back_to_initial", self.host.mita_egress() == baseline["mita"], str(self.host.mita_egress())[:200])
+        self.report["routing_caddyfile_returned_to_initial"] = self.host.caddyfile_sha256() == baseline["caddyfile"]
+        self.check("r11_targets_without_policies", all(item.get("policy") is None for item in self._targets().values()))
+        self.routing_probes.stop()
+        self.stub.stop()
+
+    def _restore_routing(self) -> None:
+        """After a failure inside the routing step: the stub and the mihomo container go, and
+        every routing policy of the node is reset to direct (best effort) and deleted."""
+        if not self.args.routing or self.stub is None:
+            return
+        with contextlib.suppress(Exception):
+            self.routing_probes.stop()
+        with contextlib.suppress(Exception):
+            if self.node_id and self.client_id and not self.report["checks"].get("r11_targets_without_policies"):
+                if self.stub.process is None:
+                    self.stub.start()
+                for protocol in ("naive", "mieru"):
+                    if self._policy(protocol) is None:
+                        continue
+                    with contextlib.suppress(Exception):
+                        policy = self._put_policy(protocol)
+                        self._apply_policy(protocol)
+                        self._wait_applied(protocol, policy["revision"], 60)
+                    status, _, _ = self.central.request(self._policy_path(protocol), method="DELETE")
+                    self.report["cleanup"].append(f"routing policy {protocol} reset and deleted: {status}")
+        with contextlib.suppress(Exception):
+            self.stub.stop()
 
     def _restore_node(self) -> None:
         """Best effort after a failure: the node must end as it was found (ruling 6)."""
@@ -1011,8 +1400,12 @@ def main(argv=None) -> int:
         print(f"FAILED: {args.source} has no panel package", file=sys.stderr)
         return 2
     central_url = f"http://{args.central_host}:{args.central_port}"
+    routing = {}
+    if args.routing:
+        routing = {"stub": Stub(args.stub_listen, Path(args.output) / "socks5-stub.log"), "host": Host(args.caddyfile),
+                   "routing_probes": RoutingProbes(args, Path(args.output) / "routing-cores")}
     scenario = Scenario(args, node=Panel(args.node_url, ca_file=args.client_ca_file), central=Panel(central_url),
-                        process=CentralProcess(args), docker=Docker(), probes=Probes(args))
+                        process=CentralProcess(args), docker=Docker(), probes=Probes(args), **routing)
     ok = scenario.run()
     if args.cleanup:
         shutil.rmtree(args.central_dir, ignore_errors=True)

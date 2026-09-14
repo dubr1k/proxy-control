@@ -125,8 +125,29 @@ case $LEVEL in
       --client-ca-file /etc/letsencrypt/lab-ca/ca.crt $* \
       && echo REMOTE_GATE_FLEET_OK"
     ;;
+  routing)
+    # Routing (v0.4) end to end on the node `lab-host` left installed: the node's managers
+    # learn a SOCKS5 stub on the host loopback as their «WARP» (the env the installer
+    # writes empty when the host has no WARP), and the fleet acceptance runs its routing
+    # scenarios (routing-01…10) beside the usual flow. The stub itself is started and
+    # stopped by the acceptance script. Nothing is rebuilt or reinstalled.
+    sync_tree
+    remote "cd /opt/mtproxy-shared443 \
+      && for key in NAIVE_EGRESS_WARP MIERU_EGRESS_WARP; do \
+           grep -q \"^\$key=\" .env && sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" .env || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
+      && files=(--env-file .env -f compose.yaml) \
+      && for runtime in mieru naive; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
+      && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait naive-manager mieru-manager"
+    remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
+      --node-url https://panel.lab.test \
+      --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+      --central-dir /root/lab-central --central-port 8791 --output lab-results/routing \
+      --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain proxy.lab.test \
+      --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing $* \
+      && echo ROUTING_ACCEPTANCE_OK && echo REMOTE_GATE_ROUTING_OK"
+    ;;
   *)
-    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>}" >&2
+    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>}" >&2
     exit 2
     ;;
 esac

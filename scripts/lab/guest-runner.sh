@@ -1291,6 +1291,7 @@ host_fleet() {
     --singbox-image "$LAB_SINGBOX_IMAGE" --mihomo-image "$LAB_MIHOMO_IMAGE" \
     --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain "$PROXY" \
     --client-ca-file /etc/letsencrypt/lab-ca/ca.crt \
+    ${LAB_ROUTING:+--routing} \
     --cleanup
 }
 
