@@ -242,7 +242,9 @@ if [[ -z $DESTINATION ]]; then
     DESTINATION=$PWD/proxy-control-v$VERSION
 fi
 [[ ! -e $DESTINATION ]] || fail "каталог уже существует: $DESTINATION (укажите --dir)" "the directory exists: $DESTINATION (pass --dir)"
-mkdir -p -m 0700 -- "$DESTINATION"
+mkdir -p -- "$DESTINATION"
+chmod 0700 -- "$DESTINATION"
+DESTINATION=$(cd -- "$DESTINATION" && pwd)
 cd -- "$DESTINATION"
 
 say "скачиваю v$VERSION из https://github.com/$REPO/releases/tag/v$VERSION" \
@@ -318,7 +320,11 @@ if [[ $MODE == unpack ]]; then
     exit 0
 fi
 
-say "запускаю установщик от root (sudo); он спросит, покажет план и ничего не применит без подтверждения digest" \
-    "starting the installer as root (sudo); it asks, shows the plan and applies nothing without the digest confirmation"
+if (($#)); then
+    say "запускаю от root (sudo): python3 -m installer.cli $*" "starting as root (sudo): python3 -m installer.cli $*"
+else
+    say "запускаю мастер установщика от root (sudo); он спросит, покажет план и ничего не применит без подтверждения digest" \
+        "starting the installer's wizard as root (sudo); it asks, shows the plan and applies nothing without the digest confirmation"
+fi
 cd -- "$root"
 exec sudo -- bash "$root/install.sh" "$@"
