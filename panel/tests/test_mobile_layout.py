@@ -228,7 +228,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
     css = (ROOT / "static" / "style.css").read_text()
     buttons = "".join(
         f'<button><span class="mobile-icon">◇</span><small>{label}</small></button>'
-        for label in ("Обзор", "Клиенты", "MTProxy", "Mieru", "Naive", "Версии", "Узлы", "Админы", "Журнал", "Выйти")
+        for label in ("Обзор", "Клиенты", "MTProxy", "Mieru", "Naive", "Версии", "Узлы", "Маршруты", "Админы", "Журнал", "Выйти")
     )
 
     def card(classes: str, glyph: str, username: str, protocol: str, configuration: str) -> str:
@@ -348,6 +348,50 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
           </article>
         """
 
+    def routing_card() -> str:
+        """The routing editor (v0.4): defaults, one rule with its four fields and tools, the
+        preview beside it on a desktop and under it on a phone, then the action row."""
+        return """
+          <article class="panel-card routing-card">
+            <div class="routing-head"><b>NaiveProxy · naive_native</b><span class="status-pill"><i></i>есть неприменённые изменения (на узле rev 3)</span></div>
+            <p class="form-hint">Возможности: block_cidr, block_domain, whole_direct, whole_warp · WARP — warp: доступен</p>
+            <div class="routing-layout">
+              <form class="routing-editor">
+                <div class="routing-defaults">
+                  <label>По умолчанию<select><option>Напрямую</option></select></label>
+                  <label>При недоступности WARP<select><option>отказать</option></select></label>
+                </div>
+                <ol class="routing-rules">
+                  <li class="routing-rule" draggable="true">
+                    <div class="routing-rule-head">
+                      <span class="routing-rule-order">1</span>
+                      <label class="routing-rule-toggle"><input type="checkbox" checked> включено</label>
+                      <select><option>Блокировать</option></select>
+                      <span class="routing-rule-tools"><button class="ghost">↑</button><button class="ghost">↓</button><button class="ghost danger-text">Удалить</button></span>
+                    </div>
+                    <div class="routing-rule-fields">
+                      <label>Домены <small>example.com, *.cdn.example</small><input value="example.com, *.example.com, a-very-long-subdomain-name.tracking.example"></label>
+                      <label>CIDR <small>1.2.3.0/24</small><input value="203.0.113.0/24, 2001:db8::/32"></label>
+                      <label>Порты <small>не применяются в v0.4</small><input value=""></label>
+                      <label>Заметка<input value="рекламные сети"></label>
+                    </div>
+                  </li>
+                </ol>
+                <div class="routing-editor-actions"><button class="secondary">Добавить правило</button><button class="secondary">Сбросить</button><button class="primary">Сохранить</button></div>
+              </form>
+              <div class="routing-preview">
+                <div class="routing-preview-head"><span class="status-pill blocked"><i></i>не применимо</span><small>naive_native · компилятор 1 · черновик не сохранён</small></div>
+                <ul class="routing-reasons"><li class="routing-reason">backend узла не умеет этого <small>(правило 1)</small><small>naive_native lacks selective_domain, selective_cidr</small></li></ul>
+                <ul class="routing-warnings"><li class="routing-warning">на узле есть upstream, заданный вручную — он будет заменён и сохранён для отката</li></ul>
+                <p class="form-hint">перезапуск не требуется · откат к ревизии узла 3f2a9c1e0b7d</p>
+                <pre class="routing-diff"><span class="removed">-  "upstream": null,</span>
+<span class="added">+  "upstream": {"provider": "warp", "a-deliberately-long-line-to-force-horizontal-scrolling-inside-the-pre": 1},</span></pre>
+              </div>
+            </div>
+            <div class="routing-actions"><button class="primary" disabled>Применить</button><button class="secondary">Откатить</button><button class="secondary">История</button><button class="danger ghost">Удалить политику</button></div>
+          </article>
+        """
+
     cards = "".join(
         (
             card("data-row", "MT", "mt-user-with-a-very-long-name", "MTProto · FakeTLS", "Подключение"),
@@ -357,6 +401,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             local_node_card(),
             linked_node_card(),
             client_card(),
+            routing_card(),
         )
     )
     script = """
@@ -487,6 +532,27 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
               errors.push("client action escapes card");
             }
+          }
+        }
+        // The routing editor stacks editor → preview on a phone; nothing but the diff may scroll sideways.
+        for (const card of document.querySelectorAll(".routing-card")) {
+          const cardBox = card.getBoundingClientRect();
+          if (card.scrollWidth > card.clientWidth + tolerance) errors.push("routing card scrolls horizontally");
+          for (const region of card.querySelectorAll(".routing-editor, .routing-preview, .routing-rule, .routing-actions, .routing-head")) {
+            const box = region.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) errors.push("routing region escapes card");
+            if (!region.classList.contains("routing-preview") && region.scrollWidth > region.clientWidth + tolerance) errors.push("routing region scrolls horizontally");
+          }
+          const editor = card.querySelector(".routing-editor").getBoundingClientRect();
+          const preview = card.querySelector(".routing-preview").getBoundingClientRect();
+          if (preview.top + tolerance < editor.bottom) errors.push("routing preview overlaps the editor");
+          for (const button of card.querySelectorAll("button")) {
+            const box = button.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) errors.push("routing button escapes card");
+          }
+          for (const input of card.querySelectorAll("input, select")) {
+            const box = input.getBoundingClientRect();
+            if (box.right > cardBox.right + tolerance) errors.push("routing field escapes card");
           }
         }
         const nav = document.querySelector(".mobile-nav");

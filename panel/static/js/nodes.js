@@ -1,5 +1,6 @@
 import { bytes, cssEscape, date, esc, initials, number, query, queryAll } from "./common.js";
 import { nodeDetail, refreshCommands, updateCommandFieldsAfterRender } from "./fleet.js";
+import { routingSummary } from "./routing.js";
 import { isCurrent } from "./state.js";
 
 const ENROLLMENT = {
@@ -99,6 +100,12 @@ function facts(items) {
   return `<dl class="node-facts">${items.map(([name, value]) => `<div><dt>${name}</dt><dd>${esc(String(value))}</dd></div>`).join("")}</dl>`;
 }
 
+// «Маршрутизация: naive → WARP, 2 блокир.; mieru → напрямую» — from the targets table (spec §8.4).
+function routingLine(context, node) {
+  const items = (context.state.routingTargets || []).filter((item) => item.node_id === node.node_id);
+  return ["Маршрутизация", routingSummary(items)];
+}
+
 function nodeCard(context, node, expanded) {
   if (node.transport === "panel" && node.link) return linkedCard(context, node, context.state.nodeTab[node.node_id] || "overview");
   const [tone, label] = ENROLLMENT[node.enrollment_state] || ["blocked", node.enrollment_state];
@@ -107,6 +114,7 @@ function nodeCard(context, node, expanded) {
     ["Транспорт", `${CONNECTIVITY[node.connectivity_state] || node.connectivity_state}${node.last_seen_at ? ` · ${date(node.last_seen_at)}` : ""}`],
     ["Демон", `${inventory.telemt_version ? `Telemt ${inventory.telemt_version}` : "Telemt не определён"} · ${inventory.agent_version ? `агент ${inventory.agent_version}` : "агент не определён"}`],
     ["Команды в очереди", number(node.pending_commands)],
+    ...(node.kind === "local" ? [routingLine(context, node)] : []),
   ];
   const certificates = node.certificates?.length
     ? `<ul class="node-certificates">${node.certificates.map(certificateLine).join("")}</ul>`
@@ -170,7 +178,7 @@ function generationNote(link) {
   return applied ? " · применено, ожидает учётные данные" : " · есть недоставленные изменения";
 }
 
-function overviewTab(node) {
+function overviewTab(context, node) {
   const link = node.link;
   const [, status] = LINK_STATUS[link.status] || ["muted", link.status];
   const heartbeat = link.last_heartbeat_at ? `heartbeat ${date(link.last_heartbeat_at)}` : "heartbeat ещё не было";
@@ -181,6 +189,7 @@ function overviewTab(node) {
     ["Поколение", `desired ${number(link.desired_generation)} · applied ${number(link.acknowledged_generation)}${generationNote(link)}`],
     ["Пользователи", usersSummary(link)],
     ["Трафик", trafficTotal(link)],
+    routingLine(context, node),
   ];
   return `${facts(summary)}
     ${daemonsBlock(link)}
@@ -252,7 +261,7 @@ function linkedActions(context, node) {
 function linkedCard(context, node, tab) {
   const link = node.link;
   const [tone, label] = LINK_STATUS[link.status] || ["muted", link.status];
-  const body = tab === "users" ? usersTab(context, node) : tab === "updates" ? updatesTab(context, node) : overviewTab(node);
+  const body = tab === "users" ? usersTab(context, node) : tab === "updates" ? updatesTab(context, node) : overviewTab(context, node);
   const tabs = TABS.map(([key, name]) => `<button class="${key === tab ? "active" : ""}" role="tab" aria-selected="${key === tab ? "true" : "false"}" data-node-action="tab-${key}">${name}</button>`).join("");
   return `<article class="data-row node-card linked-node" data-node-id="${esc(node.node_id)}">
     <span class="user-glyph">${esc(initials(node.display_name))}</span>
@@ -280,13 +289,16 @@ async function loadInventories(context) {
 }
 
 export async function renderNodes(context, generation) {
-  const [data, transport] = await Promise.all([
+  const [data, transport, routing] = await Promise.all([
     context.api("/api/nodes"),
     context.api("/api/fleet/nodes"),
+    // The routing line is a courtesy: a panel whose routing targets cannot be read still lists its nodes.
+    context.api("/api/routing/targets").catch(() => ({ items: [] })),
   ]);
   if (!isCurrent(context.state, generation, "fleet")) return;
   context.state.nodes = data.items || [];
   context.state.fleet = transport.items || [];
+  context.state.routingTargets = routing.items || [];
   const count = query("#fleet-count", context.root);
   if (count) count.textContent = context.state.nodes.length;
   const expanded = context.state.fleetSelection;
