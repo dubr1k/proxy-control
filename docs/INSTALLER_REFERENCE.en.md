@@ -108,13 +108,19 @@ subscription = "sub.example.com"  # optional: client subscription URLs
 tcp_ports = [46001]
 udp_ports = [46001]
 
+[egress]                       # optional (v0.4): WARP as a provider of its own
+warp = true                    # install and verify the pinned Cloudflare client
+warp_port = 40000              # its loopback SOCKS5 port (default 40000)
+naive = "warp"                 # direct | warp — the initial egress of NaiveProxy
+mieru = "direct"               # direct | warp — the initial egress of Mieru
+
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
 panel_domain = "xui.example.com"
 vless_tcp_domain = "vless.example.com"
 vless_xhttp_domain = "xhttp.example.com"
 hysteria_domain = "hy2.example.com"
-warp = false
+warp = true                    # mirrors [egress].warp when that section exists
 warp_domains = []
 
 [firewall]
@@ -129,6 +135,15 @@ domains you want routed, and `managed-new` requires all four domains plus `warp`
 and `warp_domains` and runs on a fresh host only. `warp_domains` without
 `warp = true` is rejected.
 `manage_ufw` only takes effect on a fresh host.
+
+`[egress]` is optional. Without it the installer reads `[three_xui].warp` and
+`warp_port` exactly as before v0.4 (see «WARP and egress»); with it the section is
+canonical: `warp`/`warp_port` decide whether the Cloudflare client is provisioned, and
+`naive`/`mieru` choose each service's **initial** egress (`direct` or `warp`; only
+services of the profile may be named, and `warp` needs `warp = true`). If `[three_xui]`
+also spells `warp`/`warp_port`, both must agree. The value is a seed: after the
+installation the managers own the egress configuration and the panel's «Routing»
+screen changes it (`docs/ROUTING.en.md`); a repair or an upgrade never rewrites it.
 
 `domains.subscription` is optional and must differ from every other name. When it
 is set, the installer adds it to the Core certificate as a SAN, routes it to the
@@ -212,7 +227,7 @@ cleanup is reported and stays retryable rather than being silently dropped.
 
 ## WARP and egress
 
-WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:40000`. With
+WARP is one loopback **SOCKS5** endpoint at `127.0.0.1:40000` (`warp_port`). With
 `warp = true`, the installer provisions and verifies the pinned official
 Cloudflare client before wiring the selected protocols to it.
 
@@ -221,14 +236,22 @@ The split is deliberate and differs per protocol:
 - **Xray / 3x-ui** routes **only the selected traffic** through WARP. The rules
   are keyed to `warp_domains`, everything else stays direct, and the mandatory
   final policy is appended after them, never replaced.
-- **NaiveProxy** sends **all** tunnelled traffic through WARP. There is no
-  per-domain split: the managed `forward_proxy` block gets
-  `upstream socks5://127.0.0.1:40000`.
-- **Mieru** sends **all** traffic through WARP as well, as a single
-  all-domain/all-IP egress rule that names the WARP proxy.
+- **NaiveProxy** sends **all** tunnelled traffic through WARP when its initial egress
+  is `warp`: the managed `forward_proxy` block gets
+  `upstream socks5://127.0.0.1:40000`. There is no per-domain split at install time.
+- **Mieru** sends **all** traffic through WARP when its initial egress is `warp`, as a
+  single all-domain/all-IP egress rule that names the WARP proxy.
 
-With `warp = false` no WARP outbound, upstream, or rule is emitted anywhere, and
-Mieru's egress rule stays `DIRECT`.
+Which service starts on WARP is `[egress].naive`/`[egress].mieru`. Without an
+`[egress]` section the pre-v0.4 rule applies: both services go through WARP when
+`warp = true`, unless `warp_domains` is non-empty (a domain-scoped WARP for 3x-ui) —
+then both stay direct. With `warp = false` no WARP outbound, upstream, or rule is
+emitted anywhere, and Mieru's egress rule stays `DIRECT`.
+
+The installer also writes `NAIVE_EGRESS_WARP` and `MIERU_EGRESS_WARP` to the host's
+`.env` (`socks5://127.0.0.1:<warp_port>`, empty without WARP): the managers' egress API
+reads them, and the panel's «Routing» screen offers the `warp` provider on this node
+only when they are set.
 
 ## Hard stops
 

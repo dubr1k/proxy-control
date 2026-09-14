@@ -215,6 +215,8 @@ def test_profile_environment_is_non_secret_and_self_contained():
         "MTPROXY_DOMAIN",
         "NAIVE_PUBLIC_HOST",
         "MIERU_PUBLIC_HOST",
+        "NAIVE_EGRESS_WARP",
+        "MIERU_EGRESS_WARP",
     }
     assert "compose.yaml:compose.naive.yaml:compose.mieru.yaml" in rendered
     assert "password" not in rendered.lower()

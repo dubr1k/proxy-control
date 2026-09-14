@@ -105,13 +105,19 @@ subscription = "sub.example.com"  # необязательно: ссылки п�
 tcp_ports = [46001]
 udp_ports = [46001]
 
+[egress]                       # необязательно (v0.4): WARP как самостоятельный провайдер
+warp = true                    # поставить и проверить закреплённый клиент Cloudflare
+warp_port = 40000              # его loopback-порт SOCKS5 (по умолчанию 40000)
+naive = "warp"                 # direct | warp — начальный egress NaiveProxy
+mieru = "direct"               # direct | warp — начальный egress Mieru
+
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
 panel_domain = "xui.example.com"
 vless_tcp_domain = "vless.example.com"
 vless_xhttp_domain = "xhttp.example.com"
 hysteria_domain = "hy2.example.com"
-warp = false
+warp = true                    # повторяет [egress].warp, если секция есть
 warp_domains = []
 
 [firewall]
@@ -125,6 +131,14 @@ manage_ufw = true
 принимает только домены, которые нужно маршрутизировать, а `managed-new`
 требует все четыре домена плюс `warp` и `warp_domains` и работает только на
 чистом сервере. `warp_domains` без `warp = true` отклоняется. `manage_ufw` действует только на свежем хосте.
+
+`[egress]` необязателен. Без него установщик читает `[three_xui].warp` и `warp_port` ровно так, как до
+v0.4 (см. «WARP и egress»); с ним секция канонична: `warp`/`warp_port` решают, ставится ли клиент
+Cloudflare, а `naive`/`mieru` выбирают **начальный** egress каждого сервиса (`direct` или `warp`;
+называть можно только сервисы профиля, `warp` требует `warp = true`). Если `[three_xui]` тоже задаёт
+`warp`/`warp_port`, значения должны совпадать. Это семя: после установки egress-конфигурацией владеют
+менеджеры, а меняет её экран «Маршрутизация» панели (`docs/ROUTING.ru.md`); repair и обновление её не
+переписывают.
 
 `domains.subscription` необязателен и должен отличаться от всех остальных имён. Если он
 задан, установщик добавляет его в сертификат Core как SAN, маршрутизирует на TLS-слушатель
@@ -208,7 +222,7 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
 
 ## WARP и egress
 
-WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000`. При включённом
+WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000` (`warp_port`). При включённом
 `warp = true` установщик разворачивает и проверяет закреплённый официальный
 клиент Cloudflare, а затем подключает к нему выбранные протоколы.
 
@@ -217,14 +231,20 @@ WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000`. 
 - **Xray / 3x-ui** пропускает через WARP **только выбранный трафик**. Правила
   привязаны к `warp_domains`, остальное идёт напрямую, а обязательная финальная
   политика добавляется после них и никогда не заменяется.
-- **NaiveProxy** отправляет через WARP **весь** туннелируемый трафик.
-  Разделения по доменам нет: в управляемый блок `forward_proxy` попадает
-  `upstream socks5://127.0.0.1:40000`.
-- **Mieru** тоже отправляет через WARP **весь** трафик — одним egress-правилом
-  на все домены и все IP, называющим прокси WARP.
+- **NaiveProxy** отправляет через WARP **весь** туннелируемый трафик, если его начальный
+  egress — `warp`: в управляемый блок `forward_proxy` попадает
+  `upstream socks5://127.0.0.1:40000`. Разделения по доменам при установке нет.
+- **Mieru** отправляет через WARP **весь** трафик, если его начальный egress — `warp`: одним
+  egress-правилом на все домены и все IP, называющим прокси WARP.
 
-При `warp = false` нигде не появляется ни outbound, ни upstream, ни правило
-WARP, а egress-правило Mieru остаётся `DIRECT`.
+Какой сервис стартует через WARP, задают `[egress].naive`/`[egress].mieru`. Без секции `[egress]`
+действует правило до v0.4: оба сервиса идут через WARP при `warp = true`, кроме случая непустого
+`warp_domains` (доменный WARP для 3x-ui) — тогда оба остаются напрямую. При `warp = false` нигде не
+появляется ни outbound, ни upstream, ни правило WARP, а egress-правило Mieru остаётся `DIRECT`.
+
+Установщик также пишет в `.env` хоста `NAIVE_EGRESS_WARP` и `MIERU_EGRESS_WARP`
+(`socks5://127.0.0.1:<warp_port>`, пусто без WARP): их читает egress API менеджеров, и экран
+«Маршрутизация» панели предлагает провайдер `warp` на этом узле только когда они заданы.
 
 ## Жёсткие остановки
 

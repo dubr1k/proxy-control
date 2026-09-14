@@ -306,6 +306,45 @@ def test_wizard_writes_the_subscription_domain_when_one_is_given(tmp_path: Path)
     assert 'subscription = "sub.example.com"' in output.read_text()
 
 
+def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
+    """[egress] (v0.4): with WARP on, each proxy service is asked; the answers land in
+    the configuration as their own section, and the old keys mirror `warp`."""
+    output = tmp_path / "egress.toml"
+    answers = [
+        "",
+        "fresh",
+        "full",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "",  # subscription domain
+        "edge.example.com",
+        "mieru.example.com",
+        "46001",
+        "46001",
+        "yes",  # WARP
+        "no",  # NaiveProxy through WARP? — direct
+        "yes",  # Mieru through WARP
+        "admin@example.com",
+        "owner",
+        "",  # panel password
+        "yes",
+        "save",
+    ]
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    text = output.read_text()
+    assert "[egress]" in text and 'naive = "direct"' in text and 'mieru = "warp"' in text
+    assert "Направлять весь трафик NaiveProxy через WARP" in transcript.getvalue()
+    config = load_config(output)
+    assert config.egress is not None and config.egress.warp is True
+    assert (config.egress.naive.value, config.egress.mieru.value) == ("direct", "warp")
+    assert config.three_xui.warp is True
+
+
 def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
     output = tmp_path / "edited.toml"
     completed, transcript = _run_cli_in_pty(

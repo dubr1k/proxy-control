@@ -22,7 +22,7 @@ from installer.adapters.core import (
     _path_sha256,
 )
 from installer.adapters.naive import _identity_from_entry
-from installer.model import InstallerConfig
+from installer.model import EgressChoice, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, verify_artifact
 from installer.transaction import (
@@ -721,7 +721,9 @@ class MieruAdapter:
         self._assert_planned_identities(facts)
         self._assert_free_listeners(facts, transports)
         url, package_sha256, executable_sha256 = self._pins()
-        egress = "proxy" if config.three_xui.warp and not config.three_xui.warp_domains else "direct"
+        # `[egress]` (v0.4): the seed the manager owns from here on (ADR 007); an old
+        # configuration derives it from `[three_xui].warp*` unchanged.
+        egress = "proxy" if config.effective_egress.mieru is EgressChoice.WARP else "direct"
         return (
             Action(
                 id="mieru.runtime",
@@ -744,7 +746,7 @@ class MieruAdapter:
                     f"bootstrap-user={config.initial_user}",
                     "transports=" + _encode_transports(transports),
                     f"egress={egress}",
-                    f"warp-port={config.three_xui.warp_port}",
+                    f"warp-port={config.effective_egress.warp_port}",
                 ),
                 preconditions=(
                     "the Core runtime is verified",

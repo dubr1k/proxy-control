@@ -17,6 +17,9 @@ services:
       NAIVE_SOCKET_MODE: "660"
       NAIVE_TRAFFIC_LOG: /logs/access.json
       NAIVE_TRAFFIC_DATABASE: /data/traffic.sqlite3
+      # The host's WARP proxy-mode endpoint the egress API may route the service through
+      # (v0.4 routing); empty = no `warp` provider on this node. Written by the installer.
+      NAIVE_EGRESS_WARP: ${NAIVE_EGRESS_WARP:-}
     volumes:
       - ${NAIVE_DATA_DIR:-/var/lib/naive-manager}:/data
       - /var/log/naive-proxy:/logs:ro

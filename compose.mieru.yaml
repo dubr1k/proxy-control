@@ -17,6 +17,9 @@ services:
       MIERU_SOCKET_MODE: "660"
       TMPDIR: /run/mieru-manager
       MITA_UDS_PATH: /run/mita/mita.sock
+      # The host's WARP proxy-mode endpoint the egress API may route the service through
+      # (v0.4 routing); empty = no `warp` provider on this node. Written by the installer.
+      MIERU_EGRESS_WARP: ${MIERU_EGRESS_WARP:-}
     secrets: [mieru-manager-token]
     volumes:
       - type: bind
