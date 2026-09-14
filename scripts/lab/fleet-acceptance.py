@@ -529,7 +529,9 @@ class Host:
         return hashlib.sha256((completed.stdout + completed.stderr).encode()).hexdigest()
 
     def nft_sha256(self) -> str:
-        return hashlib.sha256(self._run("nft", "list", "ruleset")[1].encode()).hexdigest()
+        # The ruleset, not its traffic: `counter` rules print live packet/byte counts.
+        text = re.sub(r"packets \d+ bytes \d+", "packets N bytes N", self._run("nft", "list", "ruleset")[1])
+        return hashlib.sha256(text.encode()).hexdigest()
 
     def mita_egress(self) -> dict | None:
         code, out = self._run("mita", "describe", "config")
@@ -1317,7 +1319,12 @@ class Scenario:
             self.check(f"r11_{protocol}_policy_deleted", status == 204, f"{status} {body[:200]!r}")
             ok, detail = self._probe(protocol, allowed)
             self.check(f"r11_{protocol}_direct_again", ok, detail)
-        self.check("r11_mita_egress_back_to_initial", self.host.mita_egress() == baseline["mita"], str(self.host.mita_egress())[:200])
+        # The reset is «direct, no rules», not the installer's seed byte for byte: the seed may
+        # carry the provider with a DIRECT rule, the reset removes the section. Both are direct.
+        final_mita = self.host.mita_egress()
+        self.check("r11_mita_egress_direct", final_mita is None or not any(
+            rule.get("action") == "PROXY" for rule in final_mita.get("rules", [])), str(final_mita)[:200])
+        self.report["routing_mita_egress_back_to_initial"] = final_mita == baseline["mita"]
         self.report["routing_caddyfile_returned_to_initial"] = self.host.caddyfile_sha256() == baseline["caddyfile"]
         self.check("r11_targets_without_policies", all(item.get("policy") is None for item in self._targets().values()))
         self.routing_probes.stop()
