@@ -65,10 +65,13 @@ async def test_push_conflicts_are_409_with_a_code(client, login_user):
     headers = await _node_key(client, login_user)
     guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]
     assert (await _push(client, headers, guid, 2)).status_code == 200
-    assert (await _push(client, headers, guid, 1)).json()["code"] == "stale_generation"
-    assert (await _push(client, headers, guid, 2, users=("zed",))).json()["code"] == "digest_conflict"
-    assert (await _push(client, headers, guid, 3, master="o" * 36)).json()["code"] == "foreign_master"
-    assert (await _push(client, headers, "x" * 36, 3)).json()["code"] == "guid_mismatch"
+    for response, code in (
+        (await _push(client, headers, guid, 1), "stale_generation"),
+        (await _push(client, headers, guid, 2, users=("zed",)), "digest_conflict"),
+        (await _push(client, headers, guid, 3, master="o" * 36), "foreign_master"),
+        (await _push(client, headers, "x" * 36, 3), "guid_mismatch"),
+    ):
+        assert (response.status_code, response.json()["code"]) == (409, code)
 
 
 async def test_central_owned_users_refuse_local_mutation_and_leave_local_inventory(client, login_user):
@@ -196,7 +199,7 @@ async def test_capture_unlink_and_versions_update(client, login_user, naive):
     headers = await _node_key(client, login_user)
     naive.seed("bob", "hunter2")
     captured = await client.post("/api/fleet/v2/credentials/capture", headers=headers,
-                                 json={"resources": [{"protocol": "naive", "runtime_username": "bob"}]})
+                                 json={"resources": [{"protocol": "naive", "runtime_username": "bob"}], "purpose": "import"})
     assert captured.json()["credentials"]["naive:bob"] == "hunter2"
     guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]
     await _push(client, headers, guid, 1)
@@ -220,6 +223,7 @@ async def test_capture_answers_null_not_500_while_telemt_is_down(client, login_u
 
     monkeypatch.setattr(telemt, "current_access", down)
     captured = await client.post("/api/fleet/v2/credentials/capture", headers=headers,
-                                 json={"resources": [{"protocol": "mtproxy", "runtime_username": "alice"}]})
+                                 json={"resources": [{"protocol": "mtproxy", "runtime_username": "alice"}],
+                                       "purpose": "import"})
     assert captured.status_code == 200
-    assert captured.json() == {"credentials": {"mtproxy:alice": None}, "unsupported": []}
+    assert captured.json() == {"credentials": {"mtproxy:alice": None}, "unsupported": [], "refused": []}

@@ -26,6 +26,7 @@ from .protocol import (
     PushResponse,
     canonical_digest,
 )
+from .reconcile import GenerationSuperseded
 
 # The central reads a push for 30 s (spec §6): the node answers 202 before that and the
 # reconcile keeps running in the background.
@@ -45,6 +46,10 @@ class CaptureItem(BaseModel):
 class CaptureRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     resources: list[CaptureItem] = Field(max_length=CAPTURE_MAX_RESOURCES)
+    # `escrow` (the default, what a poll or re-PUT asks for) reveals only users this central
+    # already owns here; `import` is the operator's explicit adoption of the node's own users
+    # (spec §6) and is the only purpose that reveals a local user — audited as such.
+    purpose: Literal["escrow", "import"] = "escrow"
 
 
 class VersionUpdateRequest(VersionUpdate):
@@ -209,7 +214,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             return _push_response(observed, {}, 202)
         try:
             observed, credentials = task.result()
-        except KeyError:
+        except GenerationSuperseded:
             # A newer generation was accepted while this one waited for the reconcile lock.
             return _conflict("stale_generation", "superseded by a newer generation")
         return _push_response(observed, credentials, 200)
@@ -224,20 +229,32 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         return found.model_dump()
 
     @app.post("/api/fleet/v2/credentials/capture")
-    async def capture(body: CaptureRequest, _key=Depends(context.fleet_key)):
-        credentials, unsupported = {}, []
+    async def capture(body: CaptureRequest, request: Request, key=Depends(context.fleet_key)):
+        credentials, unsupported, refused = {}, [], []
+        with app.state.database.connect() as db:
+            managed = app.state.managed.owned(db)
         for item in body.resources:
             adapter = app.state.adapters[item.protocol]
             label = f"{item.protocol}:{item.runtime_username}"
             if not _enabled(item.protocol) or not adapter.capture_supported:
                 unsupported.append(label)
                 continue
+            if body.purpose != "import" and (item.protocol, item.runtime_username) not in managed:
+                refused.append(label)
+                continue
             try:
                 value = await adapter.capture(GrantRef(item.protocol, item.runtime_username))
             except AdapterError:
                 value = None
             credentials[label] = None if value is None else value.decode()
-        return JSONResponse({"credentials": credentials, "unsupported": unsupported}, headers=NO_STORE)
+        # Usernames are what the inventory already shows; no value ever lands in the audit row.
+        await context.audit(key, "fleet.credentials.capture", app.state.panel_guid, request,
+                            {"purpose": body.purpose, "requested": len(body.resources),
+                             "answered": sorted(label for label, value in credentials.items() if value),
+                             "unanswered": sorted(label for label, value in credentials.items() if not value),
+                             "unsupported": unsupported, "refused": refused})
+        return JSONResponse({"credentials": credentials, "unsupported": unsupported, "refused": refused},
+                            headers=NO_STORE)
 
     @app.post("/api/fleet/v2/versions/update")
     async def update_version(body: VersionUpdateRequest, request: Request, key=Depends(context.fleet_key)):

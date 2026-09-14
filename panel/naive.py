@@ -238,6 +238,8 @@ class MemoryNaive:
         }
     async def delete(self, username):
         self.calls.append(("delete", username))
+        if username not in self.users:
+            raise NaiveError("NaiveProxy manager rejected request", 404, "not_found")  # as the manager answers
         self.users.pop(username)
         return {"ok": True}
     async def reset_traffic(self, username):

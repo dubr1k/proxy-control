@@ -6,6 +6,7 @@ the runtime holds now rather than guessing or creating a second account.
 """
 from __future__ import annotations
 
+import contextlib
 from dataclasses import replace
 from urllib.parse import quote
 
@@ -48,6 +49,12 @@ class TelemtAdapter:
         self.client = client
         self.public_host = public_host
         self.public_port = public_port
+
+    def batch(self):
+        """One inventory read for a whole reconcile pass (`TelemtClient.batch`); a client
+        without one (a fake) gets a no-op context."""
+        batch = getattr(self.client, "batch", None)
+        return batch() if batch is not None else contextlib.nullcontext()
 
     async def _row(self, username: str) -> dict | None:
         for row in await self.client.list_users():
@@ -110,6 +117,14 @@ class TelemtAdapter:
         """
         access = access_from_user(result.get("user") if isinstance(result, dict) else None)
         return None if access is None or not access.get("secret") else access
+
+    async def _read_back(self, username: str) -> dict | None:
+        """The link after a mutation. A Telemt failure here is an `AdapterError` like the
+        mutation's own would be — never a raw `TelemtError` that the routes turn into a 502."""
+        try:
+            return await self.client.current_access(username)
+        except TelemtError as exc:  # a read: an indeterminate one changed nothing either
+            raise AdapterError("Telemt refused the request") from exc
 
     async def _recover(self, username: str) -> AppliedGrant | None:
         access = await self.client.current_access(username)
@@ -174,7 +189,7 @@ class TelemtAdapter:
             await self.client.set_enabled(grant.runtime_username, enabled)
         except TelemtError as exc:
             raise AdapterError("Telemt refused the request") from exc
-        access = await self.client.current_access(grant.runtime_username)
+        access = await self._read_back(grant.runtime_username)
         return self._applied(grant.runtime_username, access or {}, enabled=enabled, recovered=False)
 
     async def enable(self, grant: GrantRef) -> AppliedGrant:
@@ -215,7 +230,7 @@ class TelemtAdapter:
             await self.client.update_user(grant.runtime_username, fields)
         except TelemtError as exc:
             raise AdapterError("Telemt refused the request") from exc
-        access = await self.client.current_access(grant.runtime_username)
+        access = await self._read_back(grant.runtime_username)
         applied = self._applied(grant.runtime_username, access or {}, enabled=True, recovered=False)
         return replace(applied, credential_origin="manager")
 
@@ -223,7 +238,7 @@ class TelemtAdapter:
         try:
             await self.client.delete_user(grant.runtime_username)
         except TelemtError as exc:
-            raise AdapterError("Telemt refused the request") from exc
+            raise AdapterError("Telemt refused the request", already_gone=exc.status_code == 404) from exc
 
     async def capture(self, grant: GrantRef) -> bytes | None:
         """The live link is the credential, so an existing account needs no rotation. A

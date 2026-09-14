@@ -142,7 +142,7 @@ class NaiveAdapter:
         try:
             await self.client.delete(grant.runtime_username)
         except NaiveError as exc:
-            raise AdapterError("NaiveProxy refused the request") from exc
+            raise AdapterError("NaiveProxy refused the request", already_gone=exc.status_code == 404) from exc
 
     async def update_options(self, grant: GrantRef, options: dict) -> AppliedGrant | None:
         if "quota_bytes" not in options:

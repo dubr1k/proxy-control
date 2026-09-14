@@ -236,6 +236,8 @@ class MemoryMieru:
         return {"username": username, "revision": self._next()}
 
     async def delete(self, username, revision):
+        if username not in self.users:
+            raise MieruError("Mieru manager rejected request", 404, "not_found")  # as the manager answers
         self.users.pop(username)
         return {"username": username, "revision": self._next()}
 

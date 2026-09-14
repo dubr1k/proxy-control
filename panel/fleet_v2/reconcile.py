@@ -11,6 +11,7 @@ one short transaction of its own.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections import Counter
@@ -20,6 +21,10 @@ from ..protocols.base import AdapterError, AppliedGrant, CredentialPlan, GrantRe
 from ..secrets_store import SecretRef
 from .managed import ManagedStore
 from .protocol import ObservedGeneration, ObservedResource, PushRequest, Resource
+
+
+class GenerationSuperseded(KeyError):
+    """`apply(n)` found a newer generation accepted meanwhile: nothing was applied for `n`."""
 
 
 class _RuntimeCollision(AdapterError):
@@ -298,7 +303,7 @@ class Reconciler:
         with self.database.connect() as db:
             latest = self.managed.latest(db)
         if latest is None or latest["generation"] != generation:
-            raise KeyError(generation)
+            raise GenerationSuperseded(generation)
         document = latest["document"]
         refs = {(r.protocol, r.runtime_username): r.ref for r in document.resources}
         with self.database.transaction() as db:
@@ -335,8 +340,12 @@ class Reconciler:
         for protocol in sorted({r.protocol for r in applicable} | {key[0] for key in known}):
             resources = [r for r in applicable if r.protocol == protocol]
             orphans = [key[1] for key in known if key[0] == protocol and key not in wanted]
-            failed |= await self._apply_protocol(protocol, resources, orphans, known, generation, credentials,
-                                                 unmanaged)
+            # An adapter that can batch its inventory reads (Telemt reads the whole user table
+            # per look-up) does so for the protocol's whole pass.
+            batch = getattr(self.adapters.get(protocol), "batch", None)
+            async with (batch() if batch is not None else contextlib.nullcontext()):
+                failed |= await self._apply_protocol(protocol, resources, orphans, known, generation, credentials,
+                                                     unmanaged)
         with self.database.transaction() as db:
             self.managed.set_state(db, generation, "failed" if failed else "converged")
             observed = self.managed.observed(db)

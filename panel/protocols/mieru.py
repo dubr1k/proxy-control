@@ -306,7 +306,7 @@ class MieruAdapter:
         try:
             await self.client.delete(grant.runtime_username, revision)
         except MieruError as exc:
-            raise AdapterError("Mieru manager refused the request") from exc
+            raise AdapterError("Mieru manager refused the request", already_gone=exc.status_code == 404) from exc
 
     def share(self, username: str, password: str) -> str:
         """The `mierus://` link for a credential the panel already holds."""
