@@ -31,7 +31,9 @@ from .reconcile import GenerationSuperseded
 # The central reads a push for 30 s (spec §6): the node answers 202 before that and the
 # reconcile keeps running in the background.
 APPLY_DEADLINE = 25.0
-CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "unlink")
+# `egress.v1` (v0.4): this node applies the `egress` section of a generation and reports
+# its egress targets in `identity.protocols[*].egress`.
+CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "unlink", "egress.v1")
 VERSIONS_UNAVAILABLE = {"enabled": False, "components": {}, "reason": "version_agent_unavailable"}
 NO_STORE = {"Cache-Control": "no-store"}
 log = logging.getLogger(__name__)
@@ -81,7 +83,25 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             return "down"
         return "ok"
 
-    async def _protocol_table() -> dict:
+    async def _egress_entry(protocol: str) -> dict | None:
+        """The egress target of one protocol as the central's compiler reads it (spec §5):
+        secret-free — the provider's endpoint never leaves the manager's environment. A
+        manager that cannot answer contributes no target; `daemon` already says it is down."""
+        adapter = app.state.adapters.get(protocol)
+        if adapter is None or not _enabled(protocol):
+            return None
+        try:
+            target = await adapter.egress_target()
+        except AdapterError:
+            return None
+        if target is None:
+            return None
+        return {"backend": target.backend, "capabilities": sorted(target.capabilities), "providers": target.providers,
+                "revision": target.revision, "mode": target.mode, "restart_required": target.restart_required,
+                "applied_digest": target.applied["digest"] if target.applied else None,
+                "warnings": list(target.warnings)}
+
+    async def _protocol_table(*, egress: bool = False) -> dict:
         telemt, naive, mieru = await asyncio.gather(
             _daemon(app.state.telemt, TelemtError),
             _daemon(app.state.naive, NaiveError) if settings.naive_enabled else asyncio.sleep(0, "off"),
@@ -89,13 +109,18 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         )
         # The public hosts are the ones this node's own subscription renderer assumes; a
         # grant's own `host`/`port`, learned from the link Telemt served, win over these.
-        return {
+        table = {
             "mtproxy": {"enabled": True, "public_host": settings.mtproxy_host, "public_port": 443, "daemon": telemt},
             "naive": {"enabled": settings.naive_enabled, "public_host": settings.naive_public_host,
                       "public_port": 443, "daemon": naive},
             "mieru": {"enabled": settings.mieru_enabled, "public_host": settings.naive_public_host,
                       "public_port": 8443, "daemon": mieru},
         }
+        if egress:
+            targets = await asyncio.gather(*(_egress_entry(protocol) for protocol in table))
+            for protocol, entry in zip(table, targets, strict=True):
+                table[protocol]["egress"] = entry
+        return table
 
     async def _inventory() -> dict[str, list[dict]]:
         """Runtime users per protocol and who owns each; a dead manager contributes no rows."""
@@ -157,7 +182,8 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         with app.state.database.connect() as db:
             master = app.state.managed.master_guid(db)
         return {"guid": app.state.panel_guid, "panel_version": app.state.panel_version, "api_version": 2,
-                "master_guid": master, "protocols": await _protocol_table(), "capabilities": list(CAPABILITIES)}
+                "master_guid": master, "protocols": await _protocol_table(egress=True),
+                "capabilities": list(CAPABILITIES)}
 
     @app.get("/api/fleet/v2/status")
     async def status(_key=Depends(context.fleet_key)):

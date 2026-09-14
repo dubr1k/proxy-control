@@ -47,6 +47,25 @@ async def test_identity_status_and_inventory_are_secret_free(client, login_user,
     assert bob["ownership"] == "local" and "hunter2" not in inventory.__repr__()
 
 
+async def test_identity_reports_egress_v1_and_targets(client, login_user, naive, mieru):
+    headers = await _node_key(client, login_user)
+    mieru.reachable = False
+    identity = (await client.get("/api/fleet/v2/identity", headers=headers)).json()
+    assert "egress.v1" in identity["capabilities"]
+    naive_egress = identity["protocols"]["naive"]["egress"]
+    assert naive_egress["backend"] == "naive_native" and "whole_warp" in naive_egress["capabilities"]
+    assert naive_egress["providers"] == {"warp": {"reachable": True}} and naive_egress["applied_digest"]
+    assert naive_egress["revision"] and naive_egress["mode"] == "direct"
+    assert identity["protocols"]["mieru"]["egress"]["providers"] == {"warp": {"reachable": False}}
+    assert identity["protocols"]["mieru"]["egress"]["restart_required"] is True
+    assert identity["protocols"]["mtproxy"]["egress"] is None
+    assert "socks5://" not in repr(identity)
+    # A manager that cannot answer contributes no target rather than failing the identity.
+    naive.broken = True
+    identity = (await client.get("/api/fleet/v2/identity", headers=headers)).json()
+    assert identity["protocols"]["naive"]["egress"] is None and identity["protocols"]["naive"]["daemon"] == "down"
+
+
 async def test_push_applies_and_answers_with_observed(client, login_user, naive):
     headers = await _node_key(client, login_user)
     guid = (await client.get("/api/fleet/v2/identity", headers=headers)).json()["guid"]

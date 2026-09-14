@@ -6,6 +6,14 @@ from urllib.parse import quote
 
 import httpx
 
+from .routing.document import EGRESS_REASON_CODES, document_digest
+
+# What the pinned mita build enforces (mieru_manager/egress.py, from the spike).
+MIERU_EGRESS_CAPABILITIES = ("whole_direct", "whole_warp", "block_domain", "block_cidr",
+                             "selective_domain", "selective_cidr")
+EGRESS_DIRECT = {"schema": 1, "proxies": [], "rules": []}
+EGRESS_ACTIONS = ("DIRECT", "PROXY", "REJECT")
+
 
 class MieruError(RuntimeError):
     def __init__(self, message: str, status_code: int = 502, code: str | None = None):
@@ -42,13 +50,23 @@ class MieruClient:
             status = (
                 response.status_code if response.status_code in {404, 409, 422} else 502
             )
-            raise MieruError("Mieru manager rejected request", status)
+            raise MieruError("Mieru manager rejected request", status, self._reason(response))
         if response.status_code == 204:
             return None
         try:
             return response.json()
         except ValueError as exc:
             raise MieruError("Invalid Mieru manager response") from exc
+
+    @staticmethod
+    def _reason(response) -> str | None:
+        """The egress API's bounded codes (v0.4); anything else stays a plain refusal."""
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+        code = payload.get("code") if isinstance(payload, dict) else None
+        return code if code in EGRESS_REASON_CODES else None
 
     async def health(self):
         return await self._request("GET", "/v1/health")
@@ -110,16 +128,46 @@ class MieruClient:
             "POST", f"/v1/users/{quote(username, safe='')}/reset-metrics", {}
         )
 
+    # egress (v0.4 routing): the `egress` section of the mita config, see mieru_manager/egress.py
+    async def egress(self):
+        return await self._request("GET", "/v1/egress")
+
+    async def egress_plan(self, expected_revision, document):
+        return await self._request(
+            "POST", "/v1/egress/plan", {"expected_revision": expected_revision, "document": document}
+        )
+
+    async def egress_apply(self, expected_revision, document, operation_id):
+        return await self._request("POST", "/v1/egress/apply", {
+            "expected_revision": expected_revision, "document": document, "operation_id": operation_id,
+        })
+
+    async def egress_rollback(self, expected_revision):
+        return await self._request("POST", "/v1/egress/rollback", {"expected_revision": expected_revision})
+
 
 class MemoryMieru:
     def __init__(self):
         self.users = {}
+        self.calls = []
         self.revision = "rev-1"
         self.broken = False
         self.operations = {}
         # {"create": "lose_response"} performs the mutation and then raises, the way a
         # manager does when the reply never reaches the panel.
         self.faults = {}
+        # egress (v0.4): what the manager's /v1/egress API answers over a mita config with
+        # no `egress` section. `provider_url` None = a host without WARP; `reachable` is what
+        # the manager's pre-apply probe would find; `egress_fail_next` answers the next apply
+        # or rollback with that manager code before anything changes; `egress_custom` is a
+        # section somebody wrote by hand (mode `custom`, no managed document).
+        self.provider_url: str | None = "socks5://127.0.0.1:40000"
+        self.reachable = True
+        self.egress_document = EGRESS_DIRECT
+        self.egress_history: list[dict] = []
+        self.egress_operations: dict[str, dict] = {}
+        self.egress_fail_next: str | None = None
+        self.egress_custom: dict | None = None
 
     def _next(self):
         self.revision = "rev-" + str(int(self.revision.split("-")[1]) + 1)
@@ -243,3 +291,102 @@ class MemoryMieru:
 
     async def reset_metrics(self, username):
         raise MieruError("Mieru metrics unavailable", 409)
+
+    # ------------------------------------------------------------------
+    # egress (v0.4 routing)
+    # ------------------------------------------------------------------
+
+    def _egress_validate(self, document) -> dict:
+        """The manager's `validate_document`, to the letter the adapters depend on."""
+        if (not isinstance(document, dict) or set(document) - {"schema", "proxies", "rules"}
+                or document.get("schema") != 1):
+            raise MieruError("invalid egress document", 422, "egress_invalid")
+        proxies, rules = document.get("proxies", []), document.get("rules", [])
+        if not isinstance(proxies, list) or any(proxy != {"name": "warp", "provider": "warp"} for proxy in proxies) \
+                or len(proxies) > 1:
+            raise MieruError("unknown egress provider", 422, "egress_invalid")
+        if proxies and not self.provider_url:
+            raise MieruError("egress provider warp is not configured on this node", 422, "egress_invalid")
+        if not isinstance(rules, list):
+            raise MieruError("invalid rule list", 422, "egress_invalid")
+        normalised = []
+        for rule in rules:
+            if not isinstance(rule, dict) or set(rule) - {"domains", "cidrs", "action", "proxy"}:
+                raise MieruError("invalid egress rule", 422, "egress_invalid")
+            domains, cidrs = list(rule.get("domains", [])), list(rule.get("cidrs", []))
+            if not (domains or cidrs) or rule.get("action") not in EGRESS_ACTIONS:
+                raise MieruError("invalid egress rule", 422, "egress_invalid")
+            proxy = rule.get("proxy")
+            if (rule["action"] == "PROXY") != (proxy == "warp") or (proxy == "warp" and not proxies):
+                raise MieruError("egress rule names an undeclared proxy", 422, "egress_invalid")
+            normalised.append({"domains": domains, "cidrs": cidrs, "action": rule["action"], "proxy": proxy})
+        return {"schema": 1, "proxies": copy.deepcopy(proxies), "rules": normalised}
+
+    def _egress_check(self, expected_revision):
+        if self.broken:
+            raise MieruError("unavailable")
+        if expected_revision != self.revision:
+            raise MieruError("egress revision does not match", 409, "egress_conflict")
+
+    def _egress_fail(self):
+        code, self.egress_fail_next = self.egress_fail_next, None
+        if code is not None:
+            raise MieruError("Mieru manager rejected request", 502 if code in {
+                "manual_intervention_required", "egress_readback_mismatch"} else 409, code)
+
+    async def egress(self):
+        if self.broken:
+            raise MieruError("unavailable")
+        custom = self.egress_custom is not None
+        document = None if custom else self.egress_document
+        providers = {} if not self.provider_url else {"warp": {"url": self.provider_url, "reachable": self.reachable}}
+        return {
+            "revision": self.revision,
+            "mode": "custom" if custom else "proxy" if any(r["action"] == "PROXY" for r in document["rules"]) else "direct",
+            "document": document, "raw": copy.deepcopy(self.egress_custom) if custom else None,
+            "managed": not custom and bool(self.egress_history),
+            "providers": providers, "capabilities": list(MIERU_EGRESS_CAPABILITIES), "restart_required": True,
+            "warnings": ["adopts_unmanaged_egress"] if custom else [],
+            "previous": None if not self.egress_history else {"applied_at": None},
+            "current": None if not self.egress_history else {"digest": document_digest(document) if document else None},
+        }
+
+    async def egress_plan(self, expected_revision, document):
+        normalised = self._egress_validate(document)
+        self._egress_check(expected_revision)
+        return {"revision": self.revision, "target": normalised,
+                "diff": [] if normalised == self.egress_document else ["-current", "+planned"],
+                "reachability": {"warp": self.reachable} if normalised["proxies"] else {}, "restart_required": True,
+                "warnings": ["adopts_unmanaged_egress"] if self.egress_custom is not None else []}
+
+    async def egress_apply(self, expected_revision, document, operation_id):
+        self.calls.append(("egress_apply", operation_id))
+        if self.broken:
+            raise MieruError("unavailable")
+        normalised = self._egress_validate(document)
+        record = self.egress_operations.get(operation_id)
+        if record is not None:
+            if record["applied"] != normalised:
+                raise MieruError("operation id already used for another request", 409, "operation_conflict")
+            return {**record, "replayed": True}
+        self._egress_check(expected_revision)
+        if normalised["proxies"] and not self.reachable:
+            raise MieruError("egress provider warp is unreachable", 409, "egress_unreachable")
+        self._egress_fail()
+        self.egress_history.append({"document": None if self.egress_custom is not None else self.egress_document,
+                                    "custom": self.egress_custom})
+        self.egress_custom, self.egress_document = None, normalised
+        result = {"revision": self._next(), "applied": normalised}
+        self.egress_operations[operation_id] = result
+        return {**result, "replayed": False}
+
+    async def egress_rollback(self, expected_revision):
+        self.calls.append(("egress_rollback",))
+        self._egress_check(expected_revision)
+        if not self.egress_history:
+            raise MieruError("no previous egress to roll back to", 409, "egress_no_previous")
+        self._egress_fail()
+        previous = self.egress_history.pop()
+        self.egress_custom = previous["custom"]
+        self.egress_document = previous["document"] if previous["document"] is not None else EGRESS_DIRECT
+        return {"revision": self._next(), "applied": previous["document"], "replayed": False}

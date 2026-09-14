@@ -12,17 +12,26 @@ from dataclasses import dataclass, field
 from typing import Literal, Protocol, runtime_checkable
 
 from ..clients.models import AccessGrant, GrantIntent
+from ..routing.document import EGRESS_REASON_CODES, document_digest
+
+# What an egress operation may fail with (v0.4 routing): the managers' own bounded codes,
+# plus the two only the panel can know — a backend without egress and a manager that
+# cannot answer at all. Anything else a manager says is folded into these.
+EGRESS_ERROR_CODES = EGRESS_REASON_CODES | {"egress_unsupported", "manager_unavailable"}
 
 
 class AdapterError(RuntimeError):
     """A refused or failed protocol operation. Messages never carry a credential.
 
     `already_gone`: the runtime answered "no such user" to a delete — the outcome the
-    caller wanted already holds, so a lifecycle may treat it as done."""
+    caller wanted already holds, so a lifecycle may treat it as done.
+    `code`: the bounded reason of an egress failure (`EGRESS_ERROR_CODES`), None for the
+    grant operations that predate it."""
 
-    def __init__(self, message: str = "", *, already_gone: bool = False):
+    def __init__(self, message: str = "", *, already_gone: bool = False, code: str | None = None):
         super().__init__(message)
         self.already_gone = already_gone
+        self.code = code
 
 
 class ManualInterventionRequired(AdapterError):
@@ -85,6 +94,79 @@ class AppliedGrant:
 
 
 @dataclass(frozen=True)
+class EgressTarget:
+    """What a backend's egress looks like right now, as the compiler needs it (spec §5).
+
+    `providers` names what this host can route through and whether the manager found it
+    reachable — never the endpoint itself, which stays in the manager's environment.
+    `applied` is the managed document the runtime runs (`revision`, `digest`, `document`),
+    or None when the runtime carries an `upstream`/`egress` somebody wrote by hand (`mode`
+    `custom`): the first apply adopts it, and a rollback puts it back verbatim."""
+
+    protocol: str
+    backend: Literal["naive_native", "mieru_native"]
+    capabilities: frozenset[str]
+    providers: dict[str, dict]
+    revision: str
+    applied: dict | None
+    mode: Literal["direct", "proxy", "custom"] = "direct"
+    restart_required: bool = False
+    warnings: tuple[str, ...] = ()
+    runtime_version: str | None = None
+
+
+@dataclass(frozen=True)
+class AppliedEgress:
+    """The manager's answer to an apply or a rollback: the revision the runtime is at now
+    and the digest of the document it runs (None after a rollback to a hand-written
+    section). `readback_sha256` is what the manager verified after reloading, where it
+    reports one."""
+
+    revision: str
+    digest: str | None
+    readback_sha256: str | None = None
+    replayed: bool = False
+
+
+def egress_target_from_view(protocol: str, backend: str, view: dict) -> EgressTarget:
+    """Both managers answer `GET /v1/egress` in the same vocabulary; only the document
+    shapes differ, and those pass through untouched."""
+    document = view.get("document")
+    revision = str(view.get("revision") or "")
+    providers = {name: {"reachable": entry.get("reachable")} for name, entry in (view.get("providers") or {}).items()
+                 if isinstance(entry, dict)}
+    return EgressTarget(
+        protocol=protocol, backend=backend,
+        capabilities=frozenset(item for item in view.get("capabilities", []) if isinstance(item, str)),
+        providers=providers, revision=revision,
+        applied=None if document is None else {"revision": revision, "digest": document_digest(document),
+                                               "document": document},
+        mode=view.get("mode") if view.get("mode") in ("direct", "proxy", "custom") else "custom",
+        restart_required=view.get("restart_required") is True,
+        warnings=tuple(item for item in view.get("warnings", []) if isinstance(item, str)),
+    )
+
+
+def applied_egress_from_view(view: dict) -> AppliedEgress:
+    document = view.get("applied")
+    return AppliedEgress(
+        revision=str(view.get("revision") or ""),
+        digest=None if document is None else document_digest(document),
+        readback_sha256=view.get("readback_sha256") if isinstance(view.get("readback_sha256"), str) else None,
+        replayed=view.get("replayed") is True,
+    )
+
+
+def egress_error(runtime: str, status_code: int, code: str | None) -> AdapterError:
+    """A manager's egress refusal as the typed error the routing service acts on."""
+    if code not in EGRESS_REASON_CODES:
+        code = {409: "egress_conflict", 422: "egress_invalid"}.get(status_code, "manager_unavailable")
+    if code == "manual_intervention_required":
+        return ManualInterventionRequired(f"{runtime} egress needs recovery by hand", code=code)
+    return AdapterError(f"{runtime} refused the egress change", code=code)
+
+
+@dataclass(frozen=True)
 class AccessArtifact:
     kind: str
     label: str
@@ -120,3 +202,10 @@ class ProtocolAdapter(Protocol):
     def render_artifacts(
         self, grant: AccessGrant, credential: bytes, *, public_host: str
     ) -> list[AccessArtifact]: ...
+    # egress (v0.4 routing): None / `egress_unsupported` for a data plane without one.
+    async def egress_target(self) -> EgressTarget | None: ...
+    async def plan_egress(self, document: dict, *, expected_revision: str) -> dict: ...
+    async def apply_egress(
+        self, document: dict, *, expected_revision: str, operation_id: str
+    ) -> AppliedEgress: ...
+    async def rollback_egress(self, *, expected_revision: str) -> AppliedEgress: ...

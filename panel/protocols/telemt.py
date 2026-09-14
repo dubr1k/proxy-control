@@ -15,8 +15,10 @@ from ..telemt import TelemtError, TelemtIndeterminate, access_from_user
 from .base import (
     AccessArtifact,
     AdapterError,
+    AppliedEgress,
     AppliedGrant,
     CredentialPlan,
+    EgressTarget,
     GrantRef,
     ObservedGrant,
     ObservedInventory,
@@ -267,3 +269,17 @@ class TelemtAdapter:
                 value=link,
             )
         ]
+
+    # egress (v0.4 routing): MTProxy is out of scope — Telemt has no egress to speak of, and
+    # the routing screen says so instead of offering a policy it could never enforce.
+    async def egress_target(self) -> EgressTarget | None:
+        return None
+
+    async def plan_egress(self, document: dict, *, expected_revision: str) -> dict:
+        raise AdapterError("MTProxy has no egress", code="egress_unsupported")
+
+    async def apply_egress(self, document: dict, *, expected_revision: str, operation_id: str) -> AppliedEgress:
+        raise AdapterError("MTProxy has no egress", code="egress_unsupported")
+
+    async def rollback_egress(self, *, expected_revision: str) -> AppliedEgress:
+        raise AdapterError("MTProxy has no egress", code="egress_unsupported")
