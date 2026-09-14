@@ -15,6 +15,12 @@ def _link_view(link: dict) -> dict:
     view = {key: link[key] for key in LINK_VIEW_KEYS}
     view["config_dirty"] = bool(link["config_dirty"])
     view["enabled"] = bool(link["enabled"])
+    # What the node last reported (`observed_generations`), so the UI can tell "the node
+    # has not applied this yet" from "applied, a credential is still to be captured" — the
+    # link stays `config_dirty` in both cases (spec §6: `converged` clears it only once every
+    # credential the generation names is in escrow).
+    view["observed_generation"] = link.get("observed_generation")
+    view["observed_state"] = link.get("observed_state")
     return view
 
 
@@ -49,7 +55,8 @@ def derive(
         node_id=row["node_id"],
         display_name=row["display_name"],
         kind=row.get("kind", "remote"),
-        disabled=bool(row.get("disabled")),
+        # One flag per node: a linked panel is "disabled" exactly when its link is paused.
+        disabled=not link["enabled"] if link is not None else bool(row.get("disabled")),
         enrollment_state=enrollment,
         connectivity_state=connectivity,
         daemon_health="reported" if reported else "unknown",

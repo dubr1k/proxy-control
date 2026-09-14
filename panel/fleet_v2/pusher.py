@@ -45,6 +45,16 @@ GRANT_STATES = ("enabled", "disabled", "missing")
 # reached yet still carry the previous generation's state, so nothing is captured, escrowed
 # or confirmed from it — `_in_flight` polls again on the next tick.
 SETTLED_STATES = ("converged", "failed")
+# A converged report whose credentials the node still cannot hand over (`_uncaptured`) is
+# delivered again on the next tick; after this many such ticks in a row the re-push is
+# deferred with the usual backoff instead of hammering the node every 15 s.
+WITHHELD_TICKS_BEFORE_BACKOFF = 4
+# What the waiting operation step says while a manager-origin credential is not in escrow.
+NOT_CAPTURED = "credential not captured yet"
+# A node that answers the heartbeat with these is up but refusing — rate limit, a manager
+# hiccup behind a 5xx: the link keeps its status, the error is recorded, and nothing is pushed
+# until it answers again. Any other refusal (a 404: no Fleet v2 at that URL) is `offline`.
+REFUSING_STATUSES = frozenset({429}) | frozenset(range(500, 600))
 
 
 @dataclass
@@ -70,6 +80,8 @@ class FleetPusher:
         self._locks: dict[str, asyncio.Lock] = {}
         # In memory on purpose: a restart is a fresh attempt, and nothing here is worth a column.
         self._backoff: dict[str, _Backoff] = {}
+        # (generation, consecutive converged reports with a credential still withheld) per node.
+        self._withheld: dict[str, tuple[int, int]] = {}
 
     # --- loop -------------------------------------------------------------------
 
@@ -113,6 +125,12 @@ class FleetPusher:
         try:
             identity = await client.identity()
             status = await client.status()
+        except NodeRejected as exc:
+            if exc.status in REFUSING_STATUSES:
+                self._refusing(node_id, exc)
+            else:
+                self._offline(node_id, exc)
+            return
         except CLIENT_ERRORS as exc:
             self._offline(node_id, exc)
             return
@@ -123,8 +141,8 @@ class FleetPusher:
             link = self.links.link(db, node_id)
             latest = self.desired.latest(db, node_id)
             observed = self.desired.observed(db, node_id)
-        if latest is None:
-            return
+        if latest is None or not link["enabled"]:
+            return  # a paused link is probed dry: the heartbeat above, nothing delivered
         if self._in_flight(latest, observed):
             await self._poll_observed(client, node_id)
         elif self._deferred(node_id, latest["generation"]):
@@ -167,6 +185,12 @@ class FleetPusher:
     def _offline(self, node_id: str, exc: Exception) -> None:
         with self.database.transaction() as db:
             self._emit(db, self.links.record_heartbeat(db, node_id, online=False, error=_describe(exc)), node_id)
+
+    def _refusing(self, node_id: str, exc: NodeRejected) -> None:
+        """The node is up but refused the heartbeat (429, 5xx): recorded, not a transition."""
+        with self.database.transaction() as db:
+            db.execute("UPDATE node_links SET last_error=?, updated_at=? WHERE node_id=?",
+                       (_describe(exc), int(self.clock.time()), node_id))
 
     # --- push -------------------------------------------------------------------
 
@@ -270,7 +294,10 @@ class FleetPusher:
                 secret_id, _, version = resource.credential_ref.rpartition(":")
                 row = db.execute("SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
                                  (secret_id, int(version))).fetchone()
-                if row is not None and row["state"] == "pending":
+                # No row at all: an imported grant the node could not reveal at import time
+                # (`secret_ref is None`); the version the document names is asked for now, so
+                # a 202 on its generation does not leave it without a credential until a re-PUT.
+                if row is None or row["state"] == "pending":
                     wanted[f"{resource.protocol}:{resource.runtime_username}"] = {
                         "credential_ref": resource.credential_ref,
                         "resource": {"protocol": resource.protocol, "runtime_username": resource.runtime_username}}
@@ -352,7 +379,10 @@ class FleetPusher:
                     self.clients.purge_grant(db, grant.id)
                     continue
                 returned = next((ref for ref in credentials if ref.startswith(item.ref + ":")), None)
-                if settled and returned is not None and self._names(grant, returned):
+                # Only the generation the central wants now may escrow: a late answer about an
+                # older one could otherwise overwrite what the newer generation's report put
+                # in escrow — the newer generation's re-PUT returns the value again anyway.
+                if current and returned is not None and self._names(grant, returned):
                     self.provisioning.escrow_returned_credential(db, grant.id, returned, credentials[returned])
                 if item.learned and state != "missing":
                     # Telemt's host/port, mita's share template: the link renders from these.
@@ -364,8 +394,18 @@ class FleetPusher:
                         self.provisioning.confirm_credential(db, grant.id)
                 self.clients.store.update_grant(db, grant.id, observed_state=state, updated_at=now)
             if current:
-                self.provisioning.remote_applied(db, observed, withheld=withheld)
+                self.provisioning.remote_applied(db, observed, withheld=withheld, withheld_error=NOT_CAPTURED)
             self.desired.record_observed(db, node_id, observed, acknowledge=not withheld)
-        if withheld:
-            log.warning("fleet: node %s: %s credential(s) not captured yet; generation %s is delivered again",
-                        node_id, len(withheld), observed.applied_generation)
+        if not (current and withheld):
+            self._withheld.pop(node_id, None)
+            return
+        generation = observed.applied_generation
+        previous = self._withheld.get(node_id)
+        ticks = previous[1] + 1 if previous and previous[0] == generation else 1
+        self._withheld[node_id] = (generation, ticks)
+        log.warning("fleet: node %s: %s credential(s) not captured yet (%s tick(s)); generation %s is delivered again",
+                    node_id, len(withheld), ticks, generation)
+        if ticks >= WITHHELD_TICKS_BEFORE_BACKOFF:
+            # The node converges every time but never hands the credential over: keep asking,
+            # at the failed-apply cadence rather than every tick.
+            self._defer(node_id, generation)

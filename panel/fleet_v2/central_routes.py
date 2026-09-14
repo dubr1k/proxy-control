@@ -133,6 +133,9 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
             raise HTTPException(404, "node not found") from exc
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
+        except SecretError as exc:
+            # A new key has nowhere to go without a master key (ADR 005).
+            return _refusal(409, "secret_store_disabled", str(exc))
         return await asyncio.to_thread(_view, node_id)
 
     async def _set_enabled(node_id: str, enabled: bool, request: Request, user: dict) -> dict:
@@ -158,11 +161,13 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
         return await asyncio.to_thread(_view, node_id)
 
     @app.delete("/api/nodes/{node_id}")
-    async def node_unlink(node_id: str, request: Request, user=Depends(owner)):
+    async def node_unlink(node_id: str, request: Request, user=Depends(owner), force: bool = False):
+        """`?force=1` is the owner's override for a node that is gone for good: provisioned
+        grants the node never confirmed deleting are abandoned (audited as such)."""
         if node_id == LOCAL_NODE_ID:
             raise HTTPException(422, NOT_A_LINKED_PANEL)
         try:
-            await app.state.links.delete(node_id, **context.domain_context(request, user))
+            await app.state.links.delete(node_id, force=force, **context.domain_context(request, user))
         except KeyError as exc:
             raise HTTPException(404, "node not found") from exc
         return {"ok": True}

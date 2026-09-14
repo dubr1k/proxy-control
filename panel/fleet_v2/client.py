@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json as json_module
 import socket
 import ssl
 from urllib.parse import urlsplit
@@ -13,6 +14,10 @@ import httpx
 from .protocol import ObservedGeneration, PushRequest, PushResponse
 
 TLS_MODES = ("verify", "pin")
+# A node's answer is read at most this far (spec §5.2 bounds the push at 64 KiB; the
+# inventory of a node with `MAX_RESOURCES` users per protocol is well under this). A
+# longer body is a misbehaving node, refused before a byte of it is parsed.
+MAX_RESPONSE_BYTES = 1_048_576
 
 
 class NodeUnreachable(Exception):
@@ -141,23 +146,31 @@ class NodeClient:
         self.transport = transport or (_PinnedTransport(pinned_sha256) if tls_verify == "pin" else None)
 
     async def _call(self, method: str, path: str, json=None) -> tuple[int, dict]:
+        content = bytearray()
         try:
             async with httpx.AsyncClient(base_url=self.base_url, headers=self.headers, timeout=self.timeout,
                                          transport=self.transport) as client:
-                response = await client.request(method, path, json=json)
+                async with client.stream(method, path, json=json) as response:
+                    status = response.status_code
+                    if status in (401, 403):
+                        raise NodeAuthFailed()
+                    async for chunk in response.aiter_bytes():
+                        content += chunk
+                        if len(content) > MAX_RESPONSE_BYTES:
+                            raise NodeRejected(status, "response_too_large", "")
         except (httpx.TransportError, ssl.SSLError) as exc:
             # Never include the exception's str() with the API key: httpx transport errors
             # never carry it (it only ever appears in the Authorization header we sent).
             raise NodeUnreachable(type(exc).__name__) from exc
-        if response.status_code in (401, 403):
-            raise NodeAuthFailed()
         try:
-            body = response.json() if response.content else {}
+            body = json_module.loads(content) if content else {}
         except ValueError:
             body = {}
-        if response.status_code >= 400:
-            raise NodeRejected(response.status_code, body.get("code"), str(body.get("detail", "")))
-        return response.status_code, body
+        if not isinstance(body, dict):
+            body = {}
+        if status >= 400:
+            raise NodeRejected(status, body.get("code"), str(body.get("detail", "")))
+        return status, body
 
     async def identity(self) -> dict:
         return (await self._call("GET", "/api/fleet/v2/identity"))[1]
@@ -175,8 +188,15 @@ class NodeClient:
     async def observed(self) -> ObservedGeneration:
         return ObservedGeneration.model_validate((await self._call("GET", "/api/fleet/v2/observed"))[1])
 
-    async def capture(self, resources: list[dict]) -> dict:
-        return (await self._call("POST", "/api/fleet/v2/credentials/capture", json={"resources": resources}))[1]
+    async def capture(self, resources: list[dict], *, purpose: str = "escrow") -> dict:
+        """`escrow` reads back the credentials of users this central owns on the node;
+        `import` is the operator's adoption of the node's own users (the only purpose the
+        node answers for a local user). The default travels implicitly: a v0.3 node
+        (`extra="forbid"`) still answers an escrow read during a nodes-first upgrade."""
+        body = {"resources": resources}
+        if purpose != "escrow":
+            body["purpose"] = purpose
+        return (await self._call("POST", "/api/fleet/v2/credentials/capture", json=body))[1]
 
     async def update_version(self, component: str, version: str, expected_current: str | None) -> dict:
         return (await self._call("POST", "/api/fleet/v2/versions/update",

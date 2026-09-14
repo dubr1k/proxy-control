@@ -16,6 +16,7 @@ what the node reports (`remote_applied`).
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import secrets as secret_tokens
@@ -35,7 +36,7 @@ from ..protocols.base import (
     GrantRef,
     ManualInterventionRequired,
 )
-from ..secrets_store import SecretRef
+from ..secrets_store import SecretError, SecretRef
 from .models import AccessGrant, GrantIntent
 from .service import CREDENTIAL_PURPOSE, ClientService
 from .store import ClientConflict
@@ -433,19 +434,25 @@ class ProvisioningService:
                 continue
             self._mark_step(operation_id, grant.id, "compensated")
             with self.database.transaction() as db:
-                self.clients.store.update_grant(
-                    db, grant.id, desired_state="deleted", observed_state="missing",
-                    updated_at=int(self.clock.time()),
-                )
+                # The manager confirmed the account gone: the row goes with it (as a
+                # confirmed remote deletion is purged by the pusher) — a `deleted/missing`
+                # tombstone would otherwise sit in the client's list forever. The journal
+                # keeps naming the id; its readers tolerate a grant that is no longer there.
+                self.clients.purge_grant(db, grant.id)
         with self.database.transaction() as db:
             operation = self._operation(db, operation_id)
             compensated = [step["grant_id"] for step in operation["steps"] if step["status"] == "compensated"]
             for grant_id in compensated:
-                if db.execute("SELECT 1 FROM access_grants WHERE id=?", (grant_id,)).fetchone() is None:
-                    continue  # purged once its deletion was confirmed
-                self.clients.store.update_grant(
-                    db, grant_id, desired_state="deleted", updated_at=int(self.clock.time()),
-                )
+                row = db.execute("SELECT node_id FROM access_grants WHERE id=?", (grant_id,)).fetchone()
+                if row is None:
+                    continue  # purged: its deletion was confirmed, or its account was removed above
+                if is_remote_node(db, row["node_id"]):
+                    # Withdrawn by the next generation; the pusher purges it once the node confirms.
+                    self.clients.store.update_grant(
+                        db, grant_id, desired_state="deleted", updated_at=int(self.clock.time()),
+                    )
+                else:
+                    self.clients.purge_grant(db, grant_id)  # nothing ever reached the local manager
             if compensated:
                 # A grant already published to a linked panel is withdrawn by the next
                 # generation; a local one leaves the subscription, which must move too.
@@ -512,6 +519,13 @@ class ProvisioningService:
         if secret_id != f"grant:{grant_id}" or not version.isdigit():
             raise ValueError("credential_ref does not belong to this grant")
         grant = self.clients.store.grant(db, grant_id)
+        reference = SecretRef(secret_id, int(version))
+        if self._holds(db, reference, grant, plaintext):
+            # The value in escrow is the one the node runs: nothing to rewrite (every push
+            # and poll of a converged Telemt grant lands here), only a `pending` version to
+            # activate — in place, so the row keeps its history.
+            self.secrets.transition(db, reference, "active")
+            return
         db.execute("DELETE FROM secret_versions WHERE secret_id=? AND version=?", (secret_id, int(version)))
         reference = self.secrets.store(
             db,
@@ -528,6 +542,19 @@ class ProvisioningService:
                 db, grant.id, secret_id=reference.secret_id, secret_version=reference.version,
                 updated_at=int(self.clock.time()),
             )
+
+    def _holds(self, db, reference: SecretRef, grant, plaintext: str) -> bool:
+        """The version already stores this very plaintext for this grant (and is not revoked)."""
+        row = db.execute("SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
+                         (reference.secret_id, reference.version)).fetchone()
+        if row is None or row["state"] == "revoked":
+            return False
+        try:
+            current = self.secrets.reveal(db, reference, purpose=CREDENTIAL_PURPOSE, grant_id=grant.id,
+                                          permitted_node_id=grant.node_id)
+        except SecretError:
+            return False
+        return hmac.compare_digest(current, plaintext.encode())
 
     @staticmethod
     def _waiting(db) -> list[str]:
@@ -547,22 +574,28 @@ class ProvisioningService:
             return operation["status"]
         return "succeeded" if any(step["status"] == "active" for step in steps) else "compensated"
 
-    def remote_applied(self, db, observed: ObservedGeneration, *, withheld: Collection[str] = ()) -> None:
+    def remote_applied(self, db, observed: ObservedGeneration, *, withheld: Collection[str] = (),
+                       withheld_error: str | None = None) -> None:
         """What one node reported, applied to the operations waiting for it: a grant the
         node holds (`enabled`, or `disabled` because the central asked for that meanwhile)
         finishes its `remote` step with its credential active; a `failed` one keeps the
         step and shows the node's error; the operation settles once no step waits. An
         operation still `applying` locally only has its step marked — `run()` settles its
         status when the local steps are done. A grant in `withheld` (the pusher could not
-        capture the credential its runtime chose) keeps its step waiting: activating it
-        would hand out the value the central generated, not the one the node runs."""
+        capture the credential its runtime chose) keeps its step waiting, saying why
+        (`withheld_error`): activating it would hand out the value the central generated,
+        not the one the node runs."""
         reported = {item.ref.removeprefix("grant:"): item for item in observed.resources}
         for operation_id in self._waiting(db):
             operation = self._operation(db, operation_id)
             changed = False
             for step in operation["steps"]:
                 item = reported.get(step["grant_id"])
-                if step["status"] != "remote" or item is None or step["grant_id"] in withheld:
+                if step["status"] != "remote" or item is None:
+                    continue
+                if step["grant_id"] in withheld:
+                    if withheld_error is not None and step["error"] != withheld_error:
+                        step["error"], changed = withheld_error, True
                     continue
                 if item.state in ("enabled", "disabled"):
                     try:

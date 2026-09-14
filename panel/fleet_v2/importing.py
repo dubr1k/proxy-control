@@ -70,7 +70,7 @@ async def import_resources(state, node_id: str, decisions: list[ImportItem], *, 
         return {"imported": [], "without_credential": [], "already_linked": already_linked}
     # Read before anything is written: a node that cannot answer leaves no half-imported client.
     captured = await client.capture([{"protocol": item.protocol, "runtime_username": item.runtime_username}
-                                     for item, _ in pending])
+                                     for item, _ in pending], purpose="import")
     credentials = captured.get("credentials") or {}
     now = int(clients.clock.time())
     imported, without_credential, touched, created = [], [], set(), 0
