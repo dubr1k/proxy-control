@@ -8,13 +8,18 @@ from ..naive import NaiveError
 from .base import (
     AccessArtifact,
     AdapterError,
+    AppliedEgress,
     AppliedGrant,
     CredentialPlan,
+    EgressTarget,
     GrantRef,
     ManualInterventionRequired,
     ObservedGrant,
     ObservedInventory,
     Preflight,
+    applied_egress_from_view,
+    egress_error,
+    egress_target_from_view,
 )
 
 
@@ -179,3 +184,34 @@ class NaiveAdapter:
                 value=url,
             )
         ]
+
+    # ------------------------------------------------------------------
+    # egress (v0.4 routing): the managed block of the Caddyfile, `naive_native`
+    # ------------------------------------------------------------------
+
+    async def egress_target(self) -> EgressTarget | None:
+        try:
+            view = await self.client.egress()
+        except NaiveError as exc:
+            raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc
+        return egress_target_from_view(self.protocol, "naive_native", view)
+
+    async def plan_egress(self, document: dict, *, expected_revision: str) -> dict:
+        try:
+            return await self.client.egress_plan(expected_revision, document)
+        except NaiveError as exc:
+            raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc
+
+    async def apply_egress(self, document: dict, *, expected_revision: str, operation_id: str) -> AppliedEgress:
+        try:
+            view = await self.client.egress_apply(expected_revision, document, operation_id)
+        except NaiveError as exc:
+            raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc
+        return applied_egress_from_view(view)
+
+    async def rollback_egress(self, *, expected_revision: str) -> AppliedEgress:
+        try:
+            view = await self.client.egress_rollback(expected_revision)
+        except NaiveError as exc:
+            raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc
+        return applied_egress_from_view(view)

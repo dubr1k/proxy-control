@@ -17,13 +17,18 @@ from ..mieru import MieruError
 from .base import (
     AccessArtifact,
     AdapterError,
+    AppliedEgress,
     AppliedGrant,
     CredentialPlan,
+    EgressTarget,
     GrantRef,
     ManualInterventionRequired,
     ObservedGrant,
     ObservedInventory,
     Preflight,
+    applied_egress_from_view,
+    egress_error,
+    egress_target_from_view,
 )
 
 SHARE_TEMPLATE = "mierus://{username}:{password}@{host}?profile={profile}&port={port}&protocol=TCP"
@@ -353,3 +358,34 @@ class MieruAdapter:
                 value=value,
             )
         ]
+
+    # ------------------------------------------------------------------
+    # egress (v0.4 routing): the `egress` section of the mita config, `mieru_native`
+    # ------------------------------------------------------------------
+
+    async def egress_target(self) -> EgressTarget | None:
+        try:
+            view = await self.client.egress()
+        except MieruError as exc:
+            raise egress_error("Mieru", exc.status_code, exc.code) from exc
+        return egress_target_from_view(self.protocol, "mieru_native", view)
+
+    async def plan_egress(self, document: dict, *, expected_revision: str) -> dict:
+        try:
+            return await self.client.egress_plan(expected_revision, document)
+        except MieruError as exc:
+            raise egress_error("Mieru", exc.status_code, exc.code) from exc
+
+    async def apply_egress(self, document: dict, *, expected_revision: str, operation_id: str) -> AppliedEgress:
+        try:
+            view = await self.client.egress_apply(expected_revision, document, operation_id)
+        except MieruError as exc:
+            raise egress_error("Mieru", exc.status_code, exc.code) from exc
+        return applied_egress_from_view(view)
+
+    async def rollback_egress(self, *, expected_revision: str) -> AppliedEgress:
+        try:
+            view = await self.client.egress_rollback(expected_revision)
+        except MieruError as exc:
+            raise egress_error("Mieru", exc.status_code, exc.code) from exc
+        return applied_egress_from_view(view)
