@@ -182,7 +182,7 @@ class NodeClient:
         return (await self._call("GET", "/api/fleet/v2/inventory"))[1]
 
     async def push(self, request: PushRequest) -> tuple[int, PushResponse]:
-        status, body = await self._call("PUT", "/api/fleet/v2/generation", json=request.model_dump())
+        status, body = await self._call("PUT", "/api/fleet/v2/generation", json=request.wire())
         return status, PushResponse.model_validate(body)
 
     async def observed(self) -> ObservedGeneration:

@@ -258,8 +258,10 @@ LEARNED_V13 = Migration(13, "fleet-v2-learned-options", (
 ))
 
 # Routing (v0.4, spec §4): one egress policy per (node, protocol) with its ordered rules and
-# the history of what was applied where; on a node, what egress each protocol runs for the
-# central (`managed_egress`, reported with every observed generation).
+# the history of what was applied where (`document_json`: the compiled document an apply
+# ran, what a remote rollback republishes); `desired_json` is the egress section a linked
+# panel's generations carry for this policy. On a node, what egress each protocol runs for
+# the central (`managed_egress`, reported with every observed generation).
 ROUTING_V14 = Migration(14, "routing-policies", (
     """CREATE TABLE IF NOT EXISTS routing_policies (
       id TEXT PRIMARY KEY,
@@ -272,6 +274,7 @@ ROUTING_V14 = Migration(14, "routing-policies", (
       revision INTEGER NOT NULL DEFAULT 1,
       state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),
       applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,
+      desired_json TEXT,
       created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
       UNIQUE(node_id, protocol))""",
     """CREATE TABLE IF NOT EXISTS routing_rules (
@@ -289,7 +292,7 @@ ROUTING_V14 = Migration(14, "routing-policies", (
       revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,
       runtime_version TEXT,
       outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),
-      detail TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)""",
+      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)""",
     "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
     """CREATE TABLE IF NOT EXISTS managed_egress (
       protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru')),

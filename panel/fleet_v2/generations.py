@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import time
 
-from .protocol import GenerationDocument, ObservedGeneration, Resource, canonical_digest
+from .protocol import EgressDocument, GenerationDocument, ObservedGeneration, Resource, canonical_digest
 
 
 class DesiredStore:
@@ -76,8 +76,24 @@ def content_digest(document: GenerationDocument) -> str:
                                                         "created_by": ""}))
 
 
-def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, generation, now, created_by) -> GenerationDocument:
-    """Pure: the node's grants as they are, with credentials by reference only."""
+def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | None:
+    """The egress the node's routing policies ask for (spec §8.3) — only for a node that
+    declared `egress.v1`; a v0.3 node's strict model would refuse the whole generation."""
+    if routing is None:
+        return None
+    row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (node_id,)).fetchone()
+    identity = json.loads(row["identity_json"]) if row is not None else {}
+    if "egress.v1" not in (identity.get("capabilities") or []):
+        return None
+    desired = {protocol: EgressDocument.model_validate(value)
+               for protocol, value in routing.desired_for_node(db, node_id).items()}
+    return desired or None
+
+
+def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, generation, now, created_by,
+            routing=None) -> GenerationDocument:
+    """Pure: the node's grants as they are, with credentials by reference only; the egress
+    section from the routing store when one is given."""
     resources = []
     for grant in clients_store.grants(db, node_id=node_id, include_deleted=True):
         if grant.desired_state == "deleted" and grant.observed_state == "missing":
@@ -92,15 +108,18 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
             origin=grant.origin, options=options, valid_from=grant.valid_from, valid_until=grant.valid_until))
     resources.sort(key=lambda item: item.ref)
     return GenerationDocument(node_guid=node_guid, master_guid=master_guid, generation=generation,
-                              previous_generation=previous, created_at=now, created_by=created_by, resources=resources)
+                              previous_generation=previous, created_at=now, created_by=created_by, resources=resources,
+                              egress=egress_section(db, routing, node_id))
 
 
-def publish(db, clients_store, desired: DesiredStore, *, node_id, master_guid, created_by="system", now=None) -> int | None:
+def publish(db, clients_store, desired: DesiredStore, *, node_id, master_guid, created_by="system", now=None,
+            routing=None) -> int | None:
     """Inside the caller's transaction: a rolled-back grant change publishes nothing."""
     latest = desired.latest(db, node_id)
     previous = latest["generation"] if latest else 0
     document = compile(db, clients_store, node_id=node_id, node_guid=node_id, master_guid=master_guid, previous=previous,
-                       generation=previous + 1, now=int(now if now is not None else time.time()), created_by=created_by)
+                       generation=previous + 1, now=int(now if now is not None else time.time()), created_by=created_by,
+                       routing=routing)
     content = content_digest(document)
     if latest and latest["content_digest"] == content:
         return None

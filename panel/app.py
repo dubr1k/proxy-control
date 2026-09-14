@@ -154,6 +154,10 @@ def create_app(
     app.state.links = NodeLinkService(app.state.database, app.state.secrets, app.state.nodes,
                                       own_guid=app.state.panel_guid)
     app.state.links.provisioning = app.state.provisioning
+    # Routing (v0.4, spec §8): egress policies for this node's services and the linked panels'.
+    # The store is shared with `publish` and the pusher: every generation carries the node's
+    # desired egress sections, and the node's report moves the policy to applied/failed.
+    routing_store = RoutingStore(app.state.database)
 
     def publish_for_client(db, client_id):
         # Every grant mutation funnels through ClientService.notify; publish for each
@@ -161,16 +165,19 @@ def create_app(
         rows = db.execute("""SELECT DISTINCT g.node_id FROM access_grants g JOIN node_links l ON l.node_id=g.node_id
                              WHERE g.client_id=?""", (client_id,)).fetchall()
         for row in rows:
-            publish(db, app.state.clients.store, app.state.desired, node_id=row["node_id"], master_guid=app.state.panel_guid)
+            publish(db, app.state.clients.store, app.state.desired, node_id=row["node_id"], master_guid=app.state.panel_guid,
+                    routing=routing_store)
 
     app.state.clients.on_change.append(publish_for_client)
     app.state.pusher = FleetPusher(app.state.database, app.state.links, app.state.desired, app.state.secrets,
                                    app.state.clients, app.state.provisioning, app.state.events,
-                                   interval=settings.fleet_heartbeat_seconds)
-    # Routing (v0.4, spec §8): egress policies for this node's services and the linked panels'.
+                                   interval=settings.fleet_heartbeat_seconds, routing=routing_store)
     app.state.routing = RoutingService(
-        app.state.database, RoutingStore(app.state.database), app.state.adapters, app.state.nodes.nodes,
+        app.state.database, routing_store, app.state.adapters, app.state.nodes.nodes,
         enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled}.get(protocol, True),
+        publisher=lambda db, node_id: publish(db, app.state.clients.store, app.state.desired, node_id=node_id,
+                                              master_guid=app.state.panel_guid, routing=routing_store),
+        managed=app.state.managed,
     )
 
     # The heartbeat/delivery loop lives as a background task for the process's lifetime:
