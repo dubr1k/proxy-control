@@ -257,9 +257,51 @@ LEARNED_V13 = Migration(13, "fleet-v2-learned-options", (
     "ALTER TABLE managed_resources ADD COLUMN learned_json TEXT",
 ))
 
+# Routing (v0.4, spec §4): one egress policy per (node, protocol) with its ordered rules and
+# the history of what was applied where; on a node, what egress each protocol runs for the
+# central (`managed_egress`, reported with every observed generation).
+ROUTING_V14 = Migration(14, "routing-policies", (
+    """CREATE TABLE IF NOT EXISTS routing_policies (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru')),
+      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native')),
+      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),
+      default_egress TEXT CHECK(default_egress IS NULL OR default_egress='warp'),
+      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),
+      revision INTEGER NOT NULL DEFAULT 1,
+      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),
+      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(node_id, protocol))""",
+    """CREATE TABLE IF NOT EXISTS routing_rules (
+      id TEXT PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
+      match_json TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),
+      egress TEXT, note TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(policy_id, position))""",
+    """CREATE TABLE IF NOT EXISTS routing_applies (
+      id INTEGER PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,
+      runtime_version TEXT,
+      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),
+      detail TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+    """CREATE TABLE IF NOT EXISTS managed_egress (
+      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru')),
+      generation INTEGER NOT NULL, revision TEXT, digest TEXT,
+      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),
+      last_error TEXT, updated_at INTEGER NOT NULL)""",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
+    ROUTING_V14,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
