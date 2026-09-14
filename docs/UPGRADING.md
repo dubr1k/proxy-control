@@ -114,8 +114,11 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: panel.example.com' http://12
 v0.4 adds egress policies per node and service ([ROUTING](ROUTING.en.md)). The upgrade
 is the ordinary one — the panel **and both managers** are rebuilt, because the egress API
 lives in the managers: `docker compose up -d --build --wait panel naive-manager
-mieru-manager` with the persisted overlay set (the installer's `upgrade` does exactly
-that). No new port, secret file or host component.
+mieru-manager` with the persisted overlay set, once the new release's `panel/`,
+`naive_manager/`, `mieru_manager/`, `compose*.yaml` and `VERSION` are copied into the
+project directory (`/opt/mtproxy-shared443` for an installer host) — the way the
+production node was upgraded during the v0.4 live check. No new port, secret file or host
+component.
 
 **Migration 14** (`routing-policies`) runs at the first start and is additive:
 `routing_policies`, `routing_rules`, `routing_applies` (the central's and the local

@@ -49,6 +49,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Выпуски
 
+- [CHANGELOG.ru.md](../CHANGELOG.ru.md) — журнал изменений по-русски (с v0.4); [CHANGELOG.md](../CHANGELOG.md) — основной, все выпуски; [scripts/install-release.sh](../scripts/install-release.sh) — скачать, проверить и поставить выпуск (`--requirements` — что нужно и что устанавливается)
 - [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — маршрутизация: egress-политики с предпросмотром
 - [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — центральная панель и связанные панели
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — локальный control plane, подписки
@@ -99,6 +100,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Releases
 
+- [CHANGELOG.md](../CHANGELOG.md) — the changelog, every release; [CHANGELOG.ru.md](../CHANGELOG.ru.md) — in Russian (from v0.4); [scripts/install-release.sh](../scripts/install-release.sh) — fetch, verify and install a release (`--requirements` — what is needed and what gets installed)
 - [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — routing: egress policies with a preview
 - [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — central panel and linked panels
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — local control plane, subscriptions
