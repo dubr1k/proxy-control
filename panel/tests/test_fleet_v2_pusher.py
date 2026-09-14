@@ -672,3 +672,115 @@ async def test_an_applying_report_is_provisional_and_never_activates_a_pre_rotat
     assert versions() == [(1, "revoked"), (2, "active")]
     current = central.state.clients.client_with_grants(client.id)[1][0]
     assert _escrowed(central, node_id, current) == after
+
+
+# --- final review, round 3, N4: a capture failure never activates an un-captured credential ---
+
+class _CaptureBroken(httpx.AsyncBaseTransport):
+    """The node's capture route fails while `broken` — a transport timeout (200 sequential
+    Telemt reads under one client timeout) or a node 500 — and every other path is untouched."""
+
+    def __init__(self, inner, failure):
+        self.inner, self.failure, self.broken, self.attempts = inner, failure, True, 0
+
+    async def handle_async_request(self, request):
+        if request.url.path == "/api/fleet/v2/credentials/capture" and self.broken:
+            self.attempts += 1
+            if self.failure == "timeout":
+                raise httpx.ReadTimeout("capture timed out")
+            return httpx.Response(500, json={"detail": "Telemt manager hiccup"})
+        return await self.inner.handle_async_request(request)
+
+
+def _versions(central, grant) -> list[tuple[int, str]]:
+    with central.state.database.connect() as db:
+        return [tuple(r) for r in db.execute("SELECT version, state FROM secret_versions WHERE secret_id=? ORDER BY version",
+                                             (f"grant:{grant.id}",))]
+
+
+async def _converged_after_a_202(node, central, client, monkeypatch, intents) -> str:
+    """The push answers 202 mid-apply (Telemt is slower than the node's deadline); the node
+    then converges in the background. Returns the operation id, still `pending_remote`."""
+    from panel.fleet_v2 import node_routes
+
+    create = node.state.telemt.create_user
+
+    async def slow_create(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return await create(*args, **kwargs)
+
+    monkeypatch.setattr(node.state.telemt, "create_user", slow_create)
+    monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 0.001)
+    operation = await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
+    await central.state.pusher.tick()  # 202
+    assert central.state.provisioning.status(operation)["status"] == "pending_remote"
+    await asyncio.sleep(0.1)  # the node's background apply finishes
+    return operation
+
+
+@pytest.mark.parametrize("failure", ["timeout", "500"])
+async def test_a_failed_capture_after_a_converged_report_keeps_the_version_pending_until_captured(pair, monkeypatch, failure):
+    """Round 3, N4: when the poll after a 202 cannot capture Telemt's `ee…` form (the capture
+    times out, or the node answers 500), the converged report must not activate the bare
+    secret the central generated nor finish the operation — the version stays `pending`,
+    the node stays online, and the central asks again on a later tick."""
+    from panel.fleet_v2.client import NodeClient
+
+    node, central, node_id, client = await _link(pair)
+    transport = _CaptureBroken(httpx.ASGITransport(app=node), failure)
+    central.state.links.client_factory = lambda url, key, **kw: NodeClient(url, key, transport=transport, **kw)
+    intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
+    operation = await _converged_after_a_202(node, central, client, monkeypatch, [intent])
+    grant = central.state.clients.client_with_grants(client.id)[1][0]
+    bare = _escrowed(central, node_id, grant)
+    await central.state.pusher.tick()  # the poll: the report is converged, the capture fails
+    assert transport.attempts == 1
+    assert _versions(central, grant) == [(1, "pending")]
+    assert _escrowed(central, node_id, grant) == bare  # nothing escrowed, nothing activated
+    assert central.state.provisioning.status(operation)["status"] == "pending_remote"
+    assert "node.down" not in [e["name"] for e in central.state.events.since(0, 100)]
+    link = _link_row(central, node_id)
+    assert link["status"] == "online" and link["config_dirty"] == 1 and link["acknowledged_generation"] == 0
+    transport.broken = False
+    await central.state.pusher.tick()  # the central asks again; this time the runtime's form comes back
+    runtime = (await node.state.telemt.current_access("alice"))["secret"]
+    assert runtime == f"ee{bare}" and _escrowed(central, node_id, grant) == runtime
+    assert _versions(central, grant) == [(1, "active")]
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    link = _link_row(central, node_id)
+    assert link["config_dirty"] == 0 and link["acknowledged_generation"] == 1
+
+
+async def test_a_null_capture_withholds_the_manager_origin_grant_and_confirms_the_caller_origin_one(pair, monkeypatch):
+    """Round 3, N4: the node answers `null` for a Telemt grant (the manager could not read the
+    user back) but the caller's password for a NaiveProxy grant in the same report. Only the
+    Telemt version stays `pending` and only its step keeps waiting; the naive grant is
+    confirmed as before. Once the node can answer, the operation finishes with the `ee…` form."""
+    node, central, node_id, client = await _link(pair)
+    intents = [GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions()),
+               GrantIntent(protocol="naive", node_id=node_id, runtime_username="bob", options=NaiveOptions())]
+    operation = await _converged_after_a_202(node, central, client, monkeypatch, intents)
+    grants = {g.runtime_username: g for g in central.state.clients.client_with_grants(client.id)[1]}
+    bare = _escrowed(central, node_id, grants["alice"])
+    telemt_adapter = node.state.adapters["mtproxy"]
+    capture = telemt_adapter.capture
+
+    async def nothing(ref):
+        return None
+
+    monkeypatch.setattr(telemt_adapter, "capture", nothing)
+    await central.state.pusher.tick()  # the poll: `null` for mtproxy:alice, the password for naive:bob
+    assert _versions(central, grants["alice"]) == [(1, "pending")]
+    assert _escrowed(central, node_id, grants["alice"]) == bare
+    assert _versions(central, grants["bob"]) == [(1, "active")]
+    status = central.state.provisioning.status(operation)
+    assert status["status"] == "pending_remote"
+    assert {s["grant_id"]: s["status"] for s in status["steps"]} == {grants["alice"].id: "remote", grants["bob"].id: "active"}
+    assert "node.down" not in [e["name"] for e in central.state.events.since(0, 100)]
+    assert _link_row(central, node_id)["status"] == "online"
+    monkeypatch.setattr(telemt_adapter, "capture", capture)
+    await central.state.pusher.tick()  # the central asks again
+    runtime = (await node.state.telemt.current_access("alice"))["secret"]
+    assert runtime == f"ee{bare}" and _escrowed(central, node_id, grants["alice"]) == runtime
+    assert _versions(central, grants["alice"]) == [(1, "active")]
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"

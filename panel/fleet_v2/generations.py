@@ -40,7 +40,11 @@ class DesiredStore:
                    (int(time.time()), node_id, generation))
 
     @staticmethod
-    def record_observed(db, node_id: str, observed: ObservedGeneration) -> None:
+    def record_observed(db, node_id: str, observed: ObservedGeneration, *, acknowledge: bool = True) -> None:
+        """The node's report, as it is. A `converged` one also acknowledges the generation —
+        unless the caller withholds that (`acknowledge=False`): the pusher does so while a
+        credential the generation named is still to be captured, so the link stays
+        `config_dirty` and the next tick delivers the same generation again."""
         db.execute("""INSERT INTO observed_generations(node_id,applied_generation,digest,reconcile_state,resources_json,
                       reported_at) VALUES(?,?,?,?,?,?)
                       ON CONFLICT(node_id) DO UPDATE SET applied_generation=excluded.applied_generation,
@@ -48,7 +52,7 @@ class DesiredStore:
                       resources_json=excluded.resources_json, reported_at=excluded.reported_at""",
                    (node_id, observed.applied_generation, observed.digest, observed.reconcile_state,
                     json.dumps([r.model_dump() for r in observed.resources]), observed.reported_at))
-        if observed.reconcile_state == "converged":
+        if observed.reconcile_state == "converged" and acknowledge:
             db.execute("""UPDATE desired_generations SET acknowledged_at=?
                           WHERE node_id=? AND generation=? AND acknowledged_at IS NULL""",
                        (int(time.time()), node_id, observed.applied_generation))

@@ -226,8 +226,13 @@ class TelemtAdapter:
             raise AdapterError("Telemt refused the request") from exc
 
     async def capture(self, grant: GrantRef) -> bytes | None:
-        """The live link is the credential, so an existing account needs no rotation."""
-        access = await self.client.current_access(grant.runtime_username)
+        """The live link is the credential, so an existing account needs no rotation. A
+        Telemt failure is an `AdapterError` like everywhere else in this adapter: the node's
+        capture route turns it into `null` for that label, never into a 5xx."""
+        try:
+            access = await self.client.current_access(grant.runtime_username)
+        except TelemtError as exc:
+            raise AdapterError("Telemt refused the request") from exc
         secret = (access or {}).get("secret")
         return None if not secret else secret.encode()
 

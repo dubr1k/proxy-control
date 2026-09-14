@@ -21,6 +21,7 @@ import logging
 import secrets as secret_tokens
 import time
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass, field
 
 from pydantic import ValidationError
@@ -546,20 +547,22 @@ class ProvisioningService:
             return operation["status"]
         return "succeeded" if any(step["status"] == "active" for step in steps) else "compensated"
 
-    def remote_applied(self, db, observed: ObservedGeneration) -> None:
+    def remote_applied(self, db, observed: ObservedGeneration, *, withheld: Collection[str] = ()) -> None:
         """What one node reported, applied to the operations waiting for it: a grant the
         node holds (`enabled`, or `disabled` because the central asked for that meanwhile)
         finishes its `remote` step with its credential active; a `failed` one keeps the
         step and shows the node's error; the operation settles once no step waits. An
         operation still `applying` locally only has its step marked — `run()` settles its
-        status when the local steps are done."""
+        status when the local steps are done. A grant in `withheld` (the pusher could not
+        capture the credential its runtime chose) keeps its step waiting: activating it
+        would hand out the value the central generated, not the one the node runs."""
         reported = {item.ref.removeprefix("grant:"): item for item in observed.resources}
         for operation_id in self._waiting(db):
             operation = self._operation(db, operation_id)
             changed = False
             for step in operation["steps"]:
                 item = reported.get(step["grant_id"])
-                if step["status"] != "remote" or item is None:
+                if step["status"] != "remote" or item is None or step["grant_id"] in withheld:
                     continue
                 if item.state in ("enabled", "disabled"):
                     try:
