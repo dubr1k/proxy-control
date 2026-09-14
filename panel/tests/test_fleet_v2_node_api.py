@@ -5,6 +5,7 @@ import pytest
 from panel.fleet_v2.protocol import GenerationDocument, Resource
 from panel.naive import NaiveError
 from panel.secrets_store import SecretStore
+from panel.telemt import TelemtError
 
 pytestmark = pytest.mark.anyio
 
@@ -206,3 +207,19 @@ async def test_capture_unlink_and_versions_update(client, login_user, naive):
     update = await client.post("/api/fleet/v2/versions/update", headers=headers,
                                json={"component": "telemt", "version": "1.0", "expected_current": None})
     assert update.status_code in (502, 503)  # no version agent in tests, but the route exists
+
+
+async def test_capture_answers_null_not_500_while_telemt_is_down(client, login_user, telemt, monkeypatch):
+    """Round 3, N4: the capture route's contract is `plaintext|null` per label (spec §5);
+    a Telemt failure must land as `null`, never as a 500 the central cannot tell apart from
+    a refused request."""
+    headers = await _node_key(client, login_user)
+
+    async def down(username):
+        raise TelemtError("Telemt API error (502)")
+
+    monkeypatch.setattr(telemt, "current_access", down)
+    captured = await client.post("/api/fleet/v2/credentials/capture", headers=headers,
+                                 json={"resources": [{"protocol": "mtproxy", "runtime_username": "alice"}]})
+    assert captured.status_code == 200
+    assert captured.json() == {"credentials": {"mtproxy:alice": None}, "unsupported": []}

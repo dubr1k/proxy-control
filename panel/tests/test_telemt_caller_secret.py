@@ -1,7 +1,7 @@
 import pytest
 
 from panel.clients.models import GrantIntent, MtproxyOptions
-from panel.protocols.base import CredentialPlan, GrantRef
+from panel.protocols.base import AdapterError, CredentialPlan, GrantRef
 from panel.protocols.telemt import TelemtAdapter
 from panel.telemt import MemoryTelemt, TelemtError, TelemtIndeterminate
 
@@ -81,3 +81,15 @@ async def test_update_options_changes_limits_and_reports_unsupported_fields():
     applied = await adapter.update_options(GrantRef("mtproxy", "alice"), {"max_tcp_conns": 3, "host": "x"})
     assert applied is not None and telemt.users["alice"]["max_tcp_conns"] == 3
     assert await adapter.update_options(GrantRef("mtproxy", "alice"), {"host": "x"}) is None
+
+
+async def test_capture_wraps_a_telemt_failure_like_every_other_adapter_call():
+    """Round 3, N4: a Telemt hiccup while reading a user back is an `AdapterError`, as for
+    enable/disable/update/delete — so the node's capture route answers `null` for that
+    label instead of a 500 that the central would mistake for a rejected request."""
+    class Down(MemoryTelemt):
+        async def current_access(self, username):
+            raise TelemtError("Telemt API error (502)")
+
+    with pytest.raises(AdapterError):
+        await TelemtAdapter(Down()).capture(GrantRef("mtproxy", "alice"))

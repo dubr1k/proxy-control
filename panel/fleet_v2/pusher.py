@@ -237,7 +237,11 @@ class FleetPusher:
         its runtime chose (or reframed — Telemt's `ee…` form of a caller secret) is captured
         here before the report is absorbed, so `confirm_credential` never activates the bare
         value. A capture the node refuses or cannot answer is not a heartbeat failure: the
-        report is absorbed without credentials and the next poll asks again."""
+        report is absorbed with whatever was captured, and `_absorb` withholds the rest —
+        those versions stay `pending`, their operation steps keep waiting, and the generation
+        is not acknowledged, so the next tick delivers it again (an idempotent re-PUT: the
+        node hands the runtime's form back in its reply) until every credential is in escrow
+        or the node reports the generation `failed` (backoff, as for any failed apply)."""
         try:
             observed = await client.observed()
         except CLIENT_ERRORS as exc:
@@ -245,19 +249,15 @@ class FleetPusher:
             return
         credentials: dict[str, str] = {}
         if observed.reconcile_state in SETTLED_STATES:
-            try:
-                credentials = await self._capture_pending(client, node_id, observed)
-            except CLIENT_ERRORS as exc:
-                log.warning("fleet: node %s: credential capture failed (%s); report absorbed without credentials",
-                            node_id, _describe(exc))
+            credentials = await self._capture_pending(client, node_id, observed)
         self._absorb(node_id, observed, credentials)
 
     async def _capture_pending(self, client, node_id: str, observed: ObservedGeneration) -> dict[str, str]:
         """The runtime's credential for every grant the report shows present whose version
         the in-flight document names is still `pending`, keyed by that `credential_ref`;
-        asked in batches of at most `CAPTURE_MAX_RESOURCES` (the node's cap per call)."""
-        if observed.reconcile_state not in SETTLED_STATES:
-            return {}
+        asked in batches of at most `CAPTURE_MAX_RESOURCES` (the node's cap per call). A
+        batch the node cannot answer (unreachable, 4xx/5xx) ends the asking: what earlier
+        batches returned is kept, the rest is asked again on a later tick."""
         present = {item.ref for item in observed.resources if item.state in ("enabled", "disabled", "drifted")}
         wanted: dict[str, dict] = {}
         with self.database.connect() as db:
@@ -278,7 +278,12 @@ class FleetPusher:
         labels = list(wanted)
         for start in range(0, len(labels), CAPTURE_MAX_RESOURCES):
             batch = labels[start:start + CAPTURE_MAX_RESOURCES]
-            answer = await client.capture([wanted[label]["resource"] for label in batch])
+            try:
+                answer = await client.capture([wanted[label]["resource"] for label in batch])
+            except CLIENT_ERRORS as exc:
+                log.warning("fleet: node %s: credential capture failed (%s); %s of %s answered, the rest is asked again",
+                            node_id, _describe(exc), start, len(labels))
+                break
             returned.update(answer.get("credentials") or {})
         return {entry["credential_ref"]: returned[label] for label, entry in wanted.items()
                 if isinstance(returned.get(label), str) and returned[label]}
@@ -289,6 +294,19 @@ class FleetPusher:
         meanwhile moved it on: escrowing the old value would resurrect a `retiring` version
         as `active`, and the node rotates to the new one on the next generation anyway."""
         return grant.secret_ref is None or credential_ref == f"{grant.secret_ref.secret_id}:{grant.secret_ref.version}"
+
+    def _uncaptured(self, db, grant) -> bool:
+        """The version the grant names is still `pending` while its runtime owns the
+        credential's form (`credential_origin == "manager"`: Telemt reframes even a caller's
+        secret as the `ee…` link secret). Confirming it now would activate the bare value the
+        central generated; only the node's answer — captured or returned in a push reply and
+        escrowed just before — may activate it."""
+        adapter = self.provisioning.adapters.get(grant.protocol)
+        if grant.secret_ref is None or adapter is None or adapter.credential_origin != "manager":
+            return False
+        row = db.execute("SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
+                         (grant.secret_ref.secret_id, grant.secret_ref.version)).fetchone()
+        return row is not None and row["state"] == "pending"
 
     def _absorb(self, node_id: str, observed: ObservedGeneration, credentials: dict[str, str]) -> None:
         """One transaction: the report itself, each grant's observed state, credentials
@@ -302,10 +320,16 @@ class FleetPusher:
         A deletion the node confirms (`missing` for a grant the central wants `deleted`)
         purges the row, whatever the generation: the account is gone, and the name is free
         to grant again.
+
+        A grant whose runtime owns the credential's form (`_uncaptured`) is confirmed only
+        once that form is in escrow: without it the version stays `pending`, the operation
+        step keeps waiting, and the generation is recorded but not acknowledged — the link
+        stays `config_dirty`, so the next tick delivers it again and the node's reply carries
+        the credential. The rest of the report is absorbed as usual.
         """
         now = int(self.clock.time())
+        withheld: set[str] = set()
         with self.database.transaction() as db:
-            self.desired.record_observed(db, node_id, observed)
             latest = self.desired.latest(db, node_id)
             settled = observed.reconcile_state in SETTLED_STATES
             current = settled and latest is not None and observed.applied_generation == latest["generation"]
@@ -334,7 +358,14 @@ class FleetPusher:
                     # Telemt's host/port, mita's share template: the link renders from these.
                     self.provisioning.remember_template(db, grant, item.learned)
                 if current and state != "missing":
-                    self.provisioning.confirm_credential(db, grant.id)
+                    if self._uncaptured(db, grant):
+                        withheld.add(grant.id)
+                    else:
+                        self.provisioning.confirm_credential(db, grant.id)
                 self.clients.store.update_grant(db, grant.id, observed_state=state, updated_at=now)
             if current:
-                self.provisioning.remote_applied(db, observed)
+                self.provisioning.remote_applied(db, observed, withheld=withheld)
+            self.desired.record_observed(db, node_id, observed, acknowledge=not withheld)
+        if withheld:
+            log.warning("fleet: node %s: %s credential(s) not captured yet; generation %s is delivered again",
+                        node_id, len(withheld), observed.applied_generation)
