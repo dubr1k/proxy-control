@@ -446,3 +446,23 @@ def test_healthcheck_status_flag_prints_the_manager_status(tmp_path, monkeypatch
     sys.stdout.flush()
     assert json.loads(buffer.getvalue()) == {"phase": "idle", "running": {"generation": 1}}
     assert healthcheck.status(sock, token) is None  # nobody listens any more
+
+
+def test_the_real_runner_sees_only_the_router_compose_service(monkeypatch):
+    """The fake runner answered `compose_service_present` all along while the real one
+    inherited nothing: on a host, rollback then left the container running. The real
+    runner asks Docker for the router's own service in the shared project, never the project."""
+    runner = module._DefaultXrayRouterRunner()
+    seen: list[tuple[str, ...]] = []
+
+    def capture(argv, *, max_chars):
+        seen.append(tuple(argv))
+        return "0123456789ab\n" if "label=com.docker.compose.service=xray-router" in argv else ""
+
+    monkeypatch.setattr(runner, "capture", capture)
+    assert runner.compose_service_present("xray-router") is True
+    assert runner.compose_service_present("naive-manager") is False
+    assert seen[0][:5] == ("docker", "container", "ls", "--all", "--quiet")
+    assert "label=com.docker.compose.project=mtproxy" in seen[0]
+    monkeypatch.setattr(runner, "capture", lambda argv, *, max_chars: "diagnostic unavailable")
+    assert runner.compose_service_present("xray-router") is False
