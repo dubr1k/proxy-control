@@ -82,6 +82,15 @@ def register_routing_routes(app, context: RequestContext) -> None:
     async def history(node_id: str, protocol: str, _user=Depends(context.current)):
         return {"items": service.history(node_id, protocol)}
 
+    # The node's Xray-router (v0.5): hand a service's whole traffic to it, or take it back.
+    @app.post("/api/routing/targets/{node_id}/{protocol}/attach")
+    async def attach(node_id: str, protocol: str, request: Request, user=Depends(owner)):
+        return {"target": await service.attach(node_id, protocol, **_ctx(request, user))}
+
+    @app.post("/api/routing/targets/{node_id}/{protocol}/detach")
+    async def detach(node_id: str, protocol: str, request: Request, user=Depends(owner)):
+        return {"target": await service.detach(node_id, protocol, **_ctx(request, user))}
+
 
 def _outcome(result: dict) -> dict:
     applied = result["applied"]

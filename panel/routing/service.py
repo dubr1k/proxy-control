@@ -14,17 +14,17 @@ from typing import Callable
 from .. import audit
 from ..database import Database
 from ..nodes.registry import NodeRegistry
-from ..protocols.base import AdapterError, AppliedEgress, EgressTarget
+from ..protocols.base import AdapterError, AppliedEgress, EgressTarget, RouterTarget
 from .compiler import compile as compile_policy
 from .compiler import direct_document
-from .document import document_digest
-from .models import BACKEND_FOR, Compiled, PolicyInput, Reason, RoutingPolicy
+from .document import ROUTER_DIRECT_INTENT, attach_document, document_digest
+from .models import BACKEND_FOR, ROUTER_BACKEND, Compiled, PolicyInput, Reason, RoutingPolicy, backends_for
 from .store import PolicyConflict, RoutingStore
 
 PROTOCOLS = ("mtproxy", "naive", "mieru")
 # What an apply failure costs the caller: the manager's own refusals are conflicts, an
 # unrecoverable runtime is a 503, a manager that does not answer a 502.
-ERROR_STATUS = {"manual_intervention_required": 503, "manager_unavailable": 502}
+ERROR_STATUS = {"manual_intervention_required": 503, "manager_unavailable": 502, "artifact_mismatch": 503}
 
 
 class RoutingError(Exception):
@@ -53,17 +53,43 @@ def target_from_identity(protocol: str, entry: dict | None) -> EgressTarget | No
         applied=None if not isinstance(digest, str) else {"revision": revision, "digest": digest, "document": None},
         mode=mode, restart_required=entry.get("restart_required") is True,
         warnings=tuple(item for item in entry.get("warnings", []) if isinstance(item, str)),
+        router_attached=entry.get("router_attached") is True,
+    )
+
+
+def router_target_from_identity(protocol: str, router: dict | None) -> RouterTarget | None:
+    """A linked panel's `identity.router` (v0.5) as the compiler's router target for one
+    service: None when the node reports no router at all."""
+    if not isinstance(router, dict):
+        return None
+    if not router.get("available"):
+        reason = router.get("reason") if isinstance(router.get("reason"), str) else "router_unavailable"
+        return RouterTarget(available=False, service=protocol, reason=reason)
+    section = (router.get("services") or {}).get(protocol) or {}
+    revision = str(section.get("revision") or "")
+    digest = section.get("applied_digest")
+    providers = {name: {"reachable": value.get("reachable")} for name, value in (router.get("providers") or {}).items()
+                 if isinstance(value, dict)}
+    return RouterTarget(
+        available=True, service=protocol,
+        capabilities=frozenset(item for item in router.get("capabilities", []) if isinstance(item, str)),
+        providers=providers, revision=revision,
+        applied=None if not isinstance(digest, str) else {"revision": revision, "digest": digest, "document": None},
+        xray_version=router.get("xray_version") if isinstance(router.get("xray_version"), str) else None,
     )
 
 
 class RoutingService:
     def __init__(self, database: Database, store: RoutingStore, adapters: dict, nodes: NodeRegistry, *,
-                 enabled: Callable[[str], bool] = lambda protocol: True, publisher=None, managed=None, clock=time):
+                 enabled: Callable[[str], bool] = lambda protocol: True, publisher=None, managed=None, clock=time,
+                 router=None):
         self.database = database
         self.store = store
         self.adapters = adapters
         self.nodes = nodes
         self.enabled = enabled
+        # The local node's Xray-router adapter (v0.5), None when this panel runs no router.
+        self.router = router
         # The remote path (spec §8.3): `publisher(db, node_id)` publishes a generation carrying
         # the node's desired egress sections; None means this panel applies locally only.
         self.publisher = publisher
@@ -101,6 +127,25 @@ class RoutingService:
             return None, False
         return target_from_identity(protocol, (identity.get("protocols") or {}).get(protocol, {}).get("egress")), True
 
+    async def _router_target(self, row: dict, protocol: str) -> RouterTarget | None:
+        """The service's section on the node's Xray-router, or None when the node has none."""
+        kind = self._kind(row)
+        if kind == "local":
+            return None if self.router is None else await self.router.target(protocol)
+        if kind != "remote":
+            return None
+        identity = row["link"].get("identity") or {}
+        if "egress.router.v1" not in (identity.get("capabilities") or []):
+            return None
+        return router_target_from_identity(protocol, identity.get("router"))
+
+    @staticmethod
+    def _router_view(router: RouterTarget | None, target: EgressTarget | None) -> dict | None:
+        if router is None:
+            return None
+        return {"available": router.available, "attached": target is not None and target.router_attached,
+                "xray_version": router.xray_version, "restart_required": router.restart_required, "reason": router.reason}
+
     async def targets(self) -> list[dict]:
         """Nodes × protocols, with the policy each has (spec §8.1)."""
         with self.database.connect() as db:
@@ -113,11 +158,11 @@ class RoutingService:
             for protocol in PROTOCOLS:
                 item = {"node_id": node_id, "node_name": row["display_name"], "kind": kind, "protocol": protocol,
                         "backend": None, "capabilities": [], "providers": {}, "egress_v1": kind == "local",
-                        "mode": None, "policy": None, "reason": None}
+                        "mode": None, "policy": None, "reason": None, "router": None}
                 policy = policies.get((node_id, protocol))
                 if policy is not None:
                     enabled_rules = [rule for rule in policy.rules if rule.enabled]
-                    item["policy"] = {"id": policy.id, "revision": policy.revision, "state": policy.state,
+                    item["policy"] = {"id": policy.id, "revision": policy.revision, "state": policy.state, "backend": policy.backend,
                                       "applied_revision": policy.applied_revision, "applied_current": policy.applied_current,
                                       "last_error": policy.last_error, "default_action": policy.default_action,
                                       "default_egress": policy.default_egress,
@@ -136,13 +181,28 @@ class RoutingService:
                 except AdapterError as exc:
                     target, egress_v1, item["reason"] = None, True, exc.code or "manager_unavailable"
                 item["egress_v1"] = egress_v1
+                router = await self._router_target(row, protocol)
+                item["router"] = self._router_view(router, target)
                 if target is None:
                     item["reason"] = item["reason"] or ("protocol_disabled_on_node" if egress_v1 else "node_lacks_egress_v1")
+                elif target.router_attached:
+                    # The service is handed to the router: the router's cells are what a policy
+                    # can use, its absence is what the operator must hear about.
+                    item.update({"backend": ROUTER_BACKEND, "mode": target.mode, "providers": target.providers,
+                                 "capabilities": sorted(router.capabilities) if router is not None and router.available else []})
+                    if router is None or not router.available:
+                        item["reason"] = item["reason"] or (router.reason if router is not None else "router_unavailable")
                 else:
                     item.update({"backend": target.backend, "capabilities": sorted(target.capabilities),
                                  "providers": target.providers, "mode": target.mode})
                 items.append(item)
         return items
+
+    async def _target_item(self, node_id: str, protocol: str) -> dict:
+        for item in await self.targets():
+            if item["node_id"] == node_id and item["protocol"] == protocol:
+                return item
+        raise RoutingError(404, "node_not_found", "node not found")
 
     # -- policies ----------------------------------------------------------------------
 
@@ -220,9 +280,9 @@ class RoutingService:
                 raise RoutingError(404, "policy_not_found", "no routing policy for this node and protocol")
             policy = stored
         else:
-            backend = BACKEND_FOR[protocol]
-            if draft.backend is not None and draft.backend != backend:
-                raise RoutingError(422, "backend_mismatch", f"{protocol} compiles to {backend}")
+            if draft.backend is not None and draft.backend not in backends_for(protocol):
+                raise RoutingError(422, "backend_mismatch", f"{protocol} cannot run on {draft.backend}")
+            backend = draft.backend or (stored.backend if stored else BACKEND_FOR[protocol])
             policy = RoutingPolicy(id=stored.id if stored else "draft", node_id=node_id, protocol=protocol, backend=backend,
                                    revision=stored.revision if stored else 1,
                                    **draft.model_dump(exclude={"backend"}))
@@ -230,7 +290,7 @@ class RoutingService:
             target, egress_v1 = await self._target(row, protocol)
         except AdapterError as exc:
             return self._unavailable(policy, exc)
-        return compile_policy(policy, target, node_egress_v1=egress_v1)
+        return compile_policy(policy, target, node_egress_v1=egress_v1, router=await self._router_target(row, protocol))
 
     def _operation_id(self, policy: RoutingPolicy) -> str:
         return f"routing:{policy.id}:{policy.revision}"
@@ -264,6 +324,104 @@ class RoutingService:
                                  "outcome": outcome, "digest": compiled.digest, **detail})
             return self.store.get_by_id(db, policy.id)
 
+    # -- attach / detach (v0.5): the service's whole traffic handed to the router, or back --
+
+    async def _attachment_context(self, node_id: str, protocol: str) -> tuple[dict, RoutingPolicy | None, EgressTarget, RouterTarget]:
+        self._protocol(protocol)
+        with self.database.connect() as db:
+            row = self._node(db, node_id)
+            policy = self.store.get(db, node_id, protocol)
+            master = self._master(db)
+        if self._kind(row) == "local" and master is not None:
+            raise RoutingError(409, "managed_by_central", "a central panel manages this node's egress")
+        if self._kind(row) == "v1":
+            raise RoutingError(409, "node_lacks_egress_v1", "the node must be updated to v0.4")
+        try:
+            target, egress_v1 = await self._target(row, protocol)
+        except AdapterError as exc:
+            raise RoutingError(ERROR_STATUS.get(exc.code, 409), exc.code or "manager_unavailable", str(exc)) from exc
+        if not egress_v1:
+            raise RoutingError(409, "node_lacks_egress_v1", "the node must be updated to v0.4")
+        if target is None:
+            raise RoutingError(422, "protocol_disabled_on_node", f"{protocol} reports no egress target")
+        router = await self._router_target(row, protocol)
+        if router is None or not router.available:
+            code = "router_unavailable" if router is None or router.reason is None else router.reason
+            raise RoutingError(ERROR_STATUS.get(code, 409), code, "the node has no Xray-router that answers")
+        return row, policy, target, router
+
+    def _stamp(self) -> str:
+        return str(int(self.clock.time() * 1000))
+
+    def _retarget(self, node_id: str, protocol: str, policy: RoutingPolicy | None, backend: str, *, action: str,
+                  actor: dict, ip: str, request_id: str | None, detail: dict) -> None:
+        with self.database.transaction() as db:
+            now = int(self.clock.time())
+            if policy is None:
+                policy = self.store.upsert(db, node_id, protocol, PolicyInput(backend=backend), expected_revision=None, now=now)
+            elif policy.backend != backend:
+                policy = self.store.retarget(db, policy.id, backend, now=now)
+            audit.record(db, actor=actor, action=action, target=policy.id, ip=ip, request_id=request_id,
+                         detail={"node_id": node_id, "protocol": protocol, "backend": backend, "revision": policy.revision,
+                                 **detail})
+
+    async def attach(self, node_id: str, protocol: str, *, actor: dict, ip: str, request_id: str | None = None) -> dict:
+        """Hand the service to the router: the router's section first (pass-through), then the
+        native manager's document pointing at the router; the policy moves to `xray_router`."""
+        row, policy, target, router = await self._attachment_context(node_id, protocol)
+        provider = target.providers.get("router")
+        if provider is None:
+            raise RoutingError(409, "router_unavailable", f"the {protocol} manager knows no router ingress")
+        if provider.get("reachable") is False:
+            raise RoutingError(409, "router_unreachable", f"the router ingress does not answer the {protocol} manager")
+        if (policy is not None and policy.backend != ROUTER_BACKEND and policy.applied_digest is not None
+                and policy.applied_digest != document_digest(direct_document(policy.backend))):
+            raise RoutingError(409, "policy_applied", "reset the native policy to direct and apply it before attaching")
+        if self._kind(row) != "local":
+            return await self._attach_remote(node_id, protocol, policy, actor=actor, ip=ip, request_id=request_id)
+        stamp = self._stamp()
+        try:
+            if not target.router_attached:
+                if router.applied is None or router.applied.get("document") != ROUTER_DIRECT_INTENT:
+                    await self.router.apply(protocol, ROUTER_DIRECT_INTENT, expected_revision=router.revision,
+                                            operation_id=f"routing:attach:{protocol}:{stamp}:router")
+                await self.adapters[protocol].apply_egress(attach_document(protocol), expected_revision=target.revision,
+                                                           operation_id=f"routing:attach:{protocol}:{stamp}:native")
+        except AdapterError as exc:
+            code = exc.code or "manager_unavailable"
+            raise RoutingError(ERROR_STATUS.get(code, 409), code, str(exc)) from exc
+        self._retarget(node_id, protocol, policy, ROUTER_BACKEND, action="routing.target.attach", actor=actor, ip=ip,
+                       request_id=request_id, detail={"outcome": "attached"})
+        return await self._target_item(node_id, protocol)
+
+    async def detach(self, node_id: str, protocol: str, *, actor: dict, ip: str, request_id: str | None = None) -> dict:
+        """Take the service back: the native manager to `direct` first, then the router's
+        section to pass-through; the policy moves to the native backend."""
+        row, policy, target, router = await self._attachment_context(node_id, protocol)
+        native = BACKEND_FOR[protocol]
+        if self._kind(row) != "local":
+            return await self._detach_remote(node_id, protocol, policy, actor=actor, ip=ip, request_id=request_id)
+        stamp = self._stamp()
+        try:
+            if target.router_attached:
+                await self.adapters[protocol].apply_egress(direct_document(native), expected_revision=target.revision,
+                                                           operation_id=f"routing:detach:{protocol}:{stamp}:native")
+            if router.applied is None or router.applied.get("document") != ROUTER_DIRECT_INTENT:
+                await self.router.apply(protocol, ROUTER_DIRECT_INTENT, expected_revision=router.revision,
+                                        operation_id=f"routing:detach:{protocol}:{stamp}:router")
+        except AdapterError as exc:
+            code = exc.code or "manager_unavailable"
+            raise RoutingError(ERROR_STATUS.get(code, 409), code, str(exc)) from exc
+        self._retarget(node_id, protocol, policy, native, action="routing.target.detach", actor=actor, ip=ip,
+                       request_id=request_id, detail={"outcome": "detached"})
+        return await self._target_item(node_id, protocol)
+
+    async def _attach_remote(self, node_id: str, protocol: str, policy, *, actor, ip, request_id) -> dict:
+        raise RoutingError(409, "node_not_local", "attaching a linked node is not available yet")
+
+    async def _detach_remote(self, node_id: str, protocol: str, policy, *, actor, ip, request_id) -> dict:
+        raise RoutingError(409, "node_not_local", "detaching a linked node is not available yet")
+
     def _for_change(self, node_id: str, protocol: str, expected_revision: int) -> tuple[RoutingPolicy, dict]:
         with self.database.connect() as db:
             policy = self._policy(db, node_id, protocol)
@@ -283,16 +441,25 @@ class RoutingService:
             target, egress_v1 = await self._target(row, protocol)
         except AdapterError as exc:
             raise RoutingError(ERROR_STATUS.get(exc.code, 409), exc.code or "manager_unavailable", str(exc)) from exc
-        compiled = compile_policy(policy, target, node_egress_v1=egress_v1)
+        router = await self._router_target(row, protocol)
+        compiled = compile_policy(policy, target, node_egress_v1=egress_v1, router=router)
         if compiled.status != "supported":
+            if any(reason.code == "not_attached" for reason in compiled.reasons):
+                raise RoutingError(409, "not_attached", f"{protocol} is not attached to the node's Xray-router",
+                                   compiled=compiled)
             raise RoutingError(422, "unsupported", "the policy cannot be enforced on this node", compiled=compiled)
         if self._kind(row) != "local":
             return await self._apply_remote(policy, compiled, actor=actor, ip=ip, request_id=request_id)
-        adapter = self.adapters[protocol]
         try:
-            await adapter.plan_egress(compiled.document, expected_revision=target.revision)
-            applied = await adapter.apply_egress(compiled.document, expected_revision=target.revision,
-                                                 operation_id=self._operation_id(policy))
+            if policy.backend == ROUTER_BACKEND:
+                await self.router.plan(protocol, compiled.document, expected_revision=router.revision)
+                applied = await self.router.apply(protocol, compiled.document, expected_revision=router.revision,
+                                                  operation_id=self._operation_id(policy))
+            else:
+                adapter = self.adapters[protocol]
+                await adapter.plan_egress(compiled.document, expected_revision=target.revision)
+                applied = await adapter.apply_egress(compiled.document, expected_revision=target.revision,
+                                                     operation_id=self._operation_id(policy))
         except AdapterError as exc:
             code = exc.code or "manager_unavailable"
             self._record(policy, compiled, outcome="failed", applied=None, error=code, actor=actor, ip=ip,
@@ -354,12 +521,21 @@ class RoutingService:
             target = await self._local_target(protocol)
             if target is None:
                 raise RoutingError(422, "protocol_disabled_on_node", f"{protocol} reports no egress target")
-            applied = await self.adapters[protocol].rollback_egress(expected_revision=target.revision)
+            if policy.backend == ROUTER_BACKEND:
+                router = await self._router_target(row, protocol)
+                if router is None or not router.available:
+                    code = "router_unavailable" if router is None or router.reason is None else router.reason
+                    raise RoutingError(ERROR_STATUS.get(code, 409), code, "the node's Xray-router does not answer")
+                applied = await self.router.rollback(protocol, expected_revision=router.revision)
+                runtime_version, restart_required = router.xray_version, True
+            else:
+                applied = await self.adapters[protocol].rollback_egress(expected_revision=target.revision)
+                runtime_version, restart_required = target.runtime_version, target.restart_required
         except AdapterError as exc:
             code = exc.code or "manager_unavailable"
             raise RoutingError(ERROR_STATUS.get(code, 409), code, str(exc)) from exc
         compiled = Compiled(status="supported", backend=policy.backend, digest=applied.digest,
-                            runtime_version=target.runtime_version, restart_required=target.restart_required)
+                            runtime_version=runtime_version, restart_required=restart_required)
         updated = self._record(policy, compiled, outcome="rolled_back", applied=applied, error=None, actor=actor, ip=ip,
                                request_id=request_id, action="routing.policy.rollback")
         return {"policy": updated, "applied": applied, "compiled": compiled}

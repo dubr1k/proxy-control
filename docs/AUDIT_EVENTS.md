@@ -69,6 +69,8 @@ checks the fleet and grant names against this file.
 | `routing.policy.apply` | policy id | apply — local: the manager's outcome (`outcome`: `applied` or `failed`, `digest`, `manager_revision`, `readback_sha256`, `replayed` / `error`); linked panel: `outcome: applying` when the generation is published, then the node's report through the pusher |
 | `routing.policy.rollback` | policy id | rollback to the manager's previous egress entry (`to_revision` — the policy revision it matches, or null for a hand-written section) |
 | `routing.policy.delete` | policy id | `DELETE …` once the node runs «direct, no rules» |
+| `routing.target.attach` | policy id | `POST /api/routing/targets/{node}/{protocol}/attach` (v0.5): the service handed to the node's Xray-router — `node_id`, `protocol`, `backend: xray_router`, the policy `revision` it moved to, `outcome: attached` |
+| `routing.target.detach` | policy id | `POST …/detach` (v0.5): the service back on its native backend — the same fields, `outcome: detached` |
 
 ## Nodes (node side, through the central's key)
 
