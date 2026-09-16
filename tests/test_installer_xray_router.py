@@ -202,12 +202,71 @@ def test_plan_refuses_foreign_identity_and_claimed_ports(tmp_path):
 
 
 def test_prepare_refuses_missing_or_mismatched_archive(tmp_path):
+    """A runner that cannot fetch (the bare fake) leaves an absent archive absent, and the
+    refusal names the path, the digest and the pinned URL; a staged mismatch is refused too."""
     action = action_for(tmp_path)
-    with pytest.raises(ArtifactError, match="stage the pinned Xray archive as /var/lib/proxy-control/Xray-linux-64.zip"):
+    with pytest.raises(ArtifactError, match="not staged as /var/lib/proxy-control/Xray-linux-64.zip and could not be fetched"):
         adapter(tmp_path).prepare(action)
     stage_archive(tmp_path, _archive_bytes({**MEMBER_BYTES, "xray": b"tampered\n"}))
     with pytest.raises(ArtifactError, match="digest does not match"):
         adapter(tmp_path).prepare(action)
+
+
+class FetchingRunner(FakeRunner):
+    """The fake with the network: what the real runner's `fetch_artifact` does, minus HTTPS."""
+
+    def __init__(self, payload: bytes, **kwargs):
+        super().__init__(**kwargs)
+        self.payload = payload
+        self.fetched: list[str] = []
+
+    def fetch_artifact(self, url: str, destination: Path) -> None:
+        self.fetched.append(url)
+        destination.write_bytes(self.payload)
+
+
+def test_prepare_fetches_an_absent_archive_from_its_pin_and_never_replaces_a_staged_one(tmp_path):
+    """Nothing is staged by hand: an absent archive comes from the pinned URL, its digest is
+    proven before anything trusts it, and one the operator staged is used as it is."""
+    action = action_for(tmp_path)
+    runner = FetchingRunner(_archive_bytes())
+    checkpoint = adapter(tmp_path, runner).prepare(action)
+    archive = host(tmp_path, PATHS.archive)
+    assert runner.fetched == ["https://example.invalid/Xray-linux-64.zip"]
+    assert archive.read_bytes() == _archive_bytes() and stat.S_IMODE(archive.stat().st_mode) == 0o644
+    assert checkpoint["adoption"] == "absent"
+    assert not list(archive.parent.glob(".*.fetching"))
+
+    staged = stage_archive(tmp_path)  # the same bytes, staged by the operator
+    runner.fetched.clear()
+    adapter(tmp_path, runner).prepare(action)
+    assert runner.fetched == [] and staged.read_bytes() == _archive_bytes()
+
+
+def test_a_fetched_archive_that_does_not_match_its_pin_is_discarded(tmp_path):
+    action = action_for(tmp_path)
+    runner = FetchingRunner(_archive_bytes({**MEMBER_BYTES, "xray": b"tampered\n"}))
+    with pytest.raises(ArtifactError, match="does not match its pin"):
+        adapter(tmp_path, runner).prepare(action)
+    artifact_dir = host(tmp_path, PATHS.artifact_dir)
+    assert not host(tmp_path, PATHS.archive).exists()
+    assert not artifact_dir.exists() or not list(artifact_dir.iterdir())
+    # A second attempt is a fresh fetch, not a poisoned cache.
+    runner.payload = _archive_bytes()
+    adapter(tmp_path, runner).prepare(action)
+    assert len(runner.fetched) == 2
+
+
+def test_the_real_runner_fetches_over_https_only(monkeypatch, tmp_path):
+    runner = module._DefaultXrayRouterRunner()
+    from installer.adapters import mieru
+
+    with pytest.raises(mieru.ArtifactError, match="HTTPS"):
+        runner.fetch_artifact("http://example.invalid/Xray-linux-64.zip", tmp_path / "y.zip")
+    seen: list[tuple[str, Path]] = []
+    monkeypatch.setattr(mieru, "_download", lambda url, destination: seen.append((url, destination)))
+    runner.fetch_artifact("https://example.invalid/Xray-linux-64.zip", tmp_path / "x.zip")
+    assert seen == [("https://example.invalid/Xray-linux-64.zip", tmp_path / "x.zip")]
 
 
 # -- apply ---------------------------------------------------------------------

@@ -72,7 +72,9 @@ link-local, RFC 1918, CGNAT или их IPv6-аналоги, отвергает�
   `geosite.dat`), состояние — из `/var/lib/xray-router` (0700,
   `prepare-xray-router-state.sh`), сокет менеджера — в tmpfs-томе `xray-router-run`
   (`/run/xray-router/manager.sock`, режим 660, панель входит в группу 10006).
-- **Артефакты**: установщик извлекает ровно три члена закреплённого `Xray-linux-64.zip`
+- **Артефакты**: установщик скачивает закреплённый `Xray-linux-64.zip` по его HTTPS-URL в
+  `/var/lib/proxy-control/`, если файла там нет (положенный вручную используется как есть),
+  сверяет SHA-256 архива и извлекает ровно три члена
   (`release/external-artifacts.json`, у каждого свой SHA-256 и режим); менеджер
   перепроверяет все три дайджеста до любого запуска (`XRAY_ROUTER_*_SHA256` в
   `.env.xray-router`) и при несовпадении отвечает `artifact_mismatch` (503), а не

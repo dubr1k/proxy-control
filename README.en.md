@@ -112,15 +112,17 @@ the server, NAT, a CDN in front of raw MTProto, an ambiguous Nginx map, a busy
 port, an owner of 443 that is not Nginx, or a failing `nginx -t`. That is not a
 reason to "continue anyway" — it is a reason to fix the cause first.
 
-If your profile includes **Mieru**, stage two packages in
-`/var/lib/proxy-control/` in advance. The installer deliberately downloads
-nothing for you:
+Nothing to stage for the pinned external artifacts: the installer fetches them
+from their pinned HTTPS URLs into `/var/lib/proxy-control/` and proves the SHA-256
+before anything uses them (a mismatch is a refusal, the file is discarded). An
+offline host stages them there in advance — a file staged by hand is used as it
+is and never replaced. For a profile with **Mieru** these are two packages:
 
 - `mita_3.36.0_<arch>.deb` — the server;
 - `mieru_3.36.0_<arch>.deb` — the official client the installer uses to prove
   traffic actually flows.
 
-With `[egress] router = true` (v0.5) stage `Xray-linux-64.zip` there as well: the
+With `[egress] router = true` (v0.5) `Xray-linux-64.zip` arrives the same way: the
 Xray egress-router is extracted from it. All URLs and checksums are in
 [`release/external-artifacts.json`](release/external-artifacts.json). The
 installer verifies them and refuses to continue on a mismatch.
@@ -676,7 +678,7 @@ by the project's MIT licence and is not bundled in the release archive.
 
 Since v0.4 the settings live under `[egress]` (`warp`, `warp_port`, and the
 initial choice per service — `naive`, `mieru` = `direct | warp | router`; `router = true`
-since v0.5 installs the Xray-router from a staged `Xray-linux-64.zip`); the old
+since v0.5 installs the Xray-router from the pinned `Xray-linux-64.zip`, fetched by itself); the old
 `[three_xui].warp` / `warp_port` are still read, with one warning. `warp_port`
 defaults to `40000` and is passed to every consumer; an explicitly configured
 alternative is preserved. An existing foreign WARP installation is never adopted
@@ -836,8 +838,9 @@ The `packages` adapter installs exactly these and nothing else:
 ### Pinned external artifacts
 
 These are published by other projects under their own licenses. The installer
-never downloads them for you: you stage the package, and the installer refuses
-to continue unless its digest matches the pin.
+fetches them from their pinned HTTPS URLs when the file is absent from
+`/var/lib/proxy-control/` and refuses to continue unless the digest matches the
+pin; a file staged by hand is used as it is.
 
 | Artifact | Version | License | Purpose |
 |---|---|---|---|

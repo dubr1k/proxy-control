@@ -123,6 +123,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "xhttp.example.com",
             "hy2.example.com",
             "no",  # WARP: asked for Naive and Mieru profiles
+            "no",  # Xray-router: offered whenever a proxy service could feed it (v0.5)
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -170,6 +171,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "70000",
             "46001",
             "no",  # WARP: asked for the Mieru profile
+            "no",  # Xray-router
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -235,6 +237,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "xhttp.example.com",
         "hy2.example.com",
         "no",  # WARP: asked for Naive and Mieru profiles
+        "no",  # Xray-router
         "admin@example.com",
         "owner",
         "",  # panel password: blank keeps it generated
@@ -242,7 +245,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
 
     with pytest.raises(WizardSaved) as caught:
         wizard.run(AuditFacts())
@@ -323,6 +326,7 @@ def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
         "46001",
         "46001",
         "yes",  # WARP
+        "no",  # Xray-router
         "no",  # NaiveProxy through WARP? — direct
         "yes",  # Mieru through WARP
         "admin@example.com",
@@ -333,7 +337,7 @@ def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
     ]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
     text = output.read_text()
@@ -412,7 +416,6 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         terminal,
         locale=Locale.EN,
         config_output=output,
-        artifact_dir=tmp_path / "artifacts",
     )
 
     with pytest.raises(WizardSaved) as caught:
@@ -504,7 +507,7 @@ def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_p
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
 
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
@@ -535,7 +538,7 @@ def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
 
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
@@ -567,7 +570,7 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
 
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
@@ -577,13 +580,11 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
     assert stored is not None and stored.panel_password == "settled-panel-password"
 
 
-def test_wizard_asks_router_only_when_archive_present(tmp_path: Path):
-    """[egress] router (v0.5): the Xray-router is offered only when the operator staged
-    its archive; a service handed to the router is not asked about WARP."""
+def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Path):
+    """[egress] router (v0.5): the Xray-router is offered to every profile with NaiveProxy
+    or Mieru — the installer fetches the pinned archive itself, so the wizard never asks
+    the operator to stage anything; a service handed to the router is not asked about WARP."""
     output = tmp_path / "router.toml"
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    (artifacts / "Xray-linux-64.zip").write_bytes(b"staged\n")
     answers = [
         "",
         "fresh",
@@ -609,23 +610,34 @@ def test_wizard_asks_router_only_when_archive_present(tmp_path: Path):
     ]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=artifacts)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
     text = output.read_text()
     assert "router = true" in text and 'naive = "router"' in text and 'mieru = "warp"' in text
-    assert "Xray-router" in transcript.getvalue()
+    assert "Xray-router" in transcript.getvalue() and "скачивается сам" in transcript.getvalue()
     assert "Направлять весь трафик NaiveProxy через WARP" not in transcript.getvalue()
     config = load_config(output)
     assert config.egress.router is True
     assert (config.egress.naive.value, config.egress.mieru.value) == ("router", "warp")
 
-    # Without the archive the question is never asked and the v0.4 dialogue is unchanged.
-    answers_without = answers[:12] + ["no", "yes"] + answers[16:]
+    # Declined, the v0.4 dialogue follows unchanged and no router key is written.
+    answers_without = answers[:12] + ["no", "yes", "yes"] + answers[16:]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers_without) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "missing")
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    assert "Направлять весь трафик NaiveProxy через WARP" in transcript.getvalue()
+    assert "router" not in output.read_text()
+
+    # A core-only profile has nothing to feed a router: the question is not asked.
+    core = tmp_path / "core.toml"
+    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "admin@example.com",
+                    "owner", "", "yes", "save"]
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers_core) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=core)
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
     assert "Xray-router" not in transcript.getvalue()
-    assert "router" not in output.read_text()

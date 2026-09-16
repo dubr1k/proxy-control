@@ -148,11 +148,13 @@ configuration and the panel's «Routing» screen changes it (`docs/ROUTING.en.md
 repair or an upgrade never rewrites it.
 
 `router = true` (v0.5) installs the dedicated Xray egress-router (`docs/XRAY_ROUTER.en.md`)
-and needs NaiveProxy or Mieru in the profile. The installer never downloads it: stage
-the pinned archive as `/var/lib/proxy-control/Xray-linux-64.zip` first (the URL and
-SHA-256 are in `release/external-artifacts.json`; the plan refuses with both in the
-message when the file is absent or differs). The wizard asks about the router only
-when that file is present. A service set to `router` starts attached to it: all of its
+and needs NaiveProxy or Mieru in the profile. The pinned archive
+`/var/lib/proxy-control/Xray-linux-64.zip` is fetched by the installer from its pinned
+HTTPS URL when absent (as the mita package is) and its SHA-256 is proven before anything
+uses it (the URL and SHA-256 are in `release/external-artifacts.json`; a mismatching
+download is discarded, and a hand-staged file with another digest makes the plan refuse
+with both in the message). The wizard offers the router to every profile with NaiveProxy
+or Mieru. A service set to `router` starts attached to it: all of its
 traffic goes through the router's loopback ingress (naive `127.0.0.1:45101`, mieru
 `45102`, SOCKS5 with a per-service credential), and the router passes it straight out
 until the «Routing» screen gives it a policy.

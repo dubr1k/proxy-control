@@ -184,9 +184,9 @@ v0.5 добавляет необязательный выделенный egress
 они заданы. Модель политики принимает `geosites`, `geoips` и правила только с портами; на нативном
 backend'е они дают в предпросмотре `rule_kind_unsupported` с упоминанием роутера.
 
-**Добавление роутера на установленный узел.** Положите закреплённый архив как
-`/var/lib/proxy-control/Xray-linux-64.zip` (URL и SHA-256 — в `release/external-artifacts.json`;
-`scripts/install-release.sh --requirements` его перечисляет), добавьте `router = true` в `[egress]`
+**Добавление роутера на установленный узел.** Добавьте `router = true` в `[egress]`
+(закреплённый архив `/var/lib/proxy-control/Xray-linux-64.zip` установщик скачает сам, если его там нет;
+URL и SHA-256 — в `release/external-artifacts.json`, хост без интернета кладёт файл заранее)
 конфигурации установщика (и `naive = "router"` / `mieru = "router"` — только если сервис должен
 стартовать подключённым) и запустите установщик снова: в плане появится одно действие
 `xray_router.runtime` между `warp` и сервисами; apply создаст identity 10006, извлечёт три члена

@@ -50,10 +50,6 @@ class PromptValidationError(ValueError):
         self.values = values
 
 
-# Where the operator stages pinned artifacts (the Xray archive, v0.5), relative to the root.
-ARTIFACT_DIR = Path("/var/lib/proxy-control")
-
-
 class WizardQuit(Exception):
     """The operator explicitly left the wizard before apply."""
 
@@ -342,14 +338,10 @@ class TerminalWizard:
         *,
         locale: Locale | None = None,
         config_output: Path = Path("proxy-control.toml"),
-        artifact_dir: Path = ARTIFACT_DIR,
     ):
         self.io = io
         self.locale = locale
         self.config_output = Path(config_output)
-        # Where the operator stages pinned artifacts; the Xray-router (v0.5) is offered
-        # only when its archive is already there, so the wizard never promises a download.
-        self.artifact_dir = Path(artifact_dir)
 
     def run(self, facts: AuditFacts) -> InstallerConfig:
         if not isinstance(facts, AuditFacts):
@@ -501,20 +493,17 @@ class TerminalWizard:
                 continue
             return first
 
-    def _router_archive_present(self) -> bool:
-        return (self.artifact_dir / "Xray-linux-64.zip").is_file()
-
     def _egress_choices(self, values: dict[str, object]) -> None:
-        """Each proxy service chooses its initial egress (`[egress]`, v0.4). With the Xray
-        archive staged, the router is offered first (v0.5) and a service handed to it is
-        not asked about WARP. The WARP default repeats what v0.1–v0.3 did implicitly: the
+        """Each proxy service chooses its initial egress (`[egress]`, v0.4). The router is
+        offered first (v0.5; its pinned archive is fetched by the installer unless already
+        staged) and a service handed to it is not asked about WARP. The WARP default repeats what v0.1–v0.3 did implicitly: the
         whole service through WARP, unless a managed 3x-ui routes only a domain list —
         then direct."""
         assert self.locale is not None
         profile = values["profile"]
         assert isinstance(profile, Profile)
         services = [name for name, present in (("naive", profile.includes_naive), ("mieru", profile.includes_mieru)) if present]
-        if services and self._router_archive_present():
+        if services:
             values["router"] = self.io.yes_no(text(self.locale, "router"), default=False)
         else:
             values.pop("router", None)

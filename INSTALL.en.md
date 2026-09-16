@@ -67,12 +67,14 @@ digest. The complete surface - profiles, every configuration field, ownership
 boundaries, per-protocol acceptance, WARP and egress, recovery, and reports -
 is in the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
-Before installing a profile that includes Mieru, stage both pinned upstream
-packages for your architecture in `/var/lib/proxy-control/`:
-`mita_3.36.0_<arch>.deb` (the server) and `mieru_3.36.0_<arch>.deb` (the
-official client the acceptance runs). The installer never downloads them and
-refuses to continue unless each digest matches its pin; the URLs and digests are
-in [`release/external-artifacts.json`](release/external-artifacts.json).
+The pinned upstream artifacts — `mita_3.36.0_<arch>.deb` (the server) and
+`mieru_3.36.0_<arch>.deb` (the official client the acceptance runs) for a profile
+with Mieru, `Xray-linux-64.zip` for the Xray-router — need no staging: the installer
+fetches them from their pinned HTTPS URLs into `/var/lib/proxy-control/` and refuses
+to continue unless each digest matches its pin (a mismatching file is discarded).
+An offline host stages them there in advance: a file staged by hand is used as it
+is and never replaced. The URLs and digests are in
+[`release/external-artifacts.json`](release/external-artifacts.json).
 
 ## Requirements
 

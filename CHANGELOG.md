@@ -27,8 +27,10 @@ Phase 8 (backup/restore, the negative-test matrix, frozen identifiers) closes he
   the three members the installer extracts (`xray`, `geoip.dat`, `geosite.dat`);
   `installer.release.safe_extract_zip` writes exactly the reviewed members through
   the same private-stage swap as the tar extractor, bounded and digest-checked; the
-  SBOM lists the members. The operator stages the archive in
-  `/var/lib/proxy-control/`; nothing is downloaded.
+  SBOM lists the members. The archive lives in `/var/lib/proxy-control/`: the
+  installer fetches it from its pinned URL when absent (the mita path — the digest
+  is what makes the download safe, a mismatch is discarded), a hand-staged file is
+  used as it is.
 - **`xray_router_manager`** — the router runtime: container `proxy-control-xray-router`
   (`compose.xray-router.yaml`, host network, identity 10006, read-only, `cap_drop:
   ALL`), a supervisor over one child `xray run` with generations, a per-service
@@ -76,7 +78,7 @@ Phase 8 (backup/restore, the negative-test matrix, frozen identifiers) closes he
   verify reads the manager's status, checks both ingresses are loopback-only and
   sends one authenticated CONNECT through the NaiveProxy ingress. `naive` and
   `mieru` learn the router through their env and keep their own credential
-  copies; the wizard asks about the router only when the archive is staged.
+  copies; the wizard offers the router to every profile with NaiveProxy or Mieru.
   `scripts/rotate-xray-router-ingress.sh` rotates the keys and recreates the
   router and the managers; `scripts/prepare-xray-router-state.sh` owns the state
   directory.

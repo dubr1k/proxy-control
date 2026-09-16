@@ -106,9 +106,13 @@ Proxy Control — что нужно для установки
   • Записи A ведут на этот сервер, AAAA либо нет, либо тоже на него; CAA не
     запрещает Let's Encrypt. Сертификаты выпускаются через HTTP-01 на порту 80.
 
-Для профилей с Mieru — заранее, установщик ничего не скачивает сам:
-  • /var/lib/proxy-control/mita_3.36.0_amd64.deb и mieru_3.36.0_amd64.deb
-    (URL и SHA-256 — в release/external-artifacts.json распакованного релиза).
+Закреплённые внешние артефакты класть не нужно — установщик скачивает их сам по
+  закреплённым HTTPS-URL и сверяет SHA-256 до любого использования (несовпадение —
+  отказ, файл выбрасывается); файл, положенный вручную в /var/lib/proxy-control/
+  (хост без интернета), используется как есть и никогда не заменяется:
+  • профили с Mieru: mita_3.36.0_amd64.deb и mieru_3.36.0_amd64.deb;
+  • Xray-router: Xray-linux-64.zip (Xray-core 26.3.27).
+  URL и SHA-256 — в release/external-artifacts.json распакованного релиза.
 
 WARP (необязательно): секция [egress] в install.toml или вопросы мастера —
   установщик ставит закреплённый клиент Cloudflare WARP в proxy-режиме на
@@ -116,9 +120,8 @@ WARP (необязательно): секция [egress] в install.toml или 
   экран «Маршрутизация» панели (v0.4).
 
 Xray-router (необязательно, v0.5): [egress] router = true — выделенный Xray для
-  политик с geosite/geoip/портами и блокировками рядом с WARP. Заранее положите
-  • /var/lib/proxy-control/Xray-linux-64.zip (Xray-core 26.3.27; URL и SHA-256 — в
-    release/external-artifacts.json). Мастер спрашивает про роутер, только если архив есть.
+  политик с geosite/geoip/портами и блокировками рядом с WARP; мастер предлагает его
+  каждому профилю с NaiveProxy или Mieru, архив приезжает сам (см. выше).
 
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
@@ -159,9 +162,13 @@ Domains and DNS
   • A records point at this server, AAAA either absent or also this server; CAA
     does not forbid Let's Encrypt. Certificates are issued over HTTP-01 on port 80.
 
-For the Mieru profiles — in advance, the installer never downloads on your behalf:
-  • /var/lib/proxy-control/mita_3.36.0_amd64.deb and mieru_3.36.0_amd64.deb
-    (URLs and SHA-256 in release/external-artifacts.json of the extracted release).
+Nothing to stage for the pinned external artifacts — the installer fetches them from
+  their pinned HTTPS URLs and proves the SHA-256 before anything uses them (a mismatch
+  is a refusal, the file is discarded); a file staged by hand in
+  /var/lib/proxy-control/ (an offline host) is used as it is and never replaced:
+  • the Mieru profiles: mita_3.36.0_amd64.deb and mieru_3.36.0_amd64.deb;
+  • the Xray-router: Xray-linux-64.zip (Xray-core 26.3.27).
+  URLs and SHA-256 in release/external-artifacts.json of the extracted release.
 
 WARP (optional): the [egress] section of install.toml or the wizard's questions —
   the installer sets up the pinned Cloudflare WARP client in proxy mode on
@@ -169,9 +176,8 @@ WARP (optional): the [egress] section of install.toml or the wizard's questions 
   the panel's «Routing» screen owns it (v0.4).
 
 Xray-router (optional, v0.5): [egress] router = true — a dedicated Xray for
-  policies with geosite/geoip/ports and blocks beside WARP. Stage in advance
-  • /var/lib/proxy-control/Xray-linux-64.zip (Xray-core 26.3.27; URL and SHA-256 in
-    release/external-artifacts.json). The wizard asks about the router only when it is there.
+  policies with geosite/geoip/ports and blocks beside WARP; the wizard offers it to
+  every profile with NaiveProxy or Mieru, the archive arrives by itself (see above).
 
 What the installer does (wizard → plan → digest confirmation → apply):
   • Ubuntu packages missing on the host: ca-certificates certbot curl
