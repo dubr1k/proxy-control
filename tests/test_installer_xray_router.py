@@ -231,10 +231,13 @@ def test_apply_installs_binaries_state_secrets_env_and_starts_service(tmp_path):
     assert not (bin_dir / "README.md").exists()
 
     token = host(tmp_path, PATHS.manager_token)
-    assert len(token.read_text().strip()) == 64 and stat.S_IMODE(token.stat().st_mode) == 0o600
+    # Docker mounts file secrets with their own owner and mode; the container is 10006.
+    assert len(token.read_text().strip()) == 64 and stat.S_IMODE(token.stat().st_mode) == 0o440
     for service in ("naive", "mieru"):
-        credential = host(tmp_path, PATHS.ingress(service)).read_text().strip()
+        path = host(tmp_path, PATHS.ingress(service))
+        credential = path.read_text().strip()
         assert module._CREDENTIAL.fullmatch(credential) and credential.startswith(f"{service}-")
+        assert stat.S_IMODE(path.stat().st_mode) == 0o440
     env = host(tmp_path, PATHS.env_overlay).read_text()
     assert f"XRAY_ROUTER_XRAY_SHA256={_sha(MEMBER_BYTES['xray'])}" in env
     assert "XRAY_ROUTER_EGRESS_WARP=socks5://127.0.0.1:40000" in env
@@ -282,6 +285,10 @@ def test_apply_refuses_a_world_readable_secret(tmp_path):
     action = action_for(tmp_path)
     with pytest.raises(XrayRouterError, match="secrets are unsafe"):
         instance.apply(action, instance.prepare(action))
+    # A root-only 0600 secret from an earlier release is adopted and given the group mode.
+    path.chmod(0o600)
+    instance.apply(action, instance.prepare(action))
+    assert stat.S_IMODE(path.stat().st_mode) == 0o440 and path.read_text().strip() == "f" * 64
 
 
 def test_apply_rejects_a_foreign_checkpoint(tmp_path):

@@ -11,7 +11,9 @@ PROJECT_DIR=${PROJECT_DIR:-/opt/mtproxy-shared443}
 NAIVE_STATE_DIR=${NAIVE_DATA_DIR:-/var/lib/naive-manager}
 MIERU_STATE_DIR=${MIERU_MANAGER_STATE_DIR:-/var/lib/mieru-manager}
 readonly NAIVE_MANAGER_UID=10002
+readonly NAIVE_MANAGER_GID=101
 readonly MIERU_MANAGER_UID=10005
+readonly ROUTER_GID=10006
 
 fail() {
     printf 'rotate-xray-router-ingress: %s\n' "$1" >&2
@@ -68,10 +70,11 @@ compose() {
 rotated=""
 for service in "$@"; do
     credential="$service-$(random_hex 4):$(random_password)"
-    write_secret "$PROJECT_DIR/secrets/xray-router-ingress-$service" "$credential" 0:0 0600
+    # The router reads it as a Docker file secret (its own owner and mode): root:10006 0440.
+    write_secret "$PROJECT_DIR/secrets/xray-router-ingress-$service" "$credential" "0:$ROUTER_GID" 0440
     case $service in
         naive)
-            [ -d "$NAIVE_STATE_DIR" ] && write_secret "$NAIVE_STATE_DIR/xray-router-ingress" "$credential" "$NAIVE_MANAGER_UID:$NAIVE_MANAGER_UID" 0400
+            [ -d "$NAIVE_STATE_DIR" ] && write_secret "$NAIVE_STATE_DIR/xray-router-ingress" "$credential" "$NAIVE_MANAGER_UID:$NAIVE_MANAGER_GID" 0400
             ;;
         mieru)
             [ -d "$MIERU_STATE_DIR" ] && write_secret "$MIERU_STATE_DIR/xray-router-ingress" "$credential" "$MIERU_MANAGER_UID:$MIERU_MANAGER_UID" 0400
