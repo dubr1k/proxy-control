@@ -30,7 +30,7 @@ remote() {
 }
 
 ensure_venv='test -x .venv/bin/python || python3 -m venv .venv; .venv/bin/pip install -q -r panel/requirements-dev.txt'
-build_images='docker build -q -f panel/Dockerfile -t mtproxy-panel:latest panel >/dev/null && docker build -q -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest . >/dev/null'
+build_images='docker build -q -f panel/Dockerfile -t mtproxy-panel:latest panel >/dev/null && docker build -q -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest . >/dev/null && docker build -q -f xray_router_manager/Dockerfile -t mtproxy-xray-router:latest . >/dev/null'
 
 case $LEVEL in
   quick)
@@ -62,6 +62,10 @@ case $LEVEL in
       && docker compose -f compose.yaml config -q \
       && NAIVE_PUBLIC_HOST=naive.example.com docker compose -f compose.yaml -f compose.naive.yaml config -q \
       && MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.mieru.yaml config -q \
+      && for name in xray-router-manager-token xray-router-ingress-naive xray-router-ingress-mieru; do printf 'ci-%s-0123456789abcdef0123456789abcdef\n' \"\$name\" > secrets/\$name; done \
+      && NAIVE_PUBLIC_HOST=naive.example.com XRAY_ROUTER_XRAY_SHA256=8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed XRAY_ROUTER_GEOIP_SHA256=744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354 XRAY_ROUTER_GEOSITE_SHA256=adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9 docker compose -f compose.yaml -f compose.naive.yaml -f compose.xray-router.yaml config -q \
+      && docker build -q -f xray_router_manager/Dockerfile -t proxy-control-xray-router:test . >/dev/null \
+      && test \"\$(docker run --rm --entrypoint id proxy-control-xray-router:test -u)\" = 10006 \
       && FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key docker compose -f compose.yaml -f compose.agent.yaml config -q \
       && FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key FLEET_CLIENT_CA=/tmp/client-ca.crt docker compose -f compose.yaml -f compose.fleet-central.yaml config -q \
       && docker build -q -f deploy/Dockerfile.agent -t proxy-control-agent:test . >/dev/null \

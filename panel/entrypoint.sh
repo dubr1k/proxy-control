@@ -3,9 +3,9 @@ set -eu
 
 case ${PANEL_SUPPLEMENTARY_GROUPS-} in
   "") set -- --clear-groups ;;
-  10001|10005|10001,10005) set -- --groups "$PANEL_SUPPLEMENTARY_GROUPS" ;;
+  10001|10005|10001,10005|10001,10006|10001,10005,10006) set -- --groups "$PANEL_SUPPLEMENTARY_GROUPS" ;;
   *)
-    echo "PANEL_SUPPLEMENTARY_GROUPS must be empty, 10001, 10005, or 10001,10005" >&2
+    echo "PANEL_SUPPLEMENTARY_GROUPS must be empty, 10001, 10005, 10001,10005, 10001,10006 or 10001,10005,10006" >&2
     exit 64
     ;;
 esac
@@ -24,10 +24,12 @@ STAGE_SECRET=$SCRIPT_DIR/stage_secret.py
 TELEMT_SOURCE=${TELEMT_API_TOKEN_SOURCE:-/run/secrets/telemt-api-token}
 NAIVE_SOURCE=${NAIVE_MANAGER_TOKEN_SOURCE:-/run/secrets/naive-manager-token}
 MIERU_SOURCE=${MIERU_MANAGER_TOKEN_SOURCE:-/run/secrets/mieru-manager-token}
+ROUTER_SOURCE=${XRAY_ROUTER_MANAGER_TOKEN_SOURCE:-/run/secrets/xray-router-manager-token}
 PANEL_RUNTIME_DIR=/run/panel
 TELEMT_TARGET=/run/panel/telemt-api-token
 NAIVE_TARGET=/run/panel/naive-manager-token
 MIERU_TARGET=/run/panel/mieru-manager-token
+ROUTER_TARGET=/run/panel/xray-router-manager-token
 MASTER_KEY_SOURCE=${PANEL_MASTER_KEY_SOURCE:-/run/secrets/panel-master-key}
 MASTER_KEY_TARGET=/run/panel/master-key
 
@@ -47,6 +49,12 @@ if [ "$mieru_enabled" = true ]; then
   rm -f -- "$MIERU_TARGET"
   python3 "$STAGE_SECRET" stage "$MIERU_SOURCE" "$MIERU_TARGET"
   export MIERU_MANAGER_TOKEN_FILE="$MIERU_TARGET"
+fi
+# The Xray-router token (v0.5) is staged the way the naive-manager's is: present only
+# when the router overlay is part of the stack.
+if [ -r "$ROUTER_SOURCE" ]; then
+  install -m 0400 -o panel -g panel "$ROUTER_SOURCE" "$ROUTER_TARGET"
+  export XRAY_ROUTER_MANAGER_TOKEN_FILE="$ROUTER_TARGET"
 fi
 # The master keyring is optional at startup: a panel that has never stored a secret
 # runs without it. The application itself fails closed if encrypted rows exist.

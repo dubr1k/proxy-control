@@ -24,6 +24,11 @@ services:
       # The host's WARP proxy-mode endpoint the egress API may route the service through
       # (v0.4 routing); empty = no `warp` provider on this node. Written by the installer.
       MIERU_EGRESS_WARP: ${MIERU_EGRESS_WARP:-}
+      # The node's Xray-router ingress for this service (v0.5, provider `router`): the
+      # loopback SOCKS5 endpoint and the credential file inside the manager's own state
+      # directory (`/var/lib/mieru-manager/xray-router-ingress`). Empty = no router.
+      MIERU_EGRESS_ROUTER: ${MIERU_EGRESS_ROUTER:-}
+      MIERU_EGRESS_ROUTER_CREDENTIAL_FILE: ${MIERU_EGRESS_ROUTER_CREDENTIAL_FILE:-}
     secrets: [mieru-manager-token]
     volumes:
       - type: bind

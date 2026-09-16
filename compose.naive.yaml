@@ -20,6 +20,11 @@ services:
       # The host's WARP proxy-mode endpoint the egress API may route the service through
       # (v0.4 routing); empty = no `warp` provider on this node. Written by the installer.
       NAIVE_EGRESS_WARP: ${NAIVE_EGRESS_WARP:-}
+      # The node's Xray-router ingress for this service (v0.5, provider `router`): the
+      # loopback SOCKS5 endpoint and the credential file inside the manager's own state
+      # directory (`/data/xray-router-ingress`, written by the installer). Empty = no router.
+      NAIVE_EGRESS_ROUTER: ${NAIVE_EGRESS_ROUTER:-}
+      NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE: ${NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE:-}
     volumes:
       - ${NAIVE_DATA_DIR:-/var/lib/naive-manager}:/data
       - /var/log/naive-proxy:/logs:ro
