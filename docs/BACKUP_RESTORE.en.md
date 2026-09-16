@@ -13,6 +13,7 @@ A backup is usable only when it is consistent, protected as a credential, checks
 | Telemt | `telemt-config` volume, source secret files, API token |
 | Naive | complete `NAIVE_DATA_DIR`, Caddyfile, user state, transaction/backups, accounting SQLite/WAL/SHM, Caddy binary/unit, log ownership contract |
 | Mieru | complete manager state, `journal.json` + original `journal.key`, backups, manager token, mita config/binary/unit, UDS/tmpfiles contract |
+| Xray-router (v0.5) | `/var/lib/xray-router` (generations, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; the managers' copies `/var/lib/naive-manager/xray-router-ingress` and `/var/lib/mieru-manager/xray-router-ingress` travel with their state directories; the binaries come from the pinned archive, never from a backup |
 | Fleet central | panel DB, ingress config, public server certificate, client CA certificate; offline CA private key separately |
 | Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests and installer backups |
@@ -139,6 +140,36 @@ docker compose up -d mieru-manager panel
 ```
 
 Verify exact mita status, manager health, and a real Mieru client path.
+
+## Xray-router generation (v0.5)
+
+Stop the panel and `xray-router` when copying live state. Preserve together, as one
+unit: `/var/lib/xray-router` (0700, owner 10006:10006; the generations under `generations/`,
+`current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token` and the two
+ingress credentials `secrets/xray-router-ingress-naive` / `-mieru` (root, 0600), and
+`.env.xray-router` (the members' digests and `XRAY_ROUTER_EGRESS_WARP`). The ingress
+credentials must match the copies inside the managers' state directories
+(`/var/lib/naive-manager/xray-router-ingress`, `/var/lib/mieru-manager/xray-router-ingress`)
+and what Caddy's upstream / mita's `socks5Authentication` carry: restore all of them from
+the same moment, or rotate right after the restore
+(`/usr/local/libexec/rotate-xray-router-ingress`) and let the managers re-render.
+
+The binaries are not backed up: the restore reinstalls them from the pinned archive
+(`/var/lib/proxy-control/Xray-linux-64.zip`, digests in `release/external-artifacts.json`)
+through the installer (`repair`), or by extracting exactly `xray`, `geoip.dat`, `geosite.dat`
+into `/usr/local/lib/proxy-control/xray-router` (0755, files 0755/0644). Then:
+
+```bash
+sudo ./scripts/prepare-xray-router-state.sh verify /var/lib/xray-router
+docker compose up -d --wait xray-router panel
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status
+```
+
+The status must say `verified: true` for all three artifacts and a `running.generation` of at
+least 1; a digest mismatch keeps the router down with `artifact_mismatch` (the panel's
+«Routing» screen shows it), which is the intended answer to a wrong archive. Generations
+hold the rendered Xray configuration with the ingress credentials inside: never print them,
+never attach them to a report.
 
 ## Nginx and shared 443
 
