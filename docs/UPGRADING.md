@@ -163,6 +163,67 @@ curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets 
 docker inspect proxy-control-mieru-manager --format '{{.HostConfig.NetworkMode}}'   # host
 ```
 
+## Upgrading to v0.5: the Xray-router
+
+v0.5 adds the optional dedicated egress router ([XRAY_ROUTER](XRAY_ROUTER.en.md)). The
+upgrade itself is the ordinary one and **does not install a router**: copy the new
+release's `panel/`, `naive_manager/`, `mieru_manager/`, `xray_router_manager/`,
+`compose*.yaml`, `scripts/` and `VERSION` into the project directory and run
+`docker compose up -d --build --wait panel naive-manager mieru-manager` with the
+persisted overlay set. A node without a router behaves exactly as in v0.4: the routing
+screen says «Xray-router: не установлен», policies compile for the native backends.
+
+**Migration 15** (`routing-xray-router`) runs at the first start and is additive in effect: it
+rebuilds `routing_policies` / `routing_rules` / `routing_applies` to admit the backend
+`xray_router` (every v0.4 row survives with its history) and adds
+`managed_egress.router_revision` / `router_digest`. `python -m panel.cli db-status`
+lists fifteen as applied.
+
+**What changes on the host without a router.** The managers accept two new, empty
+variables — `NAIVE_EGRESS_ROUTER` / `NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE` and
+`MIERU_EGRESS_ROUTER` / `MIERU_EGRESS_ROUTER_CREDENTIAL_FILE` (compose defaults) — and
+report the `router` provider only when they are set. The policy model accepts
+`geosites`, `geoips` and ports-only rules; on a native backend they preview as
+`rule_kind_unsupported` naming the router.
+
+**Adding the router to an installed node.** Stage the pinned archive as
+`/var/lib/proxy-control/Xray-linux-64.zip` (URL and SHA-256 in
+`release/external-artifacts.json`; `scripts/install-release.sh --requirements` lists
+it), add `router = true` to `[egress]` in the installer configuration (and
+`naive = "router"` / `mieru = "router"` only if the service should start attached) and
+run the installer again: the plan gains one `xray_router.runtime` action between `warp`
+and the services; apply creates the identity 10006, extracts the three members,
+prepares `/var/lib/xray-router`, writes `secrets/xray-router-*` and `.env.xray-router`
+and starts the container; `naive` and `mieru` then re-apply with the router env and
+their credential copies. Services are **not** attached by an upgrade: attach them on
+the routing screen when you are ready (their sessions are interrupted once). A host
+assembled by hand follows the same steps in `INSTALLER_REFERENCE` («The Xray-router»)
+with `COMPOSE_FILE` extended by `compose.xray-router.yaml` — the v0.5 live check on the
+production node did exactly that (`docs/releases/v0.5.0-beta.1.md`).
+
+**Order in a fleet.** Nodes first, then the central, as in v0.4: a v0.5 central sends a
+router section, a `companion` or `passthrough` only to a node that declares
+`egress.router.v1`; a v0.4 node never sees them and keeps its digests; a v0.4 central
+ignores `identity.router` and `router_attached`. An attached service on a node managed
+by a v0.4 central keeps working (the central simply cannot change its policy until it is
+upgraded).
+
+**Rollback** follows the general procedure — the previous generation, database included:
+a v0.4 image refuses a database at schema 15. Detach every service from the router
+**before** rolling the panel back (a detach is a native `direct` plus a router
+pass-through, both applied by the managers, so the older panel finds native blocks it
+understands); a router left running with attached services keeps serving them
+pass-through, but the v0.4 screen shows their upstream as `custom`.
+
+Verify after the upgrade:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 15
+curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets   # 401 without a session
+# with a router:
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

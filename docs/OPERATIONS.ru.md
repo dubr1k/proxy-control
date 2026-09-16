@@ -291,3 +291,43 @@ Egress-политику применяет **менеджер** сервиса, 
   (`managed_by_central`). Отвязка оставляет egress как есть.
 - Аудит: `routing.policy.update | apply | rollback | delete` на той панели, которая применяла.
 
+## 13. Xray-router (v0.5)
+
+Узел с `[egress] router = true` держит `proxy-control-xray-router`
+([XRAY_ROUTER](XRAY_ROUTER.ru.md)). Его здоровье — часть ежедневной проверки:
+
+```bash
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool
+# artifacts.*.verified == true, phase == "idle", running.generation >= 1
+ss -ltnp 'sport = :45101 or sport = :45102'   # только 127.0.0.1, владелец xray
+```
+
+- **Подключение / отключение** — действия owner на экране маршрутизации; каждое один раз
+  прерывает сессии сервиса (reload Caddy, restart mita). Подключение при всё ещё применённой
+  нативной политике отвергается (`policy_applied`): сначала сбросьте её. После подключения в
+  Caddyfile стоит `upstream socks5://…@127.0.0.1:45101`, в `egress` mita — прокси `router`; не
+  правьте их руками: ручная правка показывается как `attached: false`, а политика
+  отказывается применяться (`not_attached`); повторное подключение чинит это.
+- **Применение политики роутера** подменяет поколение Xray (≈ 50 мс) и прерывает открытые
+  сессии **обоих** подключённых сервисов; сначала предпросмотр, применяйте один раз. WARP, который
+  не отвечает, даёт fail-closed (`egress_unreachable`); неизвестный код geodata падает в
+  собственном тестовом запуске роутера (`geosite_unknown` / `geoip_unknown`), и ничего не меняется.
+- **`artifact_mismatch`**: роутер не стартует, потому что бинарь или geodata не совпадают с пином.
+  Извлеките заново из закреплённого архива (`BACKUP_RESTORE`, «Xray-router generation») или
+  выполните `proxyctl repair`; никогда не подменяйте файлы другой сборкой.
+- **`manual_intervention_required` / `phase: broken`**: не поднялось и последнее хорошее
+  поколение. Подключённые сервисы fail-closed, пока вы не вмешаетесь: читайте
+  `docker logs proxy-control-xray-router`, устраните причину (диск, geodata), затем
+  `docker compose … restart xray-router` (bootstrap запустит последнее закоммиченное поколение)
+  либо отключите сервисы, чтобы они пока шли нативно.
+- **Умерший дочерний процесс** watchdog перезапускает за секунды с тем же поколением; три
+  неудачных старта подряд делают роутер `broken`.
+- **Ротация ключей ingress**: `sudo /usr/local/libexec/rotate-xray-router-ingress` (оба сервиса)
+  или с `naive` / `mieru`. Скрипт пересоздаёт роутер и менеджеры; менеджер, чей блок ещё несёт
+  старый ключ, показывает `router_credential_stale`, пока не перерисует. Ротируйте после
+  восстановления из резервной копии и при любом подозрении на утечку ключа.
+- **Логи**: менеджера — `docker logs proxy-control-xray-router`; access-лог дочернего процесса
+  выключен намеренно. Ни логи, ни API, ни аудит, ни отчёты не несут ключ ingress; secret-scan
+  лаборатории падает на такой форме.
+- Аудит: `routing.target.attach | detach` рядом с событиями политик.
+

@@ -163,6 +163,61 @@ curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets 
 docker inspect proxy-control-mieru-manager --format '{{.HostConfig.NetworkMode}}'   # host
 ```
 
+## Обновление до v0.5: Xray-router
+
+v0.5 добавляет необязательный выделенный egress-роутер ([XRAY_ROUTER](XRAY_ROUTER.ru.md)). Само
+обновление — обычное и **роутер не ставит**: скопируйте из нового релиза `panel/`, `naive_manager/`,
+`mieru_manager/`, `xray_router_manager/`, `compose*.yaml`, `scripts/` и `VERSION` в каталог проекта и
+выполните `docker compose up -d --build --wait panel naive-manager mieru-manager` с сохранённым
+набором оверлеев. Узел без роутера ведёт себя ровно как в v0.4: экран маршрутизации говорит
+«Xray-router: не установлен», политики компилируются под нативные backend'ы.
+
+**Миграция 15** (`routing-xray-router`) выполняется при первом старте и по эффекту аддитивна: она
+перестраивает `routing_policies` / `routing_rules` / `routing_applies`, чтобы допустить backend
+`xray_router` (каждая строка v0.4 сохраняется с историей), и добавляет
+`managed_egress.router_revision` / `router_digest`. `python -m panel.cli db-status` покажет
+пятнадцать применённых.
+
+**Что меняется на хосте без роутера.** Менеджеры принимают две новые пустые переменные —
+`NAIVE_EGRESS_ROUTER` / `NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE` и `MIERU_EGRESS_ROUTER` /
+`MIERU_EGRESS_ROUTER_CREDENTIAL_FILE` (умолчания compose) — и отдают провайдер `router` только когда
+они заданы. Модель политики принимает `geosites`, `geoips` и правила только с портами; на нативном
+backend'е они дают в предпросмотре `rule_kind_unsupported` с упоминанием роутера.
+
+**Добавление роутера на установленный узел.** Положите закреплённый архив как
+`/var/lib/proxy-control/Xray-linux-64.zip` (URL и SHA-256 — в `release/external-artifacts.json`;
+`scripts/install-release.sh --requirements` его перечисляет), добавьте `router = true` в `[egress]`
+конфигурации установщика (и `naive = "router"` / `mieru = "router"` — только если сервис должен
+стартовать подключённым) и запустите установщик снова: в плане появится одно действие
+`xray_router.runtime` между `warp` и сервисами; apply создаст identity 10006, извлечёт три члена
+архива, подготовит `/var/lib/xray-router`, запишет `secrets/xray-router-*` и `.env.xray-router` и
+поднимет контейнер; `naive` и `mieru` затем применятся заново с env роутера и копиями ключей.
+Обновление сервисы **не** подключает: подключите их на экране маршрутизации, когда будете готовы
+(их сессии один раз прервутся). Хост, собранный вручную, проходит те же шаги из `INSTALLER_REFERENCE`
+(«Xray-router») с `COMPOSE_FILE`, расширенным `compose.xray-router.yaml`, — именно так прошла живая
+проверка v0.5 на продакшн-узле (`docs/releases/v0.5.0-beta.1.md`).
+
+**Порядок в парке.** Сначала узлы, потом центр, как в v0.4: центр v0.5 шлёт секцию роутера,
+`companion` или `passthrough` только узлу, объявившему `egress.router.v1`; узел v0.4 их не видит и
+сохраняет свои дайджесты; центр v0.4 игнорирует `identity.router` и `router_attached`. Подключённый
+сервис на узле, которым управляет центр v0.4, продолжает работать (центр просто не может менять
+его политику, пока не обновится).
+
+**Откат** — по общему порядку: предыдущее поколение вместе с базой: образ v0.4 отказывается от базы
+на схеме 15. Отключите все сервисы от роутера **до** отката панели (отключение — это нативный
+`direct` плюс pass-through роутера, оба применяют менеджеры, и старая панель находит понятные ей
+нативные блоки); роутер, оставленный с подключёнными сервисами, продолжает их обслуживать
+pass-through, но экран v0.4 покажет их upstream как `custom`.
+
+Проверка после обновления:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 15
+curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets   # 401 без сессии
+# с роутером:
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+```
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.

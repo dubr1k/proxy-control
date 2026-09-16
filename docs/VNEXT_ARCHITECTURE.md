@@ -162,8 +162,11 @@ What v0.3 adds, and what it deliberately does not:
   local users never touched.
 - Fleet v1 stays frozen and byte-compatible; routing shipped in v0.4 as capability-limited
   native egress policies (`docs/ROUTING.en.md`, ADR 006 accepted, ADR 007 for the native
-  backends); the Xray router (v0.5) remains roadmap. There are no transitive nodes, no
-  metric history and no panel-to-panel mTLS.
+  backends) and in v0.5 with the optional dedicated Xray-router (`docs/XRAY_ROUTER.en.md`,
+  ADR 007 accepted for the router: a separate pinned runtime with its own generations,
+  authenticated per-service ingresses, attach/detach as explicit actions, `companion`
+  documents in a generation). There are no transitive nodes, no metric history, no
+  panel-to-panel mTLS, no 3x-ui bridge and no canary rollouts.
 
 Components (all under `panel/` unless stated):
 

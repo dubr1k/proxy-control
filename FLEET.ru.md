@@ -133,6 +133,19 @@ revision, digest, error}}` (`managed_egress` на узле). Центр пере
 управляет центр, собственный экран маршрутизации узла отказывает в применении
 (`managed_by_central`).
 
+**Xray-router (v0.5).** Узел с роутером объявляет `egress.router.v1` и `identity.router`
+(`available`, `xray_version`, возможности, провайдеры, ревизия и digest по сервисам) рядом с
+`identity.protocols[p].egress.router_attached`. `EgressDocument` тогда может нести `backend:
+xray_router`, `companion` — документ, который *другой* менеджер применяет сразу после (нативный
+attach-документ рядом с pass-through роутера при подключении, pass-through роутера рядом с
+нативным `direct` при отключении) — и `passthrough: true`; все три опускаются из проводной формы и
+digest при отсутствии, поэтому узел v0.4 их не видит, а каждый digest сохраняется. Узел применяет
+секцию роутера через свой роутер, затем companion через нативный менеджер (при отключении — наоборот)
+и отчитывается `egress[p].router = {revision, digest}` рядом с нативным результатом; центр
+помечает pass-through с пустой политикой как `applied`, а с правилами — черновиком на просмотр. Центр
+отказывает политике роутера для узла без возможности (`node_lacks_router`) —
+[docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md).
+
 ### Владение на узле
 
 Учётная запись в runtime узла принадлежит либо центру (`central`), либо самому узлу

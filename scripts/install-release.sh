@@ -115,6 +115,11 @@ WARP (необязательно): секция [egress] в install.toml или 
   127.0.0.1:40000 и задаёт начальный egress NaiveProxy/Mieru; дальше им владеет
   экран «Маршрутизация» панели (v0.4).
 
+Xray-router (необязательно, v0.5): [egress] router = true — выделенный Xray для
+  политик с geosite/geoip/портами и блокировками рядом с WARP. Заранее положите
+  • /var/lib/proxy-control/Xray-linux-64.zip (Xray-core 26.3.27; URL и SHA-256 — в
+    release/external-artifacts.json). Мастер спрашивает про роутер, только если архив есть.
+
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
     docker-compose-v2 docker.io nginx-full openssl python3 — и только они
@@ -162,6 +167,11 @@ WARP (optional): the [egress] section of install.toml or the wizard's questions 
   the installer sets up the pinned Cloudflare WARP client in proxy mode on
   127.0.0.1:40000 and seeds the initial egress of NaiveProxy/Mieru; from then on
   the panel's «Routing» screen owns it (v0.4).
+
+Xray-router (optional, v0.5): [egress] router = true — a dedicated Xray for
+  policies with geosite/geoip/ports and blocks beside WARP. Stage in advance
+  • /var/lib/proxy-control/Xray-linux-64.zip (Xray-core 26.3.27; URL and SHA-256 in
+    release/external-artifacts.json). The wizard asks about the router only when it is there.
 
 What the installer does (wizard → plan → digest confirmation → apply):
   • Ubuntu packages missing on the host: ca-certificates certbot curl

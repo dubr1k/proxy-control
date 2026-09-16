@@ -7,6 +7,110 @@
 
 ## [Unreleased]
 
+## [0.5.0-beta.1] - 2026-09-16
+
+Xray-router: на узле может работать один выделенный закреплённый процесс Xray как egress-роутер
+для NaiveProxy и Mieru. Сервис, который оператор к нему подключил, отправляет весь трафик через
+приватный аутентифицированный loopback-ingress роутера, и его политику маршрутизации
+применяет уже Xray — с селекторами `geosite`, `geoip` и портами и с блокировкой рядом с WARP по
+умолчанию, чего нативные backend'ы не умеют. Он необязателен, не трогает Xray из 3x-ui, а узел
+без него ведёт себя ровно как в v0.4. [ADR 007](docs/adr/007-routing-enforcement-ownership.md)
+принят для роутера; спека — `docs/superpowers/specs/2026-09-16-v0.5-xray-router-design.md`, spike,
+доказавший каждую ячейку на стенде, — `docs/spikes/XRAY_EGRESS_ROUTER.md`;
+[XRAY_ROUTER](docs/XRAY_ROUTER.ru.md), [ROUTING](docs/ROUTING.ru.md),
+[релизная заметка](docs/releases/v0.5.0-beta.1.md). Это последняя стадия vNext: фаза 8
+(backup/restore, матрица негативных тестов, замороженные идентификаторы) закрывается здесь.
+
+### Добавлено
+
+- **Закреплённый артефакт `xray`** (Xray-core 26.3.27, `Xray-linux-64.zip`, MPL-2.0) в
+  `release/external-artifacts.json` с дайджестом архива и каждого из трёх членов, которые
+  извлекает установщик (`xray`, `geoip.dat`, `geosite.dat`); `installer.release.safe_extract_zip`
+  пишет ровно проверенные члены через ту же подмену через приватный stage, что и tar-экстрактор,
+  с границами и проверкой дайджестов; SBOM перечисляет члены. Архив оператор кладёт в
+  `/var/lib/proxy-control/`; ничего не скачивается.
+- **`xray_router_manager`** — рантайм роутера: контейнер `proxy-control-xray-router`
+  (`compose.xray-router.yaml`, сеть хоста, identity 10006, read-only, `cap_drop: ALL`),
+  супервизор над одним дочерним `xray run` с поколениями, посервисным журналом и типизированным
+  egress API на собственном UDS (`/v1/status`, `/v1/health`, `/v1/egress/{naive|mieru}` и
+  `plan | apply | rollback`; заголовок `X-Xray-Router-Token`). Применение рендерит один конфиг из
+  intent'ов обоих сервисов, гоняет `xray run -test`, подменяет, читает обратно и коммитит; сбой
+  возвращает последнее хорошее поколение, умерший дочерний процесс перезапускает watchdog, бинарь
+  или geodata с неверным дайджестом держит роутер выключенным (`artifact_mismatch`). Два SOCKS5-ingress
+  на loopback (`naive` 45101, `mieru` 45102) с посервисным ключом как идентичностью сервиса;
+  `geoip:private → block` первым правилом каждого ingress и резолв `IPOnDemand`, чтобы
+  перепривязанное имя не достало хост; UDP не ретранслируется.
+- **Провайдер `router` у менеджеров**: naive-manager рисует `upstream
+  socks5://user:password@127.0.0.1:45101` из `NAIVE_EGRESS_ROUTER` и файла ключа в своём каталоге
+  состояния, mieru-manager — `egress` mita с `socks5Authentication` из `MIERU_EGRESS_ROUTER`; оба
+  пробуют ingress методом username/password SOCKS5 до применения, маскируют ключ в каждом
+  представлении и diff'е и перерисовывают свой блок на старте после ротации ключа
+  (`router_credential_stale` до того), включая семя установщика.
+- **Backend маршрутизации `xray_router`** (миграция 15): `RuleMatch` получает `geosites` и `geoips`
+  (коды geodata Xray; `private` отвергается) и правила только с портами; компилятор строит для
+  подключённого сервиса типизированный intent роутера — никогда не сырой JSON Xray — и называет
+  роутер, когда нативный backend не может выполнить правило; `Compiled.compiler_version` — `"2"`.
+- **Подключение и отключение** как явные действия owner (`POST
+  /api/routing/targets/{node}/{protocol}/attach | detach`, аудит `routing.target.attach |
+  detach`): сначала секция роутера (pass-through), затем нативный блок на ingress; отключение — в
+  обратном порядке. Политика переносится черновиком; `targets[].router = {available, attached,
+  xray_version, …}`. Отказы: `router_unavailable`, `router_unreachable`, `not_attached`,
+  `node_lacks_router`, `artifact_mismatch`, `geosite_unknown`, `geoip_unknown`.
+- **Fleet v2**: узел объявляет `egress.router.v1` и `identity.router`; секция `egress` поколения
+  может нести `backend: xray_router`, `companion`-документ для другого менеджера и `passthrough` —
+  всё опускается из проводной формы и digest при отсутствии, поэтому узел v0.4 и центр v0.4
+  сохраняют каждый digest и игнорируют незнакомое; pusher записывает ревизию роутера рядом с
+  нативной.
+- **Установщик `[egress] router`** с выбором `router` для `naive` / `mieru`: адаптер `xray_router`
+  (между `warp` и сервисами) проверяет положенный архив, извлекает члены, создаёт identity 10006,
+  готовит `/var/lib/xray-router`, пишет токен менеджера и два ключа ingress (root:10006 0440),
+  `.env.xray-router` и поднимает сервис; проверка читает статус менеджера, убеждается, что оба
+  ingress только на loopback, и пропускает один аутентифицированный CONNECT через ingress NaiveProxy.
+  `naive` и `mieru` узнают о роутере через свой env и держат собственные копии ключей; мастер
+  спрашивает про роутер, только когда архив положен. `scripts/rotate-xray-router-ingress.sh`
+  ротирует ключи и пересоздаёт роутер и менеджеры; `scripts/prepare-xray-router-state.sh` владеет
+  каталогом состояния.
+- **UI «Маршрутизация»**: бейдж backend (Caddy / mita / Xray-router), строка роутера с кнопками
+  «Подключить к Xray-router» / «Отключить от Xray-router» и подтверждениями, поля geosite / geoip /
+  порты в правиле, причины и предупреждения роутера в предпросмотре.
+- **Tier лаборатории `router`** (`remote-gate.sh router`, `fleet-acceptance.py --router`):
+  router-01…14 на узле, установленном с `[egress] router = true` — подключение, весь сервис через
+  WARP и блокировка рядом через роутер, правила по порту / geosite / geoip, неизвестный код geodata,
+  отвергнутый Xray, Mieru с выборочным правилом, отказ ingress без ключа и с чужим ключом, откат при
+  нетронутом Caddyfile, watchdog после SIGKILL, fail-closed без провайдера, ни одного ключа в API,
+  аудите, базе и логах, ротация ключей, отключение и нетронутый хост. `lab-host` ставит роутер по
+  умолчанию.
+- **Фаза 8**: `docs/SECURITY_TEST_MATRIX.md` сопоставляет каждую строку матрицы негативных тестов
+  vNext с тестом или сценарием лаборатории; `BACKUP_RESTORE` получает состояние и секреты роутера;
+  `tests/test_deploy.py` замораживает идентификаторы роутера и доказывает, что ничто в нём не
+  называет пути 3x-ui; [COMPATIBILITY](docs/COMPATIBILITY.md) фиксирует, что v0.5 заморозил.
+
+### Изменено
+
+- **Фикс-волна замечаний v0.4**: naive-manager маскирует userinfo рукописного `upstream` в egress-
+  представлениях и diff'ах `plan`; мёртвый `installer.planner.profile_environment` удалён.
+- Список файлов состояния naive-manager (`prepare-naive-state.py`) допускает `xray-router-ingress`;
+  restart-транзакция `egress.refresh` mieru-manager перерисовывает посеянную секцию роутера после
+  ротации; Core считает секреты и Compose-сервис роутера соседними (repair, владение).
+- Экран маршрутизации шлёт `backend` вместе с политикой, чтобы новая политика рождалась на том
+  backend'е, который её применит.
+
+### Безопасность
+
+- Ключ ingress живёт только в файлах секретов, копиях менеджеров, `upstream` Caddy,
+  `socks5Authentication` mita и отрендеренных поколениях роутера; каждое API-представление, diff
+  плана, identity, поколение, строка аудита, отчёт и лог его не содержат, а secret-scan лаборатории
+  падает на такой форме.
+- Роутер — собственный рантайм: ни `/usr/local/x-ui`, ни `/etc/x-ui`, ни общего шаблона;
+  несовпадение дайджеста члена отказывает в старте, а не запускает незакреплённый бинарь.
+- Управляющий трафик никогда не входит в роутер; роутер блокирует приватные назначения раньше
+  любого правила политики и отвергает `private` как селектор.
+
+### Отложено (дорожная карта)
+
+- Статический мост в Xray 3x-ui, canary-раскатка политики, per-grant, ретрансляция UDP через
+  роутер, регулярные выражения в селекторах (спека §15).
+
 ## [0.4.0-beta.1] - 2026-09-14
 
 Маршрутизация: оператор задаёт для каждого узла и каждого прокси-сервиса, куда выходит

@@ -4,6 +4,130 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.5.0-beta.1] - 2026-09-16
+
+The Xray-router: a node may run one dedicated, pinned Xray process as the egress
+router for NaiveProxy and Mieru. A service the operator attaches to it sends its
+whole traffic through the router's private, authenticated loopback ingress, and
+its routing policy is then enforced by Xray — `geosite`, `geoip` and port
+selectors, and a block rule beside a WARP default, which the native backends
+cannot do. It is optional, never touches 3x-ui's Xray, and a node without it
+behaves exactly as in v0.4. [ADR 007](docs/adr/007-routing-enforcement-ownership.md)
+is accepted for the router; the spec is
+`docs/superpowers/specs/2026-09-16-v0.5-xray-router-design.md`, the spike that
+proved every cell on the stand `docs/spikes/XRAY_EGRESS_ROUTER.md`;
+[XRAY_ROUTER](docs/XRAY_ROUTER.en.md), [ROUTING](docs/ROUTING.en.md),
+[release note](docs/releases/v0.5.0-beta.1.md). This is the last vNext stage:
+Phase 8 (backup/restore, the negative-test matrix, frozen identifiers) closes here.
+
+### Added
+
+- **Pinned artifact `xray`** (Xray-core 26.3.27, `Xray-linux-64.zip`, MPL-2.0) in
+  `release/external-artifacts.json` with a digest for the archive and for each of
+  the three members the installer extracts (`xray`, `geoip.dat`, `geosite.dat`);
+  `installer.release.safe_extract_zip` writes exactly the reviewed members through
+  the same private-stage swap as the tar extractor, bounded and digest-checked; the
+  SBOM lists the members. The operator stages the archive in
+  `/var/lib/proxy-control/`; nothing is downloaded.
+- **`xray_router_manager`** — the router runtime: container `proxy-control-xray-router`
+  (`compose.xray-router.yaml`, host network, identity 10006, read-only, `cap_drop:
+  ALL`), a supervisor over one child `xray run` with generations, a per-service
+  journal and a typed egress API on its own UDS (`/v1/status`, `/v1/health`,
+  `/v1/egress/{naive|mieru}` and `plan | apply | rollback`; header
+  `X-Xray-Router-Token`). An apply renders one configuration from both services'
+  intents, runs `xray run -test`, swaps, reads back and commits; a failure restores
+  the last known good generation, a dead child is restarted by a watchdog, a binary
+  or geodata that does not match its digest keeps the router down
+  (`artifact_mismatch`). Two SOCKS5 ingresses on the loopback (`naive` 45101,
+  `mieru` 45102) with a per-service credential as the service's identity;
+  `geoip:private → block` first on every ingress and `IPOnDemand` resolution,
+  so a rebinding name cannot reach the host; UDP is not relayed.
+- **Provider `router` in the managers**: the naive-manager renders `upstream
+  socks5://user:password@127.0.0.1:45101` from `NAIVE_EGRESS_ROUTER` and the
+  credential file in its state directory, the mieru-manager mita's `egress` with
+  `socks5Authentication` from `MIERU_EGRESS_ROUTER`; both probe the ingress with
+  the SOCKS5 username/password method before applying, redact the credential in
+  every view and diff, and re-render their block at bootstrap after a key rotation
+  (`router_credential_stale` until then), the installer's seed included.
+- **Routing backend `xray_router`** (migration 15): `RuleMatch` gains `geosites`
+  and `geoips` (Xray geodata codes; `private` refused) and ports-only rules;
+  the compiler produces the router's typed intent — never raw Xray JSON — for an
+  attached service and names the router when a native backend cannot enforce a
+  rule; `Compiled.compiler_version` is `"2"`.
+- **Attach and detach** as explicit owner actions (`POST
+  /api/routing/targets/{node}/{protocol}/attach | detach`, audit
+  `routing.target.attach | detach`): the router's section first (pass-through),
+  then the native block to the ingress; detach in the reverse order. The policy
+  is retargeted as a draft; `targets[].router = {available, attached,
+  xray_version, …}`. Refusals: `router_unavailable`, `router_unreachable`,
+  `not_attached`, `node_lacks_router`, `artifact_mismatch`, `geosite_unknown`,
+  `geoip_unknown`.
+- **Fleet v2**: the node declares `egress.router.v1` and `identity.router`; a
+  generation's `egress` section may carry `backend: xray_router`, a `companion`
+  document for the other manager and `passthrough` — all omitted from the wire
+  and the digest when absent, so a v0.4 node and a v0.4 central keep every
+  digest and ignore what they do not know; the pusher records the router's
+  revision beside the native one.
+- **Installer `[egress] router`** with the choice `router` for `naive` / `mieru`:
+  adapter `xray_router` (between `warp` and the services) verifies the staged
+  archive, extracts the members, creates identity 10006, prepares
+  `/var/lib/xray-router`, writes the manager token and the two ingress
+  credentials (root:10006 0440), `.env.xray-router`, and starts the service;
+  verify reads the manager's status, checks both ingresses are loopback-only and
+  sends one authenticated CONNECT through the NaiveProxy ingress. `naive` and
+  `mieru` learn the router through their env and keep their own credential
+  copies; the wizard asks about the router only when the archive is staged.
+  `scripts/rotate-xray-router-ingress.sh` rotates the keys and recreates the
+  router and the managers; `scripts/prepare-xray-router-state.sh` owns the state
+  directory.
+- **UI «Маршрутизация»**: the backend badge (Caddy / mita / Xray-router), the
+  router line with «Подключить к Xray-router» / «Отключить от Xray-router» and
+  their confirmations, the fields geosite / geoip / ports in a rule, the router's
+  reasons and warnings in the preview.
+- **Lab tier `router`** (`remote-gate.sh router`, `fleet-acceptance.py --router`):
+  router-01…14 on the node installed with `[egress] router = true` — attach,
+  whole-WARP and a block beside it through the router, port / geosite / geoip
+  rules, an unknown geodata code refused by Xray, Mieru attached with a selective
+  rule, the ingress refusing a missing or a cross-service credential, rollback
+  with the Caddyfile untouched, the watchdog after a SIGKILL, fail-closed without
+  the provider, no credential in the API, audit, database or logs, key rotation,
+  detach and the untouched host. `lab-host` installs the router by default.
+- **Phase 8**: `docs/SECURITY_TEST_MATRIX.md` maps every row of the vNext
+  negative-test matrix to a test or a lab scenario; `BACKUP_RESTORE` gains the
+  router's state and secrets; `tests/test_deploy.py` freezes the router's
+  identifiers and proves nothing of it names a 3x-ui path;
+  [COMPATIBILITY](docs/COMPATIBILITY.md) records what v0.5 froze.
+
+### Changed
+
+- **Fix-wave of the v0.4 findings**: the naive-manager redacts the userinfo of a
+  hand-written `upstream` in its egress views and `plan` diffs; the dead
+  `installer.planner.profile_environment` is gone.
+- The naive-manager's state allowlist (`prepare-naive-state.py`) admits
+  `xray-router-ingress`; the mieru-manager's `egress.refresh` restart transaction
+  re-renders a seeded router section after a rotation; Core treats the router's
+  secrets and Compose service as adjacent (repair, ownership).
+- The routing screen sends `backend` with a policy so a new policy is born on
+  the backend that will enforce it.
+
+### Security
+
+- The ingress credential lives only in the secret files, the managers' copies,
+  Caddy's `upstream`, mita's `socks5Authentication` and the router's rendered
+  generations; every API view, plan diff, identity, generation, audit row,
+  report and log is free of it, and the lab's secret scan fails on the shape.
+- The router is its own runtime: no `/usr/local/x-ui`, no `/etc/x-ui`, no shared
+  template; a digest mismatch of a member refuses to start rather than run an
+  unpinned binary.
+- Management traffic never enters the router; the router blocks private
+  destinations before any policy rule and refuses `private` as a selector.
+
+### Deferred (roadmap)
+
+- A static bridge into 3x-ui's Xray, canary rollouts of a policy, per-grant
+  routing, UDP relay through the router, regular expressions in selectors
+  (spec §15).
+
 ## [0.4.0-beta.1] - 2026-09-14
 
 Routing: the operator sets, per node and per proxy service, where the clients'

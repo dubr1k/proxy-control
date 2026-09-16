@@ -352,6 +352,14 @@ card on «Узлы» carries the line «Маршрутизация: naive → WA
 напрямую». Every role may read and preview; the owner applies. What each backend can
 enforce, the API (`/api/routing/*`) and the audit events: [docs/ROUTING.en.md](docs/ROUTING.en.md).
 
+Since v0.5 the card also shows the node's **Xray-router** ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)):
+the backend badge reads Caddy, mita or Xray-router, and the router line says
+«Xray-router: не установлен / сервис не подключён / сервис подключён» with the Xray version and
+the owner-only buttons **«Подключить к Xray-router»** / **«Отключить от Xray-router»** (confirmed:
+the service's sessions are interrupted). A rule gains the fields geosite, geoip and ports;
+on a native backend they preview as «not applicable» naming the router. A linked panel
+older than v0.5 shows «узел нужно обновить до v0.5 и установить Xray-router» for a router policy.
+
 ## Master key and rotation
 
 Since v0.2 the panel can store a client credential so that a subscription still

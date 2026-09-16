@@ -135,6 +135,20 @@ about the generation it currently wants; a section absent from a later generatio
 «leave the egress as it is», and `unlink` never touches the data plane. While a central
 manages a node, the node's own routing screen refuses to apply (`managed_by_central`).
 
+**The Xray-router (v0.5).** A node with the router declares `egress.router.v1` and
+`identity.router` (`available`, `xray_version`, capabilities, providers, per-service
+revision and digest) beside `identity.protocols[p].egress.router_attached`. An
+`EgressDocument` may then carry `backend: xray_router`, a `companion` — the document the
+*other* manager applies right after (the native attach document beside a router
+pass-through on attach, the router pass-through beside a native `direct` on detach) —
+and `passthrough: true`; all three are left out of the wire form and of the digest when
+absent, so a v0.4 node never sees them and every digest stays. The node applies the
+router section through its router, then the companion through the native manager (or
+the reverse on detach), and reports `egress[p].router = {revision, digest}` beside the
+native result; the central marks a pass-through with an empty policy as `applied` and
+with rules as a draft to review. A central refuses a router policy for a node without
+the capability (`node_lacks_router`) — [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md).
+
 ### Ownership on the node
 
 A runtime user on a node belongs either to the central (`central`) or to the node
