@@ -72,8 +72,10 @@ the connection.
   from `/var/lib/xray-router` (0700, `prepare-xray-router-state.sh`), the manager socket
   in the tmpfs volume `xray-router-run` (`/run/xray-router/manager.sock`, mode 660, the
   panel joins group 10006).
-- **Artifacts**: the installer extracts exactly three members from the pinned
-  `Xray-linux-64.zip` (`release/external-artifacts.json`, each member with its own
+- **Artifacts**: the installer fetches the pinned `Xray-linux-64.zip` from its HTTPS
+  URL into `/var/lib/proxy-control/` when it is absent (a hand-staged file is used as it
+  is), proves the archive's SHA-256 and extracts exactly three members
+  (`release/external-artifacts.json`, each member with its own
   SHA-256 and mode); the manager re-checks all three digests before it starts anything
   (`XRAY_ROUTER_*_SHA256` in `.env.xray-router`) and, on a mismatch, answers
   `artifact_mismatch` (503) instead of running an unpinned binary.

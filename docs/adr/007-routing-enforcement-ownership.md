@@ -35,7 +35,7 @@ apply (`managed_by_central`, ADR 003).
   10006, state `/var/lib/xray-router`), with its own config, generations, journal and
   two private authenticated SOCKS5 ingresses on the host loopback (`naive` 45101,
   `mieru` 45102). It is never executed from `/usr/local/x-ui/bin`: the binary and the
-  geodata come from the pinned upstream `Xray-linux-64.zip` the operator stages, each
+  geodata come from the pinned upstream `Xray-linux-64.zip` (fetched from its pin or staged), each
   member against its own digest, and the manager refuses to start on a mismatch
   (`artifact_mismatch`). The absence of 3x-ui does not enter the routing model at all;
 - the router owns nothing but its own generations. The ingress credential is the

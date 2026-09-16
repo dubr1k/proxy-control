@@ -1,11 +1,12 @@
 """Installer-owned Xray egress-router (v0.5, ADR 007).
 
-The operator stages the pinned `Xray-linux-64.zip` in `/var/lib/proxy-control/`; the
-installer proves its digest, extracts exactly the three reviewed members into the host
-directory the container reads, creates the manager identity 10006, its state directory,
-the manager token and the two per-service ingress credentials, writes `.env.xray-router`
-with the members' digests and starts the `xray-router` Compose service. Nothing is
-downloaded: an absent archive is a refusal with the pinned URL in it.
+The pinned `Xray-linux-64.zip` lives in `/var/lib/proxy-control/`: an archive the operator
+staged is used as it is, an absent one is fetched from its pinned URL (the digest is what
+makes that safe; a mismatch is discarded). The installer proves the digest, extracts
+exactly the three reviewed members into the host directory the container reads, creates
+the manager identity 10006, its state directory, the manager token and the two
+per-service ingress credentials, writes `.env.xray-router` with the members' digests and
+starts the `xray-router` Compose service.
 """
 from __future__ import annotations
 
@@ -110,6 +111,12 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
         if len(fields) >= 4 and fields[0] == name and fields[2].isdigit():
             return name
         return None
+
+    def fetch_artifact(self, url: str, destination: Path) -> None:
+        """Fetch one pinned artifact over HTTPS onto the host (the mita path)."""
+        from installer.adapters.mieru import _download
+
+        _download(url, destination)
 
     def compose_service_present(self, service: str) -> bool:
         """Only the router's own Compose service, never the shared project: prepare must
@@ -291,7 +298,7 @@ class XrayRouterAdapter:
                 ),
                 preconditions=(
                     "the Core runtime is verified",
-                    f"the pinned archive is staged in {self.paths.artifact_dir}",
+                    f"the pinned archive is staged in {self.paths.artifact_dir} or fetched from its pin",
                     "loopback ports 45101 and 45102 are free or held by the owned router",
                     "fixed router identity 10006 is free or already owned",
                 ),
@@ -408,15 +415,37 @@ class XrayRouterAdapter:
 
     def _assert_archive(self, selected: Mapping[str, object]) -> None:
         archive = self._host(self.paths.archive)
-        if archive.is_symlink() or not archive.is_file():
+        if archive.is_symlink():
+            raise ArtifactError(f"{self.paths.archive} is a symlink; stage the pinned Xray archive as a regular file")
+        # An absent archive is fetched from its pin rather than asked for, exactly like the
+        # mita package: the pinned digest is what makes the download safe, a mismatch is
+        # discarded, and an archive the operator staged themselves is never replaced.
+        if not archive.is_file():
+            self._fetch_archive(archive, str(selected["url"]), str(selected["archive_sha256"]))
+        if not archive.is_file():
             raise ArtifactError(
-                f"stage the pinned Xray archive as {self.paths.archive} first (sha256 {selected['archive_sha256']}, "
-                f"published at {selected['url']})"
+                f"the pinned Xray archive is not staged as {self.paths.archive} and could not be fetched "
+                f"(sha256 {selected['archive_sha256']}, published at {selected['url']})"
             )
         try:
             verify_artifact(archive, str(selected["archive_sha256"]))
         except ReleaseError as exc:
             raise ArtifactError("Xray archive digest does not match the pinned release") from exc
+
+    def _fetch_archive(self, archive: Path, url: str, digest: str) -> None:
+        """Fetch the pinned archive if this runner can reach the network (a test double
+        without `fetch_artifact` simply does not, and the digest check reports the absence)."""
+        from installer.adapters.mieru import ArtifactError as MieruArtifactError, ensure_pinned_package
+
+        fetch = getattr(self.runner, "fetch_artifact", None)
+        if not callable(fetch):
+            return
+        try:
+            ensure_pinned_package(archive, url, digest, fetch=fetch)
+        except MieruArtifactError as exc:
+            raise ArtifactError(f"fetching the pinned Xray archive failed: {exc}") from exc
+        except OSError as exc:
+            raise ArtifactError(f"fetching the pinned Xray archive failed: {exc}") from exc
 
     def apply(self, action: Action, checkpoint: Mapping[str, object]) -> Mapping[str, object]:
         selected = self._selection(action)

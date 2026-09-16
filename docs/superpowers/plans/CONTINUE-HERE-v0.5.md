@@ -57,9 +57,10 @@ block» через роутер (`warp=on`, exit `104.28.219.140` ≠ прямо
 1. Тег и публикация — путь v0.4 (память `proxy-control-ci-only-on-ams-test`): `remote-gate.sh full` на
    финальном дереве → архив дважды из чистого клона на ams-test (`release/build.py`, байты совпадают) →
    аннотированный тег `v0.5.0-beta.1` с `lab-sha256: <digest>` → push ветки и тега → workflow `Release` →
-   тело релиза из `docs/releases/v0.5.0-beta.1.md` (`gh release edit --notes-file`). Требование к архиву:
-   релиз v0.5 **не** тянет Xray — оператор выкладывает `Xray-linux-64.zip` (sha256 `23cd9af9…`) в
-   `/var/lib/proxy-control/` сам (`scripts/install-release.sh --requirements`).
+   тело релиза из `docs/releases/v0.5.0-beta.1.md` (`gh release edit --notes-file`). Релизный архив
+   Xray не содержит: установщик скачивает `Xray-linux-64.zip` (sha256 `23cd9af9…`) по закреплённому URL в
+   `/var/lib/proxy-control/` сам, как пакет mita (решение владельца 2026-09-16: «пользователь вообще ничего
+   не должен класть сам»); хост без интернета кладёт файл заранее.
 2. Merge веток v0.3 → v0.4 → v0.5 в `main` и раскатка `ams-server`/`AMS_P`/`AMS_R` — только владелец;
    порядок «узлы → центр» (`docs/UPGRADING.ru.md`, раздел v0.5); узел v0.4 принимает поколение без
    `companion`, центр v0.4 игнорирует `router` в identity.
@@ -76,8 +77,9 @@ block» через роутер (`warp=on`, exit `104.28.219.140` ≠ прямо
 - `LAB_KEEP_INSTALL=1` пропускает uninstall — именно поэтому отсутствие `compose_service_present` у
   реального runner'а роутера дожило до живой проверки; для следующих адаптеров: тест на реальный runner
   (`test_the_real_runner_sees_only_the_router_compose_service`) — образец.
-- Мастер спрашивает про роутер только при выложенном архиве под `--root` (`ARTIFACT_DIR`); тесты мастера
-  теперь передают `artifact_dir` явно.
+- Мастер предлагает роутер каждому профилю с NaiveProxy или Mieru; архив — забота установщика
+  (`_assert_archive` → `ensure_pinned_package` из mieru.py; runner без `fetch_artifact` не качает, и
+  отказ называет путь, дайджест и URL).
 - Секреты роутера — Docker file secrets с владельцем/режимом файла (`root:10006 0440`); менеджеры читают
   свою копию 0400 и принимают режим `& 0o027 == 0`.
 - Entrypoint панели объединяет группы из `id -G` (все `group_add` оверлеев) и `PANEL_SUPPLEMENTARY_GROUPS`

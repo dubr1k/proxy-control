@@ -186,10 +186,10 @@ report the `router` provider only when they are set. The policy model accepts
 `geosites`, `geoips` and ports-only rules; on a native backend they preview as
 `rule_kind_unsupported` naming the router.
 
-**Adding the router to an installed node.** Stage the pinned archive as
-`/var/lib/proxy-control/Xray-linux-64.zip` (URL and SHA-256 in
-`release/external-artifacts.json`; `scripts/install-release.sh --requirements` lists
-it), add `router = true` to `[egress]` in the installer configuration (and
+**Adding the router to an installed node.** Add `router = true` to `[egress]` in the
+installer configuration (the pinned archive `/var/lib/proxy-control/Xray-linux-64.zip`
+is fetched by the installer when absent; URL and SHA-256 in
+`release/external-artifacts.json`, an offline host stages the file in advance) (and
 `naive = "router"` / `mieru = "router"` only if the service should start attached) and
 run the installer again: the plan gains one `xray_router.runtime` action between `warp`
 and the services; apply creates the identity 10006, extracts the three members,

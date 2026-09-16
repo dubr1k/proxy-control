@@ -36,7 +36,6 @@ from installer.transaction import (
     import_runtime_v2,
 )
 from installer.wizard import (
-    ARTIFACT_DIR,
     TerminalIO,
     TerminalWizard,
     WizardIO,
@@ -171,9 +170,8 @@ def _default_services(root: Path, source_dir: Path | None = None) -> CliServices
         plan=plan,
         engine=engine,
         store=store,
-        # The wizard looks for staged artifacts under the same root the adapters use.
         wizard=lambda io, locale, output: TerminalWizard(
-            io, locale=locale, config_output=output, artifact_dir=root / ARTIFACT_DIR.relative_to("/")
+            io, locale=locale, config_output=output
         ),
     )
 
