@@ -46,6 +46,7 @@ _UPSTREAM = re.compile(r"^\s*upstream\s+(\S+)\s*(?:#.*)?$")
 _ACL_OPEN = re.compile(r"^\s*acl\s*\{\s*(?:#.*)?$")
 _DENY = re.compile(r"^\s*deny\s+(.+?)\s*$")
 _PROBE_RESISTANCE = re.compile(r"^\s*probe_resistance(?:\s|$)")
+_USERINFO = re.compile(r"(?<=://)[^/@\s]+@")
 
 
 class EgressInvalid(ValueError):
@@ -209,6 +210,12 @@ def _unmanaged_egress_lines(lines: list[str], indexes: list[int]) -> list[int]:
                 raise EgressInvalid("unterminated acl block")
             found.append(index)
     return found
+
+
+def redact_userinfo(text: str) -> str:
+    """Every `scheme://user:pass@host` in `text` with its userinfo masked: what the API may
+    show of a hand-written upstream (the journal keeps the bytes for the rollback)."""
+    return _USERINFO.sub("***@", text)
 
 
 def revision_of_lines(raw: tuple[str, ...]) -> str:

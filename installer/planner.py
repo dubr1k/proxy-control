@@ -404,37 +404,6 @@ def compose_file_list(config: InstallerConfig) -> tuple[str, ...]:
     return tuple(files)
 
 
-def profile_environment(config: InstallerConfig) -> str:
-    """Root-only, non-secret environment rendered once, never exported by hand."""
-    allowed_hosts = [config.domains.panel]
-    if config.domains.subscription is not None:
-        allowed_hosts.append(config.domains.subscription)
-    lines = [
-        f"COMPOSE_FILE={':'.join(compose_file_list(config))}",
-        f"PROXY_CONTROL_PROFILE={config.profile.value}",
-        f"PANEL_ALLOWED_HOSTS={','.join(allowed_hosts)}",
-        f"MTPROXY_DOMAIN={config.domains.mtproxy}",
-    ]
-    if config.domains.subscription is not None:
-        lines.append(f"PANEL_SUBSCRIPTION_HOST={config.domains.subscription}")
-        lines.append(f"PANEL_SUBSCRIPTION_URL=https://{config.domains.subscription}")
-    if config.profile.includes_naive and config.domains.naive is not None:
-        lines.append(f"NAIVE_PUBLIC_HOST={config.domains.naive}")
-    if config.profile.includes_mieru and config.domains.mieru is not None:
-        lines.append(f"MIERU_PUBLIC_HOST={config.domains.mieru}")
-    # The WARP proxy-mode endpoint each manager may route its service through (v0.4 egress
-    # API); empty when the host has no WARP, and the routing preview then says `warp` is
-    # unavailable on this node rather than guessing a port.
-    provider = config.effective_egress.provider_url() or ""
-    if config.profile.includes_naive:
-        lines.append(f"NAIVE_EGRESS_WARP={provider}")
-    if config.profile.includes_mieru:
-        lines.append(f"MIERU_EGRESS_WARP={provider}")
-    rendered = "\n".join(lines) + "\n"
-    _assert_secret_free({"environment": rendered})
-    return rendered
-
-
 def build_plan(
     config: InstallerConfig,
     facts: AuditFacts,

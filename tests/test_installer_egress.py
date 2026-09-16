@@ -98,12 +98,3 @@ def test_naming_a_service_the_profile_lacks_is_an_error():
         parse_config(document)
 
 
-def test_environment_carries_the_provider_url_for_each_service():
-    from installer.planner import profile_environment
-
-    with_warp = parse_config(_document('mode = "none"\n', "\n[egress]\nwarp = true\nwarp_port = 45000\n"))
-    env = profile_environment(with_warp)
-    assert "NAIVE_EGRESS_WARP=socks5://127.0.0.1:45000\n" in env and "MIERU_EGRESS_WARP=socks5://127.0.0.1:45000\n" in env
-    without = parse_config(_document('mode = "none"\n'))
-    env = profile_environment(without)
-    assert "NAIVE_EGRESS_WARP=\n" in env and "MIERU_EGRESS_WARP=\n" in env

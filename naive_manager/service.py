@@ -508,7 +508,9 @@ class NaiveCredentialManager:
             mode = "proxy"  # an unmanaged line that already names the provider
         journal = state["egress"]
         return {
-            "revision": parsed.revision, "mode": mode, "upstream": parsed.upstream, "acl": list(parsed.acl_deny),
+            "revision": parsed.revision, "mode": mode,
+            "upstream": None if parsed.upstream is None else egress_block.redact_userinfo(parsed.upstream),
+            "acl": list(parsed.acl_deny),
             "document": document, "managed": parsed.managed, "providers": self._providers(probe=probe),
             "capabilities": list(egress_block.CAPABILITIES), "restart_required": False,
             "warnings": ["adopts_unmanaged_upstream"] if parsed.upstream and not parsed.managed else [],
@@ -540,7 +542,8 @@ class NaiveCredentialManager:
         state, parsed, normalised, rendered = self._egress_target(expected_revision, document)
         before = "\n".join(parsed.raw_lines).splitlines()
         after = "\n".join(egress_block.parse(rendered).raw_lines).splitlines()
-        diff = [line for line in difflib.unified_diff(before, after, "current", "planned", lineterm="", n=0)
+        diff = [egress_block.redact_userinfo(line)
+                for line in difflib.unified_diff(before, after, "current", "planned", lineterm="", n=0)
                 if not line.startswith(("---", "+++", "@@"))]
         reachability = {}
         if normalised["upstream"] is not None:
