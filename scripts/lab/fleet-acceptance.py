@@ -149,7 +149,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--router-geoip-target", default="https://1.1.1.1/cdn-cgi/trace",
                         help="a literal-IP target inside geoip:cloudflare")
     parser.add_argument("--router-geosite-host", default="doubleclick.net", help="a host inside geosite:category-ads-all")
-    parser.add_argument("--router-control", default="https://example.com/",
+    # example.com sits behind Cloudflare these days, so the control target must not.
+    parser.add_argument("--router-control", default="https://www.wikipedia.org/",
                         help="a target outside geoip:cloudflare and geosite:category-ads-all")
     parser.add_argument("--router-plain-target", default="http://example.com/", help="a port-80 target the port rule refuses")
     parser.add_argument("--routing-other", default="https://www.cloudflare.com/cdn-cgi/trace",
@@ -1487,9 +1488,10 @@ class Scenario:
         caddy_text = self.host.caddyfile_text()
         self.check("x02_caddyfile_upstream_is_router", "@127.0.0.1:45101" in caddy_text and "upstream socks5://" in caddy_text)
         attached_caddyfile = self.host.caddyfile_sha256()
+        mark = len(self.stub.lines())  # the routing step wrote to the same stub log before
         ok, detail = self._probe("naive", allowed)
         self.check("x02_naive_passthrough_works", ok, detail)
-        self.check("x02_passthrough_bypasses_stub", urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(0))
+        self.check("x02_passthrough_bypasses_stub", urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(mark))
         secret = credential["naive"].split(":", 1)[1]
         audit = json.dumps(self.central.json("/api/audit?limit=200"))  # the newest 200: attach is among them
         db_bytes = b"".join(path.read_bytes() for path in Path(args.central_dir).glob("*.sqlite3*"))
@@ -1627,8 +1629,10 @@ class Scenario:
         self.check("x13_no_credential_in_api_audit_or_logs", not leaks, str(leaks))
 
         # router-14: rotation — the old key dies, the managers re-render, the service goes on.
-        code, out = RoutingProbes._run(str(args.router_rotate), timeout=300)
-        self.check("x14_rotation_script_ok", code == 0 and "rotated:" in out, redact(out)[:300])
+        # The script prints service names on stdout and Compose's progress on stderr.
+        completed = subprocess.run([str(args.router_rotate)], capture_output=True, text=True, timeout=300, check=False)
+        self.check("x14_rotation_script_ok", completed.returncode == 0 and "rotated:" in completed.stdout,
+                   redact((completed.stdout + completed.stderr)[-300:]))
         rotated = {p: self.host.secret_line(secrets_dir / f"xray-router-ingress-{p}") for p in ("naive", "mieru")}
         self.check("x14_secrets_changed", all(rotated[p] != credential[p] for p in rotated))
         ok, detail = self._socks_probe(ports["naive"], credential["naive"], control)
