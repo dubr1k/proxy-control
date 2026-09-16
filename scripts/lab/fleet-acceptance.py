@@ -72,6 +72,9 @@ RUN_USERNAME = re.compile(r"^fleet-(probe|offline|bulk)(-[0-9a-f]{6})?(-[0-9]{2}
 ONLINE_SECONDS = 10
 ENABLED_SECONDS = 30
 RESTART_SECONDS = 240
+# curl exit codes that mean the Internet blinked (timeout, TLS handshake cut, recv reset), not
+# that the thing under test refused: a probe expecting success gets one more try on these.
+_TRANSIENT_CURL = frozenset({28, 35, 52, 56})
 POLL = 1.0
 _SECRET_SHAPES = (
     re.compile(r"tg://proxy\?"), re.compile(r"secret=[0-9a-fA-F]"), re.compile(r"pc_[0-9a-f]{8}_[A-Za-z0-9_-]{20,}"),
@@ -1438,7 +1441,14 @@ class Scenario:
                 handle.write(f'proxy-user = "{credential}"\n')
             argv += ["--config", config]
         try:
-            code, out = RoutingProbes._run(*argv, target)
+            for attempt in range(3):
+                code, out = RoutingProbes._run(*argv, target)
+                # Timeouts, a TLS handshake cut mid-way or a reset on the way to the control
+                # target are the lab host's Internet, not the ingress: those get another try.
+                # A refusal (no acceptable auth, connection refused) never does.
+                if code not in _TRANSIENT_CURL or attempt == 2:
+                    break
+                time.sleep(2)
         finally:
             if config:
                 os.unlink(config)
