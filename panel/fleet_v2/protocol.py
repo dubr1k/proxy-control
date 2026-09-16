@@ -59,13 +59,23 @@ class Resource(_Strict):
 
 class EgressDocument(_Strict):
     """What one protocol's egress should be on the node (v0.4, spec §8.3): the compiled
-    document the manager validates, named by the policy revision it came from."""
+    document the manager validates, named by the policy revision it came from.
 
-    backend: Literal["naive_native", "mieru_native"]
+    With the node's Xray-router (v0.5) a section names *two* managers: `backend` says
+    which one `document` is for (the router's intent under `xray_router`, the native
+    manager's document otherwise) and `companion` is what the *other* one gets afterwards
+    — the native attach document beside a router intent, the router's pass-through beside a
+    native detach. Absent from the wire when None, so a v0.4 node keeps its strict model."""
+
+    backend: Literal["naive_native", "mieru_native", "xray_router"]
     policy_id: str = Field(min_length=1, max_length=64)
     policy_revision: int = Field(ge=1)
     document: dict
     digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    companion: dict | None = None
+    # An attach/detach generation (v0.5): the backend runs its pass-through, the policy's own
+    # rules are not what this section applies. Omitted from the wire when False.
+    passthrough: bool = False
 
     @model_validator(mode="after")
     def digest_names_the_document(self):
@@ -73,6 +83,8 @@ class EgressDocument(_Strict):
             raise ValueError("egress document too large")
         if document_digest(self.document) != self.digest:
             raise ValueError("egress digest does not match the document")
+        if self.companion is not None and len(canonical(self.companion)) > MAX_EGRESS_BYTES:
+            raise ValueError("egress companion document too large")
         return self
 
 
@@ -95,6 +107,12 @@ class GenerationDocument(_Strict):
         payload = self.model_dump()
         if payload.get("egress") is None:
             payload.pop("egress", None)
+        else:
+            for entry in payload["egress"].values():
+                if entry.get("companion") is None:
+                    entry.pop("companion", None)
+                if not entry.get("passthrough"):
+                    entry.pop("passthrough", None)
         return payload
 
     @model_validator(mode="after")
@@ -156,6 +174,9 @@ class ObservedEgress(_Report):
     revision: str | None = None
     digest: str | None = None
     error: str | None = None
+    # The router's side of the section (v0.5): its own revision and generation; an older
+    # central ignores the field.
+    router: dict | None = None
 
 
 class ObservedGeneration(_Report):

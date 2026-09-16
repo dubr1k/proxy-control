@@ -155,7 +155,7 @@ def create_app(
     app.state.panel_version = read_panel_version(settings.panel_version_file)
     app.state.reconciler = Reconciler(
         app.state.database, app.state.secrets, app.state.adapters, app.state.managed,
-        guid=app.state.panel_guid,
+        guid=app.state.panel_guid, router=app.state.router,
     )
     # A generation accepted before a restart is applied again (spec §5.3).
     app.add_event_handler("startup", app.state.reconciler.run_pending)

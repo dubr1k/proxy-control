@@ -416,11 +416,40 @@ class RoutingService:
                        request_id=request_id, detail={"outcome": "detached"})
         return await self._target_item(node_id, protocol)
 
+    def _retargeted(self, node_id: str, protocol: str, policy: RoutingPolicy | None, backend: str) -> RoutingPolicy:
+        with self.database.transaction() as db:
+            now = int(self.clock.time())
+            if policy is None:
+                return self.store.upsert(db, node_id, protocol, PolicyInput(backend=backend), expected_revision=None, now=now)
+            if policy.backend != backend:
+                return self.store.retarget(db, policy.id, backend, now=now)
+            return policy
+
     async def _attach_remote(self, node_id: str, protocol: str, policy, *, actor, ip, request_id) -> dict:
-        raise RoutingError(409, "node_not_local", "attaching a linked node is not available yet")
+        """The linked node attaches through its next generation (spec §9.3): a router section
+        that runs pass-through, with the native attach document as its companion."""
+        policy = self._retargeted(node_id, protocol, policy, ROUTER_BACKEND)
+        intent = json.loads(json.dumps(ROUTER_DIRECT_INTENT))
+        desired = {"backend": ROUTER_BACKEND, "policy_id": policy.id, "policy_revision": policy.revision,
+                   "document": intent, "digest": document_digest(intent), "companion": attach_document(protocol),
+                   "passthrough": True}
+        self._publish_desired(policy, desired, action="routing.target.attach",
+                              detail={"backend": ROUTER_BACKEND, "outcome": "applying"}, actor=actor, ip=ip,
+                              request_id=request_id)
+        return await self._target_item(node_id, protocol)
 
     async def _detach_remote(self, node_id: str, protocol: str, policy, *, actor, ip, request_id) -> dict:
-        raise RoutingError(409, "node_not_local", "detaching a linked node is not available yet")
+        """The linked node detaches through its next generation: the native document back to
+        direct, the router's pass-through as its companion."""
+        native = BACKEND_FOR[protocol]
+        policy = self._retargeted(node_id, protocol, policy, native)
+        document = direct_document(native)
+        desired = {"backend": native, "policy_id": policy.id, "policy_revision": policy.revision,
+                   "document": document, "digest": document_digest(document),
+                   "companion": json.loads(json.dumps(ROUTER_DIRECT_INTENT)), "passthrough": True}
+        self._publish_desired(policy, desired, action="routing.target.detach",
+                              detail={"backend": native, "outcome": "applying"}, actor=actor, ip=ip, request_id=request_id)
+        return await self._target_item(node_id, protocol)
 
     def _for_change(self, node_id: str, protocol: str, expected_revision: int) -> tuple[RoutingPolicy, dict]:
         with self.database.connect() as db:
@@ -446,6 +475,9 @@ class RoutingService:
         if compiled.status != "supported":
             if any(reason.code == "not_attached" for reason in compiled.reasons):
                 raise RoutingError(409, "not_attached", f"{protocol} is not attached to the node's Xray-router",
+                                   compiled=compiled)
+            if (self._kind(row) == "remote" and router is None and policy.backend == ROUTER_BACKEND):
+                raise RoutingError(422, "node_lacks_router", "the node must be updated to v0.5 and run an Xray-router",
                                    compiled=compiled)
             raise RoutingError(422, "unsupported", "the policy cannot be enforced on this node", compiled=compiled)
         if self._kind(row) != "local":
@@ -492,6 +524,8 @@ class RoutingService:
     async def _apply_remote(self, policy: RoutingPolicy, compiled: Compiled, *, actor, ip, request_id) -> dict:
         desired = {"backend": policy.backend, "policy_id": policy.id, "policy_revision": policy.revision,
                    "document": compiled.document, "digest": compiled.digest}
+        if compiled.attach is not None:
+            desired["companion"] = compiled.attach
         updated = self._publish_desired(policy, desired, action="routing.policy.apply", detail={"digest": compiled.digest},
                                         actor=actor, ip=ip, request_id=request_id)
         return {"policy": updated, "applied": None, "compiled": compiled}
@@ -505,6 +539,8 @@ class RoutingService:
             raise RoutingError(409, "egress_no_previous", "no previous applied document to return to")
         desired = {"backend": policy.backend, "policy_id": policy.id, "policy_revision": previous["revision"],
                    "document": previous["document"], "digest": previous["digest"]}
+        if policy.backend == ROUTER_BACKEND:
+            desired["companion"] = attach_document(policy.protocol)
         updated = self._publish_desired(policy, desired, action="routing.policy.rollback",
                                         detail={"to_revision": previous["revision"], "digest": previous["digest"]},
                                         actor=actor, ip=ip, request_id=request_id)

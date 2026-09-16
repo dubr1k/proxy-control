@@ -18,6 +18,7 @@ from collections import Counter
 
 from ..clients.models import PROTOCOL_OPTIONS, GrantIntent
 from ..protocols.base import AdapterError, AppliedGrant, CredentialPlan, GrantRef, ObservedGrant
+from ..routing.document import document_digest
 from ..secrets_store import SecretRef
 from .managed import ManagedStore
 from .protocol import EgressDocument, ObservedGeneration, ObservedResource, PushRequest, Resource
@@ -55,9 +56,11 @@ def _state(enabled: bool) -> str:
 
 
 class Reconciler:
-    def __init__(self, database, secrets, adapters: dict, managed: ManagedStore, *, guid: str, clock=time):
+    def __init__(self, database, secrets, adapters: dict, managed: ManagedStore, *, guid: str, clock=time, router=None):
         self.database, self.secrets, self.adapters, self.managed = database, secrets, adapters, managed
         self.guid, self.clock = guid, clock
+        # The node's Xray-router adapter (v0.5), None when this node runs no router.
+        self.router = router
         # A push and the startup retry may overlap; two interleaved applies would race
         # the same runtime users.
         self._lock = asyncio.Lock()
@@ -302,25 +305,66 @@ class Reconciler:
     # ---- egress (v0.4, spec §8.3): after the resources, one section per protocol ------
 
     def _record_egress(self, protocol: str, generation: int, state: str, *, revision: str | None = None,
-                       digest: str | None = None, error: str | None = None) -> None:
+                       digest: str | None = None, error: str | None = None, router_revision: str | None = None,
+                       router_digest: str | None = None) -> None:
         with self.database.transaction() as db:
             self.managed.upsert_egress(db, protocol=protocol, generation=generation, state=state, revision=revision,
-                                       digest=digest, error=error)
+                                       digest=digest, error=error, router_revision=router_revision,
+                                       router_digest=router_digest)
+
+    async def _apply_native(self, protocol: str, document: dict, digest: str, generation: int, *, tag: str) -> tuple[str, str]:
+        """The native manager's document, unless it already runs it. (revision, digest)."""
+        adapter = self.adapters.get(protocol)
+        target = None if adapter is None else await adapter.egress_target()
+        if target is None:
+            raise AdapterError(f"{protocol} has no egress on this node", code="egress_unsupported")
+        if target.applied is not None and target.applied["digest"] == digest:
+            return target.revision, digest
+        applied = await adapter.apply_egress(document, expected_revision=target.revision,
+                                             operation_id=f"{self.guid}:{generation}:{tag}:{protocol}")
+        return applied.revision, applied.digest or digest
+
+    async def _apply_router(self, protocol: str, document: dict, digest: str, generation: int, *, tag: str) -> tuple[str, str]:
+        """The router's section for the service, unless it already runs it. (revision, digest)."""
+        if self.router is None:
+            raise AdapterError("this node has no Xray-router", code="router_unavailable")
+        target = await self.router.target(protocol)
+        if not target.available:
+            raise AdapterError("the node's Xray-router does not answer", code=target.reason or "router_unavailable")
+        if target.applied is not None and target.applied["digest"] == digest:
+            return target.revision, digest
+        applied = await self.router.apply(protocol, document, expected_revision=target.revision,
+                                          operation_id=f"{self.guid}:{generation}:{tag}:{protocol}")
+        return applied.revision, applied.digest or digest
 
     async def _apply_egress_section(self, protocol: str, entry: EgressDocument, generation: int) -> None:
+        """A native section: the native document, then (v0.5) its `companion` on the router.
+        A router section: the router's intent first, then the native attach `companion`
+        — so the service is never handed to a router that does not yet run its policy."""
+        if entry.backend == "xray_router":
+            router_revision, router_digest = await self._apply_router(protocol, entry.document, entry.digest, generation,
+                                                                      tag="router")
+            revision = None
+            if entry.companion is not None:
+                revision, _digest = await self._apply_native(protocol, entry.companion, document_digest(entry.companion),
+                                                             generation, tag="egress")
+            self._record_egress(protocol, generation, "converged", revision=revision, digest=entry.digest,
+                                router_revision=router_revision, router_digest=router_digest)
+            return
         adapter = self.adapters.get(protocol)
         target = None if adapter is None else await adapter.egress_target()
         if target is None:
             raise AdapterError(f"{protocol} has no egress on this node", code="egress_unsupported")
         if target.backend != entry.backend:
             raise AdapterError(f"{protocol} runs {target.backend}, not {entry.backend}", code="egress_unsupported")
-        if target.applied is not None and target.applied["digest"] == entry.digest:
-            # Already what the runtime runs: a re-PUT or a restart re-applies nothing.
-            self._record_egress(protocol, generation, "converged", revision=target.revision, digest=entry.digest)
-            return
-        applied = await adapter.apply_egress(entry.document, expected_revision=target.revision,
-                                             operation_id=f"{self.guid}:{generation}:egress:{protocol}")
-        self._record_egress(protocol, generation, "converged", revision=applied.revision, digest=applied.digest)
+        revision, digest = await self._apply_native(protocol, entry.document, entry.digest, generation, tag="egress")
+        router_revision = router_digest = None
+        if entry.companion is not None:
+            router_revision, router_digest = await self._apply_router(protocol, entry.companion,
+                                                                      document_digest(entry.companion), generation,
+                                                                      tag="router")
+        self._record_egress(protocol, generation, "converged", revision=revision, digest=digest,
+                            router_revision=router_revision, router_digest=router_digest)
 
     async def _apply_egress(self, egress: dict[str, EgressDocument] | None, generation: int) -> bool:
         """Apply each protocol's egress section; True when any failed. No section at all

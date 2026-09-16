@@ -32,8 +32,11 @@ from .reconcile import GenerationSuperseded
 # reconcile keeps running in the background.
 APPLY_DEADLINE = 25.0
 # `egress.v1` (v0.4): this node applies the `egress` section of a generation and reports
-# its egress targets in `identity.protocols[*].egress`.
+# its egress targets in `identity.protocols[*].egress`. `egress.router.v1` (v0.5) joins when
+# the node runs an Xray-router: it applies `xray_router` sections (with their `companion`)
+# and reports the router in `identity.router`.
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "unlink", "egress.v1")
+ROUTER_CAPABILITY = "egress.router.v1"
 VERSIONS_UNAVAILABLE = {"enabled": False, "components": {}, "reason": "version_agent_unavailable"}
 NO_STORE = {"Cache-Control": "no-store"}
 log = logging.getLogger(__name__)
@@ -99,7 +102,25 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         return {"backend": target.backend, "capabilities": sorted(target.capabilities), "providers": target.providers,
                 "revision": target.revision, "mode": target.mode, "restart_required": target.restart_required,
                 "applied_digest": target.applied["digest"] if target.applied else None,
-                "warnings": list(target.warnings)}
+                "warnings": list(target.warnings), "router_attached": target.router_attached}
+
+    async def _router_entry() -> dict | None:
+        """The node's Xray-router as the central's compiler reads it (v0.5): None without a
+        router; unavailable with its reason; otherwise the cells, the WARP provider as the
+        router sees it, and per service the section's revision and applied digest."""
+        router = getattr(app.state, "router", None)
+        if router is None:
+            return None
+        sections = {}
+        for service in ("naive", "mieru"):
+            target = await router.target(service)
+            if not target.available:
+                return {"available": False, "reason": target.reason or "router_unavailable"}
+            sections[service] = {"revision": target.revision,
+                                 "applied_digest": target.applied["digest"] if target.applied else None}
+            capabilities, providers, xray_version = target.capabilities, target.providers, target.xray_version
+        return {"available": True, "xray_version": xray_version, "capabilities": sorted(capabilities),
+                "providers": providers, "services": sections}
 
     async def _protocol_table(*, egress: bool = False) -> dict:
         telemt, naive, mieru = await asyncio.gather(
@@ -181,9 +202,11 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
     async def identity(_key=Depends(context.fleet_key)):
         with app.state.database.connect() as db:
             master = app.state.managed.master_guid(db)
+        router = await _router_entry()
+        capabilities = list(CAPABILITIES) + ([ROUTER_CAPABILITY] if router is not None else [])
         return {"guid": app.state.panel_guid, "panel_version": app.state.panel_version, "api_version": 2,
                 "master_guid": master, "protocols": await _protocol_table(egress=True),
-                "capabilities": list(CAPABILITIES)}
+                "capabilities": capabilities, "router": router}
 
     @app.get("/api/fleet/v2/status")
     async def status(_key=Depends(context.fleet_key)):
