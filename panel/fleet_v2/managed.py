@@ -98,14 +98,17 @@ class ManagedStore:
 
     @staticmethod
     def upsert_egress(db, *, protocol: str, generation: int, state: str, revision: str | None = None,
-                      digest: str | None = None, error: str | None = None) -> None:
+                      digest: str | None = None, error: str | None = None, router_revision: str | None = None,
+                      router_digest: str | None = None) -> None:
         db.execute(
-            """INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at)
-               VALUES(?,?,?,?,?,?,?)
+            """INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at,
+               router_revision,router_digest)
+               VALUES(?,?,?,?,?,?,?,?,?)
                ON CONFLICT(protocol) DO UPDATE SET generation=excluded.generation, revision=excluded.revision,
                digest=excluded.digest, state=excluded.state, last_error=excluded.last_error,
-               updated_at=excluded.updated_at""",
-            (protocol, generation, revision, digest, state, error, int(time.time())))
+               updated_at=excluded.updated_at, router_revision=excluded.router_revision,
+               router_digest=excluded.router_digest""",
+            (protocol, generation, revision, digest, state, error, int(time.time()), router_revision, router_digest))
 
     def observed(self, db) -> ObservedGeneration | None:
         latest = self.latest(db)
@@ -119,7 +122,9 @@ class ManagedStore:
                                         learned=json.loads(r.get("learned_json") or "{}"))
                        for r in self.resources(db).values()],
             egress={protocol: ObservedEgress(state=row["state"], revision=row["revision"], digest=row["digest"],
-                                             error=row["last_error"])
+                                             error=row["last_error"],
+                                             router=None if row.get("router_revision") is None else {
+                                                 "revision": row["router_revision"], "digest": row.get("router_digest")})
                     for protocol, row in self.egress_rows(db).items()},
             reported_at=int(time.time()),
         )

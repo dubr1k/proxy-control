@@ -140,7 +140,9 @@ class RoutingStore:
             db.execute(
                 "UPDATE routing_policies SET state=?, applied_revision=?, applied_digest=?, applied_at=?, last_error=NULL,"
                 " updated_at=? WHERE id=?", (state, applied_revision, applied_digest, now, now, policy_id))
-        elif state == "rolled_back":
+        elif state in ("rolled_back", "draft"):
+            # `draft` with applied fields (v0.5): the node runs the backend's pass-through after
+            # an attach/detach while the policy's rules wait to be applied.
             db.execute(
                 "UPDATE routing_policies SET state=?, applied_revision=?, applied_digest=?, applied_at=?, last_error=?,"
                 " updated_at=? WHERE id=?", (state, applied_revision, applied_digest, now, last_error, now, policy_id))

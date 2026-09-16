@@ -83,10 +83,16 @@ def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | Non
         return None
     row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (node_id,)).fetchone()
     identity = json.loads(row["identity_json"]) if row is not None else {}
-    if "egress.v1" not in (identity.get("capabilities") or []):
+    capabilities = identity.get("capabilities") or []
+    if "egress.v1" not in capabilities:
         return None
     desired = {protocol: EgressDocument.model_validate(value)
                for protocol, value in routing.desired_for_node(db, node_id).items()}
+    if "egress.router.v1" not in capabilities:
+        # A v0.4 node: a router section or a companion would be refused by its strict model,
+        # so such a policy stays out of the generation (its apply was refused earlier).
+        desired = {protocol: entry for protocol, entry in desired.items()
+                   if entry.backend != "xray_router" and entry.companion is None and not entry.passthrough}
     return desired or None
 
 

@@ -366,7 +366,22 @@ class FleetPusher:
             except PolicyNotFound:
                 continue
             detail = {"generation": latest["generation"], "manager_revision": report.revision}
+            if report.router is not None:
+                detail["router"] = report.router
             if report.state == "converged":
+                # An attach/detach generation (v0.5) runs the backend's pass-through while the
+                # policy itself still has rules: the node did what was asked, the policy is
+                # not applied — it waits as a draft on its new backend.
+                policy_empty = policy.default_action == "direct" and not any(rule.enabled for rule in policy.rules)
+                if entry.passthrough and not policy_empty:
+                    if policy.state == "draft" and policy.applied_digest == entry.digest and policy.backend == entry.backend:
+                        continue
+                    self.routing.mark(db, policy.id, state="draft", applied_revision=None, applied_digest=entry.digest, now=now)
+                    self.routing.record_apply(db, policy.id, revision=entry.policy_revision, digest=entry.digest,
+                                              backend=entry.backend, outcome="applied",
+                                              detail=json.dumps({**detail, "passthrough": True}, sort_keys=True),
+                                              actor="node", document=entry.document, now=now)
+                    continue
                 if (policy.state, policy.applied_revision, policy.applied_digest) == ("applied", entry.policy_revision,
                                                                                       entry.digest):
                     continue
