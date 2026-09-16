@@ -174,6 +174,30 @@ async def test_apply_router_policy_on_detached_service_is_409_not_attached(stand
     assert preview.status == "unsupported" and preview.reasons[0].code == "not_attached"
 
 
+async def test_native_block_drift_shows_detached(stand):
+    """Somebody removes the router upstream from the Caddyfile by hand (spec §12): the target
+    reports the service detached, the policy stays on the router but cannot be applied."""
+    service, naive, router = stand["service"], stand["naive"], stand["router"]
+    await service.attach("local", "naive", **CTX)
+    attached = next(item for item in await service.targets() if item["protocol"] == "naive")
+    assert attached["router"]["attached"] is True and attached["backend"] == "xray_router"
+    naive.egress_document = {"schema": 1, "upstream": None, "acl": []}  # the hand edit
+    drifted = next(item for item in await service.targets() if item["protocol"] == "naive")
+    assert drifted["router"]["attached"] is False and drifted["backend"] == "naive_native"
+    assert drifted["policy"]["backend"] == "xray_router"
+    service.save("local", "naive", _warp(backend="xray_router"), expected_revision=1, **CTX)
+    calls = list(router.calls)
+    with pytest.raises(RoutingError) as caught:
+        await service.apply("local", "naive", expected_revision=2, **CTX)
+    assert (caught.value.status, caught.value.code) == (409, "not_attached")
+    assert router.calls == calls and service.get("local", "naive").state == "draft"  # refused before any record
+    # Attaching again repairs the drift: the native upstream comes back, the policy applies.
+    await service.attach("local", "naive", **CTX)
+    assert naive.egress_document["upstream"] == {"provider": "router"}
+    await service.apply("local", "naive", expected_revision=2, **CTX)
+    assert service.get("local", "naive").state == "applied"
+
+
 async def test_apply_router_failure_marks_failed_and_maps_codes(stand):
     service, router = stand["service"], stand["router"]
     await service.attach("local", "naive", **CTX)

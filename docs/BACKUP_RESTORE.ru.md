@@ -13,6 +13,7 @@ Backup считается пригодным только если он согл
 | Telemt | `telemt-config` volume, исходные secret files, API token |
 | Naive | полный `NAIVE_DATA_DIR`, Caddyfile, users state, transaction/backups, accounting SQLite/WAL/SHM, Caddy binary/unit, log ownership contract |
 | Mieru | manager state целиком, `journal.json` + исходный `journal.key`, backups, manager token, `mita` config/binary/unit, UDS/tmpfiles contract |
+| Xray-router (v0.5) | `/var/lib/xray-router` (поколения, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; копии менеджеров `/var/lib/naive-manager/xray-router-ingress` и `/var/lib/mieru-manager/xray-router-ingress` едут вместе с их каталогами состояния; бинари берутся из закреплённого архива, никогда из резервной копии |
 | Fleet central | panel DB, ingress config, public server cert, client CA certificate; offline CA private key отдельно |
 | Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests и installer backups |
@@ -143,6 +144,33 @@ docker compose up -d mieru-manager panel
 ```
 
 Проверяйте exact `mita` status, manager health и реальный Mieru client path.
+
+## Xray-router generation (v0.5)
+
+Остановите panel и `xray-router`, если копируется live state. Сохраняйте вместе, как одну единицу:
+`/var/lib/xray-router` (0700, владелец 10006:10006; поколения в `generations/`, `current.json`,
+`journal.json`, `state.json`), `secrets/xray-router-manager-token` и два ключа ingress
+`secrets/xray-router-ingress-naive` / `-mieru` (root, 0600), а также `.env.xray-router` (дайджесты членов и
+`XRAY_ROUTER_EGRESS_WARP`). Ключи ingress должны совпадать с копиями в каталогах состояния менеджеров
+(`/var/lib/naive-manager/xray-router-ingress`, `/var/lib/mieru-manager/xray-router-ingress`) и с тем, что
+несут upstream Caddy / `socks5Authentication` mita: восстанавливайте всё из одного момента либо сразу после
+восстановления ротируйте ключи (`/usr/local/libexec/rotate-xray-router-ingress`) — менеджеры перерисуют блоки.
+
+Бинари не резервируются: при восстановлении их ставят заново из закреплённого архива
+(`/var/lib/proxy-control/Xray-linux-64.zip`, дайджесты в `release/external-artifacts.json`) через установщик
+(`repair`) или извлекая ровно `xray`, `geoip.dat`, `geosite.dat` в `/usr/local/lib/proxy-control/xray-router`
+(0755, файлы 0755/0644). Затем:
+
+```bash
+sudo ./scripts/prepare-xray-router-state.sh verify /var/lib/xray-router
+docker compose up -d --wait xray-router panel
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status
+```
+
+Статус должен показать `verified: true` у всех трёх артефактов и `running.generation` не меньше 1;
+несовпадение дайджеста держит роутер выключенным с `artifact_mismatch` (экран «Маршрутизация» это покажет) —
+это и есть правильный ответ на чужой архив. Поколения содержат отрендеренный конфиг Xray с ключами ingress
+внутри: не печатайте их и не прикладывайте к отчётам.
 
 ## Nginx и shared 443
 

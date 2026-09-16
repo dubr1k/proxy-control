@@ -834,6 +834,55 @@ class DeployCliTests(unittest.TestCase):
                 )
                 self.assertEqual(verified.returncode, 0, verified.stderr)
 
+    # --- the Xray-router (v0.5): frozen identifiers (docs/COMPATIBILITY.md) ---
+
+    def test_xray_router_frozen_identifiers(self):
+        """Container, identity, ports, secrets and volume names are wire/host contracts from
+        v0.5 on: the installer, the managers, the lab and the docs all spell them the same."""
+        sys.path.insert(0, str(ROOT))
+        from installer.adapters import xray_router as adapter
+        from installer.model import ROUTER_PORTS
+        from xray_router_manager.intent import PORTS
+
+        compose = (ROOT / "compose.xray-router.yaml").read_text()
+        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertIn("container_name: proxy-control-xray-router", compose)
+        self.assertIn('user: "10006:10006"', compose)
+        self.assertIn("network_mode: host", compose)
+        for secret in ("xray-router-manager-token", "xray-router-ingress-naive", "xray-router-ingress-mieru"):
+            self.assertIn(f"    file: ./secrets/{secret}", compose, secret)
+        self.assertIn("xray-router-run:", compose)
+        self.assertIn("o: uid=10006,gid=10006,mode=0770", compose)
+        self.assertEqual(PORTS, {"naive": 45101, "mieru": 45102})
+        self.assertEqual(ROUTER_PORTS, PORTS)
+        self.assertEqual((adapter._ROUTER_UID, adapter._ROUTER_GID, adapter._CONTAINER, adapter._SERVICE),
+                         (10006, 10006, "proxy-control-xray-router", "xray-router"))
+        self.assertEqual(adapter._BIN_DIR, "/usr/local/lib/proxy-control/xray-router")
+        self.assertEqual(adapter._STATE_DIR, "/var/lib/xray-router")
+        dockerfile = (ROOT / "xray_router_manager/Dockerfile").read_text()
+        self.assertIn("--uid 10006", dockerfile)
+        self.assertIn("USER 10006:10006", dockerfile)
+        preparer = (ROOT / "scripts/prepare-xray-router-state.sh").read_text()
+        self.assertIn("ROUTER_UID=10006", preparer)
+        self.assertIn("ROUTER_MODE=0700", preparer)
+
+    def test_no_reference_to_three_xui_paths_in_router(self):
+        """The router is its own runtime (spec §15): nothing of it reads or writes 3x-ui's."""
+        files = [ROOT / "compose.xray-router.yaml", ROOT / "installer/adapters/xray_router.py",
+                 ROOT / "scripts/prepare-xray-router-state.sh", ROOT / "scripts/rotate-xray-router-ingress.sh",
+                 *sorted((ROOT / "xray_router_manager").glob("*.py")), ROOT / "xray_router_manager/Dockerfile"]
+        for path in files:
+            text = path.read_text()
+            for needle in ("/usr/local/x-ui", "/etc/x-ui", "x-ui.db", "3x-ui"):
+                self.assertNotIn(needle, text, f"{path.relative_to(ROOT)} mentions {needle}")
+
+    def test_backup_docs_list_router_state(self):
+        for name in ("docs/BACKUP_RESTORE.en.md", "docs/BACKUP_RESTORE.ru.md"):
+            text = (ROOT / name).read_text()
+            for needle in ("/var/lib/xray-router", "secrets/xray-router-", ".env.xray-router",
+                           "prepare-xray-router-state.sh verify", "healthcheck --status", "rotate-xray-router-ingress"):
+                self.assertIn(needle, text, f"{name} lacks {needle}")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
