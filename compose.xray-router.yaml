@@ -1,0 +1,93 @@
+name: mtproxy
+
+# The dedicated Xray egress router (v0.5, ADR 007): one supervised Xray process behind a
+# manager on a Unix socket, two authenticated SOCKS5 ingresses on the host loopback
+# (naive 45101, mieru 45102). Host network so the loopback ingresses are where Caddy and
+# mita can reach them; nothing else of the container is reachable. The Xray binary and its
+# geodata come from the host path the installer filled from the pinned release archive,
+# and the manager checks their digests before it starts anything.
+services:
+  xray-router:
+    container_name: proxy-control-xray-router
+    build:
+      context: .
+      dockerfile: xray_router_manager/Dockerfile
+    restart: unless-stopped
+    network_mode: host
+    user: "10006:10006"
+    environment:
+      XRAY_ROUTER_BIN_DIR: /opt/xray
+      XRAY_ROUTER_STATE_DIR: /var/lib/xray-router
+      XRAY_ROUTER_SOCKET: /run/xray-router/manager.sock
+      XRAY_ROUTER_SOCKET_MODE: "660"
+      XRAY_ROUTER_MANAGER_TOKEN_FILE: /run/secrets/xray-router-manager-token
+      XRAY_ROUTER_INGRESS_NAIVE_FILE: /run/secrets/xray-router-ingress-naive
+      XRAY_ROUTER_INGRESS_MIERU_FILE: /run/secrets/xray-router-ingress-mieru
+      XRAY_ROUTER_XRAY_SHA256: ${XRAY_ROUTER_XRAY_SHA256:?set the pinned xray binary SHA-256}
+      XRAY_ROUTER_GEOIP_SHA256: ${XRAY_ROUTER_GEOIP_SHA256:?set the pinned geoip.dat SHA-256}
+      XRAY_ROUTER_GEOSITE_SHA256: ${XRAY_ROUTER_GEOSITE_SHA256:?set the pinned geosite.dat SHA-256}
+      # The host's WARP proxy-mode endpoint the router may send traffic through; empty = no
+      # `warp` provider on this node. Written by the installer.
+      XRAY_ROUTER_EGRESS_WARP: ${XRAY_ROUTER_EGRESS_WARP:-}
+      TMPDIR: /tmp
+    secrets: [xray-router-manager-token, xray-router-ingress-naive, xray-router-ingress-mieru]
+    volumes:
+      - type: bind
+        source: ${XRAY_ROUTER_BIN_DIR:-/usr/local/lib/proxy-control/xray-router}
+        target: /opt/xray
+        read_only: true
+        bind:
+          create_host_path: false
+      # Mandatory host preflight: sudo ./scripts/prepare-xray-router-state.sh prepare "$XRAY_ROUTER_STATE_DIR"
+      - type: bind
+        source: ${XRAY_ROUTER_STATE_DIR:-/var/lib/xray-router}
+        target: /var/lib/xray-router
+        bind:
+          create_host_path: false
+      - xray-router-run:/run/xray-router
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777,uid=10006,gid=10006
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-m", "xray_router_manager.healthcheck"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  # The data-plane managers learn their private ingress through their own overlays
+  # (`NAIVE_EGRESS_ROUTER*` in compose.naive.yaml, `MIERU_EGRESS_ROUTER*` in
+  # compose.mieru.yaml): the installer writes the endpoint into .env.naive / .env.mieru and
+  # the credential into each manager's own state directory.
+  panel:
+    depends_on:
+      xray-router:
+        condition: service_healthy
+    group_add:
+      - "10006"
+    environment:
+      XRAY_ROUTER_ENABLED: "true"
+      XRAY_ROUTER_MANAGER_TOKEN_SOURCE: /run/secrets/xray-router-manager-token
+      XRAY_ROUTER_MANAGER_SOCKET: /run/xray-router/manager.sock
+      PANEL_SUPPLEMENTARY_GROUPS: "10001,10005,10006"
+    secrets: [xray-router-manager-token]
+    volumes:
+      - xray-router-run:/run/xray-router:ro
+
+secrets:
+  xray-router-manager-token:
+    file: ./secrets/xray-router-manager-token
+  xray-router-ingress-naive:
+    file: ./secrets/xray-router-ingress-naive
+  xray-router-ingress-mieru:
+    file: ./secrets/xray-router-ingress-mieru
+
+volumes:
+  xray-router-run:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: uid=10006,gid=10006,mode=0770
