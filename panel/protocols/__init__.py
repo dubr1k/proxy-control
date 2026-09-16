@@ -13,10 +13,12 @@ from .base import (
     ObservedInventory,
     Preflight,
     ProtocolAdapter,
+    RouterTarget,
 )
 from .mieru import MieruAdapter
 from .naive import NaiveAdapter
 from .telemt import TelemtAdapter
+from .xray_router import RouterAdapter
 
 __all__ = [
     "EGRESS_ERROR_CODES",
@@ -34,5 +36,7 @@ __all__ = [
     "ObservedInventory",
     "Preflight",
     "ProtocolAdapter",
+    "RouterAdapter",
+    "RouterTarget",
     "TelemtAdapter",
 ]

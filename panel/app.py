@@ -36,6 +36,7 @@ from .naive import NaiveClient, NaiveError
 from .naive_routes import register_naive_routes
 from .node_routes import register_node_routes
 from .protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
+from .protocols.xray_router import RouterAdapter
 from .nodes.service import NodeLifecycleService
 from .routing.routes import register_routing_routes
 from .routing.service import RoutingService
@@ -50,6 +51,7 @@ from .telemt_routes import register_telemt_dashboard_routes
 from .version_routes import register_version_routes
 from .versions import VersionAgentError, VersionClient
 from .web_context import KeyRateLimiter, RequestContext, install_security_middleware
+from .xray_router import XrayRouterClient
 
 # How long shutdown waits for a fleet tick in flight before cancelling it.
 PUSHER_STOP_GRACE = 5.0
@@ -61,6 +63,7 @@ def create_app(
     telemt=None,
     naive=None,
     mieru=None,
+    router=None,
     version_client=None,
 ):
     settings = settings or Settings()
@@ -109,6 +112,13 @@ def create_app(
         "naive": NaiveAdapter(app.state.naive, public_host=settings.naive_public_host),
         "mieru": MieruAdapter(app.state.mieru),
     }
+    # The node's Xray-router (v0.5): present only when its overlay is part of the stack.
+    if router is not None:
+        app.state.router = RouterAdapter(router)
+    elif settings.xray_router_enabled:
+        app.state.router = RouterAdapter(XrayRouterClient(settings.xray_router_socket, settings.xray_router_token))
+    else:
+        app.state.router = None
     app.state.clients.adapters = app.state.adapters
     # Resources the central panel owns (ADR 003): every local writer asks here first.
     app.state.managed = ManagedStore(app.state.database)

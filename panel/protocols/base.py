@@ -12,12 +12,14 @@ from dataclasses import dataclass, field
 from typing import Literal, Protocol, runtime_checkable
 
 from ..clients.models import AccessGrant, GrantIntent
-from ..routing.document import EGRESS_REASON_CODES, document_digest
+from ..routing.document import EGRESS_REASON_CODES, attached_to_router, document_digest
 
 # What an egress operation may fail with (v0.4 routing): the managers' own bounded codes,
-# plus the two only the panel can know — a backend without egress and a manager that
-# cannot answer at all. Anything else a manager says is folded into these.
-EGRESS_ERROR_CODES = EGRESS_REASON_CODES | {"egress_unsupported", "manager_unavailable"}
+# plus the ones only the panel can know — a backend without egress, a manager that cannot
+# answer at all, and (v0.5) a router that is absent, unreachable from the service's manager
+# or not the service's current backend. Anything else a manager says is folded into these.
+EGRESS_ERROR_CODES = EGRESS_REASON_CODES | {"egress_unsupported", "manager_unavailable", "router_unavailable",
+                                            "router_unreachable", "not_attached"}
 
 
 class AdapterError(RuntimeError):
@@ -104,7 +106,7 @@ class EgressTarget:
     `custom`): the first apply adopts it, and a rollback puts it back verbatim."""
 
     protocol: str
-    backend: Literal["naive_native", "mieru_native"]
+    backend: Literal["naive_native", "mieru_native", "xray_router"]
     capabilities: frozenset[str]
     providers: dict[str, dict]
     revision: str
@@ -113,6 +115,27 @@ class EgressTarget:
     restart_required: bool = False
     warnings: tuple[str, ...] = ()
     runtime_version: str | None = None
+    # The applied native document hands the whole service to the node's Xray-router (v0.5):
+    # the policy then lives in the router and this backend's own document stays fixed.
+    router_attached: bool = False
+
+
+@dataclass(frozen=True)
+class RouterTarget:
+    """One service's section on the node's Xray-router as the compiler needs it (v0.5): the
+    router's capability cells, the WARP provider as the router sees it, the section's
+    revision and applied intent. `available` False carries the reason (`router_unavailable`,
+    `artifact_mismatch`, `manual_intervention_required`)."""
+
+    available: bool
+    service: str
+    capabilities: frozenset[str] = frozenset()
+    providers: dict[str, dict] = field(default_factory=dict)
+    revision: str = ""
+    applied: dict | None = None
+    xray_version: str | None = None
+    restart_required: bool = True
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +167,24 @@ def egress_target_from_view(protocol: str, backend: str, view: dict) -> EgressTa
         mode=view.get("mode") if view.get("mode") in ("direct", "proxy", "custom") else "custom",
         restart_required=view.get("restart_required") is True,
         warnings=tuple(item for item in view.get("warnings", []) if isinstance(item, str)),
+        router_attached=attached_to_router(protocol, document),
+    )
+
+
+def router_target_from_view(service: str, view: dict) -> RouterTarget:
+    """The router manager's `GET /v1/egress/{service}` as the compiler's target."""
+    document = view.get("document")
+    revision = str(view.get("revision") or "")
+    providers = {name: {"reachable": entry.get("reachable")} for name, entry in (view.get("providers") or {}).items()
+                 if isinstance(entry, dict)}
+    return RouterTarget(
+        available=True, service=service,
+        capabilities=frozenset(item for item in view.get("capabilities", []) if isinstance(item, str)),
+        providers=providers, revision=revision,
+        applied=None if document is None else {"revision": revision, "digest": document_digest(document),
+                                               "document": document},
+        xray_version=view.get("runtime_version") if isinstance(view.get("runtime_version"), str) else None,
+        restart_required=view.get("restart_required") is not False,
     )
 
 
