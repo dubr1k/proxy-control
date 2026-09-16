@@ -2,13 +2,31 @@
 set -eu
 
 case ${PANEL_SUPPLEMENTARY_GROUPS-} in
-  "") set -- --clear-groups ;;
-  10001|10005|10001,10005|10001,10006|10001,10005,10006) set -- --groups "$PANEL_SUPPLEMENTARY_GROUPS" ;;
+  ""|10001|10005|10001,10005|10001,10006|10001,10005,10006) ;;
   *)
     echo "PANEL_SUPPLEMENTARY_GROUPS must be empty, 10001, 10005, 10001,10005, 10001,10006 or 10001,10005,10006" >&2
     exit 64
     ;;
 esac
+# The groups the panel keeps: the manager socket groups Compose's `group_add` gave this
+# container (every overlay merges its own into the list, so naive + mieru + xray-router
+# add up) plus PANEL_SUPPLEMENTARY_GROUPS for a hand-written compose. Nothing else.
+wanted=
+for gid in $(id -G) $(printf '%s' "${PANEL_SUPPLEMENTARY_GROUPS-}" | tr ',' ' '); do
+  case $gid in
+    10001|10005|10006)
+      case ",$wanted," in
+        *,"$gid",*) ;;
+        *) wanted=${wanted:+$wanted,}$gid ;;
+      esac
+      ;;
+  esac
+done
+if [ -n "$wanted" ]; then
+  set -- --groups "$wanted"
+else
+  set -- --clear-groups
+fi
 
 case ${MIERU_ENABLED-false} in
   true) mieru_enabled=true ;;
