@@ -286,3 +286,44 @@ brings it back verbatim — [ROUTING](ROUTING.en.md).
   (`managed_by_central`). Unlinking leaves the egress as it is.
 - Audit: `routing.policy.update | apply | rollback | delete` on the panel that applied.
 
+## 13. The Xray-router (v0.5)
+
+A node with `[egress] router = true` runs `proxy-control-xray-router`
+([XRAY_ROUTER](XRAY_ROUTER.en.md)). Its health is part of the daily check:
+
+```bash
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool
+# artifacts.*.verified == true, phase == "idle", running.generation >= 1
+ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
+```
+
+- **Attach / detach** are owner actions on the routing screen; each interrupts the
+  service's sessions once (Caddy reload, mita restart). Attach with a native policy
+  still applied is refused (`policy_applied`): reset it first. After an attach the
+  Caddyfile carries `upstream socks5://…@127.0.0.1:45101`, mita's `egress` the `router`
+  proxy — do not edit either by hand: a hand edit shows as `attached: false` and the
+  policy refuses to apply (`not_attached`); attach again to repair it.
+- **Applying a router policy** swaps the Xray generation (≈ 50 ms) and interrupts open
+  sessions of **both** attached services; preview first, apply once. A WARP that does
+  not answer fails closed (`egress_unreachable`); an unknown geodata code fails in the
+  router's own test run (`geosite_unknown` / `geoip_unknown`) and nothing changes.
+- **`artifact_mismatch`**: the router refuses to start because a binary or geodata
+  member does not match the pin. Re-extract from the pinned archive
+  (`BACKUP_RESTORE`, «Xray-router generation») or run `proxyctl repair`; never replace
+  the files with another build.
+- **`manual_intervention_required` / `phase: broken`**: the last known good generation
+  did not come back either. Attached services fail closed until you act: read
+  `docker logs proxy-control-xray-router`, fix the cause (disk, geodata), then
+  `docker compose … restart xray-router` (bootstrap starts the last committed
+  generation), or detach the services to serve them natively meanwhile.
+- **A dead child** is restarted by the watchdog within seconds with the same
+  generation; three failed starts in a row make the router `broken`.
+- **Rotating the ingress keys**: `sudo /usr/local/libexec/rotate-xray-router-ingress`
+  (both services) or with `naive` / `mieru`. It recreates the router and the managers;
+  a manager whose block still carries the old key shows `router_credential_stale` until
+  it re-rendered. Rotate after a restore from backup and whenever a key may have leaked.
+- **Logs**: the manager's on `docker logs proxy-control-xray-router`; the child's
+  access log is off by design. Nothing in the logs, the API, the audit or the reports
+  carries an ingress credential; the lab's secret scan fails on the shape.
+- Audit: `routing.target.attach | detach` beside the policy events.
+

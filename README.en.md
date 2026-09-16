@@ -46,7 +46,7 @@ What you get:
 | **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. |
 | **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
 | **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
-| **Routing** | Since v0.4 — an egress policy per node and service: NaiveProxy and Mieru direct or through WARP, block by domain and CIDR, selective rules on Mieru; the preview tells exactly what the node's backend will enforce, and apply is transactional with a rollback — locally and on linked panels ([docs/ROUTING.en.md](docs/ROUTING.en.md)). |
+| **Routing** | Since v0.4 — an egress policy per node and service: NaiveProxy and Mieru direct or through WARP, block by domain and CIDR, selective rules on Mieru; the preview tells exactly what the node's backend will enforce, and apply is transactional with a rollback — locally and on linked panels ([docs/ROUTING.en.md](docs/ROUTING.en.md)). Since v0.5 — an optional **Xray-router** on the node: a service attached to it gets geosite, geoip, ports and blocks beside WARP through a dedicated, pinned Xray with an authenticated ingress ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)). |
 
 Traffic accounting differs per protocol, and the panel does not hide that:
 Telemt separates the process counter from quota consumption, Naive counts
@@ -233,18 +233,18 @@ suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
 
-**Beta releases (v0.2.0-beta.1, v0.3.0-beta.1, v0.4.0-beta.1).** `install-bootstrap` refuses a
+**Beta releases (v0.2.0-beta.1 … v0.5.0-beta.1).** `install-bootstrap` refuses a
 version with a pre-release suffix, so a beta is installed without it: the same
 four files from the release page, the same `SHA256SUMS` check, then extract the
 archive and run the wizard from the extracted directory — it writes the
 configuration, shows the plan and applies nothing until you confirm the plan
 digest. This is the path the release gate takes on the lab host
 (`scripts/lab/guest-runner.sh host` installs the beta from the extracted
-archive), and it is how v0.2, v0.3 and v0.4 were installed:
+archive), and it is how v0.2, v0.3, v0.4 and v0.5 were installed:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.5.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
@@ -259,7 +259,7 @@ what gets installed, `--check-only` downloads and verifies only:
 
 ```bash
 scripts/install-release.sh --requirements
-scripts/install-release.sh --version 0.4.0-beta.1 --sha256 <lab-sha256 from the release note>
+scripts/install-release.sh --version 0.5.0-beta.1 --sha256 <lab-sha256 from the release note>
 ```
 
 The installer does not run from a Git clone: there is no `release/release.json`.
@@ -675,7 +675,8 @@ mode. This is an optional proprietary external dependency: it is not covered
 by the project's MIT licence and is not bundled in the release archive.
 
 Since v0.4 the settings live under `[egress]` (`warp`, `warp_port`, and the
-initial choice per service — `naive`, `mieru` = `direct | warp`); the old
+initial choice per service — `naive`, `mieru` = `direct | warp | router`; `router = true`
+since v0.5 installs the Xray-router from a staged `Xray-linux-64.zip`); the old
 `[three_xui].warp` / `warp_port` are still read, with one warning. `warp_port`
 defaults to `40000` and is passed to every consumer; an explicitly configured
 alternative is preserved. An existing foreign WARP installation is never adopted
@@ -959,8 +960,10 @@ users imported, accesses on all three protocols, disable, rotation, deletion,
 convergence after being offline, a node restart mid-apply, key revocation and
 unlink; v0.3 was also checked live against a production node.
 
-Not claimed as completed: routing (v0.4) and the Xray router (v0.5), transitive
-nodes, metric history and updating a node's own panel from the central, and
+Routing (v0.4) and the Xray-router (v0.5) are beta, checked on the lab host and live
+on a production node to the extent of their release notes. Not claimed as completed: a
+3x-ui bridge, canary rollouts of policies, per-grant and UDP routing through the router,
+transitive nodes, metric history and updating a node's own panel from the central, and
 billing-grade traffic accounting.
 
 ## Acknowledgements

@@ -63,6 +63,13 @@ The cells that shape v0.2 most:
   upstream is set); Mieru blocks and selects by domain (suffix) and by literal-IP
   CIDR, applied by a restart of mita. `per_client_routing` stays `unproven` and
   MTProxy is outside routing scope entirely (ADR 006) — [ROUTING](ROUTING.en.md).
+- **The Xray-router (v0.5).** A service attached to the node's dedicated router
+  gets `domain_routing`, `cidr_routing`, `geosite_routing`, `geoip_routing` and
+  `port_routing` as `supported` for `direct`, `block` and `egress: warp`, in order and
+  beside a WARP default, within what `spikes/XRAY_EGRESS_ROUTER.md` proved (Xray-core
+  26.3.27, `IPOnDemand`, `geoip:private` blocked first). `udp_routing` is `no` (mita's
+  UDP stays direct, the ingresses do not relay UDP) and `per_client_routing` stays
+  `unproven` — [XRAY_ROUTER](XRAY_ROUTER.en.md).
 
 ## Subscription clients
 
