@@ -242,7 +242,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
 
     with pytest.raises(WizardSaved) as caught:
         wizard.run(AuditFacts())
@@ -333,7 +333,7 @@ def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
     ]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
     text = output.read_text()
@@ -412,6 +412,7 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         terminal,
         locale=Locale.EN,
         config_output=output,
+        artifact_dir=tmp_path / "artifacts",
     )
 
     with pytest.raises(WizardSaved) as caught:
@@ -503,7 +504,7 @@ def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_p
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
 
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
@@ -534,7 +535,7 @@ def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), io.StringIO())
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
 
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
@@ -566,7 +567,7 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
         "save",
     ]
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "artifacts")
 
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
