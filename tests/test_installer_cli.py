@@ -377,3 +377,14 @@ def test_repair_has_every_adapter_without_composing_a_plan(tmp_path):
     assert set(adapter_factories()) <= set(services.engine.adapters)
     for name, adapter in services.engine.adapters.items():
         assert adapter.name == name
+
+
+def test_the_cli_wizard_looks_for_the_xray_archive_under_root(tmp_path):
+    """The router is offered only when the archive is staged (v0.5), and `--root` moves
+    that lookup with everything else: a host's real /var/lib/proxy-control never leaks in."""
+    from installer.cli import _default_services
+    from installer.wizard import TerminalIO
+
+    services = _default_services(tmp_path)
+    wizard = services.wizard(TerminalIO(io.StringIO(""), io.StringIO()), None, tmp_path / "out.toml")
+    assert wizard.artifact_dir == tmp_path / "var/lib/proxy-control"

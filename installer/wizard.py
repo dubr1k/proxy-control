@@ -50,6 +50,10 @@ class PromptValidationError(ValueError):
         self.values = values
 
 
+# Where the operator stages pinned artifacts (the Xray archive, v0.5), relative to the root.
+ARTIFACT_DIR = Path("/var/lib/proxy-control")
+
+
 class WizardQuit(Exception):
     """The operator explicitly left the wizard before apply."""
 
@@ -338,7 +342,7 @@ class TerminalWizard:
         *,
         locale: Locale | None = None,
         config_output: Path = Path("proxy-control.toml"),
-        artifact_dir: Path = Path("/var/lib/proxy-control"),
+        artifact_dir: Path = ARTIFACT_DIR,
     ):
         self.io = io
         self.locale = locale
