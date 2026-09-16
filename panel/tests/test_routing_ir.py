@@ -77,8 +77,8 @@ def test_rule_match_rejects_bad_selectors(bad):
 def test_rule_match_rejects_empty():
     with pytest.raises(ValidationError):
         RuleMatch()
-    with pytest.raises(ValidationError):
-        RuleMatch(ports=[443])
+    # A rule on ports alone is a valid selector since v0.5 (the router enforces it).
+    assert RuleMatch(ports=[443]).ports == [443]
 
 
 def test_egress_required_for_egress_action_only():
@@ -416,7 +416,7 @@ def test_routing_v14_on_populated_db(tmp_path, monkeypatch):
         db.execute("INSERT INTO managed_resources(protocol,runtime_username,ref,generation,state,updated_at)"
                    " VALUES('naive','alice','r1',1,'converged',1)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [14]
+    assert apply_migrations(database) == [14, 15]
     assert apply_migrations(database) == []
     with database.transaction() as db:
         assert db.execute("SELECT count(*) FROM managed_resources").fetchone()[0] == 1

@@ -15,7 +15,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Protocol = Literal["naive", "mieru"]
-Backend = Literal["naive_native", "mieru_native"]
+# The native backend of each data plane (v0.4) or the node's dedicated Xray-router (v0.5).
+Backend = Literal["naive_native", "mieru_native", "xray_router"]
 Action = Literal["direct", "block", "egress"]
 DefaultAction = Literal["direct", "egress"]
 Egress = Literal["warp"]
@@ -23,15 +24,25 @@ Fallback = Literal["fail_closed", "approved_direct"]
 State = Literal["draft", "applying", "applied", "failed", "rolled_back"]
 
 BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native"}
+NATIVE_BACKEND_FOR = BACKEND_FOR
+ROUTER_BACKEND = "xray_router"
 MAX_RULES = 128
 MAX_SELECTORS = 64
 MAX_PORTS = 32
 MAX_NOTE = 120
-COMPILER_VERSION = "1"
+# "2": rules may name geosite/geoip codes and stand on ports alone (v0.5).
+COMPILER_VERSION = "2"
 
 _LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 _DOMAIN = re.compile(rf"(?=.{{1,253}}\Z)(?:{_LABEL}\.)*{_LABEL}\Z")
 _PORT_RANGE = re.compile(r"^([0-9]{1,5})-([0-9]{1,5})$")
+_GEO_CODE = re.compile(r"[a-z0-9][a-z0-9@!_-]{0,63}\Z")
+
+
+def backends_for(protocol: str) -> tuple[str, ...]:
+    """The backends a protocol's policy may target: its native one, and the router."""
+    native = BACKEND_FOR.get(protocol)
+    return () if native is None else (native, ROUTER_BACKEND)
 
 
 def normalise_domain(value: str) -> str:
@@ -62,6 +73,21 @@ def normalise_cidr(value: str) -> str:
         raise ValueError(f"invalid cidr: {value!r}") from exc
 
 
+def normalise_geo_code(value: str, kind: str) -> str:
+    """A `geosite:`/`geoip:` code as the Xray geodata names it (lower-case, no prefix).
+    `private` is the router's own bypass, never a rule."""
+    if not isinstance(value, str):
+        raise ValueError(f"{kind} code must be a string")
+    code = value.strip().lower()
+    if code.startswith(f"{kind}:"):
+        code = code[len(kind) + 1:]
+    if _GEO_CODE.fullmatch(code) is None:
+        raise ValueError(f"invalid {kind} code: {value!r}")
+    if kind == "geoip" and code == "private":
+        raise ValueError("geoip:private is the router's bypass, not a rule")
+    return code
+
+
 def normalise_port(value: int | str) -> int | str:
     if isinstance(value, bool):
         raise ValueError("invalid port")
@@ -88,12 +114,16 @@ def _unique(items: list) -> list:
 
 
 class RuleMatch(BaseModel):
-    """What a rule matches: any of its domains OR any of its CIDRs, on any of its ports."""
+    """What a rule matches: any of its domains, geosite codes, CIDRs or geoip codes, on any
+    of its ports. A rule may stand on ports alone (the router enforces it; native backends
+    say `unsupported`)."""
 
     model_config = ConfigDict(extra="forbid")
     domains: list[str] = Field(default_factory=list, max_length=MAX_SELECTORS)
     cidrs: list[str] = Field(default_factory=list, max_length=MAX_SELECTORS)
     ports: list[int | str] = Field(default_factory=list, max_length=MAX_PORTS)
+    geosites: list[str] = Field(default_factory=list, max_length=MAX_SELECTORS)
+    geoips: list[str] = Field(default_factory=list, max_length=MAX_SELECTORS)
 
     @field_validator("domains")
     @classmethod
@@ -105,6 +135,16 @@ class RuleMatch(BaseModel):
     def _cidrs(cls, value: list[str]) -> list[str]:
         return _unique([normalise_cidr(item) for item in value])
 
+    @field_validator("geosites")
+    @classmethod
+    def _geosites(cls, value: list[str]) -> list[str]:
+        return _unique([normalise_geo_code(item, "geosite") for item in value])
+
+    @field_validator("geoips")
+    @classmethod
+    def _geoips(cls, value: list[str]) -> list[str]:
+        return _unique([normalise_geo_code(item, "geoip") for item in value])
+
     @field_validator("ports", mode="before")
     @classmethod
     def _ports(cls, value: object) -> list[int | str]:
@@ -115,9 +155,14 @@ class RuleMatch(BaseModel):
 
     @model_validator(mode="after")
     def _not_empty(self):
-        if not self.domains and not self.cidrs:
-            raise ValueError("a rule must name at least one domain or cidr")
+        if not (self.domains or self.cidrs or self.geosites or self.geoips or self.ports):
+            raise ValueError("a rule must name at least one domain, geosite, cidr, geoip or port")
         return self
+
+    @property
+    def selectors(self) -> bool:
+        """True when the rule narrows by destination name or address (not by port alone)."""
+        return bool(self.domains or self.cidrs or self.geosites or self.geoips)
 
 
 class RoutingRule(BaseModel):
@@ -162,7 +207,8 @@ class _Intent(BaseModel):
 
 class PolicyInput(_Intent):
     """What `PUT` accepts: the intent without the server's bookkeeping. `backend` may be
-    left out — v0.4 has exactly one per protocol — but a named one must be the node's."""
+    left out — the policy keeps the backend it has (its native one at birth) — but a named
+    one must be one the protocol can run on (`backends_for`)."""
 
     backend: Backend | None = None
 
@@ -214,3 +260,6 @@ class Compiled(BaseModel):
     compiler_version: str = COMPILER_VERSION
     backend: str | None = None
     runtime_version: str | None = None
+    # `xray_router` (v0.5): the native manager's document that keeps the service handed to
+    # the router — applied beside `document` (the router's intent) when it is not in place.
+    attach: dict | None = None

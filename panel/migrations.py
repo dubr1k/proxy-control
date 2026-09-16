@@ -301,10 +301,67 @@ ROUTING_V14 = Migration(14, "routing-policies", (
       last_error TEXT, updated_at INTEGER NOT NULL)""",
 ))
 
+# Routing on the dedicated Xray-router (v0.5): a policy may target `xray_router`. SQLite
+# cannot widen a CHECK in place, and this table *is* referenced (routing_rules,
+# routing_applies): renaming it rewrites the children's foreign keys to the old name (the
+# runner keeps foreign_keys=ON), so the children are rebuilt as well — copied into fresh
+# tables that reference the rebuilt parent — before the old parent is dropped; no delete
+# ever cascades. A node also records what the router runs for the central
+# (`managed_egress.router_*`).
+ROUTING_V15 = Migration(15, "routing-xray-router", (
+    "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+    """CREATE TABLE routing_policies (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru')),
+      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','xray_router')),
+      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),
+      default_egress TEXT CHECK(default_egress IS NULL OR default_egress='warp'),
+      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),
+      revision INTEGER NOT NULL DEFAULT 1,
+      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),
+      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,
+      desired_json TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(node_id, protocol))""",
+    """INSERT INTO routing_policies SELECT id,node_id,protocol,backend,default_action,default_egress,fallback,revision,
+       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at
+       FROM routing_policies_old""",
+    """CREATE TABLE routing_rules_v15 (
+      id TEXT PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
+      match_json TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),
+      egress TEXT, note TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(policy_id, position))""",
+    """INSERT INTO routing_rules_v15 SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at
+       FROM routing_rules""",
+    "DROP TABLE routing_rules",
+    "ALTER TABLE routing_rules_v15 RENAME TO routing_rules",
+    "DROP INDEX IF EXISTS routing_applies_policy",
+    """CREATE TABLE routing_applies_v15 (
+      id INTEGER PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,
+      runtime_version TEXT,
+      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),
+      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)""",
+    """INSERT INTO routing_applies_v15 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,
+       detail,document_json,actor,created_at FROM routing_applies""",
+    "DROP TABLE routing_applies",
+    "ALTER TABLE routing_applies_v15 RENAME TO routing_applies",
+    "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+    "DROP TABLE routing_policies_old",
+    "ALTER TABLE managed_egress ADD COLUMN router_revision TEXT",
+    "ALTER TABLE managed_egress ADD COLUMN router_digest TEXT",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
-    ROUTING_V14,
+    ROUTING_V14, ROUTING_V15,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

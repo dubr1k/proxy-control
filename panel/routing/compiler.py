@@ -23,8 +23,9 @@ import difflib
 import ipaddress
 import json
 
-from ..protocols.base import EgressTarget
-from .document import canonical, document_digest
+from ..protocols.base import EgressTarget, RouterTarget
+from .adapters.xray_router import compile_intent
+from .document import ROUTER_DIRECT_INTENT, canonical, document_digest
 from .models import BACKEND_FOR, COMPILER_VERSION, Compiled, Reason, RoutingPolicy, RoutingRule
 
 MAX_DOCUMENT_BYTES = 16384
@@ -73,7 +74,9 @@ def _naive_document(default_action: str, rules: list[RoutingRule]) -> dict:
 
 def direct_document(backend: str) -> dict:
     """What «reset» applies: the whole service direct, no rules — the state a policy may be
-    deleted in (spec §8.1)."""
+    deleted in (spec §8.1). On the router (v0.5) that is the pass-through intent."""
+    if backend == "xray_router":
+        return json.loads(json.dumps(ROUTER_DIRECT_INTENT))
     return (_naive_document if backend == "naive_native" else _mieru_document)("direct", [])
 
 
@@ -93,8 +96,11 @@ def _mieru_document(default_action: str, rules: list[RoutingRule]) -> dict:
     return {"schema": 1, "proxies": [{"name": "warp", "provider": "warp"}] if uses_warp else [], "rules": compiled}
 
 
-def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v1: bool = True) -> Compiled:  # noqa: A001
-    """What the node would run for this policy, or exactly why it cannot."""
+def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v1: bool = True,  # noqa: A001
+            router: RouterTarget | None = None) -> Compiled:
+    """What the node would run for this policy, or exactly why it cannot. `target` is the
+    service's native manager; `router` its section on the node's Xray-router (v0.5), None
+    when the panel knows of no router."""
     backend = BACKEND_FOR.get(policy.protocol)
     unsupported = Compiled(status="unsupported", backend=policy.backend, compiler_version=COMPILER_VERSION,
                            runtime_version=None if target is None else target.runtime_version)
@@ -108,9 +114,24 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
         unsupported.reasons.append(Reason(code="protocol_disabled_on_node",
                                           message=f"{policy.protocol} reports no egress target on this node"))
         return unsupported
+    if policy.backend == "xray_router":
+        if router is None or not router.available:
+            code = "router_unavailable" if router is None or router.reason in (None, "router_unavailable") else router.reason
+            unsupported.reasons.append(Reason(code=code, message="the node has no Xray-router to run this policy"))
+            return unsupported
+        if not target.router_attached:
+            unsupported.reasons.append(Reason(code="not_attached",
+                                              message=f"{policy.protocol} is not attached to the node's Xray-router"))
+            return unsupported
+        return compile_intent(policy, router, private=_private, warnings=list(target.warnings))
     if policy.backend != target.backend:
         unsupported.reasons.append(Reason(code="backend_capability_missing",
                                           message=f"the node runs {target.backend}, the policy targets {policy.backend}"))
+        return unsupported
+    if target.router_attached:
+        unsupported.reasons.append(Reason(code="backend_capability_missing",
+                                          message=f"{policy.protocol} is attached to the node's Xray-router: "
+                                                  "the policy must target xray_router"))
         return unsupported
 
     reasons: list[Reason] = []
@@ -121,9 +142,9 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     if whole not in target.capabilities:
         reasons.append(Reason(code="backend_capability_missing", message=f"{target.backend} lacks {whole}"))
     for rule in rules:
-        if rule.match.ports:
+        if rule.match.ports or rule.match.geosites or rule.match.geoips:
             reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
-                                  message="matching by port is not enforced by any backend in v0.4"))
+                                  message="matching by port, geosite or geoip is enforced only by xray_router"))
             continue
         missing = sorted(_needed(rule) - target.capabilities)
         if missing:
