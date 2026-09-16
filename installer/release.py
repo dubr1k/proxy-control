@@ -9,6 +9,7 @@ import secrets
 import stat
 import tarfile
 import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
@@ -22,7 +23,11 @@ _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 # The project targets x86-64 VPS hosts, which is what the lab runs on. A pin
 # for an architecture nothing ever verifies is a claim, not a guarantee.
 _SUPPORTED_ARCHITECTURES = frozenset({"amd64"})
-_SUPPORTED_SPDX_LICENSES = frozenset({"GPL-3.0-only", "GPL-3.0-or-later"})
+_SUPPORTED_SPDX_LICENSES = frozenset({"GPL-3.0-only", "GPL-3.0-or-later", "MPL-2.0"})
+# A zip member the release names explicitly (v0.5, Xray): a plain file name, no path.
+_MEMBER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+_MEMBER_MODE_RE = re.compile(r"0[0-7]{3}")
+_DEFAULT_MAX_MEMBER_SIZE = 64 * 1024 * 1024
 _COPY_CHUNK_SIZE = 1024 * 1024
 _HARD_MAX_COMPRESSED_SIZE = 1024 * 1024 * 1024
 _HARD_MAX_DECOMPRESSED_SIZE = 2 * 1024 * 1024 * 1024
@@ -51,6 +56,15 @@ class _DuplicateKeyError(ValueError):
 
 
 @dataclass(frozen=True)
+class MemberPin:
+    """One reviewed member of a zip artifact: what `safe_extract_zip` may write."""
+
+    sha256: str
+    size: int
+    mode: int
+
+
+@dataclass(frozen=True)
 class ArtifactPin:
     name: str
     version: str
@@ -62,6 +76,11 @@ class ArtifactPin:
     sha256: str
     executable_path: str | None = None
     executable_sha256: str | None = None
+    # Zip artifacts (v0.5): the members the installer extracts, nothing else.
+    members: Mapping[str, MemberPin] | None = None
+    # The token the upstream file name carries for this architecture when it is not
+    # the Debian name (`Xray-linux-64.zip`); reviewed, never guessed.
+    filename_architecture: str | None = None
 
 
 @dataclass(frozen=True)
@@ -275,6 +294,132 @@ def safe_extract_tar(
             os.close(descriptor)
         if anchor is not None:
             anchor.close()
+
+
+def safe_extract_zip(
+    archive: Path,
+    destination: Path,
+    members: Mapping[str, MemberPin],
+    *,
+    max_member_bytes: int = _DEFAULT_MAX_MEMBER_SIZE,
+) -> None:
+    """Write exactly the reviewed members of a zip artifact into `destination` (v0.5, Xray).
+
+    Nothing in the archive is trusted: a member is read only when the manifest names it,
+    its bytes are counted against the reviewed size as they stream, its digest must match,
+    and the tree lands through the same private-stage swap the tar extractor uses. Any
+    failure leaves a previous install untouched and no partial tree behind."""
+
+    if not members:
+        raise ReleaseError("zip extraction needs at least one reviewed member")
+    for member_name, pin in members.items():
+        if _MEMBER_NAME_RE.fullmatch(member_name) is None or member_name in {".", ".."}:
+            raise ReleaseError(f"zip member name is not a plain file name: {member_name!r}")
+        if type(pin) is not MemberPin:
+            raise ReleaseError(f"zip member pin has an invalid type: {member_name}")
+        _require_sha256(pin.sha256, f"zip member {member_name}")
+        if type(pin.size) is not int or not 0 < pin.size <= max_member_bytes:
+            raise ReleaseError(f"zip member size is out of bounds: {member_name}")
+        if type(pin.mode) is not int or pin.mode & ~0o777:
+            raise ReleaseError(f"zip member mode is invalid: {member_name}")
+
+    anchor: _DestinationAnchor | None = None
+    stage_name: str | None = None
+    stage_fd = -1
+    descriptor = _open_regular_file(archive, "archive")
+    try:
+        with os.fdopen(descriptor, "rb") as source:
+            descriptor = -1
+            with zipfile.ZipFile(source) as bundle:
+                infos = _validate_zip_members(bundle, members)
+                anchor = _validate_destination(destination)
+                _revalidate_destination(anchor)
+                stage_name, stage_fd = _create_private_stage(anchor)
+                for member_name, info in infos.items():
+                    _copy_zip_member(bundle, info, stage_fd, member_name, members[member_name])
+                os.fchmod(stage_fd, 0o755)
+                os.fsync(stage_fd)
+                os.close(stage_fd)
+                stage_fd = -1
+        assert anchor is not None
+        assert stage_name is not None
+        _replace_destination(anchor, stage_name)
+        stage_name = None
+    except ReleaseError:
+        if stage_fd >= 0:
+            os.close(stage_fd)
+            stage_fd = -1
+        if anchor is not None and stage_name is not None:
+            _best_effort_remove_tree_at(anchor.parent_fd, stage_name)
+        raise
+    except (OSError, zipfile.BadZipFile, EOFError, ValueError) as exc:
+        if stage_fd >= 0:
+            os.close(stage_fd)
+            stage_fd = -1
+        if anchor is not None and stage_name is not None:
+            _best_effort_remove_tree_at(anchor.parent_fd, stage_name)
+            raise ReleaseError(f"could not extract archive: {archive}") from exc
+        raise ReleaseError(f"could not validate archive: {archive}") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if anchor is not None:
+            anchor.close()
+
+
+def _validate_zip_members(
+    bundle: zipfile.ZipFile, members: Mapping[str, MemberPin]
+) -> dict[str, zipfile.ZipInfo]:
+    infos: dict[str, zipfile.ZipInfo] = {}
+    for member_name, pin in members.items():
+        try:
+            info = bundle.getinfo(member_name)
+        except KeyError as exc:
+            raise ReleaseError(f"archive lacks the reviewed member: {member_name}") from exc
+        if info.is_dir() or stat.S_ISLNK(info.external_attr >> 16) or info.filename != member_name:
+            raise ReleaseError(f"archive member is not a regular file: {member_name}")
+        if info.file_size != pin.size:
+            raise ReleaseError(
+                f"archive member size differs from the reviewed size: {member_name}"
+            )
+        infos[member_name] = info
+    return infos
+
+
+def _copy_zip_member(
+    bundle: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    parent_fd: int,
+    name: str,
+    pin: MemberPin,
+) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(name, flags, 0o600, dir_fd=parent_fd)
+    copied = 0
+    digest = hashlib.sha256()
+    try:
+        with bundle.open(info) as source, os.fdopen(descriptor, "wb") as output:
+            descriptor = -1
+            while chunk := source.read(_COPY_CHUNK_SIZE):
+                copied += len(chunk)
+                if copied > pin.size:
+                    raise ReleaseError(f"archive member size changed while extracting: {name}")
+                digest.update(chunk)
+                output.write(chunk)
+            if copied != pin.size:
+                raise ReleaseError(f"archive member size changed while extracting: {name}")
+            if not secrets.compare_digest(digest.hexdigest(), pin.sha256):
+                raise ReleaseError(f"archive member digest mismatch: {name}")
+            os.fchmod(output.fileno(), pin.mode)
+            output.flush()
+            os.fsync(output.fileno())
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def _open_regular_file(path: Path, label: str) -> int:
@@ -535,7 +680,7 @@ def _parse_platform_pin(
 ) -> ArtifactPin:
     pin = _require_object(value, f"artifact {name} platform {architecture}")
     required = {"architecture", "url", "sha256"}
-    optional = {"executable_path", "executable_sha256"}
+    optional = {"executable_path", "executable_sha256", "members", "filename_architecture"}
     actual = set(pin)
     unknown = sorted(actual - required - optional)
     if unknown:
@@ -552,10 +697,20 @@ def _parse_platform_pin(
             f"platform mismatch: key {architecture!r}, value "
             f"{declared_architecture!r}"
         )
+    filename_architecture: str | None = None
+    if "filename_architecture" in pin:
+        filename_architecture = _require_string(
+            pin["filename_architecture"], f"artifact {name} filename_architecture"
+        )
+        if re.fullmatch(r"[A-Za-z0-9]{1,16}", filename_architecture) is None:
+            raise ReleaseError(f"artifact {name} filename_architecture is invalid")
     url = _require_string(pin["url"], f"artifact {name} URL")
-    _validate_release_url(url, repository, tag, architecture)
+    _validate_release_url(url, repository, tag, filename_architecture or architecture)
     sha256 = _require_string(pin["sha256"], f"artifact {name} SHA-256")
     _require_sha256(sha256, f"artifact {name}")
+    members: Mapping[str, MemberPin] | None = None
+    if "members" in pin:
+        members = _parse_members(pin["members"], name)
 
     has_executable_path = "executable_path" in pin
     has_executable_sha256 = "executable_sha256" in pin
@@ -589,7 +744,32 @@ def _parse_platform_pin(
         sha256=sha256,
         executable_path=executable_path,
         executable_sha256=executable_sha256,
+        members=members,
+        filename_architecture=filename_architecture,
     )
+
+
+def _parse_members(value: object, artifact: str) -> Mapping[str, MemberPin]:
+    raw = _require_object(value, f"artifact {artifact} members")
+    if not raw:
+        raise ReleaseError(f"artifact {artifact} members must name at least one member")
+    members: dict[str, MemberPin] = {}
+    for member_name, raw_pin in raw.items():
+        if _MEMBER_NAME_RE.fullmatch(member_name) is None or member_name in {".", ".."}:
+            raise ReleaseError(f"artifact {artifact} member name is not a plain file name: {member_name!r}")
+        entry = _require_object(raw_pin, f"artifact {artifact} member {member_name}")
+        if set(entry) != {"sha256", "size", "mode"}:
+            raise ReleaseError(f"artifact {artifact} member {member_name} must carry sha256, size and mode")
+        sha256 = _require_string(entry["sha256"], f"artifact {artifact} member {member_name} SHA-256")
+        _require_sha256(sha256, f"artifact {artifact} member {member_name}")
+        size = entry["size"]
+        if type(size) is not int or not 0 < size <= _DEFAULT_MAX_MEMBER_SIZE:
+            raise ReleaseError(f"artifact {artifact} member {member_name} size is out of bounds")
+        mode = _require_string(entry["mode"], f"artifact {artifact} member {member_name} mode")
+        if _MEMBER_MODE_RE.fullmatch(mode) is None:
+            raise ReleaseError(f"artifact {artifact} member {member_name} mode must be a plain octal mode")
+        members[member_name] = MemberPin(sha256=sha256, size=size, mode=int(mode, 8))
+    return MappingProxyType(members)
 
 
 def _validate_release_url(

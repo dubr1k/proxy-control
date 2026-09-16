@@ -46,6 +46,38 @@
           "sha256": "0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5"
         }
       }
+    },
+    {
+      "name": "xray",
+      "version": "26.3.27",
+      "tag": "v26.3.27",
+      "repository": "XTLS/Xray-core",
+      "spdx_license": "MPL-2.0",
+      "platforms": {
+        "amd64": {
+          "architecture": "amd64",
+          "filename_architecture": "64",
+          "url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip",
+          "sha256": "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
+          "members": {
+            "xray": {
+              "sha256": "8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed",
+              "size": 36577406,
+              "mode": "0755"
+            },
+            "geoip.dat": {
+              "sha256": "744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354",
+              "size": 19768301,
+              "mode": "0644"
+            },
+            "geosite.dat": {
+              "sha256": "adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9",
+              "size": 10491954,
+              "mode": "0644"
+            }
+          }
+        }
+      }
     }
   ]
 }
