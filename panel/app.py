@@ -187,7 +187,7 @@ def create_app(
         enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled}.get(protocol, True),
         publisher=lambda db, node_id: publish(db, app.state.clients.store, app.state.desired, node_id=node_id,
                                               master_guid=app.state.panel_guid, routing=routing_store),
-        managed=app.state.managed,
+        managed=app.state.managed, router=app.state.router,
     )
 
     # The heartbeat/delivery loop lives as a background task for the process's lifetime:
