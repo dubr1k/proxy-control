@@ -7,7 +7,7 @@ import time
 import uuid
 
 from ..database import Database
-from .models import BACKEND_FOR, COMPILER_VERSION, PolicyInput, RoutingPolicy, RoutingRule, RuleMatch
+from .models import backends_for, BACKEND_FOR, COMPILER_VERSION, PolicyInput, RoutingPolicy, RoutingRule, RuleMatch
 
 HISTORY_LIMIT = 50
 
@@ -75,14 +75,14 @@ class RoutingStore:
         caller sends back are kept; anything else is a new rule. A rule id from another
         policy is not adopted: it becomes a new rule here."""
         now = int(time.time()) if now is None else now
-        backend = BACKEND_FOR[protocol]
-        if policy.backend is not None and policy.backend != backend:
-            raise ValueError(f"{protocol} compiles to {backend}, not {policy.backend}")
-        current = db.execute("SELECT id, revision FROM routing_policies WHERE node_id=? AND protocol=?",
+        if policy.backend is not None and policy.backend not in backends_for(protocol):
+            raise ValueError(f"{protocol} cannot run on {policy.backend}")
+        current = db.execute("SELECT id, revision, backend FROM routing_policies WHERE node_id=? AND protocol=?",
                              (node_id, protocol)).fetchone()
         if current is None:
             if expected_revision not in (None, 0):
                 raise PolicyConflict(0)
+            backend = policy.backend or BACKEND_FOR[protocol]
             policy_id, revision = str(uuid.uuid4()), 1
             db.execute(
                 "INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,default_egress,fallback,revision,"
@@ -95,10 +95,11 @@ class RoutingStore:
             if expected_revision is not None and expected_revision != current["revision"]:
                 raise PolicyConflict(current["revision"])
             revision = current["revision"] + 1
+            backend = policy.backend or current["backend"]
             db.execute(
-                "UPDATE routing_policies SET default_action=?, default_egress=?, fallback=?, revision=?, updated_at=?"
-                " WHERE id=?",
-                (policy.default_action, policy.default_egress, policy.fallback, revision, now, policy_id))
+                "UPDATE routing_policies SET backend=?, default_action=?, default_egress=?, fallback=?, revision=?,"
+                " updated_at=? WHERE id=?",
+                (backend, policy.default_action, policy.default_egress, policy.fallback, revision, now, policy_id))
             known = {row["id"] for row in db.execute("SELECT id FROM routing_rules WHERE policy_id=?", (policy_id,))}
             db.execute("DELETE FROM routing_rules WHERE policy_id=?", (policy_id,))
         used: set[str] = set()
@@ -110,6 +111,18 @@ class RoutingStore:
                 " VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (rule_id, policy_id, position, int(rule.enabled), json.dumps(rule.match.model_dump(), sort_keys=True),
                  rule.action, rule.egress, rule.note, now, now))
+        return cls.get_by_id(db, policy_id)
+
+    @classmethod
+    def retarget(cls, db, policy_id: str, backend: str, *, now: int | None = None) -> RoutingPolicy:
+        """The policy on another backend (attach/detach, v0.5): a new revision in `draft`,
+        the rules kept — what was applied on the old backend is no longer what runs."""
+        now = int(time.time()) if now is None else now
+        policy = cls.get_by_id(db, policy_id)
+        if backend not in backends_for(policy.protocol):
+            raise ValueError(f"{policy.protocol} cannot run on {backend}")
+        db.execute("UPDATE routing_policies SET backend=?, revision=revision+1, state='draft', last_error=NULL, updated_at=?"
+                   " WHERE id=?", (backend, now, policy_id))
         return cls.get_by_id(db, policy_id)
 
     @staticmethod
