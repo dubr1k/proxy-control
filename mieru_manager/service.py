@@ -68,6 +68,9 @@ TRANSACTION_MODES = {
     # `mita reload` re-reads users, not the egress section.
     "egress.apply": "restart",
     "egress.rollback": "restart",
+    # The router ingress credential rotated while the manager was down (v0.5): the same
+    # document rendered again with the file's key.
+    "egress.refresh": "restart",
 }
 _DURATION_UNITS_NS = {
     "ns": Decimal(1),
@@ -727,13 +730,20 @@ class MieruManager:
         status_timeout: float = 10,
         status_poll_interval: float = 0.05,
         provider_url: str | None = None,
+        router_url: str | None = None,
+        router_credential_file: Path | None = None,
     ):
         self.mita, self.state_dir, self.public_host = mita, Path(state_dir), public_host
         self.protocol_probe = protocol_probe or mita.probe
         # The host's WARP proxy-mode endpoint (`MIERU_EGRESS_WARP`), or None without WARP; the
         # only address the egress API ever writes into mita's config (v0.4 routing).
         self.provider_url = provider_url
-        self.reachability: Callable[[str, float], bool] = egress_section.check_reachable
+        # This service's private ingress on the node's Xray-router (`MIERU_EGRESS_ROUTER`) and
+        # the file with its `user:password` (v0.5); the credential is read when the section is
+        # rendered and never leaves the manager.
+        self.router_url = router_url
+        self.router_credential_file = None if router_credential_file is None else Path(router_credential_file)
+        self.reachability: Callable[..., bool] = egress_section.check_reachable
         self.status_timeout = status_timeout
         self.status_poll_interval = status_poll_interval
         self._lock = threading.RLock()
@@ -765,6 +775,8 @@ class MieruManager:
                 state = self._state()
                 if state["config_hash"] != _hash(observed):
                     raise ConfigConflict("observed config changed outside manager")
+                self._refresh_router_credential(state, observed)
+                state = self._state()
             else:
                 state = {
                     "version": 2,
@@ -1366,10 +1378,65 @@ class MieruManager:
     # ------------------------------------------------------------------
 
     def _providers(self, *, probe: bool) -> dict:
-        if not self.provider_url:
-            return {}
-        reachable = self.reachability(self.provider_url, 3.0) if probe else None
-        return {"warp": {"url": self.provider_url, "reachable": reachable}}
+        providers = {}
+        if self.provider_url:
+            providers["warp"] = {"url": self.provider_url,
+                                 "reachable": self.reachability(self.provider_url, 3.0) if probe else None}
+        if self.router_url:
+            providers["router"] = {"url": self.router_url,
+                                   "reachable": self.reachability(self.router_url, 3.0, auth=True) if probe else None}
+        return providers
+
+    def _provider_urls(self) -> dict[str, str | None]:
+        return {"warp": self.provider_url, "router": self.router_url}
+
+    def _router_credential(self) -> tuple[str, str]:
+        if not self.router_url or self.router_credential_file is None:
+            raise egress_section.EgressInvalid("egress provider router is not configured on this node")
+        return egress_section.read_credential(self.router_credential_file)
+
+    def _target(self, document: dict) -> dict:
+        """mita's section for a document, the router credential read from the file now."""
+        credentials = {}
+        if any(proxy["name"] == "router" for proxy in document["proxies"]):
+            credentials["router"] = self._router_credential()
+        return egress_section.to_mita(document, self._provider_urls(), credentials)
+
+    def _providers_reachable(self, document: dict) -> dict[str, bool]:
+        reachability = {}
+        for proxy in document["proxies"]:
+            if proxy["name"] == "router":
+                reachability["router"] = bool(self.router_url) and self.reachability(self.router_url, 3.0, auth=True)
+            else:
+                reachability["warp"] = self.reachability(self.provider_url, 3.0)
+        return reachability
+
+    def _assert_reachable(self, document: dict) -> None:
+        for name, reachable in self._providers_reachable(document).items():
+            if not reachable:
+                raise EgressUnreachable(f"egress provider {name} is unreachable")
+
+    def _router_credential_stale(self, section: object) -> bool:
+        try:
+            credential = self._router_credential()
+        except egress_section.EgressInvalid:
+            return False
+        return egress_section.router_credential_stale(section, credential)
+
+    def _refresh_router_credential(self, state: dict, observed: dict) -> None:
+        """After a credential rotation the running section still carries the old key: the
+        section is a function of the document and the file, so it is rendered again through
+        the restart transaction — the journal's current entry stays what it is."""
+        section = observed.get("egress")
+        if not self._router_credential_stale(section):
+            return
+        document = egress_section.from_mita(section, self._provider_urls())
+        history = self._journal(state)["history"]
+        if document is None or not history or history[-1].get("document") != document:
+            return
+        desired = copy.deepcopy(observed)
+        desired["egress"] = self._target(document)
+        self._transaction(desired, state, mode="restart", operation="egress.refresh")
 
     @staticmethod
     def _journal(state: dict) -> dict:
@@ -1389,7 +1456,7 @@ class MieruManager:
 
     def _egress_view(self, state: dict, observed: dict, *, probe: bool) -> dict:
         section = observed.get("egress")
-        document = egress_section.from_mita(section, self.provider_url)
+        document = egress_section.from_mita(section, self._provider_urls())
         history = self._journal(state)["history"]
         if document is None:
             mode = "custom"
@@ -1398,13 +1465,16 @@ class MieruManager:
         else:
             mode = "direct"
         current = history[-1] if history else None
+        warnings = ["adopts_unmanaged_egress"] if section is not None and not history else []
+        if self._router_credential_stale(section):
+            warnings.append("router_credential_stale")
         return {
             "revision": state["revision"], "mode": mode, "document": document,
-            "raw": section if document is None else None,
+            "raw": egress_section.redact_section(section) if document is None else None,
             "managed": bool(current) and current.get("document") is not None,
             "providers": self._providers(probe=probe), "capabilities": list(egress_section.CAPABILITIES),
             "restart_required": True,
-            "warnings": ["adopts_unmanaged_egress"] if section is not None and not history else [],
+            "warnings": warnings,
             "previous": None if len(history) < 2 else {"applied_at": history[-2].get("applied_at")},
             "current": None if current is None else {key: current.get(key) for key in ("operation_id", "applied_at", "digest")},
         }
@@ -1420,15 +1490,14 @@ class MieruManager:
             state = self._state()
             self._check_revision(state, expected_revision)
             observed = self._observed_consistent(state)
-            target = egress_section.to_mita(normalised, self.provider_url)
-            before = json.dumps(observed.get("egress"), indent=1, sort_keys=True).splitlines()
-            after = json.dumps(target or None, indent=1, sort_keys=True).splitlines()
+            target = self._target(normalised)
+            before = json.dumps(egress_section.redact_section(observed.get("egress")), indent=1, sort_keys=True).splitlines()
+            after = json.dumps(egress_section.redact_section(target) or None, indent=1, sort_keys=True).splitlines()
             diff = [line for line in difflib.unified_diff(before, after, "current", "planned", lineterm="", n=0)
                     if not line.startswith(("---", "+++", "@@"))]
-            reachability = {}
-            if normalised["proxies"]:
-                reachability["warp"] = self.reachability(self.provider_url, 3.0)
-            return {"revision": state["revision"], "target": target, "diff": diff, "reachability": reachability,
+            reachability = self._providers_reachable(normalised)
+            return {"revision": state["revision"], "target": egress_section.redact_section(target), "diff": diff,
+                    "reachability": reachability,
                     "restart_required": True,
                     "warnings": ["adopts_unmanaged_egress"] if observed.get("egress") is not None
                     and not self._journal(state)["history"] else []}
@@ -1451,9 +1520,8 @@ class MieruManager:
                 return {"revision": state["revision"], "applied": current["document"], "replayed": True}
             self._check_revision(state, expected_revision)
             observed = self._observed_consistent(state)
-            target = egress_section.to_mita(normalised, self.provider_url)
-            if normalised["proxies"] and not self.reachability(self.provider_url, 3.0):
-                raise EgressUnreachable("egress provider warp is unreachable")
+            target = self._target(normalised)
+            self._assert_reachable(normalised)
             entry = {"document": normalised, "digest": egress_section.document_digest(normalised),
                      "operation_id": operation_id, "applied_at": datetime.now(UTC).isoformat()}
             revision = self._egress_transaction(state, observed, target, entry, operation="egress.apply")
@@ -1471,9 +1539,8 @@ class MieruManager:
                 raise ConfigConflict("no previous egress to roll back to")
             previous = history[-2]
             if previous.get("document") is not None:
-                target = egress_section.to_mita(previous["document"], self.provider_url)
-                if previous["document"]["proxies"] and not self.reachability(self.provider_url, 3.0):
-                    raise EgressUnreachable("egress provider warp is unreachable")
+                target = self._target(previous["document"])
+                self._assert_reachable(previous["document"])
             else:
                 target = previous.get("raw") or {}
             entry = {**previous, "applied_at": datetime.now(UTC).isoformat()}

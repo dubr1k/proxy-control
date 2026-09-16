@@ -22,6 +22,9 @@ def main() -> None:
         public_host=os.environ["MIERU_PUBLIC_HOST"],
         # The WARP proxy-mode endpoint the egress API may route the service through (v0.4).
         provider_url=os.getenv("MIERU_EGRESS_WARP", "").strip() or None,
+        # This service's ingress on the node's Xray-router and its credential file (v0.5).
+        router_url=os.getenv("MIERU_EGRESS_ROUTER", "").strip() or None,
+        router_credential_file=os.getenv("MIERU_EGRESS_ROUTER_CREDENTIAL_FILE", "").strip() or None,
     )
     manager.bootstrap()
     server = ManagerHTTPServer(

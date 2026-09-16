@@ -190,3 +190,101 @@ def test_rollback_walks_back_to_the_seeded_section(tmp_path):
     assert service.egress()["mode"] == "custom" and rolled["applied"] is None
     with pytest.raises(ConfigConflict, match="no previous"):
         service.egress_rollback(rolled["revision"])
+
+
+# --- the router provider (v0.5) ---
+
+ROUTER = "socks5://127.0.0.1:45102"
+ROUTER_DOC = {"schema": 1, "proxies": [{"name": "router", "provider": "router"}],
+              "rules": [{"domains": ["*"], "cidrs": ["*"], "action": "PROXY", "proxy": "router"}]}
+ROUTER_SECRET = "mieru-e5f6a7b8:" + "K" * 40
+
+
+def _router_manager(tmp_path, mita=None, *, secret=ROUTER_SECRET, reachable=True):
+    credential = tmp_path / "xray-router-ingress"
+    credential.write_text(secret + "\n")
+    service = MieruManager(mita=mita or FakeMita(), state_dir=tmp_path / "state", public_host="proxy.example.com",
+                           provider_url=WARP, router_url=ROUTER, router_credential_file=credential)
+    service.greetings = []
+    service.reachability = lambda url, timeout=3.0, auth=False: (service.greetings.append((url, auth)), reachable)[1]
+    service.bootstrap()
+    return service
+
+
+def test_to_mita_router_proxy_has_socks5_authentication():
+    section = to_mita(validate_document(ROUTER_DOC), {"warp": WARP, "router": ROUTER},
+                      {"router": ("mieru-e5f6a7b8", "K" * 40)})
+    assert section["proxies"] == [{"name": "router", "protocol": "SOCKS5_PROXY_PROTOCOL", "host": "127.0.0.1", "port": 45102,
+                                   "socks5Authentication": {"user": "mieru-e5f6a7b8", "password": "K" * 40}}]
+    assert section["rules"] == [{"action": "PROXY", "ipRanges": ["*"], "domainNames": ["*"], "proxyNames": ["router"]}]
+    with pytest.raises(EgressInvalid, match="credential"):
+        to_mita(validate_document(ROUTER_DOC), {"warp": WARP, "router": ROUTER})
+    with pytest.raises(EgressInvalid, match="router is not configured"):
+        to_mita(validate_document(ROUTER_DOC), {"warp": WARP, "router": None}, {"router": ("u", "p" * 16)})
+
+
+def test_from_mita_router_with_auth_is_the_router_document():
+    section = to_mita(validate_document(ROUTER_DOC), {"warp": WARP, "router": ROUTER}, {"router": ("u", "p" * 16)})
+    assert from_mita(section, {"warp": WARP, "router": ROUTER}) == validate_document(ROUTER_DOC)
+    # Without a credential the router proxy is somebody else's; with one, warp is not warp.
+    bare = {"proxies": [{"name": "router", "protocol": "SOCKS5_PROXY_PROTOCOL", "host": "127.0.0.1", "port": 45102}], "rules": []}
+    assert from_mita(bare, {"warp": WARP, "router": ROUTER}) is None
+    assert from_mita(section, WARP) is None  # a v0.4 host without a router
+    assert egress.router_credential_stale(section, ("u", "p" * 16)) is False
+    assert egress.router_credential_stale(section, ("u", "q" * 16)) is True
+    masked = egress.redact_section(section)
+    assert masked["proxies"][0]["socks5Authentication"] == {"user": "***", "password": "***"}
+    assert section["proxies"][0]["socks5Authentication"]["password"] == "p" * 16
+
+
+def test_egress_views_never_contain_router_credential(tmp_path):
+    mita = FakeMita()
+    service = _router_manager(tmp_path, mita)
+    revision = service.inspect()["revision"]
+    plan = service.egress_plan(revision, ROUTER_DOC)
+    assert plan["reachability"] == {"router": True} and (ROUTER, True) in service.greetings
+    result = service.egress_apply(revision, ROUTER_DOC, "op-router")
+    assert mita.observe()["egress"]["proxies"][0]["socks5Authentication"] == {"user": "mieru-e5f6a7b8", "password": "K" * 40}
+    view = service.egress()
+    assert view["document"] == validate_document(ROUTER_DOC) and view["mode"] == "proxy"
+    assert view["providers"]["router"] == {"url": ROUTER, "reachable": True}
+    for text in (json.dumps(plan), json.dumps(view), json.dumps(result),
+                 json.dumps(service.egress_plan(view["revision"], WARP_DOC))):
+        assert "K" * 40 not in text and "mieru-e5f6a7b8" not in text
+    assert "K" * 40 not in (tmp_path / "state" / "state.json").read_text()
+
+
+def test_apply_router_unreachable_refuses(tmp_path):
+    mita = FakeMita()
+    service = _router_manager(tmp_path, mita, reachable=False)
+    with pytest.raises(EgressUnreachable, match="router"):
+        service.egress_apply(service.inspect()["revision"], ROUTER_DOC, "op-1")
+    assert "egress" not in mita.observe()
+    plain = _manager(tmp_path / "plain")
+    with pytest.raises(EgressInvalid, match="router"):
+        plain.egress_apply(plain.inspect()["revision"], ROUTER_DOC, "op-1")
+
+
+def test_bootstrap_rerenders_after_rotation(tmp_path):
+    mita = FakeMita()
+    service = _router_manager(tmp_path, mita)
+    applied = service.egress_apply(service.inspect()["revision"], ROUTER_DOC, "op-router")
+    (tmp_path / "xray-router-ingress").write_text("mieru-e5f6a7b8:" + "Z" * 40 + "\n")
+    assert service.egress()["warnings"] == ["router_credential_stale"]
+    mita.calls.clear()
+    fresh = _router_manager(tmp_path, mita, secret="mieru-e5f6a7b8:" + "Z" * 40)
+    assert mita.observe()["egress"]["proxies"][0]["socks5Authentication"]["password"] == "Z" * 40
+    assert ("stop",) in mita.calls and ("start",) in mita.calls
+    view = fresh.egress()
+    assert view["warnings"] == [] and view["document"] == validate_document(ROUTER_DOC)
+    assert view["revision"] != applied["revision"] and view["current"]["operation_id"] == "op-router"
+    assert view["previous"] is not None
+    # A rollback still walks back: the floor (no section) is restored.
+    fresh.egress_rollback(view["revision"])
+    assert "egress" not in mita.observe()
+    # A custom hand-written router proxy with somebody's credential is shown masked.
+    custom = FakeMita({**BASE, "egress": {"proxies": [{"name": "router", "protocol": "SOCKS5_PROXY_PROTOCOL", "host": "127.0.0.1",
+                                                        "port": 45102, "socks5Authentication": {"user": "x", "password": "y" * 20}}],
+                                          "rules": [{"ipRanges": ["*"], "action": "PROXY", "proxyNames": ["router"]}]}})
+    other = _manager(tmp_path / "custom", custom)
+    assert other.egress()["mode"] == "custom" and "y" * 20 not in json.dumps(other.egress())

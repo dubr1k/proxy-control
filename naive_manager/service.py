@@ -172,7 +172,12 @@ class NaiveCredentialManager:
     # The host's WARP proxy-mode endpoint (`NAIVE_EGRESS_WARP`), or None without WARP; the
     # only address the egress API ever writes into the Caddyfile (v0.4 routing).
     provider_url: str | None = None
-    reachability: Callable[[str, float], bool] = egress_block.check_reachable
+    # This service's private ingress on the node's Xray-router (`NAIVE_EGRESS_ROUTER`) and the
+    # file holding its `user:password` (`NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE`), or None without
+    # a router (v0.5). The credential is read when a line is rendered and never leaves the manager.
+    router_url: str | None = None
+    router_credential_file: Path | None = None
+    reachability: Callable[..., bool] = egress_block.check_reachable
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
     _recovery_failed: bool = field(default=False, init=False, repr=False)
 
@@ -190,6 +195,7 @@ class NaiveCredentialManager:
             else:
                 self._assert_consistent(state)
             self._archive_tombstones(state)
+            self._refresh_router_credential(self._read_state())
             return
         text = self.caddyfile.read_text()
         legacy_credentials = self._legacy_credentials(text)
@@ -485,19 +491,59 @@ class NaiveCredentialManager:
     # ------------------------------------------------------------------
 
     def _providers(self, *, probe: bool) -> dict:
-        if not self.provider_url:
-            return {}
-        return {"warp": {"url": self.provider_url, "reachable": self.reachability(self.provider_url, 3.0) if probe else None}}
+        providers = {}
+        if self.provider_url:
+            providers["warp"] = {"url": self.provider_url,
+                                 "reachable": self.reachability(self.provider_url, 3.0) if probe else None}
+        if self.router_url:
+            providers["router"] = {"url": egress_block.strip_userinfo(self.router_url),
+                                   "reachable": self.reachability(self.router_url, 3.0, auth=True) if probe else None}
+        return providers
+
+    def _router_credential(self) -> tuple[str, str]:
+        if not self.router_url or self.router_credential_file is None:
+            raise egress_block.EgressInvalid("egress provider router is not configured on this node")
+        return egress_block.read_credential(self.router_credential_file)
+
+    def _render_providers(self, document: dict) -> dict[str, str | None]:
+        """The URLs the block may name: WARP as configured, the router with the credential the
+        file holds right now (read only when the document asks for it)."""
+        providers: dict[str, str | None] = {"warp": self.provider_url, "router": None}
+        if document.get("upstream") and document["upstream"]["provider"] == "router" and self.router_url:
+            providers["router"] = egress_block.with_credential(self.router_url, self._router_credential())
+        return providers
+
+    def _provider_of(self, upstream: str | None) -> str | None:
+        if upstream is None:
+            return None
+        bare = egress_block.strip_userinfo(upstream)
+        if self.provider_url and bare == egress_block.strip_userinfo(self.provider_url) and "@" not in upstream:
+            return "warp"
+        if self.router_url and bare == egress_block.strip_userinfo(self.router_url):
+            return "router"
+        return None
+
+    def _router_credential_stale(self, parsed: egress_block.ParsedEgress) -> bool:
+        """The router line carries a credential other than the file's (a rotation happened
+        while this manager was down): the block is re-rendered at bootstrap."""
+        if self._provider_of(parsed.upstream) != "router":
+            return False
+        try:
+            expected = egress_block.with_credential(self.router_url, self._router_credential())
+        except egress_block.EgressInvalid:
+            return False
+        return parsed.upstream != expected
 
     def _egress_document(self, parsed: egress_block.ParsedEgress) -> dict | None:
         """The compiled document the block (or the adopted line) amounts to, or None for a
         `custom` upstream this host has no provider for."""
         if parsed.upstream is None:
             upstream = None
-        elif self.provider_url and parsed.upstream == self.provider_url:
-            upstream = {"provider": "warp"}
         else:
-            return None
+            provider = self._provider_of(parsed.upstream)
+            if provider is None:
+                return None
+            upstream = {"provider": provider}
         acl = [{"deny": list(parsed.acl_deny)}] if parsed.acl_deny else []
         return {"schema": egress_block.SCHEMA, "upstream": upstream, "acl": acl}
 
@@ -507,13 +553,16 @@ class NaiveCredentialManager:
         if mode == "custom" and document is not None:
             mode = "proxy"  # an unmanaged line that already names the provider
         journal = state["egress"]
+        warnings = ["adopts_unmanaged_upstream"] if parsed.upstream and not parsed.managed else []
+        if self._router_credential_stale(parsed):
+            warnings.append("router_credential_stale")
         return {
             "revision": parsed.revision, "mode": mode,
             "upstream": None if parsed.upstream is None else egress_block.redact_userinfo(parsed.upstream),
             "acl": list(parsed.acl_deny),
             "document": document, "managed": parsed.managed, "providers": self._providers(probe=probe),
             "capabilities": list(egress_block.CAPABILITIES), "restart_required": False,
-            "warnings": ["adopts_unmanaged_upstream"] if parsed.upstream and not parsed.managed else [],
+            "warnings": warnings,
             "previous": None if journal["previous"] is None else {"revision": journal["previous"]["revision"]},
             "current": None if journal["current"] is None else {
                 key: journal["current"][key] for key in ("revision", "rendered_sha256", "operation_id", "applied_at")},
@@ -534,8 +583,16 @@ class NaiveCredentialManager:
         parsed = egress_block.parse(text)
         if not isinstance(expected_revision, str) or not secrets.compare_digest(parsed.revision, expected_revision):
             raise ManagerConflict("egress revision does not match", "egress_conflict")
-        rendered = egress_block.render(text, normalised, self.provider_url)
+        rendered = egress_block.render(text, normalised, self._render_providers(normalised))
         return state, parsed, normalised, rendered
+
+    def _provider_reachable(self, document: dict) -> bool:
+        """The provider the document names answers its SOCKS5 greeting (direct: nothing to ask)."""
+        if document.get("upstream") is None:
+            return True
+        if document["upstream"]["provider"] == "router":
+            return bool(self.router_url) and self.reachability(self.router_url, 3.0, auth=True)
+        return self.reachability(self.provider_url, 3.0)
 
     @synchronized
     def egress_plan(self, expected_revision: str, document: object) -> dict:
@@ -547,7 +604,7 @@ class NaiveCredentialManager:
                 if not line.startswith(("---", "+++", "@@"))]
         reachability = {}
         if normalised["upstream"] is not None:
-            reachability["warp"] = self.reachability(self.provider_url, 3.0)
+            reachability[normalised["upstream"]["provider"]] = self._provider_reachable(normalised)
         return {
             "revision": parsed.revision, "target_revision": egress_block.revision_of(rendered),
             "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest(), "diff": diff,
@@ -571,8 +628,8 @@ class NaiveCredentialManager:
             return {"revision": current["revision"], "applied": current["document"],
                     "readback_sha256": current["rendered_sha256"], "replayed": True}
         state, parsed, normalised, rendered = self._egress_target(expected_revision, document)
-        if normalised["upstream"] is not None and not self.reachability(self.provider_url, 3.0):
-            raise EgressUnreachable("egress provider warp is unreachable")
+        if not self._provider_reachable(normalised):
+            raise EgressUnreachable(f"egress provider {normalised['upstream']['provider']} is unreachable")
         entry = {"document": normalised, "revision": egress_block.revision_of(rendered),
                  "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest(),
                  "operation_id": operation_id, "applied_at": _now()}
@@ -594,9 +651,9 @@ class NaiveCredentialManager:
         if previous is None:
             raise ManagerConflict("no previous egress to roll back to", "egress_no_previous")
         if previous.get("document") is not None:
-            rendered = egress_block.render(text, previous["document"], self.provider_url)
-            if previous["document"]["upstream"] is not None and not self.reachability(self.provider_url, 3.0):
-                raise EgressUnreachable("egress provider warp is unreachable")
+            rendered = egress_block.render(text, previous["document"], self._render_providers(previous["document"]))
+            if not self._provider_reachable(previous["document"]):
+                raise EgressUnreachable(f"egress provider {previous['document']['upstream']['provider']} is unreachable")
         else:
             rendered = egress_block.render_raw(text, tuple(previous["raw_lines"]))
         entry = {"document": previous.get("document"), "revision": egress_block.revision_of(rendered),
@@ -624,11 +681,35 @@ class NaiveCredentialManager:
                              "history": history}
         self._commit(rendered, desired, readback=self._egress_readback(entry))
 
+    def _refresh_router_credential(self, state: dict) -> None:
+        """After a credential rotation the managed router line still carries the old key: the
+        block is a function of the document and the file, so it is rendered again — the
+        journal's current entry moves on with it, nothing is pushed."""
+        text = self.caddyfile.read_text()
+        try:
+            parsed = egress_block.parse(text)
+        except egress_block.EgressInvalid:
+            return
+        if not parsed.managed or not self._router_credential_stale(parsed):
+            return
+        document = self._egress_document(parsed)
+        if document is None or state["egress"]["current"] is None:
+            return
+        rendered = egress_block.render(text, document, self._render_providers(document))
+        desired = copy.deepcopy(state)
+        current = dict(desired["egress"]["current"])
+        current.update({"revision": egress_block.revision_of(rendered),
+                        "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest()})
+        desired["egress"]["current"] = current
+        if desired["egress"]["history"]:
+            desired["egress"]["history"][-1] = current
+        self._commit(rendered, desired, readback=self._egress_readback(current))
+
     def _egress_readback(self, entry: dict) -> Callable[[dict], None]:
         expected_upstream = None
         expected_deny: list[str] = []
         if entry.get("document") is not None:
-            expected_upstream = egress_block.resolve_provider(entry["document"], self.provider_url)
+            expected_upstream = egress_block.resolve_provider(entry["document"], self._render_providers(entry["document"]))
             expected_deny = [item for rule in entry["document"]["acl"] for item in rule["deny"]]
         elif entry.get("raw_lines"):
             parsed = egress_block.parse("forward_proxy {\n" + "\n".join(entry["raw_lines"]) + "\n}\n")
