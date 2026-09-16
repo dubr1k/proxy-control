@@ -49,6 +49,9 @@ _MEMBERS = ("xray", "geoip.dat", "geosite.dat")
 _SERVICES = ("naive", "mieru")
 _SUPPORTED_ARCHITECTURES = ("amd64",)
 _HEX_32 = re.compile(r"[0-9a-f]{32}\Z")
+# Secrets the router container (10006) and the panel (group 10006) read as Docker file
+# secrets: root-owned, group 10006, never world-readable.
+_SECRET_MODE = 0o440
 # An ingress credential is `user:password` — the shapes the managers and the router accept.
 _CREDENTIAL = re.compile(r"[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._~-]{16,128}\Z")
 _TRACE = "https://www.cloudflare.com/cdn-cgi/trace"
@@ -595,6 +598,7 @@ class XrayRouterAdapter:
         except ReleaseError as exc:
             raise ArtifactError(f"Xray archive extraction failed: {exc}") from exc
         os.chmod(bin_dir, 0o755)
+        os.chmod(bin_dir.parent, 0o755)
         fsync_directory(bin_dir.parent)
 
     def _ensure_identities(self) -> dict[str, bool]:
@@ -648,26 +652,32 @@ class XrayRouterAdapter:
 
     def _write_secrets(self) -> None:
         """The manager token and one credential per ingress; an existing secret is kept, so
-        a re-run never breaks the managers' copies (rotation is the operator's script)."""
+        a re-run never breaks the managers' copies (rotation is the operator's script).
+        Docker mounts a file secret with the file's own owner and mode, and the container
+        runs as 10006: root-owned, group 10006, mode 0440 — the shape mieru's token has."""
         token = self._host(self.paths.manager_token)
         durable_mkdir(token.parent, mode=0o700)
         if not (token.exists() or token.is_symlink()):
-            self._atomic(token, (secrets.token_hex(32) + "\n").encode("ascii"), 0o600)
-        self._assert_owned_secret(token)
+            self._atomic(token, (secrets.token_hex(32) + "\n").encode("ascii"), _SECRET_MODE)
+        self._own_secret(token)
         for service in _SERVICES:
             path = self._host(self.paths.ingress(service))
             if not (path.exists() or path.is_symlink()):
-                self._atomic(path, (ingress_credential(service) + "\n").encode("ascii"), 0o600)
-            self._assert_owned_secret(path)
+                self._atomic(path, (ingress_credential(service) + "\n").encode("ascii"), _SECRET_MODE)
+            self._own_secret(path)
             if _CREDENTIAL.fullmatch(path.read_text().strip()) is None:
                 raise XrayRouterError(f"the {service} ingress credential is malformed")
 
-    def _assert_owned_secret(self, path: Path) -> None:
+    def _own_secret(self, path: Path) -> None:
+        """A regular, non-world-readable file becomes root:10006 0440; anything else is refused."""
         if path.is_symlink() or not path.is_file():
             raise XrayRouterError("pre-existing Xray-router secrets are unsafe")
         metadata = path.stat()
-        if metadata.st_mode & 0o077 or (self.root == Path("/") and (metadata.st_uid, metadata.st_gid) != (0, 0)):
+        if metadata.st_mode & 0o007 or (self.root == Path("/") and metadata.st_uid != 0):
             raise XrayRouterError("pre-existing Xray-router secrets are unsafe")
+        os.chmod(path, _SECRET_MODE)
+        if self.root == Path("/") and os.geteuid() == 0:
+            os.chown(path, 0, _ROUTER_GID)
 
     def _status(self) -> Mapping[str, object]:
         reader = getattr(self.runner, "router_status", None)

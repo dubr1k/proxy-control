@@ -1877,7 +1877,9 @@ class MieruAdapter:
         secret = self._host(f"{self.paths.project_dir}/secrets/xray-router-ingress-mieru")
         if secret.is_symlink() or not secret.is_file():
             raise MieruError("the Xray-router ingress credential is missing; install the router first")
-        if stat.S_IMODE(secret.stat().st_mode) & 0o077:
+        metadata = secret.stat()
+        # root:10006 0440, the shape the router adapter wrote it in (a Docker file secret).
+        if stat.S_IMODE(metadata.st_mode) & 0o027 or (self.root == Path("/") and metadata.st_uid != 0):
             raise MieruError("the Xray-router ingress credential is unsafe")
         user, separator, password = secret.read_text().strip().partition(":")
         if not separator or _ROUTER_CREDENTIAL_SHAPE.fullmatch(f"{user}:{password}") is None:
