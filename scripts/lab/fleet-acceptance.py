@@ -1566,9 +1566,10 @@ class Scenario:
         if after is not None:
             generation = (self.host.router_status(container).get("running") or {}).get("generation")
             self.central.json(f"{self._policy_path('naive')}/rollback", method="POST", payload={"expected_revision": after["revision"]})
-            rolled, elapsed = self._wait_state("naive", ("rolled_back", "failed"))
-            self.check("x09_rolled_back", bool(rolled) and rolled["state"] == "rolled_back" and rolled["applied_revision"] == before["revision"],
-                       f"after {elapsed}s: {redact(json.dumps(rolled))[:300]}")
+            # On a linked node a rollback is the previous document published again: the
+            # policy settles at `applied` on the previous revision (routing-07 reads it the same way).
+            rolled, elapsed = self._wait_applied("naive", before["revision"])
+            self.check("x09_rolled_back", bool(rolled), f"after {elapsed}s: {redact(json.dumps(self._policy('naive')))[:300]}")
             refused, detail = self._probe("naive", args.routing_cidr_target)
             self.check("x09_previous_rule_enforced_again", not refused, detail)
             self.check("x09_router_generation_advanced", (self.host.router_status(container).get("running") or {}).get("generation", 0) > (generation or 0))
@@ -1593,12 +1594,25 @@ class Scenario:
         self.stub.stop()
         refused, detail = self._probe("naive", allowed)
         self.check("x11_warp_policy_fails_closed_without_provider", not refused, detail)
+        down, elapsed = self.wait(lambda: self._targets().get("naive", {}).get("providers", {}).get("warp", {}).get("reachable") is False,
+                                  60, "warp unreachable in targets")
+        self.check("x11_targets_report_warp_unreachable", bool(down), f"after {elapsed}s")
         self._put_policy("naive", default="egress", rules=[{"action": "block", "match": {"ports": [25]}}])
-        self._apply_policy("naive")
-        failed, elapsed = self._wait_state("naive", ("failed", "applied"))
-        self.check("x11_apply_refused_egress_unreachable", bool(failed) and failed["state"] == "failed"
-                   and failed.get("last_error") in ("egress_unreachable", "provider_unreachable"), f"after {elapsed}s: {redact(json.dumps(failed))[:300]}")
+        # The central refuses at compile time once the node's identity says the provider is down
+        # (422); a push that raced the heartbeat is refused by the router itself (`failed`).
+        status, refused = self._apply_policy("naive", expect=(200, 409, 422))
+        if status == 200:
+            failed, elapsed = self._wait_state("naive", ("failed", "applied"))
+            codes = {failed.get("last_error")} if failed else set()
+            detail = f"after {elapsed}s: {redact(json.dumps(failed))[:300]}"
+        else:
+            codes = {refused.get("code")} | {r.get("code") for r in (refused.get("compiled") or {}).get("reasons", [])}
+            detail = f"{status} {redact(json.dumps(refused))[:300]}"
+        self.check("x11_apply_refused_egress_unreachable", bool(codes & {"egress_unreachable", "provider_unreachable"}), detail)
         self.stub.start()
+        up, elapsed = self.wait(lambda: self._targets().get("naive", {}).get("providers", {}).get("warp", {}).get("reachable") is True,
+                                60, "warp reachable again")
+        self.check("x11_targets_report_warp_back", bool(up), f"after {elapsed}s")
         self._apply_and_wait("x11b", "naive")
 
         # router-13: nothing of the credential anywhere the operator or the central can read.

@@ -35,10 +35,15 @@ def run_entrypoint(
     supplementary_groups: str | None,
     *,
     python3_exit: int = 0,
+    container_groups: str | None = None,
     **extra_env: str,
 ) -> subprocess.CompletedProcess[str]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    if container_groups is not None:
+        # What `id -G` says inside the container: root plus Compose's `group_add`.
+        (bin_dir / "id").write_text(f"#!/bin/sh\nprintf '%s\\n' '{container_groups}'\n")
+        (bin_dir / "id").chmod(0o755)
     command_log = tmp_path / "commands.log"
     environment_log = tmp_path / "environment.log"
     runtime_override = tmp_path / "runtime-override"
@@ -126,6 +131,22 @@ def test_panel_entrypoint_sets_agent_and_mieru_groups(tmp_path: Path, groups: st
     assert "--clear-groups" not in launch
     assert "--init-groups" not in launch
     assert "--keep-groups" not in launch
+
+
+def test_panel_entrypoint_keeps_the_groups_compose_added(tmp_path: Path):
+    """Overlays merge their `group_add` lists but the last one wins the env value: the
+    manager socket groups the container actually has are kept, duplicates once, root never."""
+    result = run_entrypoint(tmp_path, "10001,10005", container_groups="0 10001 10006 10005")
+
+    assert result.returncode == 0, result.stderr
+    launch = logged_commands(result)[-1]
+    assert launch[launch.index("--groups") + 1] == "10001,10006,10005"
+    # A group outside the allowlist that somehow reached the container is dropped, not passed on.
+    (tmp_path / "other").mkdir()
+    result = run_entrypoint(tmp_path / "other", "", container_groups="0 4 10006")
+    assert result.returncode == 0, result.stderr
+    launch = logged_commands(result)[-1]
+    assert launch[launch.index("--groups") + 1] == "10006"
 
 
 def test_panel_entrypoint_ignores_runtime_override_and_uses_fixed_privileged_destinations(
