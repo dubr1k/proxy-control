@@ -144,7 +144,7 @@ case $LEVEL in
            for file in .env .env.naive .env.mieru; do test -f \$file && grep -q \"^\$key=\" \$file && { sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" \$file; hit=1; }; done; \
            test \$hit = 1 || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
       && files=(--env-file .env -f compose.yaml) \
-      && for runtime in mieru naive; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
+      && for runtime in mieru naive xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
       && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait naive-manager mieru-manager"
     remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
       --node-url https://panel.lab.test \
@@ -154,8 +154,29 @@ case $LEVEL in
       --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing $* \
       && echo ROUTING_ACCEPTANCE_OK && echo REMOTE_GATE_ROUTING_OK"
     ;;
+  router)
+    # The Xray-router (v0.5) end to end on the node `lab-host` left installed with
+    # `[egress] router = true`: the managers and the router learn the SOCKS5 stub as their
+    # «WARP» (`XRAY_ROUTER_EGRESS_WARP` lives in the router's own overlay), and the fleet
+    # acceptance runs routing-01…10 and router-01…14. Nothing is rebuilt or reinstalled.
+    sync_tree
+    remote "cd /opt/mtproxy-shared443 \
+      && for key in NAIVE_EGRESS_WARP MIERU_EGRESS_WARP XRAY_ROUTER_EGRESS_WARP; do hit=0; \
+           for file in .env .env.naive .env.mieru .env.xray-router; do test -f \$file && grep -q \"^\$key=\" \$file && { sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" \$file; hit=1; }; done; \
+           test \$hit = 1 || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
+      && files=(--env-file .env -f compose.yaml) \
+      && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
+      && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait xray-router naive-manager mieru-manager"
+    remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
+      --node-url https://panel.lab.test \
+      --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+      --central-dir /root/lab-central --central-port 8791 --output lab-results/router \
+      --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain proxy.lab.test \
+      --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing --router $* \
+      && echo ROUTER_ACCEPTANCE_OK && echo REMOTE_GATE_ROUTER_OK"
+    ;;
   *)
-    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>}" >&2
+    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>}" >&2
     exit 2
     ;;
 esac
