@@ -22,7 +22,7 @@ from installer.adapters.core import (
     _path_sha256,
 )
 from installer.adapters.naive import _identity_from_entry
-from installer.model import EgressChoice, InstallerConfig
+from installer.model import ROUTER_PORTS, EgressChoice, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, verify_artifact
 from installer.transaction import (
@@ -74,6 +74,14 @@ _MANAGER_UID = 10005
 _MANAGER_GID = 10005
 _WARP_EGRESS = ("127.0.0.1", 40000)
 _WARP_PROXY_NAME = "warp"
+# The node's Xray-router ingress for this service (v0.5) and the manager's own copy of
+# the ingress credential inside its state directory.
+_ROUTER_PROXY_NAME = "router"
+_ROUTER_PORT = ROUTER_PORTS["mieru"]
+_ROUTER_CREDENTIAL_NAME = "xray-router-ingress"
+_ROUTER_CREDENTIAL_SHAPE = re.compile(r"[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._~-]{16,128}\Z")
+# `[egress]` choice → the seed word the action carries (`proxy` is the v0.4 name for WARP).
+_EGRESS_SEED = {EgressChoice.DIRECT: "direct", EgressChoice.WARP: "proxy", EgressChoice.ROUTER: "router"}
 _RUNNING = 'mita server status is "RUNNING"'
 _MITA_PROCESS = "mita"
 _MITA_VERSION = "3.36.0"
@@ -723,7 +731,7 @@ class MieruAdapter:
         url, package_sha256, executable_sha256 = self._pins()
         # `[egress]` (v0.4): the seed the manager owns from here on (ADR 007); an old
         # configuration derives it from `[three_xui].warp*` unchanged.
-        egress = "proxy" if config.effective_egress.mieru is EgressChoice.WARP else "direct"
+        egress = _EGRESS_SEED[config.effective_egress.mieru]
         return (
             Action(
                 id="mieru.runtime",
@@ -747,9 +755,11 @@ class MieruAdapter:
                     "transports=" + _encode_transports(transports),
                     f"egress={egress}",
                     f"warp-port={config.effective_egress.warp_port}",
-                    # The endpoint the manager may route the service through later (the
-                    # panel's routing policy, v0.4): the host's WARP, or nothing.
+                    # The endpoints the manager may route the service through later (the
+                    # panel's routing policy): the host's WARP (v0.4) and the node's
+                    # Xray-router ingress (v0.5), or nothing.
                     f"warp-provider={config.effective_egress.provider_url() or ''}",
+                    f"router-provider={config.effective_egress.router_url('mieru') or ''}",
                 ),
                 preconditions=(
                     "the Core runtime is verified",
@@ -908,13 +918,15 @@ class MieruAdapter:
         selected: Mapping[str, object],
         *,
         password: str,
+        router_credential: tuple[str, str] | None = None,
     ) -> dict[str, object]:
-        """One valid generation: bindings, one bootstrap user, and egress."""
+        """One valid generation: bindings, one bootstrap user, and egress. `egress=router`
+        (v0.5) names the node's Xray-router with the ingress credential of the day, the
+        same section the manager itself renders for the `router` provider."""
         transports = selected["transports"]
         if not isinstance(transports, tuple) or not transports:
             raise MieruError("Mieru action is invalid")
-        proxy_action = "PROXY" if selected["egress"] == "proxy" else "DIRECT"
-        return {
+        document: dict[str, object] = {
             "portBindings": [
                 {"port": port, "protocol": protocol}
                 for protocol, port in transports
@@ -926,27 +938,47 @@ class MieruAdapter:
                 }
             ],
             "loggingLevel": "INFO",
-            "egress": {
+        }
+        if selected["egress"] == "router":
+            if router_credential is None:
+                raise MieruError("the Xray-router ingress credential is required for egress=router")
+            document["egress"] = {
                 "proxies": [
                     {
-                        "name": _WARP_PROXY_NAME,
+                        "name": _ROUTER_PROXY_NAME,
                         "protocol": "SOCKS5_PROXY_PROTOCOL",
                         "host": _WARP_EGRESS[0],
-                        "port": selected["warp_port"],
+                        "port": _ROUTER_PORT,
+                        "socks5Authentication": {"user": router_credential[0], "password": router_credential[1]},
                     }
                 ],
                 "rules": [
-                    {
-                        "ipRanges": ["0.0.0.0/0", "::/0"],
-                        "domainNames": [],
-                        "action": proxy_action,
-                        "proxyNames": (
-                            [_WARP_PROXY_NAME] if proxy_action == "PROXY" else []
-                        ),
-                    }
+                    {"action": "PROXY", "ipRanges": ["*"], "domainNames": ["*"], "proxyNames": [_ROUTER_PROXY_NAME]}
                 ],
-            },
+            }
+            return document
+        proxy_action = "PROXY" if selected["egress"] == "proxy" else "DIRECT"
+        document["egress"] = {
+            "proxies": [
+                {
+                    "name": _WARP_PROXY_NAME,
+                    "protocol": "SOCKS5_PROXY_PROTOCOL",
+                    "host": _WARP_EGRESS[0],
+                    "port": selected["warp_port"],
+                }
+            ],
+            "rules": [
+                {
+                    "ipRanges": ["0.0.0.0/0", "::/0"],
+                    "domainNames": [],
+                    "action": proxy_action,
+                    "proxyNames": (
+                        [_WARP_PROXY_NAME] if proxy_action == "PROXY" else []
+                    ),
+                }
+            ],
         }
+        return document
 
     def env_text(self, selected: Mapping[str, object], *, mita_gid: int) -> str:
         return (
@@ -959,6 +991,10 @@ class MieruAdapter:
             # The WARP endpoint the manager's egress API may write into mita's config (v0.4);
             # empty on a host without WARP, and the routing preview then says so.
             f"MIERU_EGRESS_WARP={selected.get('warp_provider', '')}\n"
+            # The Xray-router ingress (v0.5) and the credential file inside the manager's
+            # own state directory; both empty on a host without a router.
+            f"MIERU_EGRESS_ROUTER={selected.get('router_provider', '')}\n"
+            f"MIERU_EGRESS_ROUTER_CREDENTIAL_FILE={self.paths.manager_state + '/' + _ROUTER_CREDENTIAL_NAME if selected.get('router_provider') else ''}\n"
         )
 
     # ------------------------------------------------------------------
@@ -1255,7 +1291,7 @@ class MieruAdapter:
             "transports",
             "egress",
         }
-        optional = {"package", "warp-port", "warp-provider"}
+        optional = {"package", "warp-port", "warp-provider", "router-provider"}
         if not required <= set(values) or set(values) - required - optional:
             raise MieruError("Mieru action is invalid")
         if (
@@ -1267,7 +1303,7 @@ class MieruAdapter:
             or values["architecture"] not in _SUPPORTED_ARCHITECTURES
             or values["manager-uid"] != str(_MANAGER_UID)
             or values["manager-gid"] != str(_MANAGER_GID)
-            or values["egress"] not in {"proxy", "direct"}
+            or values["egress"] not in {"proxy", "direct", "router"}
             or _SHA256.fullmatch(values["package-digest"]) is None
             or _SHA256.fullmatch(values["executable-digest"]) is None
             or _SAFE_NAME.fullmatch(values["bootstrap-user"]) is None
@@ -1288,9 +1324,16 @@ class MieruAdapter:
             raise MieruError("invalid WARP provider")
         if values["egress"] == "proxy" and not provider:
             raise MieruError("Mieru action is invalid")
+        # v0.5: the node's Xray-router ingress; `egress=router` cannot hold without it.
+        router = values.get("router-provider", f"socks5://127.0.0.1:{_ROUTER_PORT}" if values["egress"] == "router" else "")
+        if router not in ("", f"socks5://127.0.0.1:{_ROUTER_PORT}"):
+            raise MieruError("invalid router provider")
+        if values["egress"] == "router" and not router:
+            raise MieruError("Mieru action is invalid")
         return {
             "warp_port": warp_port,
             "warp_provider": provider,
+            "router_provider": router,
             "mieru_host": values["mieru-host"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "architecture": values["architecture"],
@@ -1713,6 +1756,7 @@ class MieruAdapter:
         document = self.bootstrap_config(
             selected,
             password=secrets.token_urlsafe(24),
+            router_credential=self._read_router_credential() if selected["egress"] == "router" else None,
         )
         self._atomic(
             bootstrap,
@@ -1820,11 +1864,38 @@ class MieruAdapter:
         state = self._host(self.paths.manager_state)
         mode = "verify" if state.is_dir() and any(state.iterdir()) else "prepare"
         self._run(self.paths.state_preparer, mode, self.paths.manager_state)
+        self._write_router_credential(selected)
         self._atomic(
             self._host(self.paths.env_overlay),
             self.env_text(selected, mita_gid=mita_gid).encode(),
             0o600,
         )
+
+    def _read_router_credential(self) -> tuple[str, str]:
+        """The router ingress credential of the day, from the secret the router adapter wrote
+        (it runs before this one)."""
+        secret = self._host(f"{self.paths.project_dir}/secrets/xray-router-ingress-mieru")
+        if secret.is_symlink() or not secret.is_file():
+            raise MieruError("the Xray-router ingress credential is missing; install the router first")
+        if stat.S_IMODE(secret.stat().st_mode) & 0o077:
+            raise MieruError("the Xray-router ingress credential is unsafe")
+        user, separator, password = secret.read_text().strip().partition(":")
+        if not separator or _ROUTER_CREDENTIAL_SHAPE.fullmatch(f"{user}:{password}") is None:
+            raise MieruError("the Xray-router ingress credential is malformed")
+        return user, password
+
+    def _write_router_credential(self, selected: Mapping[str, object]) -> None:
+        """The manager's own copy of the ingress credential (read at bootstrap, v0.5): present
+        exactly when the node has a router, refreshed on every apply, removed otherwise."""
+        copy_path = self._host(f"{self.paths.manager_state}/{_ROUTER_CREDENTIAL_NAME}")
+        if not selected.get("router_provider"):
+            durable_remove(copy_path, missing_ok=True)
+            return
+        user, password = self._read_router_credential()
+        self._atomic(copy_path, f"{user}:{password}\n".encode(), 0o400)
+        os.chmod(copy_path, 0o400)
+        if self.root == Path("/") and os.geteuid() == 0:
+            os.chown(copy_path, _MANAGER_UID, _MANAGER_GID)
 
     # ------------------------------------------------------------------
     # acceptance ownership
@@ -1926,10 +1997,12 @@ class MieruAdapter:
         project = self.paths.project_dir
         env_files = [f"{project}/.env"]
         compose_files = [f"{project}/compose.yaml"]
-        sibling_env = f"{project}/.env.naive"
-        if self._host(sibling_env).is_file():
-            env_files.append(sibling_env)
-            compose_files.append(f"{project}/compose.naive.yaml")
+        # The router overlay (v0.5) extends `panel` too, so it rides along the same way.
+        for sibling in ("naive", "xray-router"):
+            sibling_env = f"{project}/.env.{sibling}"
+            if self._host(sibling_env).is_file():
+                env_files.append(sibling_env)
+                compose_files.append(f"{project}/compose.{sibling}.yaml")
         env_files.append(self.paths.env_overlay)
         compose_files.append(self.paths.compose_overlay)
         argv: list[str] = ["docker", "compose", "--project-directory", project]

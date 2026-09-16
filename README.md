@@ -118,7 +118,8 @@ Nginx — он останавливается, а не угадывает.
 - `mieru_3.36.0_<arch>.deb` — официальный клиент, которым установщик проверит,
   что трафик реально ходит.
 
-URL и контрольные суммы обоих — в
+С `[egress] router = true` (v0.5) туда же кладётся `Xray-linux-64.zip`: из него
+извлекается Xray egress-router. URL и контрольные суммы всех артефактов — в
 [`release/external-artifacts.json`](release/external-artifacts.json).
 Установщик сверит их и откажется работать при несовпадении.
 
@@ -822,6 +823,7 @@ sudo python3 -m installer.cli uninstall --json
 | `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | Сервер Mieru. Устанавливается только исполняемый файл и уведомление о лицензии; сам пакет — никогда. |
 | `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | Официальный клиент Mieru: из него собирается образ приёмки, который доказывает, что каждый транспорт реально пропускает трафик. |
 | `three_xui` (`MHSanaei/3x-ui`) | 3.7.0 | GPL-3.0-only | Панель 3x-ui и её ядро Xray для VLESS Reality TCP, VLESS Reality XHTTP и Hysteria2. |
+| `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | Xray egress-router (v0.5, `[egress] router = true`): из закреплённого `Xray-linux-64.zip` извлекаются только `xray`, `geoip.dat` и `geosite.dat`, каждый по своему дайджесту. |
 
 Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` не скачивается
 бинарником, а собирается по зафиксированному рецепту
@@ -836,6 +838,7 @@ Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` не скачи�
 | `panel/Dockerfile` | API и интерфейс панели | `python:3.13.5-slim` |
 | `naive_manager/Dockerfile` | Менеджер доступов и учёта NaiveProxy | `python:3.13.5-slim` |
 | `mieru_manager/Dockerfile` | Менеджер доступов и квот Mieru | `python:3.13.5-slim` |
+| `xray_router_manager/Dockerfile` | Xray egress-router и его менеджер (v0.5) | `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | Агент узла Fleet | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | mTLS-ingress Fleet | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Официальный клиент Mieru для приёмки | `python:3.13.5-slim` |

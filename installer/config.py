@@ -133,6 +133,8 @@ def render_config(config: InstallerConfig) -> str:
         lines.extend(["", "[egress]", f"warp = {_toml_boolean(config.egress.warp)}"])
         if config.egress.warp_port != 40000:
             lines.append(f"warp_port = {config.egress.warp_port}")
+        if config.egress.router:
+            lines.append("router = true")
         if config.profile.includes_naive:
             lines.append(f"naive = {_toml_string(config.egress.naive.value)}")
         if config.profile.includes_mieru:
@@ -278,8 +280,12 @@ def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *,
     if value is None:
         return None
     raw = _table(value, "egress")
-    _keys(raw, path="egress", required=set(), optional={"warp", "warp_port", "naive", "mieru"})
+    _keys(raw, path="egress", required=set(), optional={"warp", "warp_port", "naive", "mieru", "router"})
     warp = _boolean(raw["warp"], "egress.warp") if "warp" in raw else False
+    # v0.5: the Xray egress-router is worth installing only with a service to feed it.
+    router = _boolean(raw["router"], "egress.router") if "router" in raw else False
+    if router and not (profile.includes_naive or profile.includes_mieru):
+        raise ConfigError("egress.router requires NaiveProxy or Mieru in the profile")
     warp_port = _integer(raw.get("warp_port", 40000), "egress.warp_port")
     if not 1024 <= warp_port <= 65535:
         raise ConfigError("egress.warp_port must be between 1024 and 65535")
@@ -300,7 +306,9 @@ def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *,
         choices[service] = _enum(raw[service], EgressChoice, f"egress.{service}")
         if choices[service] is EgressChoice.WARP and not warp:
             raise ConfigError(f"egress.{service} requires warp = true")
-    return EgressConfig(warp=warp, warp_port=warp_port, naive=choices["naive"], mieru=choices["mieru"])
+        if choices[service] is EgressChoice.ROUTER and not router:
+            raise ConfigError(f"egress.{service} requires router = true")
+    return EgressConfig(warp=warp, warp_port=warp_port, naive=choices["naive"], mieru=choices["mieru"], router=router)
 
 
 def _as_dict(config: ThreeXuiConfig) -> dict[str, Any]:

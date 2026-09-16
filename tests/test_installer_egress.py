@@ -98,3 +98,46 @@ def test_naming_a_service_the_profile_lacks_is_an_error():
         parse_config(document)
 
 
+
+
+# -- [egress] router (v0.5) ----------------------------------------------------------
+
+
+def test_egress_router_parsed_and_rendered():
+    egress = "\n[egress]\nwarp = true\nrouter = true\nnaive = \"router\"\nmieru = \"warp\"\n"
+    config = parse_config(_document('mode = "none"\n', egress))
+    assert config.egress is not None and config.egress.router is True
+    assert (config.egress.naive, config.egress.mieru) == (EgressChoice.ROUTER, EgressChoice.WARP)
+    assert config.egress.router_url("naive") == "socks5://127.0.0.1:45101"
+    assert config.egress.router_url("mieru") == "socks5://127.0.0.1:45102"
+    rendered = render_config(config)
+    assert "router = true" in rendered and 'naive = "router"' in rendered
+    assert parse_config(rendered) == config
+
+
+def test_egress_router_defaults_off_and_renders_nothing():
+    config = parse_config(_document('mode = "none"\n', "\n[egress]\nwarp = true\n"))
+    assert config.egress.router is False and config.egress.router_url("naive") is None
+    assert "router" not in render_config(config)
+    # Without WARP the router alone leaves both services direct until the operator says otherwise.
+    config = parse_config(_document('mode = "none"\n', "\n[egress]\nrouter = true\n"))
+    assert (config.egress.warp, config.egress.router) == (False, True)
+    assert (config.egress.naive, config.egress.mieru) == (EgressChoice.DIRECT, EgressChoice.DIRECT)
+
+
+@pytest.mark.parametrize("egress, message", [
+    ("\n[egress]\nnaive = \"router\"\n", "egress.naive requires router = true"),
+    ("\n[egress]\nrouter = \"yes\"\n", "egress.router"),
+])
+def test_router_choice_requires_router_true(egress, message):
+    with pytest.raises(ConfigError, match=message):
+        parse_config(_document('mode = "none"\n', egress))
+
+
+def test_router_requires_a_proxy_service_in_the_profile():
+    document = (HEAD.replace('profile = "full"', 'profile = "core"').replace('naive = "edge.example.com"\n', "")
+                .replace('mieru = "mieru.example.com"\n', "")
+                .replace("\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46002]\n", "")
+                + "\n[egress]\nrouter = true\n" + '\n[three_xui]\nmode = "none"\n' + TAIL)
+    with pytest.raises(ConfigError, match="egress.router requires NaiveProxy or Mieru"):
+        parse_config(document)

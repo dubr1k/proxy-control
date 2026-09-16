@@ -64,6 +64,13 @@ class ThreeXuiConfig:
 class EgressChoice(StrEnum):
     DIRECT = "direct"
     WARP = "warp"
+    # v0.5: the service is handed to the node's Xray egress-router (ADR 007).
+    ROUTER = "router"
+
+
+# The router's per-service SOCKS5 ingress on the host loopback (v0.5, frozen identifiers):
+# the same numbers `xray_router_manager.intent.PORTS` listens on.
+ROUTER_PORTS: dict[str, int] = {"naive": 45101, "mieru": 45102}
 
 
 @dataclass(frozen=True)
@@ -73,16 +80,22 @@ class EgressConfig:
     The installer seeds this once; afterwards the managers own it (ADR 007) and the
     panel's routing changes it. `InstallerConfig.egress` holds the section only when it
     was written (wizard or by hand); `InstallerConfig.effective_egress` derives it from
-    the pre-v0.4 `[three_xui].warp*` keys otherwise."""
+    the pre-v0.4 `[three_xui].warp*` keys otherwise. `router` (v0.5) installs the Xray
+    egress-router; a service set to `router` starts attached to it."""
 
     warp: bool = False
     warp_port: int = 40000
     naive: EgressChoice = EgressChoice.DIRECT
     mieru: EgressChoice = EgressChoice.DIRECT
+    router: bool = False
 
     def provider_url(self) -> str | None:
         """The WARP proxy-mode endpoint the managers are told about, or None without WARP."""
         return f"socks5://127.0.0.1:{self.warp_port}" if self.warp else None
+
+    def router_url(self, service: str) -> str | None:
+        """The router ingress a manager may send its service through, or None without a router."""
+        return f"socks5://127.0.0.1:{ROUTER_PORTS[service]}" if self.router else None
 
     @classmethod
     def derived(cls, three_xui: ThreeXuiConfig) -> EgressConfig:

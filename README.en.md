@@ -120,7 +120,8 @@ nothing for you:
 - `mieru_3.36.0_<arch>.deb` — the official client the installer uses to prove
   traffic actually flows.
 
-Both URLs and checksums are in
+With `[egress] router = true` (v0.5) stage `Xray-linux-64.zip` there as well: the
+Xray egress-router is extracted from it. All URLs and checksums are in
 [`release/external-artifacts.json`](release/external-artifacts.json). The
 installer verifies them and refuses to continue on a mismatch.
 
@@ -842,6 +843,7 @@ to continue unless its digest matches the pin.
 | `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The Mieru server. Only the executable and a license notice are installed; the package itself never is. |
 | `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The official Mieru client, used to build the acceptance harness that proves each transport carries traffic. |
 | `three_xui` (`MHSanaei/3x-ui`) | 3.7.0 | GPL-3.0-only | The 3x-ui panel and its Xray core for VLESS Reality TCP, VLESS Reality XHTTP, and Hysteria2. |
+| `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | The Xray egress-router (v0.5, `[egress] router = true`): only `xray`, `geoip.dat` and `geosite.dat` are extracted from the pinned `Xray-linux-64.zip`, each against its own digest. |
 
 Caddy `v2.11.4` with the `http.handlers.forward_proxy` module is not downloaded
 as a binary; it is built from the pinned recipe in
@@ -856,6 +858,7 @@ release build embeds in the SBOM.
 | `panel/Dockerfile` | The panel API and UI | `python:3.13.5-slim` |
 | `naive_manager/Dockerfile` | The NaiveProxy credential and accounting manager | `python:3.13.5-slim` |
 | `mieru_manager/Dockerfile` | The Mieru credential and quota manager | `python:3.13.5-slim` |
+| `xray_router_manager/Dockerfile` | The Xray egress-router and its manager (v0.5) | `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | The Fleet node agent | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | The Fleet mTLS ingress | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | The official Mieru client used by the acceptance | `python:3.13.5-slim` |

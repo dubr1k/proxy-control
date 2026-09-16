@@ -111,8 +111,9 @@ udp_ports = [46001]
 [egress]                       # optional (v0.4): WARP as a provider of its own
 warp = true                    # install and verify the pinned Cloudflare client
 warp_port = 40000              # its loopback SOCKS5 port (default 40000)
-naive = "warp"                 # direct | warp — the initial egress of NaiveProxy
-mieru = "direct"               # direct | warp — the initial egress of Mieru
+router = true                  # v0.5: install the Xray-router from the staged archive
+naive = "router"               # direct | warp | router — the initial egress of NaiveProxy
+mieru = "direct"               # direct | warp | router — the initial egress of Mieru
 
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
@@ -139,11 +140,22 @@ and `warp_domains` and runs on a fresh host only. `warp_domains` without
 `[egress]` is optional. Without it the installer reads `[three_xui].warp` and
 `warp_port` exactly as before v0.4 (see «WARP and egress»); with it the section is
 canonical: `warp`/`warp_port` decide whether the Cloudflare client is provisioned, and
-`naive`/`mieru` choose each service's **initial** egress (`direct` or `warp`; only
-services of the profile may be named, and `warp` needs `warp = true`). If `[three_xui]`
-also spells `warp`/`warp_port`, both must agree. The value is a seed: after the
-installation the managers own the egress configuration and the panel's «Routing»
-screen changes it (`docs/ROUTING.en.md`); a repair or an upgrade never rewrites it.
+`naive`/`mieru` choose each service's **initial** egress (`direct`, `warp` or `router`;
+only services of the profile may be named, `warp` needs `warp = true` and `router`
+needs `router = true`). If `[three_xui]` also spells `warp`/`warp_port`, both must
+agree. The value is a seed: after the installation the managers own the egress
+configuration and the panel's «Routing» screen changes it (`docs/ROUTING.en.md`); a
+repair or an upgrade never rewrites it.
+
+`router = true` (v0.5) installs the dedicated Xray egress-router (`docs/XRAY_ROUTER.en.md`)
+and needs NaiveProxy or Mieru in the profile. The installer never downloads it: stage
+the pinned archive as `/var/lib/proxy-control/Xray-linux-64.zip` first (the URL and
+SHA-256 are in `release/external-artifacts.json`; the plan refuses with both in the
+message when the file is absent or differs). The wizard asks about the router only
+when that file is present. A service set to `router` starts attached to it: all of its
+traffic goes through the router's loopback ingress (naive `127.0.0.1:45101`, mieru
+`45102`, SOCKS5 with a per-service credential), and the router passes it straight out
+until the «Routing» screen gives it a policy.
 
 `domains.subscription` is optional and must differ from every other name. When it
 is set, the installer adds it to the Core certificate as a SAN, routes it to the
@@ -193,6 +205,8 @@ boundary:
 | `certificates` | The owned HTTP-01 vhosts and the per-service Certbot lineages |
 | `firewall` | Only the UFW rules it added, and only on a managed fresh host |
 | `core` | The `mtproxy` Compose project, its secrets, and the pinned TDLib probe |
+| `warp` | The pinned Cloudflare client package, its registration and loopback proxy |
+| `xray_router` | The three extracted Xray members under `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, the manager token and the two ingress credentials, `.env.xray-router` and the `xray-router` Compose service |
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
@@ -252,6 +266,37 @@ The installer also writes `NAIVE_EGRESS_WARP` and `MIERU_EGRESS_WARP` to the hos
 `.env` (`socks5://127.0.0.1:<warp_port>`, empty without WARP): the managers' egress API
 reads them, and the panel's «Routing» screen offers the `warp` provider on this node
 only when they are set.
+
+### The Xray-router (v0.5)
+
+With `router = true` the `xray_router` adapter runs after `warp` and before the
+services it feeds. It verifies the staged archive, extracts exactly `xray`,
+`geoip.dat` and `geosite.dat` (their digests are pinned in the release catalogue and
+re-checked by the container before it starts anything), creates the system identity
+`xray-router` (10006), prepares `/var/lib/xray-router`, writes
+`secrets/xray-router-manager-token` and one `user:password` per ingress
+(`secrets/xray-router-ingress-naive`, `secrets/xray-router-ingress-mieru`, root-only;
+existing files are kept), writes `.env.xray-router` (the members' digests and
+`XRAY_ROUTER_EGRESS_WARP`) and starts the `xray-router` Compose service. Verification
+reads the manager's status (artifacts verified, a committed generation), checks that
+both ingresses listen on the loopback only and sends one authenticated CONNECT through
+the NaiveProxy ingress to the Internet.
+
+The `naive` and `mieru` adapters then learn the router through `NAIVE_EGRESS_ROUTER` /
+`MIERU_EGRESS_ROUTER` (`socks5://127.0.0.1:45101` / `45102`) and
+`*_EGRESS_ROUTER_CREDENTIAL_FILE`: each manager gets its own copy of its ingress
+credential inside its state directory (`/var/lib/naive-manager/xray-router-ingress`,
+`/var/lib/mieru-manager/xray-router-ingress`, mode 0400, owned by the manager). A
+service seeded with `router` starts with the whole service through the ingress (Caddy
+`upstream socks5://user:password@127.0.0.1:45101`, mita `egress` with
+`socks5Authentication`), the same block the manager renders for the `router` provider.
+
+To rotate the ingress credentials run, as root,
+`/usr/local/libexec/rotate-xray-router-ingress [naive] [mieru]` (default: both). It
+writes new keys into the project's `secrets/` and the managers' state directories,
+recreates the router with them and then each manager, which re-renders its block at
+bootstrap (Caddy reload; mita restart). The credentials never appear in the API, the
+panel, audit or reports.
 
 ## Hard stops
 

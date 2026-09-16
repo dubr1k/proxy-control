@@ -363,3 +363,28 @@ def test_egress_plan_diff_redacts_userinfo(tmp_path):
     assert "s3cret" not in json.dumps(instance.egress())
     instance.egress_rollback(instance.egress()["revision"])
     assert "upstream socks5://alice:s3cret@127.0.0.1:1080" in hooks.caddyfile.read_text()
+
+
+def test_bootstrap_adopts_the_installer_seed_after_rotation(tmp_path):
+    """The installer seeds `egress = router` as a plain `upstream` line with the credential of
+    the day (v0.5). After a rotation that line is stale and unmanaged: bootstrap adopts it as
+    a managed block with the file's credential, the old line kept as the rollback floor."""
+    hooks = EgressHooks()
+    instance = router_manager(tmp_path, hooks)
+    seeded = hooks.caddyfile.read_text().replace(
+        "upstream socks5://127.0.0.1:40000", f"upstream socks5://naive-a1b2c3d4:{'K' * 40}@127.0.0.1:45101")
+    hooks.caddyfile.write_text(seeded)
+    view = instance.egress()
+    assert view["mode"] == "proxy" and view["document"] == ROUTER_DOC and view["managed"] is False
+    assert view["warnings"] == ["adopts_unmanaged_upstream"]
+    (tmp_path / "xray-router-ingress").write_text("naive-a1b2c3d4:" + "Z" * 40 + "\n")
+    assert instance.egress()["warnings"] == ["adopts_unmanaged_upstream", "router_credential_stale"]
+    fresh = router_manager(tmp_path, EgressHooks(), secret="naive-a1b2c3d4:" + "Z" * 40)
+    text = hooks.caddyfile.read_text()
+    assert f"upstream socks5://naive-a1b2c3d4:{'Z' * 40}@127.0.0.1:45101" in _block(text)[1]
+    assert "K" * 40 not in text
+    view = fresh.egress()
+    assert view["managed"] is True and view["warnings"] == [] and view["document"] == ROUTER_DOC
+    assert view["previous"] is not None and view["current"]["operation_id"] is None
+    fresh.egress_rollback(view["revision"])
+    assert f"upstream socks5://naive-a1b2c3d4:{'K' * 40}@127.0.0.1:45101" in hooks.caddyfile.read_text()

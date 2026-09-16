@@ -321,6 +321,9 @@ _PROFILE_ORDER = (
     "certificates",
     "core",
     "warp",
+    # The Xray egress-router (v0.5) comes after the WARP it may send traffic through and
+    # before the services whose ingress it provides.
+    "xray_router",
     "naive",
     "mieru",
     "three_xui",
@@ -340,6 +343,7 @@ def adapter_factories() -> dict[str, type]:
     from installer.adapters.packages import PackagesAdapter
     from installer.adapters.three_xui import ThreeXuiAdapter
     from installer.adapters.warp import WarpAdapter
+    from installer.adapters.xray_router import XrayRouterAdapter
 
     return {
         "packages": PackagesAdapter,
@@ -351,6 +355,7 @@ def adapter_factories() -> dict[str, type]:
         "mieru": MieruAdapter,
         "three_xui": ThreeXuiAdapter,
         "warp": WarpAdapter,
+        "xray_router": XrayRouterAdapter,
     }
 
 
@@ -381,6 +386,8 @@ def adapters_for(
     selected.append("core")
     if config.effective_egress.warp:
         selected.append("warp")
+    if config.effective_egress.router:
+        selected.append("xray_router")
     if config.profile.includes_naive:
         selected.append("naive")
     if config.profile.includes_mieru:
@@ -401,6 +408,8 @@ def compose_file_list(config: InstallerConfig) -> tuple[str, ...]:
         files.append("compose.naive.yaml")
     if config.profile.includes_mieru:
         files.append("compose.mieru.yaml")
+    if config.effective_egress.router:
+        files.append("compose.xray-router.yaml")
     return tuple(files)
 
 
