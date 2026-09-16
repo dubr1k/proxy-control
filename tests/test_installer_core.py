@@ -163,9 +163,20 @@ def test_core_never_claims_adjacent_naive_token(tmp_path):
     (project / 'secrets').mkdir(parents=True)
     (project / 'owned.txt').write_text('core')
     (project / 'secrets/naive-manager-token').write_text('adjacent-token')
+    for name in ('xray-router-manager-token', 'xray-router-ingress-naive', 'xray-router-ingress-mieru'):
+        (project / 'secrets' / name).write_text('adjacent-router-secret')
     owned = adapter._ownership()
     assert '/opt/mtproxy-shared443/owned.txt' in owned
     assert '/opt/mtproxy-shared443/secrets/naive-manager-token' not in owned
+    assert not any('xray-router' in path for path in owned)
+    # And a repair's credential check tolerates them beside Core's own files (v0.5).
+    (project / 'secrets').chmod(0o700)
+    for name in ('users.conf', 'telemt-api-token', 'panel-bootstrap-password'):
+        (project / 'secrets' / name).write_text('x\n')
+        (project / 'secrets' / name).chmod(0o600)
+    (project / 'secrets/users.conf').write_text('user=0123456789abcdef0123456789abcdef\n')
+    (project / 'secrets/telemt-api-token').write_text('Bearer ' + 'a' * 40 + '\n')
+    adapter._validate_existing_credentials(project / 'secrets')
 
 
 def test_core_refuses_orphaned_volumes_before_creating_credentials(tmp_path):

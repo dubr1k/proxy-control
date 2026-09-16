@@ -85,9 +85,15 @@ _REQUIRED_CREDENTIALS = (
 _PRESERVED_CREDENTIALS = (*_REQUIRED_CREDENTIALS, "secrets/panel-master-key")
 # Compose secrets another adapter owns inside the shared project. Core must
 # leave them alone, but it must not read them as foreign residue either.
-_ADJACENT_CREDENTIALS = ("secrets/naive-manager-token",)
+_ADJACENT_CREDENTIALS = (
+    "secrets/naive-manager-token",
+    # The Xray-router's (v0.5) own secrets live beside Core's; its adapter owns them.
+    "secrets/xray-router-manager-token",
+    "secrets/xray-router-ingress-naive",
+    "secrets/xray-router-ingress-mieru",
+)
 # Compose services other adapters add to the shared project.
-_ADJACENT_SERVICES = ("naive-manager", "mieru-manager")
+_ADJACENT_SERVICES = ("naive-manager", "mieru-manager", "xray-router")
 _PANEL_VHOST = "/etc/nginx/conf.d/proxy-control-panel.conf"
 # The shared 443 router forwards raw TLS, so the panel needs a TLS listener of
 # its own: the panel application itself speaks plain HTTP on its app port.
