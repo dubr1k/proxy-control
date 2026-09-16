@@ -111,6 +111,18 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
             return name
         return None
 
+    def compose_service_present(self, service: str) -> bool:
+        """Only the router's own Compose service, never the shared project: prepare must
+        see a stale container and rollback must stop the one it started (Core owns `mtproxy`)."""
+        output = self.capture(
+            ("docker", "container", "ls", "--all", "--quiet",
+             "--filter", "label=com.docker.compose.project=mtproxy",
+             "--filter", f"label=com.docker.compose.service={service}"),
+            max_chars=512,
+        )
+        stripped = output.strip()
+        return bool(stripped) and not stripped.startswith(("exit=", "diagnostic "))
+
     def router_status(self) -> Mapping[str, object]:
         """The manager's `/v1/status`, asked from inside the container over its own UDS."""
         output = self._capture_checked(
