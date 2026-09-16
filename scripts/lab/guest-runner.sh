@@ -570,6 +570,25 @@ for pins in (_MITA_PINS, _MIERU_CLIENT_PINS):
 ' "$architecture")
 }
 
+stage_xray_package() {
+  # The Xray-router (v0.5) is the same documented step: the operator stages the pinned
+  # archive in /var/lib/proxy-control and the installer extracts only its reviewed members.
+  local name cache url digest
+  install -d -m 0755 /root/lab-artifacts /var/lib/proxy-control
+  read -r url digest < <(PYTHONPATH="$RELEASE_ROOT" python3 -c '
+from installer.adapters.xray_router import _XRAY_PINS
+url, archive_digest, _members = _XRAY_PINS["amd64"]
+print(url, archive_digest)
+')
+  name=${url##*/}
+  cache=/root/lab-artifacts/$name
+  if ! printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status 2>/dev/null; then
+    curl --fail --silent --show-error --location --output "$cache" "$url"
+    printf '%s  %s\n' "$digest" "$cache" | sha256sum -c --status
+  fi
+  install -m 0644 "$cache" "/var/lib/proxy-control/$name"
+}
+
 release_setup() {
   setup_full_host
   export DEBIAN_FRONTEND=noninteractive
@@ -609,6 +628,15 @@ mieru = "mieru.lab.test"
 tcp_ports = [46001]
 udp_ports = [46002]
 
+# The Xray-router (v0.5) on the host lab: installed, nothing attached to it yet — the
+# router scenarios attach the services themselves. No WARP on this host: the routing
+# tier points the providers at its stub afterwards.
+[egress]
+warp = false
+router = true
+naive = "direct"
+mieru = "direct"
+
 [three_xui]
 mode = "existing"
 vless_tcp_domain = "vless.lab.test"
@@ -618,13 +646,14 @@ manage_ufw = false
 TOML
   printf '%s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' "$(host_ip)" >> /etc/hosts
   stage_mita_package
+  stage_xray_package
 }
 
 release_environment_preflight() {
   local started log script
   started=$(python3 -c 'import time; print(time.time())')
   log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_STAGE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host stage_mita_package release_setup); release_setup"
+  script="$(declare -p PROXY PANEL ROUTE BASELINE RELEASE RELEASE_STAGE RELEASE_ROOT CONFIG CREDENTIALS CLIENT_RESULTS); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host stage_mita_package stage_xray_package release_setup); release_setup"
   # `set -e` kills the composed script silently when a `test` or a `read` fails,
   # and the report then carries whatever apt printed last. Name the command.
   script="trap 'printf \"PREFLIGHT FAILED: %s\\n\" \"\$BASH_COMMAND\" >&2' ERR; $script"
@@ -675,8 +704,9 @@ PLANPY
 release_install() {
   cd "$RELEASE_ROOT"
   # An earlier uninstall scenario purges /var/lib/proxy-control, so re-stage the
-  # operator-supplied package the same way before every install.
+  # operator-supplied packages the same way before every install.
   stage_mita_package
+  stage_xray_package
   local digest
   digest=$(python3 -c "import json;print(json.load(open('/tmp/plan.json'))['digest'])")
   run_captured /tmp/install.out installer_cmd install --config "$CONFIG" --accept-plan "$digest"
@@ -940,7 +970,10 @@ UNIT
 
 container_write_configs() {
   # The container hosts the coexistence topology: an existing shared-443
-  # stream router and a foreign 3x-ui the installer must never touch.
+  # stream router and a foreign 3x-ui the installer must never touch. The
+  # Xray-router (v0.5) is part of the profile: installed, nothing attached to it
+  # yet — the router scenarios attach the services themselves. No WARP here: the
+  # routing/router tiers point the providers at their stub afterwards.
   cat > "$CONFIG" <<TOML
 schema = 1
 host_mode = "coexist"
@@ -957,6 +990,12 @@ mieru = "mieru.lab.test"
 [mieru]
 tcp_ports = [46001]
 udp_ports = [46002]
+
+[egress]
+warp = false
+router = true
+naive = "direct"
+mieru = "direct"
 
 [three_xui]
 mode = "existing"
@@ -1022,6 +1061,8 @@ order = plan['adapter_order']
 assert order[:3] == ['packages', 'nginx', 'certificates'], order
 assert order[-1] == 'three_xui', order
 assert 'naive' in order and 'mieru' in order, order
+# The Xray-router (v0.5) is planned between Core and the services it feeds.
+assert order.index('core') < order.index('xray_router') < order.index('naive'), order
 PLANPY
 }
 
@@ -1086,7 +1127,7 @@ DNSPY
 }
 
 container_secrets_scan() {
-  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token|xray-router-manager-token|xray-router-ingress-[a-z]+)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey|socks5://[^/@[:space:]]+:[^/@[:space:]]+@' \
       /tmp/plan*.json /tmp/plan*.err 2>/dev/null; then
     return 1
   fi
@@ -1131,12 +1172,14 @@ host_setup() {
     systemctl disable --now caddy-naive mita >/dev/null 2>&1 || true
     rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt \
       /etc/proxy-control /var/lib/naive-manager /var/log/naive-proxy \
-      /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita
+      /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita \
+      /var/lib/xray-router /usr/local/lib/proxy-control/xray-router
     rm -f /etc/systemd/system/caddy-naive.service /etc/systemd/system/mita.service \
       /etc/tmpfiles.d/mita.conf /usr/local/bin/caddy /usr/bin/mita \
       /usr/local/libexec/check-naive-caddy-build /usr/local/libexec/caddy-naive-adapt \
       /usr/local/libexec/prepare-naive-state /usr/local/libexec/prepare-mieru-state \
       /usr/local/libexec/prepare-mieru-token \
+      /usr/local/libexec/prepare-xray-router-state /usr/local/libexec/rotate-xray-router-ingress \
       /etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy
     # A stray process keeps its identity alive, and userdel then refuses.
     pkill -KILL -u naive-caddy >/dev/null 2>&1 || true
@@ -1146,6 +1189,8 @@ host_setup() {
     groupdel naive-accounting >/dev/null 2>&1 || true
     userdel mita >/dev/null 2>&1 || true
     groupdel mita >/dev/null 2>&1 || true
+    userdel xray-router >/dev/null 2>&1 || true
+    groupdel xray-router >/dev/null 2>&1 || true
     systemctl daemon-reload
     rm -f /etc/nginx/conf.d/proxy-control-*.conf
     # The adjacent-site fixture of the previous run names a certificate the reset above
@@ -1195,8 +1240,9 @@ host_environment_preflight() {
 host_install() {
   local digest
   # An earlier uninstall scenario purges /var/lib/proxy-control, so re-stage the
-  # operator-supplied package the same way before every install.
+  # operator-supplied packages the same way before every install.
   stage_mita_package
+  stage_xray_package
   # Derive the plan immediately before applying it: an approved digest is only
   # meaningful for the host as it is right now.
   container_cmd plan --config "$CONFIG" --json >/tmp/plan-install.json
@@ -1311,7 +1357,7 @@ host_uninstall() {
 
 host_secrets_scan() {
   # The fleet report and the rendered feeds it saved are scanned like every other artefact.
-  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey' \
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token|xray-router-manager-token|xray-router-ingress-[a-z]+)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey|socks5://[^/@[:space:]]+:[^/@[:space:]]+@' \
       /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json "$CLIENT_RESULTS/fleet/report.json" \
       "$CLIENT_RESULTS/fleet/central.log" 2>/dev/null; then
     return 1

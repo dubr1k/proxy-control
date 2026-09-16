@@ -77,6 +77,9 @@ _SECRET_SHAPES = (
     re.compile(r"tg://proxy\?"), re.compile(r"secret=[0-9a-fA-F]"), re.compile(r"pc_[0-9a-f]{8}_[A-Za-z0-9_-]{20,}"),
     re.compile(r"naive\+https://"), re.compile(r"mierus://"), re.compile(r"/s/[A-Za-z0-9_-]{43,}"),
     re.compile(r"\b[0-9a-f]{32}\b"),
+    # The Xray-router ingress credential (v0.5): `user:password` as URL userinfo, or as the
+    # line the secret files and mita's `socks5Authentication` carry.
+    re.compile(r"socks5://[^\s\"'/@]+:[^\s\"'/@]+@"), re.compile(r"\b(?:naive|mieru)-[0-9a-f]{8}:[A-Za-z0-9._~-]{16,}"),
 )
 
 
@@ -135,6 +138,20 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--routing-cidr-target", default="https://1.1.1.1/cdn-cgi/trace",
                         help="a literal-IP target inside --routing-cidr")
     parser.add_argument("--routing-cidr", default="1.1.1.0/24", help="the network the block-cidr rule names")
+    # The Xray-router (v0.5, spec §13): the scenarios router-01…14 run after the routing ones
+    # on a node installed with `[egress] router = true`; they need --routing (the stub).
+    parser.add_argument("--router", action="store_true", help="run the v0.5 Xray-router scenarios (needs --routing)")
+    parser.add_argument("--router-container", default="proxy-control-xray-router", help="the node's router container")
+    parser.add_argument("--router-secrets-dir", type=Path, default=Path("/opt/mtproxy-shared443/secrets"),
+                        help="where the installer keeps the ingress credentials (read as root)")
+    parser.add_argument("--router-rotate", type=Path, default=Path("/usr/local/libexec/rotate-xray-router-ingress"),
+                        help="the credential rotation script the installer put on the host")
+    parser.add_argument("--router-geoip-target", default="https://1.1.1.1/cdn-cgi/trace",
+                        help="a literal-IP target inside geoip:cloudflare")
+    parser.add_argument("--router-geosite-host", default="doubleclick.net", help="a host inside geosite:category-ads-all")
+    parser.add_argument("--router-control", default="https://example.com/",
+                        help="a target outside geoip:cloudflare and geosite:category-ads-all")
+    parser.add_argument("--router-plain-target", default="http://example.com/", help="a port-80 target the port rule refuses")
     parser.add_argument("--routing-other", default="https://www.cloudflare.com/cdn-cgi/trace",
                         help="a target outside the selective rule, expected through the stub")
     args = parser.parse_args(argv)
@@ -538,6 +555,47 @@ class Host:
         if code != 0:
             raise Check(f"mita describe config -> {code}")
         return json.loads(out).get("egress")
+
+    # --- the Xray-router (v0.5) ---
+
+    def router_status(self, container: str) -> dict:
+        """The manager's `/v1/status`, the way the installer's verify reads it."""
+        code, out = self._run("docker", "exec", container, "python", "-m", "xray_router_manager.healthcheck", "--status")
+        if code != 0:
+            raise Check(f"router status -> {code}")
+        return json.loads(out)
+
+    def router_kill_xray(self, container: str) -> bool:
+        """SIGKILL the child `xray` inside the container (the manager's identity owns it)."""
+        script = ("import os,signal,sys\n"
+                  "for entry in os.listdir('/proc'):\n"
+                  "    if not entry.isdigit(): continue\n"
+                  "    try: argv = open(f'/proc/{entry}/cmdline','rb').read().split(b'\\0')\n"
+                  "    except OSError: continue\n"
+                  "    if argv and argv[0].endswith(b'/xray'):\n"
+                  "        os.kill(int(entry), signal.SIGKILL); print(entry); sys.exit(0)\n"
+                  "sys.exit(1)\n")
+        code, _ = self._run("docker", "exec", container, "python", "-c", script)
+        return code == 0
+
+    def docker_logs(self, container: str) -> str:
+        return self._run("docker", "logs", "--tail", "400", container)[1]
+
+    @staticmethod
+    def secret_line(path: Path) -> str:
+        return path.read_text().strip()
+
+    @staticmethod
+    def xui_fingerprint() -> str:
+        """What a foreign 3x-ui on the host looks like: presence, size and mtime of its files."""
+        parts = []
+        for name in ("/usr/local/x-ui/x-ui", "/etc/x-ui/x-ui.db", "/usr/local/x-ui"):
+            try:
+                info = os.stat(name)
+                parts.append(f"{name}:{info.st_size}:{int(info.st_mtime)}")
+            except OSError:
+                parts.append(f"{name}:absent")
+        return "|".join(parts)
 
 
 class RoutingProbes:
@@ -1094,7 +1152,8 @@ class Scenario:
         if not self.args.routing:
             return self.STEPS
         index = self.STEPS.index("step_05_grants") + 1
-        return (*self.STEPS[:index], "step_05r_routing", *self.STEPS[index:])
+        extra = ("step_05r_routing", "step_05x_router") if self.args.router else ("step_05r_routing",)
+        return (*self.STEPS[:index], *extra, *self.STEPS[index:])
 
     def run(self) -> bool:
         self.output.mkdir(parents=True, exist_ok=True)
@@ -1132,10 +1191,12 @@ class Scenario:
         return json.loads(body) if status == 200 else None
 
     def _put_policy(self, protocol: str, *, default: str = "direct", rules: list[dict] | None = None,
-                    fallback: str = "fail_closed") -> dict:
+                    fallback: str = "fail_closed", backend: str | None = None) -> dict:
         current = self._policy(protocol)
         body = {"default_action": default, "default_egress": "warp" if default == "egress" else None, "fallback": fallback,
                 "rules": rules or [], "expected_revision": current["revision"] if current else None}
+        if backend:
+            body["backend"] = backend
         return self.central.json(self._policy_path(protocol), method="PUT", payload=body)
 
     def _apply_policy(self, protocol: str, *, expect=(200,)) -> tuple[int, dict]:
@@ -1158,8 +1219,8 @@ class Scenario:
         return (policy if policy and policy["state"] == "applied" else None), elapsed
 
     def _apply_and_wait(self, label: str, protocol: str, *, default: str = "direct", rules: list[dict] | None = None,
-                        fallback: str = "fail_closed") -> dict | None:
-        policy = self._put_policy(protocol, default=default, rules=rules, fallback=fallback)
+                        fallback: str = "fail_closed", backend: str | None = None) -> dict | None:
+        policy = self._put_policy(protocol, default=default, rules=rules, fallback=fallback, backend=backend)
         preview = self.central.json(f"{self._policy_path(protocol)}/preview", method="POST")
         if not self.check(f"{label}_{protocol}_preview_supported", preview.get("status") == "supported",
                           json.dumps(preview.get("reasons"))[:300]):
@@ -1330,11 +1391,291 @@ class Scenario:
         self.routing_probes.stop()
         self.stub.stop()
 
+    # --- the Xray-router (v0.5, spec §13: router-01 … router-14) ---
+
+    def _router_view(self, protocol: str) -> dict:
+        return self._targets().get(protocol, {}).get("router") or {}
+
+    def _wait_attached(self, protocol: str, attached: bool, seconds: float = 120) -> tuple[bool, float]:
+        """Until the central's targets say the service is (not) on the router and its policy has
+        settled: attach/detach on a linked node travels through a generation and a heartbeat."""
+        def settled():
+            item = self._targets().get(protocol, {})
+            router = item.get("router") or {}
+            policy = item.get("policy") or {}
+            expected = "xray_router" if attached else f"{protocol}_native"
+            if router.get("attached") is attached and item.get("backend") == expected and policy.get("state") != "applying":
+                return item
+            return None
+        item, elapsed = self.wait(settled, seconds, f"{protocol} attached={attached}")
+        return bool(item), elapsed
+
+    def _attach(self, label: str, protocol: str, attached: bool) -> bool:
+        action = "attach" if attached else "detach"
+        status, _, body = self.central.request(f"/api/routing/targets/{self.node_id}/{protocol}/{action}", method="POST")
+        if status != 200:
+            self.check(f"{label}_{protocol}_{action}_accepted", False, f"{status} {redact(body)[:300]}")
+            return False
+        done, elapsed = self._wait_attached(protocol, attached)
+        self.report["counts"][f"{label}_{protocol}_{action}_seconds"] = elapsed
+        return self.check(f"{label}_{protocol}_{action}ed", done, f"after {elapsed}s: {redact(json.dumps(self._targets().get(protocol)))[:300]}")
+
+    def _wait_state(self, protocol: str, states: tuple[str, ...], seconds: float = 90) -> tuple[dict | None, float]:
+        def settled():
+            policy = self._policy(protocol)
+            return policy if policy and policy["state"] in states else None
+        return self.wait(settled, seconds, f"{protocol} policy in {states}")
+
+    def _socks_probe(self, port: int, credential: str | None, target: str) -> tuple[bool, str]:
+        """curl straight at a router ingress: no credential, or one from a file (never argv)."""
+        argv = ["curl", "--silent", "--show-error", "--max-time", "20", "--output", "/dev/null", "--write-out", "%{http_code}",
+                "--socks5-hostname", f"127.0.0.1:{port}"]
+        config = None
+        if credential is not None:
+            descriptor, config = tempfile.mkstemp(prefix="router-probe-")
+            with os.fdopen(descriptor, "w") as handle:
+                handle.write(f'proxy-user = "{credential}"\n')
+            argv += ["--config", config]
+        try:
+            code, out = RoutingProbes._run(*argv, target)
+        finally:
+            if config:
+                os.unlink(config)
+        return code == 0 and out.endswith("200"), redact(f"curl {code} {out}")
+
+    def step_05x_router(self) -> None:
+        args = self.args
+        allowed, other, control = args.routing_allowed, args.routing_other, args.router_control
+        blocked = f"https://{args.routing_blocked_host}/"
+        container = args.router_container
+        self.stub.start()
+        self.routing_probes.naive_artifact = self.credentials.get("naive")
+        self.routing_probes.mieru_start(self.credentials.get("mieru", ""))
+        protocols = [p for p in ("naive", "mieru") if p == "naive" or self.routing_probes.mihomo_up]
+        baseline = {"caddyfile": self.host.caddyfile_sha256(), "nginx": self.host.nginx_sha256(),
+                    "nft": self.host.nft_sha256(), "mita": self.host.mita_egress(), "xui": self.host.xui_fingerprint()}
+        secrets_dir = args.router_secrets_dir
+        credential = {p: self.host.secret_line(secrets_dir / f"xray-router-ingress-{p}") for p in ("naive", "mieru")}
+        ports = {"naive": 45101, "mieru": 45102}
+
+        # router-01: the node reports its router — available, nothing attached, the manager
+        # runs a verified generation; the central shows it per target.
+        targets = self._targets()
+        for protocol in protocols:
+            router = targets.get(protocol, {}).get("router") or {}
+            self.check(f"x01_{protocol}_router_available_detached", router.get("available") is True and router.get("attached") is False
+                       and bool(router.get("xray_version")), json.dumps(router)[:300])
+            self.check(f"x01_{protocol}_native_backend_before_attach", targets.get(protocol, {}).get("backend") == f"{protocol}_native")
+        identity = self.node_identity()
+        node_router = identity.get("router") or {}
+        self.check("x01_identity_router", node_router.get("available") is True and "egress.router.v1" in identity.get("capabilities", [])
+                   and len(node_router.get("capabilities", [])) >= 12 and set(node_router.get("services", {})) == {"naive", "mieru"},
+                   json.dumps({k: node_router.get(k) for k in ("available", "capabilities", "services")})[:400])
+        status = self.host.router_status(container)
+        self.check("x01_manager_status_verified_running", status.get("phase") == "idle" and (status.get("running") or {}).get("generation", 0) >= 1
+                   and all((status.get("artifacts") or {}).get(n, {}).get("verified") is True for n in ("xray", "geoip", "geosite")),
+                   json.dumps(status)[:300])
+        self.report["router_xray_version"] = str(status.get("xray_version", ""))[:40]
+        self.check("x01_targets_and_identity_secret_free",
+                   not any(credential[p].split(":", 1)[1] in text for p in credential for text in (json.dumps(targets), json.dumps(identity))))
+
+        # router-02: attach naive — the router first (pass-through), then Caddy's upstream; the
+        # credential is on the node only (Caddyfile), never in the API, identity, audit or the
+        # central's database.
+        if not self._attach("x02", "naive", True):
+            raise Check("naive did not attach to the router")
+        caddy_text = self.host.caddyfile_text()
+        self.check("x02_caddyfile_upstream_is_router", "@127.0.0.1:45101" in caddy_text and "upstream socks5://" in caddy_text)
+        attached_caddyfile = self.host.caddyfile_sha256()
+        ok, detail = self._probe("naive", allowed)
+        self.check("x02_naive_passthrough_works", ok, detail)
+        self.check("x02_passthrough_bypasses_stub", urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(0))
+        secret = credential["naive"].split(":", 1)[1]
+        audit = json.dumps(self.central.json("/api/audit?limit=200"))  # the newest 200: attach is among them
+        db_bytes = b"".join(path.read_bytes() for path in Path(args.central_dir).glob("*.sqlite3*"))
+        self.check("x02_credential_only_on_the_node", secret not in json.dumps(self._targets()) and secret not in json.dumps(self.node_identity())
+                   and secret not in audit and secret.encode() not in db_bytes and secret in caddy_text)
+
+        # router-03: the whole service through warp — by the router now; the stub sees the target.
+        if self._apply_and_wait("x03", "naive", default="egress", backend="xray_router") is not None:
+            mark = len(self.stub.lines())
+            ok, detail = self._probe("naive", allowed)
+            self.check("x03_naive_whole_warp_via_router", ok, detail)
+            self.check("x03_stub_saw_target", urllib.parse.urlsplit(allowed).hostname in self.stub.hosts_since(mark), str(self.stub.hosts_since(mark)[-3:]))
+            self.check("x03_caddyfile_unchanged_by_router_policy", self.host.caddyfile_sha256() == attached_caddyfile)
+
+        # router-04: a block rule beside warp — what NaiveProxy alone could never do.
+        rule = {"action": "block", "match": {"domains": [args.routing_blocked_host, f"*.{args.routing_blocked_host}"]}}
+        if self._apply_and_wait("x04", "naive", default="egress", rules=[rule]) is not None:
+            refused, detail = self._probe("naive", blocked)
+            self.check("x04_blocked_domain_refused", not refused, detail)
+            mark = len(self.stub.lines())
+            ok, detail = self._probe("naive", allowed)
+            self.check("x04_other_target_through_stub", ok and urllib.parse.urlsplit(allowed).hostname in self.stub.hosts_since(mark), detail)
+
+        # router-05: a port rule — plain HTTP (80) refused, HTTPS (443) served.
+        if self._apply_and_wait("x05", "naive", rules=[{"action": "block", "match": {"ports": [80]}}]) is not None:
+            refused, detail = self._probe("naive", args.router_plain_target)
+            self.check("x05_port_80_refused", not refused, detail)
+            ok, detail = self._probe("naive", control)
+            self.check("x05_port_443_served", ok, detail)
+
+        # router-06: geoip and geosite — a Cloudflare address by geoip, an ad host by geosite.
+        if self._apply_and_wait("x06a", "naive", rules=[{"action": "block", "match": {"geoips": ["cloudflare"]}}]) is not None:
+            refused, detail = self._probe("naive", args.router_geoip_target)
+            self.check("x06_geoip_cloudflare_refused", not refused, detail)
+            ok, detail = self._probe("naive", control)
+            self.check("x06_geoip_control_served", ok, detail)
+        if self._apply_and_wait("x06b", "naive", rules=[{"action": "block", "match": {"geosites": ["category-ads-all"]}}]) is not None:
+            refused, detail = self._probe("naive", f"https://{args.router_geosite_host}/")
+            self.check("x06_geosite_ads_refused", not refused, detail)
+            ok, detail = self._probe("naive", control)
+            self.check("x06_geosite_control_served", ok, detail)
+        unknown = self._put_policy("naive", rules=[{"action": "block", "match": {"geosites": ["no-such-list-x"]}}])
+        self._apply_policy("naive")
+        failed, elapsed = self._wait_state("naive", ("failed", "applied"))
+        self.check("x06_unknown_geosite_refused_by_xray", bool(failed) and failed["state"] == "failed"
+                   and failed.get("last_error") in ("geosite_unknown", "egress_invalid"), f"after {elapsed}s: {redact(json.dumps(failed))[:300]}")
+        self.report["counts"]["x06_unknown_geosite_revision"] = unknown["revision"]
+
+        # router-07: mieru attached too, with a selective rule the router enforces for it.
+        if "mieru" in protocols and self._attach("x07", "mieru", True):
+            selective = [{"action": "direct", "match": {"domains": [urllib.parse.urlsplit(allowed).hostname]}}]
+            if self._apply_and_wait("x07", "mieru", default="egress", rules=selective, backend="xray_router") is not None:
+                mark = len(self.stub.lines())
+                ok, detail = self._probe("mieru", allowed)
+                self.check("x07_mieru_direct_exception_works", ok and urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(mark), detail)
+                mark = len(self.stub.lines())
+                ok, detail = self._probe("mieru", other)
+                self.check("x07_mieru_other_through_stub", ok and urllib.parse.urlsplit(other).hostname in self.stub.hosts_since(mark), detail)
+            mita = self.host.mita_egress() or {}
+            self.check("x07_mita_names_router_with_auth", any(p.get("name") == "router" and "socks5Authentication" in p
+                                                             for p in mita.get("proxies", [])), str(sorted(mita))[:200])
+
+        # router-08: the ingress is an identity — no credential, or the other service's, is refused.
+        ok, detail = self._socks_probe(ports["naive"], None, control)
+        self.check("x08_ingress_without_credential_refused", not ok, detail)
+        ok, detail = self._socks_probe(ports["naive"], credential["mieru"], control)
+        self.check("x08_cross_service_credential_refused", not ok, detail)
+        ok, detail = self._socks_probe(ports["naive"], credential["naive"], control)
+        self.check("x08_own_credential_accepted", ok, detail)
+
+        # router-09: rollback walks the router back a generation; Caddy never moved.
+        before = self._apply_and_wait("x09a", "naive", rules=[{"action": "block", "match": {"cidrs": [args.routing_cidr]}}])
+        after = self._apply_and_wait("x09b", "naive", default="egress") if before else None
+        if after is not None:
+            generation = (self.host.router_status(container).get("running") or {}).get("generation")
+            self.central.json(f"{self._policy_path('naive')}/rollback", method="POST", payload={"expected_revision": after["revision"]})
+            rolled, elapsed = self._wait_state("naive", ("rolled_back", "failed"))
+            self.check("x09_rolled_back", bool(rolled) and rolled["state"] == "rolled_back" and rolled["applied_revision"] == before["revision"],
+                       f"after {elapsed}s: {redact(json.dumps(rolled))[:300]}")
+            refused, detail = self._probe("naive", args.routing_cidr_target)
+            self.check("x09_previous_rule_enforced_again", not refused, detail)
+            self.check("x09_router_generation_advanced", (self.host.router_status(container).get("running") or {}).get("generation", 0) > (generation or 0))
+            self.check("x09_caddyfile_byte_for_byte_as_after_attach", self.host.caddyfile_sha256() == attached_caddyfile)
+
+        # router-10: the child dies — the watchdog brings the same generation back.
+        generation = (self.host.router_status(container).get("running") or {}).get("generation")
+        killed = self.host.router_kill_xray(container)
+        self.check("x10_xray_killed", killed)
+        def restarted():
+            current = self.host.router_status(container)
+            running = current.get("running") or {}
+            return current if running.get("generation") == generation and current.get("phase") == "idle" else None
+        back, elapsed = self.wait(restarted, 30, "watchdog restart")
+        self.check("x10_watchdog_restarted_same_generation", bool(back), f"after {elapsed}s")
+        ok, detail = self._probe("naive", control)
+        self.check("x10_serving_after_restart", ok, detail)
+
+        # router-11: the provider is down — the router refuses the policy (fail-closed) and a
+        # policy already through warp fails closed too.
+        self._apply_and_wait("x11a", "naive", default="egress")
+        self.stub.stop()
+        refused, detail = self._probe("naive", allowed)
+        self.check("x11_warp_policy_fails_closed_without_provider", not refused, detail)
+        self._put_policy("naive", default="egress", rules=[{"action": "block", "match": {"ports": [25]}}])
+        self._apply_policy("naive")
+        failed, elapsed = self._wait_state("naive", ("failed", "applied"))
+        self.check("x11_apply_refused_egress_unreachable", bool(failed) and failed["state"] == "failed"
+                   and failed.get("last_error") in ("egress_unreachable", "provider_unreachable"), f"after {elapsed}s: {redact(json.dumps(failed))[:300]}")
+        self.stub.start()
+        self._apply_and_wait("x11b", "naive")
+
+        # router-13: nothing of the credential anywhere the operator or the central can read.
+        secrets = [credential[p].split(":", 1)[1] for p in credential]
+        texts = {"targets": json.dumps(self._targets()), "identity": json.dumps(self.node_identity()),
+                 "audit": json.dumps(self.central.json("/api/audit?limit=200")),
+                 "router_logs": self.host.docker_logs(container), "node_panel_logs": self.host.docker_logs(args.node_container),
+                 "naive_manager_logs": self.host.docker_logs("proxy-control-naive-manager"),
+                 "mieru_manager_logs": self.host.docker_logs("proxy-control-mieru-manager")}
+        leaks = [name for name, text in texts.items() if any(s in text for s in secrets)
+                 or any(shape.search(text) for shape in _SECRET_SHAPES[-2:])]
+        self.check("x13_no_credential_in_api_audit_or_logs", not leaks, str(leaks))
+
+        # router-14: rotation — the old key dies, the managers re-render, the service goes on.
+        code, out = RoutingProbes._run(str(args.router_rotate), timeout=300)
+        self.check("x14_rotation_script_ok", code == 0 and "rotated:" in out, redact(out)[:300])
+        rotated = {p: self.host.secret_line(secrets_dir / f"xray-router-ingress-{p}") for p in ("naive", "mieru")}
+        self.check("x14_secrets_changed", all(rotated[p] != credential[p] for p in rotated))
+        ok, detail = self._socks_probe(ports["naive"], credential["naive"], control)
+        self.check("x14_old_credential_refused", not ok, detail)
+        ok, detail = self._socks_probe(ports["naive"], rotated["naive"], control)
+        self.check("x14_new_credential_accepted", ok, detail)
+        rendered, elapsed = self.wait(lambda: rotated["naive"].split(":", 1)[1] in self.host.caddyfile_text() or None, 90, "caddyfile re-rendered")
+        self.check("x14_caddyfile_re_rendered_with_new_key", bool(rendered), f"after {elapsed}s")
+        still, elapsed = self._wait_attached("naive", True)
+        self.check("x14_naive_still_attached", still, f"after {elapsed}s")
+        if self._apply_and_wait("x14", "naive", default="egress") is not None:
+            mark = len(self.stub.lines())
+            ok, detail = self._probe("naive", allowed)
+            self.check("x14_whole_warp_via_router_after_rotation", ok and urllib.parse.urlsplit(allowed).hostname in self.stub.hosts_since(mark), detail)
+        credential = rotated
+
+        # router-12: detach both — the native blocks say direct, the host around is untouched.
+        for protocol in protocols:
+            self._apply_and_wait("x12", protocol)
+            self._attach("x12", protocol, False)
+            ok, detail = self._probe(protocol, allowed)
+            self.check(f"x12_{protocol}_direct_after_detach", ok, detail)
+        self.check("x12_caddyfile_without_router_upstream", "@127.0.0.1:45101" not in self.host.caddyfile_text())
+        final_mita = self.host.mita_egress() or {}
+        self.check("x12_mita_without_router", not any(p.get("name") == "router" for p in final_mita.get("proxies", [])), str(sorted(final_mita))[:200])
+        self.check("x12_nginx_untouched", self.host.nginx_sha256() == baseline["nginx"])
+        self.check("x12_nft_untouched", self.host.nft_sha256() == baseline["nft"])
+        self.check("x12_xui_untouched", self.host.xui_fingerprint() == baseline["xui"])
+        for protocol in protocols:
+            status, _, body = self.central.request(self._policy_path(protocol), method="DELETE")
+            self.check(f"x12_{protocol}_policy_deleted", status == 204, f"{status} {body[:200]!r}")
+        targets = self._targets()
+        self.check("x12_targets_detached_without_policies", all(
+            (item.get("router") or {}).get("attached") is False and item.get("policy") is None for item in targets.values() if item.get("router")))
+        self.routing_probes.stop()
+        self.stub.stop()
+
+    def _restore_router(self) -> None:
+        """After a failure inside the router step: both services back to their native backends
+        (best effort), the policies reset and deleted by `_restore_routing`."""
+        if not self.args.router or self.stub is None or not self.node_id:
+            return
+        with contextlib.suppress(Exception):
+            if self.stub.process is None:
+                self.stub.start()
+            for protocol in ("naive", "mieru"):
+                with contextlib.suppress(Exception):
+                    if self._router_view(protocol).get("attached"):
+                        with contextlib.suppress(Exception):
+                            policy = self._put_policy(protocol)
+                            self._apply_policy(protocol)
+                            self._wait_applied(protocol, policy["revision"], 60)
+                        self._attach("cleanup", protocol, False)
+                        self.report["cleanup"].append(f"{protocol} detached from the router after failure")
+
     def _restore_routing(self) -> None:
         """After a failure inside the routing step: the stub and the mihomo container go, and
         every routing policy of the node is reset to direct (best effort) and deleted."""
         if not self.args.routing or self.stub is None:
             return
+        self._restore_router()
         with contextlib.suppress(Exception):
             self.routing_probes.stop()
         with contextlib.suppress(Exception):
@@ -1407,6 +1748,9 @@ def main(argv=None) -> int:
         print(f"FAILED: {args.source} has no panel package", file=sys.stderr)
         return 2
     central_url = f"http://{args.central_host}:{args.central_port}"
+    if args.router and not args.routing:
+        print("FAILED: --router needs --routing (the stub and the routing clients)", file=sys.stderr)
+        return 2
     routing = {}
     if args.routing:
         routing = {"stub": Stub(args.stub_listen, Path(args.output) / "socks5-stub.log"), "host": Host(args.caddyfile),
