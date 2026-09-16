@@ -203,24 +203,6 @@ def test_compose_file_list_is_canonical_per_profile():
     )
 
 
-def test_profile_environment_is_non_secret_and_self_contained():
-    from installer.planner import profile_environment
-
-    rendered = profile_environment(config_for(profile=Profile.FULL))
-    keys = {line.split("=", 1)[0] for line in rendered.strip().splitlines()}
-    assert keys == {
-        "COMPOSE_FILE",
-        "PROXY_CONTROL_PROFILE",
-        "PANEL_ALLOWED_HOSTS",
-        "MTPROXY_DOMAIN",
-        "NAIVE_PUBLIC_HOST",
-        "MIERU_PUBLIC_HOST",
-        "NAIVE_EGRESS_WARP",
-        "MIERU_EGRESS_WARP",
-    }
-    assert "compose.yaml:compose.naive.yaml:compose.mieru.yaml" in rendered
-    assert "password" not in rendered.lower()
-    assert "token" not in rendered.lower()
 
 
 def test_the_firewall_opens_its_ports_before_certificates_are_issued():

@@ -227,3 +227,36 @@ def test_recovery_after_a_crash_between_write_and_reload(tmp_path):
     # The rollback ran inside the failure path; a fresh manager finds no open transaction.
     fresh = manager(tmp_path, EgressHooks())
     assert hooks.caddyfile.read_bytes() == before and fresh.health()["ready"] is True
+
+
+def _with_userinfo(hooks: EgressHooks, tmp_path: Path) -> NaiveCredentialManager:
+    """A Caddyfile whose hand-written upstream carries a credential: the API must never echo it."""
+    instance = manager(tmp_path, hooks)
+    text = hooks.caddyfile.read_text().replace("upstream socks5://127.0.0.1:40000",
+                                               "upstream socks5://alice:s3cret@127.0.0.1:1080")
+    hooks.caddyfile.write_text(text)
+    return instance
+
+
+def test_egress_view_redacts_custom_upstream_userinfo(tmp_path):
+    hooks = EgressHooks()
+    instance = _with_userinfo(hooks, tmp_path)
+    view = instance.egress()
+    assert (view["mode"], view["document"]) == ("custom", None)
+    assert view["upstream"] == "socks5://***@127.0.0.1:1080"
+    assert "s3cret" not in json.dumps(view)
+
+
+def test_egress_plan_diff_redacts_userinfo(tmp_path):
+    hooks = EgressHooks()
+    instance = _with_userinfo(hooks, tmp_path)
+    plan = instance.egress_plan(instance.egress()["revision"], WARP_DOC)
+    assert any("socks5://***@127.0.0.1:1080" in line for line in plan["diff"])
+    assert "s3cret" not in json.dumps(plan)
+    # The journal keeps the adopted line byte for byte: that is what a rollback restores.
+    instance.egress_apply(instance.egress()["revision"], WARP_DOC, "op-redact")
+    state = json.loads((tmp_path / "state" / "users.json").read_text())
+    assert state["egress"]["previous"]["raw_lines"] == ["            upstream socks5://alice:s3cret@127.0.0.1:1080"]
+    assert "s3cret" not in json.dumps(instance.egress())
+    instance.egress_rollback(instance.egress()["revision"])
+    assert "upstream socks5://alice:s3cret@127.0.0.1:1080" in hooks.caddyfile.read_text()

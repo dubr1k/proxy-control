@@ -188,3 +188,12 @@ def test_check_reachable_http_is_a_tcp_connect():
     finally:
         accepted.join(timeout=2)
         listener.close()
+
+
+def test_redact_userinfo_masks_credentials_in_urls():
+    from naive_manager.egress import redact_userinfo
+
+    line = "    upstream socks5://alice:s3cret@127.0.0.1:1080 # https://bob:pw@proxy.example:443/x"
+    assert redact_userinfo(line) == "    upstream socks5://***@127.0.0.1:1080 # https://***@proxy.example:443/x"
+    assert redact_userinfo("upstream socks5://127.0.0.1:45000") == "upstream socks5://127.0.0.1:45000"
+    assert redact_userinfo("") == ""
