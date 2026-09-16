@@ -247,6 +247,109 @@ def test_egress_view_redacts_custom_upstream_userinfo(tmp_path):
     assert "s3cret" not in json.dumps(view)
 
 
+ROUTER = "socks5://127.0.0.1:45101"
+ROUTER_DOC = {"schema": 1, "upstream": {"provider": "router"}, "acl": []}
+ROUTER_SECRET = "naive-a1b2c3d4:" + "K" * 40
+
+
+def router_manager(tmp_path: Path, hooks: EgressHooks, *, secret: str = ROUTER_SECRET) -> NaiveCredentialManager:
+    """A manager that knows its router ingress and the file with its credential."""
+    credential = tmp_path / "xray-router-ingress"
+    credential.write_text(secret + "\n")
+    instance = _manager(tmp_path, hooks)
+    instance.provider_url = WARP
+    instance.router_url = ROUTER
+    instance.router_credential_file = credential
+    hooks.greetings = []
+    instance.reachability = lambda url, timeout=3.0, auth=False: (hooks.greetings.append((url, auth)), hooks.reachable)[1]
+    instance.bootstrap()
+    return instance
+
+
+def test_block_lines_router_upstream_carries_credential_from_file(tmp_path):
+    hooks = EgressHooks()
+    instance = router_manager(tmp_path, hooks)
+    result = instance.egress_apply(instance.egress()["revision"], ROUTER_DOC, "op-router")
+    text = hooks.caddyfile.read_text()
+    assert f"upstream socks5://naive-a1b2c3d4:{'K' * 40}@127.0.0.1:45101" in _block(text)[1]
+    assert result["applied"] == ROUTER_DOC
+    # The reachability probe offered the password method to the router, never a bare greeting.
+    assert (ROUTER, True) in hooks.greetings
+    view = instance.egress()
+    assert (view["mode"], view["document"]) == ("proxy", ROUTER_DOC)
+    assert view["providers"]["router"] == {"url": ROUTER, "reachable": True}
+    assert view["providers"]["warp"]["url"] == WARP
+
+
+def test_egress_views_never_contain_router_credential(tmp_path):
+    hooks = EgressHooks()
+    instance = router_manager(tmp_path, hooks)
+    revision = instance.egress()["revision"]
+    plan = instance.egress_plan(revision, ROUTER_DOC)
+    instance.egress_apply(revision, ROUTER_DOC, "op-router")
+    texts = [json.dumps(plan), json.dumps(instance.egress()),
+             json.dumps(instance.egress_plan(instance.egress()["revision"], WARP_DOC))]
+    for text in texts:
+        assert "K" * 40 not in text and "naive-a1b2c3d4" not in text
+    assert instance.egress()["upstream"] == "socks5://***@127.0.0.1:45101"
+    assert plan["reachability"] == {"router": True}
+
+
+def test_apply_router_without_router_env_is_unsupported(tmp_path):
+    hooks = EgressHooks()
+    instance = manager(tmp_path, hooks)
+    with pytest.raises(EgressInvalid, match="router"):
+        instance.egress_apply(instance.egress()["revision"], ROUTER_DOC, "op-1")
+    assert "router" not in instance.egress()["providers"]
+
+
+def test_apply_router_unreachable_refuses_without_changes(tmp_path):
+    hooks = EgressHooks()
+    instance = router_manager(tmp_path, hooks)
+    hooks.reachable = False
+    before = hooks.caddyfile.read_bytes()
+    with pytest.raises(EgressUnreachable, match="router"):
+        instance.egress_apply(instance.egress()["revision"], ROUTER_DOC, "op-1")
+    assert hooks.caddyfile.read_bytes() == before
+
+
+def test_bootstrap_rerenders_router_block_after_rotation(tmp_path):
+    hooks = EgressHooks()
+    instance = router_manager(tmp_path, hooks)
+    applied = instance.egress_apply(instance.egress()["revision"], ROUTER_DOC, "op-router")
+    previous_revision = instance.egress()["previous"]["revision"]
+    (tmp_path / "xray-router-ingress").write_text("naive-a1b2c3d4:" + "Z" * 40 + "\n")
+    assert instance.egress()["warnings"] == ["router_credential_stale"]
+    reloads = hooks.reloads
+    fresh = router_manager(tmp_path, EgressHooks(), secret="naive-a1b2c3d4:" + "Z" * 40)
+    text = hooks.caddyfile.read_text()
+    assert f"upstream socks5://naive-a1b2c3d4:{'Z' * 40}@127.0.0.1:45101" in _block(text)[1]
+    assert "K" * 40 not in text
+    view = fresh.egress()
+    assert view["warnings"] == [] and view["document"] == ROUTER_DOC
+    assert view["revision"] != applied["revision"] and view["previous"]["revision"] == previous_revision
+    assert view["current"]["operation_id"] == "op-router"
+    assert hooks.reloads == reloads  # the fresh manager's own hooks reloaded, not the old one's
+    # And a rollback still walks back to the floor, the adopted line restored verbatim.
+    fresh.egress_rollback(view["revision"])
+    assert "upstream socks5://127.0.0.1:40000" in hooks.caddyfile.read_text()
+
+
+def test_hand_written_router_line_with_a_credential_is_the_router_provider(tmp_path):
+    hooks = EgressHooks()
+    credential = tmp_path / "xray-router-ingress"
+    credential.write_text(ROUTER_SECRET + "\n")
+    instance = _manager(tmp_path, hooks)
+    instance.router_url, instance.router_credential_file, instance.provider_url = ROUTER, credential, None
+    instance.reachability = lambda url, timeout=3.0, auth=False: True
+    hooks.caddyfile.write_text(hooks.caddyfile.read_text().replace(
+        "upstream socks5://127.0.0.1:40000", "upstream socks5://naive-a1b2c3d4:" + "K" * 40 + "@127.0.0.1:45101"))
+    instance.bootstrap()
+    view = instance.egress()
+    assert (view["mode"], view["document"], view["managed"]) == ("proxy", ROUTER_DOC, False)
+    assert "K" * 40 not in json.dumps(view)
+
+
 def test_egress_plan_diff_redacts_userinfo(tmp_path):
     hooks = EgressHooks()
     instance = _with_userinfo(hooks, tmp_path)

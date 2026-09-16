@@ -29,12 +29,16 @@ import json
 import re
 import socket
 from dataclasses import dataclass, field
-from urllib.parse import urlsplit
+from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 EGRESS_BEGIN = "# BEGIN NAIVE-MANAGER EGRESS"
 EGRESS_END = "# END NAIVE-MANAGER EGRESS"
 SCHEMA = 1
-PROVIDERS = ("warp",)
+# `warp`: the host's WARP proxy-mode endpoint (v0.4). `router`: this service's private
+# ingress on the node's Xray-router (v0.5) — a SOCKS5 endpoint with a credential the
+# manager reads from its own state directory when it renders the line, never from the panel.
+PROVIDERS = ("warp", "router")
 # What the spike proved this build enforces (docs/spikes/VNEXT_ROUTING_ENGINE.md); a block
 # rule holds only without an upstream, which `validate_document` enforces.
 CAPABILITIES = ("whole_direct", "whole_warp", "block_domain", "block_cidr")
@@ -47,6 +51,7 @@ _ACL_OPEN = re.compile(r"^\s*acl\s*\{\s*(?:#.*)?$")
 _DENY = re.compile(r"^\s*deny\s+(.+?)\s*$")
 _PROBE_RESISTANCE = re.compile(r"^\s*probe_resistance(?:\s|$)")
 _USERINFO = re.compile(r"(?<=://)[^/@\s]+@")
+ROUTER_CREDENTIAL = re.compile(r"([A-Za-z0-9._-]{1,64}):([A-Za-z0-9._~-]{16,128})\Z")
 
 
 class EgressInvalid(ValueError):
@@ -227,18 +232,51 @@ def revision_of(text: str) -> str:
     return parse(text).revision
 
 
-def resolve_provider(document: dict, provider_url: str | None) -> str | None:
+def provider_map(providers: dict[str, str | None] | str | None) -> dict[str, str | None]:
+    """The URL per provider name. A bare string (or None) is the v0.4 shape: the WARP URL."""
+    if isinstance(providers, dict):
+        return providers
+    return {"warp": providers or None}
+
+
+def resolve_provider(document: dict, providers: dict[str, str | None] | str | None) -> str | None:
     """The upstream URL the document names, or None for direct; `EgressInvalid` when the
-    provider is not configured on this host (`NAIVE_EGRESS_WARP` empty)."""
+    provider is not configured on this host (`NAIVE_EGRESS_WARP` / `NAIVE_EGRESS_ROUTER` empty)."""
     if document["upstream"] is None:
         return None
-    if not provider_url:
-        raise EgressInvalid("egress provider warp is not configured on this node")
-    return provider_url
+    name = document["upstream"]["provider"]
+    url = provider_map(providers).get(name)
+    if not url:
+        raise EgressInvalid(f"egress provider {name} is not configured on this node")
+    return url
 
 
-def block_lines(document: dict, provider_url: str | None, indent: str) -> list[str]:
-    upstream = resolve_provider(document, provider_url)
+def strip_userinfo(url: str) -> str:
+    """The endpoint without its credential: what views and comparisons use."""
+    return _USERINFO.sub("", url)
+
+
+def read_credential(path) -> tuple[str, str]:
+    """The `user:password` line of the router ingress credential file, or `EgressInvalid`."""
+    try:
+        text = Path(path).read_text().strip()
+    except OSError as exc:
+        raise EgressInvalid("egress provider router credential is unavailable on this node") from exc
+    match = ROUTER_CREDENTIAL.fullmatch(text)
+    if match is None:
+        raise EgressInvalid("egress provider router credential is malformed")
+    return match.group(1), match.group(2)
+
+
+def with_credential(url: str, credential: tuple[str, str]) -> str:
+    """`socks5://user:pass@host:port` for the router ingress (RFC 3986 userinfo, escaped)."""
+    user, password = (quote(part, safe="") for part in credential)
+    parts = urlsplit(strip_userinfo(url))
+    return f"{parts.scheme}://{user}:{password}@{parts.netloc}"
+
+
+def block_lines(document: dict, providers: dict[str, str | None] | str | None, indent: str) -> list[str]:
+    upstream = resolve_provider(document, providers)
     lines = [f"{indent}{EGRESS_BEGIN}"]
     if upstream:
         lines.append(f"{indent}upstream {upstream}")
@@ -248,11 +286,11 @@ def block_lines(document: dict, provider_url: str | None, indent: str) -> list[s
     return lines
 
 
-def render(text: str, document: dict, provider_url: str | None) -> str:
+def render(text: str, document: dict, providers: dict[str, str | None] | str | None) -> str:
     """The Caddyfile with the managed block carrying `document`, everything else verbatim."""
     parsed = parse(text)
     lines = text.splitlines()
-    return _replace(lines, parsed, block_lines(document, provider_url, _indent(lines, parsed)))
+    return _replace(lines, parsed, block_lines(document, providers, _indent(lines, parsed)))
 
 
 def render_raw(text: str, raw_lines: tuple[str, ...]) -> str:
@@ -289,19 +327,21 @@ def _replace(lines: list[str], parsed: ParsedEgress, block: list[str]) -> str:
     return "\n".join(kept) + "\n"
 
 
-def check_reachable(url: str, timeout: float = 3.0) -> bool:
-    """A SOCKS5 greeting without authentication for `socks5://`; a TCP connect for `http(s)://`.
-    Never raises: the answer is the fact."""
+def check_reachable(url: str, timeout: float = 3.0, *, auth: bool = False) -> bool:
+    """A SOCKS5 greeting for `socks5://` — offering no authentication, or (`auth`) the
+    username/password method the router ingress demands, without completing it; a TCP
+    connect for `http(s)://`. Never raises: the answer is the fact."""
     parts = urlsplit(url)
     host, port = parts.hostname, parts.port
     if not host or not port:
         return False
+    method = b"\x02" if auth else b"\x00"
     try:
         with socket.create_connection((host, port), timeout=timeout) as stream:
             if parts.scheme in ("socks5", "socks5h"):
                 stream.settimeout(timeout)
-                stream.sendall(b"\x05\x01\x00")
-                return stream.recv(2) == b"\x05\x00"
+                stream.sendall(b"\x05\x01" + method)
+                return stream.recv(2) == b"\x05" + method
             return True
     except OSError:
         return False
