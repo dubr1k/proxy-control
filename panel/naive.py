@@ -119,6 +119,10 @@ class MemoryNaive:
         # rollback with that manager code before anything changes; `egress_custom` is an
         # `upstream` line somebody wrote by hand (mode `custom`, no managed document).
         self.provider_url: str | None = "socks5://127.0.0.1:40000"
+        # The router ingress of this service (v0.5), None on a node without a router; the
+        # credential file is the manager's business and does not exist in the fake.
+        self.router_url: str | None = None
+        self.router_reachable = True
         self.reachable = True
         self.egress_document = EGRESS_DIRECT
         self.egress_history: list[dict] = []
@@ -299,15 +303,31 @@ class MemoryNaive:
                 or document.get("schema") != 1):
             raise NaiveError("invalid egress document", 422, "egress_invalid")
         upstream, acl = document.get("upstream"), document.get("acl", [])
-        if upstream is not None and upstream != {"provider": "warp"}:
+        if upstream is not None and upstream not in ({"provider": "warp"}, {"provider": "router"}):
             raise NaiveError("unknown egress provider", 422, "egress_invalid")
-        if upstream is not None and not self.provider_url:
-            raise NaiveError("egress provider warp is not configured on this node", 422, "egress_invalid")
+        if upstream is not None and not self._provider_url(upstream["provider"]):
+            raise NaiveError(f"egress provider {upstream['provider']} is not configured on this node", 422, "egress_invalid")
         if not isinstance(acl, list) or any(not isinstance(rule, dict) or set(rule) != {"deny"} for rule in acl):
             raise NaiveError("invalid egress acl", 422, "egress_invalid")
         if upstream is not None and acl:
             raise NaiveError("forwardproxy ignores the acl when an upstream is set", 422, "egress_invalid")
         return {"schema": 1, "upstream": upstream, "acl": [{"deny": list(rule["deny"])} for rule in acl]}
+
+    def _provider_url(self, name: str) -> str | None:
+        return self.provider_url if name == "warp" else self.router_url
+
+    def _provider_reachable(self, document: dict) -> bool:
+        if document["upstream"] is None:
+            return True
+        return self.reachable if document["upstream"]["provider"] == "warp" else self.router_reachable
+
+    def _providers(self) -> dict:
+        providers = {}
+        if self.provider_url:
+            providers["warp"] = {"url": self.provider_url, "reachable": self.reachable}
+        if self.router_url:
+            providers["router"] = {"url": self.router_url, "reachable": self.router_reachable}
+        return providers
 
     def _egress_check(self, expected_revision):
         if self.broken:
@@ -325,8 +345,9 @@ class MemoryNaive:
             raise NaiveError("NaiveProxy manager unavailable")
         custom = self.egress_custom is not None
         document = None if custom else self.egress_document
-        upstream = self.egress_custom if custom else (self.provider_url if document["upstream"] else None)
-        providers = {} if not self.provider_url else {"warp": {"url": self.provider_url, "reachable": self.reachable}}
+        upstream = self.egress_custom if custom else (
+            self._provider_url(document["upstream"]["provider"]) if document["upstream"] else None)
+        providers = self._providers()
         return {
             "revision": self._egress_revision(),
             "mode": "custom" if custom else "proxy" if upstream else "direct",
@@ -345,7 +366,8 @@ class MemoryNaive:
         return {"revision": expected_revision, "target_revision": target, "rendered_sha256": target,
                 "diff": [] if normalised == self.egress_document else ["-current", "+planned"],
                 "warnings": ["adopts_unmanaged_upstream"] if self.egress_custom is not None else [],
-                "reachability": {"warp": self.reachable} if normalised["upstream"] else {}, "restart_required": False}
+                "reachability": {normalised["upstream"]["provider"]: self._provider_reachable(normalised)}
+                if normalised["upstream"] else {}, "restart_required": False}
 
     async def egress_apply(self, expected_revision, document, operation_id):
         self.calls.append(("egress_apply", operation_id))
@@ -358,8 +380,8 @@ class MemoryNaive:
                 raise NaiveError("operation id already used for another request", 409, "operation_conflict")
             return {**record, "replayed": True}
         self._egress_check(expected_revision)
-        if normalised["upstream"] is not None and not self.reachable:
-            raise NaiveError("egress provider warp is unreachable", 409, "egress_unreachable")
+        if not self._provider_reachable(normalised):
+            raise NaiveError(f"egress provider {normalised['upstream']['provider']} is unreachable", 409, "egress_unreachable")
         self._egress_fail()
         self.egress_history.append({"document": None if self.egress_custom is not None else self.egress_document,
                                     "custom": self.egress_custom})

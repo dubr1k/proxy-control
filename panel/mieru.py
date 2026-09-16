@@ -162,6 +162,9 @@ class MemoryMieru:
         # or rollback with that manager code before anything changes; `egress_custom` is a
         # section somebody wrote by hand (mode `custom`, no managed document).
         self.provider_url: str | None = "socks5://127.0.0.1:40000"
+        # The router ingress of this service (v0.5), None on a node without a router.
+        self.router_url: str | None = None
+        self.router_reachable = True
         self.reachable = True
         self.egress_document = EGRESS_DIRECT
         self.egress_history: list[dict] = []
@@ -302,11 +305,14 @@ class MemoryMieru:
                 or document.get("schema") != 1):
             raise MieruError("invalid egress document", 422, "egress_invalid")
         proxies, rules = document.get("proxies", []), document.get("rules", [])
-        if not isinstance(proxies, list) or any(proxy != {"name": "warp", "provider": "warp"} for proxy in proxies) \
-                or len(proxies) > 1:
+        known = ({"name": "warp", "provider": "warp"}, {"name": "router", "provider": "router"})
+        if not isinstance(proxies, list) or any(proxy not in known for proxy in proxies) or len(proxies) > 2 \
+                or len({proxy["name"] for proxy in proxies}) != len(proxies):
             raise MieruError("unknown egress provider", 422, "egress_invalid")
-        if proxies and not self.provider_url:
-            raise MieruError("egress provider warp is not configured on this node", 422, "egress_invalid")
+        for proxy in proxies:
+            if not self._provider_url(proxy["name"]):
+                raise MieruError(f"egress provider {proxy['name']} is not configured on this node", 422, "egress_invalid")
+        declared = {proxy["name"] for proxy in proxies}
         if not isinstance(rules, list):
             raise MieruError("invalid rule list", 422, "egress_invalid")
         normalised = []
@@ -317,10 +323,25 @@ class MemoryMieru:
             if not (domains or cidrs) or rule.get("action") not in EGRESS_ACTIONS:
                 raise MieruError("invalid egress rule", 422, "egress_invalid")
             proxy = rule.get("proxy")
-            if (rule["action"] == "PROXY") != (proxy == "warp") or (proxy == "warp" and not proxies):
+            if (rule["action"] == "PROXY") != (proxy is not None) or (proxy is not None and proxy not in declared):
                 raise MieruError("egress rule names an undeclared proxy", 422, "egress_invalid")
             normalised.append({"domains": domains, "cidrs": cidrs, "action": rule["action"], "proxy": proxy})
         return {"schema": 1, "proxies": copy.deepcopy(proxies), "rules": normalised}
+
+    def _provider_url(self, name: str) -> str | None:
+        return self.provider_url if name == "warp" else self.router_url
+
+    def _providers_reachable(self, document: dict) -> dict:
+        return {proxy["name"]: self.reachable if proxy["name"] == "warp" else self.router_reachable
+                for proxy in document["proxies"]}
+
+    def _providers(self) -> dict:
+        providers = {}
+        if self.provider_url:
+            providers["warp"] = {"url": self.provider_url, "reachable": self.reachable}
+        if self.router_url:
+            providers["router"] = {"url": self.router_url, "reachable": self.router_reachable}
+        return providers
 
     def _egress_check(self, expected_revision):
         if self.broken:
@@ -339,7 +360,7 @@ class MemoryMieru:
             raise MieruError("unavailable")
         custom = self.egress_custom is not None
         document = None if custom else self.egress_document
-        providers = {} if not self.provider_url else {"warp": {"url": self.provider_url, "reachable": self.reachable}}
+        providers = self._providers()
         return {
             "revision": self.revision,
             "mode": "custom" if custom else "proxy" if any(r["action"] == "PROXY" for r in document["rules"]) else "direct",
@@ -356,7 +377,7 @@ class MemoryMieru:
         self._egress_check(expected_revision)
         return {"revision": self.revision, "target": normalised,
                 "diff": [] if normalised == self.egress_document else ["-current", "+planned"],
-                "reachability": {"warp": self.reachable} if normalised["proxies"] else {}, "restart_required": True,
+                "reachability": self._providers_reachable(normalised), "restart_required": True,
                 "warnings": ["adopts_unmanaged_egress"] if self.egress_custom is not None else []}
 
     async def egress_apply(self, expected_revision, document, operation_id):
@@ -370,8 +391,9 @@ class MemoryMieru:
                 raise MieruError("operation id already used for another request", 409, "operation_conflict")
             return {**record, "replayed": True}
         self._egress_check(expected_revision)
-        if normalised["proxies"] and not self.reachable:
-            raise MieruError("egress provider warp is unreachable", 409, "egress_unreachable")
+        for name, reachable in self._providers_reachable(normalised).items():
+            if not reachable:
+                raise MieruError(f"egress provider {name} is unreachable", 409, "egress_unreachable")
         self._egress_fail()
         self.egress_history.append({"document": None if self.egress_custom is not None else self.egress_document,
                                     "custom": self.egress_custom})

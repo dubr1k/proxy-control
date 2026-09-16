@@ -45,6 +45,12 @@ class Settings:
         )
     )
     mieru_enabled: bool = os.getenv("MIERU_ENABLED", "false").lower() == "true"
+    # The node's Xray-router (v0.5, compose.xray-router.yaml): its manager socket and token.
+    xray_router_enabled: bool = os.getenv("XRAY_ROUTER_ENABLED", "false").lower() == "true"
+    xray_router_socket: str = os.getenv("XRAY_ROUTER_MANAGER_SOCKET", "/run/xray-router/manager.sock")
+    xray_router_token: str = field(
+        default_factory=lambda: _secret_setting("XRAY_ROUTER_MANAGER_TOKEN", "XRAY_ROUTER_MANAGER_TOKEN_FILE")
+    )
     # Which writer serves the protocol endpoints. `legacy` calls the managers directly,
     # exactly as v0.1.0 did; `domain` routes the same requests through clients/grants so
     # the panel owns the credential. Cutover order: import first, then flip this.
