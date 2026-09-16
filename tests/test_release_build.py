@@ -85,7 +85,26 @@ def clean_checkout(tmp_path: Path, name: str = "source") -> Path:
                                 "executable_sha256": "b" * 64,
                             }
                         },
-                    }
+                    },
+                    {
+                        "name": "xray",
+                        "version": "26.3.27",
+                        "tag": "v26.3.27",
+                        "repository": "XTLS/Xray-core",
+                        "spdx_license": "MPL-2.0",
+                        "platforms": {
+                            "amd64": {
+                                "architecture": "amd64",
+                                "filename_architecture": "64",
+                                "url": "https://example.invalid/Xray-linux-64.zip",
+                                "sha256": "c" * 64,
+                                "members": {
+                                    "xray": {"sha256": "d" * 64, "size": 3, "mode": "0755"},
+                                    "geoip.dat": {"sha256": "e" * 64, "size": 3, "mode": "0644"},
+                                },
+                            }
+                        },
+                    },
                 ],
             },
             indent=2,
@@ -327,6 +346,9 @@ def test_sbom_lists_every_file_and_pinned_external_artifact(tmp_path):
         "a" * 64,
         "b" * 64,
     }
+    xray = next(item for item in document["packages"] if item["name"] == "xray-amd64")
+    assert xray["licenseDeclared"] == "MPL-2.0"
+    assert {entry["checksumValue"] for entry in xray["checksums"]} == {"c" * 64, "d" * 64, "e" * 64}
     files = {entry["fileName"] for entry in document["files"]}
     assert "./install.sh" in files
     assert "./release/release.json" in files

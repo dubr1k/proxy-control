@@ -57,6 +57,15 @@ def _external_packages(external: Path) -> list[dict[str, object]]:
                         "checksumValue": str(pin["executable_sha256"]),
                     }
                 )
+            # Zip artifacts (v0.5, Xray) name the members the installer extracts; each one
+            # is a reviewed file of its own and its digest travels with the package.
+            members = pin.get("members")
+            if isinstance(members, Mapping):
+                for _member, member_pin in sorted(members.items()):
+                    if isinstance(member_pin, Mapping) and isinstance(member_pin.get("sha256"), str):
+                        checksums.append(
+                            {"algorithm": "SHA256", "checksumValue": str(member_pin["sha256"])}
+                        )
             packages.append(
                 {
                     "SPDXID": _identifier("Package", f"{name}-{architecture}"),
