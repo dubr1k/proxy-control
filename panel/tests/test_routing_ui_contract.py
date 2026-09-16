@@ -45,6 +45,25 @@ def test_routing_js_names_the_states_and_refusals_in_the_operator_words():
         assert code in ROUTING, code
 
 
+def test_routing_js_speaks_the_router():
+    """v0.5: the Xray-router — attach/detach as explicit actions, the three selectors only
+    the router enforces, the words for its states and refusals."""
+    for fragment in ("/attach", "/detach", 'action === "attach" || action === "detach"'):
+        assert fragment in ROUTING, fragment
+    for text in ("Подключить к Xray-router", "Отключить от Xray-router", "Xray-router: не установлен",
+                 "сессии сервиса прервутся", "Xray-router", "Caddy", "mita", "geosite", "geoip"):
+        assert text in ROUTING, text
+    for field in ('data-rule-field="geosites"', 'data-rule-field="geoips"', 'data-rule-field="ports"'):
+        assert field in ROUTING, field
+    for code in ("router_unavailable", "router_unreachable", "not_attached", "node_lacks_router", "artifact_mismatch",
+                 "geosite_unknown", "geoip_unknown", "router_credential_stale"):
+        assert code in ROUTING, code
+    # The router intent travels with the policy body: geosites and geoips beside domains and cidrs.
+    assert "geosites: rule.match.geosites, geoips: rule.match.geoips" in ROUTING
+    nodes = (STATIC / "js/nodes.js").read_text()
+    assert "routingSummary" in nodes
+
+
 def test_apply_is_enabled_only_for_a_saved_supported_policy():
     assert 'compiled?.status === "supported"' in ROUTING and "!dirty" in ROUTING
     assert "canRollback" in ROUTING and "applied_revision !== null" in ROUTING
@@ -73,7 +92,7 @@ def _interpolations(source: str) -> list[str]:
 # helpers, URL-encoded path parts, counters and flags — never a bare API string.
 _ALLOWED = (
     re.compile(r"^(esc|number|encodeURIComponent)\("),
-    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable)\("),
+    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine)\("),
     re.compile(r"^[\w+\- ]+$"),  # a local composed of escaped pieces, or index arithmetic
     re.compile(r'^.+\?\s*("[^"]*"|\'[^\']*\'|`.*`)\s*:\s*("[^"]*"|\'[^\']*\'|`.*`|.+\?.+:.+)$', re.S),  # literal branches
     re.compile(r"^\w+\s*\|\|\s*('[^']*'|\"[^\"]*\")$"),  # a composed template, or a literal placeholder

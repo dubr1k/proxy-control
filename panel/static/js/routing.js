@@ -29,13 +29,23 @@ const REASON_TEXT = {
   manual_intervention_required: "узлу требуется ручное вмешательство",
   egress_no_previous: "нечего откатывать",
   unsupported: "политика не применима на этом узле",
+  // The node's Xray-router (v0.5).
+  router_unavailable: "Xray-router на узле не установлен или не отвечает",
+  router_unreachable: "менеджер сервиса не достучался до ingress Xray-router",
+  not_attached: "сервис не подключён к Xray-router — сначала «Подключить»",
+  node_lacks_router: "узел нужно обновить до v0.5 и установить Xray-router",
+  artifact_mismatch: "бинарь или geodata Xray-router не совпадают с релизом — роутер не запущен",
+  geosite_unknown: "Xray не знает такого кода geosite",
+  geoip_unknown: "Xray не знает такого кода geoip",
 };
 const WARNING_TEXT = {
   provider_unreachable: "WARP на узле не отвечает: политика применится напрямую (fallback)",
   adopts_unmanaged_upstream: "на узле есть upstream, заданный вручную — он будет заменён и сохранён для отката",
   adopts_unmanaged_egress: "на узле есть секция egress, заданная вручную — она будет заменена и сохранена для отката",
   policy_empty: "политика пустая: узел пойдёт напрямую без правил",
+  router_credential_stale: "ключ ingress на узле обновлён, менеджер перерисует блок при перезапуске",
 };
+const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", xray_router: "Xray-router" };
 const STATE_TEXT = {
   draft: "черновик", applying: "применяется", applied: "применено", failed: "ошибка", rolled_back: "откачено",
 };
@@ -49,7 +59,7 @@ function emptyPolicy() {
 }
 
 function newRule() {
-  return { id: null, enabled: true, action: "block", egress: null, match: { domains: [], cidrs: [], ports: [] }, note: "" };
+  return { id: null, enabled: true, action: "block", egress: null, match: { domains: [], cidrs: [], ports: [], geosites: [], geoips: [] }, note: "" };
 }
 
 function splitList(value) {
@@ -64,14 +74,18 @@ function draftFromPolicy(policy) {
     revision: policy.revision,
     rules: (policy.rules || []).map((rule) => ({
       id: rule.id, enabled: rule.enabled, action: rule.action, egress: rule.egress, note: rule.note || "",
-      match: { domains: [...rule.match.domains], cidrs: [...rule.match.cidrs], ports: [...rule.match.ports] },
+      match: { domains: [...rule.match.domains], cidrs: [...rule.match.cidrs], ports: [...rule.match.ports],
+        geosites: [...(rule.match.geosites || [])], geoips: [...(rule.match.geoips || [])] },
     })),
   };
 }
 
 // The body `PUT` and `preview` take: the draft without the UI's own bookkeeping.
-export function policyBody(draft) {
+// `backend` is the target's current one (Xray-router while the service is attached, the
+// native backend otherwise): a new policy is born on the backend that will enforce it.
+export function policyBody(draft, backend = null) {
   return {
+    ...(backend ? { backend } : {}),
     default_action: draft.default_action,
     default_egress: draft.default_action === "egress" ? "warp" : null,
     fallback: draft.fallback,
@@ -80,7 +94,8 @@ export function policyBody(draft) {
       enabled: rule.enabled,
       action: rule.action,
       egress: rule.action === "egress" ? "warp" : null,
-      match: { domains: rule.match.domains, cidrs: rule.match.cidrs, ports: rule.match.ports },
+      match: { domains: rule.match.domains, cidrs: rule.match.cidrs, ports: rule.match.ports,
+        geosites: rule.match.geosites, geoips: rule.match.geoips },
       note: rule.note,
     })),
   };
@@ -106,7 +121,8 @@ export function routingSummary(items) {
       const selective = (policy.rules?.direct || 0) + (policy.rules?.egress || 0);
       const extra = selective ? `, ${number(selective)} исключ.` : "";
       const note = policy.applied_current ? "" : policy.state === "failed" ? " (ошибка)" : " (не применено)";
-      return `${item.protocol} → ${target}${blocks}${extra}${note}`;
+      const via = item.backend === "xray_router" ? " [Xray-router]" : "";
+      return `${item.protocol} → ${target}${blocks}${extra}${via}${note}`;
     });
   return parts.length ? parts.join("; ") : "не настроена";
 }
@@ -155,10 +171,12 @@ function ruleRow(rule, index, total, editable) {
     <div class="routing-rule-fields">
       <label>Домены <small>example.com, *.cdn.example</small><input data-rule-field="domains" data-rule-index="${index}" value="${esc(match.domains.join(", "))}" placeholder="example.com, *.example.com"${editable ? "" : " disabled"}></label>
       <label>CIDR <small>1.2.3.0/24</small><input data-rule-field="cidrs" data-rule-index="${index}" value="${esc(match.cidrs.join(", "))}" placeholder="203.0.113.0/24"${editable ? "" : " disabled"}></label>
-      <label>Порты <small>не применяются в v0.4</small><input data-rule-field="ports" data-rule-index="${index}" value="${esc(match.ports.join(", "))}" placeholder="443, 1000-2000"${editable ? "" : " disabled"}></label>
+      <label>geosite <small>только Xray-router</small><input data-rule-field="geosites" data-rule-index="${index}" value="${esc((match.geosites || []).join(", "))}" placeholder="category-ads-all, cn"${editable ? "" : " disabled"}></label>
+      <label>geoip <small>только Xray-router</small><input data-rule-field="geoips" data-rule-index="${index}" value="${esc((match.geoips || []).join(", "))}" placeholder="cn, cloudflare"${editable ? "" : " disabled"}></label>
+      <label>Порты <small>только Xray-router</small><input data-rule-field="ports" data-rule-index="${index}" value="${esc(match.ports.join(", "))}" placeholder="443, 1000-2000"${editable ? "" : " disabled"}></label>
       <label>Заметка<input data-rule-field="note" data-rule-index="${index}" value="${esc(rule.note)}" maxlength="120"${editable ? "" : " disabled"}></label>
     </div>
-    ${selective ? '<p class="form-hint">Выборочное правило: NaiveProxy его не умеет (один upstream на сервис), Mieru — умеет.</p>' : ""}
+    ${selective ? '<p class="form-hint">Выборочное правило: NaiveProxy его не умеет (один upstream на сервис), Mieru и Xray-router — умеют.</p>' : ""}
   </li>`;
 }
 
@@ -200,7 +218,7 @@ function previewPanel(compiled, policy, dirty) {
     </div>
     ${reasons ? `<ul class="routing-reasons">${reasons}</ul>` : ""}
     ${warnings ? `<ul class="routing-warnings">${warnings}</ul>` : ""}
-    <p class="form-hint">${compiled.restart_required ? "потребуется перезапуск сервиса на узле" : "перезапуск не требуется"} · ${rollback}</p>
+    <p class="form-hint">${compiled.restart_required ? "потребуется перезапуск сервиса на узле" : "перезапуск не требуется"} · ${rollback}${compiled.runtime_version ? ` · ${esc(compiled.runtime_version)}` : ""}</p>
     ${diff ? `<pre class="routing-diff">${diff}</pre>` : '<p class="form-hint">Изменений относительно узла нет.</p>'}
     ${compiled.document ? `<details class="routing-document"><summary>Документ для менеджера</summary><pre>${esc(JSON.stringify(compiled.document, null, 2))}</pre></details>` : ""}
   </div>`;
@@ -229,6 +247,21 @@ function cardActions(context, policy, compiled, dirty, editable) {
   </div>`;
 }
 
+// The node's Xray-router (v0.5): where the service's traffic goes before any policy, and the
+// one action that moves it — an explicit, confirmed step, never a side effect of a policy.
+function routerLine(context, target) {
+  const router = target.router;
+  if (!router) return "<p class='form-hint routing-router-line'>Xray-router: не установлен — политика применяется собственным backend сервиса.</p>";
+  const owner = context.state.me?.role === "owner";
+  const status = !router.available ? `не отвечает (${esc(reasonText(router.reason))})` : router.attached ? "сервис подключён" : "сервис не подключён";
+  const tone = !router.available ? "blocked" : router.attached ? "" : "muted";
+  const version = router.xray_version ? ` · ${esc(router.xray_version)}` : "";
+  const action = router.attached
+    ? `<button class="secondary" data-routing-action="detach"${owner && !target.reason ? "" : " disabled"}>Отключить от Xray-router</button>`
+    : `<button class="secondary" data-routing-action="attach"${owner && router.available && !target.reason ? "" : " disabled"}>Подключить к Xray-router</button>`;
+  return `<div class="routing-router-line"><span class="status-pill ${tone}"><i></i>Xray-router: ${status}</span><small>${version}</small>${action}</div>`;
+}
+
 function targetCard(context) {
   const target = currentTarget(context);
   if (!target) return '<div class="empty-state"><span>◇</span><h3>Нет узлов для маршрутизации</h3><p>Появятся этот сервер и связанные панели, когда будут на связи.</p></div>';
@@ -244,12 +277,14 @@ function targetCard(context) {
     </article>`;
   }
   const providers = Object.entries(target.providers || {}).map(([name, value]) => `${name}: ${value.reachable === false ? "не отвечает" : value.reachable ? "доступен" : "не проверялся"}`).join(", ") || "провайдеров нет";
+  const backendName = BACKEND_NAMES[target.backend] || target.backend;
   return `<article class="panel-card routing-card">
     <div class="routing-head">
-      <b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)} · ${esc(target.backend)}</b>
+      <b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)} · <span class="routing-backend">${esc(backendName)}</span></b>
       <span class="status-pill ${tone}"><i></i>${esc(statusText)}</span>
     </div>
-    <p class="form-hint">Возможности: ${esc((target.capabilities || []).join(", ") || "—")} · WARP — ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress" : ""}</p>
+    <p class="form-hint">Возможности: ${esc((target.capabilities || []).join(", ") || "—")} · провайдеры — ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress" : ""}</p>
+    ${routerLine(context, target)}
     ${reason}
     <div class="routing-layout">
       ${editor(target, state.draft, editable)}
@@ -290,7 +325,7 @@ async function previewNow(context, target) {
   const seq = ++state.previewSeq;
   const url = `/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}/preview`;
   try {
-    const body = state.dirty || !state.policy ? JSON.stringify(policyBody(state.draft)) : undefined;
+    const body = state.dirty || !state.policy ? JSON.stringify(policyBody(state.draft, target.backend)) : undefined;
     const compiled = await context.api(url, { method: "POST", body });
     if (seq !== state.previewSeq) return;
     state.compiled = compiled;
@@ -324,7 +359,7 @@ function rerender(context) {
 }
 
 function screen(context) {
-  return `<div class="security-note">Политика описывает, куда сервис выпускает трафик клиентов: напрямую, через WARP или блокирует. Предпросмотр показывает, что именно применит backend узла — NaiveProxy умеет только «весь сервис» и блокировки, Mieru — ещё и выборочные правила.</div>
+  return `<div class="security-note">Политика описывает, куда сервис выпускает трафик клиентов: напрямую, через WARP или блокирует. Предпросмотр показывает, что именно применит backend узла — NaiveProxy (Caddy) умеет только «весь сервис» и блокировки, Mieru (mita) — ещё и выборочные правила, а сервис, подключённый к Xray-router узла, — geosite, geoip, порты и блокировки рядом с WARP.</div>
     <div class="toolbar routing-toolbar">
       <label>Узел <select id="routing-node">${nodeOptions(context)}</select></label>
       <div class="node-tabs" role="tablist">${protocolTabs(context)}</div>
@@ -400,7 +435,7 @@ async function save(context) {
   context.ui.setBusy(button, true, "Сохраняем…");
   try {
     readDraft(context);
-    const body = { ...policyBody(state.draft), expected_revision: state.policy?.revision ?? null };
+    const body = { ...policyBody(state.draft, target.backend), expected_revision: state.policy?.revision ?? null };
     state.policy = await context.api(`/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}`, { method: "PUT", body: JSON.stringify(body) });
     state.draft = draftFromPolicy(state.policy);
     state.dirty = false;
@@ -422,7 +457,7 @@ async function operate(context, action, button) {
   const target = currentTarget(context);
   const state = ensureState(context);
   if (!target || !state.policy) return;
-  const titles = { apply: ["Применить политику?", "Узел получит новую конфигурацию egress. Откат доступен из истории.", "Применить"],
+  const titles = { apply: ["Применить политику?", target.backend === "xray_router" ? "Xray-router перезапустится с новым поколением: сессии подключённых сервисов прервутся на мгновение. Откат доступен из истории." : "Узел получит новую конфигурацию egress. Откат доступен из истории.", "Применить"],
     rollback: ["Откатить к предыдущей записи?", "Узел вернётся к предыдущей конфигурации egress менеджера.", "Откатить"],
     delete: ["Удалить политику?", "Узел при этом не трогается: удалить можно только политику, уже сведённую к «напрямую без правил».", "Удалить"] };
   const [title, text, label] = titles[action];
@@ -438,6 +473,29 @@ async function operate(context, action, button) {
       const policy = result.policy;
       context.ui.toast(policy.state === "applying" ? "Отправлено узлу: результат появится после heartbeat" : action === "apply" ? `Применено (rev ${number(policy.applied_revision)})` : "Откачено");
     }
+    await context.navigate("routing");
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+    context.ui.setBusy(button, false);
+  }
+}
+
+// Hand the service to the router, or take it back: confirmed, then one POST; the policy
+// moves to the other backend as a draft and the screen reloads with the node's word.
+async function attachment(context, action, button) {
+  const target = currentTarget(context);
+  if (!target) return;
+  const name = PROTOCOL_NAMES[target.protocol] || target.protocol;
+  const [title, text, label] = action === "attach"
+    ? [`Подключить ${name} к Xray-router?`, "Весь трафик сервиса пойдёт через роутер узла; политика будет применяться роутером (geosite, geoip, порты, блокировки рядом с WARP); сессии сервиса прервутся.", "Подключить"]
+    : [`Отключить ${name} от Xray-router?`, "Сервис вернётся к своему backend'у и пойдёт напрямую; политика останется черновиком для него; сессии сервиса прервутся.", "Отключить"];
+  if (!(await context.ui.confirmed(title, text, label))) return;
+  context.ui.setBusy(button, true, "…");
+  try {
+    const path = action === "attach" ? "/attach" : "/detach";
+    const result = await context.api(`/api/routing/targets/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}${path}`, { method: "POST" });
+    const state = result.target?.policy?.state;
+    context.ui.toast(state === "applying" ? "Отправлено узлу: результат появится после heartbeat" : action === "attach" ? "Сервис подключён к Xray-router" : "Сервис отключён от Xray-router");
     await context.navigate("routing");
   } catch (error) {
     context.ui.toast(error.message, "error");
@@ -485,6 +543,10 @@ export function handleRoutingClick(context, button) {
   }
   if (action === "apply" || action === "rollback" || action === "delete") {
     void operate(context, action, button);
+    return true;
+  }
+  if (action === "attach" || action === "detach") {
+    void attachment(context, action, button);
     return true;
   }
   if (action === "history") {
