@@ -215,7 +215,9 @@ def core_checks(output: Path, *, singbox_image: str, mihomo_image: str, ca_file:
             seen = _ip_through(MIHOMO_PORT)
             result["mihomo_mieru_ip"] = seen
             result["mihomo_mieru_tcp"] = bool(direct) and seen == direct
-            result["mihomo_mieru_udp"] = _socks5_udp_dns(MIHOMO_PORT)
+            # One datagram each way to 1.1.1.1: a single lost packet is the Internet, not
+            # the proxy, so the query gets a second try before it counts as a failure.
+            result["mihomo_mieru_udp"] = _socks5_udp_dns(MIHOMO_PORT) or _socks5_udp_dns(MIHOMO_PORT)
             if not (result["mihomo_mieru_tcp"] and result["mihomo_mieru_udp"]):
                 result["mihomo_mieru_tcp_detail"] = _run("docker", "logs", "--tail", "20", "pc-acceptance-mihomo")[1]
             _run("docker", "rm", "-f", "pc-acceptance-mihomo")
