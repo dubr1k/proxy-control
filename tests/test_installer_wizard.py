@@ -574,3 +574,57 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
     assert "не совпадают" in transcript.getvalue()
     stored = read_credentials(output)
     assert stored is not None and stored.panel_password == "settled-panel-password"
+
+
+def test_wizard_asks_router_only_when_archive_present(tmp_path: Path):
+    """[egress] router (v0.5): the Xray-router is offered only when the operator staged
+    its archive; a service handed to the router is not asked about WARP."""
+    output = tmp_path / "router.toml"
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "Xray-linux-64.zip").write_bytes(b"staged\n")
+    answers = [
+        "",
+        "fresh",
+        "full",
+        "none",
+        "panel.example.com",
+        "relay.example.com",
+        "",  # subscription domain
+        "edge.example.com",
+        "mieru.example.com",
+        "46001",
+        "46001",
+        "yes",  # WARP
+        "yes",  # Xray-router
+        "yes",  # NaiveProxy through the router
+        "no",  # Mieru through the router
+        "yes",  # Mieru through WARP (the only service still asked)
+        "admin@example.com",
+        "owner",
+        "",  # panel password
+        "yes",
+        "save",
+    ]
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=artifacts)
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    text = output.read_text()
+    assert "router = true" in text and 'naive = "router"' in text and 'mieru = "warp"' in text
+    assert "Xray-router" in transcript.getvalue()
+    assert "Направлять весь трафик NaiveProxy через WARP" not in transcript.getvalue()
+    config = load_config(output)
+    assert config.egress.router is True
+    assert (config.egress.naive.value, config.egress.mieru.value) == ("router", "warp")
+
+    # Without the archive the question is never asked and the v0.4 dialogue is unchanged.
+    answers_without = answers[:12] + ["no", "yes"] + answers[16:]
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers_without) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output, artifact_dir=tmp_path / "missing")
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    assert "Xray-router" not in transcript.getvalue()
+    assert "router" not in output.read_text()

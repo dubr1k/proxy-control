@@ -56,6 +56,7 @@ _COPY_FILES = (
     "compose.yaml",
     "compose.mieru.yaml",
     "compose.naive.yaml",
+    "compose.xray-router.yaml",
     "uninstall.sh",
     "scripts/proxyctl.py",
     # Mounted into the panel container: the version it reports to a central panel.
@@ -69,6 +70,7 @@ _COPY_DIRECTORIES = (
     "mieru_manager",
     "naive_manager",
     "panel",
+    "xray_router_manager",
 )
 # Credentials a project Core adopts must already have. The master key is deliberately
 # not here: a v0.1.0 project has none, and demanding it would refuse the upgrade.

@@ -712,6 +712,7 @@ class DeployCliTests(unittest.TestCase):
             "compose.yaml",
             "compose.naive.yaml",
             "compose.mieru.yaml",
+            "compose.xray-router.yaml",
             "compose.agent.yaml",
             "compose.fleet-central.yaml",
         )
@@ -750,7 +751,13 @@ class DeployCliTests(unittest.TestCase):
                 "FLEET_SERVER_CERT": str(temp / "server.crt"),
                 "FLEET_SERVER_KEY": str(temp / "server.key"),
                 "FLEET_CLIENT_CA": str(temp / "ca.crt"),
+                "XRAY_ROUTER_BIN_DIR": str(temp / "xray"),
+                "XRAY_ROUTER_STATE_DIR": str(temp / "state"),
+                "XRAY_ROUTER_XRAY_SHA256": "8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed",
+                "XRAY_ROUTER_GEOIP_SHA256": "744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354",
+                "XRAY_ROUTER_GEOSITE_SHA256": "adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9",
             }
+            (temp / "xray").mkdir()
             command = ["docker", "compose"]
             for compose_file in compose_files:
                 command.extend(("-f", compose_file))
@@ -764,7 +771,7 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(model["name"], "mtproxy")
             self.assertEqual(
                 set(model["services"]),
-                {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "fleet-agent", "fleet-ingress"},
+                {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "fleet-agent", "fleet-ingress"},
             )
             expected_container_names = {
                 "mask": "proxy-control-mask",
@@ -772,6 +779,7 @@ class DeployCliTests(unittest.TestCase):
                 "panel": "proxy-control-panel",
                 "naive-manager": "proxy-control-naive-manager",
                 "mieru-manager": "proxy-control-mieru-manager",
+                "xray-router": "proxy-control-xray-router",
                 "fleet-agent": "proxy-control-fleet-agent",
                 "fleet-ingress": "proxy-control-fleet-ingress",
             }

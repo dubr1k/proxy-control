@@ -288,3 +288,25 @@ def test_bootstrap_rerenders_after_rotation(tmp_path):
                                           "rules": [{"ipRanges": ["*"], "action": "PROXY", "proxyNames": ["router"]}]}})
     other = _manager(tmp_path / "custom", custom)
     assert other.egress()["mode"] == "custom" and "y" * 20 not in json.dumps(other.egress())
+
+
+def test_bootstrap_refreshes_the_installer_seed_after_rotation(tmp_path):
+    """The installer seeds mita's `egress` with the router proxy and the credential of the day
+    (v0.5); there is no journal yet. After a rotation bootstrap re-renders the section from the
+    file through the restart transaction, exactly as it does for an applied one."""
+    seeded = FakeMita({**BASE, "egress": {
+        "proxies": [{"name": "router", "protocol": "SOCKS5_PROXY_PROTOCOL", "host": "127.0.0.1", "port": 45102,
+                     "socks5Authentication": {"user": "mieru-e5f6a7b8", "password": "K" * 40}}],
+        "rules": [{"action": "PROXY", "ipRanges": ["*"], "domainNames": ["*"], "proxyNames": ["router"]}]}})
+    service = _router_manager(tmp_path, seeded)
+    view = service.egress()
+    assert view["mode"] == "proxy" and view["document"] == validate_document(ROUTER_DOC)
+    assert view["warnings"] == ["adopts_unmanaged_egress"]  # the seed: nothing applied by the manager yet
+    (tmp_path / "xray-router-ingress").write_text("mieru-e5f6a7b8:" + "Z" * 40 + "\n")
+    assert "router_credential_stale" in service.egress()["warnings"]
+    seeded.calls.clear()
+    fresh = _router_manager(tmp_path, seeded, secret="mieru-e5f6a7b8:" + "Z" * 40)
+    assert seeded.observe()["egress"]["proxies"][0]["socks5Authentication"]["password"] == "Z" * 40
+    assert ("stop",) in seeded.calls and ("start",) in seeded.calls
+    view = fresh.egress()
+    assert "router_credential_stale" not in view["warnings"] and view["document"] == validate_document(ROUTER_DOC)

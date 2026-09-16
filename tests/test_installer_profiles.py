@@ -188,6 +188,32 @@ def test_every_selected_adapter_declares_satisfiable_dependencies():
         available.add(adapter.name)
 
 
+def test_adapters_for_includes_xray_router_after_warp():
+    """`[egress] router = true` (v0.5) adds the router between WARP and the services it feeds."""
+    from dataclasses import replace
+
+    from installer.model import EgressChoice, EgressConfig
+
+    base = config_for(profile=Profile.FULL)
+    routed = replace(base, egress=EgressConfig(warp=True, router=True, naive=EgressChoice.ROUTER, mieru=EgressChoice.WARP))
+    names = tuple(adapter.name for adapter in adapters_for(routed))
+    assert names == ("packages", "nginx", "firewall", "certificates", "core", "warp", "xray_router", "naive", "mieru")
+    only_router = replace(base, egress=EgressConfig(router=True, naive=EgressChoice.ROUTER))
+    names = tuple(adapter.name for adapter in adapters_for(only_router))
+    assert names == ("packages", "nginx", "firewall", "certificates", "core", "xray_router", "naive", "mieru")
+    assert "xray_router" not in {adapter.name for adapter in adapters_for(base)}
+
+
+def test_compose_file_list_with_router():
+    from dataclasses import replace
+
+    from installer.model import EgressConfig
+    from installer.planner import compose_file_list
+
+    routed = replace(config_for(profile=Profile.CORE_NAIVE), egress=EgressConfig(router=True))
+    assert compose_file_list(routed) == ("compose.yaml", "compose.naive.yaml", "compose.xray-router.yaml")
+
+
 def test_compose_file_list_is_canonical_per_profile():
     from installer.planner import compose_file_list
 

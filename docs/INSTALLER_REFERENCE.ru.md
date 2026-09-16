@@ -108,8 +108,9 @@ udp_ports = [46001]
 [egress]                       # необязательно (v0.4): WARP как самостоятельный провайдер
 warp = true                    # поставить и проверить закреплённый клиент Cloudflare
 warp_port = 40000              # его loopback-порт SOCKS5 (по умолчанию 40000)
-naive = "warp"                 # direct | warp — начальный egress NaiveProxy
-mieru = "direct"               # direct | warp — начальный egress Mieru
+router = true                  # v0.5: поставить Xray-router из заранее положенного архива
+naive = "router"               # direct | warp | router — начальный egress NaiveProxy
+mieru = "direct"               # direct | warp | router — начальный egress Mieru
 
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
@@ -134,11 +135,19 @@ manage_ufw = true
 
 `[egress]` необязателен. Без него установщик читает `[three_xui].warp` и `warp_port` ровно так, как до
 v0.4 (см. «WARP и egress»); с ним секция канонична: `warp`/`warp_port` решают, ставится ли клиент
-Cloudflare, а `naive`/`mieru` выбирают **начальный** egress каждого сервиса (`direct` или `warp`;
-называть можно только сервисы профиля, `warp` требует `warp = true`). Если `[three_xui]` тоже задаёт
-`warp`/`warp_port`, значения должны совпадать. Это семя: после установки egress-конфигурацией владеют
-менеджеры, а меняет её экран «Маршрутизация» панели (`docs/ROUTING.ru.md`); repair и обновление её не
-переписывают.
+Cloudflare, а `naive`/`mieru` выбирают **начальный** egress каждого сервиса (`direct`, `warp` или
+`router`; называть можно только сервисы профиля, `warp` требует `warp = true`, `router` —
+`router = true`). Если `[three_xui]` тоже задаёт `warp`/`warp_port`, значения должны совпадать. Это
+семя: после установки egress-конфигурацией владеют менеджеры, а меняет её экран «Маршрутизация»
+панели (`docs/ROUTING.ru.md`); repair и обновление её не переписывают.
+
+`router = true` (v0.5) ставит выделенный Xray egress-router (`docs/XRAY_ROUTER.ru.md`) и требует NaiveProxy
+или Mieru в профиле. Установщик ничего не скачивает: сначала положите закреплённый архив как
+`/var/lib/proxy-control/Xray-linux-64.zip` (URL и SHA-256 — в `release/external-artifacts.json`; без файла
+или при другом дайджесте план отказывает, называя оба). Мастер спрашивает про роутер только когда этот
+файл есть. Сервис с `router` стартует подключённым к нему: весь его трафик идёт через loopback-ingress роутера
+(naive `127.0.0.1:45101`, mieru `45102`, SOCKS5 с посервисным ключом), а роутер пропускает его напрямую, пока
+экран «Маршрутизация» не даст ему политику.
 
 `domains.subscription` необязателен и должен отличаться от всех остальных имён. Если он
 задан, установщик добавляет его в сертификат Core как SAN, маршрутизирует на TLS-слушатель
@@ -187,6 +196,8 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
 | `certificates` | Владеемыми HTTP-01 vhost и посервисными lineage Certbot |
 | `firewall` | Только добавленными правилами UFW и только на управляемом свежем хосте |
 | `core` | Compose-проектом `mtproxy`, его секретами и зафиксированным TDLib-probe |
+| `warp` | Закреплённым пакетом клиента Cloudflare, его регистрацией и loopback-прокси |
+| `xray_router` | Тремя извлечёнными членами архива Xray в `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, токеном менеджера и двумя ключами ingress, `.env.xray-router` и Compose-сервисом `xray-router` |
 | `naive` | Зафиксированной сборкой Caddy, разделёнными identity, состоянием и токеном manager, границей лога учёта и маршрутом Naive |
 | `mieru` | Зафиксированным исполняемым mita, identity mita и стабильным UDS, токеном и состоянием manager, выбранными слушателями |
 | `three_xui` | В режиме `existing` — ничем, кроме владеемого маршрута; в `managed-new` — одним staged-поколением, его панелью и созданными им инбаундами |
@@ -245,6 +256,31 @@ WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000` (
 Установщик также пишет в `.env` хоста `NAIVE_EGRESS_WARP` и `MIERU_EGRESS_WARP`
 (`socks5://127.0.0.1:<warp_port>`, пусто без WARP): их читает egress API менеджеров, и экран
 «Маршрутизация» панели предлагает провайдер `warp` на этом узле только когда они заданы.
+
+### Xray-router (v0.5)
+
+С `router = true` адаптер `xray_router` работает после `warp` и до сервисов, которые он кормит. Он
+проверяет положенный архив, извлекает ровно `xray`, `geoip.dat` и `geosite.dat` (их дайджесты
+закреплены в каталоге релиза и перепроверяются контейнером до любого запуска), создаёт системную
+identity `xray-router` (10006), готовит `/var/lib/xray-router`, пишет `secrets/xray-router-manager-token`
+и по одному `user:password` на ingress (`secrets/xray-router-ingress-naive`,
+`secrets/xray-router-ingress-mieru`, только root; существующие файлы сохраняются), пишет
+`.env.xray-router` (дайджесты членов и `XRAY_ROUTER_EGRESS_WARP`) и поднимает Compose-сервис `xray-router`.
+Проверка читает статус менеджера (артефакты сверены, поколение закоммичено), убеждается, что оба
+ingress слушают только loopback, и пропускает один аутентифицированный CONNECT через ingress NaiveProxy в
+Интернет.
+
+Адаптеры `naive` и `mieru` затем узнают о роутере через `NAIVE_EGRESS_ROUTER` / `MIERU_EGRESS_ROUTER`
+(`socks5://127.0.0.1:45101` / `45102`) и `*_EGRESS_ROUTER_CREDENTIAL_FILE`: каждый менеджер получает
+собственную копию ключа своего ingress в своём каталоге состояния (`/var/lib/naive-manager/xray-router-ingress`,
+`/var/lib/mieru-manager/xray-router-ingress`, режим 0400, владелец — менеджер). Сервис, посеянный с
+`router`, стартует целиком через ingress (Caddy `upstream socks5://user:password@127.0.0.1:45101`, mita
+`egress` с `socks5Authentication`) — тем же блоком, который менеджер рисует для провайдера `router`.
+
+Ротация ключей ingress — от root: `/usr/local/libexec/rotate-xray-router-ingress [naive] [mieru]`
+(по умолчанию оба). Скрипт пишет новые ключи в `secrets/` проекта и в каталоги состояния менеджеров,
+пересоздаёт с ними роутер, затем каждый менеджер, который перерисовывает свой блок на старте (reload Caddy;
+restart mita). Ключи никогда не попадают в API, панель, аудит и отчёты.
 
 ## Жёсткие остановки
 

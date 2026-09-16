@@ -27,7 +27,7 @@ from installer.adapters.core import (
     _path_sha256,
     _valid_adjacent_backend,
 )
-from installer.model import EgressChoice, InstallerConfig
+from installer.model import ROUTER_PORTS, EgressChoice, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.transaction import (
     atomic_write,
@@ -83,6 +83,15 @@ _BOOTSTRAP_PASSWORD = "__PROXY_CONTROL_BOOTSTRAP_PASSWORD__"
 # selected domains through it, NaiveProxy sends every tunnelled connection
 # through WARP once it is enabled.
 _WARP_EGRESS = "socks5://127.0.0.1:40000"
+# The node's Xray-router ingress for this service (v0.5): a placeholder in the rendered
+# template, the credential of the day when the Caddyfile is written, and the manager's own
+# copy of that credential inside its state directory.
+_ROUTER_PORT = ROUTER_PORTS["naive"]
+_ROUTER_CREDENTIAL = "__PROXY_CONTROL_ROUTER_CREDENTIAL__"
+_ROUTER_CREDENTIAL_NAME = "xray-router-ingress"
+_ROUTER_CREDENTIAL_SHAPE = re.compile(r"[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._~-]{16,128}\Z")
+# `[egress]` choice → the seed word the action carries (`proxy` is the v0.4 name for WARP).
+_EGRESS_SEED = {EgressChoice.DIRECT: "direct", EgressChoice.WARP: "proxy", EgressChoice.ROUTER: "router"}
 _ACCOUNTING_TIMEOUT = 120.0
 _ACCOUNTING_INTERVAL = 5.0
 
@@ -805,11 +814,13 @@ class NaiveAdapter:
                     f"adjacent-sni={_encode_adjacent_routes(adjacent)}",
                     # `[egress]` (v0.4): the seed the manager owns from here on (ADR 007);
                     # an old configuration derives it from `[three_xui].warp*` unchanged.
-                    f"egress={'proxy' if config.effective_egress.naive is EgressChoice.WARP else 'direct'}",
+                    f"egress={_EGRESS_SEED[config.effective_egress.naive]}",
                     f"warp-port={config.effective_egress.warp_port}",
-                    # The endpoint the manager may route the service through later (the
-                    # panel's routing policy, v0.4): the host's WARP, or nothing.
+                    # The endpoints the manager may route the service through later (the
+                    # panel's routing policy): the host's WARP (v0.4) and the node's
+                    # Xray-router ingress (v0.5), or nothing.
                     f"warp-provider={config.effective_egress.provider_url() or ''}",
+                    f"router-provider={config.effective_egress.router_url('naive') or ''}",
                 ),
                 preconditions=(
                     "the Core runtime and the Naive certificate are verified",
@@ -894,12 +905,14 @@ class NaiveAdapter:
     def render(self, action: Action) -> RenderedNaive:
         selected = self._selection(action)
         domain = str(selected["naive_domain"])
-        # Every tunnelled connection leaves through WARP when it is enabled.
-        upstream = (
-            f"            upstream socks5://127.0.0.1:{selected['warp_port']}\n"
-            if selected["egress"] == "proxy"
-            else ""
-        )
+        # Every tunnelled connection leaves through WARP, or through the node's Xray-router
+        # (the credential of the day is filled in when the Caddyfile is written), or directly.
+        if selected["egress"] == "proxy":
+            upstream = f"            upstream socks5://127.0.0.1:{selected['warp_port']}\n"
+        elif selected["egress"] == "router":
+            upstream = f"            upstream socks5://{_ROUTER_CREDENTIAL}@127.0.0.1:{_ROUTER_PORT}\n"
+        else:
+            upstream = ""
         caddyfile = (
             "{\n"
             f"    admin 127.0.0.1:{_ADMIN_PORT}\n"
@@ -955,6 +968,10 @@ class NaiveAdapter:
             # The WARP endpoint the manager's egress API may write into the Caddyfile (v0.4);
             # empty on a host without WARP, and the routing preview then says so.
             f"NAIVE_EGRESS_WARP={selected['warp_provider']}\n"
+            # The Xray-router ingress (v0.5) and the credential file inside the manager's
+            # own state directory (bound at /data); both empty on a host without a router.
+            f"NAIVE_EGRESS_ROUTER={selected['router_provider']}\n"
+            f"NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE={'/data/' + _ROUTER_CREDENTIAL_NAME if selected['router_provider'] else ''}\n"
         )
         unit_source = self.source_dir / "deploy" / "caddy-naive.service"
         try:
@@ -1286,7 +1303,7 @@ class NaiveAdapter:
             "adjacent-sni",
             "egress",
         }
-        if not required <= set(values) or set(values) - required - {"warp-port", "warp-provider"}:
+        if not required <= set(values) or set(values) - required - {"warp-port", "warp-provider", "router-provider"}:
             raise NaiveError("Naive action is invalid")
         if (
             values["project"] != self.paths.project_dir
@@ -1303,7 +1320,7 @@ class NaiveAdapter:
             or _DOMAIN.fullmatch(values["naive-domain"]) is None
             or _DOMAIN.fullmatch(values["panel-domain"]) is None
             or values["naive-domain"] == values["panel-domain"]
-            or values["egress"] not in {"proxy", "direct"}
+            or values["egress"] not in {"proxy", "direct", "router"}
         ):
             raise NaiveError("Naive action is invalid")
         warp_port = int(values.get("warp-port", "45000"))
@@ -1316,9 +1333,16 @@ class NaiveAdapter:
             raise NaiveError("invalid WARP provider")
         if values["egress"] == "proxy" and not provider:
             raise NaiveError("Naive action is invalid")
+        # v0.5: the node's Xray-router ingress; `egress=router` cannot hold without it.
+        router = values.get("router-provider", f"socks5://127.0.0.1:{_ROUTER_PORT}" if values["egress"] == "router" else "")
+        if router not in ("", f"socks5://127.0.0.1:{_ROUTER_PORT}"):
+            raise NaiveError("invalid router provider")
+        if values["egress"] == "router" and not router:
+            raise NaiveError("Naive action is invalid")
         return {
             "warp_port": warp_port,
             "warp_provider": provider,
+            "router_provider": router,
             "naive_domain": values["naive-domain"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "adjacent_sni": _decode_adjacent_routes(values["adjacent-sni"]),
@@ -1749,13 +1773,45 @@ class NaiveAdapter:
         if not (token_copy.exists() or token_copy.is_symlink()):
             durable_copy2(secret, token_copy)
         self._chown(token_copy, _MANAGER_UID, _MANAGER_GID, 0o400)
+        self._write_router_credential(rendered)
         if not (caddyfile.exists() or caddyfile.is_symlink()):
             body = rendered.caddyfile_template.replace(
                 _BOOTSTRAP_USERNAME,
                 f"bootstrap-{secrets.token_hex(4)}",
             ).replace(_BOOTSTRAP_PASSWORD, secrets.token_urlsafe(24))
+            if _ROUTER_CREDENTIAL in body:
+                body = body.replace(_ROUTER_CREDENTIAL, self._router_userinfo())
             self._atomic(caddyfile, body.encode(), 0o640)
         self._chown(caddyfile, _MANAGER_UID, _MANAGER_GID, 0o640)
+
+    def _router_userinfo(self) -> str:
+        """The router ingress credential of the day as RFC 3986 userinfo, from the secret the
+        router adapter wrote (it runs before this one)."""
+        from urllib.parse import quote
+
+        user, password = self._read_router_credential()
+        return f"{quote(user, safe='')}:{quote(password, safe='')}"
+
+    def _read_router_credential(self) -> tuple[str, str]:
+        secret = self._host(f"{self.paths.project_dir}/secrets/xray-router-ingress-naive")
+        if secret.is_symlink() or not secret.is_file():
+            raise NaiveError("the Xray-router ingress credential is missing; install the router first")
+        self._assert_owned_credential(secret, 0o600, owner=(0, 0))
+        user, separator, password = secret.read_text().strip().partition(":")
+        if not separator or _ROUTER_CREDENTIAL_SHAPE.fullmatch(f"{user}:{password}") is None:
+            raise NaiveError("the Xray-router ingress credential is malformed")
+        return user, password
+
+    def _write_router_credential(self, rendered: RenderedNaive) -> None:
+        """The manager's own copy of the ingress credential (read at bootstrap, v0.5): present
+        exactly when the node has a router, refreshed on every apply, removed otherwise."""
+        copy_path = self._host(f"{self.paths.data_dir}/{_ROUTER_CREDENTIAL_NAME}")
+        if "NAIVE_EGRESS_ROUTER=socks5://" not in rendered.env_text:
+            durable_remove(copy_path, missing_ok=True)
+            return
+        user, password = self._read_router_credential()
+        self._atomic(copy_path, f"{user}:{password}\n".encode(), 0o400)
+        self._chown(copy_path, _MANAGER_UID, _MANAGER_GID, 0o400)
 
     def _assert_owned_credential(
         self,
@@ -1804,6 +1860,7 @@ class NaiveAdapter:
                     tuple(selected.get("adjacent_sni", ()))  # type: ignore[arg-type]
                 ),
                 f"egress={selected.get('egress', 'direct')}",
+                f"router-provider={selected.get('router_provider', '')}",
             ),
             preconditions=("owned Naive generation",),
             verification=("Naive acceptance",),
@@ -1920,10 +1977,12 @@ class NaiveAdapter:
         project = self.paths.project_dir
         env_files = [f"{project}/.env"]
         compose_files = [f"{project}/compose.yaml"]
-        sibling_env = f"{project}/.env.mieru"
-        if self._host(sibling_env).is_file():
-            env_files.append(sibling_env)
-            compose_files.append(f"{project}/compose.mieru.yaml")
+        # The router overlay (v0.5) extends `panel` too, so it rides along the same way.
+        for sibling in ("mieru", "xray-router"):
+            sibling_env = f"{project}/.env.{sibling}"
+            if self._host(sibling_env).is_file():
+                env_files.append(sibling_env)
+                compose_files.append(f"{project}/compose.{sibling}.yaml")
         env_files.append(self.paths.env_overlay)
         compose_files.append(self.paths.compose_overlay)
         argv: list[str] = ["docker", "compose", "--project-directory", project]

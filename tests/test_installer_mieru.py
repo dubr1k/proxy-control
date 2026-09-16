@@ -1064,3 +1064,87 @@ def test_a_download_that_does_not_match_its_pin_is_discarded(tmp_path):
             fetch=fetch,
         )
     assert not target.exists()
+
+
+# ----------------------------------------------------------------------
+# [egress] router (v0.5)
+# ----------------------------------------------------------------------
+
+
+def _router_config() -> InstallerConfig:
+    from dataclasses import replace
+
+    from installer.model import EgressChoice, EgressConfig
+
+    return replace(full_config(), egress=EgressConfig(warp=True, router=True, mieru=EgressChoice.ROUTER))
+
+
+def _stage_router_secret(tmp_path: Path, credential: str = "mieru-cafe0001:" + "k" * 43) -> Path:
+    secret = host(tmp_path, f"{PATHS.project_dir}/secrets/xray-router-ingress-mieru")
+    secret.parent.mkdir(parents=True, exist_ok=True)
+    secret.write_text(credential + "\n")
+    secret.chmod(0o600)
+    return secret
+
+
+def test_mieru_env_carries_router_provider(tmp_path):
+    action = MieruAdapter(source_dir=ROOT).plan(_router_config(), clean_facts())[0]
+    assert "egress=router" in action.mutations and "router-provider=socks5://127.0.0.1:45102" in action.mutations
+    instance = adapter(tmp_path)
+    selected = instance._selection(action)
+    env = instance.env_text(selected, mita_gid=997)
+    assert "MIERU_EGRESS_ROUTER=socks5://127.0.0.1:45102\n" in env
+    assert "MIERU_EGRESS_ROUTER_CREDENTIAL_FILE=/var/lib/mieru-manager/xray-router-ingress\n" in env
+    plain = instance.env_text(instance._selection(mieru_action()), mita_gid=997)
+    assert "MIERU_EGRESS_ROUTER=\n" in plain and "MIERU_EGRESS_ROUTER_CREDENTIAL_FILE=\n" in plain
+    # The seed names the router with the credential of the day, exactly as the manager renders it.
+    document = instance.bootstrap_config(selected, password="secret-value", router_credential=("mieru-cafe0001", "k" * 43))
+    assert document["egress"]["proxies"] == [{"name": "router", "protocol": "SOCKS5_PROXY_PROTOCOL", "host": "127.0.0.1",
+                                              "port": 45102, "socks5Authentication": {"user": "mieru-cafe0001", "password": "k" * 43}}]
+    assert document["egress"]["rules"] == [{"action": "PROXY", "ipRanges": ["*"], "domainNames": ["*"], "proxyNames": ["router"]}]
+    with pytest.raises(MieruError, match="credential is required"):
+        instance.bootstrap_config(selected, password="secret-value")
+
+
+def test_seed_router_provider(tmp_path):
+    class RecordingRunner(FakeMieruRunner):
+        def run(self, argv, *, stdin_path=None):
+            command = tuple(str(value) for value in argv)
+            if command[-3:-1] == ("apply", "config"):
+                self.bootstrap = json.loads(host(tmp_path, command[-1]).read_text())
+            return super().run(argv, stdin_path=stdin_path)
+
+    _stage_router_secret(tmp_path)
+    host(tmp_path, f"{PATHS.project_dir}/.env.xray-router").write_text("XRAY_ROUTER_BIN_DIR=/x\n")
+    runner = RecordingRunner()
+    instance = adapter(tmp_path, runner)
+    action = artifact_action(fake_deb(tmp_path))
+    mutations = tuple("egress=router" if item.startswith("egress=") else
+                      "router-provider=socks5://127.0.0.1:45102" if item.startswith("router-provider=") else item
+                      for item in action.mutations)
+    action = Action(id=action.id, adapter=action.adapter, owner=action.owner, mutations=mutations,
+                    preconditions=action.preconditions, verification=action.verification, inverse=action.inverse,
+                    credentials_required=action.credentials_required)
+    applied(instance, action)
+    assert runner.bootstrap["egress"]["proxies"][0]["socks5Authentication"] == {"user": "mieru-cafe0001", "password": "k" * 43}
+    copy = host(tmp_path, f"{PATHS.manager_state}/xray-router-ingress")
+    assert copy.read_text() == "mieru-cafe0001:" + "k" * 43 + "\n" and stat.S_IMODE(copy.stat().st_mode) == 0o400
+    assert "MIERU_EGRESS_ROUTER=socks5://127.0.0.1:45102" in host(tmp_path, PATHS.env_overlay).read_text()
+    compose = [call for call in runner.calls if call[:2] == ("docker", "compose")][-1]
+    assert f"{PATHS.project_dir}/compose.xray-router.yaml" in compose
+    joined = " ".join(" ".join(command) for command in runner.calls)
+    assert "k" * 43 not in joined
+
+
+def test_seed_router_refuses_without_the_router_secret(tmp_path):
+    instance = adapter(tmp_path)
+    action = artifact_action(fake_deb(tmp_path))
+    mutations = tuple("egress=router" if item.startswith("egress=") else
+                      "router-provider=socks5://127.0.0.1:45102" if item.startswith("router-provider=") else item
+                      for item in action.mutations)
+    action = Action(id=action.id, adapter=action.adapter, owner=action.owner, mutations=mutations,
+                    preconditions=action.preconditions, verification=action.verification, inverse=action.inverse,
+                    credentials_required=action.credentials_required)
+    with pytest.raises(MieruError, match="install the router first"):
+        applied(instance, action)
+

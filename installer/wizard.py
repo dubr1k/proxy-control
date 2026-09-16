@@ -325,6 +325,12 @@ class EditField(StrEnum):
     FIREWALL = "firewall.manage_ufw"
 
 
+def _egress_choice(values: dict[str, object], service: str) -> EgressChoice:
+    if values.get(f"router_{service}"):
+        return EgressChoice.ROUTER
+    return EgressChoice.WARP if values.get(f"warp_{service}") else EgressChoice.DIRECT
+
+
 class TerminalWizard:
     def __init__(
         self,
@@ -332,10 +338,14 @@ class TerminalWizard:
         *,
         locale: Locale | None = None,
         config_output: Path = Path("proxy-control.toml"),
+        artifact_dir: Path = Path("/var/lib/proxy-control"),
     ):
         self.io = io
         self.locale = locale
         self.config_output = Path(config_output)
+        # Where the operator stages pinned artifacts; the Xray-router (v0.5) is offered
+        # only when its archive is already there, so the wizard never promises a download.
+        self.artifact_dir = Path(artifact_dir)
 
     def run(self, facts: AuditFacts) -> InstallerConfig:
         if not isinstance(facts, AuditFacts):
@@ -487,22 +497,38 @@ class TerminalWizard:
                 continue
             return first
 
+    def _router_archive_present(self) -> bool:
+        return (self.artifact_dir / "Xray-linux-64.zip").is_file()
+
     def _egress_choices(self, values: dict[str, object]) -> None:
-        """With WARP on the host, each proxy service chooses its initial egress (`[egress]`,
-        v0.4). The default repeats what v0.1–v0.3 did implicitly: the whole service through
-        WARP, unless a managed 3x-ui routes only a domain list — then direct."""
+        """Each proxy service chooses its initial egress (`[egress]`, v0.4). With the Xray
+        archive staged, the router is offered first (v0.5) and a service handed to it is
+        not asked about WARP. The WARP default repeats what v0.1–v0.3 did implicitly: the
+        whole service through WARP, unless a managed 3x-ui routes only a domain list —
+        then direct."""
         assert self.locale is not None
         profile = values["profile"]
         assert isinstance(profile, Profile)
+        services = [name for name, present in (("naive", profile.includes_naive), ("mieru", profile.includes_mieru)) if present]
+        if services and self._router_archive_present():
+            values["router"] = self.io.yes_no(text(self.locale, "router"), default=False)
+        else:
+            values.pop("router", None)
+        for service in ("naive", "mieru"):
+            if values.get("router") and service in services:
+                values[f"router_{service}"] = self.io.yes_no(text(self.locale, f"router_{service}"), default=True)
+            else:
+                values.pop(f"router_{service}", None)
         if not values.get("warp"):
             values.pop("warp_naive", None)
             values.pop("warp_mieru", None)
             return
         default = not values.get("warp_domains")
-        if profile.includes_naive:
-            values["warp_naive"] = self.io.yes_no(text(self.locale, "warp_naive"), default=default)
-        if profile.includes_mieru:
-            values["warp_mieru"] = self.io.yes_no(text(self.locale, "warp_mieru"), default=default)
+        for service in services:
+            if values.get(f"router_{service}"):
+                values.pop(f"warp_{service}", None)
+                continue
+            values[f"warp_{service}"] = self.io.yes_no(text(self.locale, f"warp_{service}"), default=default)
 
     def _managed_xui(self) -> dict[str, object]:
         assert self.locale is not None
@@ -588,8 +614,9 @@ class TerminalWizard:
             firewall=FirewallConfig(manage_ufw=bool(values["manage_ufw"])),
             egress=EgressConfig(
                 warp=bool(values.get("warp", False)),
-                naive=EgressChoice.WARP if values.get("warp_naive") else EgressChoice.DIRECT,
-                mieru=EgressChoice.WARP if values.get("warp_mieru") else EgressChoice.DIRECT,
+                router=bool(values.get("router", False)),
+                naive=_egress_choice(values, "naive"),
+                mieru=_egress_choice(values, "mieru"),
             ),
         )
         return parse_config(render_config(candidate))

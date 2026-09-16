@@ -682,20 +682,28 @@ class NaiveCredentialManager:
         self._commit(rendered, desired, readback=self._egress_readback(entry))
 
     def _refresh_router_credential(self, state: dict) -> None:
-        """After a credential rotation the managed router line still carries the old key: the
-        block is a function of the document and the file, so it is rendered again — the
-        journal's current entry moves on with it, nothing is pushed."""
+        """After a credential rotation the router line still carries the old key: the block
+        is a function of the document and the file, so it is rendered again. A managed block
+        keeps its journal entry (re-stamped, nothing pushed); the installer's seed — an
+        unmanaged line naming the router — is adopted the way a first apply would adopt it,
+        so the old line stays in the journal's floor for a rollback."""
         text = self.caddyfile.read_text()
         try:
             parsed = egress_block.parse(text)
         except egress_block.EgressInvalid:
             return
-        if not parsed.managed or not self._router_credential_stale(parsed):
+        if not self._router_credential_stale(parsed):
             return
         document = self._egress_document(parsed)
-        if document is None or state["egress"]["current"] is None:
+        if document is None:
             return
         rendered = egress_block.render(text, document, self._render_providers(document))
+        if not parsed.managed or state["egress"]["current"] is None:
+            entry = {"document": document, "revision": egress_block.revision_of(rendered),
+                     "rendered_sha256": hashlib.sha256(rendered.encode()).hexdigest(),
+                     "operation_id": None, "applied_at": _now()}
+            self._egress_transaction(state, rendered, entry, parsed)
+            return
         desired = copy.deepcopy(state)
         current = dict(desired["egress"]["current"])
         current.update({"revision": egress_block.revision_of(rendered),

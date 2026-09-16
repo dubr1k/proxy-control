@@ -1024,3 +1024,62 @@ def test_naive_purge_removes_a_service_rewritten_file(tmp_path):
     )
 
     assert not caddyfile.exists()
+
+
+def _router_config() -> InstallerConfig:
+    from dataclasses import replace
+
+    from installer.model import EgressChoice, EgressConfig
+
+    return replace(full_config(), egress=EgressConfig(warp=True, router=True, naive=EgressChoice.ROUTER))
+
+
+def _stage_router_secret(tmp_path: Path, credential: str = "naive-cafe0001:" + "k" * 43) -> Path:
+    secret = host(tmp_path, f"{PATHS.project_dir}/secrets/xray-router-ingress-naive")
+    secret.parent.mkdir(parents=True, exist_ok=True)
+    secret.write_text(credential + "\n")
+    secret.chmod(0o600)
+    return secret
+
+
+def test_naive_env_carries_router_provider(tmp_path):
+    """`[egress] router` (v0.5): the manager learns its ingress and the credential file,
+    the seed sends the whole service through the router with the credential of the day."""
+    action = NaiveAdapter(source_dir=ROOT).plan(_router_config(), AuditFacts())[0]
+    assert "egress=router" in action.mutations and "router-provider=socks5://127.0.0.1:45101" in action.mutations
+    rendered = NaiveAdapter(source_dir=ROOT).render(action)
+    assert "upstream socks5://__PROXY_CONTROL_ROUTER_CREDENTIAL__@127.0.0.1:45101" in rendered.caddyfile_template
+    assert "NAIVE_EGRESS_ROUTER=socks5://127.0.0.1:45101\n" in rendered.env_text
+    assert "NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE=/data/xray-router-ingress\n" in rendered.env_text
+    # Without a router both are present and empty, so the v0.4 dialogue is unchanged.
+    plain = NaiveAdapter(source_dir=ROOT).render(naive_action())
+    assert "NAIVE_EGRESS_ROUTER=\n" in plain.env_text and "NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE=\n" in plain.env_text
+
+
+def test_seed_router_provider(tmp_path):
+    _stage_router_secret(tmp_path)
+    host(tmp_path, f"{PATHS.project_dir}/.env.xray-router").write_text("XRAY_ROUTER_BIN_DIR=/x\n")
+    runner = FakeNaiveRunner()
+    instance = adapter(tmp_path, runner)
+    action = NaiveAdapter(source_dir=ROOT).plan(_router_config(), AuditFacts())[0]
+    applied(instance, action)
+    caddyfile = host(tmp_path, PATHS.caddyfile).read_text()
+    assert f"upstream socks5://naive-cafe0001:{'k' * 43}@127.0.0.1:45101" in caddyfile
+    assert "__PROXY_CONTROL_ROUTER_CREDENTIAL__" not in caddyfile
+    copy = host(tmp_path, f"{PATHS.data_dir}/xray-router-ingress")
+    assert copy.read_text() == "naive-cafe0001:" + "k" * 43 + "\n" and stat.S_IMODE(copy.stat().st_mode) == 0o400
+    compose = [call for call in runner.calls if call[:2] == ("docker", "compose")][-1]
+    assert f"{PATHS.project_dir}/compose.xray-router.yaml" in compose and f"{PATHS.project_dir}/.env.xray-router" in compose
+    # A re-apply after a rotation refreshes the copy but never rewrites the live Caddyfile.
+    _stage_router_secret(tmp_path, "naive-cafe0002:" + "z" * 43)
+    applied(instance, action)
+    assert copy.read_text().startswith("naive-cafe0002:")
+    assert f"naive-cafe0001:{'k' * 43}" in host(tmp_path, PATHS.caddyfile).read_text()
+
+
+def test_seed_router_refuses_without_the_router_secret(tmp_path):
+    instance = adapter(tmp_path)
+    action = NaiveAdapter(source_dir=ROOT).plan(_router_config(), AuditFacts())[0]
+    with pytest.raises(NaiveError, match="install the router first"):
+        applied(instance, action)
+

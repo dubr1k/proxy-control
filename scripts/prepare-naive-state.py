@@ -42,6 +42,8 @@ DEFAULT_LOG_DIR = "/var/log/naive-proxy"
 STATE_FILES = {
     "Caddyfile": 0o640,
     "manager-token": 0o400,
+    # The Xray-router ingress credential (v0.5), written by the installer and its rotation script.
+    "xray-router-ingress": 0o400,
     "users.json": 0o600,
     "transaction.json": 0o600,
     "traffic.sqlite3": 0o600,

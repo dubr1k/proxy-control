@@ -1432,7 +1432,9 @@ class MieruManager:
             return
         document = egress_section.from_mita(section, self._provider_urls())
         history = self._journal(state)["history"]
-        if document is None or not history or history[-1].get("document") != document:
+        # The installer's seed has no journal yet; a section the manager applied must still
+        # be the one its journal names — anything else is a hand edit, left alone.
+        if document is None or (history and history[-1].get("document") != document):
             return
         desired = copy.deepcopy(observed)
         desired["egress"] = self._target(document)
