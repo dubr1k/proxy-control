@@ -214,7 +214,7 @@ def test_routing_v15_rebuilds_policies_keeping_rows_and_foreign_keys(tmp_path, m
                    " VALUES('p1',3,'d','naive_native','1','applied','owner',1)")
         with pytest.raises(sqlite3.IntegrityError):
             db.execute("UPDATE routing_policies SET backend='xray_router' WHERE id='p1'")
-    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS[:15])
     assert apply_migrations(database) == [15]
     with database.transaction() as db:
         row = db.execute("SELECT id,backend,revision,state FROM routing_policies").fetchone()
@@ -234,6 +234,10 @@ def test_routing_v15_rebuilds_policies_keeping_rows_and_foreign_keys(tmp_path, m
                    "created_at,updated_at) VALUES('p2','local','naive','naive_native','direct','fail_closed',1,'draft',1,1)")
         db.execute("INSERT INTO routing_rules(id,policy_id,position,enabled,match_json,action,created_at,updated_at)"
                    " VALUES('22222222-0000-4000-8000-222222222222','p2',0,1,'{\"domains\": [\"a.example\"], \"cidrs\": [], \"ports\": []}','block',1,1)")
+    # the store of today reads through the v0.7 schema; the v0.4 rule row still reads
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
+    assert apply_migrations(database) == [16]
+    with database.transaction() as db:
         policy = RoutingStore.get(db, "local", "naive")
         assert policy.rules[0].match.geosites == [] and policy.rules[0].match.geoips == []
 

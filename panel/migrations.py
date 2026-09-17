@@ -358,10 +358,80 @@ ROUTING_V15 = Migration(15, "routing-xray-router", (
     "ALTER TABLE managed_egress ADD COLUMN router_digest TEXT",
 ))
 
+# Chains and lanes (v0.7): a policy is keyed by (node, protocol, lane) — `svc` is the
+# service's own policy, `grant:<id>` a client's lane — and an egress may name other nodes
+# (`node:<guid>…`), so the CHECK that allowed only `warp` goes. The same rebuild dance as
+# v15 (the children reference the parent). A grant remembers whether it has its own lane;
+# the central keeps the relay accounts it issued to each node (`relay_peers`, the UUIDs in
+# `secret_versions`) and what each node's router reported about its relay (`router_relays`).
+ROUTING_V16 = Migration(16, "routing-chains-lanes", (
+    "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+    """CREATE TABLE routing_policies (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru')),
+      lane TEXT NOT NULL DEFAULT 'svc',
+      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','xray_router')),
+      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),
+      default_egress TEXT,
+      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),
+      revision INTEGER NOT NULL DEFAULT 1,
+      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),
+      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,
+      desired_json TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(node_id, protocol, lane))""",
+    """INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,
+       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at)
+       SELECT id,node_id,protocol,'svc',backend,default_action,default_egress,fallback,revision,
+       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at
+       FROM routing_policies_old""",
+    """CREATE TABLE routing_rules_v16 (
+      id TEXT PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
+      match_json TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),
+      egress TEXT, note TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(policy_id, position))""",
+    """INSERT INTO routing_rules_v16 SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at
+       FROM routing_rules""",
+    "DROP TABLE routing_rules",
+    "ALTER TABLE routing_rules_v16 RENAME TO routing_rules",
+    "DROP INDEX IF EXISTS routing_applies_policy",
+    """CREATE TABLE routing_applies_v16 (
+      id INTEGER PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,
+      runtime_version TEXT,
+      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),
+      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)""",
+    """INSERT INTO routing_applies_v16 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,
+       detail,document_json,actor,created_at FROM routing_applies""",
+    "DROP TABLE routing_applies",
+    "ALTER TABLE routing_applies_v16 RENAME TO routing_applies",
+    "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+    "DROP TABLE routing_policies_old",
+    "ALTER TABLE access_grants ADD COLUMN routing_lane TEXT",
+    """CREATE TABLE IF NOT EXISTS relay_peers (
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      source_node_id TEXT NOT NULL,
+      exit TEXT NOT NULL CHECK(exit IN ('direct','warp')),
+      secret_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY(node_id, source_node_id, exit))""",
+    """CREATE TABLE IF NOT EXISTS router_relays (
+      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      port INTEGER, public_key TEXT, short_id TEXT, server_name TEXT,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL)""",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
-    ROUTING_V14, ROUTING_V15,
+    ROUTING_V14, ROUTING_V15, ROUTING_V16,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
