@@ -48,6 +48,8 @@ SECRET_SHAPES = [
     re.compile(r"socks5://[^\s\"'/@]+:[^\s\"'/@]+@"),
     re.compile(r"\bpc_[0-9a-f]{8}_[A-Za-z0-9_-]{43}\b"),
     re.compile(r"\b(?:naive|mieru)-[0-9a-f]{8}:[A-Za-z0-9._~-]{16,}"),
+    # a relay account inside a rendered intent (v0.7): a chain hop's uuid
+    re.compile(r'"uuid":\s*"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"'),
 ]
 PASSWORD_SHAPE = re.compile(r"\"password\"\s*:\s*\"[^\"]+\"")
 
@@ -798,6 +800,7 @@ class Acceptance:
         b.confirm()
         self.check("routing.router_policy_applied_badge", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено (rev') && {loaded}", 60))
         b.shot("routing-naive-router-applied.png")
+        self.routing_lanes(loaded)
         self.goto_view("fleet", "!!document.querySelector('.local-node')")
         self.check("routing.node_card_names_the_router", b.wait("(document.querySelector('.local-node')?.textContent || '').includes('[Xray-router]')", 20))
         self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
@@ -810,6 +813,58 @@ class Acceptance:
         self.check("routing.router_line_detached", b.wait(f"(document.querySelector('.routing-router-line')?.textContent || '').includes('сервис не подключён') && !!document.querySelector('[data-routing-action=attach]') && {loaded}", 40))
         b.click("[data-routing-action=delete]")
         self.check("routing.policy_deleted_right_after_detach", b.confirm() and b.wait("(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('политика не задана')", 30))
+
+    def routing_lanes(self, loaded: str) -> None:
+        """Lanes and chains (v0.7) on the attached NaiveProxy: the node's exits as chips, a
+        client's own lane created from the screen (tab, draft, apply), «Куда пойдёт…», the
+        lane's flag on «Клиенты», and the way back — never a lane key in a frame."""
+        b = self.browser
+        chips = b.js("[...document.querySelectorAll('#routing-exits .routing-exit-chip')].map(c => c.dataset.exit)") or []
+        self.check("routing.exits_chips", {"direct", "warp", "block"} <= set(chips), str(chips))
+        self.report["facts"]["routing_exits"] = chips
+        client_name, grant_user = f"{self.prefix}-lane", f"{self.prefix}-lane"
+        client_id = self.api.json("/api/clients", "POST", {"display_name": client_name})["id"]
+        self.created["clients"].append(client_id)
+        self.api.json(f"/api/clients/{client_id}/grants", "POST",
+                      {"grants": [{"protocol": "naive", "node_id": "local", "runtime_username": grant_user, "options": {}}]})
+        self.created["naive"].append(grant_user)
+        grant = next((g for g in self.api.json(f"/api/clients/{client_id}")["grants"] if g["protocol"] == "naive"), None)
+        self.check("routing.lane_grant_ready", grant is not None and grant["observed_state"] == "enabled", str(grant and grant["observed_state"]))
+        lane = f"grant:{grant['id']}"
+        self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
+        b.click("[data-routing-action=lane-add]")
+        self.check("routing.lane_dialog_offers_the_grant", b.wait(f"document.querySelector('#choose')?.open === true && [...document.querySelectorAll('#choose-select option')].some(o => o.value === {json.dumps(grant['id'])})", 20))
+        b.select("#choose-select", grant["id"])
+        b.click("#choose-ok")
+        self.check("routing.lane_tab_appears_active", b.wait(f"document.querySelector('[data-routing-action=lane].active')?.dataset.lane === {json.dumps(lane)} && !!document.querySelector('.routing-lane-badge') && {loaded}", 40))
+        self.check("routing.lane_policy_is_a_draft", "черновик" in b.text(".routing-head .status-pill"), b.text(".routing-head .status-pill"))
+        # The lane's own rules: everything through WARP by default, ads blocked — applied as one intent with the service.
+        b.select("#routing-form select[name=default_action]", "egress")
+        b.click("[data-routing-action=rule-add]")
+        b.wait("document.querySelectorAll('.routing-rule').length === 1")
+        b.type("[data-rule-field=geosites]", "category-ads-all")
+        self.check("routing.lane_preview_folds_the_service", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"schema\": 2')", 20))
+        b.click("#routing-save")
+        b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20)
+        b.click("[data-routing-action=apply]")
+        b.confirm()
+        self.check("routing.lane_policy_applied", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено (rev') && {loaded}", 60))
+        b.type("#routing-explain input[name=host]", "example.org")
+        b.click("#routing-explain button[type=submit]")
+        self.check("routing.explain_names_the_lane_and_the_exit", b.wait(f"((document.querySelector('#routing-explain-answer')?.textContent) || '').includes({json.dumps('полоса ' + lane)}) && (document.querySelector('#routing-explain-answer')?.textContent || '').includes('WARP')", 20), b.text("#routing-explain-answer"))
+        b.shot("routing-lane-applied.png")
+        # «Клиенты»: the grant says it has its own lane; the toggle brings it back to the service.
+        self.goto_view("clients", "!!document.querySelector('.client-list')")
+        chip = f"[data-client-id={json.dumps(client_id)}] .grant-chip[data-grant-protocol=naive]"
+        self.check("clients.lane_flag_on_the_chip", b.wait(f"document.querySelector('{chip} .grant-lane')?.dataset.lane === 'own'", 20))
+        b.click(f"{chip} [data-client-action=grant-lane]")
+        self.check("clients.lane_toggle_asks", b.wait("document.querySelector('#confirm')?.open === true && (document.querySelector('#confirm')?.textContent || '').includes('Вернуть к маршруту сервиса')"))
+        b.click("#confirm-ok")
+        self.check("clients.lane_toggle_returns_to_service", b.wait(f"document.querySelector('{chip} .grant-lane')?.dataset.lane === 'service'", 40))
+        targets = {i["protocol"]: i for i in self.api.json("/api/routing/targets")["items"] if i["node_id"] == "local"}
+        self.check("routing.lane_gone_from_targets", not [item for item in targets["naive"]["lanes"] if item["lane"] == lane], str(targets["naive"]["lanes"]))
+        self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
+        self.frame_is_secret_free("routing-lanes")
 
     def view_admins(self) -> None:
         b = self.browser

@@ -38,6 +38,18 @@ function nodeLabel(context, grant) {
 
 // Enable/disable/rotate/delete of one grant go through /api/clients/grants/{id}/{action};
 // on a linked panel they only record what the central wants and the pusher delivers it.
+// The route of a grant (v0.7): the service's, or its own lane on the node — the owner
+// flips it here; the lane's rules live on «Маршрутизация».
+const LANE_PROTOCOLS = new Set(["naive", "mieru"]);
+
+function laneControl(context, grant) {
+  if (!LANE_PROTOCOLS.has(grant.protocol) || grant.desired_state === "deleted") return "";
+  const own = grant.routing_lane === "own";
+  const owner = context.state.me?.role === "owner";
+  const button = owner ? `<button class="ghost" data-client-action="grant-lane" data-lane-mode="${own ? "service" : "own"}">${own ? "как у сервиса" : "своя полоса"}</button>` : "";
+  return `<span class="grant-lane" data-lane="${own ? "own" : "service"}"><small>маршрут: ${own ? "своя полоса" : "как у сервиса"}</small>${button}</span>`;
+}
+
 function grantTools(grant) {
   if (grant.desired_state === "deleted") return "";
   const toggle = grant.desired_state === "enabled"
@@ -56,6 +68,7 @@ function grantChip(context, grant, canWrite) {
     <small>${esc(grantStatus(grant))}</small>
     ${nodeLabel(context, grant)}
     ${orphan}
+    ${laneControl(context, grant)}
     ${canWrite ? grantTools(grant) : ""}
   </li>`;
 }
@@ -416,6 +429,31 @@ async function grantAction(context, button) {
   }
 }
 
+async function laneAction(context, button) {
+  const chip = button.closest("[data-grant-id]");
+  const card = button.closest("[data-client-id]");
+  const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
+  const grant = entry?.grants.find((item) => item.id === chip?.dataset.grantId);
+  if (!grant) return;
+  const mode = button.dataset.laneMode;
+  const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
+  const link = grant.protocol === "mieru" ? " Ссылка Mieru изменится (другой порт); подписка обновится сама." : "";
+  const [title, text, ok] = mode === "own"
+    ? ["Своя полоса для доступа?", `${label} получит собственный маршрут на узле: его правила — на экране «Маршрутизация», вкладка полосы.${link}`, "Создать полосу"]
+    : ["Вернуть к маршруту сервиса?", `${label} пойдёт как весь сервис; политика полосы будет удалена.${link}`, "Вернуть"];
+  if (!await context.ui.confirmed(title, text, ok)) return;
+  context.ui.setBusy(button, true);
+  try {
+    const result = await context.api(`/api/routing/lanes/${encodeURIComponent(grant.id)}`, { method: "POST", body: JSON.stringify({ mode }) });
+    context.ui.toast(result.pending ? "Отправлено узлу: результат появится после heartbeat" : mode === "own" ? "Полоса создана: правила — на «Маршрутизации»" : "Доступ вернулся в полосу сервиса");
+    await context.navigate("clients");
+  } catch (exception) {
+    context.ui.toast(exception.message, "error");
+  } finally {
+    context.ui.setBusy(button, false);
+  }
+}
+
 export function handleClientsClick(context, button) {
   const action = button.dataset.clientAction;
   if (!action) return false;
@@ -425,6 +463,10 @@ export function handleClientsClick(context, button) {
   }
   if (action === "adopt") {
     void adopt(context, button);
+    return true;
+  }
+  if (action === "grant-lane") {
+    void laneAction(context, button);
     return true;
   }
   if (action.startsWith("grant-")) {

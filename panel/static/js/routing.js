@@ -37,6 +37,22 @@ const REASON_TEXT = {
   artifact_mismatch: "бинарь или geodata Xray-router не совпадают с релизом — роутер не запущен",
   geosite_unknown: "Xray не знает такого кода geosite",
   geoip_unknown: "Xray не знает такого кода geoip",
+  // Lanes and chains (v0.7).
+  lane_requires_router: "своя полоса клиента работает только на Xray-router узла",
+  lane_not_attached: "сервис не подключён к Xray-router — полоса ждёт «Подключить»",
+  lane_unknown: "узел не знает такой полосы",
+  lanes_invalid: "менеджер сервиса отверг полосы",
+  lane_slots_exhausted: "у Mieru на узле кончились слоты полос",
+  node_lacks_lanes: "узел нужно обновить до v0.7 для полос и цепей",
+  node_lacks_relay: "у этого узла нет relay — обновите его до v0.7 и включите relay",
+  relay_disabled: "relay узла-выхода выключен",
+  relay_credential_pending: "узел-выход ещё не подтвердил учётку relay — повторите после heartbeat",
+  relay_no_warp: "у узла-выхода нет WARP",
+  relay_unavailable: "панель не ведёт реестр relay",
+  chain_loop: "цепь проходит через этот же узел",
+  node_unknown: "такого узла нет в парке",
+  grant_not_found: "доступ не найден",
+  node_not_local: "на связанной панели это делается через её поколение",
 };
 const WARNING_TEXT = {
   provider_unreachable: "WARP на узле не отвечает: политика применится напрямую (fallback)",
@@ -60,6 +76,46 @@ function emptyPolicy() {
 
 function newRule() {
   return { id: null, enabled: true, action: "block", egress: null, match: { domains: [], cidrs: [], ports: [], geosites: [], geoips: [] }, note: "" };
+}
+
+// Exits (v0.7): `warp` — this node's WARP; `node:<guid>[,<guid>][:warp]` — a chain through
+// the relays of other nodes, leaving directly or through the last hop's WARP.
+const LANE_SERVICE = "svc";
+
+function currentLane(context) {
+  return context.state.routingLane || LANE_SERVICE;
+}
+
+function laneQuery(context) {
+  const lane = currentLane(context);
+  return lane === LANE_SERVICE ? "" : `?lane=${encodeURIComponent(lane)}`;
+}
+
+// Plain-text labels (data, not markup): every place that paints one passes it through esc().
+function exitOptions(target) {
+  const options = [{ value: "warp", label: "WARP этого узла" }];
+  for (const exit of target?.exits || []) {
+    options.push({ value: exit.exit, label: "→ " + exit.display_name + " → напрямую" });
+    options.push({ value: exit.exit + ":warp", label: "→ " + exit.display_name + " → WARP " + exit.display_name });
+  }
+  return options;
+}
+
+function exitLabel(target, value) {
+  if (!value) return "";
+  const known = exitOptions(target).find((option) => option.value === value);
+  if (known) return known.label;
+  const hops = String(value).replace(/^node:/, "").replace(/:warp$/, "").split(",");
+  const names = hops.map((guid) => (target?.exits || []).find((exit) => exit.guid === guid)?.display_name || guid.slice(0, 8));
+  return "→ " + names.join(" → ") + " → " + (String(value).endsWith(":warp") ? "WARP" : "напрямую");
+}
+
+function exitSelect(target, name, value, index, editable) {
+  const options = exitOptions(target);
+  if (value && !options.some((option) => option.value === value)) options.push({ value, label: exitLabel(target, value) });
+  const attrs = index === null ? `name="${name}"` : `data-rule-field="egress" data-rule-index="${index}"`;
+  const items = options.map((option) => `<option value="${esc(option.value)}"${option.value === (value || "warp") ? " selected" : ""}>${esc(option.label)}</option>`).join("");
+  return `<select class="routing-exit" ${attrs}${editable ? "" : " disabled"}>${items}</select>`;
 }
 
 function splitList(value) {
@@ -87,13 +143,13 @@ export function policyBody(draft, backend = null) {
   return {
     ...(backend ? { backend } : {}),
     default_action: draft.default_action,
-    default_egress: draft.default_action === "egress" ? "warp" : null,
+    default_egress: draft.default_action === "egress" ? draft.default_egress || "warp" : null,
     fallback: draft.fallback,
     rules: draft.rules.map((rule) => ({
       ...(rule.id ? { id: rule.id } : {}),
       enabled: rule.enabled,
       action: rule.action,
-      egress: rule.action === "egress" ? "warp" : null,
+      egress: rule.action === "egress" ? rule.egress || "warp" : null,
       match: { domains: rule.match.domains, cidrs: rule.match.cidrs, ports: rule.match.ports,
         geosites: rule.match.geosites, geoips: rule.match.geoips },
       note: rule.note,
@@ -123,7 +179,11 @@ export function routingSummary(items) {
       const extra = selective ? `, ${number(selective)} исключ.` : "";
       const note = policy.applied_current ? "" : policy.state === "failed" ? " (ошибка)" : " (не применено)";
       const via = item.backend === "xray_router" ? " [Xray-router]" : "";
-      return `${item.protocol} → ${target}${blocks}${extra}${via}${note}`;
+      const lanes = item.lanes?.length ? `, полос: ${number(item.lanes.length)}` : "";
+      const exits = new Set([...(policy.node_exits || []), ...(item.lanes || []).flatMap((lane) => lane.node_exits || [])]);
+      const chainText = [...exits].map((value) => value.replace(/^node:/, "→ ").replace(/:warp$/, " → WARP").split(",").map((part) => part.slice(0, 10)).join(" → ")).join(", ");
+      const chains = exits.size ? ", выходы: " + chainText : "";
+      return `${item.protocol} → ${target}${blocks}${extra}${lanes}${chains}${via}${note}`;
     });
   return parts.length ? parts.join("; ") : "не настроена";
 }
@@ -151,7 +211,7 @@ function protocolTabs(context) {
   }).join("");
 }
 
-function ruleRow(rule, index, total, editable) {
+function ruleRow(target, rule, index, total, editable) {
   const match = rule.match;
   const selective = rule.action !== "block";
   return `<li class="routing-rule${rule.enabled ? "" : " disabled"}" data-rule-index="${index}" draggable="${editable}">
@@ -161,8 +221,9 @@ function ruleRow(rule, index, total, editable) {
       <select data-rule-field="action" data-rule-index="${index}"${editable ? "" : " disabled"}>
         <option value="block"${rule.action === "block" ? " selected" : ""}>Блокировать</option>
         <option value="direct"${rule.action === "direct" ? " selected" : ""}>Напрямую</option>
-        <option value="egress"${rule.action === "egress" ? " selected" : ""}>Через WARP</option>
+        <option value="egress"${rule.action === "egress" ? " selected" : ""}>Через выход</option>
       </select>
+      ${rule.action === "egress" ? `<label class="routing-rule-exit">Куда ${exitSelect(target, "", rule.egress, index, editable)}</label>` : ""}
       <span class="routing-rule-tools">
         <button class="ghost" data-routing-action="rule-up" data-rule-index="${index}" title="Выше"${index === 0 || !editable ? " disabled" : ""}>↑</button>
         <button class="ghost" data-routing-action="rule-down" data-rule-index="${index}" title="Ниже"${index === total - 1 || !editable ? " disabled" : ""}>↓</button>
@@ -182,14 +243,15 @@ function ruleRow(rule, index, total, editable) {
 }
 
 function editor(target, draft, editable) {
-  const rules = draft.rules.map((rule, index) => ruleRow(rule, index, draft.rules.length, editable)).join("");
+  const rules = draft.rules.map((rule, index) => ruleRow(target, rule, index, draft.rules.length, editable)).join("");
   return `<form class="routing-editor" id="routing-form" data-node-id="${esc(target.node_id)}" data-protocol="${esc(target.protocol)}">
     <div class="routing-defaults">
       <label>По умолчанию
         <select name="default_action"${editable ? "" : " disabled"}>
           <option value="direct"${draft.default_action === "direct" ? " selected" : ""}>Напрямую</option>
-          <option value="egress"${draft.default_action === "egress" ? " selected" : ""}>Через WARP</option>
+          <option value="egress"${draft.default_action === "egress" ? " selected" : ""}>Через выход</option>
         </select></label>
+      ${draft.default_action === "egress" ? `<label>Куда ${exitSelect(target, "default_egress", draft.default_egress, null, editable)}</label>` : ""}
       <label>При недоступности WARP
         <select name="fallback"${editable ? "" : " disabled"}>
           <option value="fail_closed"${draft.fallback === "fail_closed" ? " selected" : ""}>отказать</option>
@@ -263,11 +325,77 @@ function routerLine(context, target) {
   return `<div class="routing-router-line"><span class="status-pill ${tone}"><i></i>Xray-router: ${status}</span><small>${version}</small>${action}</div>`;
 }
 
+// The exits of the node (v0.7, spec §6.3): where a policy may send traffic — this node's
+// WARP and every node of the fleet with a relay, with what it can do next.
+function exitsLine(context, target) {
+  const warp = target.providers?.warp;
+  const warpTone = !warp ? "muted" : warp.reachable === false ? "blocked" : "";
+  const warpNote = !warp ? " (нет)" : warp.reachable === false ? " (не отвечает)" : "";
+  const chips = [
+    '<span class="routing-exit-chip" data-exit="direct">Напрямую</span>',
+    `<span class="routing-exit-chip ${warpTone}" data-exit="warp">WARP${warpNote}</span>`,
+    '<span class="routing-exit-chip" data-exit="block">Блок</span>',
+    ...(target.exits || []).map((exit) => {
+      const tone = !exit.online ? "blocked" : exit.enabled ? "" : "muted";
+      const note = !exit.online ? "не на связи" : exit.enabled ? "relay доступен" : "relay выключен";
+      return `<span class="routing-exit-chip ${tone}" data-exit="${esc(exit.exit)}" title="дальше: напрямую или WARP ${esc(exit.display_name)}">→ ${esc(exit.display_name)} <small>${note}</small></span>`;
+    }),
+  ];
+  return `<div class="routing-exits" id="routing-exits"><b>Выходы узла</b>${chips.join("")}</div>`;
+}
+
+// This node's own relay: the door other nodes' chains come in through.
+function relayLine(context, target) {
+  const relay = target.relay;
+  if (!relay || !target.router) return "";
+  const owner = context.state.me?.role === "owner";
+  const status = relay.enabled ? (relay.pending ? "relay включается (ждём отчёт узла)" : `relay включён · порт ${number(relay.port)}`) : "relay выключен: другие узлы не могут выходить через этот";
+  const button = relay.enabled ? "" : `<button class="secondary" data-routing-action="relay-enable"${owner && target.router.available ? "" : " disabled"}>Включить relay</button>`;
+  return `<div class="routing-relay-line"><span class="status-pill ${relay.enabled ? "" : "muted"}"><i></i>${esc(status)}</span>${button}</div>`;
+}
+
+// Lanes (v0.7): the service's policy and one per client with their own lane.
+function laneTabs(context, target) {
+  const lane = currentLane(context);
+  const serviceActive = lane === LANE_SERVICE;
+  const tabs = [`<button class="${serviceActive ? "active" : ""}" role="tab" aria-selected="${serviceActive}" data-routing-action="lane" data-lane="svc">Сервис</button>`];
+  for (const item of target.lanes || []) {
+    const active = lane === item.lane;
+    const label = item.grant ? esc(item.grant.runtime_username) + " · " + esc(item.grant.client_name) : esc(item.lane.replace(/^grant:/, "grant ").slice(0, 14));
+    tabs.push(`<button class="${active ? "active" : ""}" role="tab" aria-selected="${active}" data-routing-action="lane" data-lane="${esc(item.lane)}">${label}</button>`);
+  }
+  const owner = context.state.me?.role === "owner";
+  const add = owner && target.backend === "xray_router" ? '<button class="ghost" data-routing-action="lane-add">Добавить полосу для клиента…</button>' : "";
+  return `<div class="node-tabs routing-lanes" role="tablist" id="routing-lanes">${tabs.join("")}${add}</div>`;
+}
+
+// «Куда пойдёт…»: the compiler walks the saved policy of the lane for one destination.
+function explainPanel(context) {
+  const state = ensureState(context);
+  const result = state.explained;
+  let answer = '<p class="form-hint">Введите домен или IP — и увидите, каким правилом и куда уйдёт трафик по сохранённой политике.</p>';
+  if (result) {
+    const rule = result.rule_id ? `правило ${esc(ruleLabel(state.policy, result.rule_id))}` : "по умолчанию";
+    const where = esc(result.action === "block" ? "блок" : result.action === "direct" ? "напрямую" : exitLabel(currentTarget(context), result.exit) || "WARP");
+    const unsureRules = (result.uncertain || []).map((id) => esc(ruleLabel(state.policy, id))).join(", ");
+    const unsure = unsureRules ? ` <small>(geosite/geoip правила ${unsureRules} решает узел)</small>` : "";
+    answer = `<p class="routing-explain-answer" id="routing-explain-answer">полоса ${esc(result.lane)} → ${rule} → <b>${where}</b>${unsure}</p>`;
+  }
+  return `<form class="routing-explain" id="routing-explain">
+    <label>Куда пойдёт… <input name="host" placeholder="youtube.com или 203.0.113.9" maxlength="253" value="${esc(state.explainHost || "")}"></label>
+    <label>порт <input name="port" type="number" min="1" max="65535" value="${esc(String(state.explainPort || 443))}"></label>
+    <button type="submit" class="secondary"${state.policy ? "" : " disabled"}>Проверить</button>
+    ${answer}
+  </form>`;
+}
+
 function targetCard(context) {
   const target = currentTarget(context);
   if (!target) return '<div class="empty-state"><span>◇</span><h3>Нет узлов для маршрутизации</h3><p>Появятся этот сервер и связанные панели, когда будут на связи.</p></div>';
   const state = context.state.routing;
-  const policy = target.policy ? state.policy : null;
+  const lane = currentLane(context);
+  const laneKnown = lane === LANE_SERVICE ? Boolean(target.policy) : (target.lanes || []).some((item) => item.lane === lane);
+  const policy = laneKnown ? state.policy : null;
   const [tone, statusText] = policyState(policy, state.loading);
   const reason = target.reason ? `<p class="form-hint routing-reason-line">${esc(reasonText(target.reason))}</p>` : "";
   const editable = context.state.me?.role === "owner" && !target.reason && Boolean(target.backend) && !state.loading;
@@ -279,18 +407,27 @@ function targetCard(context) {
   }
   const providers = Object.entries(target.providers || {}).map(([name, value]) => `${name}: ${value.reachable === false ? "не отвечает" : value.reachable ? "доступен" : "не проверялся"}`).join(", ") || "провайдеров нет";
   const backendName = BACKEND_NAMES[target.backend] || target.backend;
+  const laneBadge = lane === LANE_SERVICE ? "" : ` · <span class="routing-lane-badge">полоса ${esc(lane.replace(/^grant:/, "").slice(0, 8))}</span>`;
+  const laneItem = (target.lanes || []).find((item) => item.lane === lane);
+  const owner = context.state.me?.role === "owner";
+  const laneTools = lane === LANE_SERVICE ? "" : `<div class="routing-lane-tools"><small>${laneItem?.grant ? `доступ ${esc(laneItem.grant.runtime_username)} клиента ${esc(laneItem.grant.client_name)}: свой маршрут` : "полоса клиента"}</small><button class="secondary" data-routing-action="lane-remove"${owner && laneItem?.grant ? "" : " disabled"}>Вернуть в полосу сервиса</button></div>`;
   return `<article class="panel-card routing-card">
     <div class="routing-head">
-      <b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)} · <span class="routing-backend">${esc(backendName)}</span></b>
+      <b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)} · <span class="routing-backend">${esc(backendName)}</span>${laneBadge}</b>
       <span class="status-pill ${tone}"><i></i>${esc(statusText)}</span>
     </div>
     <p class="form-hint">Возможности: ${esc((target.capabilities || []).join(", ") || "—")} · провайдеры — ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress" : ""}</p>
+    ${exitsLine(context, target)}
     ${routerLine(context, target)}
+    ${relayLine(context, target)}
     ${reason}
+    ${laneTabs(context, target)}
+    ${laneTools}
     <div class="routing-layout">
       ${editor(target, state.draft, editable)}
       ${previewPanel(state.compiled, policy, state.dirty)}
     </div>
+    ${explainPanel(context)}
     ${cardActions(context, policy, state.compiled, state.dirty, editable)}
     <div id="routing-history" hidden></div>
   </article>`;
@@ -298,7 +435,8 @@ function targetCard(context) {
 
 function ensureState(context) {
   if (!context.state.routing) {
-    context.state.routing = { policy: null, draft: emptyPolicy(), compiled: null, dirty: false, loading: false, previewTimer: null, previewSeq: 0 };
+    context.state.routing = { policy: null, draft: emptyPolicy(), compiled: null, dirty: false, loading: false, previewTimer: null, previewSeq: 0,
+      explained: null, explainHost: "", explainPort: 443 };
   }
   return context.state.routing;
 }
@@ -313,6 +451,7 @@ function resetPolicy(context) {
   state.dirty = false;
   state.draft = emptyPolicy();
   state.loading = true;
+  state.explained = null;
   return state;
 }
 
@@ -322,9 +461,11 @@ async function loadPolicy(context, target) {
     state.loading = false;
     return;
   }
-  if (target.policy) {
+  const lane = currentLane(context);
+  const known = lane === LANE_SERVICE ? Boolean(target.policy) : (target.lanes || []).some((item) => item.lane === lane);
+  if (known) {
     try {
-      state.policy = await context.api(`/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}`);
+      state.policy = await context.api(`${policyPath(target)}${laneQuery(context)}`);
       state.draft = draftFromPolicy(state.policy);
     } catch (error) {
       context.ui.toast(error.message, "error");
@@ -334,10 +475,14 @@ async function loadPolicy(context, target) {
   await previewNow(context, target);
 }
 
+function policyPath(target) {
+  return `/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}`;
+}
+
 async function previewNow(context, target) {
   const state = ensureState(context);
   const seq = ++state.previewSeq;
-  const url = `/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}/preview`;
+  const url = `${policyPath(target)}/preview${laneQuery(context)}`;
   try {
     const body = state.dirty || !state.policy ? JSON.stringify(policyBody(state.draft, target.backend)) : undefined;
     const compiled = await context.api(url, { method: "POST", body });
@@ -373,7 +518,7 @@ function rerender(context) {
 }
 
 function screen(context) {
-  return `<div class="security-note">Политика описывает, куда сервис выпускает трафик клиентов: напрямую, через WARP или блокирует. Предпросмотр показывает, что именно применит backend узла — NaiveProxy (Caddy) умеет только «весь сервис» и блокировки, Mieru (mita) — ещё и выборочные правила, а сервис, подключённый к Xray-router узла, — geosite, geoip, порты и блокировки рядом с WARP.</div>
+  return `<div class="security-note">Политика описывает, куда сервис выпускает трафик клиентов: напрямую, через WARP, через другой узел парка (цепь) или блокирует. Предпросмотр показывает, что именно применит backend узла — NaiveProxy (Caddy) умеет только «весь сервис» и блокировки, Mieru (mita) — ещё и выборочные правила, а сервис, подключённый к Xray-router узла, — geosite, geoip, порты, цепи и свои полосы для клиентов.</div>
     <div class="toolbar routing-toolbar">
       <label>Узел <select id="routing-node">${nodeOptions(context)}</select></label>
       <div class="node-tabs" role="tablist">${protocolTabs(context)}</div>
@@ -389,6 +534,8 @@ export async function renderRouting(context, generation) {
   if (!nodes.includes(context.state.routingNode)) context.state.routingNode = nodes.includes("local") ? "local" : nodes[0] || null;
   const protocols = targetsFor(context).map((item) => item.protocol);
   if (!protocols.includes(context.state.routingProtocol)) context.state.routingProtocol = protocols.includes("naive") ? "naive" : protocols[0] || null;
+  const lanes = (currentTarget(context)?.lanes || []).map((item) => item.lane);
+  if (currentLane(context) !== LANE_SERVICE && !lanes.includes(currentLane(context))) context.state.routingLane = LANE_SERVICE;
   resetPolicy(context);
   context.ui.view.innerHTML = screen(context);
   await loadPolicy(context, currentTarget(context));
@@ -401,6 +548,7 @@ function readDraft(context) {
   const form = query("#routing-form", context.ui.view);
   if (!form) return state.draft;
   state.draft.default_action = form.elements.default_action.value;
+  state.draft.default_egress = form.elements.default_egress ? form.elements.default_egress.value : state.draft.default_egress;
   state.draft.fallback = form.elements.fallback.value;
   for (const input of queryAll("[data-rule-field]", form)) {
     const rule = state.draft.rules[Number(input.dataset.ruleIndex)];
@@ -408,6 +556,7 @@ function readDraft(context) {
     const field = input.dataset.ruleField;
     if (field === "enabled") rule.enabled = input.checked;
     else if (field === "action") rule.action = input.value;
+    else if (field === "egress") rule.egress = input.value;
     else if (field === "note") rule.note = input.value;
     else rule.match[field] = splitList(input.value);
   }
@@ -421,7 +570,7 @@ function markDirty(context) {
 }
 
 export function handleRoutingInput(context, element) {
-  if (context.state.view !== "routing" || !element.closest?.("#routing-form")) return false;
+  if (context.state.view !== "routing" || !element.closest?.("#routing-form")) return Boolean(element.closest?.("#routing-explain"));
   readDraft(context);
   markDirty(context);
   return true;
@@ -432,10 +581,11 @@ export function handleRoutingChange(context, element) {
   if (element.id === "routing-node") {
     context.state.routingNode = element.value;
     context.state.routingProtocol = null;
+    context.state.routingLane = LANE_SERVICE;
     void context.navigate("routing");
     return true;
   }
-  if (!element.closest?.("#routing-form")) return false;
+  if (!element.closest?.("#routing-form")) return Boolean(element.closest?.("#routing-explain"));
   readDraft(context);
   markDirty(context);
   rerender(context);
@@ -450,7 +600,7 @@ async function save(context) {
   try {
     readDraft(context);
     const body = { ...policyBody(state.draft, target.backend), expected_revision: state.policy?.revision ?? null };
-    state.policy = await context.api(`/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}`, { method: "PUT", body: JSON.stringify(body) });
+    state.policy = await context.api(`${policyPath(target)}${laneQuery(context)}`, { method: "PUT", body: JSON.stringify(body) });
     state.draft = draftFromPolicy(state.policy);
     state.dirty = false;
     context.ui.toast(`Политика сохранена (rev ${number(state.policy.revision)})`);
@@ -462,9 +612,93 @@ async function save(context) {
 }
 
 export function handleRoutingSubmit(context, form) {
-  if (context.state.view !== "routing" || form.id !== "routing-form") return false;
+  if (context.state.view !== "routing") return false;
+  if (form.id === "routing-explain") {
+    void explain(context, form);
+    return true;
+  }
+  if (form.id !== "routing-form") return false;
   void save(context);
   return true;
+}
+
+async function explain(context, form) {
+  const target = currentTarget(context);
+  const state = ensureState(context);
+  if (!target) return;
+  state.explainHost = form.elements.host.value.trim();
+  state.explainPort = Number(form.elements.port.value) || 443;
+  if (!state.explainHost) return;
+  try {
+    state.explained = await context.api(`${policyPath(target)}/explain${laneQuery(context)}`, { method: "POST", body: JSON.stringify({ host: state.explainHost, port: state.explainPort }) });
+  } catch (error) {
+    state.explained = null;
+    context.ui.toast(error.message, "error");
+  }
+  rerender(context);
+}
+
+// A client's own lane (v0.7): the grant's traffic gets its own policy on this node.
+async function laneAdd(context, button) {
+  const target = currentTarget(context);
+  if (!target) return;
+  const data = await context.api("/api/clients");
+  const laned = new Set((target.lanes || []).map((item) => item.grant?.id).filter(Boolean));
+  const candidates = (data.items || []).flatMap((entry) => entry.grants
+    .filter((grant) => grant.protocol === target.protocol && grant.node_id === target.node_id && grant.desired_state !== "deleted" && !laned.has(grant.id))
+    .map((grant) => ({ id: grant.id, label: grant.runtime_username + " · " + entry.client.display_name })));
+  if (!candidates.length) {
+    context.ui.toast("У этого сервиса на узле нет доступов без своей полосы", "error");
+    return;
+  }
+  const protocolName = PROTOCOL_NAMES[target.protocol] || target.protocol;
+  const mieruNote = target.protocol === "mieru" ? "; ссылка Mieru изменится (порт слота), подписка обновится сама" : "";
+  const chosen = await context.ui.choose("Полоса для клиента", "Доступ " + protocolName + " получит свой маршрут на этом узле" + mieruNote + ".", candidates, "Создать полосу");
+  if (!chosen) return;
+  context.ui.setBusy(button, true, "…");
+  try {
+    const result = await context.api(`/api/routing/lanes/${encodeURIComponent(chosen)}`, { method: "POST", body: JSON.stringify({ mode: "own" }) });
+    context.state.routingLane = result.lane;
+    context.ui.toast(result.pending ? "Отправлено узлу: полоса появится после heartbeat" : "Полоса создана");
+    await context.navigate("routing");
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+    context.ui.setBusy(button, false);
+  }
+}
+
+async function laneRemove(context, button) {
+  const target = currentTarget(context);
+  const item = (target?.lanes || []).find((lane) => lane.lane === currentLane(context));
+  if (!item?.grant) return;
+  const mieruNote = target.protocol === "mieru" ? "; ссылка Mieru изменится (основной порт)" : "";
+  const text = "Доступ " + item.grant.runtime_username + " вернётся к маршруту сервиса, политика полосы будет удалена" + mieruNote + ".";
+  if (!(await context.ui.confirmed("Вернуть в полосу сервиса?", text, "Вернуть"))) return;
+  context.ui.setBusy(button, true, "…");
+  try {
+    await context.api(`/api/routing/lanes/${encodeURIComponent(item.grant.id)}`, { method: "POST", body: JSON.stringify({ mode: "service" }) });
+    context.state.routingLane = LANE_SERVICE;
+    context.ui.toast("Доступ вернулся в полосу сервиса");
+    await context.navigate("routing");
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+    context.ui.setBusy(button, false);
+  }
+}
+
+async function relayEnable(context, button) {
+  const target = currentTarget(context);
+  if (!target) return;
+  if (!(await context.ui.confirmed("Включить relay узла?", "Xray-router откроет relay-порт (vless+reality за TLS панели): другие узлы парка смогут выходить в интернет через этот узел по цепям — только со своими учётками.", "Включить"))) return;
+  context.ui.setBusy(button, true, "…");
+  try {
+    const result = await context.api(`/api/routing/relay/${encodeURIComponent(target.node_id)}/enable`, { method: "POST", body: JSON.stringify({}) });
+    context.ui.toast(result.pending ? "Отправлено узлу: relay включится после heartbeat" : `Relay включён на порту ${number(result.port)}`);
+    await context.navigate("routing");
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+    context.ui.setBusy(button, false);
+  }
 }
 
 async function operate(context, action, button) {
@@ -477,13 +711,14 @@ async function operate(context, action, button) {
   const [title, text, label] = titles[action];
   if (!(await context.ui.confirmed(title, text, label))) return;
   context.ui.setBusy(button, true, "…");
-  const base = `/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}`;
+  const base = policyPath(target);
+  const suffix = laneQuery(context);
   try {
     if (action === "delete") {
-      await context.api(base, { method: "DELETE" });
+      await context.api(`${base}${suffix}`, { method: "DELETE" });
       context.ui.toast("Политика удалена");
     } else {
-      const result = await context.api(`${base}/${action}`, { method: "POST", body: JSON.stringify({ expected_revision: state.policy.revision }) });
+      const result = await context.api(`${base}/${action}${suffix}`, { method: "POST", body: JSON.stringify({ expected_revision: state.policy.revision }) });
       const policy = result.policy;
       context.ui.toast(policy.state === "applying" ? "Отправлено узлу: результат появится после heartbeat" : action === "apply" ? `Применено (rev ${number(policy.applied_revision)})` : "Откачено");
     }
@@ -527,7 +762,7 @@ async function showHistory(context, button) {
   }
   context.ui.setBusy(button, true, "…");
   try {
-    const data = await context.api(`/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}/history`);
+    const data = await context.api(`${policyPath(target)}/history${laneQuery(context)}`);
     box.innerHTML = historyTable(data.items);
     box.hidden = false;
   } catch (error) {
@@ -552,7 +787,25 @@ export function handleRoutingClick(context, button) {
   const state = ensureState(context);
   if (action === "protocol") {
     context.state.routingProtocol = button.dataset.protocol;
+    context.state.routingLane = LANE_SERVICE;
     void context.navigate("routing");
+    return true;
+  }
+  if (action === "lane") {
+    context.state.routingLane = button.dataset.lane || LANE_SERVICE;
+    void context.navigate("routing");
+    return true;
+  }
+  if (action === "lane-add") {
+    void laneAdd(context, button);
+    return true;
+  }
+  if (action === "lane-remove") {
+    void laneRemove(context, button);
+    return true;
+  }
+  if (action === "relay-enable") {
+    void relayEnable(context, button);
     return true;
   }
   if (action === "apply" || action === "rollback" || action === "delete") {

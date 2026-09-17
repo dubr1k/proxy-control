@@ -27,6 +27,7 @@ export function createPanelState() {
     // draft/preview state (`routing`, built lazily by routing.js).
     routingTargets: [],
     routingNode: null,
+    routingLane: "svc",
     routingProtocol: null,
     routing: null,
     admins: [],

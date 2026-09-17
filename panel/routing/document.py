@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 # What the managers' egress APIs answer with (naive_manager/server.py, mieru_manager/
 # server.py). Bounded on purpose: any other code is a plain conflict or an outage, so a
@@ -65,3 +66,26 @@ def canonical(document: dict) -> bytes:
 
 def document_digest(document: dict) -> str:
     return hashlib.sha256(canonical(document)).hexdigest()
+
+
+_UUID_LINE = re.compile(r'("uuid":\s*")[^"]*(")')
+
+
+def redact_document(document):
+    """A router intent for the operator's eyes (v0.7): the relay accounts a chain carries
+    (`chains.*.hops[].uuid`) masked — the API, the history and the diff never show them."""
+    if not isinstance(document, dict):
+        return document
+    chains = document.get("chains")
+    if not isinstance(chains, dict):
+        return document
+    copy = json.loads(json.dumps(document))
+    for chain in copy["chains"].values():
+        for hop in chain.get("hops", []) if isinstance(chain, dict) else []:
+            if isinstance(hop, dict) and "uuid" in hop:
+                hop["uuid"] = "***"
+    return copy
+
+
+def redact_diff(lines):
+    return [_UUID_LINE.sub(r"\1***\2", line) for line in lines]

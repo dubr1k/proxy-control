@@ -34,6 +34,8 @@ class GrantLifecycle:
         self.clock = clock
         # The journal of the operation that provisioned a remote grant lives there.
         self.provisioning = facade.provisioning
+        # The lanes service (v0.7): a grant with its own lane leaves it before it is deleted.
+        self.lanes = None
 
     # --- lookups ------------------------------------------------------------------
 
@@ -167,6 +169,10 @@ class GrantLifecycle:
         for the next generation and purged by the pusher once the node reports it
         `missing`; an operation still waiting for the node to apply it is settled now."""
         grant, remote = self._load(grant_id)
+        if self.lanes is not None and grant.routing_lane == "own":
+            # The lane goes first: the manager's handler / slot loses the user, the router
+            # forgets the account, the lane's policy is dropped — then the account itself.
+            await self.lanes.disable(grant.id, actor=actor, ip=ip, request_id=request_id)
         if not remote:
             try:
                 await self.facade.adapters[grant.protocol].delete(self._ref(grant))

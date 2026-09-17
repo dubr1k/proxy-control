@@ -181,11 +181,19 @@ class RoutingService:
             rows = [row for row in self.nodes.rows(db) if self._kind(row) != "v1"]
             policies = {(policy.node_id, policy.protocol): policy for policy in self.store.list(db) if policy.lane == LANE_SERVICE}
             lanes: dict[tuple[str, str], list[dict]] = {}
+            grants = {row["id"]: dict(row) for row in db.execute(
+                "SELECT g.id, g.runtime_username, g.client_id, c.display_name FROM access_grants g JOIN clients c ON c.id=g.client_id"
+                " WHERE g.routing_lane='own'")}
             for policy in self.store.list(db):
                 if policy.lane != LANE_SERVICE:
-                    lanes.setdefault((policy.node_id, policy.protocol), []).append(self._policy_view(policy))
+                    grant = grants.get(policy.lane.removeprefix("grant:"))
+                    view = {**self._policy_view(policy), "grant": None if grant is None else {
+                        "id": grant["id"], "runtime_username": grant["runtime_username"], "client_id": grant["client_id"],
+                        "client_name": grant["display_name"]}}
+                    lanes.setdefault((policy.node_id, policy.protocol), []).append(view)
             master = self._master(db)
             exits = self._exits(db, rows)
+            relays = {row["node_id"]: self._relay_view(db, row["node_id"]) for row in rows}
         items = []
         for row in rows:
             node_id, kind = row["node_id"], self._kind(row)
@@ -194,7 +202,8 @@ class RoutingService:
                         "backend": None, "capabilities": [], "providers": {}, "egress_v1": kind == "local",
                         "mode": None, "policy": None, "reason": None, "router": None,
                         "lanes": lanes.get((node_id, protocol), []),
-                        "exits": [exit_ for exit_ in exits if exit_["node_id"] != node_id]}
+                        "exits": [exit_ for exit_ in exits if exit_["node_id"] != node_id],
+                        "relay": relays.get(node_id)}
                 policy = policies.get((node_id, protocol))
                 if policy is not None:
                     item["policy"] = self._policy_view(policy)
@@ -237,6 +246,16 @@ class RoutingService:
                 "default_egress": policy.default_egress,
                 "rules": {action: sum(rule.action == action for rule in enabled_rules) for action in ("block", "direct", "egress")},
                 "node_exits": policy.node_exits()}
+
+    def _relay_view(self, db, node_id: str) -> dict | None:
+        """This node's own relay (v0.7), the public part: what other nodes may exit through."""
+        if self.relays is None:
+            return None
+        relay = self.relays.relay(db, node_id)
+        if relay is None:
+            return {"enabled": False, "port": None, "pending": False, "known": False}
+        return {"enabled": bool(relay.get("enabled")), "port": relay.get("port"), "pending": not relay.get("public_key"),
+                "known": True}
 
     def _exits(self, db, rows: list[dict]) -> list[dict]:
         """The nodes of the fleet a policy may exit through (v0.7): every node with a relay

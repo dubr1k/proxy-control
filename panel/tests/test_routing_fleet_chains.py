@@ -304,6 +304,12 @@ async def test_a_linked_nodes_relay_is_enabled_through_its_generation_and_a_chai
     direct = next(a for a in routers[node].relay_state["accounts"] if a["email"].endswith(":direct"))
     assert chain["hops"][0]["uuid"] == direct["uuid"]
     assert direct["uuid"] not in json.dumps(central.state.store.audits())
+    # the API's form of the compiled intent and of the history masks the accounts
+    redacted = result["compiled"].redacted()
+    assert redacted["document"]["chains"]["c1"]["hops"][0]["uuid"] == "***" and direct["uuid"] not in json.dumps(redacted)
+    from panel.routing.document import redact_document
+    history = routing.history("local", "naive")
+    assert direct["uuid"] in json.dumps(history) and direct["uuid"] not in json.dumps([redact_document(row["document"]) for row in history])
     # rotate: the node gets fresh accounts through its next generation, the old ones are gone
     rotated = await routing.relay_rotate(node_id, **CTX)
     assert rotated["rotated"] == 2

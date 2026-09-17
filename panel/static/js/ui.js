@@ -62,6 +62,26 @@ export function createUi(root) {
     });
   }
 
+  // One choice among a few named things (a grant for a lane): the value of the chosen
+  // option, or null when dismissed. The labels are set as text, never as markup.
+  function choose(title, text, options, button = "Выбрать") {
+    const dialog = query("#choose", root);
+    query("#choose-title", root).textContent = title;
+    query("#choose-text", root).textContent = text;
+    query("#choose-ok", root).textContent = button;
+    const select = query("#choose-select", root);
+    select.replaceChildren(...options.map((option) => {
+      const element = document.createElement("option");
+      element.value = option.id;
+      element.textContent = option.label;
+      return element;
+    }));
+    dialog.showModal();
+    return new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "default" ? select.value : null), { once: true });
+    });
+  }
+
   async function copyText(input) {
     try {
       await navigator.clipboard.writeText(input.value);
@@ -71,5 +91,5 @@ export function createUi(root) {
     }
   }
 
-  return { view, toast, setBusy, renderSkeleton, renderError, openModal, confirmed, copyText };
+  return { view, toast, setBusy, renderSkeleton, renderError, openModal, confirmed, choose, copyText };
 }

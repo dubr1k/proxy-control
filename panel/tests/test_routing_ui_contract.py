@@ -33,7 +33,7 @@ def test_routing_js_speaks_only_the_documented_endpoints():
 
 
 def test_routing_js_names_the_states_and_refusals_in_the_operator_words():
-    for text in ("Напрямую", "Через WARP", "отказать", "напрямую", "вне области маршрутизации",
+    for text in ("Напрямую", "Через выход", "отказать", "напрямую", "вне области маршрутизации",
                  "узел нужно обновить до v0.4", "есть неприменённые изменения", "применено (rev",
                  "маршрутизацией управляет центральная панель", "перезапуск не требуется", "Сбросить",
                  "Применить", "Откатить", "История", "Добавить правило"):
@@ -64,6 +64,36 @@ def test_routing_js_speaks_the_router():
     assert "routingSummary" in nodes
 
 
+def test_routing_js_speaks_lanes_chains_and_the_relay():
+    """v0.7: the node's exits as chips, a lane tab per client, «Куда» with chains, the
+    «Куда пойдёт…» check, the node's relay — every call lane-aware, every refusal named."""
+    for fragment in ("/api/routing/lanes/", "/explain", "/api/routing/relay/", "/enable", "laneQuery(context)",
+                     'data-routing-action="lane"', 'data-routing-action="lane-add"', 'data-routing-action="lane-remove"',
+                     'data-routing-action="relay-enable"', 'id="routing-exits"', 'id="routing-lanes"', 'id="routing-explain"',
+                     'data-rule-field="egress"', 'exitSelect(target, "default_egress"', "routingLane"):
+        assert fragment in ROUTING, fragment
+    for text in ("Выходы узла", "Сервис", "Добавить полосу для клиента…", "Вернуть в полосу сервиса", "Куда пойдёт…",
+                 "Через выход", "WARP этого узла", "→ напрямую", "Включить relay", "relay включён", "relay выключен",
+                 "ссылка Mieru изменится"):
+        assert text in ROUTING, text
+    for code in ("lane_requires_router", "lane_not_attached", "lane_slots_exhausted", "node_lacks_lanes", "node_lacks_relay",
+                 "relay_disabled", "relay_credential_pending", "relay_no_warp", "chain_loop", "node_unknown"):
+        assert code in ROUTING, code
+    # the exit travels with the rule and the default, never hard-wired to WARP any more
+    assert 'rule.action === "egress" ? rule.egress || "warp" : null' in ROUTING
+    assert 'draft.default_action === "egress" ? draft.default_egress || "warp" : null' in ROUTING
+    state = (STATIC / "js/state.js").read_text()
+    assert 'routingLane: "svc"' in state
+    clients = (STATIC / "js/clients.js").read_text()
+    for fragment in ('data-client-action="grant-lane"', "/api/routing/lanes/", "своя полоса", "как у сервиса", "Ссылка Mieru изменится"):
+        assert fragment in clients, fragment
+    html = (STATIC / "index.html").read_text()
+    assert 'id="choose"' in html and 'id="choose-select"' in html
+    css = (STATIC / "style.css").read_text()
+    for selector in (".routing-exits{", ".routing-exit-chip{", ".routing-lanes{", ".routing-explain{", ".grant-lane{"):
+        assert selector in css, selector
+
+
 def test_apply_is_enabled_only_for_a_saved_supported_policy():
     assert 'compiled?.status === "supported"' in ROUTING and "!dirty" in ROUTING
     assert "canRollback" in ROUTING and "applied_revision !== null" in ROUTING
@@ -92,7 +122,9 @@ def _interpolations(source: str) -> list[str]:
 # helpers, URL-encoded path parts, counters and flags — never a bare API string.
 _ALLOWED = (
     re.compile(r"^(esc|number|encodeURIComponent)\("),
-    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine)\("),
+    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect)\("),
+    re.compile(r"^(policyPath|laneQuery)\("),  # URL builders: encoded path parts and a `?lane=` query
+    re.compile(r"^(chips|tabs)\.join\(\"\"\)$"),  # our own escaped pieces
     re.compile(r"^[\w+\- ]+$"),  # a local composed of escaped pieces, or index arithmetic
     re.compile(r'^.+\?\s*("[^"]*"|\'[^\']*\'|`.*`)\s*:\s*("[^"]*"|\'[^\']*\'|`.*`|.+\?.+:.+)$', re.S),  # literal branches
     re.compile(r"^\w+\s*\|\|\s*('[^']*'|\"[^\"]*\")$"),  # a composed template, or a literal placeholder

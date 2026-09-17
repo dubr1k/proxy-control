@@ -317,6 +317,14 @@
     </form>
   </dialog>
 
+  <dialog id="choose" class="confirm-dialog">
+    <form method="dialog">
+      <div class="confirm-icon" id="choose-icon">?</div><h2 id="choose-title">Выбор</h2><p id="choose-text"></p>
+      <label class="choose-field">Доступ <select id="choose-select"></select></label>
+      <footer><button class="secondary" value="cancel">Отмена</button><button class="primary" id="choose-ok" value="default">Выбрать</button></footer>
+    </form>
+  </dialog>
+
   <dialog id="access-modal" class="access-dialog">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">ПОДКЛЮЧЕНИЕ</span><h2 id="access-title">Доступ к прокси</h2></div><button class="icon-button close" value="cancel" aria-label="Закрыть">×</button></div>

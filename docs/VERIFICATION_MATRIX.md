@@ -5,7 +5,7 @@ Generated from `tests/fixtures/verification-matrix.json` by `scripts/dev/verific
 `gap` on the release tree (`VERIFICATION_STRICT=1`). One row per promised function: what it claims, which
 test, lab scenario, browser scenario or live check proves it, and the routes it covers.
 
-**63 rows** — ✅ proven: 53, 🔧 fixed in 0.6: 10, ⛔ gap: 0.
+**64 rows** — ✅ proven: 54, 🔧 fixed in 0.6: 10, ⛔ gap: 0.
 
 ## backend
 
@@ -98,6 +98,7 @@ test, lab scenario, browser scenario or live check proves it, and the routes it 
 
 | id | since | claim | proof | routes | status |
 | --- | --- | --- | --- | --- | --- |
+| `ui-routing-chains` | 0.7 | «Маршрутизация и цепи»: the node's exits as chips, a client's lane created from the screen (tab, draft, apply as one intent), «Куда пойдёт…», the lane flag and toggle on «Клиенты», no lane key or relay account in a frame. | `ui::routing.exits_chips`<br>`ui::routing.lane_dialog_offers_the_grant`<br>`ui::routing.lane_tab_appears_active`<br>`ui::routing.lane_preview_folds_the_service`<br>`ui::routing.lane_policy_applied`<br>`ui::routing.explain_names_the_lane_and_the_exit`<br>`ui::clients.lane_flag_on_the_chip`<br>`ui::clients.lane_toggle_returns_to_service`<br>`pytest::panel/tests/test_routing_ui_contract.py::test_routing_js_speaks_lanes_chains_and_the_relay` | — | ✅ proven |
 | `ui-login` | 0.2 | The login form in a real browser: a wrong password shows the server's refusal (it used to reload the form blank), the right one lands on the overview, logout returns to the form. | `ui::login.wrong_password_refused`<br>`ui::login.right_password_lands_on_overview`<br>`ui::login.logout_returns_to_form`<br>`ui::login.session_cookie_is_httponly`<br>`pytest::panel/tests/test_ui_browser_findings.py::test_the_login_form_shows_a_refusal_instead_of_reloading` | — | 🔧 fixed in 0.6 |
 | `ui-dashboard` | 0.2 | The overview renders host resources (usage bars filled — the inline style the CSP dropped is gone), service statuses and protocol counters from the API, with no console error; the profile button opens a menu. | `ui::dashboard.host_card_has_resources_or_reason`<br>`ui::dashboard.protocol_cards_rendered`<br>`ui::dashboard.sidebar_counters_match_api`<br>`pytest::panel/tests/test_ui_browser_findings.py::test_no_module_renders_an_inline_style_attribute`<br>`ui::dashboard.profile_menu_opens_and_closes`<br>`pytest::panel/tests/test_ui_browser_findings.py::test_the_profile_button_opens_a_menu_instead_of_a_toast` | — | 🔧 fixed in 0.6 |
 | `ui-users` | 0.2 | The MTProxy screen: create with the one-time links and QR, limits, enable/disable, rotate, delete — the list refreshes without a reload. | `ui::users.create_reveals_link_and_qr`<br>`ui::users.limits_reach_the_api`<br>`ui::users.disable_asks_and_blocks`<br>`ui::users.rotate_reveals_a_new_link`<br>`ui::users.delete_asks_and_removes_row`<br>`ui::users.list_carries_no_secret` | — | ✅ proven |

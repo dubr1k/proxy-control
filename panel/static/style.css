@@ -129,3 +129,28 @@
 
 /* Profile menu (v0.6): the chevron on the profile button opens this above the sidebar foot. */
 .profile-menu{position:absolute;left:0;right:0;bottom:calc(100% + var(--space-1));display:grid;gap:2px;padding:var(--space-2);border:1px solid var(--line-strong);border-radius:9px;background:#1a1b20;box-shadow:var(--shadow);z-index:20;animation:toast-in .14s ease}.profile-menu[hidden]{display:none}.profile-menu-head{display:grid;gap:1px;padding:var(--space-2) var(--space-2) var(--space-2);margin-bottom:var(--space-1);border-bottom:1px solid var(--line)}.profile-menu-head b{font-size:11px;font-weight:540;color:var(--text)}.profile-menu-head small{font-size:10px;color:var(--quiet)}.profile-menu button{width:100%;border:0;background:transparent;color:var(--text-2);padding:8px 9px;border-radius:6px;font-size:11px;text-align:left;cursor:pointer}.profile-menu button:hover,.profile-menu button:focus-visible{background:rgba(255,255,255,.05);color:var(--text);outline:0}.profile-menu button.danger-text:hover{color:var(--red)}.profile-button[aria-expanded=true] .chevron{transform:rotate(180deg)}.profile-button .chevron{transition:transform .14s}
+
+/* Lanes and chains (v0.7): the node's exits, the lane tabs, the «Куда пойдёт…» line. */
+.routing-exits{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+.routing-exits b{font-size:.85rem;color:var(--muted);margin-right:4px}
+.routing-exit-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);font-size:.85rem}
+.routing-exit-chip small{color:var(--muted)}
+.routing-exit-chip.muted{opacity:.6}
+.routing-exit-chip.blocked{border-color:var(--red);color:var(--red)}
+.routing-relay-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 10px}
+.routing-lanes{margin:10px 0 4px}
+.routing-lanes .ghost{margin-left:auto}
+.routing-lane-badge{font-weight:500;color:var(--accent)}
+.routing-lane-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px;padding:8px 12px;border:1px dashed var(--line);border-radius:10px}
+.routing-rule-exit{display:inline-flex;align-items:center;gap:6px;font-size:.85rem}
+.routing-exit{max-width:260px}
+.routing-explain{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.routing-explain label{display:flex;flex-direction:column;gap:4px;font-size:.85rem}
+.routing-explain input[name=host]{min-width:240px}
+.routing-explain input[name=port]{width:90px}
+.routing-explain-answer{flex-basis:100%;margin:4px 0 0;font-size:.95rem}
+.grant-lane{display:inline-flex;align-items:center;gap:6px}
+.grant-lane small{color:var(--muted)}
+.choose-field{display:block;margin:8px 0 4px}
+.choose-field select{width:100%}
+@media(max-width:900px){.routing-explain input[name=host]{min-width:0;width:100%}.routing-lanes .ghost{margin-left:0}}
