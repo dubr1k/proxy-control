@@ -123,3 +123,19 @@ def test_style_has_the_routing_grid_and_its_phone_breakpoint():
     for selector in (".routing-layout{", ".routing-rule{", ".routing-preview{", ".routing-diff", ".routing-toolbar{"):
         assert selector in css, selector
     assert "@media(max-width:900px){.routing-layout{grid-template-columns:1fr}}" in css
+
+
+def test_routing_card_forgets_the_previous_policy_before_it_paints():
+    """A card painted with the last visit's policy while its own was loading answered a
+    click with silence (the browser smoke of v0.5 hit it on «Откатить» after a view
+    change): the state is reset before the first paint, the badge says it is loading and
+    no action is enabled until the current policy is there."""
+    render = ROUTING[ROUTING.index("export async function renderRouting"):]
+    render = render[:render.index("\n}\n")]
+    assert render.index("resetPolicy(context)") < render.index("context.ui.view.innerHTML = screen(context)")
+    assert "загружается…" in ROUTING
+    assert re.search(r"policyState\(policy, state\.loading\)", ROUTING)
+    assert re.search(r"const editable = .*&& !state\.loading;", ROUTING)
+    load = ROUTING[ROUTING.index("async function loadPolicy"):]
+    load = load[:load.index("\n}\n")]
+    assert "state.loading = false;" in load and load.index("state.loading = false;\n  await previewNow") > 0

@@ -101,7 +101,8 @@ export function policyBody(draft, backend = null) {
   };
 }
 
-function policyState(policy) {
+function policyState(policy, loading = false) {
+  if (loading) return ["muted", "загружается…"];
   if (!policy) return ["muted", "политика не задана"];
   if (policy.state === "failed") return ["blocked", `ошибка: ${reasonText(policy.last_error)}`];
   if (policy.state === "applying") return ["", "применяется…"];
@@ -267,9 +268,9 @@ function targetCard(context) {
   if (!target) return '<div class="empty-state"><span>◇</span><h3>Нет узлов для маршрутизации</h3><p>Появятся этот сервер и связанные панели, когда будут на связи.</p></div>';
   const state = context.state.routing;
   const policy = target.policy ? state.policy : null;
-  const [tone, statusText] = policyState(policy);
+  const [tone, statusText] = policyState(policy, state.loading);
   const reason = target.reason ? `<p class="form-hint routing-reason-line">${esc(reasonText(target.reason))}</p>` : "";
-  const editable = context.state.me?.role === "owner" && !target.reason && Boolean(target.backend);
+  const editable = context.state.me?.role === "owner" && !target.reason && Boolean(target.backend) && !state.loading;
   if (!target.backend) {
     return `<article class="panel-card routing-card">
       <div class="routing-head"><b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)}</b><span class="status-pill muted"><i></i>${esc(reasonText(target.reason) || "недоступно")}</span></div>
@@ -297,18 +298,30 @@ function targetCard(context) {
 
 function ensureState(context) {
   if (!context.state.routing) {
-    context.state.routing = { policy: null, draft: emptyPolicy(), compiled: null, dirty: false, previewTimer: null, previewSeq: 0 };
+    context.state.routing = { policy: null, draft: emptyPolicy(), compiled: null, dirty: false, loading: false, previewTimer: null, previewSeq: 0 };
   }
   return context.state.routing;
 }
 
-async function loadPolicy(context, target) {
+// Forget the policy of the previous card before anything is painted: a card that still
+// showed the last visit's badge and buttons while its own policy was loading answered a
+// click with silence (`operate` found no policy) — and, on another tab, with a lie.
+function resetPolicy(context) {
   const state = ensureState(context);
   state.policy = null;
   state.compiled = null;
   state.dirty = false;
   state.draft = emptyPolicy();
-  if (!target?.backend) return;
+  state.loading = true;
+  return state;
+}
+
+async function loadPolicy(context, target) {
+  const state = resetPolicy(context);
+  if (!target?.backend) {
+    state.loading = false;
+    return;
+  }
   if (target.policy) {
     try {
       state.policy = await context.api(`/api/routing/policies/${encodeURIComponent(target.node_id)}/${encodeURIComponent(target.protocol)}`);
@@ -317,6 +330,7 @@ async function loadPolicy(context, target) {
       context.ui.toast(error.message, "error");
     }
   }
+  state.loading = false;
   await previewNow(context, target);
 }
 
@@ -375,7 +389,7 @@ export async function renderRouting(context, generation) {
   if (!nodes.includes(context.state.routingNode)) context.state.routingNode = nodes.includes("local") ? "local" : nodes[0] || null;
   const protocols = targetsFor(context).map((item) => item.protocol);
   if (!protocols.includes(context.state.routingProtocol)) context.state.routingProtocol = protocols.includes("naive") ? "naive" : protocols[0] || null;
-  ensureState(context);
+  resetPolicy(context);
   context.ui.view.innerHTML = screen(context);
   await loadPolicy(context, currentTarget(context));
   if (!isCurrent(context.state, generation, "routing")) return;
