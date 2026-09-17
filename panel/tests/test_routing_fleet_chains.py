@@ -360,6 +360,15 @@ async def test_a_grant_on_a_linked_node_gets_its_lane_through_the_generation(rou
     assert disabled["mode"] == "service"
     await central.state.pusher.tick()
     assert node.state.mieru.lane_table == {}
+    # the naive lane withdrawn: the service's section the node runs loses the lane (and any
+    # chain only it used) in the very next generation — nothing stale reaches the router
+    await central.state.lanes.disable(grants["naive"].id, **CTX)
+    with central.state.database.connect() as db:
+        section = central.state.desired.latest(db, node_id)["document"].egress["naive"]
+    assert section.document["schema"] == 2 and list(section.document["lanes"]) == ["svc:naive"] and section.document["chains"] == {}
+    await central.state.pusher.tick()
+    assert list(routers[node].documents["naive"]["lanes"]) == ["svc:naive"] and lane not in routers[node].lane_accounts["naive"]
+    assert central.state.routing.get(node_id, "naive").state == "applied"
     mieru_grant = next(g for g in central.state.clients.client_with_grants(client.id)[1] if g.protocol == "mieru")
     assert "port=8443" in mieru_grant.options.share_template
     audits = [row["action"] for row in central.state.store.audits()]

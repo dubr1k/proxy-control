@@ -427,9 +427,9 @@ def test_lane_intent_applies_with_the_lane_account_and_the_views_stay_secret_fre
     issued = instance.lane_issue("naive", "grant:7f3a")
     result = instance.egress_apply("naive", instance.egress("naive")["revision"], _lanes_doc({"action": "egress", "egress": "warp"}), "op-lane")
     assert result["applied"]["schema"] == 2 and list(result["applied"]["lanes"]) == ["grant:7f3a", "svc:naive"]
-    rules = [rule for rule in runner.running["config"]["routing"]["rules"] if rule["inboundTag"] == ["naive"] and "user" in rule]
+    rules = [rule for rule in runner.running["config"]["routing"]["rules"] if rule["inboundTag"] == ["naive"] and "ip" not in rule and "domain" not in rule]
     assert rules[0] == {"inboundTag": ["naive"], "user": ["grant-7f3a"], "outboundTag": "warp"}
-    assert rules[1] == {"inboundTag": ["naive"], "user": ["naive-a1b2c3d4"], "outboundTag": "direct"}
+    assert rules[1] == {"inboundTag": ["naive"], "outboundTag": "direct"}
     assert issued["password"] not in json.dumps(instance.egress("naive"))
 
 
