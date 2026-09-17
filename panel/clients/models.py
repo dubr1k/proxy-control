@@ -137,6 +137,8 @@ class AccessGrant(_ProtocolOptions):
     valid_from: int | None = None
     valid_until: int | None = None
     origin: str = Field(pattern=r"^(imported|provisioned)$")
+    # `own` when the grant has its own routing lane on its node (v0.7); None = the service's.
+    routing_lane: str | None = Field(default=None, pattern=r"^own$")
     created_at: int
     updated_at: int
 

@@ -145,6 +145,10 @@ class MieruClient:
     async def egress_rollback(self, expected_revision):
         return await self._request("POST", "/v1/egress/rollback", {"expected_revision": expected_revision})
 
+    # v0.7: lanes
+    async def lanes(self): return await self._request("GET", "/v1/lanes")
+    async def set_lanes(self, lanes): return await self._request("PUT", "/v1/lanes", {"lanes": lanes})
+
 
 class MemoryMieru:
     def __init__(self):
@@ -171,6 +175,10 @@ class MemoryMieru:
         self.egress_operations: dict[str, dict] = {}
         self.egress_fail_next: str | None = None
         self.egress_custom: dict | None = None
+        # lanes (v0.7): lane → {slot, users, upstream user}; two slots, ports 46101/46102
+        self.lane_table: dict[str, dict] = {}
+        self.lane_slots = {1: 46101, 2: 46102}
+        self.lanes_fail_next: str | None = None
 
     def _next(self):
         self.revision = "rev-" + str(int(self.revision.split("-")[1]) + 1)
@@ -412,3 +420,52 @@ class MemoryMieru:
         self.egress_custom = previous["custom"]
         self.egress_document = previous["document"] if previous["document"] is not None else EGRESS_DIRECT
         return {"revision": self._next(), "applied": previous["document"], "replayed": False}
+
+    # -- lanes (v0.7) ------------------------------------------------------------------
+
+    def _lanes_view(self) -> dict:
+        used = {entry["slot"] for entry in self.lane_table.values()}
+        view = []
+        for lane, entry in self.lane_table.items():
+            port = self.lane_slots[entry["slot"]]
+            view.append({"lane": lane, "slot": entry["slot"], "port": port, "users": list(entry["users"]),
+                         "upstream": "socks5://***@127.0.0.1:45102", "status": "running" if entry["users"] else "idle",
+                         "share_templates": {user: f"mierus://{{username}}:{{password}}@mieru.example.com?profile={user}&port={port}&protocol=TCP&mtu=1400"
+                                             for user in entry["users"]}})
+        return {"lanes": view, "free_slots": len(self.lane_slots) - len(used)}
+
+    async def lanes(self):
+        if self.broken:
+            raise MieruError("Mieru manager unavailable")
+        return self._lanes_view()
+
+    async def set_lanes(self, lanes):
+        if self.broken:
+            raise MieruError("Mieru manager unavailable")
+        self.calls.append(("set_lanes", [(entry["lane"], list(entry["users"])) for entry in lanes]))
+        code, self.lanes_fail_next = self.lanes_fail_next, None
+        if code is not None:
+            raise MieruError("Mieru manager rejected request", 409, code)
+        if lanes and not self.router_url:
+            raise MieruError("egress provider router is not configured on this node", 422, "egress_invalid")
+        seen: set[str] = set()
+        for entry in lanes:
+            if not entry["lane"].startswith("grant:") or not entry["users"]:
+                raise MieruError("Mieru manager rejected request", 409, "lanes_invalid")
+            for user in entry["users"]:
+                if user not in self.users or user in seen:
+                    raise MieruError("Mieru manager rejected request", 409, "lanes_invalid")
+                seen.add(user)
+        table: dict[str, dict] = {}
+        kept = {name for name in self.lane_table if name in {entry["lane"] for entry in lanes}}
+        free = [slot for slot in self.lane_slots if slot not in {self.lane_table[name]["slot"] for name in kept}]
+        for entry in lanes:
+            if entry["lane"] in self.lane_table:
+                slot = self.lane_table[entry["lane"]]["slot"]
+            else:
+                if not free:
+                    raise MieruError("Mieru manager rejected request", 409, "lane_slots_exhausted")
+                slot = free.pop(0)
+            table[entry["lane"]] = {"slot": slot, "users": list(entry["users"]), "upstream_user": entry["upstream"]["user"]}
+        self.lane_table = table
+        return self._lanes_view()

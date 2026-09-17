@@ -45,6 +45,7 @@ def _grant(row) -> AccessGrant:
         valid_until=row["valid_until"],
         options=options,
         origin=row["origin"],
+        routing_lane=row["routing_lane"] if "routing_lane" in row.keys() else None,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

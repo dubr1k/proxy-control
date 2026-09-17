@@ -426,6 +426,8 @@ ROUTING_V16 = Migration(16, "routing-chains-lanes", (
       port INTEGER, public_key TEXT, short_id TEXT, server_name TEXT,
       enabled INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL)""",
+    # What a linked panel reported about its relay with its last generation report.
+    "ALTER TABLE observed_generations ADD COLUMN relay_json TEXT",
 ))
 
 MIGRATIONS: tuple[Migration, ...] = (

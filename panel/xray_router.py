@@ -71,6 +71,17 @@ class XrayRouterClient:
     async def egress_rollback(self, service, expected_revision):
         return await self._request("POST", f"/v1/egress/{service}/rollback", {"expected_revision": expected_revision})
 
+    # v0.7: lanes and the relay
+    async def lanes(self, service): return await self._request("GET", f"/v1/lanes/{service}")
+    async def lane_issue(self, service, lane): return await self._request("POST", f"/v1/lanes/{service}", {"lane": lane})
+    async def lane_forget(self, service, lane): return await self._request("DELETE", f"/v1/lanes/{service}/{lane}")
+    async def relay(self): return await self._request("GET", "/v1/relay")
+    async def relay_enable(self, server_name, port):
+        return await self._request("POST", "/v1/relay", {"server_name": server_name, "port": port})
+    async def relay_disable(self): return await self._request("DELETE", "/v1/relay")
+    async def relay_set_accounts(self, accounts):
+        return await self._request("PUT", "/v1/relay/accounts", {"accounts": accounts})
+
 
 class MemoryXrayRouter:
     """The router manager as tests see it: one intent per service, a generation counter,
@@ -89,6 +100,11 @@ class MemoryXrayRouter:
         self.operations: dict[tuple[str, str], dict] = {}
         self.fail_next: str | None = None
         self.calls: list[tuple] = []
+        # v0.7: lane accounts per service and the relay inbound
+        self.lane_accounts: dict[str, dict[str, str]] = {service: {} for service in ROUTER_SERVICES}
+        self.relay_state: dict = {"enabled": False, "port": None, "server_name": None, "public_key": None,
+                                  "short_ids": [], "accounts": []}
+        self.public_key = "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s"
 
     def _revision(self, service: str) -> str:
         return hashlib.sha256(canonical({"generation": self.generation, "document": self.documents[service]})).hexdigest()
@@ -115,13 +131,95 @@ class MemoryXrayRouter:
 
     @staticmethod
     def _validate(document) -> dict:
+        if isinstance(document, dict) and document.get("schema") == 2:
+            if (set(document) != {"schema", "lanes", "chains"} or not isinstance(document["lanes"], dict)
+                    or not document["lanes"] or not isinstance(document["chains"], dict)
+                    or sum(1 for lane in document["lanes"] if lane.startswith("svc:")) != 1):
+                raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
+            for lane, body in document["lanes"].items():
+                if not isinstance(body, dict) or set(body) != {"default", "rules"}:
+                    raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
+                for value in [body["default"].get("egress"), *(rule.get("egress") for rule in body["rules"])]:
+                    if isinstance(value, str) and value.startswith("chain:") and value[6:] not in document["chains"]:
+                        raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
+            return copy.deepcopy(document)
         if (not isinstance(document, dict) or set(document) != {"schema", "default", "rules"} or document["schema"] != 1
                 or not isinstance(document["default"], dict) or not isinstance(document["rules"], list)):
             raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
         return copy.deepcopy(document)
 
+    @staticmethod
+    def _lanes_of(document: dict) -> list[dict]:
+        return list(document["lanes"].values()) if document.get("schema") == 2 else [document]
+
     def _uses_warp(self, document: dict) -> bool:
-        return document["default"].get("egress") == "warp" or any(rule.get("egress") == "warp" for rule in document["rules"])
+        return any(lane["default"].get("egress") == "warp" or any(rule.get("egress") == "warp" for rule in lane["rules"])
+                   for lane in self._lanes_of(document))
+
+    def _lanes_known(self, service: str, document: dict) -> None:
+        if document.get("schema") != 2:
+            return
+        for lane in document["lanes"]:
+            if lane.startswith("grant:") and lane not in self.lane_accounts[service]:
+                raise XrayRouterError("lane has no account on the ingress", 422, "egress_invalid")
+
+    # -- v0.7: lanes and the relay ---------------------------------------------------
+
+    async def lanes(self, service):
+        self._check(service)
+        return {"lanes": sorted(self.lane_accounts[service])}
+
+    async def lane_issue(self, service, lane):
+        self._check(service)
+        if not isinstance(lane, str) or not lane.startswith("grant:"):
+            raise XrayRouterError("invalid request", 422)
+        self.calls.append(("lane_issue", service, lane))
+        password = hashlib.sha256(f"{service}:{lane}:{len(self.calls)}".encode()).hexdigest()[:43]
+        self.lane_accounts[service][lane] = password
+        self.generation += 1
+        return {"lane": lane, "user": "grant-" + lane[6:], "password": password}
+
+    async def lane_forget(self, service, lane):
+        self._check(service)
+        if lane not in self.lane_accounts[service]:
+            raise XrayRouterError("unknown lane", 409, "lane_unknown")
+        self.calls.append(("lane_forget", service, lane))
+        del self.lane_accounts[service][lane]
+        self.generation += 1
+        return {"lane": lane, "forgotten": True}
+
+    def _relay_view(self) -> dict:
+        return {**self.relay_state, "accounts": len(self.relay_state["accounts"])}
+
+    async def relay(self):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        return self._relay_view()
+
+    async def relay_enable(self, server_name, port):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        self.calls.append(("relay_enable", server_name, port))
+        if not self.relay_state["public_key"]:
+            self.relay_state["public_key"], self.relay_state["short_ids"] = self.public_key, ["0123abcd"]
+        self.relay_state.update({"enabled": True, "server_name": server_name, "port": port})
+        self.generation += 1
+        return self._relay_view()
+
+    async def relay_disable(self):
+        self.relay_state["enabled"] = False
+        self.generation += 1
+        return self._relay_view()
+
+    async def relay_set_accounts(self, accounts):
+        if not self.relay_state["enabled"]:
+            raise XrayRouterError("the relay is not enabled", 409, "relay_disabled")
+        if any(a["email"].endswith(":warp") for a in accounts) and not self.warp_url:
+            raise XrayRouterError("warp", 422, "egress_invalid")
+        self.calls.append(("relay_accounts", [a["email"] for a in accounts]))
+        self.relay_state["accounts"] = [dict(a) for a in accounts]
+        self.generation += 1
+        return self._relay_view()
 
     def _providers(self) -> dict:
         return {"warp": {"url": self.warp_url, "reachable": self.reachable}} if self.warp_url else {}
@@ -136,7 +234,9 @@ class MemoryXrayRouter:
                 "running": {"generation": self.generation, "digest": "0" * 64, "since": None},
                 "services": {service: {"revision": self._revision(service), "digest": self._digest(service),
                                        "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES},
-                "providers": self._providers(), "capabilities": list(ROUTER_CAPABILITIES), "restart_required": True}
+                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay"],
+                "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES},
+                "relay": self._relay_view()}
 
     async def egress(self, service):
         self._check(service)
@@ -153,6 +253,7 @@ class MemoryXrayRouter:
     async def egress_plan(self, service, expected_revision, document):
         normalised = self._validate(document)
         self._check(service, expected_revision)
+        self._lanes_known(service, normalised)
         self._fail()
         if self._uses_warp(normalised) and not self.warp_url:
             raise XrayRouterError("egress provider warp is not configured on this node", 422, "egress_invalid")
@@ -171,6 +272,7 @@ class MemoryXrayRouter:
                 raise XrayRouterError("operation id already used for another request", 409, "operation_conflict")
             return {**record, "replayed": True}
         self._check(service, expected_revision)
+        self._lanes_known(service, normalised)
         if self._uses_warp(normalised):
             if not self.warp_url:
                 raise XrayRouterError("egress provider warp is not configured on this node", 422, "egress_invalid")

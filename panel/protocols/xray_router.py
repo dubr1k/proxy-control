@@ -53,3 +53,41 @@ class RouterAdapter:
         except XrayRouterError as exc:
             raise self._error(exc) from exc
         return applied_egress_from_view(view)
+
+    # -- v0.7: lanes and the relay --------------------------------------------------
+
+    async def lane_issue(self, service: str, lane: str) -> dict:
+        try:
+            return await self.client.lane_issue(service, lane)
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc
+
+    async def lane_forget(self, service: str, lane: str) -> dict:
+        try:
+            return await self.client.lane_forget(service, lane)
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc
+
+    async def relay(self) -> dict | None:
+        try:
+            return await self.client.relay()
+        except XrayRouterError:
+            return None
+
+    async def relay_enable(self, server_name: str, port: int) -> dict:
+        try:
+            return await self.client.relay_enable(server_name, port)
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc
+
+    async def relay_disable(self) -> dict:
+        try:
+            return await self.client.relay_disable()
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc
+
+    async def relay_set_accounts(self, accounts: list[dict]) -> dict:
+        try:
+            return await self.client.relay_set_accounts(accounts)
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc

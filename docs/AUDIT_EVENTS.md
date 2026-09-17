@@ -65,12 +65,16 @@ checks the fleet and grant names against this file.
 
 | Action | Target | Recorded by |
 | --- | --- | --- |
-| `routing.policy.update` | policy id | `PUT /api/routing/policies/{node}/{protocol}` (`node_id`, `protocol`, `revision`, `rules`, `default_action`) |
+| `routing.policy.update` | policy id | `PUT /api/routing/policies/{node}/{protocol}` (`node_id`, `protocol`, `revision`, `rules`, `default_action`; from v0.7 also `lane` — `svc` for the service's policy, `grant:<id>` for a client's lane) |
 | `routing.policy.apply` | policy id | apply — local: the manager's outcome (`outcome`: `applied` or `failed`, `digest`, `manager_revision`, `readback_sha256`, `replayed` / `error`); linked panel: `outcome: applying` when the generation is published, then the node's report through the pusher |
 | `routing.policy.rollback` | policy id | rollback to the manager's previous egress entry (`to_revision` — the policy revision it matches, or null for a hand-written section) |
 | `routing.policy.delete` | policy id | `DELETE …` once the node runs «direct, no rules» |
 | `routing.target.attach` | policy id | `POST /api/routing/targets/{node}/{protocol}/attach` (v0.5): the service handed to the node's Xray-router — `node_id`, `protocol`, `backend: xray_router`, the policy `revision` it moved to, `outcome: attached` |
 | `routing.target.detach` | policy id | `POST …/detach` (v0.5): the service back on its native backend — the same fields, `outcome: detached` |
+| `grant.lane.enable` | grant id | `POST /api/routing/lanes/{grant_id}` `{mode: own}` (v0.7): the client's own lane — the router minted the lane's account, the manager moved the user into the lane's handler / slot, a draft policy copied from the service's (`node_id`, `protocol`, `lane: grant:<id>`); a lane key never appears here |
+| `grant.lane.disable` | grant id | `{mode: service}`: the user back in the service's handler, the lane's policy dropped, the router's account forgotten — the same fields |
+| `routing.relay.enable` | node id | `POST /api/routing/relay/{node}/enable` (v0.7): the node's relay inbound (vless+reality) for chains from other nodes — `port`, `server_name`; the keypair stays on the node |
+| `routing.relay.rotate` | node id | `POST …/rotate`: every relay account this node issued to other nodes re-minted — `accounts` (how many) |
 
 ## Nodes (node side, through the central's key)
 

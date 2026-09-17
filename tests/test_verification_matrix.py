@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts/dev"))
 matrix = __import__("verification-matrix")
 route_coverage = __import__("route-coverage")
 
-SINCE = {"0.2", "0.3", "0.4", "0.5"}
+SINCE = {"0.2", "0.3", "0.4", "0.5", "0.6", "0.7"}
 AREAS = {"backend", "ui", "installer", "fleet", "routing", "router", "clients", "release"}
 STATUSES = {"proven", "fixed-in-0.6", "gap"}
 VIEWS = ("login", "dashboard", "clients", "users", "naive", "mieru", "versions", "fleet", "routing", "admins", "audit")
