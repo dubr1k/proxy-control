@@ -195,13 +195,24 @@ case $LEVEL in
       && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
       && { recreate=(); if test -f /root/.node-b-hosts-added; then recreate=(--force-recreate); rm -f /root/.node-b-hosts-added; fi; } \
       && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait \"\${recreate[@]}\" xray-router naive-manager mieru-manager"
-    remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
+    # The run outlives an SSH session of the stand (routing + router + chains ≈ 15 min, and the
+    # host resets long sessions): detached on the host, followed through its log here.
+    remote "$ensure_venv && rm -f /root/lab-chains.log && setsid nohup bash -c '.venv/bin/python scripts/lab/fleet-acceptance.py \
       --node-url https://panel.lab.test \
       --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
       --central-dir /root/lab-central --central-port 8791 --output lab-results/chains \
       --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain proxy.lab.test \
-      --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing --router --chains --node-b-host $NODE_B_HOST $* \
-      && echo CHAINS_ACCEPTANCE_OK && echo REMOTE_GATE_CHAINS_OK"
+      --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing --router --chains --node-b-host $NODE_B_HOST $*; echo LAB_CHAINS_EXIT=\$?' > /root/lab-chains.log 2>&1 < /dev/null &"
+    while :; do
+      sleep 30
+      text=$("${SSH[@]}" "cat /root/lab-chains.log 2>/dev/null" || true)
+      if printf '%s\n' "$text" | grep -q '^LAB_CHAINS_EXIT='; then
+        printf '%s\n' "$text" | tail -n 60
+        code=$(printf '%s\n' "$text" | sed -n 's/^LAB_CHAINS_EXIT=//p' | tail -n1)
+        test "$code" = 0 && echo CHAINS_ACCEPTANCE_OK && echo REMOTE_GATE_CHAINS_OK
+        exit "$code"
+      fi
+    done
     ;;
   ui)
     # The panel's screen in a real browser (v0.6) on the node `lab-host` left installed:
