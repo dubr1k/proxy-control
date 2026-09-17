@@ -40,7 +40,7 @@ case $LEVEL in
   full)
     sync_tree
     remote "$ensure_venv && $build_images && .venv/bin/ruff check . \
-      && .venv/bin/python -m pytest -q -p no:cacheprovider \
+      && VERIFICATION_STRICT=${VERIFICATION_STRICT:-0} .venv/bin/python -m pytest -q -p no:cacheprovider \
       && .venv/bin/python -m unittest -q tests/test_deploy.py \
       && .venv/bin/python scripts/dev/route-coverage.py > /dev/null \
       && python3 scripts/check-doc-links.py \
