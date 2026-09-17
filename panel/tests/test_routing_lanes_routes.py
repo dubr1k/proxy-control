@@ -155,6 +155,18 @@ async def test_lane_refusals_carry_codes(client, login_user, router, naive):
     assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=_csrf(client))).status_code == 403
 
 
+async def test_targets_learn_a_relay_the_installer_enabled_on_the_local_router(client, login_user, router, naive):
+    """The installer enables the relay straight on the manager (v0.7): the panel's registry
+    learns it from the router's view when the targets are read — no owner action needed."""
+    await login_user(client)
+    await router.relay_enable("panel.example.com", 45443)
+    targets = await client.get("/api/routing/targets")
+    item = next(item for item in targets.json()["items"] if item["protocol"] == "naive" and item["node_id"] == "local")
+    assert item["relay"] == {"enabled": True, "port": 45443, "pending": False, "known": True}
+    with client._transport.app.state.database.connect() as db:
+        assert client._transport.app.state.relays.relay(db, "local")["public_key"] == router.public_key
+
+
 async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_itself_is_a_loop(client, login_user, router, naive):
     await login_user(client)
     csrf = _csrf(client)

@@ -175,8 +175,23 @@ class RoutingService:
         return {"available": router.available, "attached": target is not None and target.router_attached,
                 "xray_version": router.xray_version, "restart_required": router.restart_required, "reason": router.reason}
 
+    async def _refresh_local_relay(self) -> None:
+        """The local router's relay as it is (the installer enables it without the panel):
+        its public part joins the registry, so «Выходы» and the resolver see the truth."""
+        if self.relays is None or self.router is None:
+            return
+        try:
+            view = await self.router.relay()
+        except AdapterError:
+            return
+        if not isinstance(view, dict):
+            return
+        with self.database.transaction() as db:
+            self.relays.record(db, "local", view, now=int(self.clock.time()))
+
     async def targets(self) -> list[dict]:
         """Nodes × protocols, with the policy each has (spec §8.1)."""
+        await self._refresh_local_relay()
         with self.database.connect() as db:
             rows = [row for row in self.nodes.rows(db) if self._kind(row) != "v1"]
             policies = {(policy.node_id, policy.protocol): policy for policy in self.store.list(db) if policy.lane == LANE_SERVICE}
