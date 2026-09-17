@@ -5,7 +5,7 @@ Generated from `tests/fixtures/verification-matrix.json` by `scripts/dev/verific
 `gap` on the release tree (`VERIFICATION_STRICT=1`). One row per promised function: what it claims, which
 test, lab scenario, browser scenario or live check proves it, and the routes it covers.
 
-**58 rows** — ✅ proven: 48, 🔧 fixed in 0.6: 9, ⛔ gap: 1.
+**58 rows** — ✅ proven: 49, 🔧 fixed in 0.6: 9, ⛔ gap: 0.
 
 ## backend
 
@@ -80,7 +80,7 @@ test, lab scenario, browser scenario or live check proves it, and the routes it 
 | `installer-preflight` | 0.2 | Environment preflight, DNS/TLS checks, the Nginx multi-map refusal, release artifact integrity and a secrets scan of everything the installer wrote. | `lab-host::environment-preflight`<br>`lab-host::dns-tls-preflight`<br>`lab-host::nginx-multi-map`<br>`lab-host::release-artifact-integrity`<br>`lab-host::secrets-scan`<br>`lab-host::docker-build` | — | ✅ proven |
 | `installer-wizard-and-cli` | 0.2 | The bilingual wizard exports the same config a TOML would, never offers a mode the planner refuses, keeps a typed panel password out of the config, and offers the router to every profile with a proxy service. | `pytest::tests/test_installer_wizard.py::test_russian_full_wizard_exports_same_config_as_toml`<br>`pytest::tests/test_installer_wizard.py::test_the_wizard_never_offers_a_mode_the_planner_will_refuse`<br>`pytest::tests/test_installer_wizard.py::test_a_typed_panel_password_is_saved_privately_and_never_in_the_config`<br>`pytest::tests/test_installer_wizard.py::test_wizard_offers_the_router_whenever_a_service_could_feed_it` | — | ✅ proven |
 | `managed-3xui` | 0.2 | The managed-new 3x-ui path on a whole host: the pinned 3x-ui installed, provisioned through its API, every promised inbound listening (re-proven on the stand: the acceptance now issues the panel certificate 3x-ui checks). | `script::scripts/lab/managed-xui-acceptance.sh`<br>`pytest::tests/test_three_xui_api.py::test_a_refusal_names_its_kind_but_never_repeats_the_panels_message`<br>`lab-container::install-full-xui` | — | 🔧 fixed in 0.6 |
-| `backup-restore` | 0.5 | Backup and restore per docs/BACKUP_RESTORE: database, master key, manager state and router secrets; after a restore users, grants, policies, the ingress key and subscriptions are the same. | `doc::docs/BACKUP_RESTORE.en.md`<br>`pytest::tests/test_deploy.py::test_backup_docs_list_router_state` | — | ⛔ gap |
+| `backup-restore` | 0.5 | Backup and restore per docs/BACKUP_RESTORE, drilled on the node: database, master key apart, manager and router states and secrets; after the restore users, grants, policies, ingress keys, router generation and subscription URL are equal. | `lab-host::backup-restore`<br>`script::scripts/lab/backup-restore-drill.py`<br>`doc::docs/BACKUP_RESTORE.en.md`<br>`pytest::tests/test_deploy.py::test_backup_docs_list_router_state` | — | ✅ proven |
 
 ## release
 

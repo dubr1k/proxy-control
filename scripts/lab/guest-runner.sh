@@ -1278,6 +1278,17 @@ host_idempotence() {
   [[ $before == "$after" ]]
 }
 
+host_backup_restore() {
+  # docs/BACKUP_RESTORE as a drill (v0.6): backup, break the generation, restore, compare.
+  [[ -x $DEV_PYTHON ]] || { printf 'backup-restore: %s is missing (scripts/dev/remote-gate.sh quick creates it)\n' "$DEV_PYTHON" >&2; return 1; }
+  install -d -m 0755 "$CLIENT_RESULTS/backup-restore"
+  "$DEV_PYTHON" "$ROOT/scripts/lab/backup-restore-drill.py" \
+    --node-url "https://$PANEL" \
+    --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+    --ca-file /etc/letsencrypt/lab-ca/ca.crt \
+    --output "$CLIENT_RESULTS/backup-restore"
+}
+
 host_reboot_recovery() {
   systemctl restart nginx docker
   sleep 5
@@ -1461,6 +1472,7 @@ elif [[ $MODE == host ]]; then
   case_run docker-build host_docker_build install
   case_run repair host_repair install
   case_run idempotence host_idempotence repair
+  case_run backup-restore host_backup_restore idempotence
   case_run reboot-recovery host_reboot_recovery idempotence
   case_run crash-every-phase host_crash_every_phase reboot-recovery
   case_run report host_report crash-every-phase
