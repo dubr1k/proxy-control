@@ -14,6 +14,12 @@ Files under the state directory (all `0600`, directory `0700`):
     current.json           {generation, digest, since, services: {svc: {document, digest, revision}}}
     journal.json           {svc: {current, previous, history[≤10]}}
     state.json             {phase: idle|swapping|broken, candidate, failures}
+    lanes.json             {svc: {lane: {user, password, issued_at}}} — the grant lanes' accounts (v0.7)
+    relay.json             {enabled, port, server_name, private_key, public_key, short_ids, accounts} (v0.7)
+
+Lanes, the relay and chains (v0.7, spec §4): a lane account is minted here, shown once and put
+on the ingress with a new generation at once; the relay keypair is minted once per node; a chain
+hop is checked (TCP + a TLS hello against its Reality cover) before an intent naming it applies.
 """
 from __future__ import annotations
 
@@ -37,19 +43,28 @@ from . import intent as intent_module
 from .intent import (
     CAPABILITIES,
     PORTS,
+    SCHEMA_V2,
     SERVICES,
     EgressInvalid,
     EgressUnreachable,
     canonical,
     direct_document,
     document_digest,
+    redact_intent,
     uses_provider,
     validate_document,
 )
-from .render import RENDER_VERSION, Ingress, config_bytes, generation_digest, render_config
+from .render import RENDER_VERSION, Ingress, LaneAccount, Relay, config_bytes, generation_digest, render_config
 
 OPERATION_ID = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 CREDENTIAL = re.compile(r"([A-Za-z0-9._-]{1,64}):([A-Za-z0-9._~-]{16,128})")
+GRANT_LANE = re.compile(r"grant:([A-Za-z0-9_-]{1,64})\Z")
+RELAY_EMAIL = re.compile(r"relay:[A-Za-z0-9_-]{1,64}:(direct|warp)\Z")
+UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
+_PRIVATE_KEY_LINE = re.compile(r"^Private ?[Kk]ey:[ \t]*([A-Za-z0-9_-]{43})[ \t]*$", re.MULTILINE)
+_PUBLIC_KEY_LINE = re.compile(r"^(?:Public ?[Kk]ey|Password \(PublicKey\)):[ \t]*([A-Za-z0-9_-]{43})[ \t]*$", re.MULTILINE)
+# v0.7: what this manager enforces beyond CAPABILITIES (docs/spikes/CHAINS_PER_CLIENT.md)
+CAPABILITIES_V2 = ("lanes", "chains", "relay")
 HISTORY_LIMIT = 10
 MAX_START_FAILURES = 3
 _UNKNOWN_CODE = re.compile(r"code not found in (geosite|geoip)\.dat", re.IGNORECASE)
@@ -80,6 +95,7 @@ class ValidationError(ValueError):
 
 class XrayRunner(Protocol):
     def version(self) -> str: ...
+    def x25519(self) -> tuple[str, str]: ...
     def test(self, config_path: Path) -> None: ...
     def start(self, config_path: Path) -> object: ...
     def stop(self, handle: object) -> None: ...
@@ -103,6 +119,21 @@ class SubprocessXrayRunner:
             raise XrayError(f"xray version: {exc}") from exc
         first = (completed.stdout or completed.stderr).strip().splitlines()
         return first[0][:120] if first else "unknown"
+
+    def x25519(self) -> tuple[str, str]:
+        """A fresh Reality keypair from the pinned binary (`xray x25519`), read off its labelled
+        lines: "PrivateKey:" / "Password (PublicKey):" on 26.x, "Private key:" / "Public key:"
+        on older builds — anything else is an error, never an empty key."""
+        try:
+            completed = subprocess.run([str(self.binary), "x25519"], capture_output=True, text=True,
+                                       timeout=self.test_timeout, check=False, env=self.env)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise XrayError(f"xray x25519 did not finish: {exc}") from exc
+        private = _PRIVATE_KEY_LINE.search(completed.stdout)
+        public = _PUBLIC_KEY_LINE.search(completed.stdout)
+        if completed.returncode != 0 or private is None or public is None:
+            raise XrayError("xray x25519 printed no keypair")
+        return private.group(1), public.group(1)
 
     def test(self, config_path: Path) -> None:
         try:
@@ -144,6 +175,23 @@ class SubprocessXrayRunner:
                 return
             time.sleep(0.05)
         raise XrayError("the ingress ports did not open in time")
+
+
+def check_hop_reachable(address: str, port: int, server_name: str, timeout: float = 3.0) -> bool:
+    """A TLS hello with the hop's SNI against its relay port: Reality answers with its cover's
+    real certificate, so a completed handshake proves the port and the cover — never raises."""
+    import ssl
+
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    try:
+        with socket.create_connection((address, port), timeout=timeout) as stream:
+            stream.settimeout(timeout)
+            with context.wrap_socket(stream, server_hostname=server_name) as tls:
+                return tls.version() is not None
+    except (OSError, ssl.SSLError, ValueError):
+        return False
 
 
 def _port_open(port: int) -> bool:
@@ -219,6 +267,7 @@ class XrayRouterManager:
         self.ports = dict(ports or PORTS)
         self.ready_timeout = ready_timeout
         self.reachability = reachability or intent_module.check_reachable
+        self.hop_reachability = check_hop_reachable
         self.lock = threading.RLock()
         self.handle: object | None = None
         self.artifact_error: str | None = None
@@ -278,6 +327,140 @@ class XrayRouterManager:
             ingresses.append(Ingress(tag=tag, port=self.ports[tag], user=match.group(1), password=match.group(2)))
         return ingresses
 
+    # ------------------------------------------------------ lanes and relay (v0.7)
+
+    def _lanes(self) -> dict[str, dict[str, dict]]:
+        lanes = self._read_json("lanes.json", {})
+        return {tag: dict(lanes.get(tag, {})) for tag in SERVICES}
+
+    def _lane_accounts(self) -> dict[str, list[LaneAccount]]:
+        return {tag: [LaneAccount(lane, entry["user"], entry["password"]) for lane, entry in lanes.items()]
+                for tag, lanes in self._lanes().items()}
+
+    def _relay_record(self) -> dict | None:
+        return self._read_json("relay.json", None)
+
+    def _relay(self) -> Relay | None:
+        record = self._relay_record()
+        if not record or not record.get("enabled"):
+            return None
+        return Relay(port=record["port"], server_name=record["server_name"], private_key=record["private_key"],
+                     short_ids=list(record["short_ids"]), accounts=[(a["email"], a["uuid"]) for a in record["accounts"]])
+
+    def _relay_view(self) -> dict:
+        record = self._relay_record()
+        if not record:
+            return {"enabled": False, "port": None, "server_name": None, "public_key": None, "short_ids": [], "accounts": 0}
+        return {"enabled": bool(record["enabled"]), "port": record["port"], "server_name": record["server_name"],
+                "public_key": record["public_key"], "short_ids": list(record["short_ids"]), "accounts": len(record["accounts"])}
+
+    def _rerender_current(self) -> None:
+        """Commit a new generation with the same intents: what changed is what the accounts and
+        the relay say, not any service's document."""
+        current = self._current()
+        if current is None:
+            raise ManualInterventionRequired("the router has no current generation")
+        if self._state().get("phase") != "idle":
+            raise ManualInterventionRequired(f"the router is {self._state().get('phase')}")
+        intents = {tag: entry["document"] for tag, entry in current["services"].items()}
+        self._commit_generation(current["generation"] + 1, intents, operation_ids={}, rollback_of=None, keep_journal=True)
+
+    def lane_issue(self, service: str, lane: str) -> dict:
+        """Mint (or rotate) a grant lane's account, put it on the ingress now, return it once."""
+        self._service(service)
+        match = GRANT_LANE.fullmatch(lane) if isinstance(lane, str) else None
+        if match is None:
+            raise ValidationError("invalid lane")
+        with self.lock:
+            lanes = self._lanes()
+            account = {"user": f"grant-{match.group(1)}", "password": secrets.token_urlsafe(32), "issued_at": _now()}
+            lanes[service][lane] = account
+            self._write_json("lanes.json", lanes)
+            self._rerender_current()
+            return {"lane": lane, "user": account["user"], "password": account["password"]}
+
+    def lane_forget(self, service: str, lane: str) -> dict:
+        self._service(service)
+        with self.lock:
+            lanes = self._lanes()
+            if lane not in lanes[service]:
+                raise ManagerConflict("unknown lane", "lane_unknown")
+            del lanes[service][lane]
+            self._write_json("lanes.json", lanes)
+            self._rerender_current()
+            return {"lane": lane, "forgotten": True}
+
+    def lanes(self, service: str) -> dict:
+        self._service(service)
+        with self.lock:
+            return {"lanes": sorted(self._lanes()[service])}
+
+    def relay_enable(self, server_name: str, port: int) -> dict:
+        if not isinstance(server_name, str) or not server_name or len(server_name) > 253 or any(c.isspace() for c in server_name):
+            raise ValidationError("invalid relay server name")
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise ValidationError("invalid relay port")
+        with self.lock:
+            record = self._relay_record() or {}
+            if not record.get("private_key"):
+                private_key, public_key = self.runner.x25519()
+                record.update({"private_key": private_key, "public_key": public_key, "short_ids": [secrets.token_hex(4)],
+                               "accounts": []})
+            record.update({"enabled": True, "port": port, "server_name": server_name})
+            self._write_json("relay.json", record)
+            self._rerender_current()
+            return self._relay_view()
+
+    def relay_disable(self) -> dict:
+        with self.lock:
+            record = self._relay_record()
+            if record:
+                record["enabled"] = False
+                self._write_json("relay.json", record)
+                self._rerender_current()
+            return self._relay_view()
+
+    def relay_set_accounts(self, accounts: object) -> dict:
+        if not isinstance(accounts, list) or len(accounts) > 256:
+            raise ValidationError("invalid relay accounts")
+        cleaned = []
+        for account in accounts:
+            if not isinstance(account, dict) or set(account) != {"email", "uuid"}:
+                raise ValidationError("invalid relay account")
+            if not isinstance(account["email"], str) or RELAY_EMAIL.fullmatch(account["email"]) is None:
+                raise ValidationError("invalid relay account")
+            if not isinstance(account["uuid"], str) or UUID.fullmatch(account["uuid"]) is None:
+                raise ValidationError("invalid relay account")
+            cleaned.append({"email": account["email"], "uuid": account["uuid"]})
+        with self.lock:
+            record = self._relay_record()
+            if not record or not record.get("enabled"):
+                raise ManagerConflict("the relay is not enabled", "relay_disabled")
+            previous = list(record["accounts"])
+            record["accounts"] = cleaned
+            self._write_json("relay.json", record)
+            try:
+                self._rerender_current()
+            except EgressInvalid:
+                record["accounts"] = previous
+                self._write_json("relay.json", record)
+                raise
+            return self._relay_view()
+
+    def relay(self) -> dict:
+        with self.lock:
+            return self._relay_view()
+
+    def _check_hops(self, normalised: dict) -> dict[str, bool]:
+        """Reachability of every hop an intent's chains name, keyed `chain:<id>:<n>`."""
+        results: dict[str, bool] = {}
+        if normalised.get("schema") != SCHEMA_V2:
+            return results
+        for chain_id, chain in normalised["chains"].items():
+            for index, hop in enumerate(chain["hops"], 1):
+                results[f"chain:{chain_id}:{index}"] = self.hop_reachability(hop["address"], hop["port"], hop["server_name"], 3.0)
+        return results
+
     # --------------------------------------------------------------- artifacts
 
     def verify_artifacts(self) -> dict:
@@ -309,7 +492,8 @@ class XrayRouterManager:
                 self._commit_generation(1, intents, operation_ids={}, rollback_of=None)
                 return
             intents = {tag: entry["document"] for tag, entry in current["services"].items()}
-            config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports)
+            config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
+                                   lanes=self._lane_accounts(), relay=self._relay())
             if generation_digest(config) != current["digest"] or not self._generation_path(current["generation"]).exists():
                 # The credential files (or the renderer) changed since this generation was
                 # written: the same intents, re-rendered, as a new generation.
@@ -375,7 +559,7 @@ class XrayRouterManager:
         if current is None:
             return {"revision": None, "digest": None, "document": None}
         entry = current["services"][tag]
-        return {"revision": entry["revision"], "digest": entry["digest"], "document": entry["document"]}
+        return {"revision": entry["revision"], "digest": entry["digest"], "document": redact_intent(entry["document"])}
 
     def _providers(self, *, probe: bool) -> dict:
         if not self.warp_url:
@@ -393,7 +577,9 @@ class XrayRouterManager:
                 "version": RENDER_VERSION, "xray_version": self.xray_version, "artifacts": self.artifact_report,
                 "artifact_error": self.artifact_error, "phase": state.get("phase", "idle"), "running": running,
                 "services": {tag: self._service_view(current, tag) for tag in SERVICES},
-                "providers": self._providers(probe=True), "capabilities": list(CAPABILITIES), "restart_required": True,
+                "providers": self._providers(probe=True), "capabilities": [*CAPABILITIES, *CAPABILITIES_V2],
+                "restart_required": True,
+                "lanes": {tag: sorted(lanes) for tag, lanes in self._lanes().items()}, "relay": self._relay_view(),
             }
 
     def egress(self, service: str) -> dict:
@@ -407,8 +593,8 @@ class XrayRouterManager:
                 "revision": view["revision"], "document": document,
                 "mode": "proxy" if document is not None and uses_provider(document) else "direct",
                 "generation": None if current is None else current["generation"],
-                "providers": self._providers(probe=True), "capabilities": list(CAPABILITIES), "restart_required": True,
-                "warnings": [], "runtime_version": self.xray_version,
+                "providers": self._providers(probe=True), "capabilities": [*CAPABILITIES, *CAPABILITIES_V2],
+                "restart_required": True, "warnings": [], "runtime_version": self.xray_version,
                 "previous": None if journal["previous"] is None else {"revision": journal["previous"]["revision"]},
                 "current": None if journal["current"] is None else {
                     key: journal["current"].get(key) for key in ("revision", "digest", "generation", "operation_id", "applied_at")},
@@ -445,7 +631,8 @@ class XrayRouterManager:
         self._service(service)
         with self.lock:
             current, normalised, intents = self._target(service, expected_revision, document)
-            config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports)
+            config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
+                                   lanes=self._lane_accounts(), relay=self._relay())
             candidate = self.state_dir / ".plan.json"
             _atomic_write(candidate, config_bytes(config))
             try:
@@ -457,12 +644,13 @@ class XrayRouterManager:
             reachability = {}
             if uses_provider(normalised):
                 reachability["warp"] = self.reachability(self.warp_url, 3.0)
+            reachability.update(self._check_hops(normalised))
             generation = current["generation"] + 1
             return {
                 "revision": current["services"][service]["revision"],
                 "target_revision": revision_of(generation, normalised),
                 "generation_digest": generation_digest(config), "rendered_sha256": generation_digest(config),
-                "diff": self._diff(current["services"][service]["document"], normalised),
+                "diff": self._diff(redact_intent(current["services"][service]["document"]), redact_intent(normalised)),
                 "warnings": [], "reachability": reachability, "restart_required": True,
             }
 
@@ -483,6 +671,10 @@ class XrayRouterManager:
             current, normalised, intents = self._target(service, expected_revision, document)
             if uses_provider(normalised) and not self.reachability(self.warp_url, 3.0):
                 raise EgressUnreachable("egress provider warp is unreachable")
+            for key, reachable in self._check_hops(normalised).items():
+                if not reachable:
+                    _prefix, chain_id, index = key.split(":")
+                    raise EgressUnreachable(f"chain {chain_id} hop {index} is unreachable")
             entry = self._commit_generation(current["generation"] + 1, intents, operation_ids={service: operation_id},
                                             rollback_of=None, keep_journal=True)[service]
             return {"revision": entry["revision"], "applied": entry["document"], "readback_sha256": entry["generation_digest"],
@@ -513,7 +705,8 @@ class XrayRouterManager:
     def _commit_generation(self, generation: int, intents: dict[str, dict], *, operation_ids: dict[str, str],
                            rollback_of: str | None, keep_journal: bool = False) -> dict[str, dict]:
         """Render → test → swap → `current.json` → journal. The journal entry per service."""
-        config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports)
+        config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
+                               lanes=self._lane_accounts(), relay=self._relay())
         path = self._generation_path(generation)
         _atomic_write(path, config_bytes(config))
         try:

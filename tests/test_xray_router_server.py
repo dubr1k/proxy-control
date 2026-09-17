@@ -116,3 +116,44 @@ def test_unix_api_manual_intervention_and_readback_codes(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_unix_api_lanes_and_relay_routes(tmp_path):
+    """v0.7: the panel mints lane accounts and drives the relay through the same door."""
+    instance, runner = manager(tmp_path)
+    instance.bootstrap()
+    server, thread, socket_path = _serve(tmp_path, instance)
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        headers = {"X-Xray-Router-Token": TOKEN}
+        with httpx.Client(transport=transport, base_url="http://router") as client:
+            issued = client.post("/v1/lanes/naive", json={"lane": "grant:7f3a"}, headers=headers)
+            assert issued.status_code == 200 and issued.json()["user"] == "grant-7f3a" and len(issued.json()["password"]) >= 32
+            assert client.post("/v1/lanes/naive", json={"lane": "svc:naive"}, headers=headers).status_code == 422
+            assert client.post("/v1/lanes/mtproxy", json={"lane": "grant:1"}, headers=headers).status_code == 404
+            listed = client.get("/v1/lanes/naive", headers=headers)
+            assert listed.status_code == 200 and listed.json() == {"lanes": ["grant:7f3a"]} and issued.json()["password"] not in listed.text
+            gone = client.delete("/v1/lanes/naive/grant:7f3a", headers=headers)
+            assert gone.status_code == 200 and gone.json() == {"lane": "grant:7f3a", "forgotten": True}
+            unknown = client.delete("/v1/lanes/naive/grant:7f3a", headers=headers)
+            assert (unknown.status_code, unknown.json()["code"]) == (409, "lane_unknown")
+            relay = client.get("/v1/relay", headers=headers)
+            assert relay.status_code == 200 and relay.json()["enabled"] is False
+            enabled = client.post("/v1/relay", json={"server_name": "panel.node-a.example.org", "port": 45443}, headers=headers)
+            assert enabled.status_code == 200 and enabled.json()["public_key"] == runner.public_key and enabled.json()["accounts"] == 0
+            assert runner.private_key not in enabled.text
+            accounts = client.put("/v1/relay/accounts", json={"accounts": [{"email": "relay:" + "c" * 32 + ":direct",
+                                                                            "uuid": "3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10"}]}, headers=headers)
+            assert accounts.status_code == 200 and accounts.json()["accounts"] == 1 and "3f0d9c6e" not in accounts.text
+            assert client.put("/v1/relay/accounts", json={"accounts": [{"email": "x", "uuid": "y"}]}, headers=headers).status_code == 422
+            disabled = client.delete("/v1/relay", headers=headers)
+            assert disabled.status_code == 200 and disabled.json()["enabled"] is False
+            refused = client.put("/v1/relay/accounts", json={"accounts": []}, headers=headers)
+            assert (refused.status_code, refused.json()["code"]) == (409, "relay_disabled")
+            status = client.get("/v1/status", headers=headers).json()
+            assert status["lanes"] == {"naive": [], "mieru": []} and status["relay"]["enabled"] is False
+            assert {"lanes", "chains", "relay"} <= set(status["capabilities"])
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)

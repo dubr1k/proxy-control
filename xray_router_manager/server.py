@@ -97,6 +97,35 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if self.command == "GET" and path == "/v1/status":
                 status = manager.status()
                 return self._send(503 if status["artifact_error"] else 200, status)
+            # v0.7: lane accounts and the relay inbound (spec §4.3)
+            if path.startswith("/v1/lanes/"):
+                tail = path[len("/v1/lanes/"):].split("/")
+                service = tail[0]
+                if service not in SERVICES:
+                    return self._send(404, {"detail": "not found"})
+                if self.command == "GET" and len(tail) == 1:
+                    return self._send(200, manager.lanes(service))
+                if self.command == "POST" and len(tail) == 1:
+                    body = self._body()
+                    self._exact(body, {"lane"})
+                    return self._send(200, manager.lane_issue(service, body["lane"]))
+                if self.command == "DELETE" and len(tail) == 2:
+                    return self._send(200, manager.lane_forget(service, tail[1]))
+                return self._send(404, {"detail": "not found"})
+            if path == "/v1/relay":
+                if self.command == "GET":
+                    return self._send(200, manager.relay())
+                if self.command == "POST":
+                    body = self._body()
+                    self._exact(body, {"server_name", "port"})
+                    return self._send(200, manager.relay_enable(body["server_name"], body["port"]))
+                if self.command == "DELETE":
+                    return self._send(200, manager.relay_disable())
+                return self._send(404, {"detail": "not found"})
+            if path == "/v1/relay/accounts" and self.command == "PUT":
+                body = self._body()
+                self._exact(body, {"accounts"})
+                return self._send(200, manager.relay_set_accounts(body["accounts"]))
             prefix = "/v1/egress/"
             if path.startswith(prefix):
                 tail = path[len(prefix):].split("/")
@@ -141,4 +170,4 @@ class ManagerHandler(BaseHTTPRequestHandler):
         except CONNECTION_LOST:
             self.close_connection = True
 
-    do_GET = do_POST = _dispatch
+    do_GET = do_POST = do_PUT = do_DELETE = _dispatch
