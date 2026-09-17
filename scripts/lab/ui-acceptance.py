@@ -266,7 +266,8 @@ class Browser:
             if event["method"] == "Runtime.exceptionThrown":
                 exceptions.append(redact(json.dumps(event["params"].get("exceptionDetails", {}))[:300]))
             elif event["method"] == "Log.entryAdded" and event["params"]["entry"].get("level") == "error":
-                console.append(redact(event["params"]["entry"].get("text", "")[:300]))
+                entry = event["params"]["entry"]
+                console.append(redact(f"{entry.get('text', '')[:200]} @ {entry.get('url', '')[:160]}"))
             elif event["method"] == "Runtime.consoleAPICalled" and event["params"].get("type") == "error":
                 console.append(redact(json.dumps(event["params"].get("args", []))[:300]))
         self.cdp.events.clear()
@@ -307,6 +308,8 @@ class Api:
                 body, status = response.read(), response.status
         except urllib.error.HTTPError as error:
             body, status = error.read(), error.code
+        except urllib.error.URLError as error:  # nothing listens yet, or the socket dropped
+            return 0, {"error": str(error.reason)}
         try:
             return status, json.loads(body) if body else {}
         except ValueError:
@@ -369,9 +372,9 @@ class Acceptance:
 
     # -- browser helpers -------------------------------------------------------------
 
-    def login(self, username: str, password: str) -> bool:
+    def login(self, username: str, password: str, base: str | None = None) -> bool:
         b = self.browser
-        b.goto(f"{self.args.node_url}/login")
+        b.goto(f"{base or self.args.node_url}/login")
         if not b.wait("!!document.querySelector('#login input[name=username]')"):
             return False
         # The module binds the submit handler after paint: its first visible effect is the transport line.
@@ -863,6 +866,158 @@ class Acceptance:
         self.frame_is_secret_free("audit")
         b.shot("audit.png")
 
+    # -- the central (v0.3): a second panel from this tree, linked to the node in the browser --
+
+    def view_central(self) -> None:
+        """The central's screens against the live node: link through the dialog (fingerprint,
+        test, import), the node card (tabs, probe, pause/resume, edit), a grant on the node
+        from the central's Clients screen delivered by the pusher, the node's own card saying
+        it is managed, and the unlink."""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("fleet_acceptance", ROOT / "scripts/lab/fleet-acceptance.py")
+        fleet = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fleet)
+        b = self.browser
+        central_url = f"http://127.0.0.1:{self.args.central_port}"
+        central_args = argparse.Namespace(central_dir=self.args.central_dir, central_host="127.0.0.1", central_port=self.args.central_port,
+                                          python=sys.executable, source=ROOT, heartbeat_seconds=2)
+        process = fleet.CentralProcess(central_args)
+        central_password = secrets.token_urlsafe(24)
+        central = Api(central_url, None)
+        node_key_id = None
+        imported_user = f"{self.prefix}-nodeimp"
+        remote_user = f"{self.prefix}-remote"
+        try:
+            process.start(central_password)
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline and central.request("/healthz")[0] != 200:
+                time.sleep(0.5)
+            self.check("central.started", central.request("/healthz")[0] == 200)
+            central.login("owner", central_password)
+            # What the node offers the central: a node-sync key and one runtime user to import.
+            key = self.api.json("/api/keys", "POST", {"name": f"{self.prefix}-sync", "scope": "node-sync", "expires_at": None})
+            node_key_id = key["key"]["id"]
+            self.api.json("/api/naive/users", "POST", {"username": imported_user})
+            self.created["naive"].append(imported_user)
+            self.check("central.owner_login_in_browser", self.login("owner", central_password, central_url))
+            self.check("central.nodes_screen_empty", self.goto_view("fleet", "!!document.querySelector('.local-node') && !document.querySelector('.linked-node')"))
+            self.check("central.link_dialog_opens", self.open_add("#link-modal"))
+            b.type("#link-name", "Lab node")
+            b.type("#link-url", self.args.node_url)
+            b.type("#link-key", key["plaintext"])
+            if self.args.allow_private_address:
+                b.js("document.querySelector('#link-private').checked = true; true")
+            b.click("#link-fingerprint")
+            self.check("central.fingerprint_fetched_and_pinned", b.wait("/^[0-9a-f]{64}$/.test(document.querySelector('#link-pinned')?.value || '') && document.querySelector('input[name=tls_verify][value=pin]')?.checked === true", 20))
+            b.click("#link-test")
+            self.check("central.test_shows_identity_and_import_candidates", b.wait(f"document.querySelector('#link-result')?.hidden === false && !!document.querySelector('#node-import-list tr[data-import-username={json.dumps(imported_user)}]')", 30), b.text("#link-error"))
+            b.js(f"const r = document.querySelector('#node-import-list tr[data-import-username={json.dumps(imported_user)}]'); const p = r && r.querySelector('input[type=checkbox]'); if (p) p.checked = true; true")
+            b.click("#link-save")
+            self.check("central.link_created", b.wait("document.querySelector('#link-modal')?.open !== true && !!document.querySelector('.linked-node')", 30), b.text("#link-error"))
+            node = next((n for n in central.json("/api/nodes")["items"] if n.get("transport") == "panel"), None)
+            self.check("central.node_registered", node is not None)
+            node_id = node["node_id"] if node else ""
+            card = f"[data-node-id={json.dumps(node_id)}]"
+            # The card does not poll: the first heartbeat lands within seconds, the screen shows it on reload.
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline and (central.json(f"/api/nodes/{node_id}").get("link") or {}).get("status") != "online":
+                time.sleep(1)
+            self.goto_view("fleet", f"!!document.querySelector('{card}')")
+            self.check("central.link_created_and_online", b.wait(f"(document.querySelector('{card} .status-pill')?.textContent || '').includes('На связи')", 20))
+            imported = next((e for e in central.json("/api/clients")["items"] if e["client"]["display_name"] == imported_user), None)
+            self.check("central.import_at_link_created_a_client", imported is not None and any(g["origin"] == "imported" for g in imported["grants"]), json.dumps(imported)[:200] if imported else "no client")
+            b.click(f"{card} [data-node-action=tab-users]")
+            self.check("central.users_tab_lists_node_accounts", b.wait(f"!!document.querySelector('{card} tr[data-import-username={json.dumps(imported_user)}]') && (document.querySelector('{card} tr[data-import-username={json.dumps(imported_user)}]')?.textContent || '').includes('привязан')", 30))
+            b.click(f"{card} [data-node-action=tab-updates]")
+            self.check("central.updates_tab_lists_node_components", b.wait(f"document.querySelectorAll('{card} .node-component').length >= 3 || (document.querySelector('{card} .node-tab-body')?.textContent || '').includes('недоступен')", 20))
+            b.wait(f"!!document.querySelector('{card} [data-node-action=probe]')", 20)
+            b.click(f"{card} [data-node-action=probe]")
+            self.check("central.probe_answers", b.wait("[...document.querySelectorAll('#toast-region *')].some(t => t.textContent.includes('Узел опрошен'))", 20))
+            time.sleep(1.5)  # the view reloads after the action; click the card that is back
+            b.wait(f"!!document.querySelector('{card} [data-node-action=pause]')", 20)
+            b.click(f"{card} [data-node-action=pause]")
+            self.check("central.pause_marks_the_card", b.wait(f"(document.querySelector('{card} .node-identity small')?.textContent || '').includes('пауза') && !!document.querySelector('{card} [data-node-action=resume]')", 30))
+            time.sleep(1.5)
+            b.wait(f"!!document.querySelector('{card} [data-node-action=resume]')", 20)
+            b.click(f"{card} [data-node-action=resume]")
+            self.check("central.resume_restores", b.wait(f"!!document.querySelector('{card} [data-node-action=pause]') && !(document.querySelector('{card} .node-identity small')?.textContent || '').includes('пауза')", 30))
+            time.sleep(1.5)
+            b.wait(f"!!document.querySelector('{card} [data-node-action=edit]')", 20)
+            b.click(f"{card} [data-node-action=edit]")
+            self.check("central.edit_dialog_carries_the_link", b.wait("document.querySelector('#link-modal')?.open === true && (document.querySelector('#link-node-id')?.value || '') !== '' && document.querySelector('#link-name')?.value === 'Lab node'", 20))
+            b.type("#link-name", "Lab node renamed")
+            b.click("#link-save")
+            self.check("central.edit_renames", b.wait(f"(document.querySelector('{card} .node-identity b')?.textContent || '') === 'Lab node renamed'", 30), b.text("#link-error"))
+            b.shot("central-nodes.png")
+            # A grant on the node from the central's Clients screen: delivered by the pusher.
+            self.goto_view("clients", "!!document.querySelector('.client-list')")
+            self.open_add("#client-modal")
+            b.type("#client-name", remote_user)
+            b.click("#create-client")
+            b.wait(f"[...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(remote_user)})", 20)
+            client = next(e for e in central.json("/api/clients")["items"] if e["client"]["display_name"] == remote_user)
+            ccard = f"[data-client-id={json.dumps(client['client']['id'])}]"
+            b.click(f"{ccard} [data-client-action=grant]")
+            self.check("central.grant_dialog_offers_the_node", b.wait(f"document.querySelector('#grant-modal')?.open === true && !!document.querySelector('#grant-node option[value={json.dumps(node_id)}]')", 20))
+            b.type("#grant-username", remote_user)
+            b.select("#grant-node", node_id)
+            b.js("[...document.querySelectorAll('#grant-form .grant-protocol input')].forEach(i => { i.checked = i.value === 'naive'; }); true")
+            b.click("#create-grants")
+            self.check("central.remote_grant_accepted", b.wait("document.querySelector('#grant-modal')?.open !== true", 30), b.text("#grant-error"))
+            deadline = time.monotonic() + 90
+            delivered = False
+            while time.monotonic() < deadline and not delivered:
+                delivered = remote_user in [u["username"] for u in self.api.json("/api/naive/users")["items"]]
+                time.sleep(2)
+            self.check("central.grant_reaches_the_node", delivered)
+            self.created["naive"].append(remote_user)
+            self.goto_view("clients", "!!document.querySelector('.client-list')")
+            self.check("central.chip_says_delivered", b.wait(f"(document.querySelector('{ccard} .grant-chip')?.textContent || '').includes('включён')", 60))
+            b.click(f"{ccard} .grant-chip [data-client-action=grant-delete]")
+            b.confirm()
+            deadline = time.monotonic() + 90
+            gone = False
+            while time.monotonic() < deadline and not gone:
+                gone = remote_user not in [u["username"] for u in self.api.json("/api/naive/users")["items"]]
+                time.sleep(2)
+            self.check("central.grant_delete_reaches_the_node", gone)
+            if gone:
+                self.created["naive"].remove(remote_user)
+            b.shot("central-clients.png")
+            # The node's own screen while linked: the local card says who manages it.
+            self.check("central.node_owner_login_again", self.login("owner", self.password))
+            self.goto_view("fleet", "!!document.querySelector('.local-node')")
+            self.check("central.node_card_says_managed", b.wait("(document.querySelector('.local-node')?.textContent || '').includes('управляется центром')", 20))
+            self.goto_view("routing", "!!document.querySelector('#routing-form')")
+            self.check("central.node_routing_refuses_local_changes", "маршрутизацией управляет центральная панель" in b.page_text() or b.js("document.querySelector('#routing-save')?.disabled === true"))
+            b.shot("node-managed.png")
+            # Unlink from the central: the node forgets its master.
+            self.check("central.owner_login_back", self.login("owner", central_password, central_url))
+            self.goto_view("fleet", f"!!document.querySelector('{card}')")
+            b.click(f"{card} [data-node-action=remove]")
+            self.check("central.remove_asks_and_forgets", b.confirm() and b.wait(f"!document.querySelector('{card}')", 30))
+            local = next((n for n in self.api.json("/api/nodes")["items"] if n["node_id"] == "local"), {})
+            self.check("central.node_master_cleared", not (local.get("identity") or {}).get("master_guid"), json.dumps(local.get("identity"))[:120])
+            self.frame_is_secret_free("central")
+        finally:
+            with contextlib.suppress(Exception):
+                for entry in central.json("/api/clients")["items"]:
+                    if entry["client"]["state"] != "archived":
+                        for grant in entry["grants"]:
+                            central.request(f"/api/clients/grants/{grant['id']}/delete", "POST")
+                        central.request(f"/api/clients/{entry['client']['id']}/state", "POST", {"state": "archived"})
+            with contextlib.suppress(Exception):
+                for n in central.json("/api/nodes")["items"]:
+                    if n.get("transport") == "panel":
+                        central.request(f"/api/nodes/{n['node_id']}", "DELETE")
+            process.stop()
+            with contextlib.suppress(Exception):
+                self.api.login("owner", self.password)
+                self.api.request("/api/nodes/local/unlink", "POST")
+                if node_key_id:
+                    self.api.request(f"/api/keys/{node_key_id}", "DELETE")
+
     # -- api-only (a production node) ---------------------------------------------------
 
     def api_only(self) -> None:
@@ -967,7 +1122,16 @@ class Acceptance:
                     if view == "login":
                         continue
                     self.timed(view, getattr(self, f"view_{view}"))
+                if self.args.central_dir:
+                    self.timed("central", self.view_central)
                 exceptions, console = self.browser.errors()
+                if self.args.central_dir:
+                    # The lab central manages the node's runtimes and has none of its own: its
+                    # overview and MTProxy list answer 502 (no Telemt) — honest, and expected here.
+                    central_origin = f"http://127.0.0.1:{self.args.central_port}/api/"
+                    expected = [c for c in console if "502" in c and (central_origin + "dashboard" in c or central_origin + "users" in c)]
+                    self.report["facts"]["central_console_expected"] = expected
+                    console = [c for c in console if c not in expected]
                 self.report["exceptions"], self.report["console"] = exceptions, console
                 self.check("final.no_uncaught_exceptions", not exceptions, exceptions)
                 self.check("final.no_console_errors", not console, console)
@@ -1021,6 +1185,9 @@ def main() -> int:
     parser.add_argument("--no-shots", action="store_true")
     parser.add_argument("--api-only", action="store_true")
     parser.add_argument("--read-only", action="store_true")
+    parser.add_argument("--central-dir", default=None, help="run a second panel from this tree there and drive its screens too (Task 3)")
+    parser.add_argument("--central-port", type=int, default=8791)
+    parser.add_argument("--allow-private-address", action="store_true", help="the node URL is a private/lab address")
     args = parser.parse_args()
     return 0 if Acceptance(args).run() else 1
 
