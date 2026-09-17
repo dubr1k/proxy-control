@@ -56,6 +56,12 @@ class RouterAdapter:
 
     # -- v0.7: lanes and the relay --------------------------------------------------
 
+    async def lanes(self, service: str) -> dict:
+        try:
+            return await self.client.lanes(service)
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc
+
     async def lane_issue(self, service: str, lane: str) -> dict:
         try:
             return await self.client.lane_issue(service, lane)

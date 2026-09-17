@@ -116,15 +116,29 @@ def slot_config(slot: Slot, users: list[dict], router_endpoint: tuple[str, int],
     return config
 
 
-def share_template(username: str, host: str, port: int, mtu: int) -> str:
-    """The link shape of a lane user — the panel fills the credential in."""
+def _host(host: str) -> str:
     try:
         if ipaddress.ip_address(host).version == 6:
-            host = f"[{host}]"
+            return f"[{host}]"
     except ValueError:
         pass
+    return host
+
+
+def share_template(username: str, host: str, port: int, mtu: int) -> str:
+    """The link shape of a lane user — the panel fills the credential in."""
     query = urlencode([("profile", username), ("port", str(port)), ("protocol", "TCP"), ("mtu", str(mtu))])
-    return f"mierus://{{username}}:{{password}}@{host}?{query}"
+    return f"mierus://{{username}}:{{password}}@{_host(host)}?{query}"
+
+
+def service_share_template(host: str, config: dict) -> str:
+    """The link shape of a user on the main daemon (every port binding), with the profile
+    left to the panel — what a user leaving a lane goes back to."""
+    query: list[tuple[str, str]] = []
+    for binding in config.get("portBindings", []):
+        query.extend((("port", str(binding.get("port", binding.get("portRange")))), ("protocol", binding["protocol"])))
+    query.append(("mtu", str(config.get("mtu", 1400))))
+    return f"mierus://{{username}}:{{password}}@{_host(host)}?profile={{profile}}&{urlencode(query)}"
 
 
 def redact_lane(entry: dict) -> dict:

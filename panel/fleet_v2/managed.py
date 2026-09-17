@@ -6,7 +6,14 @@ import json
 import time
 
 from .identity import MASTER_KEY, read_setting, write_setting
-from .protocol import GenerationConflict, GenerationDocument, ObservedEgress, ObservedGeneration, ObservedResource
+from .protocol import (
+    GenerationConflict,
+    GenerationDocument,
+    ObservedEgress,
+    ObservedGeneration,
+    ObservedRelay,
+    ObservedResource,
+)
 
 
 class ManagedStore:
@@ -76,6 +83,17 @@ class ManagedStore:
         )
 
     @staticmethod
+    def merge_learned(db, protocol: str, username: str, learned: dict) -> None:
+        """What a later step taught about the link (a lane's port) joins the row's `learned`."""
+        row = db.execute("SELECT learned_json FROM managed_resources WHERE protocol=? AND runtime_username=?",
+                         (protocol, username)).fetchone()
+        if row is None:
+            return
+        merged = {**json.loads(row["learned_json"] or "{}"), **learned}
+        db.execute("UPDATE managed_resources SET learned_json=? WHERE protocol=? AND runtime_username=?",
+                   (json.dumps(merged, sort_keys=True), protocol, username))
+
+    @staticmethod
     def remove_resource(db, protocol: str, username: str) -> None:
         db.execute("DELETE FROM managed_resources WHERE protocol=? AND runtime_username=?", (protocol, username))
 
@@ -115,6 +133,9 @@ class ManagedStore:
         if latest is None:
             return None
         state = {"received": "applying", "applying": "applying", "converged": "converged", "failed": "failed"}[latest["state"]]
+        # v0.7: the lanes each service runs and the relay, from the node's own bookkeeping
+        lanes = json.loads(read_setting(db, "fleet_lanes_json") or "{}")
+        relay = json.loads(read_setting(db, "fleet_relay_json") or "null")
         return ObservedGeneration(
             applied_generation=latest["generation"], digest=latest["digest"], reconcile_state=state,
             resources=[ObservedResource(ref=r["ref"], protocol=r["protocol"], runtime_username=r["runtime_username"],
@@ -124,8 +145,10 @@ class ManagedStore:
             egress={protocol: ObservedEgress(state=row["state"], revision=row["revision"], digest=row["digest"],
                                              error=row["last_error"],
                                              router=None if row.get("router_revision") is None else {
-                                                 "revision": row["router_revision"], "digest": row.get("router_digest")})
+                                                 "revision": row["router_revision"], "digest": row.get("router_digest")},
+                                             lanes=sorted(lanes.get(protocol, {})))
                     for protocol, row in self.egress_rows(db).items()},
+            relay=None if relay is None else ObservedRelay.model_validate(relay),
             reported_at=int(time.time()),
         )
 
@@ -138,4 +161,7 @@ class ManagedStore:
         db.execute("DELETE FROM managed_egress")
         db.execute("DELETE FROM managed_generations")
         write_setting(db, MASTER_KEY, None)
+        # The lanes and the relay keep running as they are; only the bookkeeping goes.
+        write_setting(db, "fleet_lanes_json", None)
+        write_setting(db, "fleet_relay_json", None)
         return released

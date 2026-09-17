@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import time
 from typing import Callable
+from urllib.parse import urlsplit
 
 from .. import audit
 from ..database import Database
@@ -129,6 +130,13 @@ class RoutingService:
         if row["kind"] == "local":
             return "local"
         return "remote" if row.get("link") else "v1"
+
+    @staticmethod
+    def _capabilities(row: dict) -> list[str]:
+        """What a linked node declared; a local node can do everything this release can."""
+        if row["kind"] == "local" or not row.get("link"):
+            return []
+        return list(((row["link"].get("identity") or {}).get("capabilities")) or [])
 
     async def _local_target(self, protocol: str) -> EgressTarget | None:
         adapter = self.adapters.get(protocol)
@@ -626,6 +634,9 @@ class RoutingService:
                                    compiled=compiled)
             raise RoutingError(422, "unsupported", "the policy cannot be enforced on this node", compiled=compiled)
         if self._kind(row) != "local":
+            if compiled.document.get("schema") == 2 and "egress.lanes.v1" not in self._capabilities(row):
+                raise RoutingError(422, "node_lacks_lanes", "the node must be updated to v0.7 for lanes and chains",
+                                   compiled=compiled)
             return await self._apply_remote(policy, compiled, actor=actor, ip=ip, request_id=request_id)
         try:
             if policy.backend == ROUTER_BACKEND:
@@ -649,12 +660,20 @@ class RoutingService:
     def _publish_desired(self, policy: RoutingPolicy, desired: dict, *, action: str, detail: dict, actor, ip,
                          request_id) -> RoutingPolicy:
         """The remote path (spec §8.3): the policy's desired egress section joins the node's
-        next generation; the node's report (pusher) then moves the policy on."""
+        next generation; the node's report (pusher) then moves the policy on. A lane's policy
+        (v0.7) folds into the service's intent, so the section is held on the service's row
+        while the lane's policy is the one `applying`."""
         if self.publisher is None:
             raise RoutingError(409, "node_not_local", "this panel applies routing locally only")
         now = int(self.clock.time())
         with self.database.transaction() as db:
-            self.store.set_desired(db, policy.id, desired, now=now)
+            holder = policy.id
+            if policy.lane != LANE_SERVICE:
+                service = self.store.get(db, policy.node_id, policy.protocol)
+                if service is None:
+                    raise RoutingError(409, "lane_not_attached", "the service has no policy on this node")
+                holder = service.id
+            self.store.set_desired(db, holder, desired, now=now)
             self.store.mark(db, policy.id, state="applying", now=now)
             if action == "routing.policy.rollback":
                 self.store.record_apply(db, policy.id, revision=policy.revision, digest=desired["digest"],
@@ -705,8 +724,10 @@ class RoutingService:
             raise RoutingError(409, "relay_unavailable", "this panel keeps no relay registry")
         with self.database.connect() as db:
             row = self._node(db, node_id)
-        if self._kind(row) != "local":
-            raise RoutingError(422, "node_not_local", "a linked panel's relay is enabled through its generation")
+        if self._kind(row) == "v1":
+            raise RoutingError(422, "node_lacks_relay", "a v1 node runs no relay")
+        if self._kind(row) == "remote":
+            return await self._relay_enable_remote(node_id, row, port, actor=actor, ip=ip, request_id=request_id)
         if self.router is None:
             raise RoutingError(409, "router_unavailable", "this node runs no Xray-router")
         try:
@@ -717,7 +738,31 @@ class RoutingService:
             self.relays.record(db, "local", view, now=int(self.clock.time()))
             audit.record(db, actor=actor, action="routing.relay.enable", target=node_id, ip=ip, request_id=request_id,
                          detail={"port": view.get("port"), "server_name": view.get("server_name")})
-        return {"node_id": node_id, **{key: view.get(key) for key in ("enabled", "port", "server_name", "public_key", "short_ids", "accounts")}}
+        return {"node_id": node_id, "pending": False,
+                **{key: view.get(key) for key in ("enabled", "port", "server_name", "public_key", "short_ids", "accounts")}}
+
+    async def _relay_enable_remote(self, node_id: str, row: dict, port: int, *, actor, ip, request_id) -> dict:
+        """A linked node's relay comes up through its next generation (spec §7): the section
+        names the port and the node's own panel name as the cover; the node's report brings
+        the public key, and `pending` says it has not yet."""
+        if "relay.v1" not in self._capabilities(row):
+            raise RoutingError(422, "node_lacks_relay", "the node must be updated to v0.7 and run an Xray-router")
+        if self.publisher is None:
+            raise RoutingError(409, "node_not_local", "this panel applies routing locally only")
+        server_name = urlsplit((row.get("link") or {}).get("panel_url") or "").hostname
+        if not server_name:
+            raise RoutingError(409, "node_lacks_relay", "the node's panel address is unknown")
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            self.relays.desire(db, node_id, enabled=True, port=port, server_name=server_name, now=now)
+            generation = self.publisher(db, node_id)
+            relay = self.relays.relay(db, node_id)
+            accounts = len(self.relays.peers(db, node_id))
+            audit.record(db, actor=actor, action="routing.relay.enable", target=node_id, ip=ip, request_id=request_id,
+                         detail={"port": port, "server_name": server_name, "generation": generation})
+        return {"node_id": node_id, "enabled": True, "port": port, "server_name": server_name,
+                "public_key": relay.get("public_key") or None, "short_ids": [relay["short_id"]] if relay.get("short_id") else [],
+                "accounts": accounts, "pending": not relay.get("public_key")}
 
     async def relay_rotate(self, node_id: str, *, actor: dict, ip: str, request_id: str | None = None) -> dict:
         """New accounts for every source node that exits through this node; delivered the way

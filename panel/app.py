@@ -196,7 +196,7 @@ def create_app(
         confirmed=lambda node_id, email: node_id == "local" or app.state.desired.relay_confirmed(node_id, email),
     )
     app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
-                                  app.state.router)
+                                  app.state.router, publisher=app.state.routing.publisher)
 
     # The heartbeat/delivery loop lives as a background task for the process's lifetime:
     # startup never waits on a node, and shutdown lets a tick in flight finish briefly

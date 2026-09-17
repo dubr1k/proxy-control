@@ -55,6 +55,30 @@ class Resource(_Strict):
     options: dict = Field(default_factory=dict)
     valid_from: int | None = None
     valid_until: int | None = None
+    # The client's own lane (v0.7, spec §7): the node mints the lane's account on its router
+    # and moves the user into the lane's handler / slot itself — the key never travels. The
+    # lane is named after the resource (`grant:<id>`), the same name the central's intent
+    # uses. Absent from the wire when None, so a v0.6 node's strict model is untouched.
+    lane: Literal["own"] | None = None
+
+
+class RelayAccount(_Strict):
+    """One account of the node's relay inbound: the source node and its exit in the email
+    (`relay:<source guid>:<direct|warp>`), the UUID in the push's secrets by this ref."""
+
+    email: str = Field(pattern=r"^relay:[A-Za-z0-9-]{1,64}:(direct|warp)$")
+    credential_ref: str = Field(min_length=3, max_length=160)
+
+
+class RelaySection(_Strict):
+    """The node's relay inbound (v0.7, spec §7): vless+reality on `port` with the node's own
+    panel name as the cover, and the accounts other nodes dial it with. `enabled: false`
+    takes the inbound down. The keypair is the node's; only its public part comes back."""
+
+    enabled: bool
+    port: int = Field(ge=1, le=65535)
+    server_name: str = Field(min_length=1, max_length=253)
+    accounts: list[RelayAccount] = Field(default_factory=list, max_length=64)
 
 
 class EgressDocument(_Strict):
@@ -102,6 +126,9 @@ class GenerationDocument(_Strict):
     # left out of the wire form and the digest when None, so a v0.3 central and a v0.4 node
     # (or the reverse) agree on every document that carries no egress.
     egress: dict[Literal["naive", "mieru"], EgressDocument] | None = None
+    # The node's relay (v0.7). Absent = leave it as it is; never sent to a node without
+    # `relay.v1`, and off the wire and the digest when None.
+    relay: RelaySection | None = None
 
     def wire(self) -> dict:
         payload = self.model_dump()
@@ -113,6 +140,11 @@ class GenerationDocument(_Strict):
                     entry.pop("companion", None)
                 if not entry.get("passthrough"):
                     entry.pop("passthrough", None)
+        if payload.get("relay") is None:
+            payload.pop("relay", None)
+        for resource in payload["resources"]:
+            if resource.get("lane") is None:
+                resource.pop("lane", None)
         return payload
 
     @model_validator(mode="after")
@@ -143,6 +175,8 @@ class PushRequest(_Strict):
     @model_validator(mode="after")
     def secrets_belong_to_the_document(self):
         refs = {item.credential_ref for item in self.generation.resources}
+        if self.generation.relay is not None:
+            refs |= {account.credential_ref for account in self.generation.relay.accounts}
         stray = set(self.secrets) - refs
         if stray:
             raise ValueError(f"secrets for unknown refs: {sorted(stray)}")
@@ -177,6 +211,22 @@ class ObservedEgress(_Report):
     # The router's side of the section (v0.5): its own revision and generation; an older
     # central ignores the field.
     router: dict | None = None
+    # The client lanes the node built for this service (v0.7); an older central ignores it.
+    lanes: list[str] = Field(default_factory=list)
+
+
+class ObservedRelay(_Report):
+    """What the node did with the `relay` section (v0.7): `converged` with the inbound's
+    public part and the accounts it carries (emails only), `failed` with the code."""
+
+    state: Literal["converged", "failed", "unsupported"]
+    enabled: bool = False
+    port: int | None = None
+    server_name: str | None = None
+    public_key: str | None = None
+    short_id: str | None = None
+    accounts: list[str] = Field(default_factory=list)
+    error: str | None = None
 
 
 class ObservedGeneration(_Report):
@@ -188,6 +238,8 @@ class ObservedGeneration(_Report):
     # Per protocol, the egress the node last applied for a generation (v0.4); an older
     # central ignores the field.
     egress: dict[str, ObservedEgress] = Field(default_factory=dict)
+    # The node's relay as of its last apply (v0.7); an older central ignores the field.
+    relay: ObservedRelay | None = None
 
 
 class PushResponse(_Report):

@@ -1772,7 +1772,8 @@ class MieruManager:
                                     for user in entry["users"] if user in enabled and slot is not None},
             })
         used = {entry["slot"] for entry in state.get("lanes", {}).values()}
-        return {"lanes": view, "free_slots": sum(1 for slot in self.lane_slots if slot.index not in used)}
+        return {"lanes": view, "free_slots": sum(1 for slot in self.lane_slots if slot.index not in used),
+                "service_share_template": lanes_module.service_share_template(self.public_host, config)}
 
     def metrics(self) -> dict:
         with self._writer():

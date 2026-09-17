@@ -71,7 +71,7 @@ def test_set_lanes_mirrors_the_lane_users_into_a_slot_with_the_router_egress(tmp
     assert main.observe() == TWO_USERS and ("stop",) not in main.calls
     assert view == {"lanes": [{"lane": "grant:7f3a", "slot": 1, "port": 46101, "users": ["alice"], "upstream": "socks5://***@127.0.0.1:45102",
                                "status": "running", "share_templates": {"alice": "mierus://{username}:{password}@proxy.example.com?profile=alice&port=46101&protocol=TCP&mtu=1400"}}],
-                    "free_slots": 1}
+                    "free_slots": 1, "service_share_template": "mierus://{username}:{password}@proxy.example.com?profile={profile}&port=8443&protocol=TCP&mtu=1400"}
     assert "A" * 43 not in json.dumps(view)
     state = json.loads(instance.state_file.read_text())
     assert state["lanes"] == {"grant:7f3a": {"slot": 1, "users": ["alice"], "upstream": {"user": "grant-7f3a", "password": "A" * 43}}}
@@ -95,7 +95,7 @@ def test_lanes_keep_their_slot_move_users_and_run_out_of_slots(tmp_path):
     with pytest.raises(ConfigConflict, match="lane_slots_exhausted"):
         instance.set_lanes({"lanes": [LANE_A, LANE_B, third]})
     instance.set_lanes({"lanes": []})
-    assert instance.lanes() == {"lanes": [], "free_slots": 2}
+    assert instance.lanes() == {"lanes": [], "free_slots": 2, "service_share_template": "mierus://{username}:{password}@proxy.example.com?profile={profile}&port=8443&protocol=TCP&mtu=1400"}
     assert all(not slot.running for slot in slots.values())
 
 
@@ -143,7 +143,7 @@ def test_lanes_need_the_router_and_slots(tmp_path):
     without_slots, _main, _slots = lane_manager(tmp_path / "b", slots=None)
     with pytest.raises(ConfigConflict, match="lane_slots_exhausted"):
         without_slots.set_lanes({"lanes": [LANE_A]})
-    assert without_slots.lanes() == {"lanes": [], "free_slots": 0}
+    assert without_slots.lanes() == {"lanes": [], "free_slots": 0, "service_share_template": "mierus://{username}:{password}@proxy.example.com?profile={profile}&port=8443&protocol=TCP&mtu=1400"}
 
 
 def test_a_failed_slot_probe_restores_the_slot_and_keeps_the_state(tmp_path):
@@ -154,7 +154,7 @@ def test_a_failed_slot_probe_restores_the_slot_and_keeps_the_state(tmp_path):
         instance.set_lanes({"lanes": [LANE_A]})
     assert instance.state_file.read_text() == state_before
     assert slots[1].observe().get("users", []) == [] and slots[1].running is False
-    assert instance.lanes() == {"lanes": [], "free_slots": 2}
+    assert instance.lanes() == {"lanes": [], "free_slots": 2, "service_share_template": "mierus://{username}:{password}@proxy.example.com?profile={profile}&port=8443&protocol=TCP&mtu=1400"}
 
 
 def test_bootstrap_resyncs_the_slots_from_the_state(tmp_path):
@@ -188,13 +188,13 @@ def test_unix_api_lanes_routes(tmp_path):
         headers = {"X-Mieru-Token": "t" * 40}
         with httpx.Client(transport=httpx.HTTPTransport(uds=str(socket_path)), base_url="http://manager") as client:
             assert client.get("/v1/lanes").status_code == 401
-            assert client.get("/v1/lanes", headers=headers).json() == {"lanes": [], "free_slots": 2}
+            assert client.get("/v1/lanes", headers=headers).json() == {"lanes": [], "free_slots": 2, "service_share_template": "mierus://{username}:{password}@proxy.example.com?profile={profile}&port=8443&protocol=TCP&mtu=1400"}
             put = client.put("/v1/lanes", json={"lanes": [LANE_A]}, headers=headers)
             assert put.status_code == 200 and put.json()["lanes"][0]["port"] == 46101 and "A" * 43 not in put.text
             bad = client.put("/v1/lanes", json={"lanes": [{"lane": "svc:mieru", "users": ["alice"], "upstream": LANE_A["upstream"]}]}, headers=headers)
             assert (bad.status_code, bad.json()["code"]) == (409, "lanes_invalid")
             assert client.get("/v1/users", headers=headers).json()[0]["lane"] == "grant:7f3a"
-            assert client.put("/v1/lanes", json={"lanes": []}, headers=headers).json() == {"lanes": [], "free_slots": 2}
+            assert client.put("/v1/lanes", json={"lanes": []}, headers=headers).json() == {"lanes": [], "free_slots": 2, "service_share_template": "mierus://{username}:{password}@proxy.example.com?profile={profile}&port=8443&protocol=TCP&mtu=1400"}
     finally:
         server.shutdown()
         server.server_close()
