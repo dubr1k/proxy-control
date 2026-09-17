@@ -13,6 +13,7 @@ from panel.mieru import MemoryMieru
 from panel.naive import MemoryNaive
 from panel.nodes.registry import NodeRegistry
 from panel.protocols import MieruAdapter, NaiveAdapter, RouterAdapter, TelemtAdapter
+from panel.routing.compiler import direct_document
 from panel.routing.document import ROUTER_DIRECT_INTENT, attach_document, document_digest
 from panel.routing.models import PolicyInput, RoutingRule, RuleMatch
 from panel.routing.service import RoutingError, RoutingService
@@ -265,5 +266,34 @@ async def test_delete_router_policy_only_when_reset(stand):
     assert caught.value.code == "policy_applied"
     service.save("local", "naive", PolicyInput(), expected_revision=2, **CTX)
     await service.apply("local", "naive", expected_revision=3, **CTX)
+    service.delete("local", "naive", **CTX)
+    assert (await _item(service))["policy"] is None
+
+
+async def test_attach_and_detach_record_the_pass_through_the_node_now_runs(stand):
+    """The screen's whole round trip: attach → a router policy applied → rollback → detach →
+    delete. A local attach/detach applies the backend's pass-through itself, so the policy
+    records that digest at once (as a linked node's report would) and «delete» does not
+    demand one more apply — the first browser smoke of v0.5 ended on that 409."""
+    service = stand["service"]
+    await service.attach("local", "naive", **CTX)
+    policy = (await _item(service))["policy"]
+    assert policy["state"] == "draft" and policy["applied_current"] is False
+    with stand["database"].connect() as db:
+        stored = service.store.get(db, "local", "naive")
+    assert stored.applied_digest == document_digest(direct_document("xray_router")) and stored.applied_revision is None
+    service.delete("local", "naive", **CTX)  # nothing but pass-through runs: deletable right away
+    await service.attach("local", "naive", **CTX)  # already attached: the policy is (re)created, nothing re-applied
+    service.save("local", "naive", _warp(rules=[_block(["example.com"])]), expected_revision=1, **CTX)
+    await service.apply("local", "naive", expected_revision=2, **CTX)
+    with pytest.raises(RoutingError) as caught:
+        service.delete("local", "naive", **CTX)  # the router runs the policy
+    assert caught.value.code == "policy_applied"
+    await service.rollback("local", "naive", expected_revision=2, **CTX)  # back to the pass-through generation
+    item = await service.detach("local", "naive", **CTX)
+    assert item["policy"]["state"] == "draft" and item["policy"]["backend"] == "naive_native"
+    with stand["database"].connect() as db:
+        stored = service.store.get(db, "local", "naive")
+    assert stored.applied_digest == document_digest(direct_document("naive_native"))
     service.delete("local", "naive", **CTX)
     assert (await _item(service))["policy"] is None

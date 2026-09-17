@@ -357,10 +357,18 @@ class RoutingService:
                   actor: dict, ip: str, request_id: str | None, detail: dict) -> None:
         with self.database.transaction() as db:
             now = int(self.clock.time())
+            moved = policy is None or policy.backend != backend
             if policy is None:
                 policy = self.store.upsert(db, node_id, protocol, PolicyInput(backend=backend), expected_revision=None, now=now)
             elif policy.backend != backend:
                 policy = self.store.retarget(db, policy.id, backend, now=now)
+            if moved:
+                # The node now runs this backend's pass-through (the documents attach/detach
+                # just applied), the rules wait as a draft: recorded here, as a linked node's
+                # report would record it — so «delete» sees the reset it asks for.
+                self.store.mark(db, policy.id, state="draft", applied_revision=None,
+                                applied_digest=document_digest(direct_document(backend)), now=now)
+                policy = self.store.get_by_id(db, policy.id)
             audit.record(db, actor=actor, action=action, target=policy.id, ip=ip, request_id=request_id,
                          detail={"node_id": node_id, "protocol": protocol, "backend": backend, "revision": policy.revision,
                                  **detail})
