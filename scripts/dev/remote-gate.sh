@@ -176,8 +176,38 @@ case $LEVEL in
       --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing --router $* \
       && echo ROUTER_ACCEPTANCE_OK && echo REMOTE_GATE_ROUTER_OK"
     ;;
+  ui)
+    # The panel's screen in a real browser (v0.6) on the node `lab-host` left installed:
+    # every view as the owner and once as a viewer, dialogs and confirmations included.
+    # The node is prepared the way the `router` tier leaves it (the SOCKS5 stub as WARP for
+    # the routing scenarios) and gets the host version-agent per docs/UPGRADING so the
+    # Versions screen has an agent to talk to; the acceptance starts the stub itself.
+    sync_tree
+    remote "cd /opt/mtproxy-shared443 \
+      && for key in NAIVE_EGRESS_WARP MIERU_EGRESS_WARP XRAY_ROUTER_EGRESS_WARP; do hit=0; \
+           for file in .env .env.naive .env.mieru .env.xray-router; do test -f \$file && grep -q \"^\$key=\" \$file && { sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" \$file; hit=1; }; done; \
+           test \$hit = 1 || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
+      && files=(--env-file .env -f compose.yaml) \
+      && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
+      && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait xray-router naive-manager mieru-manager"
+    remote "install -d -m 0755 /opt/proxy-control && rm -rf /opt/proxy-control/version_agent && cp -r version_agent /opt/proxy-control/version_agent \
+      && install -d -m 0750 /etc/proxy-control \
+      && install -o root -g root -m 0644 deploy/version-agent.service /etc/systemd/system/version-agent.service \
+      && install -o root -g root -m 0644 deploy/proxy-control-version-agent.tmpfiles.conf /etc/tmpfiles.d/proxy-control-version-agent.conf \
+      && { test -f /etc/proxy-control/version-agent.env || install -o root -g root -m 0600 deploy/version-agent.env.example /etc/proxy-control/version-agent.env; } \
+      && sed -i 's|^PROXY_CONTROL_COMPOSE_FILES=.*|PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.naive.yaml:compose.mieru.yaml:compose.xray-router.yaml|' /etc/proxy-control/version-agent.env \
+      && { test -f /etc/proxy-control/versions.json || install -o root -g root -m 0600 deploy/version-catalog.example.json /etc/proxy-control/versions.json; } \
+      && systemd-tmpfiles --create /etc/tmpfiles.d/proxy-control-version-agent.conf && systemctl daemon-reload \
+      && systemctl enable --now version-agent && systemctl restart version-agent && sleep 1 && systemctl is-active version-agent \
+      && curl --fail --silent --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health > /dev/null"
+    remote "$ensure_venv && .venv/bin/python scripts/lab/ui-acceptance.py \
+      --node-url https://panel.lab.test \
+      --password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+      --ca-file /etc/letsencrypt/lab-ca/ca.crt --stub --output lab-results/ui $* \
+      && echo REMOTE_GATE_UI_OK"
+    ;;
   *)
-    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>}" >&2
+    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>|ui <ui-acceptance args…>}" >&2
     exit 2
     ;;
 esac

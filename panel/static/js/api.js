@@ -40,7 +40,9 @@ export async function api(url, options = {}) {
   if (options.body && !headers["content-type"]) headers["content-type"] = "application/json";
 
   const response = await fetch(url, { ...options, headers });
-  if (response.status === 401) {
+  // A 401 on the login page is the form's own answer (a wrong password): it is shown
+  // there. Anywhere else it means the session is gone, and the form is the next screen.
+  if (response.status === 401 && window.location.pathname !== "/login") {
     window.location.assign("/login");
     throw new Error("Сессия завершена");
   }
