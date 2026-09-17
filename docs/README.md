@@ -51,6 +51,9 @@ This index separates **installation**, **protocol configuration**, **operations*
 ### Выпуски
 
 - [CHANGELOG.ru.md](../CHANGELOG.ru.md) — журнал изменений по-русски (с v0.4); [CHANGELOG.md](../CHANGELOG.md) — основной, все выпуски; [scripts/install-release.sh](../scripts/install-release.sh) — скачать, проверить и поставить выпуск (`--requirements` — что нужно и что устанавливается)
+- [Руководство оператора v0.6](releases/v0.6-operator-guide.ru.md) — архитектура, домены и их распределение по парку, автоматическое развёртывание, 3x-ui, привязка узлов, доступы из центра, маршрутизация и Xray-router — всё в одном месте; протокол для ИИ-агентов — в [AGENTS.md](../AGENTS.md)
+- [v0.6.0-beta.1](releases/v0.6.0-beta.1.md) — выпуск-сверка v0.2–v0.5: матрица доказательств, tier `ui` в настоящем браузере, `managed-xui`, `backup-restore`
+- [v0.5.0-beta.1](releases/v0.5.0-beta.1.md) — Xray-router: выделенный egress-роутер узла (вошёл в v0.6)
 - [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — маршрутизация: egress-политики с предпросмотром
 - [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — центральная панель и связанные панели
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — локальный control plane, подписки
@@ -103,6 +106,9 @@ This index separates **installation**, **protocol configuration**, **operations*
 ### Releases
 
 - [CHANGELOG.md](../CHANGELOG.md) — the changelog, every release; [CHANGELOG.ru.md](../CHANGELOG.ru.md) — in Russian (from v0.4); [scripts/install-release.sh](../scripts/install-release.sh) — fetch, verify and install a release (`--requirements` — what is needed and what gets installed)
+- [Operator guide v0.6 (Russian)](releases/v0.6-operator-guide.ru.md) — architecture, domains and how they spread over a fleet, unattended deployment, 3x-ui, linking nodes, grants from the central, routing and the Xray-router in one place; the AI-agent protocol is in [AGENTS.md](../AGENTS.md)
+- [v0.6.0-beta.1](releases/v0.6.0-beta.1.md) — the verification release of v0.2–v0.5: the proof matrix, the `ui` tier in a real browser, `managed-xui`, `backup-restore`
+- [v0.5.0-beta.1](releases/v0.5.0-beta.1.md) — Xray-router: the node's dedicated egress router (shipped inside v0.6)
 - [v0.4.0-beta.1](releases/v0.4.0-beta.1.md) — routing: egress policies with a preview
 - [v0.3.0-beta.1](releases/v0.3.0-beta.1.md) — central panel and linked panels
 - [v0.2.0-beta.1](releases/v0.2.0-beta.1.md) — local control plane, subscriptions
