@@ -72,3 +72,20 @@ def test_the_grant_dialog_reads_only_its_own_protocol_boxes():
     assert re.search(r'queryAll\("\.grant-protocol input', clients) is None
     index = (STATIC / "index.html").read_text(encoding="utf-8")
     assert index.count('class="grant-protocol"') >= 5  # the class is shared on purpose; the scope is not
+
+
+def test_an_audit_row_stacks_its_main_line_and_its_details():
+    """The v0.1 stylesheet laid a journal row out as four grid columns of its own
+    (`150px 150px 1fr 1fr`); v0.2 moved the columns into `.audit-main` and put the
+    «Детали и IP» disclosure beside it as a second child — but the old declaration stayed,
+    so the row still had four tracks: `.audit-main` was squeezed into the first 150 px and
+    spilled over the disclosure in the second (seen on AMS_Z after v0.6). The row's own grid
+    is a single column at every width; the columns belong to `.audit-main` alone."""
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    multi_track = re.compile(r"grid-template-columns\s*:\s*[^;}]*\s[^;}]*[;}]")
+    row_rules = re.findall(r"(?<![\w-])\.audit-row\s*\{[^}]*\}", css)
+    assert row_rules, "the journal row lost its stylesheet"
+    assert [rule for rule in row_rules if multi_track.search(rule)] == []
+    assert re.search(r"\.audit-row\s*>\s*\*:nth-child", css) is None  # the row has two children, not four
+    main_rules = re.findall(r"(?<![\w-])\.audit-main\s*\{[^}]*\}", css)
+    assert any(multi_track.search(rule) for rule in main_rules)

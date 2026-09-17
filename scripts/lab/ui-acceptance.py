@@ -365,6 +365,25 @@ class Acceptance:
         hits = [shape.pattern for shape in SECRET_SHAPES if shape.search(text)]
         self.check(f"{name}.frame_secret_free", not hits, str(hits))
 
+    def cells_do_not_overlap(self, name: str, row: str, cells: str, limit: int = 12) -> None:
+        """No two visible cells of one row share pixels (a stale grid rule once squeezed the
+        journal's `.audit-main` into a 150 px track over the «Детали и IP» disclosure).
+        A one-pixel tolerance forgives borders; hidden cells (`display:none`) are ignored."""
+        overlaps = self.browser.js(f"""(() => {{
+          const out = [];
+          for (const row of [...document.querySelectorAll({json.dumps(row)})].slice(0, {limit})) {{
+            const rects = [...row.querySelectorAll({json.dumps(cells)})]
+              .map(e => [e.tagName.toLowerCase() + (e.className ? '.' + String(e.className).split(' ')[0] : ''), e.getBoundingClientRect()])
+              .filter(([, r]) => r.width > 0 && r.height > 0);
+            for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {{
+              const [a, ra] = rects[i], [b, rb] = rects[j];
+              if (ra.left < rb.right - 1 && rb.left < ra.right - 1 && ra.top < rb.bottom - 1 && rb.top < ra.bottom - 1) out.push(a + ' × ' + b);
+            }}
+          }}
+          return [...new Set(out)];
+        }})()""")
+        self.check(name, not overlaps, str(overlaps))
+
     def users(self) -> dict[str, list[str]]:
         return {protocol: sorted(u["username"] for u in self.api.json(path)["items"])
                 for protocol, path in (("mtproxy", "/api/users"), ("naive", "/api/naive/users"), ("mieru", "/api/mieru/users"))}
@@ -862,6 +881,7 @@ class Acceptance:
         self.check("audit.filter_by_action", b.wait("document.querySelectorAll('.audit-row').length >= 1 && [...document.querySelectorAll('.audit-row')].every(r => r.textContent.includes('Создан доступ') || r.textContent.includes('user.create'))", 20))
         b.click("[data-audit-action=clear]")
         self.check("audit.clear_restores_the_journal", b.wait("document.querySelectorAll('.audit-row').length >= 3 && (document.querySelector('#audit-action')?.value || '') === ''", 20))
+        self.cells_do_not_overlap("audit.cells_do_not_overlap", ".audit-row", ".audit-main > *, .audit-details")
         self.frame_is_secret_free("audit")
         b.shot("audit.png")
 
