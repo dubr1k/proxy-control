@@ -235,7 +235,7 @@ suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
 
-**Beta releases (v0.2.0-beta.1 … v0.5.0-beta.1).** `install-bootstrap` refuses a
+**Beta releases (v0.2.0-beta.1 … v0.6.0-beta.1).** `install-bootstrap` refuses a
 version with a pre-release suffix, so a beta is installed without it: the same
 four files from the release page, the same `SHA256SUMS` check, then extract the
 archive and run the wizard from the extracted directory — it writes the
@@ -246,7 +246,7 @@ archive), and it is how v0.2, v0.3, v0.4 and v0.5 were installed:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.5.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.6.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
@@ -261,7 +261,7 @@ what gets installed, `--check-only` downloads and verifies only:
 
 ```bash
 scripts/install-release.sh --requirements
-scripts/install-release.sh --version 0.5.0-beta.1 --sha256 <lab-sha256 from the release note>
+scripts/install-release.sh --version 0.6.0-beta.1 --sha256 <lab-sha256 from the release note>
 ```
 
 The installer does not run from a Git clone: there is no `release/release.json`.
@@ -964,7 +964,10 @@ convergence after being offline, a node restart mid-apply, key revocation and
 unlink; v0.3 was also checked live against a production node.
 
 Routing (v0.4) and the Xray-router (v0.5) are beta, checked on the lab host and live
-on a production node to the extent of their release notes. Not claimed as completed: a
+on a production node to the extent of their release notes. v0.6 verifies everything promised
+in v0.2–v0.5: the [function → proof matrix](docs/VERIFICATION_MATRIX.md) under a guard test, a
+route audit, every screen in a real browser (`remote-gate.sh ui`), the managed 3x-ui against the
+real 3x-ui, a backup/restore drill — and the fixes for what that found (see the release note). Not claimed as completed: a
 3x-ui bridge, canary rollouts of policies, per-grant and UDP routing through the router,
 transitive nodes, metric history and updating a node's own panel from the central, and
 billing-grade traffic accounting.

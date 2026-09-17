@@ -4,6 +4,84 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.6.0-beta.1] - 2026-09-17
+
+The verification release: v0.6 adds no function. It answers whether everything promised
+in v0.2–v0.5 works on a real host, through the real API and a real browser — and answers
+with artifacts: a matrix of 58 promised functions and the proof of each
+([VERIFICATION_MATRIX](docs/VERIFICATION_MATRIX.md), guarded by a test), a route audit,
+a browser tier that drives every screen, a managed-3x-ui run against the real 3x-ui, a
+backup-and-restore drill by the book, and the fixes for what all of that found. Release
+note: [docs/releases/v0.6.0-beta.1.md](docs/releases/v0.6.0-beta.1.md).
+
+### Added
+
+- **Verification matrix** — `tests/fixtures/verification-matrix.json` rendered to
+  `docs/VERIFICATION_MATRIX.md`: one row per promised function of v0.2–v0.5 (58) with its
+  proofs (`pytest::`, `lab-host::`, `fleet::`, `ui::`, `live::`, `script::`, `doc::`), the
+  routes it covers and a status; `tests/test_verification_matrix.py` refuses a proof that
+  does not exist in the tree, a route or a screen without a row, a stale document, and —
+  under `VERIFICATION_STRICT=1`, the release gate — any `gap`.
+- **Route audit** — `scripts/dev/route-coverage.py` (in `remote-gate.sh full`): every panel
+  route with the gate it enforces (`RequestContext` names them), every mutation behind CSRF
+  or an API key and a role, the public routes exactly the documented seven, every route
+  mentioned by a test or a lab scenario. It found three routes no test touched: Mieru
+  quotas, resuming an operation, a node's version update from the central — tested now.
+- **Tier `ui`** — `scripts/lab/ui-acceptance.py` (`remote-gate.sh ui`): headless Chrome over
+  CDP on the lab host drives every view as the owner and once as a viewer — login (a wrong
+  password refused, logout), overview, MTProxy / NaiveProxy / Mieru users (create with the
+  one-time reveals, limits and quotas, disable/enable, rotate, delete), clients (grants on
+  three protocols with the bundle reveal, subscription URL issued / rotated / revoked and
+  proven at the public endpoint, import and adoption, suspend/resume/archive), versions
+  (against the host version-agent, installed per docs/UPGRADING), nodes, routing (v0.4 and
+  the v0.5 router), admins and scoped API keys, the journal with its filters; then a
+  second panel from the same tree as the central: link by fingerprint with import, the
+  node card's tabs, probe, pause/resume, edit, a grant delivered to the node by the pusher
+  and deleted, the node's own card «управляется центром», unlink. 180 checks; no console
+  error, no uncaught exception, no secret in any frame; the node's runtime users equal the
+  initial ones at the end. The lab node now carries a subscription domain (`sub.lab.test`).
+- **Tier `managed-xui`** — `scripts/lab/managed-xui-acceptance.sh` on the lab host: the
+  pinned 3x-ui installed and provisioned through its API, every promised inbound listening
+  (the coexistence fixture is moved aside for the run).
+- **Scenario `backup-restore`** in `lab-host` — `scripts/lab/backup-restore-drill.py`
+  follows docs/BACKUP_RESTORE on the installed node: the online SQLite copy, the master key
+  apart, each manager's and the router's state and secrets with their writers stopped,
+  `SHA256SUMS`; the generation broken (database, states, secrets gone); restored with
+  `master-key-verify` first; users, grants, the policy, the Caddyfile, mita's config, the
+  ingress keys, the router generation and the subscription URL are the same afterwards.
+- `scripts/lab/guest-runner.sh host` without `LAB_KEEP_INSTALL` (uninstall and coexistence)
+  and `lab-container` were run again on this tree.
+
+### Fixed
+
+- **Clients: issuing grants from the screen answered 422 since v0.3.** The grant dialog
+  collected `.grant-protocol input:checked` over the whole document, and the link dialog
+  (v0.3) reuses that class for its TLS radios — `verify` travelled to the API as a
+  protocol. The collection is scoped to the grant form. Beside it, Mieru's options required
+  `quotas` while the dialog sends `options: {}` for every protocol: no quota is now the
+  default (`MieruOptions.quotas = []`), wire-compatible.
+- **Overview: the CPU/RAM/disk usage bars never filled.** Their width was an inline
+  `style` attribute, which the panel's CSP (`style-src 'self'`) drops; the width goes
+  through the CSSOM after the paint, and a test refuses any inline style in the modules.
+- **Login: a wrong password reloaded the form blank.** `api()` treated every 401 as an
+  expired session and sent the browser back to `/login`; on the login page the 401 is the
+  form's own answer and is shown as the server's refusal.
+- **Routing (v0.5): a policy could not be deleted right after a detach** — attach/detach
+  now record the pass-through the node runs (as a linked node's report does), so «delete»
+  sees the reset it asks for; the routing card no longer paints the previous visit's
+  policy while its own loads («загружается…», actions disabled), which used to swallow a
+  click.
+- **Installer (v0.5): the real Xray-router runner had no `compose_service_present`**, so
+  `rollback`/`uninstall` left the router container running (found by the AMS_Z live
+  check; the lab never saw it because `LAB_KEEP_INSTALL=1` skips uninstall). The wizard
+  looks for the Xray archive under `--root` (its tests no longer depend on the host), and
+  the archive is fetched from its pin when absent, like the mita package.
+- **3x-ui: a refusal names its kind** (a certificate or key file, a port, validation)
+  without repeating the panel's message, which echoes request fields; the managed-3x-ui
+  acceptance issues the panel certificate 3x-ui checks.
+- Lab probes through the Internet (a lost UDP DNS datagram, curl 28/35/52/56 to the
+  control target) get a second try; a refusal by the thing under test never does.
+
 ## [0.5.0-beta.1] - 2026-09-16
 
 The Xray-router: a node may run one dedicated, pinned Xray process as the egress

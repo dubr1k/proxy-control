@@ -27,6 +27,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 - [Ежедневный операционный runbook](OPERATIONS.ru.md)
 - [Backup и restore](BACKUP_RESTORE.ru.md)
+- [Матрица сверки v0.2–v0.5 (v0.6)](VERIFICATION_MATRIX.md)
 - [Upgrade и rollback](UPGRADING.ru.md)
 - [Troubleshooting](TROUBLESHOOTING.ru.md)
 - [Accounting semantics](ACCOUNTING.md)
@@ -78,6 +79,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 - [Daily operations runbook](OPERATIONS.en.md)
 - [Backup and restore](BACKUP_RESTORE.en.md)
+- [Verification matrix v0.2–v0.5 (v0.6)](VERIFICATION_MATRIX.md)
 - [Upgrade and rollback](UPGRADING.md)
 - [Troubleshooting](TROUBLESHOOTING.en.md)
 - [Accounting semantics](ACCOUNTING.md)
