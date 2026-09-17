@@ -131,21 +131,26 @@ def _chain_outbounds(tag: str, intent: dict) -> tuple[list[dict], dict[str, str]
 
 
 def _lane_rules(tag: str, ingress: Ingress, intent: dict, accounts: dict[str, LaneAccount], chain_tags: dict[str, str]) -> list[dict]:
-    """Schema 2: every lane's rules and catch-all carry its account; the service lane last."""
+    """Schema 2: every grant lane's rules and catch-all carry its account; the service lane
+    comes last **without** a user selector — it is everyone the ingress admits who has no
+    lane of their own in the intent (the service's account, and a lane account whose
+    policy is not applied yet), so nobody ever falls through to Xray's first outbound."""
     rules: list[dict] = []
     lanes = intent["lanes"]
     ordered = [lane for lane in lanes if lane.startswith("grant:")] + [lane for lane in lanes if lane.startswith("svc:")]
     for lane in ordered:
         if lane.startswith("svc:"):
-            user = ingress.user
+            user = None
         elif lane in accounts:
             user = accounts[lane].user
         else:
             raise EgressInvalid(f"lane {lane} has no account on ingress {tag}")
         body = lanes[lane]
         rules.extend(_rule(tag, rule, user=user, chain_tags=chain_tags) for rule in body["rules"])
-        rules.append({"inboundTag": [tag], "user": [user],
-                      "outboundTag": _outbound_tag(tag, body["default"]["action"], body["default"]["egress"], chain_tags)})
+        catch_all = {"inboundTag": [tag], "outboundTag": _outbound_tag(tag, body["default"]["action"], body["default"]["egress"], chain_tags)}
+        if user is not None:
+            catch_all = {"inboundTag": [tag], "user": [user], "outboundTag": catch_all["outboundTag"]}
+        rules.append(catch_all)
     return rules
 
 

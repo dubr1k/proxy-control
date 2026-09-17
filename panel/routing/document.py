@@ -89,3 +89,15 @@ def redact_document(document):
 
 def redact_diff(lines):
     return [_UUID_LINE.sub(r"\1***\2", line) for line in lines]
+
+
+def without_lane(document: dict, lane: str) -> dict:
+    """A schema-2 intent minus one lane and the chains only it used — what a node should run
+    once a lane is withdrawn, until the service's policy is applied again."""
+    if not isinstance(document, dict) or document.get("schema") != 2 or lane not in document.get("lanes", {}):
+        return document
+    lanes = {name: body for name, body in document["lanes"].items() if name != lane}
+    used = {rule.get("egress") for body in lanes.values() for rule in body.get("rules", [])}
+    used |= {body.get("default", {}).get("egress") for body in lanes.values()}
+    chains = {chain_id: chain for chain_id, chain in document.get("chains", {}).items() if f"chain:{chain_id}" in used}
+    return {**document, "lanes": lanes, "chains": chains}

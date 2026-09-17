@@ -31,6 +31,7 @@ from ..database import Database
 from ..protocols.base import AdapterError
 from ..secrets_store import SecretError, SecretRef, SecretStore
 from .adapters.xray_router import ChainHop
+from .document import document_digest, without_lane
 from .models import LANE_SERVICE, PolicyInput, Reason, RoutingPolicy
 from .store import RoutingStore
 
@@ -386,6 +387,15 @@ class LaneService:
                 policy = self.store.get(db, grant.node_id, grant.protocol, lane=lane)
                 if policy is not None:
                     self.store.delete(db, policy.id)
+                # The service's section the node runs still names the lane (and its chains):
+                # the next generation carries it without them, or the node's router would keep
+                # checking a chain nobody uses — and refuse every generation if a hop went away.
+                service = self.store.get(db, grant.node_id, grant.protocol)
+                desired = self.store.desired_for_node(db, grant.node_id).get(grant.protocol) if service else None
+                if desired and isinstance(desired.get("document"), dict) and lane in desired["document"].get("lanes", {}):
+                    document = without_lane(desired["document"], lane)
+                    self.store.set_desired(db, service.id, {**desired, "document": document, "digest": document_digest(document)},
+                                           now=now)
             generation = self.publisher(db, grant.node_id)
             audit.record(db, actor=actor, action="grant.lane.enable" if mode == "own" else "grant.lane.disable",
                          target=grant.id, ip=ip, request_id=request_id,

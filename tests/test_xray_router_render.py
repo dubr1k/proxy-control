@@ -118,8 +118,10 @@ def test_render_lanes_are_accounts_on_the_service_ingress_and_rules_carry_the_us
     assert rules[2] == {"inboundTag": ["naive"], "user": ["grant-7f3a"], "domain": ["geosite:category-ads-all"], "outboundTag": "block"}
     assert rules[3] == {"inboundTag": ["naive"], "user": ["grant-7f3a"], "ip": ["geoip:ru"], "outboundTag": "direct"}
     assert rules[4] == {"inboundTag": ["naive"], "user": ["grant-7f3a"], "outboundTag": "warp"}
-    assert rules[5] == {"inboundTag": ["naive"], "user": ["naive-abc"], "domain": ["domain:example.com"], "outboundTag": "block"}
-    assert rules[6] == {"inboundTag": ["naive"], "user": ["naive-abc"], "outboundTag": "direct"}
+    # the service lane is everyone else — no user selector, so a lane account whose policy is
+    # not in the intent yet follows the service instead of Xray's first outbound (block)
+    assert rules[5] == {"inboundTag": ["naive"], "domain": ["domain:example.com"], "outboundTag": "block"}
+    assert rules[6] == {"inboundTag": ["naive"], "outboundTag": "direct"}
     assert len(rules) == 7
     # a lane the intent names but the service has no account for is refused, and the reverse is ignored
     with pytest.raises(EgressInvalid, match="lane"):
