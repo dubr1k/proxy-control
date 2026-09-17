@@ -310,22 +310,26 @@ class Panel:
     """Cookie session (CSRF header on writes) or Bearer key against one panel base URL."""
 
     def __init__(self, base_url: str, *, bearer: str | None = None, timeout: float = 30.0,
-                 ca_file: Path | None = None) -> None:
+                 ca_file: Path | None = None, pinned: bool = False) -> None:
         self.base_url = base_url.rstrip("/")
-        self.bearer, self.timeout, self.ca_file = bearer, timeout, ca_file
+        self.bearer, self.timeout, self.ca_file, self.pinned = bearer, timeout, ca_file, pinned
         self.jar = http.cookiejar.CookieJar()
         context = ssl.create_default_context()
         if ca_file is not None:
             # The lab's own CA next to the system store: the node's certificate chains to it,
             # and the host's trust store is not this script's to rely on.
             context.load_verify_locations(cafile=str(ca_file))
+        if pinned:
+            # A self-signed panel this script started itself (node B of the chains step): the
+            # central pins its certificate; this client talks to it without a chain.
+            context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPSHandler(context=context),
             urllib.request.HTTPCookieProcessor(self.jar),
         )
 
     def with_bearer(self, token: str) -> Panel:
-        return Panel(self.base_url, bearer=token, timeout=self.timeout, ca_file=self.ca_file)
+        return Panel(self.base_url, bearer=token, timeout=self.timeout, ca_file=self.ca_file, pinned=self.pinned)
 
     def _csrf(self) -> str:
         return next((c.value for c in self.jar if c.name == "panel_csrf"), "")
@@ -795,6 +799,9 @@ class Scenario:
         self.fingerprint, self.fetch = fingerprint, fetch
         # Routing (v0.4): the stub, the host digests and the routing clients; None unless --routing.
         self.stub, self.host, self.routing_probes = stub, host, routing_probes
+        # Chains (v0.7): the second node this script starts, and its id once linked.
+        self.node_b = NodeB(args) if getattr(args, "chains", False) else None
+        self.node_b_id: str | None = None
         self.output = Path(args.output)
         self.report: dict = {"checks": {}, "details": {}, "counts": {}, "cleanup": []}
         self.node_bearer: Panel | None = None
@@ -1821,9 +1828,7 @@ class Scenario:
         node_b = self.node_b
         password = secrets.token_urlsafe(24)
         node_b.start(password)
-        panel_b = Panel(node_b.url, ca_file=None)
-        # the panel's own certificate is pinned; the client here does not verify it
-        panel_b.context.check_hostname, panel_b.context.verify_mode = False, ssl.CERT_NONE
+        panel_b = Panel(node_b.url, pinned=True)
         ready, elapsed = self.wait(lambda: panel_b.request("/healthz")[0] == 200, 90, "node B healthz")
         if not self.check("c01_node_b_started", bool(ready), f"no /healthz after {elapsed}s"):
             raise Check("node B did not start; see node-b/*.log")
@@ -2110,6 +2115,9 @@ def main(argv=None) -> int:
     central_url = f"http://{args.central_host}:{args.central_port}"
     if args.router and not args.routing:
         print("FAILED: --router needs --routing (the stub and the routing clients)", file=sys.stderr)
+        return 2
+    if args.chains and not args.router:
+        print("FAILED: --chains needs --router (the node's Xray-router with lanes)", file=sys.stderr)
         return 2
     routing = {}
     if args.routing:
