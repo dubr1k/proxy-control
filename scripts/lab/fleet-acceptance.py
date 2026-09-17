@@ -1990,6 +1990,12 @@ class Scenario:
         self.check("c10_node_b_unlinked", status in (200, 204), str(status))
         self.node_b_id = None
         node_b.stop()
+        # the node as the router step left it: naive back on its native backend, no policy —
+        # the tiers after this one (ui, fleet) start from a detached service
+        self._apply_and_wait("c10", "naive")
+        self._attach("c10", "naive", False)
+        status, _, body = self.central.request(self._policy_path("naive"), method="DELETE")
+        self.check("c10_naive_policy_deleted_after_detach", status == 204, f"{status} {body[:120]!r}")
 
     def _apply_lane(self, protocol: str, lane: str, revision: int, *, expect=(200,)) -> tuple[int, dict]:
         status, _, body = self.central.request(f"{self._policy_path(protocol)}/apply?lane={urllib.parse.quote(lane)}", method="POST",
