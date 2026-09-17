@@ -151,12 +151,17 @@ class FleetPusher:
             self._offline(node_id, exc)
             return
         latency = int((self.clock.monotonic() - started) * 1000)
-        with self.database.transaction() as db:
-            self._emit(db, self.links.record_heartbeat(db, node_id, online=True, identity=identity, status=status,
-                                                       latency_ms=latency), node_id)
-            link = self.links.link(db, node_id)
-            latest = self.desired.latest(db, node_id)
-            observed = self.desired.observed(db, node_id)
+        try:
+            with self.database.transaction() as db:
+                self._emit(db, self.links.record_heartbeat(db, node_id, online=True, identity=identity, status=status,
+                                                           latency_ms=latency), node_id)
+                link = self.links.link(db, node_id)
+                latest = self.desired.latest(db, node_id)
+                observed = self.desired.observed(db, node_id)
+        except KeyError:
+            # The node was unlinked while its heartbeat was in flight: nothing to record.
+            log.info("fleet: node %s was unlinked during its heartbeat", node_id)
+            return
         if latest is None or not link["enabled"]:
             return  # a paused link is probed dry: the heartbeat above, nothing delivered
         if self._in_flight(latest, observed):
