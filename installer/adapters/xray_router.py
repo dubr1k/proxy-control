@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 import tempfile
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,6 +57,7 @@ _SECRET_MODE = 0o440
 # An ingress credential is `user:password` — the shapes the managers and the router accept.
 _CREDENTIAL = re.compile(r"[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._~-]{16,128}\Z")
 _TRACE = "https://www.cloudflare.com/cdn-cgi/trace"
+_PROBE_RETRY_SECONDS = 3.0
 
 # Pinned upstream Xray-core 26.3.27: the archive and the only members the installer
 # writes. The same numbers live in `release/external-artifacts.json`; a test keeps them equal.
@@ -584,8 +586,14 @@ class XrayRouterAdapter:
         probe = getattr(self.runner, "ingress_probe", None)
         if not callable(probe):
             raise XrayRouterError("ingress verification is unavailable")
-        if not probe(ROUTER_PORTS["naive"], str(self._host(self.paths.ingress("naive")))):
-            raise XrayRouterError("an authenticated CONNECT through the NaiveProxy ingress did not reach the Internet")
+        # The Internet between the host and the trace target is not the router's: a probe that
+        # fails right after a generation swap gets two more tries before the verdict.
+        for attempt in range(3):
+            if probe(ROUTER_PORTS["naive"], str(self._host(self.paths.ingress("naive")))):
+                break
+            if attempt == 2:
+                raise XrayRouterError("an authenticated CONNECT through the NaiveProxy ingress did not reach the Internet")
+            time.sleep(_PROBE_RETRY_SECONDS)
         relay = self._relay_view(selected)
         return Evidence(
             action_id=action.id,

@@ -394,7 +394,8 @@ def test_verify_refuses_an_unhealthy_manager(tmp_path, change, message):
         instance.verify(action)
 
 
-def test_verify_refuses_public_listener_or_dead_ingress(tmp_path):
+def test_verify_refuses_public_listener_or_dead_ingress(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, "_PROBE_RETRY_SECONDS", 0)
     runner = FakeRunner(listener=False)
     instance, action = _applied(tmp_path, runner)
     with pytest.raises(XrayRouterError, match="loopback only"):
@@ -403,6 +404,7 @@ def test_verify_refuses_public_listener_or_dead_ingress(tmp_path):
     instance, action = _applied(tmp_path, runner)
     with pytest.raises(XrayRouterError, match="did not reach the Internet"):
         instance.verify(action)
+    assert len(runner.probed) == 3  # three tries before the verdict
 
 
 def test_verify_refuses_a_drifted_member(tmp_path):

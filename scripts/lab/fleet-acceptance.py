@@ -158,6 +158,19 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--router-plain-target", default="http://example.com/", help="a port-80 target the port rule refuses")
     parser.add_argument("--routing-other", default="https://www.cloudflare.com/cdn-cgi/trace",
                         help="a target outside the selective rule, expected through the stub")
+    # Chains and lanes (v0.7, spec §10): a second node («node B») is started from this tree on
+    # the host — a router (the node's own pinned Xray binaries) with its own stub-WARP and a
+    # panel over TLS — linked to the central; the installed node's probe grant gets its own
+    # lane whose default exit is a chain through B. Needs --router.
+    parser.add_argument("--chains", action="store_true", help="run the v0.7 chains scenarios (needs --router)")
+    parser.add_argument("--node-b-host", default="node-b.lab.test", help="the name the host resolves to node B (in /etc/hosts)")
+    parser.add_argument("--node-b-port", type=int, default=8792, help="node B's panel port (TLS)")
+    parser.add_argument("--node-b-relay-port", type=int, default=45444, help="node B's relay port")
+    parser.add_argument("--node-b-stub-listen", default="127.0.0.1:45010", help="node B's «WARP» stub")
+    parser.add_argument("--router-bin-dir", type=Path, default=Path("/usr/local/lib/proxy-control/xray-router"),
+                        help="the installed node's pinned Xray members, shared with node B's router")
+    parser.add_argument("--router-env-file", type=Path, default=Path("/opt/mtproxy-shared443/.env.xray-router"),
+                        help="the installer's router overlay (the member digests)")
     args = parser.parse_args(argv)
     args.source = Path(args.source).resolve()
     # Docker bind mounts (the cores read their config from here) need an absolute path.
@@ -525,6 +538,108 @@ class Stub:
 
     def hosts_since(self, mark: int) -> list[str]:
         return [line.split("\t")[1] for line in self.lines()[mark:] if line.count("\t") >= 2]
+
+
+class NodeB:
+    """The second node of the chains scenario (v0.7): an Xray-router manager from the tree
+    (the installed node's pinned members, its own state, ingress ports 45111/45112, a stub as
+    its WARP) and a panel from the tree over a self-signed TLS certificate, both detached in
+    their own sessions. Nothing of it touches the installed node."""
+
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.args = args
+        self.directory = Path(args.central_dir) / "node-b"
+        self.stub = Stub(args.node_b_stub_listen, self.directory / "stub-b.log")
+        self.router: subprocess.Popen | None = None
+        self.panel: subprocess.Popen | None = None
+        self.socket = self.directory / "router-b.sock"
+        self.token = self.directory / "router-b.token"
+        self.url = f"https://{args.node_b_host}:{args.node_b_port}"
+
+    def _digests(self) -> dict[str, str]:
+        values = {}
+        for line in self.args.router_env_file.read_text().splitlines():
+            key, _, value = line.partition("=")
+            if key.startswith("XRAY_ROUTER_") and key.endswith("_SHA256"):
+                values[key] = value.strip()
+        return values
+
+    def _environment(self) -> dict[str, str]:
+        return {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONPATH": str(self.args.source), "PYTHONUNBUFFERED": "1",
+            "PANEL_DATABASE": str(self.directory / "panel.sqlite3"), "PANEL_MASTER_KEY_FILE": str(self.directory / "master-key"),
+            "PANEL_ALLOWED_HOSTS": f"{self.args.node_b_host},127.0.0.1,localhost", "PANEL_COOKIE_SECURE": "false",
+            "NAIVE_ENABLED": "false", "MIERU_ENABLED": "false",
+            "PANEL_FLEET_HEARTBEAT_SECONDS": str(self.args.heartbeat_seconds),
+            "PANEL_VERSION_FILE": str(self.args.source / "VERSION"),
+            "TELEMT_API_URL": "http://127.0.0.1:1", "TELEMT_API_TOKEN": "unused",
+            "NAIVE_MANAGER_SOCKET": str(self.directory / "no-naive.sock"), "MIERU_MANAGER_SOCKET": str(self.directory / "no-mieru.sock"),
+            "VERSION_AGENT_SOCKET": str(self.directory / "no-version-agent.sock"),
+            "XRAY_ROUTER_ENABLED": "true", "XRAY_ROUTER_MANAGER_SOCKET": str(self.socket),
+            "XRAY_ROUTER_MANAGER_TOKEN_FILE": str(self.token),
+        }
+
+    def _cli(self, *argv: str, stdin: str | None = None) -> None:
+        completed = subprocess.run(
+            [self.args.python, "-m", "panel.cli", "--database", str(self.directory / "panel.sqlite3"), *argv],
+            cwd=self.args.source, env=self._environment(), input=stdin, text=True, capture_output=True, timeout=120, check=False)
+        if completed.returncode != 0:
+            raise Check(f"node B panel.cli {argv[0]} failed: {completed.stderr.strip()[-300:]}")
+
+    def start(self, owner_password: str) -> None:
+        shutil.rmtree(self.directory, ignore_errors=True)
+        self.directory.mkdir(parents=True)
+        self.directory.chmod(0o700)
+        self.stub.start()
+        # the router: its own state and ingress credentials, the node's pinned members
+        state = self.directory / "router-state"
+        state.mkdir()
+        self.token.write_text(secrets.token_hex(32) + "\n")
+        for service in ("naive", "mieru"):
+            (self.directory / f"ingress-{service}").write_text(f"{service}-b{secrets.token_hex(3)}:{secrets.token_urlsafe(32)}\n")
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONPATH": str(self.args.source), "PYTHONUNBUFFERED": "1",
+               "XRAY_ROUTER_BIN_DIR": str(self.args.router_bin_dir), "XRAY_ROUTER_STATE_DIR": str(state),
+               "XRAY_ROUTER_SOCKET": str(self.socket), "XRAY_ROUTER_MANAGER_TOKEN_FILE": str(self.token),
+               "XRAY_ROUTER_INGRESS_NAIVE_FILE": str(self.directory / "ingress-naive"),
+               "XRAY_ROUTER_INGRESS_MIERU_FILE": str(self.directory / "ingress-mieru"),
+               "XRAY_ROUTER_PORT_NAIVE": "45111", "XRAY_ROUTER_PORT_MIERU": "45112",
+               "XRAY_ROUTER_EGRESS_WARP": f"socks5://{self.args.node_b_stub_listen}", **self._digests()}
+        with (self.directory / "router-b.log").open("ab") as log:
+            self.router = subprocess.Popen([self.args.python, "-m", "xray_router_manager"], cwd=self.args.source, env=env,
+                                           stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and not self.socket.exists():
+            time.sleep(0.5)
+        if not self.socket.exists():
+            raise Check("node B's router did not open its socket; see node-b/router-b.log")
+        # the panel: an owner, a self-signed certificate for the node's name, uvicorn over TLS
+        self._cli("master-key-init", "--path", str(self.directory / "master-key"))
+        self._cli("create-admin", "--username", "owner", "--role", "owner", "--password-stdin", stdin=owner_password + "\n")
+        cert, key = self.directory / "tls.crt", self.directory / "tls.key"
+        completed = subprocess.run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
+                                    "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "2", "-subj", f"/CN={self.args.node_b_host}",
+                                    "-addext", f"subjectAltName=DNS:{self.args.node_b_host}"],
+                                   capture_output=True, text=True, timeout=60, check=False)
+        if completed.returncode != 0:
+            raise Check(f"openssl failed: {completed.stderr[-200:]}")
+        with (self.directory / "panel-b.log").open("ab") as log:
+            self.panel = subprocess.Popen(
+                [self.args.python, "-m", "uvicorn", "panel.app:create_app", "--factory", "--host", "0.0.0.0",
+                 "--port", str(self.args.node_b_port), "--log-level", "info", "--no-access-log",
+                 "--ssl-keyfile", str(key), "--ssl-certfile", str(cert)],
+                cwd=self.args.source, env=self._environment(), stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                start_new_session=True)
+
+    def stop(self) -> None:
+        for process in (self.panel, self.router):
+            if process is not None:
+                _terminate(process.pid, process)
+        self.panel = self.router = None
+        self.stub.stop()
+
+    def logs(self) -> str:
+        return "".join((self.directory / name).read_text(errors="replace") for name in ("router-b.log", "panel-b.log")
+                       if (self.directory / name).exists())
 
 
 class Host:
@@ -1157,6 +1272,8 @@ class Scenario:
             return self.STEPS
         index = self.STEPS.index("step_05_grants") + 1
         extra = ("step_05r_routing", "step_05x_router") if self.args.router else ("step_05r_routing",)
+        if self.args.chains:
+            extra = (*extra, "step_05c_chains")
         return (*self.STEPS[:index], *extra, *self.STEPS[index:])
 
     def run(self) -> bool:
@@ -1680,6 +1797,201 @@ class Scenario:
         self.routing_probes.stop()
         self.stub.stop()
 
+    # --- chains and lanes (v0.7, spec §10: chains-01 … chains-10) ---
+
+    def _lane_path(self, protocol: str, lane: str) -> str:
+        return f"{self._policy_path(protocol)}?lane={urllib.parse.quote(lane)}"
+
+    def _lane_policy(self, protocol: str, lane: str) -> dict | None:
+        status, _, body = self.central.request(self._lane_path(protocol, lane))
+        return json.loads(body) if status == 200 else None
+
+    def _wait_lane_applied(self, protocol: str, lane: str, revision: int, seconds: float = 120) -> tuple[dict | None, float]:
+        def settled():
+            policy = self._lane_policy(protocol, lane)
+            if policy and policy["state"] == "applied" and policy["applied_revision"] == revision:
+                return policy
+            return policy if policy and policy["state"] == "failed" else None
+        policy, elapsed = self.wait(settled, seconds, f"{protocol} lane {lane} applied")
+        return (policy if policy and policy["state"] == "applied" else None), elapsed
+
+    def step_05c_chains(self) -> None:
+        args = self.args
+        allowed, other = args.routing_allowed, args.routing_other
+        node_b = self.node_b
+        password = secrets.token_urlsafe(24)
+        node_b.start(password)
+        panel_b = Panel(node_b.url, ca_file=None)
+        # the panel's own certificate is pinned; the client here does not verify it
+        panel_b.context.check_hostname, panel_b.context.verify_mode = False, ssl.CERT_NONE
+        ready, elapsed = self.wait(lambda: panel_b.request("/healthz")[0] == 200, 90, "node B healthz")
+        if not self.check("c01_node_b_started", bool(ready), f"no /healthz after {elapsed}s"):
+            raise Check("node B did not start; see node-b/*.log")
+        panel_b.login("owner", password)
+        key = panel_b.json("/api/keys", method="POST", payload={"name": f"{KEY_NAME_PREFIX}b", "scope": "node-sync", "expires_at": None})
+        identity_b = panel_b.with_bearer(key["plaintext"]).json("/api/fleet/v2/identity")
+        self.check("c01_node_b_identity_has_lanes_and_relay", {"egress.lanes.v1", "relay.v1"} <= set(identity_b.get("capabilities", []))
+                   and (identity_b.get("router") or {}).get("available") is True
+                   and ((identity_b.get("router") or {}).get("relay") or {}).get("enabled") is False,
+                   json.dumps({k: identity_b.get(k) for k in ("capabilities",)})[:300])
+        # chains-02: link B (pin its certificate) and enable its relay through its generation
+        digest = self.central.json("/api/nodes/fingerprint", method="POST", payload={"url": node_b.url})["sha256"]
+        linked = self.central.json("/api/nodes/link", method="POST",
+                                   payload={"url": node_b.url, "tls_verify": "pin", "pinned_sha256": digest, "allow_private_address": True,
+                                            "display_name": "lab node B", "api_key": key["plaintext"]})
+        self.node_b_id = linked["node_id"]
+        self.check("c02_node_b_linked", self.node_b_id == identity_b.get("guid"))
+        online, elapsed = self.wait(lambda: (self.central.json(f"/api/nodes/{self.node_b_id}").get("link") or {}).get("status") == "online" or None,
+                                    ONLINE_SECONDS, "node B online")
+        self.check("c02_node_b_online", bool(online), f"after {elapsed}s")
+        enabled = self.central.json(f"/api/routing/relay/{self.node_b_id}/enable", method="POST", payload={"port": args.node_b_relay_port})
+        self.check("c02_relay_enable_pending_through_generation", enabled.get("pending") is True and enabled.get("port") == args.node_b_relay_port,
+                   json.dumps(enabled)[:200])
+
+        def relay_known():
+            items = self.central.json("/api/routing/targets")["items"]
+            item = next((i for i in items if i["node_id"] == self.node_id and i["protocol"] == "naive"), {})
+            exit_ = next((e for e in item.get("exits", []) if e["node_id"] == self.node_b_id), None)
+            return exit_ if exit_ and exit_.get("enabled") and exit_.get("online") else None
+        exit_b, elapsed = self.wait(relay_known, 120, "node B relay reported")
+        self.check("c02_node_b_is_an_exit_of_the_node", bool(exit_b), f"after {elapsed}s")
+        relay_b = ((panel_b.with_bearer(key["plaintext"]).json("/api/fleet/v2/identity").get("router") or {}).get("relay") or {})
+        self.check("c02_node_b_relay_listens", relay_b.get("enabled") is True and relay_b.get("port") == args.node_b_relay_port
+                   and bool(relay_b.get("public_key")) and "private" not in json.dumps(relay_b),
+                   json.dumps({k: relay_b.get(k) for k in ("enabled", "port", "server_name")}))
+        self.report["counts"]["c02_relay_seconds"] = elapsed
+
+        # chains-03: the probe grant's own lane on the node (naive attached to the router)
+        if not self._router_view("naive").get("attached"):
+            if not self._attach("c03", "naive", True):
+                raise Check("naive did not attach to the router for the chains step")
+        grant_ids = self._grant_ids(self.probe_user)
+        naive_grant = grant_ids["naive"]
+        lane = f"grant:{naive_grant}"
+        turned = self.central.json(f"/api/routing/lanes/{naive_grant}", method="POST", payload={"mode": "own"})
+        self.check("c03_lane_pending_through_generation", turned.get("mode") == "own" and turned.get("pending") is True, json.dumps(turned)[:200])
+
+        def lane_built():
+            item = self._targets().get("naive", {})
+            lanes = [entry["lane"] for entry in item.get("lanes", [])]
+            grant = next((g for g in self.grants() if g["id"] == naive_grant), {})
+            return item if lane in lanes and grant.get("routing_lane") == "own" and f"grant-{naive_grant}" in self.host.caddyfile_text() else None
+        built, elapsed = self.wait(lane_built, 120, "lane built on the node")
+        self.check("c03_node_built_the_lane", bool(built), f"after {elapsed}s")
+        caddy_text = self.host.caddyfile_text()
+        self.check("c03_caddyfile_has_the_lane_handler", "BEGIN NAIVE-MANAGER LANES" in caddy_text and f"grant-{naive_grant}" in caddy_text)
+        self.check("c03_lane_policy_is_a_draft", (self._lane_policy("naive", lane) or {}).get("state") == "draft")
+
+        # chains-04: the lane's policy — everything through B's WARP, Cloudflare's addresses direct
+        current = self._lane_policy("naive", lane)
+        body = {"default_action": "egress", "default_egress": f"node:{self.node_b_id}:warp", "fallback": "fail_closed",
+                "rules": [{"action": "direct", "match": {"geoips": ["cloudflare"]}}], "expected_revision": current["revision"]}
+        saved = self.central.json(self._lane_path("naive", lane), method="PUT", payload=body)
+        preview = self.central.json(f"{self._policy_path('naive')}/preview?lane={urllib.parse.quote(lane)}", method="POST")
+        reasons = [r.get("code") for r in preview.get("reasons", [])]
+        # the accounts are minted on apply: the first apply may say `relay_credential_pending`
+        self.check("c04_preview_names_pending_or_supported", preview.get("status") == "supported" or reasons == ["relay_credential_pending"],
+                   json.dumps(reasons)[:200])
+        status, refused = self._apply_lane("naive", lane, saved["revision"], expect=(200, 422))
+        if status == 422:
+            codes = [r.get("code") for r in (refused.get("compiled") or {}).get("reasons", [])]
+            self.check("c04_first_apply_waits_for_the_relay_account", codes == ["relay_credential_pending"], json.dumps(codes)[:200])
+            confirmed, elapsed = self.wait(lambda: self._apply_lane("naive", lane, saved["revision"], expect=(200, 422))[0] == 200 or None,
+                                           120, "relay account confirmed")
+            self.check("c04_apply_accepted_after_confirmation", bool(confirmed), f"after {elapsed}s")
+        applied, elapsed = self._wait_lane_applied("naive", lane, saved["revision"])
+        self.check("c04_lane_policy_applied_on_the_node", bool(applied), f"after {elapsed}s: {redact(json.dumps(self._lane_policy('naive', lane)))[:300]}")
+        service_policy = self._policy("naive") or {}
+        self.check("c04_service_policy_applied_alongside", service_policy.get("state") == "applied", json.dumps(service_policy.get("state")))
+        history = self.central.json(f"{self._policy_path('naive')}/history?lane={urllib.parse.quote(lane)}")["items"]
+        document = (history[0] if history else {}).get("document") or {}
+        chain = ((document.get("chains") or {}).get("c1") or {})
+        hops = chain.get("hops") or []
+        self.check("c04_intent_carries_the_chain_through_b", document.get("schema") == 2 and len(hops) == 1
+                   and hops[0].get("address") == args.node_b_host and hops[0].get("port") == args.node_b_relay_port and chain.get("exit") == "warp",
+                   json.dumps({k: chain.get(k) for k in ("exit",)} | {"hops": len(hops)}))
+        self.check("c04_history_masks_the_relay_account", all(h.get("uuid") == "***" for h in hops))
+
+        # chains-05: the client's traffic — through B's WARP for the default, direct for geoip:cloudflare
+        mark = len(node_b.stub.lines())
+        ok, detail = self._probe("naive", allowed)
+        self.check("c05_lane_default_through_node_b_warp", ok and urllib.parse.urlsplit(allowed).hostname in node_b.stub.hosts_since(mark),
+                   f"{detail}; stub-b saw {node_b.stub.hosts_since(mark)[-3:]}")
+        mark_a, mark_b = len(self.stub.lines()), len(node_b.stub.lines())
+        ok, detail = self._probe("naive", other)
+        self.check("c05_geoip_direct_bypasses_both_stubs", ok and urllib.parse.urlsplit(other).hostname not in node_b.stub.hosts_since(mark_b)
+                   and urllib.parse.urlsplit(other).hostname not in self.stub.hosts_since(mark_a), detail)
+        self.check("c05_node_a_stub_untouched_by_the_lane", urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(mark_a))
+
+        # chains-06: a Mieru lane — the slot's port reaches the central's link
+        mieru_grant = grant_ids.get("mieru")
+        if mieru_grant and self.routing_probes.mihomo_up:
+            self.central.json(f"/api/routing/lanes/{mieru_grant}", method="POST", payload={"mode": "own"})
+
+            def slot_learned():
+                grant = next((g for g in self.grants() if g["id"] == mieru_grant), {})
+                template = (grant.get("options") or {}).get("share_template") or ""
+                return template if grant.get("routing_lane") == "own" and "port=461" in template else None
+            template, elapsed = self.wait(slot_learned, 120, "mieru slot template learned")
+            self.check("c06_mieru_lane_template_names_a_slot_port", bool(template), f"after {elapsed}s")
+            self.check("c06_mieru_slot_unit_active", subprocess.run(["systemctl", "is-active", "--quiet", "mita@1"], check=False).returncode == 0)
+            self.central.json(f"/api/routing/lanes/{mieru_grant}", method="POST", payload={"mode": "service"})
+            back, elapsed = self.wait(lambda: next((g for g in self.grants() if g["id"] == mieru_grant), {}).get("routing_lane") is None
+                                      and "port=461" not in ((next((g for g in self.grants() if g["id"] == mieru_grant), {}).get("options") or {}).get("share_template") or "") or None,
+                                      120, "mieru lane withdrawn")
+            self.check("c06_mieru_lane_withdrawn_template_back", bool(back), f"after {elapsed}s")
+
+        # chains-07: rotate B's relay accounts — the chain keeps working after a fresh apply
+        rotated = self.central.json(f"/api/routing/relay/{self.node_b_id}/rotate", method="POST")
+        self.check("c07_relay_rotated_two_accounts", rotated.get("rotated") == 2, json.dumps(rotated)[:120])
+        current = self._lane_policy("naive", lane)
+        body["expected_revision"], body["rules"] = current["revision"], []
+        saved = self.central.json(self._lane_path("naive", lane), method="PUT", payload=body)
+        confirmed, elapsed = self.wait(lambda: self._apply_lane("naive", lane, saved["revision"], expect=(200, 422))[0] == 200 or None,
+                                       120, "apply after rotation")
+        applied, elapsed = self._wait_lane_applied("naive", lane, saved["revision"])
+        self.check("c07_applied_with_the_new_accounts", bool(confirmed) and bool(applied), f"after {elapsed}s")
+        mark = len(node_b.stub.lines())
+        ok, detail = self._probe("naive", allowed)
+        self.check("c07_chain_works_after_rotation", ok and urllib.parse.urlsplit(allowed).hostname in node_b.stub.hosts_since(mark), detail)
+
+        # chains-08: rollback of the lane's policy — the previous document again
+        self.central.json(f"{self._policy_path('naive')}/rollback?lane={urllib.parse.quote(lane)}", method="POST",
+                          payload={"expected_revision": saved["revision"]})
+        rolled, elapsed = self._wait_lane_applied("naive", lane, saved["revision"] - 1)
+        self.check("c08_lane_rolled_back", bool(rolled), f"after {elapsed}s: {redact(json.dumps(self._lane_policy('naive', lane)))[:300]}")
+
+        # chains-09: nothing secret anywhere the operator or the central can read
+        secrets_b = [line.split(":", 1)[1] for line in ((node_b.directory / f"ingress-{s}").read_text().strip() for s in ("naive", "mieru"))]
+        texts = {"targets": json.dumps(self.central.json("/api/routing/targets")), "identity_b": json.dumps(identity_b),
+                 "audit": json.dumps(self.central.json("/api/audit?limit=300")), "history": json.dumps(history),
+                 "node_b_logs": node_b.logs(), "node_panel_logs": self.host.docker_logs(args.node_container)}
+        uuid_shape = re.compile(r'"uuid":\s*"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"')
+        leaks = [name for name, text in texts.items() if any(v in text for v in secrets_b) or uuid_shape.search(text)
+                 or "socks5://grant" in text]
+        self.check("c09_no_lane_key_or_relay_account_in_api_audit_or_logs", not leaks, str(leaks))
+
+        # chains-10: the lane withdrawn — the client back with the service, the node clean
+        self.central.json(f"/api/routing/lanes/{naive_grant}", method="POST", payload={"mode": "service"})
+        gone, elapsed = self.wait(lambda: (lane not in [e["lane"] for e in self._targets().get("naive", {}).get("lanes", [])]
+                                           and f"grant-{naive_grant}" not in self.host.caddyfile_text()) or None, 120, "lane withdrawn")
+        self.check("c10_lane_withdrawn_on_the_node", bool(gone), f"after {elapsed}s")
+        self.check("c10_lane_policy_gone", self._lane_policy("naive", lane) is None)
+        ok, detail = self._probe("naive", allowed)
+        self.check("c10_client_serves_with_the_service_again", ok, detail)
+        status, _, _ = self.central.request(f"/api/nodes/{self.node_b_id}", method="DELETE")
+        self.check("c10_node_b_unlinked", status in (200, 204), str(status))
+        self.node_b_id = None
+        node_b.stop()
+
+    def _apply_lane(self, protocol: str, lane: str, revision: int, *, expect=(200,)) -> tuple[int, dict]:
+        status, _, body = self.central.request(f"{self._policy_path(protocol)}/apply?lane={urllib.parse.quote(lane)}", method="POST",
+                                               payload={"expected_revision": revision})
+        parsed = json.loads(body) if body else {}
+        if status not in expect:
+            raise Check(f"apply {protocol} lane -> {status} {redact(json.dumps(parsed))[:300]}")
+        return status, parsed
+
     def _restore_router(self) -> None:
         """After a failure inside the router step: both services back to their native backends
         (best effort), the policies reset and deleted by `_restore_routing`."""
@@ -1698,11 +2010,31 @@ class Scenario:
                         self._attach("cleanup", protocol, False)
                         self.report["cleanup"].append(f"{protocol} detached from the router after failure")
 
+    def _restore_chains(self) -> None:
+        """After a failure inside the chains step: the lanes off the probe grants, node B unlinked
+        and stopped (best effort); the router step's own restore then detaches the services."""
+        if not self.args.chains or self.node_b is None:
+            return
+        with contextlib.suppress(Exception):
+            for grant in self.grants():
+                if grant.get("routing_lane") == "own":
+                    with contextlib.suppress(Exception):
+                        self.central.json(f"/api/routing/lanes/{grant['id']}", method="POST", payload={"mode": "service"})
+            self.wait(lambda: all(g.get("routing_lane") != "own" for g in self.grants()) or None, 60, "lanes withdrawn")
+            self.report["cleanup"].append("lanes withdrawn after failure")
+        with contextlib.suppress(Exception):
+            if self.node_b_id:
+                status, _, _ = self.central.request(f"/api/nodes/{self.node_b_id}", method="DELETE")
+                self.report["cleanup"].append(f"node B unlinked after failure: {status}")
+        with contextlib.suppress(Exception):
+            self.node_b.stop()
+
     def _restore_routing(self) -> None:
         """After a failure inside the routing step: the stub and the mihomo container go, and
         every routing policy of the node is reset to direct (best effort) and deleted."""
         if not self.args.routing or self.stub is None:
             return
+        self._restore_chains()
         self._restore_router()
         with contextlib.suppress(Exception):
             self.routing_probes.stop()
