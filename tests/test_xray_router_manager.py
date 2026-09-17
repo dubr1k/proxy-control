@@ -433,6 +433,40 @@ def test_lane_intent_applies_with_the_lane_account_and_the_views_stay_secret_fre
     assert issued["password"] not in json.dumps(instance.egress("naive"))
 
 
+def test_forgetting_a_lane_the_intent_still_names_drops_its_rules_in_the_same_generation(tmp_path):
+    """The lab caught the router crash-looping at start: `lane_forget` had written lanes.json
+    without the account while the running intent still named the lane, and every render
+    since refused it. The forget now strips the lane (and the chains only it used) from the
+    intent it commits; the file changes only with a successful swap, and a restart with a
+    stale intent strips the same way instead of dying."""
+    instance, runner = manager(tmp_path)
+    instance.bootstrap()
+    instance.lane_issue("naive", "grant:7f3a")
+    chain = {"c1": {"hops": [{"guid": "b" * 32, "address": "panel.b.example", "port": 45443, "server_name": "panel.b.example",
+                              "public_key": "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s", "short_id": "0123abcd",
+                              "uuid": "3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10"}], "exit": "direct"}}
+    instance.hop_reachability = lambda address, port, server_name, timeout=3.0: True
+    instance.egress_apply("naive", instance.egress("naive")["revision"], _lanes_doc({"action": "egress", "egress": "chain:c1"}, chain), "op-lane")
+    generation = instance.status()["running"]["generation"]
+    instance.lane_forget("naive", "grant:7f3a")
+    assert instance.status()["running"]["generation"] == generation + 1
+    running = runner.running["config"]
+    assert all("grant-7f3a" not in json.dumps(rule) for rule in running["routing"]["rules"])
+    assert all(not outbound["tag"].startswith("chain:") for outbound in running["outbounds"])
+    applied = instance.egress("naive")["document"]
+    assert list(applied["lanes"]) == ["svc:naive"] and applied["chains"] == {}
+    # a running intent naming a lane whose account is gone from lanes.json (what the buggy
+    # forget left behind): the next start strips the lane and commits instead of refusing to render
+    instance.lane_issue("naive", "grant:7f3a")
+    instance.egress_apply("naive", instance.egress("naive")["revision"], _lanes_doc({"action": "egress", "egress": "warp"}), "op-lane-2")
+    (instance.state_dir / "lanes.json").write_text(json.dumps({"naive": {}, "mieru": {}}))
+    again, runner2 = manager(tmp_path)
+    again.bootstrap()
+    assert list(again.egress("naive")["document"]["lanes"]) == ["svc:naive"]
+    assert again.status()["phase"] == "idle" and again.status()["running"]["generation"] > generation + 2
+    assert all("grant-7f3a" not in json.dumps(rule) for rule in runner2.running["config"]["routing"]["rules"])
+
+
 def test_relay_enable_mints_a_keypair_once_listens_and_takes_accounts_from_the_central(tmp_path):
     instance, runner = manager(tmp_path)
     instance.bootstrap()

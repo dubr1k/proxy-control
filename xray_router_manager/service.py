@@ -337,6 +337,26 @@ class XrayRouterManager:
         return {tag: [LaneAccount(lane, entry["user"], entry["password"]) for lane, entry in lanes.items()]
                 for tag, lanes in self._lanes().items()}
 
+    @staticmethod
+    def _without_lanes(intent: dict, known: set[str]) -> dict:
+        """A schema-2 intent minus the grant lanes not in `known`: a lane whose account is gone
+        (forgotten, or lost before a restart) cannot route anyone, so its rules go with it and
+        the intent keeps rendering; the chains its rules named are dropped when unused."""
+        if intent.get("schema") != SCHEMA_V2:
+            return intent
+        lanes = {lane: body for lane, body in intent["lanes"].items() if lane.startswith("svc:") or lane in known}
+        if lanes == intent["lanes"]:
+            return intent
+        used = {rule["egress"] for body in lanes.values() for rule in body["rules"] if isinstance(rule.get("egress"), str)}
+        used |= {body["default"].get("egress") for body in lanes.values()}
+        chains = {chain_id: chain for chain_id, chain in intent.get("chains", {}).items() if f"chain:{chain_id}" in used}
+        return {**intent, "lanes": lanes, "chains": chains}
+
+    def _current_intents(self, current: dict) -> dict[str, dict]:
+        """The running intents with every lane that has no account any more stripped out."""
+        known = {tag: set(lanes) for tag, lanes in self._lanes().items()}
+        return {tag: self._without_lanes(entry["document"], known.get(tag, set())) for tag, entry in current["services"].items()}
+
     def _relay_record(self) -> dict | None:
         return self._read_json("relay.json", None)
 
@@ -362,7 +382,7 @@ class XrayRouterManager:
             raise ManualInterventionRequired("the router has no current generation")
         if self._state().get("phase") != "idle":
             raise ManualInterventionRequired(f"the router is {self._state().get('phase')}")
-        intents = {tag: entry["document"] for tag, entry in current["services"].items()}
+        intents = self._current_intents(current)
         self._commit_generation(current["generation"] + 1, intents, operation_ids={}, rollback_of=None, keep_journal=True)
 
     def lane_issue(self, service: str, lane: str) -> dict:
@@ -380,14 +400,30 @@ class XrayRouterManager:
             return {"lane": lane, "user": account["user"], "password": account["password"]}
 
     def lane_forget(self, service: str, lane: str) -> dict:
+        """Forget a lane's account: the running intent loses the lane's rules in the same
+        generation, so nothing ever refers to an account that is gone. The file is written
+        after the commit — a failed swap leaves the account (and the intent) as they were."""
         self._service(service)
         with self.lock:
             lanes = self._lanes()
             if lane not in lanes[service]:
                 raise ManagerConflict("unknown lane", "lane_unknown")
             del lanes[service][lane]
+            current = self._current()
+            if current is None:
+                raise ManualInterventionRequired("the router has no current generation")
+            if self._state().get("phase") != "idle":
+                raise ManualInterventionRequired(f"the router is {self._state().get('phase')}")
+            known = {tag: set(entries) for tag, entries in lanes.items()}
+            intents = {tag: self._without_lanes(entry["document"], known.get(tag, set()))
+                       for tag, entry in current["services"].items()}
+            previous = self._read_json("lanes.json", {})
             self._write_json("lanes.json", lanes)
-            self._rerender_current()
+            try:
+                self._commit_generation(current["generation"] + 1, intents, operation_ids={}, rollback_of=None, keep_journal=True)
+            except Exception:
+                self._write_json("lanes.json", previous)
+                raise
             return {"lane": lane, "forgotten": True}
 
     def lanes(self, service: str) -> dict:
@@ -491,7 +527,7 @@ class XrayRouterManager:
                 intents = {tag: direct_document() for tag in SERVICES}
                 self._commit_generation(1, intents, operation_ids={}, rollback_of=None)
                 return
-            intents = {tag: entry["document"] for tag, entry in current["services"].items()}
+            intents = self._current_intents(current)
             config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
                                    lanes=self._lane_accounts(), relay=self._relay())
             if generation_digest(config) != current["digest"] or not self._generation_path(current["generation"]).exists():
