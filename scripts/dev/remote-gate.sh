@@ -203,7 +203,8 @@ case $LEVEL in
     remote "$ensure_venv && .venv/bin/python scripts/lab/ui-acceptance.py \
       --node-url https://panel.lab.test \
       --password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
-      --ca-file /etc/letsencrypt/lab-ca/ca.crt --stub --output lab-results/ui $* \
+      --ca-file /etc/letsencrypt/lab-ca/ca.crt --stub --output lab-results/ui \
+      --central-dir /root/lab-central-ui --central-port 8792 $* \
       && echo REMOTE_GATE_UI_OK"
     ;;
   *)
