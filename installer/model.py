@@ -42,10 +42,26 @@ class DomainConfig:
     subscription: str | None = None
 
 
+# Lane slots (v0.7): extra mita daemons for clients' own lanes, one TCP port each from
+# this base — `mita@1` on 46101, `mita@2` on 46102, … (spec §5.2).
+LANE_SLOT_BASE_PORT = 46100
+MAX_LANE_SLOTS = 8
+DEFAULT_LANE_SLOTS = 4
+
+
+def lane_slot_port(index: int) -> int:
+    return LANE_SLOT_BASE_PORT + index
+
+
 @dataclass(frozen=True)
 class MieruConfig:
     tcp_ports: tuple[int, ...]
     udp_ports: tuple[int, ...]
+    # How many lane slots the host runs (v0.7); 0 without a router.
+    lane_slots: int = 0
+
+    def slot_ports(self) -> tuple[int, ...]:
+        return tuple(lane_slot_port(index) for index in range(1, self.lane_slots + 1))
 
 
 @dataclass(frozen=True)
@@ -71,6 +87,8 @@ class EgressChoice(StrEnum):
 # The router's per-service SOCKS5 ingress on the host loopback (v0.5, frozen identifiers):
 # the same numbers `xray_router_manager.intent.PORTS` listens on.
 ROUTER_PORTS: dict[str, int] = {"naive": 45101, "mieru": 45102}
+# The relay inbound's public port (v0.7): vless+reality for chains from other nodes.
+DEFAULT_RELAY_PORT = 45443
 
 
 @dataclass(frozen=True)
@@ -88,6 +106,9 @@ class EgressConfig:
     naive: EgressChoice = EgressChoice.DIRECT
     mieru: EgressChoice = EgressChoice.DIRECT
     router: bool = False
+    # The router's relay inbound for chains from other nodes (v0.7): a public TCP port,
+    # opened with the router; 0 keeps the relay off.
+    relay_port: int = 0
 
     def provider_url(self) -> str | None:
         """The WARP proxy-mode endpoint the managers are told about, or None without WARP."""

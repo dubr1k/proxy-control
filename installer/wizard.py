@@ -12,6 +12,8 @@ from typing import Protocol, TextIO, TypeVar
 from installer.config import ConfigError, parse_config, render_config
 from installer.i18n import Locale, locale_from_environment, parse_locale, text
 from installer.model import (
+    DEFAULT_LANE_SLOTS,
+    DEFAULT_RELAY_PORT,
     DomainConfig,
     EgressChoice,
     EgressConfig,
@@ -591,6 +593,8 @@ class TerminalWizard:
                 MieruConfig(
                     tcp_ports=values["mieru_tcp"],
                     udp_ports=values["mieru_udp"],
+                    # Lane slots (v0.7) come with the router, the default set of them.
+                    lane_slots=DEFAULT_LANE_SLOTS if values.get("router") else 0,
                 )
                 if profile.includes_mieru
                 else None
@@ -610,6 +614,8 @@ class TerminalWizard:
                 router=bool(values.get("router", False)),
                 naive=_egress_choice(values, "naive"),
                 mieru=_egress_choice(values, "mieru"),
+                # The relay inbound (v0.7) comes with the router, on its default port.
+                relay_port=DEFAULT_RELAY_PORT if values.get("router") else 0,
             ),
         )
         return parse_config(render_config(candidate))

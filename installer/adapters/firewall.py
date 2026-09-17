@@ -621,6 +621,11 @@ def _selected_ports(config: InstallerConfig) -> tuple[str, ...]:
             raise FirewallError("Mieru ports are missing")
         selected.update(("tcp", port) for port in config.mieru.tcp_ports)
         selected.update(("udp", port) for port in config.mieru.udp_ports)
+        # Lane slots (v0.7): one mita daemon per slot on its own TCP port.
+        selected.update(("tcp", port) for port in config.mieru.slot_ports())
+    # The router's relay inbound (v0.7): the public port other nodes dial for chains.
+    if config.effective_egress.router and config.effective_egress.relay_port:
+        selected.add(("tcp", config.effective_egress.relay_port))
     if (
         config.three_xui.mode is ThreeXuiMode.MANAGED_NEW
         and config.three_xui.hysteria_domain is not None

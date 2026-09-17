@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from installer.model import (
+    DEFAULT_LANE_SLOTS,
+    DEFAULT_RELAY_PORT,
+    MAX_LANE_SLOTS,
+    ROUTER_PORTS,
     DomainConfig,
     EgressChoice,
     EgressConfig,
@@ -18,6 +22,7 @@ from installer.model import (
     Profile,
     ThreeXuiConfig,
     ThreeXuiMode,
+    lane_slot_port,
 )
 
 _DOMAIN_RE = re.compile(
@@ -76,6 +81,14 @@ def parse_config(text: str) -> InstallerConfig:
     mieru = _parse_mieru(root.get("mieru"), profile)
     three_xui = _parse_three_xui(root["three_xui"], explicit_egress="egress" in root)
     egress = _parse_egress(root.get("egress"), three_xui, profile, three_xui_raw=_table(root["three_xui"], "three_xui"))
+    if mieru is not None:
+        # Lane slots (v0.7) need the router; absent, a router host gets the default set.
+        router = egress is not None and egress.router
+        if mieru.lane_slots == -1:
+            mieru = MieruConfig(tcp_ports=mieru.tcp_ports, udp_ports=mieru.udp_ports,
+                                lane_slots=DEFAULT_LANE_SLOTS if router else 0)
+        elif mieru.lane_slots > 0 and not router:
+            raise ConfigError("mieru.lane_slots requires egress.router = true")
     if egress is not None:
         # The old keys mirror the section: everything that still reads them sees one truth.
         three_xui = ThreeXuiConfig(**{**_as_dict(three_xui), "warp": egress.warp, "warp_port": egress.warp_port})
@@ -128,6 +141,8 @@ def render_config(config: InstallerConfig) -> str:
                 f"udp_ports = {_toml_array(config.mieru.udp_ports)}",
             ]
         )
+        if config.egress is not None and config.egress.router:
+            lines.append(f"lane_slots = {config.mieru.lane_slots}")
 
     if config.egress is not None:
         lines.extend(["", "[egress]", f"warp = {_toml_boolean(config.egress.warp)}"])
@@ -135,6 +150,7 @@ def render_config(config: InstallerConfig) -> str:
             lines.append(f"warp_port = {config.egress.warp_port}")
         if config.egress.router:
             lines.append("router = true")
+            lines.append(f"relay_port = {config.egress.relay_port}")
         if config.profile.includes_naive:
             lines.append(f"naive = {_toml_string(config.egress.naive.value)}")
         if config.profile.includes_mieru:
@@ -204,12 +220,19 @@ def _parse_mieru(value: object, profile: Profile) -> MieruConfig | None:
     if value is None:
         raise ConfigError(f"mieru section is required for profile {profile.value}")
     raw = _table(value, "mieru")
-    _keys(raw, path="mieru", required={"tcp_ports", "udp_ports"})
+    _keys(raw, path="mieru", required={"tcp_ports", "udp_ports"}, optional={"lane_slots"})
     tcp_ports = _ports(raw["tcp_ports"], "mieru.tcp_ports")
     udp_ports = _ports(raw["udp_ports"], "mieru.udp_ports")
     if not tcp_ports and not udp_ports:
         raise ConfigError("mieru requires at least one TCP or UDP port")
-    return MieruConfig(tcp_ports=tcp_ports, udp_ports=udp_ports)
+    lane_slots = None
+    if "lane_slots" in raw:
+        lane_slots = _integer(raw["lane_slots"], "mieru.lane_slots")
+        if not 0 <= lane_slots <= MAX_LANE_SLOTS:
+            raise ConfigError(f"mieru.lane_slots must be between 0 and {MAX_LANE_SLOTS}")
+        if set(tcp_ports) & set(lane_slot_port(i) for i in range(1, lane_slots + 1)):
+            raise ConfigError("mieru.tcp_ports collide with the lane slot ports")
+    return MieruConfig(tcp_ports=tcp_ports, udp_ports=udp_ports, lane_slots=-1 if lane_slots is None else lane_slots)
 
 
 def _parse_three_xui(value: object, *, explicit_egress: bool = False) -> ThreeXuiConfig:
@@ -280,12 +303,20 @@ def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *,
     if value is None:
         return None
     raw = _table(value, "egress")
-    _keys(raw, path="egress", required=set(), optional={"warp", "warp_port", "naive", "mieru", "router"})
+    _keys(raw, path="egress", required=set(), optional={"warp", "warp_port", "naive", "mieru", "router", "relay_port"})
     warp = _boolean(raw["warp"], "egress.warp") if "warp" in raw else False
     # v0.5: the Xray egress-router is worth installing only with a service to feed it.
     router = _boolean(raw["router"], "egress.router") if "router" in raw else False
     if router and not (profile.includes_naive or profile.includes_mieru):
         raise ConfigError("egress.router requires NaiveProxy or Mieru in the profile")
+    # v0.7: the relay inbound comes with the router; a router host gets it on the default port.
+    relay_port = _integer(raw.get("relay_port", DEFAULT_RELAY_PORT if router else 0), "egress.relay_port")
+    if relay_port and not router:
+        raise ConfigError("egress.relay_port requires router = true")
+    if relay_port and not 1024 <= relay_port <= 65535:
+        raise ConfigError("egress.relay_port must be between 1024 and 65535")
+    if relay_port in (443, 80, *ROUTER_PORTS.values()):
+        raise ConfigError("egress.relay_port collides with a listener the host already runs")
     warp_port = _integer(raw.get("warp_port", 40000), "egress.warp_port")
     if not 1024 <= warp_port <= 65535:
         raise ConfigError("egress.warp_port must be between 1024 and 65535")
@@ -308,7 +339,8 @@ def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *,
             raise ConfigError(f"egress.{service} requires warp = true")
         if choices[service] is EgressChoice.ROUTER and not router:
             raise ConfigError(f"egress.{service} requires router = true")
-    return EgressConfig(warp=warp, warp_port=warp_port, naive=choices["naive"], mieru=choices["mieru"], router=router)
+    return EgressConfig(warp=warp, warp_port=warp_port, naive=choices["naive"], mieru=choices["mieru"], router=router,
+                        relay_port=relay_port)
 
 
 def _as_dict(config: ThreeXuiConfig) -> dict[str, Any]:
