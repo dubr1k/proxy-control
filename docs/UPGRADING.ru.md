@@ -218,6 +218,61 @@ curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets 
 docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
 ```
 
+## Обновление до v0.7: цепи и полосы
+
+v0.7 добавляет **выходы через другие узлы парка** (relay роутера + цепи) и **свою полосу** у
+отдельного доступа ([ROUTING](ROUTING.ru.md), «Цепи и полосы»; [ADR 009](adr/009-lanes-and-chains.md)).
+Само обновление — обычное: скопируйте из нового релиза `panel/`, `naive_manager/`,
+`mieru_manager/`, `xray_router_manager/`, `compose*.yaml`, `deploy/`, `scripts/` и `VERSION` в каталог
+проекта и выполните `docker compose up -d --build --wait panel naive-manager mieru-manager xray-router`
+с сохранённым набором оверлеев. Узел без роутера ведёт себя как в v0.6; узел с роутером после
+обновления умеет полосы (ключи полос — по запросу панели) и цепи как **источник**, но relay и слоты
+Mieru появляются только шагами ниже.
+
+**Миграция 16** (`routing-chains-lanes`) выполняется при первом старте и по эффекту аддитивна:
+перестраивает `routing_policies` / `routing_rules` / `routing_applies` (ключ политики получает
+`lane`, ограничение `egress = warp` снято — выход теперь строка `warp | node:<guid>…`; каждая
+строка v0.6 сохраняется как полоса `svc`), добавляет `access_grants.routing_lane`, таблицы
+`relay_peers` и `router_relays`, `observed_generations.relay_json`. `python -m panel.cli db-status`
+покажет шестнадцать применённых.
+
+**Relay и слоты на установленном узле.** Запустите установщик с тем же TOML: при `router = true`
+план получает `relay_port = 45443` и `lane_slots = 4` по умолчанию (задайте явно, если нужны другие
+или `0`); `xray_router.runtime` включит relay через менеджер (пара Reality чеканится один раз),
+`mieru.runtime` поставит шаблон `mita@.service`, включит `mita@1…4` и запишет `MIERU_LANE_SLOTS` в
+`.env.mieru`; UFW откроет `45443/tcp` и `46101…46104/tcp`. Хост, собранный вручную:
+
+```bash
+# relay (домен панели — прикрытие Reality; порт — публичный)
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay-enable panel.example.com 45443
+ufw allow 45443/tcp
+# слоты Mieru: шаблон юнита, демоны, env менеджера
+install -m 0644 deploy/mita@.service /etc/systemd/system/mita@.service && systemctl daemon-reload
+for n in 1 2 3 4; do systemctl enable --now mita@$n; ufw allow $((46100+n))/tcp; done
+printf 'MIERU_LANE_SLOTS=%s\n' "$(for n in 1 2 3 4; do printf '%s:%s:/run/mita/lane-%s.sock:/var/lib/mita/lanes/%s,' $n $((46100+n)) $n $n; done | sed 's/,$//')" >> .env.mieru
+docker compose --env-file .env --env-file .env.mieru -f compose.yaml -f compose.mieru.yaml up -d --wait mieru-manager
+```
+
+**Порядок в парке.** Сначала узлы, потом центр, как раньше: центр v0.7 кладёт `lane` ресурса и
+секцию `relay` только узлу, объявившему `egress.lanes.v1` / `relay.v1`; узел v0.6 их не видит и
+сохраняет свои дайджесты (intent схемы 2 такому узлу не отправляется: `node_lacks_lanes`,
+`node_lacks_relay`); центр v0.6 игнорирует `identity.router.relay`, `router.lanes` и
+`observed.relay`.
+
+**Откат** — по общему порядку: предыдущее поколение вместе с базой (образ v0.6 отказывается от
+базы на схеме 16). Снимите полосы доступов и верните политики на `warp`/`direct` **до** отката
+(полоса — это обработчик Caddy / слот mita и учётка на ingress, которые старая панель не знает, а
+intent схемы 2 старый роутер отвергнет); relay и слоты можно оставить — старая панель их просто не
+видит.
+
+Проверка после обновления:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 16
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay | python3 -m json.tool   # enabled, public_key
+systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
+```
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.

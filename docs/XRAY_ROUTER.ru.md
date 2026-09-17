@@ -87,10 +87,11 @@ link-local, RFC 1918, CGNAT или их IPv6-аналоги, отвергает�
   `/run/secrets/xray-router-ingress-*`.
 - **API** на Unix-сокете, заголовок `X-Xray-Router-Token` (Docker-секрет
   `xray-router-manager-token`): `GET /v1/status`, `GET /v1/health`,
-  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`.
-  Панель — единственный клиент; `docker exec proxy-control-xray-router python -m
-  xray_router_manager.healthcheck --status` печатает статус оператору или проверке
-  установщика.
+  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`; с v0.7 —
+  `GET | POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`, `GET | POST | DELETE /v1/relay`,
+  `PUT /v1/relay/accounts` (см. ниже). Панель — единственный клиент; `docker exec
+  proxy-control-xray-router python -m xray_router_manager.healthcheck --status` печатает статус
+  оператору или проверке установщика (`--relay`, `--relay-enable <server_name> <port>` — relay).
 
 ### Транзакция
 
@@ -149,10 +150,45 @@ swap занимает около 50 мс и прерывает открытые 
   контейнер и удаляет бинари, helper'ы, env-оверлей; `--purge-data` — ещё состояние и
   секреты) — что сохранять, см. `docs/BACKUP_RESTORE.ru.md`.
 
+## Полосы, цепи и relay (v0.7)
+
+Intent **схемы 2** переносит роутер с «одной политики на сервис» на **полосы**: `{"schema": 2,
+"lanes": {"svc:naive": {default, rules}, "grant:<id>": {…}}, "chains": {"c1": {"hops": [...],
+"exit": "direct" | "warp"}}}`. Каждая полоса — учётка SOCKS на том же ingress сервиса; правила
+рендерятся с селектором `user` (`grant-<id>` для полосы доступа, учётка установщика для полосы
+сервиса, которая идёт последней), поэтому один ingress ведёт трафик разных пользователей по
+разным политикам. Схема 1 рендерится байт в байт как в v0.5/v0.6.
+
+- **Ключи полос**: `POST /v1/lanes/{svc}` `{"lane": "grant:<id>"}` чеканит (или перевыпускает)
+  учётку полосы, тут же кладёт её на ingress новым поколением и возвращает **один раз** —
+  панель отдаёт её менеджеру сервиса и не хранит. `lanes.json` (0600) в каталоге состояния;
+  `GET /v1/lanes/{svc}` — только имена полос; `DELETE /v1/lanes/{svc}/{lane}` — забыть.
+  Intent, называющий полосу без учётки, отвергается (`egress_invalid`).
+- **Цепи**: у каждого хопа `guid`, `address`, `port`, `server_name`, `public_key`, `short_id`,
+  `uuid`. Рендер — по одному outbound `vless` + `reality` на хоп (`chain:<svc>:<id>:<n>`),
+  каждый следующий набирается через предыдущий (`proxySettings.tag`); правило полосы с
+  `egress: chain:<id>` уходит на последний хоп. В `plan` и `apply` менеджер проверяет
+  достижимость каждого хопа (TLS-hello к прикрытию с его `serverName`, 3 с) и отказывает
+  `egress_unreachable` («chain c1 hop 1 is unreachable»), не меняя ничего. Представления
+  intent'а (`GET /v1/egress/{svc}`) маскируют `uuid` хопов.
+- **Relay**: `POST /v1/relay` `{"server_name", "port"}` включает inbound `vless` + `reality`
+  на `0.0.0.0:<port>` с прикрытием `127.0.0.1:8443` (TLS панели узла); ключевая пара x25519
+  чеканится `xray x25519` один раз и живёт только в `relay.json` (0600), `short_id` — тоже.
+  `PUT /v1/relay/accounts` `[{"email": "relay:<guid источника>:<direct|warp>", "uuid"}]` —
+  учётки, которые выдал центр; учётка `…:warp` ведёт в `warp` роутера (без WARP на узле —
+  `egress_invalid`), остальные — `direct`; `geoip:private → block` действует и здесь.
+  `DELETE /v1/relay` выключает inbound, пара сохраняется. `GET /v1/relay` и `status.relay` —
+  только публичная часть (`enabled, port, server_name, public_key, short_ids, accounts` — число).
+- Каждая из этих операций коммитит новое поколение с теми же intent'ами (`_rerender_current`)
+  — та же транзакция «рендер → `xray run -test` → swap → readback», предыдущее поколение для
+  отката; `capabilities` роутера дополняются `lanes`, `chains`, `relay`.
+
+Пределы: ≤ 32 полос и ≤ 16 цепей на сервис, ≤ 3 хопов в цепи, intent схемы 2 ≤ 64 KiB.
+
 ## Ограничения и что отложено
 
 Правил ≤ 128 на политику, ≤ 64 селекторов каждого вида, ≤ 32 портов, скомпилированный
-intent ≤ 16 KiB на сервис; токен менеджера — 64 hex. Отложено за v0.5 (спека §15):
-статический мост в Xray 3x-ui, canary-раскатка, per-grant, ретрансляция UDP, регулярные
-выражения. Совместимость с узлами и центрами v0.4 — в [COMPATIBILITY](COMPATIBILITY.md) и
+intent ≤ 16 KiB на сервис (схема 2 — 64 KiB); токен менеджера — 64 hex. Отложено за v0.5
+(спека §15): статический мост в Xray 3x-ui, canary-раскатка, ретрансляция UDP, регулярные
+выражения; per-grant маршрутизация пришла в v0.7 полосами. Совместимость с узлами и центрами v0.4 — в [COMPATIBILITY](COMPATIBILITY.md) и
 [FLEET](../FLEET.ru.md).

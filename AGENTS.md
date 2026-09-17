@@ -223,7 +223,7 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 
 ---
 
-# Эксплуатационный протокол для ИИ-агентов (v0.6): развёртывание, узлы, доступы, маршрутизация
+# Эксплуатационный протокол для ИИ-агентов (v0.6–v0.7): развёртывание, узлы, доступы, маршрутизация, цепи и полосы
 
 Часть выше — про **разработку** Proxy Control. Эта часть — про **эксплуатацию**: как агент
 разворачивает узел, готовит его к центру, привязывает панели, выдаёт доступы клиентам и
@@ -435,6 +435,16 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/apply" 
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/targets/$node_id/naive/attach" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["backend"],d["router"])'
 #   отказ policy_applied → сначала PUT политики "напрямую без правил" + apply, затем attach
 # E5. Откат — предыдущая запись менеджера/предыдущий документ: POST …/rollback {"expected_revision":<rev>}
+# E6 (v0.7). Своя полоса доступа и цепь через другой узел (owner; §8.8 руководства). Предпосылки: сервис подключён к роутеру (E4),
+#     у узла-выхода B relay включён: GET …/targets → exits[] с enabled && !pending; иначе POST $PANEL/api/routing/relay/$b/enable
+#     (связанный узел: pending → ждать heartbeat с публичным ключом). Полоса: mode=own → у Mieru меняется ссылка (порт слота) — предупредить владельца
+curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/lanes/$grant_id" -d '{"mode":"own"}' | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["mode"],d["lane"],d.get("pending"))'
+lane="grant:$grant_id"   # дальше — E2/E3 с ?lane=$lane; выход: "warp" | "node:$b" | "node:$b:warp" | "node:$b,$c"
+policy='{"default_action":"egress","default_egress":"warp","fallback":"fail_closed","rules":[{"enabled":true,"action":"egress","egress":"node:'$b'","match":{"geosites":["youtube"]},"note":"via B"}]}'
+curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/preview?lane=$lane" -d "$policy" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["status"],[r["code"] for r in d["reasons"]],d["document"] and d["document"].get("schema"))'
+#   relay_credential_pending после apply → узел B ещё не подтвердил учётку relay: повторить apply после heartbeat; node_lacks_relay/relay_disabled/chain_loop — §8.8
+curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain?lane=$lane" -d '{"host":"youtube.com","port":443}'   # {lane, rule_id, action, exit, hops, via, uncertain}
+#   назад: POST …/lanes/$grant_id {"mode":"service"} — политика полосы удаляется, пользователь возвращается в сервис; удаление доступа снимает полосу само
 ```
 
 Проверка после apply (на узле, по SSH): `docker compose logs --since=5m naive-manager` без ошибок; в
@@ -443,6 +453,10 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/targets/$node_id/naive/attach" 
 `systemctl is-active mita` и секция `egress` в конфиге; `curl --proxy https://<naive-домен> --proxy-user
 <тестовый пользователь>` к заблокированной цели → отказ, к разрешённой → 200 (тестовый пользователь создаётся
 для проверки и удаляется). `GET /api/audit?action=routing.policy.apply` содержит строку с целью политики.
+Для полосы (v0.7): в Caddyfile блок `# BEGIN NAIVE-MANAGER LANES … # END` с `basic_auth <пользователь>` и
+`upstream socks5://grant-<id>:***@127.0.0.1:45101` (ключ **маскировать**); у Mieru `systemctl is-active mita@1` и
+`share_template` доступа с `port=4610N`; на узле-выходе `healthcheck --relay` → `enabled`, `accounts ≥ 1`; в отчёте
+никогда не приводить `uuid` хопов, ключи полос, `relay.json`/`lanes.json`.
 
 ## 7. Алгоритм F — обновление, откат, резервная копия
 
@@ -511,6 +525,10 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/targets/$node_id/naive/attach" 
 | | 409 `policy_conflict` | перечитать `revision`, повторить PUT |
 | | 503 `manual_intervention_required` | стоп; резервные копии менеджера; владельцу |
 | | `artifact_mismatch` | бинарь/geodata роутера не совпадают с пином — не чинить самому, владельцу |
+| цепи и полосы (v0.7) | `relay_credential_pending` | узел-выход ещё не подтвердил учётку relay — повторить apply после heartbeat, не ротировать |
+| | `node_lacks_relay` / `relay_disabled` / `node_lacks_lanes` | узел-выход без relay / relay выключен / узел старше v0.7 — включить relay (`POST …/relay/{node}/enable`) или обновить узел; вопрос владельцу, если это боевой узел |
+| | `chain_loop` / `node_unknown` / `relay_no_warp` | политика называет сам узел / узел не в парке / у выхода нет WARP — исправить выход, не применять |
+| | 409 `lane_slots_exhausted` / `lanes_invalid` / `lane_requires_router` / `lane_not_attached` | у Mieru кончились слоты (`[mieru] lane_slots`) / менеджер отверг полосы / нет роутера или сервис не подключён — сначала E4, затем повторить |
 | version-agent | 409 `expected_current` | перечитать версии; не форсировать |
 | | `rollback_failed` | стоп; компонент заблокирован до человека |
 

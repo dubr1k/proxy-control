@@ -87,10 +87,12 @@ the connection.
   `/run/secrets/xray-router-ingress-*`.
 - **API** on the Unix socket, header `X-Xray-Router-Token` (Docker secret
   `xray-router-manager-token`): `GET /v1/status`, `GET /v1/health`,
-  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`. The
-  panel is its only client; `docker exec proxy-control-xray-router python -m
-  xray_router_manager.healthcheck --status` prints the status for an operator or the
-  installer's verify.
+  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`; from v0.7
+  `GET | POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`, `GET | POST | DELETE /v1/relay`,
+  `PUT /v1/relay/accounts` (below). The panel is its only client; `docker exec
+  proxy-control-xray-router python -m xray_router_manager.healthcheck --status` prints the
+  status for an operator or the installer's verify (`--relay`, `--relay-enable <server_name>
+  <port>` — the relay).
 
 ### The transaction
 
@@ -150,10 +152,46 @@ other service unchanged) and applies it as a new generation.
   container and removes the binaries, helpers, env overlay; `--purge-data` also the state
   and the secrets) — see `docs/BACKUP_RESTORE.en.md` for what to keep.
 
+## Lanes, chains and the relay (v0.7)
+
+A **schema 2** intent moves the router from «one policy per service» to **lanes**: `{"schema": 2,
+"lanes": {"svc:naive": {default, rules}, "grant:<id>": {…}}, "chains": {"c1": {"hops": [...],
+"exit": "direct" | "warp"}}}`. Every lane is a SOCKS account on the service's own ingress; the
+rules render with a `user` selector (`grant-<id>` for a grant's lane, the installer's account for
+the service's lane, which comes last), so one ingress carries different users along different
+policies. Schema 1 renders byte for byte as in v0.5/v0.6.
+
+- **Lane keys**: `POST /v1/lanes/{svc}` `{"lane": "grant:<id>"}` mints (or re-mints) the lane's
+  account, puts it on the ingress in a new generation at once and returns it **once** — the panel
+  hands it to the service's manager and keeps nothing. `lanes.json` (0600) in the state directory;
+  `GET /v1/lanes/{svc}` lists names only; `DELETE /v1/lanes/{svc}/{lane}` forgets one. An intent
+  naming a lane without an account is refused (`egress_invalid`).
+- **Chains**: every hop carries `guid`, `address`, `port`, `server_name`, `public_key`, `short_id`,
+  `uuid`. The render is one `vless` + `reality` outbound per hop (`chain:<svc>:<id>:<n>`), each
+  dialled through the previous one (`proxySettings.tag`); a lane rule with `egress: chain:<id>`
+  lands on the last hop. On `plan` and `apply` the manager checks every hop's reachability (a TLS
+  hello to the cover with its `serverName`, 3 s) and refuses `egress_unreachable` («chain c1 hop 1
+  is unreachable») without changing anything. The intent views (`GET /v1/egress/{svc}`) mask the
+  hops' `uuid`.
+- **Relay**: `POST /v1/relay` `{"server_name", "port"}` brings up a `vless` + `reality` inbound on
+  `0.0.0.0:<port>` with the cover `127.0.0.1:8443` (the node panel's TLS); the x25519 keypair is
+  minted with `xray x25519` once and lives only in `relay.json` (0600), the `short_id` too.
+  `PUT /v1/relay/accounts` `[{"email": "relay:<source guid>:<direct|warp>", "uuid"}]` — the
+  accounts the central issued; a `…:warp` account leaves through the router's `warp` (without WARP
+  on the node: `egress_invalid`), the others `direct`; `geoip:private → block` holds here too.
+  `DELETE /v1/relay` takes the inbound down, the keypair stays. `GET /v1/relay` and
+  `status.relay` show the public part only (`enabled, port, server_name, public_key, short_ids,
+  accounts` — a count).
+- Each of these commits a new generation with the same intents (`_rerender_current`) — the same
+  «render → `xray run -test` → swap → readback» transaction, the previous generation kept for a
+  rollback; the router's `capabilities` gain `lanes`, `chains`, `relay`.
+
+Limits: ≤ 32 lanes and ≤ 16 chains per service, ≤ 3 hops per chain, a schema-2 intent ≤ 64 KiB.
+
 ## Limits and what is deferred
 
 Rules ≤ 128 per policy, ≤ 64 selectors of each kind, ≤ 32 ports, the compiled intent
-≤ 16 KiB per service; the manager token 64 hex. Deferred beyond v0.5 (spec §15): a static
-bridge into 3x-ui's Xray, canary rollouts, per-grant routing, UDP relay, regular
-expressions. Compatibility with v0.4 nodes and centrals is in
+≤ 16 KiB per service (schema 2: 64 KiB); the manager token 64 hex. Deferred beyond v0.5
+(spec §15): a static bridge into 3x-ui's Xray, canary rollouts, UDP relay, regular
+expressions; per-grant routing arrived in v0.7 as lanes. Compatibility with v0.4 nodes and centrals is in
 [COMPATIBILITY](COMPATIBILITY.md) and [FLEET](../FLEET.en.md).

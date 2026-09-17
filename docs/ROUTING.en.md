@@ -1,4 +1,4 @@
-# Proxy Control routing (v0.4–v0.5): where each service lets its clients' traffic out
+# Proxy Control routing (v0.4–v0.7): where each service lets its clients' traffic out
 
 **English** · [Русский](ROUTING.ru.md)
 
@@ -28,7 +28,7 @@ documentation promises. Where a backend cannot honour a rule, the preview says
 | --- | --- | --- | --- |
 | NaiveProxy | `naive_native` — Caddy forwardproxy `upstream` + `acl` | the whole service direct or through WARP; block by domain (`example.com`, `*.example.com`) and by CIDR | selective `direct`/`egress` rules (one upstream per service); a block **beside** a WARP default — forwardproxy skips its ACL when an upstream is set; block by port, geosite, geoip |
 | Mieru | `mieru_native` — mita `egress` | the whole service direct or through WARP; block by domain and by CIDR; selective `direct`/`egress` by domain and by CIDR, in order | block by port, geosite, geoip; `*.example.com` and `example.com` are the same selector (mita matches domain suffixes) |
-| NaiveProxy or Mieru **attached to the Xray-router** (v0.5) | `xray_router` — Xray `routing` rules per ingress | the whole service direct or through WARP; `block`, `direct` and `egress: warp` rules by domain, `geosite:`, CIDR, `geoip:` and port, in order, any of them beside a WARP default | UDP (mita's UDP stays direct); per-grant rules |
+| NaiveProxy or Mieru **attached to the Xray-router** (v0.5) | `xray_router` — Xray `routing` rules per ingress | the whole service direct or through WARP; `block`, `direct` and `egress` rules by domain, `geosite:`, CIDR, `geoip:` and port, in order, any of them beside a WARP default; from v0.7 **exits through other nodes of the fleet** (chains) and a client's **own lane** with its own policy | UDP (mita's UDP stays direct) |
 | MTProxy (Telemt) | — | — | out of scope: `protocol_out_of_scope` |
 
 Private destinations — loopback, link-local, RFC 1918, CGNAT and their IPv6
@@ -42,12 +42,13 @@ One policy per (node, protocol), edited on the «Маршрутизация» sc
 `/api/routing/*`:
 
 ```text
-default_action   direct | egress          default_egress  warp (with egress)
+default_action   direct | egress          default_egress  an exit (with egress): warp | node:<guid>[,<guid>[,<guid>]][:warp]
 fallback         fail_closed | approved_direct
-rules[]          enabled, action: direct | block | egress, egress: warp (with egress),
+rules[]          enabled, action: direct | block | egress, egress: an exit (with egress),
                  match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32},
                  note ≤ 120
 backend          naive_native | mieru_native | xray_router (v0.5; the target's current one)
+lane             svc (the service's policy) | grant:<id> (v0.7: a grant's own lane, xray_router only)
 ```
 
 - domains are lower-cased IDNA; `*.example.com` means «any subdomain», `example.com`
@@ -96,6 +97,12 @@ reasons:
 | `protocol_out_of_scope` | MTProxy |
 | `document_too_large` | over 16 KiB |
 | `manager_unavailable` | the local manager did not answer |
+| `lane_requires_router` / `lane_not_attached` | a grant lane's policy while the node has no Xray-router or the service is not attached to it (v0.7) |
+| `node_unknown` / `node_lacks_relay` / `relay_disabled` | an exit `node:<guid>` names a node not in the fleet, one without a relay (update it to v0.7 and enable the relay) or one whose relay is off (v0.7) |
+| `relay_credential_pending` | the exit node has not confirmed the relay account the central issued on apply — retry after a heartbeat (v0.7) |
+| `relay_no_warp` | the chain ends in «the exit node's WARP» and that node has none (v0.7) |
+| `chain_loop` | the chain passes through this very node (v0.7) |
+| `node_lacks_lanes` | a linked panel without `egress.lanes.v1`: update it to v0.7 (v0.7) |
 
 Warnings: `adopts_unmanaged_upstream` / `adopts_unmanaged_egress` (the node carries an
 `upstream` or an `egress` section somebody wrote by hand — the first apply moves it under
@@ -146,6 +153,85 @@ could not restore it; its backup path is in the manager's log), `manager_unavail
 to the previous applied document of the central's own history (linked panel — one step
 back, not a stack). `DELETE` is allowed only once the node runs «direct, no rules»
 (otherwise 409 `policy_applied`): forgetting a policy never changes what a node enforces.
+
+## Chains and lanes (v0.7)
+
+From v0.7 a policy may let traffic out **through another node of the fleet**, and one client's
+grant may get **its own lane** with its own policy on the same node ([ADR 009](adr/009-lanes-and-chains.md),
+spec `superpowers/specs/2026-09-17-v0.7-chains-design.md`). Both exist only on a service attached
+to the node's Xray-router: the native backends know neither chains nor lanes.
+
+An **exit** (`default_egress` and a rule's `egress`) is one of:
+
+| Exit | Meaning |
+| --- | --- |
+| `warp` | this node's WARP (as in v0.4–v0.6) |
+| `node:<guid>` | through the relay of node `<guid>`, then direct from it |
+| `node:<guid>:warp` | through the node's relay, then through **its** WARP |
+| `node:<a>,<b>[,<c>][:warp]` | a chain of up to three hops: this node → relay `a` → relay `b` → … → the last hop's exit |
+
+`guid` is the node's id in the fleet (a linked panel's `node_id`; for the panel itself its
+`panel_guid`). A node cannot be its own exit (`chain_loop`); the same node twice in a chain is refused.
+
+The **relay** is a vless+reality inbound on a public port of the node (`[egress] relay_port`,
+45443 by default) whose cover is the node's own panel TLS (`serverName` — the panel's domain).
+It accepts only the accounts the central issued to other nodes of the fleet: one pair
+`(source node, direct | warp)` per source. The node's router mints the Reality keypair once
+and never gives the private part away; the node's panel reports the public part in
+`identity.router.relay`, a linked panel also in its generation report.
+`POST /api/routing/relay/{node}/enable` enables the relay locally (45443 by default,
+`{"port": …}` for another) or, on a linked panel, through its next generation (the answer says
+`pending: true` until the report with the public key arrives); `POST …/rotate` re-mints every
+account issued to other nodes — their policies then need a fresh apply. Both owner-only,
+audited as `routing.relay.enable | rotate`.
+
+**Relay accounts** are minted at the `apply` of a policy that names a `node:<guid>` exit (UUIDs in
+the panel's escrow, `secret_versions` with `purpose = relay-account`, the `relay_peers` table)
+and delivered to the exit node: the local router at once, a linked panel in the `relay` section
+of its next generation (the UUIDs travel in the push's `secrets`). Until the exit node confirms
+the account in its report, apply answers 422 with `relay_credential_pending` — retry after a
+heartbeat. The compiler puts **chains** into the router's intent: per hop the address (the node's
+panel domain), the relay port, `serverName`, the public key, the `shortId` and the account's
+UUID; middle hops carry the `direct` account, the last one the account of its exit. The API
+(`preview`, `apply`, history) masks hop UUIDs (`***`); the panel's database keeps the compiled
+document as is — like any router intent on a node (a deliberate v0.7 limit, see ADR 009).
+
+A **lane** is a SOCKS account on the router's existing ingress behind which a group of users'
+traffic follows its own policy. `svc:<protocol>` is the service's lane (the installer's ingress
+account, the service's policy as before); `grant:<id>` a single grant's. It is switched on with
+`POST /api/routing/lanes/{grant_id}` `{"mode": "own"}` (owner; `{"mode": "service"}` brings it
+back): the node's router mints the lane's key and puts it on the ingress at once (shown to the
+service's manager once, stored by the panel never), and the manager moves the user:
+
+- **NaiveProxy** — a separate `forward_proxy` handler in the `LANES` block at the top of the
+  Caddyfile's `route {}`, with the lane users' `basic_auth` and an `upstream` on the lane's
+  account; a mismatched `basic_auth` falls through to the next handler (`probe_resistance`), so
+  the service's lane stays last;
+- **Mieru** — one of the **slots** `mita@<n>` (`[mieru] lane_slots`, ports `46101…`): the slot
+  mirrors the lane's users from the main daemon and exits through the lane's account; such a
+  grant's link and subscription carry the **slot's port** (the client needs a new link; the
+  subscription updates itself), back with the service the main port again. A lane user is still
+  accepted on the main port (then their traffic follows the service's policy) — a v0.7 limit.
+
+A lane's policy is its own record `(node, protocol, lane)`: `?lane=grant:<id>` on
+`GET | PUT | DELETE /api/routing/policies/{node}/{protocol}` and on `preview | apply | rollback |
+history`. A new lane gets a **draft** — a copy of the service's policy. The router runs **every
+lane of the service as one intent** (schema 2): the apply of any lane compiles the service and the
+other lanes together, and all of them stand `applied` at the shared digest; a lane's policy cannot
+be deleted on its own (409) — withdraw the lane. On a linked panel the lane travels as a
+generation resource with `lane: own`, and the node builds it itself (the lane key never leaves
+the node); a Mieru slot's port comes back to the central as `learned.share_template`. Deleting a
+grant withdraws its lane first.
+
+`POST …/explain?lane=` `{"host", "port"}` — «where will it go»: the compiler walks the lane's
+rules of the saved policy and answers `{lane, rule_id, action, exit, hops[], via, uncertain[]}`
+— `uncertain` lists the `geosite`/`geoip` rules only the node can decide.
+
+`GET /api/routing/targets` shows per target `lanes[]` (lane policies with their grant), `exits[]`
+(nodes of the fleet with a relay: `enabled`, `online`, `pending`, `exit: node:<guid>`) and the
+node's own `relay`. On the «Маршрутизация» screen these are the «Выходы узла» chips, the relay
+line, the lane tabs, the «Куда» column of the rules and «Куда пойдёт…»; on «Клиенты» a grant
+shows «маршрут: как у сервиса / своя полоса».
 
 ## What the managers own ([ADR 007](adr/007-routing-enforcement-ownership.md))
 
@@ -209,8 +295,13 @@ and every WARP policy previews as `provider_unavailable`.
 - Management traffic is never routed: the panel ↔ manager sockets, ACME, Fleet and the
   heartbeat do not pass through `forward_proxy` or mita's egress.
 - Owner for every mutation; any role may read and preview. Audit:
-  `routing.policy.update | apply | rollback | delete`, `routing.target.attach | detach`
+  `routing.policy.update | apply | rollback | delete`, `routing.target.attach | detach`,
+  from v0.7 `grant.lane.enable | disable`, `routing.relay.enable | rotate`
   ([AUDIT_EVENTS](AUDIT_EVENTS.md)).
+- Lane keys and relay account UUIDs are secrets: they live with the managers (0600) and in
+  the central's escrow, masked in the API, diffs, audit and reports; the relay accepts only
+  known UUIDs, Reality bounces foreign handshakes to the cover; `geoip:private → block`
+  holds on the relay too.
 
 ## Verification
 
@@ -229,5 +320,10 @@ fail-closed, and that nginx and nftables stayed untouched; `remote-gate.sh route
 the router scenarios router-01…14 (`--router`): attach, whole-WARP and a block beside
 it through the router, port/geosite/geoip rules, the ingress refusing a missing or a
 cross-service credential, rollback with Caddy untouched, the watchdog after a SIGKILL,
-fail-closed without the provider, key rotation, detach and the untouched host. The
-full matrix is in [SECURITY_TEST_MATRIX](SECURITY_TEST_MATRIX.md).
+fail-closed without the provider, key rotation, detach and the untouched host;
+`remote-gate.sh chains` (v0.7, `--chains`) starts a second node on the stand from the tree
+(a router with its own stub-WARP and a panel over TLS), links it, enables its relay through a
+generation, gives the probe grant its own lane with the chain «→ node B → WARP B» and a
+`geoip:cloudflare → direct` rule, proves the traffic with both stubs, the Mieru slot, account
+rotation, rollback and the lane's withdrawal. The full matrix is in
+[SECURITY_TEST_MATRIX](SECURITY_TEST_MATRIX.md).

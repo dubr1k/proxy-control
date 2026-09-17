@@ -104,11 +104,13 @@ subscription = "sub.example.com"  # необязательно: ссылки п�
 [mieru]                        # только с профилем Mieru
 tcp_ports = [46001]
 udp_ports = [46001]
+lane_slots = 4                 # v0.7: слоты полос mita@1…4 (порты 46101…), только с router = true
 
 [egress]                       # необязательно (v0.4): WARP как самостоятельный провайдер
 warp = true                    # поставить и проверить закреплённый клиент Cloudflare
 warp_port = 40000              # его loopback-порт SOCKS5 (по умолчанию 40000)
 router = true                  # v0.5: поставить Xray-router из заранее положенного архива
+relay_port = 45443             # v0.7: публичный порт relay роутера (по умолчанию 45443 при router = true)
 naive = "router"               # direct | warp | router — начальный egress NaiveProxy
 mieru = "direct"               # direct | warp | router — начальный egress Mieru
 
@@ -149,6 +151,14 @@ Cloudflare, а `naive`/`mieru` выбирают **начальный** egress к
 или Mieru. Сервис с `router` стартует подключённым к нему: весь его трафик идёт через loopback-ingress роутера
 (naive `127.0.0.1:45101`, mieru `45102`, SOCKS5 с посервисным ключом), а роутер пропускает его напрямую, пока
 экран «Маршрутизация» не даст ему политику.
+
+С v0.7 роутер приходит вместе с **relay** и **слотами полос** (`docs/ROUTING.ru.md`, «Цепи и полосы»):
+`[egress].relay_port` (по умолчанию 45443; `0` — без relay; без `router = true` ключ отвергается,
+порты 80/443 и ingress роутера — тоже) — публичный TCP-порт входа vless+reality, через который другие
+узлы парка выходят через этот; UFW открывает его. `[mieru].lane_slots` (0…8, по умолчанию 4 при
+`router = true`, без роутера — отвергается) — сколько демонов `mita@<n>` держать наготове для полос
+доступов Mieru: порты `46100+n`/tcp (UFW открывает их; они не должны совпадать с `tcp_ports`).
+Мастер ставит оба значения по умолчанию вместе с роутером.
 
 `domains.subscription` необязателен и должен отличаться от всех остальных имён. Если он
 задан, установщик добавляет его в сертификат Core как SAN, маршрутизирует на TLS-слушатель
@@ -269,7 +279,20 @@ identity `xray-router` (10006), готовит `/var/lib/xray-router`, пише�
 `.env.xray-router` (дайджесты членов и `XRAY_ROUTER_EGRESS_WARP`) и поднимает Compose-сервис `xray-router`.
 Проверка читает статус менеджера (артефакты сверены, поколение закоммичено), убеждается, что оба
 ingress слушают только loopback, и пропускает один аутентифицированный CONNECT через ingress NaiveProxy в
-Интернет.
+Интернет (три попытки: сеть до цели — не роутера).
+
+С `relay_port` (v0.7) адаптер после подъёма контейнера включает relay через менеджер
+(`healthcheck --relay-enable <домен панели> <порт>`: ключевую пару Reality менеджер чеканит один раз и
+хранит в `/var/lib/xray-router/relay.json`, 0600), а проверка требует `enabled` на нужном порту за доменом
+панели, публичный ключ в ответе и listener на всех адресах; в отчёт попадает только публичная часть.
+`repair` включает relay повторно (идемпотентно); `uninstall` без purge сохраняет `relay.json`.
+
+Адаптер `mieru` с `lane_slots` (v0.7) ставит шаблон `/etc/systemd/system/mita@.service` (свой сокет
+`/run/mita/lane-<n>.sock`, своё состояние `/var/lib/mita/lanes/<n>`, подмонтированное поверх
+`/var/lib/mita` в namespace юнита — `metrics.pb` и конфиг mita не делятся между демонами), включает
+`mita@1…N` после основного демона и ждёт от каждого слота ответ `IDLE` (или `RUNNING`, если слот уже несёт
+полосу) по его сокету; `MIERU_LANE_SLOTS="<n>:<порт>:<сокет>:<состояние>,…"` уходит в `.env.mieru`.
+`rollback` останавливает юниты слотов; purge удаляет `/var/lib/mita/lanes`.
 
 Адаптеры `naive` и `mieru` затем узнают о роутере через `NAIVE_EGRESS_ROUTER` / `MIERU_EGRESS_ROUTER`
 (`socks5://127.0.0.1:45101` / `45102`) и `*_EGRESS_ROUTER_CREDENTIAL_FILE`: каждый менеджер получает

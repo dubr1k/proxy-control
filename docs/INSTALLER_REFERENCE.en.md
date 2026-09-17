@@ -107,11 +107,13 @@ subscription = "sub.example.com"  # optional: client subscription URLs
 [mieru]                        # only with a Mieru profile
 tcp_ports = [46001]
 udp_ports = [46001]
+lane_slots = 4                 # v0.7: lane slots mita@1…4 (ports 46101…), only with router = true
 
 [egress]                       # optional (v0.4): WARP as a provider of its own
 warp = true                    # install and verify the pinned Cloudflare client
 warp_port = 40000              # its loopback SOCKS5 port (default 40000)
 router = true                  # v0.5: install the Xray-router from the staged archive
+relay_port = 45443             # v0.7: the router's public relay port (default 45443 with router = true)
 naive = "router"               # direct | warp | router — the initial egress of NaiveProxy
 mieru = "direct"               # direct | warp | router — the initial egress of Mieru
 
@@ -158,6 +160,14 @@ or Mieru. A service set to `router` starts attached to it: all of its
 traffic goes through the router's loopback ingress (naive `127.0.0.1:45101`, mieru
 `45102`, SOCKS5 with a per-service credential), and the router passes it straight out
 until the «Routing» screen gives it a policy.
+
+From v0.7 the router comes with a **relay** and **lane slots** (`docs/ROUTING.en.md`, «Chains and
+lanes»): `[egress].relay_port` (45443 by default; `0` — no relay; refused without `router = true`,
+and on 80/443 or the router's ingress ports) is the public TCP port of the vless+reality inbound
+other nodes of the fleet exit through; UFW opens it. `[mieru].lane_slots` (0…8, 4 by default with
+`router = true`, refused without the router) is how many `mita@<n>` daemons stand ready for Mieru
+grants' own lanes: ports `46100+n`/tcp (UFW opens them; they must not collide with `tcp_ports`).
+The wizard sets both defaults together with the router.
 
 `domains.subscription` is optional and must differ from every other name. When it
 is set, the installer adds it to the Core certificate as a SAN, routes it to the
@@ -282,7 +292,22 @@ existing files are kept), writes `.env.xray-router` (the members' digests and
 `XRAY_ROUTER_EGRESS_WARP`) and starts the `xray-router` Compose service. Verification
 reads the manager's status (artifacts verified, a committed generation), checks that
 both ingresses listen on the loopback only and sends one authenticated CONNECT through
-the NaiveProxy ingress to the Internet.
+the NaiveProxy ingress to the Internet (three tries: the Internet to the target is not
+the router's).
+
+With `relay_port` (v0.7) the adapter enables the relay through the manager once the container is
+up (`healthcheck --relay-enable <panel domain> <port>`: the manager mints the Reality keypair once
+and keeps it in `/var/lib/xray-router/relay.json`, 0600), and verification wants it `enabled` on that
+port behind the panel's name, a public key in the answer and a listener on every address; only the
+public part reaches the report. `repair` enables it again (idempotently); `uninstall` without purge
+keeps `relay.json`.
+
+The `mieru` adapter with `lane_slots` (v0.7) installs the `/etc/systemd/system/mita@.service`
+template (its own socket `/run/mita/lane-<n>.sock`, its own state `/var/lib/mita/lanes/<n>` bound
+over `/var/lib/mita` in the unit's namespace — mita's `metrics.pb` and config are never shared
+between daemons), enables `mita@1…N` after the main daemon and waits for every slot to answer `IDLE`
+(or `RUNNING` when it already carries a lane) on its socket; `MIERU_LANE_SLOTS="<n>:<port>:<socket>:<state>,…"`
+goes into `.env.mieru`. `rollback` stops the slot units; purge removes `/var/lib/mita/lanes`.
 
 The `naive` and `mieru` adapters then learn the router through `NAIVE_EGRESS_ROUTER` /
 `MIERU_EGRESS_ROUTER` (`socks5://127.0.0.1:45101` / `45102`) and
