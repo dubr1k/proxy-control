@@ -27,7 +27,9 @@ from typing import Any, Callable
 from urllib.parse import quote, urlencode
 
 from . import egress as egress_section
+from . import lanes as lanes_module
 from .egress import EgressUnreachable
+from .lanes import Slot
 
 
 SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.(?:35|36)\.\d+)\Z")
@@ -413,7 +415,7 @@ _STATE_KEYS = frozenset(
 # `operations` appears the first time an idempotent request is recorded, and `egress` (the
 # v0.4 journal of applied egress documents) the first time one is applied, so a state file
 # written by an older manager stays readable.
-_OPTIONAL_STATE_KEYS = frozenset({"operations", "egress"})
+_OPTIONAL_STATE_KEYS = frozenset({"operations", "egress", "lanes", "lanes_stale"})
 # A caller may supply the credential so the panel can escrow it before mita commits.
 PASSWORD = re.compile(r"^[A-Za-z0-9_.~-]{16,128}$")
 OPERATION_ID = re.compile(r"^[A-Za-z0-9_:.-]{1,128}$")
@@ -732,8 +734,15 @@ class MieruManager:
         provider_url: str | None = None,
         router_url: str | None = None,
         router_credential_file: Path | None = None,
+        lane_slots: list[Slot] | None = None,
+        slot_factory: Callable[[Slot], Any] | None = None,
     ):
         self.mita, self.state_dir, self.public_host = mita, Path(state_dir), public_host
+        # Lane slots (v0.7): the installer's `mita@<n>` daemons, each driven by a CLI bound to
+        # its own socket; created on first use.
+        self.lane_slots = list(lane_slots or [])
+        self._slot_factory = slot_factory or self._default_slot_factory
+        self._slot_clients: dict[int, Any] = {}
         self.protocol_probe = protocol_probe or mita.probe
         # The host's WARP proxy-mode endpoint (`MIERU_EGRESS_WARP`), or None without WARP; the
         # only address the egress API ever writes into mita's config (v0.4 routing).
@@ -777,6 +786,8 @@ class MieruManager:
                     raise ConfigConflict("observed config changed outside manager")
                 self._refresh_router_credential(state, observed)
                 state = self._state()
+                if state.get("lanes"):
+                    self._sync_slots(state, self.mita.observe())
             else:
                 state = {
                     "version": 2,
@@ -831,6 +842,15 @@ class MieruManager:
         ):
             raise ConfigConflict("invalid manager state")
         state["operations"] = _pruned_operations(state.get("operations"))
+        lanes = state.setdefault("lanes", {})
+        if not isinstance(lanes, dict) or any(
+            lanes_module.LANE_ID.fullmatch(lane) is None or not isinstance(entry, dict)
+            or set(entry) != {"slot", "users", "upstream"} or isinstance(entry["slot"], bool)
+            or not isinstance(entry["slot"], int) or not isinstance(entry["users"], list)
+            or not isinstance(entry["upstream"], dict) or set(entry["upstream"]) != {"user", "password"}
+            for lane, entry in lanes.items()
+        ):
+            raise ConfigConflict("invalid lanes state")
         return state
 
     @staticmethod
@@ -936,11 +956,13 @@ class MieruManager:
         with self._writer():
             state = self._state()
             config = self.mita.observe()
+            lane_of = {user: lane for lane, entry in state.get("lanes", {}).items() for user in entry["users"]}
             rows = [
                 {
                     "username": row["name"],
                     "enabled": True,
                     "quotas": copy.deepcopy(row.get("quotas", [])),
+                    "lane": lane_of.get(row["name"]),
                 }
                 for row in config.get("users", [])
             ]
@@ -949,6 +971,7 @@ class MieruManager:
                     "username": name,
                     "enabled": False,
                     "quotas": copy.deepcopy(row.get("quotas", [])),
+                    "lane": lane_of.get(name),
                 }
                 for name, row in state["disabled"].items()
             )
@@ -1073,6 +1096,15 @@ class MieruManager:
         _atomic(self.state_file, state)
         self.journal_file.unlink(missing_ok=True)
         _fsync_dir(self.state_dir)
+        if state.get("lanes"):
+            # The lanes mirror the main daemon (v0.7): a user change lands in the slots too.
+            # The main change is committed; a slot that will not follow is marked and
+            # brought back at the next lanes request or start.
+            try:
+                self._sync_slots(state, self.mita.observe())
+            except Exception:
+                state["lanes_stale"] = True
+                _atomic(self.state_file, state)
         return state["revision"]
 
     def _recover(self) -> None:
@@ -1350,6 +1382,9 @@ class MieruManager:
                 index, _ = self._find_active(config, username)
                 config["users"].pop(index)
             state["tombstones"].append(username)
+            for entry in state.get("lanes", {}).values():
+                if username in entry["users"]:
+                    entry["users"].remove(username)
             return {
                 "username": username,
                 "revision": self._transaction(
@@ -1574,8 +1609,10 @@ class MieruManager:
             raise ValidationError(
                 "share-link creation is unavailable for trafficPattern configurations"
             )
+        slot = self._slot_of_user(username)
+        bindings = config["portBindings"] if slot is None else [{"port": slot.port, "protocol": "TCP"}]
         query: list[tuple[str, str]] = [("profile", username)]
-        for binding in config["portBindings"]:
+        for binding in bindings:
             query.extend(
                 (
                     ("port", str(binding.get("port", binding.get("portRange")))),
@@ -1590,6 +1627,152 @@ class MieruManager:
         except ValueError:
             pass
         return f"mierus://{quote(username, safe='')}:{quote(password, safe='')}@{host}?{urlencode(query)}"
+
+    # ------------------------------------------------------------------
+    # lanes (v0.7): one slot daemon per lane, mirroring the main daemon's users
+    # ------------------------------------------------------------------
+
+    def _default_slot_factory(self, slot: Slot):
+        env = {**getattr(self.mita, "env", {}), "MITA_UDS_PATH": slot.uds,
+               "MITA_CONFIG_JSON_FILE": f"{slot.state_dir}/server_config.json"}
+        return MitaCLI(getattr(self.mita, "executable", "/usr/bin/mita"), env=env,
+                       expected_sha256=getattr(self.mita, "expected_sha256", None))
+
+    def _slot_client(self, slot: Slot):
+        if slot.index not in self._slot_clients:
+            self._slot_clients[slot.index] = self._slot_factory(slot)
+        return self._slot_clients[slot.index]
+
+    def _slot_of_user(self, username: str) -> Slot | None:
+        try:
+            state = self._state()
+        except (OSError, ConfigConflict):
+            return None
+        for entry in state.get("lanes", {}).values():
+            if username in entry["users"]:
+                return next((slot for slot in self.lane_slots if slot.index == entry["slot"]), None)
+        return None
+
+    def _slot_desired(self, slot: Slot, state: dict, config: dict) -> dict:
+        """What the slot should run now: its lane's enabled users mirrored from the main
+        config with the lane's account as the egress, or the empty config."""
+        lane = next((entry for entry in state.get("lanes", {}).values() if entry["slot"] == slot.index), None)
+        if lane is None:
+            return lanes_module.empty_config(slot)
+        users = [copy.deepcopy(row) for row in config.get("users", []) if row.get("name") in lane["users"]]
+        for row in users:
+            row.pop("password", None)
+        if not users:
+            return lanes_module.empty_config(slot)
+        host, port = egress_section.provider_endpoint(self.router_url, "router")
+        return lanes_module.slot_config(slot, users, (host, port), (lane["upstream"]["user"], lane["upstream"]["password"]),
+                                        mtu=config.get("mtu"))
+
+    def _sync_slots(self, state: dict, config: dict) -> None:
+        """Bring every slot to its desired config: apply, then start or stop, then probe the
+        running ones. A slot that fails is put back the way it was and the error is raised."""
+        for slot in self.lane_slots:
+            client = self._slot_client(slot)
+            desired = self._slot_desired(slot, state, config)
+            wants_users = bool(desired.get("users"))
+            before = client.observe()
+            was_running = client.status() == "RUNNING"
+            if _hash(before) == _hash(desired) and was_running == wants_users:
+                continue
+            try:
+                if _hash(before) != _hash(desired):
+                    client.apply(desired)
+                    if _hash(client.observe()) != _hash(desired):
+                        raise MitaError("slot readback mismatch")
+                if wants_users:
+                    if was_running:
+                        client.stop()
+                        self._wait_slot(client, "IDLE")
+                    client.start()
+                    self._wait_slot(client, "RUNNING")
+                    client.probe()
+                elif was_running:
+                    client.stop()
+                    self._wait_slot(client, "IDLE")
+            except BaseException as exc:
+                try:
+                    client.apply(before)
+                    if client.status() == "RUNNING":
+                        client.stop()
+                        self._wait_slot(client, "IDLE")
+                    if was_running:
+                        client.start()
+                        self._wait_slot(client, "RUNNING")
+                except BaseException as restore_error:
+                    raise MitaError(f"lane slot {slot.index} needs recovery") from restore_error
+                raise MitaError(f"lane slot {slot.index} did not take its config") from exc
+
+    def _wait_slot(self, client, target: str) -> None:
+        deadline = time.monotonic() + self.status_timeout
+        while True:
+            status = client.status()
+            if status == target:
+                return
+            if status not in {"STARTING", "STOPPING"} or time.monotonic() >= deadline:
+                raise MitaError(f"lane slot failed to reach {target.lower()} state")
+            time.sleep(min(self.status_poll_interval, max(0, deadline - time.monotonic())))
+
+    def set_lanes(self, body: object) -> dict:
+        """Replace the lanes: assign a slot to each (keeping the one it has), mirror its users
+        there with the lane's account as the egress; users not named leave their slot."""
+        with self._writer():
+            state = self._state()
+            config = self.mita.observe()
+            validate_config(config, elevated=True)
+            if _hash(config) != state["config_hash"]:
+                raise ConfigConflict("observed config changed outside manager")
+            known = {row.get("name") for row in config.get("users", [])} | set(state["disabled"])
+            try:
+                lanes = lanes_module.validate_request(body, known)
+            except lanes_module.LanesInvalid as exc:
+                raise ConfigConflict(f"lanes_invalid: {exc}") from exc
+            if lanes and not self.router_url:
+                raise egress_section.EgressInvalid("egress provider router is not configured on this node")
+            previous = state.get("lanes", {})
+            taken = {entry["slot"] for lane, entry in previous.items() if lane in {item["lane"] for item in lanes}}
+            free = [slot.index for slot in self.lane_slots if slot.index not in taken]
+            desired: dict[str, dict] = {}
+            for item in lanes:
+                if item["lane"] in previous:
+                    slot_index = previous[item["lane"]]["slot"]
+                else:
+                    if not free:
+                        raise ConfigConflict("lane_slots_exhausted")
+                    slot_index = free.pop(0)
+                desired[item["lane"]] = {"slot": slot_index, "users": item["users"], "upstream": item["upstream"]}
+            candidate = {**state, "lanes": desired}
+            candidate.pop("lanes_stale", None)
+            self._sync_slots(candidate, config)
+            _atomic(self.state_file, candidate)
+            _fsync_dir(self.state_dir)
+            return self._lanes_view(candidate, config)
+
+    def lanes(self) -> dict:
+        with self._writer():
+            return self._lanes_view(self._state(), self.mita.observe())
+
+    def _lanes_view(self, state: dict, config: dict) -> dict:
+        by_index = {slot.index: slot for slot in self.lane_slots}
+        enabled = {row.get("name") for row in config.get("users", [])}
+        view = []
+        for lane, entry in state.get("lanes", {}).items():
+            slot = by_index.get(entry["slot"])
+            client = self._slot_client(slot) if slot is not None else None
+            status = "stale" if state.get("lanes_stale") else ("running" if client is not None and client.status() == "RUNNING" else "idle")
+            view.append({
+                "lane": lane, "slot": entry["slot"], "port": slot.port if slot else None, "users": list(entry["users"]),
+                "upstream": f"socks5://***@{self.router_url.rsplit('@', 1)[-1].split('://')[-1]}" if self.router_url else None,
+                "status": status,
+                "share_templates": {user: lanes_module.share_template(user, self.public_host, slot.port, config.get("mtu", 1400))
+                                    for user in entry["users"] if user in enabled and slot is not None},
+            })
+        used = {entry["slot"] for entry in state.get("lanes", {}).values()}
+        return {"lanes": view, "free_slots": sum(1 for slot in self.lane_slots if slot.index not in used)}
 
     def metrics(self) -> dict:
         with self._writer():

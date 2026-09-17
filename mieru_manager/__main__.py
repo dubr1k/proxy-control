@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .lanes import parse_slots
 from .server import ManagerHTTPServer
 from .service import MieruManager, MitaCLI
 
@@ -25,6 +26,8 @@ def main() -> None:
         # This service's ingress on the node's Xray-router and its credential file (v0.5).
         router_url=os.getenv("MIERU_EGRESS_ROUTER", "").strip() or None,
         router_credential_file=os.getenv("MIERU_EGRESS_ROUTER_CREDENTIAL_FILE", "").strip() or None,
+        # The installer's slot daemons for lanes (v0.7): `n:port:uds:state_dir,…`.
+        lane_slots=parse_slots(os.getenv("MIERU_LANE_SLOTS", "").strip() or None),
     )
     manager.bootstrap()
     server = ManagerHTTPServer(

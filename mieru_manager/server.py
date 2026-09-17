@@ -28,6 +28,10 @@ def _conflict_code(exc: ConfigConflict) -> str | None:
         return "egress_no_previous"
     if "operation id" in text:
         return "operation_conflict"
+    if text.startswith("lanes_invalid"):
+        return "lanes_invalid"
+    if text == "lane_slots_exhausted":
+        return "lane_slots_exhausted"
     return None
 
 
@@ -116,6 +120,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.manager.metrics())
             if self.command == "GET" and path == "/v1/egress":
                 return self._send(200, self.server.manager.egress())
+            if self.command == "GET" and path == "/v1/lanes":
+                return self._send(200, self.server.manager.lanes())
+            if self.command == "PUT" and path == "/v1/lanes":
+                return self._send(200, self.server.manager.set_lanes(self._body()))
             if self.command == "POST" and path == "/v1/egress/plan":
                 body = self._body()
                 self._exact(body, {"expected_revision", "document"})
@@ -242,4 +250,4 @@ class ManagerHandler(BaseHTTPRequestHandler):
         except CONNECTION_LOST:
             self.close_connection = True
 
-    do_GET = do_POST = do_DELETE = _dispatch
+    do_GET = do_POST = do_PUT = do_DELETE = _dispatch
