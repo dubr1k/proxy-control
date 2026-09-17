@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import time
 from collections import Counter
@@ -19,9 +20,10 @@ from collections import Counter
 from ..clients.models import PROTOCOL_OPTIONS, GrantIntent
 from ..protocols.base import AdapterError, AppliedGrant, CredentialPlan, GrantRef, ObservedGrant
 from ..routing.document import document_digest
-from ..secrets_store import SecretRef
+from ..secrets_store import SecretError, SecretRef
+from .identity import read_setting, write_setting
 from .managed import ManagedStore
-from .protocol import EgressDocument, ObservedGeneration, ObservedResource, PushRequest, Resource
+from .protocol import EgressDocument, ObservedGeneration, ObservedResource, PushRequest, RelaySection, Resource
 
 
 class GenerationSuperseded(KeyError):
@@ -38,6 +40,11 @@ class _RuntimeCollision(AdapterError):
 
 
 MANAGED_PURPOSE = "fleet-managed"
+# The node's own bookkeeping for v0.7 (spec §7), beside the generation: which client lanes
+# each service runs (`{protocol: {lane: [users]}}`) and what its relay came to.
+LANES_KEY = "fleet_lanes_json"
+RELAY_KEY = "fleet_relay_json"
+LANE_PROTOCOLS = ("naive", "mieru")
 # Options the runtime teaches the panel (Telemt's endpoint, mita's share link): they are
 # never pushed back, so they never count as drift.
 LEARNED_OPTIONS = frozenset({"host", "port", "share_template"})
@@ -387,6 +394,133 @@ class Reconciler:
                 self._record_egress(protocol, generation, "failed", error=str(exc)[:200])
         return failed
 
+    # ---- lanes (v0.7, spec §7): a client's own lane, built by this node ----------------
+
+    def _lanes_state(self, db) -> dict[str, dict[str, list[str]]]:
+        return json.loads(read_setting(db, LANES_KEY) or "{}")
+
+    def _lane_wanted(self, resources: list[Resource]) -> dict[str, list[str]]:
+        """`{lane: [users]}` this generation asks for: a lane per enabled resource that
+        carries one, named after the resource (the central's intent names it the same)."""
+        with self.database.connect() as db:
+            rows = self.managed.resources(db)
+        wanted: dict[str, list[str]] = {}
+        for resource in resources:
+            if resource.lane != "own" or resource.desired_state != "enabled":
+                continue
+            row = rows.get((resource.protocol, resource.runtime_username))
+            if row is not None and row.get("state") == "enabled":
+                wanted[resource.ref] = [resource.runtime_username]
+        return wanted
+
+    async def _apply_lanes(self, protocol: str, resources: list[Resource], generation: int) -> bool:
+        """Bring the service's lanes to what the generation asks: the router mints an account
+        per lane (shown once, handed straight to the manager), the manager moves the users;
+        a lane withdrawn is forgotten on both. Nothing is touched when nothing changed. A
+        refusal fails the lane's resources, never the users themselves."""
+        wanted = self._lane_wanted(resources)
+        with self.database.connect() as db:
+            state = self._lanes_state(db)
+        current = state.get(protocol, {})
+        if wanted == current:
+            return False
+        laned = [r for r in resources if r.ref in wanted]
+        try:
+            if self.router is None:
+                raise AdapterError("a client lane runs only on the node's Xray-router", code="lane_requires_router")
+            adapter = self.adapters.get(protocol)
+            if adapter is None or not hasattr(adapter, "set_lanes"):
+                raise AdapterError(f"{protocol} runs no lanes on this node", code="lane_requires_router")
+            lanes = []
+            for lane, users in sorted(wanted.items()):
+                issued = await self.router.lane_issue(protocol, lane)
+                lanes.append({"lane": lane, "users": users, "upstream": {"user": issued["user"], "password": issued["password"]}})
+            view = await adapter.set_lanes(lanes)
+            for lane in sorted(set(current) - set(wanted)):
+                try:
+                    await self.router.lane_forget(protocol, lane)
+                except AdapterError:
+                    pass
+        except AdapterError as exc:
+            code = exc.code or "manager_unavailable"
+            log.warning("fleet: lanes for %s failed: %s", protocol, code)
+            for lane in sorted(set(wanted) - set(current)):
+                try:
+                    await self.router.lane_forget(protocol, lane)
+                except (AdapterError, AttributeError):
+                    pass
+            for resource in laned:
+                self._record(generation, resource, "failed", error=f"lane: {code}", credential_ref=resource.credential_ref)
+            return True
+        with self.database.transaction() as db:
+            state[protocol] = wanted
+            write_setting(db, LANES_KEY, json.dumps(state, sort_keys=True))
+            # Mieru: a lane user connects to the slot's port — the template the manager gives
+            # for the user is what the central's link needs; leaving the lane, the service's.
+            templates = {}
+            for entry in view.get("lanes", []) if isinstance(view, dict) else []:
+                templates.update(entry.get("share_templates") or {})
+            service_template = view.get("service_share_template") if isinstance(view, dict) else None
+            for resource in resources:
+                if resource.desired_state == "deleted":
+                    continue
+                template = templates.get(resource.runtime_username) if resource.ref in wanted else (
+                    service_template if resource.ref in current else None)
+                learned = self._learned_from(resource, {"share_template": template}) if template else {}
+                if learned:
+                    self.managed.merge_learned(db, protocol, resource.runtime_username, learned)
+        return False
+
+    # ---- relay (v0.7, spec §7): this node's relay inbound for chains from other nodes ---
+
+    def _record_relay(self, report: dict) -> None:
+        with self.database.transaction() as db:
+            write_setting(db, RELAY_KEY, json.dumps(report, sort_keys=True))
+
+    async def _apply_relay(self, section: RelaySection | None, generation: int) -> bool:
+        """The relay as the section says: the inbound up (the keypair is minted once, on the
+        node) with the accounts the central issued, or down. No section leaves it as it is.
+        The accounts' UUIDs come from the push's secrets, by ref; the report names emails."""
+        if section is None:
+            return False
+        # A rotation keeps the emails and changes the refs: both are part of «the same section».
+        desired = {"enabled": section.enabled, "port": section.port, "server_name": section.server_name,
+                   "accounts": sorted(account.email for account in section.accounts),
+                   "refs": sorted(account.credential_ref for account in section.accounts)}
+        with self.database.connect() as db:
+            previous = json.loads(read_setting(db, RELAY_KEY) or "null")
+        if previous and previous.get("state") == "converged" and previous.get("desired") == desired:
+            return False
+        try:
+            if self.router is None:
+                raise AdapterError("this node has no Xray-router", code="router_unavailable")
+            current = await self.router.relay()
+            if current is None:
+                raise AdapterError("the node's Xray-router does not answer", code="router_unavailable")
+            if section.enabled:
+                if not current.get("enabled") or current.get("port") != section.port or current.get("server_name") != section.server_name:
+                    current = await self.router.relay_enable(section.server_name, section.port)
+                accounts = []
+                with self.database.connect() as db:
+                    for account in section.accounts:
+                        plaintext = self.secrets.reveal(db, _secret_ref(account.credential_ref), purpose=MANAGED_PURPOSE,
+                                                        grant_id=None, permitted_node_id="local")
+                        accounts.append({"email": account.email, "uuid": plaintext.decode()})
+                current = await self.router.relay_set_accounts(accounts)
+            elif current.get("enabled"):
+                current = await self.router.relay_disable()
+        except (AdapterError, SecretError) as exc:
+            code = getattr(exc, "code", None) or "manager_unavailable"
+            log.warning("fleet: relay failed: %s", code)
+            self._record_relay({"state": "failed", "error": code, "desired": desired})
+            return True
+        short_ids = current.get("short_ids") or []
+        self._record_relay({"state": "converged", "enabled": bool(current.get("enabled")), "port": current.get("port"),
+                            "server_name": current.get("server_name"), "public_key": current.get("public_key"),
+                            "short_id": short_ids[0] if short_ids else None, "accounts": desired["accounts"],
+                            "desired": desired})
+        return False
+
     async def _apply(self, generation: int) -> tuple[ObservedGeneration, dict[str, str]]:
         with self.database.connect() as db:
             latest = self.managed.latest(db)
@@ -434,6 +568,12 @@ class Reconciler:
             async with (batch() if batch is not None else contextlib.nullcontext()):
                 failed |= await self._apply_protocol(protocol, resources, orphans, known, generation, credentials,
                                                      unmanaged)
+            # The clients' lanes of the service (v0.7): after its users, before any egress
+            # that names them.
+            if protocol in LANE_PROTOCOLS:
+                failed |= await self._apply_lanes(protocol, resources, generation)
+        # The relay before the egress (spec §7): a chain from another node may need it.
+        failed |= await self._apply_relay(document.relay, generation)
         # Egress after the resources (spec §8.3): the users are provisioned whatever the
         # routing outcome; a failed section fails the generation the way a resource does.
         failed |= await self._apply_egress(document.egress, generation)

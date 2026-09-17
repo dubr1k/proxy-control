@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass
 
 from ..routing.store import PolicyNotFound
+from ..routing.lanes import RELAY_PURPOSE, RelayRegistry
 from ..secrets_store import SecretError, SecretRef
 from .client import NodeAuthFailed, NodeRejected, NodeUnreachable
 from .generations import compile, content_digest
@@ -224,6 +225,16 @@ class FleetPusher:
                         grant_id=resource.ref.removeprefix("grant:"), permitted_node_id=node_id).decode()
                 except SecretError:
                     continue
+            # The relay accounts other nodes dial this node with (v0.7): issued for this node.
+            if document.relay is not None:
+                for account in document.relay.accounts:
+                    secret_id, _, version = account.credential_ref.rpartition(":")
+                    try:
+                        secrets[account.credential_ref] = self.secrets.reveal(
+                            db, SecretRef(secret_id, int(version)), purpose=RELAY_PURPOSE, grant_id=None,
+                            permitted_node_id=node_id).decode()
+                    except SecretError:
+                        continue
         return secrets
 
     async def _push(self, client, node_id: str, latest: dict) -> None:
@@ -390,6 +401,13 @@ class FleetPusher:
                 self.routing.record_apply(db, policy.id, revision=entry.policy_revision, digest=entry.digest,
                                           backend=entry.backend, outcome="applied", detail=json.dumps(detail, sort_keys=True),
                                           actor="node", document=entry.document, now=now)
+                if entry.document.get("schema") == 2:
+                    # The router runs every lane of the service as one intent (v0.7): they all
+                    # stand applied at this digest now.
+                    for other in self.routing.lanes_of(db, policy.node_id, policy.protocol):
+                        if other.id != policy.id:
+                            self.routing.mark(db, other.id, state="applied", applied_revision=other.revision,
+                                              applied_digest=entry.digest, now=now)
             else:
                 error = report.error or report.state
                 if policy.state == "failed" and policy.last_error == error:
@@ -461,6 +479,11 @@ class FleetPusher:
                 self.provisioning.remote_applied(db, observed, withheld=withheld, withheld_error=NOT_CAPTURED)
                 self._absorb_egress(db, latest, observed, now)
             self.desired.record_observed(db, node_id, observed, acknowledge=not withheld)
+            if observed.relay is not None:
+                # The node's relay (v0.7): its public part for the chains of other nodes, the
+                # accounts it confirmed for the applies that wait on them.
+                self.desired.record_relay(db, node_id, observed.relay.model_dump())
+                RelayRegistry.observe(db, node_id, observed.relay.model_dump(), now=now)
         if not (current and withheld):
             self._withheld.pop(node_id, None)
             return

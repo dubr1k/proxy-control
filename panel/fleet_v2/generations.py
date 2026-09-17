@@ -9,7 +9,15 @@ from __future__ import annotations
 import json
 import time
 
-from .protocol import EgressDocument, GenerationDocument, ObservedGeneration, Resource, canonical_digest
+from .protocol import (
+    EgressDocument,
+    GenerationDocument,
+    ObservedGeneration,
+    RelayAccount,
+    RelaySection,
+    Resource,
+    canonical_digest,
+)
 
 
 class DesiredStore:
@@ -96,14 +104,18 @@ def content_digest(document: GenerationDocument) -> str:
                                                         "created_by": ""}))
 
 
+def node_capabilities(db, node_id: str) -> list[str]:
+    row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (node_id,)).fetchone()
+    identity = json.loads(row["identity_json"]) if row is not None and row["identity_json"] else {}
+    return list(identity.get("capabilities") or [])
+
+
 def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | None:
     """The egress the node's routing policies ask for (spec §8.3) — only for a node that
     declared `egress.v1`; a v0.3 node's strict model would refuse the whole generation."""
     if routing is None:
         return None
-    row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (node_id,)).fetchone()
-    identity = json.loads(row["identity_json"]) if row is not None else {}
-    capabilities = identity.get("capabilities") or []
+    capabilities = node_capabilities(db, node_id)
     if "egress.v1" not in capabilities:
         return None
     desired = {protocol: EgressDocument.model_validate(value)
@@ -113,7 +125,26 @@ def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | Non
         # so such a policy stays out of the generation (its apply was refused earlier).
         desired = {protocol: entry for protocol, entry in desired.items()
                    if entry.backend != "xray_router" and entry.companion is None and not entry.passthrough}
+    if "egress.lanes.v1" not in capabilities:
+        # A v0.6 node: its router knows no lanes or chains (schema 2).
+        desired = {protocol: entry for protocol, entry in desired.items() if entry.document.get("schema") != 2}
     return desired or None
+
+
+def relay_section(db, node_id: str, capabilities: list[str]) -> RelaySection | None:
+    """The node's relay as this panel wants it (spec §7): the row `relay_enable` wrote and
+    the accounts issued to other nodes (`relay_peers`), for a node that declared `relay.v1`.
+    The UUIDs travel in the push's secrets, by each account's ref."""
+    if "relay.v1" not in capabilities:
+        return None
+    row = db.execute("SELECT * FROM router_relays WHERE node_id=?", (node_id,)).fetchone()
+    if row is None or not row["port"] or not row["server_name"]:
+        return None
+    peers = db.execute("SELECT source_node_id, exit, secret_id FROM relay_peers WHERE node_id=? ORDER BY source_node_id, exit",
+                       (node_id,)).fetchall()
+    accounts = [RelayAccount(email=f"relay:{peer['source_node_id']}:{peer['exit']}", credential_ref=f"{peer['secret_id']}:1")
+                for peer in peers] if row["enabled"] else []
+    return RelaySection(enabled=bool(row["enabled"]), port=int(row["port"]), server_name=row["server_name"], accounts=accounts)
 
 
 def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, generation, now, created_by,
@@ -121,6 +152,8 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
     """Pure: the node's grants as they are, with credentials by reference only; the egress
     section from the routing store when one is given."""
     resources = []
+    capabilities = node_capabilities(db, node_id)
+    lanes = "egress.lanes.v1" in capabilities
     for grant in clients_store.grants(db, node_id=node_id, include_deleted=True):
         if grant.desired_state == "deleted" and grant.observed_state == "missing":
             continue  # the node already confirmed the deletion; the next generation omits it
@@ -131,11 +164,12 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
         resources.append(Resource(
             ref=f"grant:{grant.id}", protocol=grant.protocol, runtime_username=grant.runtime_username,
             desired_state=grant.desired_state, credential_ref=f"grant:{grant.id}:{version}", credential_origin="caller",
-            origin=grant.origin, options=options, valid_from=grant.valid_from, valid_until=grant.valid_until))
+            origin=grant.origin, options=options, valid_from=grant.valid_from, valid_until=grant.valid_until,
+            lane=grant.routing_lane if lanes and grant.protocol in ("naive", "mieru") else None))
     resources.sort(key=lambda item: item.ref)
     return GenerationDocument(node_guid=node_guid, master_guid=master_guid, generation=generation,
                               previous_generation=previous, created_at=now, created_by=created_by, resources=resources,
-                              egress=egress_section(db, routing, node_id))
+                              egress=egress_section(db, routing, node_id), relay=relay_section(db, node_id, capabilities))
 
 
 def publish(db, clients_store, desired: DesiredStore, *, node_id, master_guid, created_by="system", now=None,

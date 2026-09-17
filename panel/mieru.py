@@ -432,7 +432,8 @@ class MemoryMieru:
                          "upstream": "socks5://***@127.0.0.1:45102", "status": "running" if entry["users"] else "idle",
                          "share_templates": {user: f"mierus://{{username}}:{{password}}@mieru.example.com?profile={user}&port={port}&protocol=TCP&mtu=1400"
                                              for user in entry["users"]}})
-        return {"lanes": view, "free_slots": len(self.lane_slots) - len(used)}
+        return {"lanes": view, "free_slots": len(self.lane_slots) - len(used),
+                "service_share_template": "mierus://{username}:{password}@mieru.example.com?profile={profile}&port=8443&protocol=TCP"}
 
     async def lanes(self):
         if self.broken:

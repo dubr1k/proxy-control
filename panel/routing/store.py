@@ -213,6 +213,8 @@ class RoutingStore:
 
     @staticmethod
     def desired_for_node(db, node_id: str) -> dict[str, dict]:
+        # One section per service: it lives on the service's policy row (a lane policy applied
+        # remotely folds into the service's intent and is held there — see the service).
         rows = db.execute("SELECT protocol, desired_json FROM routing_policies WHERE node_id=? AND desired_json IS NOT NULL"
-                          " ORDER BY protocol", (node_id,)).fetchall()
+                          " AND lane='svc' ORDER BY protocol", (node_id,)).fetchall()
         return {row["protocol"]: json.loads(row["desired_json"]) for row in rows}

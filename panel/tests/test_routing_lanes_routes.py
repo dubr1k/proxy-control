@@ -190,7 +190,7 @@ async def test_mieru_lane_carries_the_slot_port_into_the_grant_link(client, logi
     # back on the service: the main port again
     assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "service"}, headers=csrf)).status_code == 200
     listing = (await client.get(f"/api/clients/{client_id}")).json()
-    assert listing["grants"][0]["options"]["share_template"] is None
+    assert "port=8443" in listing["grants"][0]["options"]["share_template"]  # the manager's service template
     rendered = _subscription(client, client_id)
     assert f"port={mieru.lane_slots[1]}" not in rendered and "port=8443" in rendered
 

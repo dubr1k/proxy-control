@@ -37,6 +37,9 @@ APPLY_DEADLINE = 25.0
 # and reports the router in `identity.router`.
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "unlink", "egress.v1")
 ROUTER_CAPABILITY = "egress.router.v1"
+# v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
+# and applies the `relay` section, reporting both in `identity.router`.
+ROUTER_CAPABILITIES = (ROUTER_CAPABILITY, "egress.lanes.v1", "relay.v1")
 VERSIONS_UNAVAILABLE = {"enabled": False, "components": {}, "reason": "version_agent_unavailable"}
 NO_STORE = {"Cache-Control": "no-store"}
 log = logging.getLogger(__name__)
@@ -111,7 +114,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         router = getattr(app.state, "router", None)
         if router is None:
             return None
-        sections = {}
+        sections, lanes = {}, {}
         for service in ("naive", "mieru"):
             target = await router.target(service)
             if not target.available:
@@ -119,8 +122,18 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             sections[service] = {"revision": target.revision,
                                  "applied_digest": target.applied["digest"] if target.applied else None}
             capabilities, providers, xray_version = target.capabilities, target.providers, target.xray_version
+            try:
+                lanes[service] = sorted((await router.lanes(service)).get("lanes", []))
+            except AdapterError:
+                lanes[service] = []
+        # The relay's public part (v0.7): what another node needs to dial it; never a key.
+        relay = await router.relay()
+        relay_view = None if relay is None else {
+            "enabled": bool(relay.get("enabled")), "port": relay.get("port"), "server_name": relay.get("server_name"),
+            "public_key": relay.get("public_key"), "short_ids": list(relay.get("short_ids") or []),
+            "accounts": relay.get("accounts") if isinstance(relay.get("accounts"), int) else len(relay.get("accounts") or [])}
         return {"available": True, "xray_version": xray_version, "capabilities": sorted(capabilities),
-                "providers": providers, "services": sections}
+                "providers": providers, "services": sections, "relay": relay_view, "lanes": lanes}
 
     async def _protocol_table(*, egress: bool = False) -> dict:
         telemt, naive, mieru = await asyncio.gather(
@@ -203,7 +216,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         with app.state.database.connect() as db:
             master = app.state.managed.master_guid(db)
         router = await _router_entry()
-        capabilities = list(CAPABILITIES) + ([ROUTER_CAPABILITY] if router is not None else [])
+        capabilities = list(CAPABILITIES) + (list(ROUTER_CAPABILITIES) if router is not None else [])
         return {"guid": app.state.panel_guid, "panel_version": app.state.panel_version, "api_version": 2,
                 "master_guid": master, "protocols": await _protocol_table(egress=True),
                 "capabilities": capabilities, "router": router}

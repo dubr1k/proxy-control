@@ -18,6 +18,7 @@ appear in no view, audit row or report.
 """
 from __future__ import annotations
 
+import json
 import time
 import uuid as uuid_module
 from urllib.parse import urlsplit
@@ -66,6 +67,33 @@ class RelayRegistry:
             " server_name=excluded.server_name, enabled=excluded.enabled, updated_at=excluded.updated_at",
             (node_id, view.get("port"), view.get("public_key"), short_ids[0] if short_ids else None,
              view.get("server_name"), int(bool(view.get("enabled"))), now))
+
+    @staticmethod
+    def observe(db, node_id: str, report: dict, *, now: int | None = None) -> None:
+        """A linked node's word on its relay (its report or identity): the public part joins
+        the row, `enabled` stays what this panel asked for — the node converges to it."""
+        now = int(time.time()) if now is None else now
+        if report.get("state") not in (None, "converged"):
+            return
+        short_ids = report.get("short_ids")
+        short_id = report.get("short_id") if short_ids is None else (short_ids[0] if short_ids else None)
+        row = db.execute("SELECT enabled FROM router_relays WHERE node_id=?", (node_id,)).fetchone()
+        enabled = int(bool(report.get("enabled"))) if row is None else row["enabled"]
+        db.execute(
+            "INSERT INTO router_relays(node_id,port,public_key,short_id,server_name,enabled,updated_at) VALUES(?,?,?,?,?,?,?)"
+            " ON CONFLICT(node_id) DO UPDATE SET port=excluded.port, public_key=excluded.public_key, short_id=excluded.short_id,"
+            " server_name=excluded.server_name, updated_at=excluded.updated_at",
+            (node_id, report.get("port"), report.get("public_key"), short_id, report.get("server_name"), enabled, now))
+
+    @staticmethod
+    def desire(db, node_id: str, *, enabled: bool, port: int, server_name: str, now: int | None = None) -> None:
+        """What this panel asks of a linked node's relay; the public part comes with its report."""
+        now = int(time.time()) if now is None else now
+        db.execute(
+            "INSERT INTO router_relays(node_id,port,public_key,short_id,server_name,enabled,updated_at) VALUES(?,?,NULL,NULL,?,?,?)"
+            " ON CONFLICT(node_id) DO UPDATE SET port=excluded.port, server_name=excluded.server_name, enabled=excluded.enabled,"
+            " updated_at=excluded.updated_at",
+            (node_id, port, server_name, int(enabled), now))
 
     @staticmethod
     def relay(db, node_id: str) -> dict | None:
@@ -195,13 +223,16 @@ class LaneService:
     """A grant's own lane on this node (spec §6.2): the router's account, the manager's
     handler or slot, a draft policy — and the way back."""
 
-    def __init__(self, database: Database, store: RoutingStore, clients, adapters: dict, router, *, clock=time):
+    def __init__(self, database: Database, store: RoutingStore, clients, adapters: dict, router, *, clock=time,
+                 publisher=None):
         self.database = database
         self.store = store
         self.clients = clients
         self.adapters = adapters
         self.router = router
         self.clock = clock
+        # A linked node's lane travels in its generation (spec §7): `publisher(db, node_id)`.
+        self.publisher = publisher
 
     @staticmethod
     def lane_of(grant_id: str) -> str:
@@ -239,13 +270,13 @@ class LaneService:
             current = self._routing_lane(db, grant_id)
         if grant.protocol not in ("naive", "mieru"):
             raise LaneError(422, "protocol_out_of_scope", f"{grant.protocol} is outside routing")
-        if grant.node_id != "local":
-            raise LaneError(422, "node_not_local", "a lane on a linked panel is set through its generation")
-        if self.router is None:
-            raise LaneError(409, "lane_requires_router", "a client lane runs only on the node's Xray-router")
         lane = self.lane_of(grant_id)
         if current == "own":
             return await self.view(grant_id)
+        if grant.node_id != "local":
+            return self._set_remote(grant, "own", actor=actor, ip=ip, request_id=request_id)
+        if self.router is None:
+            raise LaneError(409, "lane_requires_router", "a client lane runs only on the node's Xray-router")
         # 1. the router mints the lane's account (shown once, handed straight to the manager)
         try:
             issued = await self.router.lane_issue(grant.protocol, lane)
@@ -302,18 +333,19 @@ class LaneService:
         if current != "own":
             return await self.view(grant_id)
         if grant.node_id != "local":
-            raise LaneError(422, "node_not_local", "a lane on a linked panel is set through its generation")
+            return self._set_remote(grant, "service", actor=actor, ip=ip, request_id=request_id)
         with self.database.transaction() as db:
             db.execute("UPDATE access_grants SET routing_lane=NULL, updated_at=? WHERE id=?", (int(self.clock.time()), grant_id))
+        view: dict = {}
         try:
             if self.router is not None:
-                await self._push_existing(grant.node_id, grant.protocol, lane, None)
+                view = await self._push_existing(grant.node_id, grant.protocol, lane, None)
         except AdapterError as exc:
             with self.database.transaction() as db:
                 db.execute("UPDATE access_grants SET routing_lane='own' WHERE id=?", (grant_id,))
             raise LaneError(409 if exc.code else 502, exc.code or "manager_unavailable", str(exc)) from exc
         with self.database.transaction() as db:
-            self._learn_share(db, grant, {}, None)
+            self._learn_share(db, grant, view, None)
             policy = self.store.get(db, grant.node_id, grant.protocol, lane=lane)
             if policy is not None:
                 self.store.delete(db, policy.id)
@@ -326,13 +358,49 @@ class LaneService:
                 pass
         return await self.view(grant_id)
 
+    def _set_remote(self, grant, mode: str, *, actor: dict, ip: str, request_id: str | None) -> dict:
+        """A lane on a linked node (spec §7): the grant's resource carries `lane: own` in the
+        node's next generation and the node builds the lane itself — the key never leaves it;
+        the draft policy waits here. `service` withdraws it the same way. The node's report
+        brings a Mieru lane's slot port back as the grant's `learned` template."""
+        lane = self.lane_of(grant.id)
+        if self.publisher is None:
+            raise LaneError(409, "node_not_local", "this panel sets lanes locally only")
+        with self.database.connect() as db:
+            row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (grant.node_id,)).fetchone()
+        identity = json.loads(row["identity_json"]) if row is not None and row["identity_json"] else {}
+        if "egress.lanes.v1" not in (identity.get("capabilities") or []):
+            raise LaneError(422, "node_lacks_lanes", "the node must be updated to v0.7 and run an Xray-router")
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            if mode == "own":
+                db.execute("UPDATE access_grants SET routing_lane='own', updated_at=? WHERE id=?", (now, grant.id))
+                service_policy = self.store.get(db, grant.node_id, grant.protocol)
+                draft = PolicyInput.from_policy(service_policy) if service_policy else PolicyInput()
+                draft = draft.model_copy(update={"backend": "xray_router",
+                                                 "rules": [rule.model_copy(update={"id": None}) for rule in draft.rules]})
+                if self.store.get(db, grant.node_id, grant.protocol, lane=lane) is None:
+                    self.store.upsert(db, grant.node_id, grant.protocol, draft, expected_revision=None, lane=lane, now=now)
+            else:
+                db.execute("UPDATE access_grants SET routing_lane=NULL, updated_at=? WHERE id=?", (now, grant.id))
+                policy = self.store.get(db, grant.node_id, grant.protocol, lane=lane)
+                if policy is not None:
+                    self.store.delete(db, policy.id)
+            generation = self.publisher(db, grant.node_id)
+            audit.record(db, actor=actor, action="grant.lane.enable" if mode == "own" else "grant.lane.disable",
+                         target=grant.id, ip=ip, request_id=request_id,
+                         detail={"node_id": grant.node_id, "protocol": grant.protocol, "lane": lane, "generation": generation})
+            policy = self.store.get(db, grant.node_id, grant.protocol, lane=lane)
+        return {"grant_id": grant.id, "lane": lane if mode == "own" else LANE_SERVICE, "mode": mode, "pending": True,
+                "policy": None if policy is None else {"id": policy.id, "revision": policy.revision, "state": policy.state}}
+
     def _learn_share(self, db, grant, view: dict, lane: str | None) -> None:
         """Mieru: a lane user connects to the slot's port, so the manager's link template for
         the user becomes the grant's `share_template` — the client's link and every
         subscription follow. Leaving the lane returns the default template (the main port)."""
         if grant.protocol != "mieru":
             return
-        template = None
+        template = view.get("service_share_template") if isinstance(view, dict) else None
         for entry in view.get("lanes", []) if lane is not None else []:
             if entry.get("lane") == lane:
                 template = (entry.get("share_templates") or {}).get(grant.runtime_username)
