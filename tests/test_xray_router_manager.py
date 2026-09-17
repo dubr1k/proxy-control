@@ -13,6 +13,7 @@ from xray_router_manager.service import (
     ArtifactMismatch,
     ManagerConflict,
     ManualInterventionRequired,
+    ValidationError,
     XrayError,
     XrayRouterManager,
 )
@@ -67,6 +68,14 @@ class FakeRunner:
             self.fail_ready -= 1
             self.handles[-1]["alive"] = False
             raise XrayError("the ingress ports did not open in time")
+
+    private_key = "kPrivate_" + "k" * 34
+    public_key = "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s"
+    x25519_calls = 0
+
+    def x25519(self) -> tuple[str, str]:
+        self.x25519_calls += 1
+        return self.private_key, self.public_key
 
     @property
     def running(self) -> dict | None:
@@ -365,3 +374,129 @@ def test_unknown_service_and_bad_operation_id_are_validation_errors(tmp_path):
         instance.egress("mtproxy")
     with pytest.raises(ValidationError):
         instance.egress_apply("naive", instance.egress("naive")["revision"], BLOCK_DOC, "bad id with spaces")
+
+
+# --- v0.7: lanes, relay, chains ---------------------------------------------------------------
+
+HOP = {"guid": "b" * 32, "address": "panel.node-b.example.org", "port": 45443, "server_name": "panel.node-b.example.org",
+       "public_key": "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s", "short_id": "0123abcd",
+       "uuid": "3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10"}
+
+
+def _lanes_doc(lane_default, chains=None):
+    return {"schema": 2, "lanes": {"grant:7f3a": {"default": lane_default, "rules": []},
+                                   "svc:naive": {"default": {"action": "direct", "egress": None}, "rules": []}},
+            "chains": chains or {}}
+
+
+def test_lane_issue_puts_the_account_on_the_ingress_at_once_and_never_shows_it_again(tmp_path):
+    instance, runner = manager(tmp_path)
+    instance.bootstrap()
+    generation_before = instance.status()["running"]["generation"]
+    issued = instance.lane_issue("naive", "grant:7f3a")
+    assert issued["user"] == "grant-7f3a" and len(issued["password"]) >= 32
+    # a new generation carries the account; the service intents are untouched
+    running = runner.running["config"]
+    naive = next(item for item in running["inbounds"] if item["tag"] == "naive")
+    assert {"user": "grant-7f3a", "pass": issued["password"]} in naive["settings"]["accounts"]
+    assert instance.status()["running"]["generation"] == generation_before + 1
+    assert instance.status()["lanes"] == {"naive": ["grant:7f3a"], "mieru": []}
+    assert issued["password"] not in json.dumps(instance.status())
+    lanes_file = instance.state_dir / "lanes.json"
+    assert (lanes_file.stat().st_mode & 0o777) == 0o600 and issued["password"] in lanes_file.read_text()
+    # re-issuing rotates the password; the old one leaves the ingress
+    rotated = instance.lane_issue("naive", "grant:7f3a")
+    assert rotated["password"] != issued["password"]
+    accounts = next(item for item in runner.running["config"]["inbounds"] if item["tag"] == "naive")["settings"]["accounts"]
+    assert {"user": "grant-7f3a", "pass": rotated["password"]} in accounts and issued["password"] not in json.dumps(accounts)
+    # forgetting removes the account and refuses a lane the intent still names
+    instance.lane_forget("naive", "grant:7f3a")
+    assert instance.status()["lanes"]["naive"] == []
+    accounts = next(item for item in runner.running["config"]["inbounds"] if item["tag"] == "naive")["settings"]["accounts"]
+    assert all(account["user"] != "grant-7f3a" for account in accounts)
+    with pytest.raises(EgressInvalid, match="lane"):
+        instance.egress_apply("naive", instance.egress("naive")["revision"], _lanes_doc({"action": "direct", "egress": None}), "op-lane")
+    for bad in ("svc:naive", "grant:", "grant:has space", "mieru"):
+        with pytest.raises((ValidationError, EgressInvalid)):
+            instance.lane_issue("naive", bad)
+
+
+def test_lane_intent_applies_with_the_lane_account_and_the_views_stay_secret_free(tmp_path):
+    instance, runner = manager(tmp_path)
+    instance.bootstrap()
+    issued = instance.lane_issue("naive", "grant:7f3a")
+    result = instance.egress_apply("naive", instance.egress("naive")["revision"], _lanes_doc({"action": "egress", "egress": "warp"}), "op-lane")
+    assert result["applied"]["schema"] == 2 and list(result["applied"]["lanes"]) == ["grant:7f3a", "svc:naive"]
+    rules = [rule for rule in runner.running["config"]["routing"]["rules"] if rule["inboundTag"] == ["naive"] and "user" in rule]
+    assert rules[0] == {"inboundTag": ["naive"], "user": ["grant-7f3a"], "outboundTag": "warp"}
+    assert rules[1] == {"inboundTag": ["naive"], "user": ["naive-a1b2c3d4"], "outboundTag": "direct"}
+    assert issued["password"] not in json.dumps(instance.egress("naive"))
+
+
+def test_relay_enable_mints_a_keypair_once_listens_and_takes_accounts_from_the_central(tmp_path):
+    instance, runner = manager(tmp_path)
+    instance.bootstrap()
+    view = instance.relay_enable("panel.node-a.example.org", 45443)
+    assert view == {"enabled": True, "port": 45443, "server_name": "panel.node-a.example.org",
+                    "public_key": runner.public_key, "short_ids": view["short_ids"], "accounts": 0}
+    assert len(view["short_ids"]) == 1 and len(view["short_ids"][0]) == 8
+    relay_file = instance.state_dir / "relay.json"
+    assert (relay_file.stat().st_mode & 0o777) == 0o600 and runner.private_key in relay_file.read_text()
+    assert runner.private_key not in json.dumps(instance.status()) and runner.private_key not in json.dumps(view)
+    inbound = next(item for item in runner.running["config"]["inbounds"] if item["tag"] == "relay")
+    assert inbound["port"] == 45443 and inbound["settings"]["clients"] == []
+    assert inbound["streamSettings"]["realitySettings"]["serverNames"] == ["panel.node-a.example.org"]
+    # a second enable keeps the keypair (the peers already trust it) but may move the port
+    again = instance.relay_enable("panel.node-a.example.org", 45444)
+    assert again["public_key"] == view["public_key"] and again["port"] == 45444 and runner.x25519_calls == 1
+    # accounts arrive from the central and replace the previous set
+    accounts = [{"email": "relay:" + "c" * 32 + ":direct", "uuid": HOP["uuid"]},
+                {"email": "relay:" + "c" * 32 + ":warp", "uuid": "9a1e2c8f-5d7e-4a10-8b6e-3f0d9c6e1b4e"}]
+    assert instance.relay_set_accounts(accounts)["accounts"] == 2
+    inbound = next(item for item in runner.running["config"]["inbounds"] if item["tag"] == "relay")
+    assert [client["email"] for client in inbound["settings"]["clients"]] == [account["email"] for account in accounts]
+    assert instance.status()["relay"] == {"enabled": True, "port": 45444, "server_name": "panel.node-a.example.org",
+                                          "public_key": runner.public_key, "short_ids": view["short_ids"], "accounts": 2}
+    assert HOP["uuid"] not in json.dumps(instance.status())
+    for bad in ([{"email": "nope", "uuid": HOP["uuid"]}], [{"email": "relay:x:direct", "uuid": "bad"}], [{"email": "relay:x:direct"}]):
+        with pytest.raises(ValidationError):
+            instance.relay_set_accounts(bad)
+    # a warp account needs the node's warp
+    (tmp_path / "second").mkdir()
+    no_warp, _ = manager(tmp_path / "second", warp=None)
+    no_warp.bootstrap()
+    no_warp.relay_enable("panel.node-a.example.org", 45443)
+    with pytest.raises(EgressInvalid, match="warp"):
+        no_warp.relay_set_accounts([{"email": "relay:x:warp", "uuid": HOP["uuid"]}])
+    # disabling closes the inbound and keeps the keypair
+    assert instance.relay_disable()["enabled"] is False
+    assert all(item["tag"] != "relay" for item in runner.running["config"]["inbounds"])
+    assert instance.relay_enable("panel.node-a.example.org", 45443)["public_key"] == view["public_key"]
+
+
+def test_chain_apply_checks_every_hop_and_refuses_an_unreachable_one_before_changing_anything(tmp_path):
+    instance, runner = manager(tmp_path)
+    reachable_hops: dict[tuple[str, int], bool] = {("panel.node-b.example.org", 45443): True, ("203.0.113.7", 45443): False}
+    instance.hop_reachability = lambda address, port, server_name, timeout=3.0: reachable_hops[(address, port)]
+    instance.bootstrap()
+    revision = instance.egress("naive")["revision"]
+    good = {"schema": 2, "lanes": {"svc:naive": {"default": {"action": "egress", "egress": "chain:c1"}, "rules": []}},
+            "chains": {"c1": {"hops": [HOP], "exit": "warp"}}}
+    plan = instance.egress_plan("naive", revision, good)
+    assert plan["reachability"] == {"chain:c1:1": True}
+    generation = instance.status()["running"]["generation"]
+    bad = {"schema": 2, "lanes": {"svc:naive": {"default": {"action": "egress", "egress": "chain:c2"}, "rules": []}},
+           "chains": {"c2": {"hops": [HOP, HOP | {"guid": "c" * 32, "address": "203.0.113.7"}], "exit": "direct"}}}
+    with pytest.raises(EgressUnreachable, match="chain c2 hop 2"):
+        instance.egress_apply("naive", revision, bad, "op-bad")
+    assert instance.status()["running"]["generation"] == generation
+    applied = instance.egress_apply("naive", revision, good, "op-good")
+    assert applied["applied"]["chains"]["c1"]["hops"][0]["uuid"] == HOP["uuid"]
+    tags = [item["tag"] for item in runner.running["config"]["outbounds"]]
+    assert "chain:naive:c1:1" in tags
+    # the hop credential lives in the generation file and nowhere the API shows
+    assert HOP["uuid"] in (instance.state_dir / "generations" / f"{generation + 1}.json").read_text()
+    for text in (json.dumps(instance.egress("naive")), json.dumps(instance.status()), json.dumps(plan)):
+        assert HOP["uuid"] not in text
+    assert instance.egress("naive")["document"]["chains"]["c1"]["hops"][0]["uuid"] == "***"
+    assert set(instance.status()["capabilities"]) >= {"lanes", "chains", "relay"}
