@@ -1,0 +1,42 @@
+[Unit]
+Description=Mieru lane slot %i (Proxy Control)
+# A lane slot (v0.7): one more mita daemon beside the managed one, its own socket and
+# state, idle (no users, nothing listening) until mieru-manager assigns it a lane.
+After=network-online.target systemd-tmpfiles-setup.service mita.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mita
+Group=mita
+Environment=MITA_LOG_NO_TIMESTAMP=true
+Environment=MITA_CONFIG_JSON_FILE=/var/lib/mita/lanes/%i/server_config.json
+Environment=MITA_UDS_PATH=/run/mita/lane-%i.sock
+StateDirectory=mita/lanes/%i
+StateDirectoryMode=0700
+ExecStartPre=-/bin/rm -f /run/mita/lane-%i.sock
+# The daemon only: the proxy of an idle slot stays stopped — mieru-manager starts it when a
+# lane lands in this slot and stops it when the lane leaves.
+ExecStart=/usr/bin/mita run
+Restart=on-failure
+RestartSec=2s
+UMask=0007
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+ReadOnlyPaths=/usr/bin/mita
+ReadWritePaths=/run/mita /var/lib/mita
+
+[Install]
+WantedBy=multi-user.target
