@@ -208,6 +208,21 @@ python3 -m installer.cli plan --config examples/installer/core.toml --json
 If the plan succeeds, your domains and DNS are fine. If it stops, the output
 names exactly which domain failed which check.
 
+## The full guide and the protocol for AI agents
+
+- **[Operator guide v0.6 (Russian)](docs/releases/v0.6-operator-guide.ru.md)** — one document for everything:
+  the node's final architecture (what runs where, ports, the shared 443), which domains are needed and how
+  to spread them over a fleet of several hosts (with fictitious examples), unattended deployment through
+  the wizard or a TOML (exactly what every adapter installs, 3x-ui included), linking nodes to the central,
+  issuing grants and subscriptions from the central panel onto other panels, egress routing and the
+  Xray-router with policy examples, upgrades and backups, end-to-end checklists.
+- **[AGENTS.md → «Эксплуатационный протокол для ИИ-агентов (v0.6)»](AGENTS.md)** — the same operations as
+  algorithms for an agent: unattended install (`plan --json` → digest → `install`), preparing and linking a
+  node through the API, grants and subscriptions, routing and the Xray-router, upgrade and rollback — each
+  with its verification command, a «refusal code → action» table, the production-host prohibitions, the
+  «no secret ever in the output» rule and a report template (Russian; the development protocol in the same
+  file is bilingual).
+
 ## Installation
 
 ### Step 1. Download the release and verify it
