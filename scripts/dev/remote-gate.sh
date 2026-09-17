@@ -207,8 +207,20 @@ case $LEVEL in
       --central-dir /root/lab-central-ui --central-port 8792 $* \
       && echo REMOTE_GATE_UI_OK"
     ;;
+  managed-xui)
+    # The managed-new 3x-ui path against the real pinned 3x-ui (v0.1, re-proven in v0.6): the
+    # lab node's coexistence fixture (a stub x-ui) is moved aside for the run and put back.
+    sync_tree
+    remote "rm -rf /root/xui-fixture-backup && mkdir -p /root/xui-fixture-backup \
+      && { test -e /usr/local/x-ui && mv /usr/local/x-ui /root/xui-fixture-backup/usr-local-x-ui || true; } \
+      && { test -e /etc/x-ui && mv /etc/x-ui /root/xui-fixture-backup/etc-x-ui || true; } \
+      && { bash scripts/lab/managed-xui-acceptance.sh && echo MANAGED_XUI_OK || echo MANAGED_XUI_FAILED; } \
+      && rm -rf /usr/local/x-ui /etc/x-ui \
+      && { test -e /root/xui-fixture-backup/usr-local-x-ui && mv /root/xui-fixture-backup/usr-local-x-ui /usr/local/x-ui || true; } \
+      && { test -e /root/xui-fixture-backup/etc-x-ui && mv /root/xui-fixture-backup/etc-x-ui /etc/x-ui || true; }" | tee /dev/stderr | grep -q MANAGED_XUI_OK && echo REMOTE_GATE_MANAGED_XUI_OK
+    ;;
   *)
-    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>|ui <ui-acceptance args…>}" >&2
+    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>|ui <ui-acceptance args…>|managed-xui}" >&2
     exit 2
     ;;
 esac

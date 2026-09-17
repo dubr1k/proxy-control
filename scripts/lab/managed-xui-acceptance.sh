@@ -149,6 +149,7 @@ cleanup() {
   rm -f "$UNIT"
   systemctl daemon-reload || true
   rm -rf "$XUI_ROOT" "$XUI_DB"
+  rm -rf /etc/letsencrypt/live/xui.lab.test /etc/letsencrypt/live/hy2.lab.test
 }
 
 main() {
@@ -157,11 +158,15 @@ main() {
   stage_three_xui
   wait_for_port 2053 || fail "the staged 3x-ui never answered on its default port"
 
-  # Hysteria2 needs a certificate that exists; the panel's own is enough here.
-  install -d -m 0755 "/etc/letsencrypt/live/hy2.lab.test"
-  openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=hy2.lab.test" \
-    -keyout /etc/letsencrypt/live/hy2.lab.test/privkey.pem \
-    -out /etc/letsencrypt/live/hy2.lab.test/fullchain.pem 2>/dev/null
+  # The panel and Hysteria2 need certificates that exist: 3x-ui refuses a settings form
+  # whose certificate path is absent. In a real install Core issues them before this
+  # adapter runs; here two throw-away self-signed pairs stand in.
+  for domain in xui.lab.test hy2.lab.test; do
+    install -d -m 0755 "/etc/letsencrypt/live/$domain"
+    openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$domain" \
+      -keyout "/etc/letsencrypt/live/$domain/privkey.pem" \
+      -out "/etc/letsencrypt/live/$domain/fullchain.pem" 2>/dev/null
+  done
 
   cd "$ROOT"
   provision

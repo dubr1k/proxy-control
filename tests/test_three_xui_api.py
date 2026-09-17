@@ -702,3 +702,16 @@ def test_a_panel_certificate_path_must_be_absolute():
             certificate="relative/fullchain.pem",
             private_key="/etc/letsencrypt/live/three-xui-panel/privkey.pem",
         )
+
+
+def test_a_refusal_names_its_kind_but_never_repeats_the_panels_message():
+    """`success: false` used to say only «rejected»: the managed-3x-ui acceptance failed
+    on a certificate path with nothing to go on. The refusal now names the kind of thing
+    the panel objected to — and still never repeats `msg`, which echoes request fields."""
+    api = api_with(lambda _request: ok({"success": False,
+                                        "msg": f"cert file /etc/letsencrypt/live/x/fullchain.pem does not exist; password={PASSWORD}"}))
+    with pytest.raises(ThreeXuiApiError) as caught:
+        api._call("all_settings")
+    text = str(caught.value)
+    assert "rejected" in text and "certificate file" in text
+    assert PASSWORD not in text and "fullchain" not in text
