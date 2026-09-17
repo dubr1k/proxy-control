@@ -484,6 +484,17 @@ def _form_value(value: object) -> object:
     return value
 
 
+# What a 3x-ui refusal is about, keyed by words of its message; the message itself is
+# never repeated (it may echo request fields).
+_REFUSAL_HINTS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("cert", "certificate"), "the panel names a certificate file it cannot read"),
+    (("key file", "keyfile", "private key"), "the panel names a key file it cannot read"),
+    (("port",), "the panel objects to a port"),
+    (("validation", "invalid"), "the panel says the form failed its validation"),
+    (("path",), "the panel objects to a path"),
+)
+
+
 class _Sanitized(Exception):
     """A cause whose text is reduced to the original exception type only."""
 
@@ -593,8 +604,14 @@ class ThreeXuiApi:
                 f"the local 3x-ui response for {path} did not match the contract"
             )
         if document.get("success") is not True:
+            # A refusal says what kind of thing the panel objected to — a certificate or
+            # key path, a port, validation of the form — but never the panel's own text:
+            # 3x-ui echoes request fields into `msg`, and those may be secrets.
+            message = str(document.get("msg") or "").lower()
+            hints = [hint for words, hint in _REFUSAL_HINTS if any(word in message for word in words)]
             raise ThreeXuiApiError(
                 f"the local 3x-ui request to {path} was rejected"
+                + (f" ({'; '.join(hints)})" if hints else "")
             )
         if name == "login":
             self._store_cookie(cookies)
