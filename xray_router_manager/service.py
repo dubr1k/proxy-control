@@ -729,9 +729,12 @@ class XrayRouterManager:
             previous = journal["previous"]
             if previous is None:
                 raise ManagerConflict("no previous egress to roll back to", "egress_no_previous")
-            intents = {tag: entry["document"] for tag, entry in current["services"].items()}
-            intents[service] = previous["document"]
-            if uses_provider(previous["document"]) and not self.reachability(self.warp_url, 3.0):
+            # A previous entry may name a lane forgotten since: it goes back without that lane
+            # (an account that is gone cannot route anyone), like a start or a re-render would.
+            intents = self._current_intents(current)
+            known = set(self._lanes().get(service, {}))
+            intents[service] = self._without_lanes(previous["document"], known)
+            if uses_provider(intents[service]) and not self.reachability(self.warp_url, 3.0):
                 raise EgressUnreachable("egress provider warp is unreachable")
             entry = self._commit_generation(current["generation"] + 1, intents, operation_ids={},
                                             rollback_of=service, keep_journal=True)[service]

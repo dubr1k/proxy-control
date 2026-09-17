@@ -465,6 +465,9 @@ def test_forgetting_a_lane_the_intent_still_names_drops_its_rules_in_the_same_ge
     assert list(again.egress("naive")["document"]["lanes"]) == ["svc:naive"]
     assert again.status()["phase"] == "idle" and again.status()["running"]["generation"] > generation + 2
     assert all("grant-7f3a" not in json.dumps(rule) for rule in runner2.running["config"]["routing"]["rules"])
+    # a rollback to the entry that named the lane goes back without it, not to a refusal
+    rolled = again.egress_rollback("naive", again.egress("naive")["revision"])
+    assert list(rolled["applied"]["lanes"]) == ["svc:naive"] and again.status()["phase"] == "idle"
 
 
 def test_relay_enable_mints_a_keypair_once_listens_and_takes_accounts_from_the_central(tmp_path):

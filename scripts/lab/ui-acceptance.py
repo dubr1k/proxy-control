@@ -838,17 +838,22 @@ class Acceptance:
         b.click("#choose-ok")
         self.check("routing.lane_tab_appears_active", b.wait(f"document.querySelector('[data-routing-action=lane].active')?.dataset.lane === {json.dumps(lane)} && !!document.querySelector('.routing-lane-badge') && {loaded}", 40))
         self.check("routing.lane_policy_is_a_draft", "черновик" in b.text(".routing-head .status-pill"), b.text(".routing-head .status-pill"))
-        # The lane's own rules: everything through WARP by default, ads blocked — applied as one intent with the service.
+        # The lane's own rules: everything through WARP by default, ads blocked — applied as one
+        # intent with the service. The draft came as a copy of the service's policy (rules included),
+        # so the new rule is the last row.
         b.select("#routing-form select[name=default_action]", "egress")
+        rows = int(b.js("document.querySelectorAll('.routing-rule').length") or 0)
         b.click("[data-routing-action=rule-add]")
-        b.wait("document.querySelectorAll('.routing-rule').length === 1")
-        b.type("[data-rule-field=geosites]", "category-ads-all")
-        self.check("routing.lane_preview_folds_the_service", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"schema\": 2')", 20))
+        b.wait(f"document.querySelectorAll('.routing-rule').length === {rows + 1}")
+        b.type(f"[data-rule-field=geosites][data-rule-index=\"{rows}\"]", "category-ads-all")
+        self.check("routing.lane_preview_folds_the_service", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"schema\": 2')", 20),
+                   (b.js("document.querySelector('#routing-preview')?.innerText") or "")[:300])
         b.click("#routing-save")
         b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20)
         b.click("[data-routing-action=apply]")
         b.confirm()
-        self.check("routing.lane_policy_applied", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено (rev') && {loaded}", 60))
+        self.check("routing.lane_policy_applied", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено (rev') && {loaded}", 60),
+                   b.text(".routing-head .status-pill") + " | " + b.text("#routing-preview")[:200])
         b.type("#routing-explain input[name=host]", "example.org")
         b.click("#routing-explain button[type=submit]")
         self.check("routing.explain_names_the_lane_and_the_exit", b.wait(f"((document.querySelector('#routing-explain-answer')?.textContent) || '').includes({json.dumps('полоса ' + lane)}) && (document.querySelector('#routing-explain-answer')?.textContent || '').includes('WARP')", 20), b.text("#routing-explain-answer"))

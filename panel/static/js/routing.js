@@ -484,7 +484,10 @@ async function previewNow(context, target) {
   const seq = ++state.previewSeq;
   const url = `${policyPath(target)}/preview${laneQuery(context)}`;
   try {
-    const body = state.dirty || !state.policy ? JSON.stringify(policyBody(state.draft, target.backend)) : undefined;
+    // A rule still being typed (no selector yet) is not a question for the compiler: the
+    // preview leaves it out; «Сохранить» still refuses it, as the server does.
+    const filled = { ...state.draft, rules: state.draft.rules.filter((rule) => Object.values(rule.match).some((items) => items.length)) };
+    const body = state.dirty || !state.policy ? JSON.stringify(policyBody(filled, target.backend)) : undefined;
     const compiled = await context.api(url, { method: "POST", body });
     if (seq !== state.previewSeq) return;
     state.compiled = compiled;
