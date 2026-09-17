@@ -646,7 +646,9 @@ vless_tcp_domain = "vless.lab.test"
 [firewall]
 manage_ufw = false
 TOML
-  printf '%s naive.lab.test mieru.lab.test sub.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' "$(host_ip)" >> /etc/hosts
+  # node-b.lab.test: the second node of the chains tier (v0.7), started from the tree on this
+  # host later — named here, before the containers copy /etc/hosts, so the router resolves it.
+  printf '%s naive.lab.test mieru.lab.test sub.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test node-b.lab.test\n' "$(host_ip)" >> /etc/hosts
   stage_mita_package
   stage_xray_package
 }

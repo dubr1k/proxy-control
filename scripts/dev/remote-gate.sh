@@ -9,6 +9,7 @@ HOST=${LAB_HOST:-ams-test}
 REMOTE=${LAB_DIR:-/root/dev/proxy-control}
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST")
+NODE_B_HOST=${NODE_B_HOST:-node-b.lab.test}
 
 case $HOST in
   # AMS_Z is the host formerly aliased GER; both names stay refused.
@@ -176,6 +177,32 @@ case $LEVEL in
       --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing --router $* \
       && echo ROUTER_ACCEPTANCE_OK && echo REMOTE_GATE_ROUTER_OK"
     ;;
+  chains)
+    # Chains and lanes (v0.7) on the node `lab-host` left installed with `[egress] router = true`
+    # (relay and lane slots come with it): the router tier's scenarios plus chains-01…10 —
+    # a second node started from this tree on the host (its router with a stub-WARP of its
+    # own, its panel over TLS), linked, its relay enabled through a generation, the probe
+    # grant's own lane with a chain through it. Nothing is rebuilt or reinstalled.
+    sync_tree
+    # The router container copies the host's /etc/hosts when it is created: a name added after
+    # that needs the container recreated (its state lives on the host, nothing is lost).
+    remote "grep -q '$NODE_B_HOST' /etc/hosts || { printf '127.0.0.1 $NODE_B_HOST\n' >> /etc/hosts; touch /root/.node-b-hosts-added; }"
+    remote "cd /opt/mtproxy-shared443 \
+      && for key in NAIVE_EGRESS_WARP MIERU_EGRESS_WARP XRAY_ROUTER_EGRESS_WARP; do hit=0; \
+           for file in .env .env.naive .env.mieru .env.xray-router; do test -f \$file && grep -q \"^\$key=\" \$file && { sed -i \"s|^\$key=.*|\$key=socks5://127.0.0.1:45000|\" \$file; hit=1; }; done; \
+           test \$hit = 1 || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
+      && files=(--env-file .env -f compose.yaml) \
+      && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
+      && recreate=(); test -f /root/.node-b-hosts-added && { recreate=(--force-recreate); rm -f /root/.node-b-hosts-added; } \
+      && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait \"\${recreate[@]}\" xray-router naive-manager mieru-manager"
+    remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
+      --node-url https://panel.lab.test \
+      --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
+      --central-dir /root/lab-central --central-port 8791 --output lab-results/chains \
+      --mtproxy-probe /usr/local/libexec/mtproxy-respq-probe --mtproxy-domain proxy.lab.test \
+      --client-ca-file /etc/letsencrypt/lab-ca/ca.crt --routing --router --chains --node-b-host $NODE_B_HOST $* \
+      && echo CHAINS_ACCEPTANCE_OK && echo REMOTE_GATE_CHAINS_OK"
+    ;;
   ui)
     # The panel's screen in a real browser (v0.6) on the node `lab-host` left installed:
     # every view as the owner and once as a viewer, dialogs and confirmations included.
@@ -220,7 +247,7 @@ case $LEVEL in
       && { test -e /root/xui-fixture-backup/etc-x-ui && mv /root/xui-fixture-backup/etc-x-ui /etc/x-ui || true; }" | tee /dev/stderr | grep -q MANAGED_XUI_OK && echo REMOTE_GATE_MANAGED_XUI_OK
     ;;
   *)
-    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>|ui <ui-acceptance args…>|managed-xui}" >&2
+    echo "usage: $0 {quick <pytest args…>|full|compose|lab-container|lab-host|fleet <fleet-acceptance args…>|routing <fleet-acceptance args…>|router <fleet-acceptance args…>|chains <fleet-acceptance args…>|ui <ui-acceptance args…>|managed-xui}" >&2
     exit 2
     ;;
 esac
