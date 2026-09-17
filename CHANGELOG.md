@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Journal's rows overlapped the actor and the «Details and IP» disclosure at desktop widths: a v0.1 four-column rule on `.audit-row` had survived the v0.2 layout that moved the columns into `.audit-main`. The row is one column at every width; the `ui` tier now checks that no two cells of a journal row share pixels (`audit.cells_do_not_overlap`), and a test refuses a multi-track `.audit-row` rule. Seen on AMS_Z after the v0.6 upgrade.
+
 ## [0.6.0-beta.1] - 2026-09-17
 
 The verification release: v0.6 adds no function. It answers whether everything promised
