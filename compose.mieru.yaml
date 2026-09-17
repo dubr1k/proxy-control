@@ -29,6 +29,9 @@ services:
       # directory (`/var/lib/mieru-manager/xray-router-ingress`). Empty = no router.
       MIERU_EGRESS_ROUTER: ${MIERU_EGRESS_ROUTER:-}
       MIERU_EGRESS_ROUTER_CREDENTIAL_FILE: ${MIERU_EGRESS_ROUTER_CREDENTIAL_FILE:-}
+      # Lane slots (v0.7): the `mita@<n>` daemons beside the main one, `<n>:<port>:<socket>:<state>,…`
+      # — the manager mirrors a lane's users into a slot and points it at the router's lane account.
+      MIERU_LANE_SLOTS: ${MIERU_LANE_SLOTS:-}
     secrets: [mieru-manager-token]
     volumes:
       - type: bind

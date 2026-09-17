@@ -22,7 +22,7 @@ from installer.adapters.core import (
     _path_sha256,
 )
 from installer.adapters.naive import _identity_from_entry
-from installer.model import ROUTER_PORTS, EgressChoice, InstallerConfig
+from installer.model import MAX_LANE_SLOTS, ROUTER_PORTS, EgressChoice, InstallerConfig, lane_slot_port
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, verify_artifact
 from installer.transaction import (
@@ -68,6 +68,12 @@ _ACCEPTANCE_PENDING = "/etc/proxy-control/mieru-acceptance-pending"
 
 _MITA_UNIT_NAME = "mita"
 _MITA_BOOTSTRAP_UNIT = "mita-bootstrap"
+# Lane slots (v0.7): the template unit `mita@<n>`, one more mita daemon per slot with its
+# own socket and state — idle until mieru-manager lands a lane in it.
+_MITA_SLOT_UNIT = "/etc/systemd/system/mita@.service"
+_MITA_SLOT_SOCKET = "/run/mita/lane-{index}.sock"
+_MITA_SLOT_STATE = "/var/lib/mita/lanes/{index}"
+_IDLE = 'mita server status is "IDLE"'
 _MITA_USER = "mita"
 _MITA_GROUP = "mita"
 _MANAGER_UID = 10005
@@ -128,6 +134,7 @@ _HELPERS: tuple[tuple[str, str, int], ...] = (
     ("scripts/prepare_mieru_token.py", _TOKEN_PREPARER, 0o755),
     ("deploy/mita.service", _MITA_UNIT, 0o644),
     ("deploy/mita.tmpfiles.conf", _MITA_TMPFILES, 0o644),
+    ("deploy/mita@.service", _MITA_SLOT_UNIT, 0o644),
 )
 
 def _command_failure(argv: Sequence[str]) -> str:
@@ -291,6 +298,10 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
                 "status",
             )
         ).strip()
+
+    def mita_slot_status(self, socket_path: str) -> str:
+        """`mita status` over a lane slot's own socket (v0.7)."""
+        return self._capture_checked(("env", f"MITA_UDS_PATH={socket_path}", _MITA_BINARY, "status")).strip()
 
     def socket_group(self, path: str) -> int:
         return os.stat(path).st_gid
@@ -576,10 +587,18 @@ class MieruPaths:
     marker: str = _MARKER
     acceptance_owner: str = _ACCEPTANCE_OWNER
     acceptance_pending: str = _ACCEPTANCE_PENDING
+    slot_unit: str = _MITA_SLOT_UNIT
+
+    def slot_socket(self, index: int) -> str:
+        return _MITA_SLOT_SOCKET.format(index=index)
+
+    def slot_state(self, index: int) -> str:
+        return _MITA_SLOT_STATE.format(index=index)
 
     def __post_init__(self) -> None:
         for value in (
             self.project_dir,
+            self.slot_unit,
             self.binary,
             self.license,
             self.state_dir,
@@ -726,8 +745,11 @@ class MieruAdapter:
         if domain is None or _DOMAIN.fullmatch(domain) is None:
             raise PlanError("Mieru public host is missing or invalid")
         transports = self._planned_transports(config)
+        slots = tuple(("TCP", port) for port in config.mieru.slot_ports()) if config.mieru is not None else ()
+        if set(slots) & set(transports):
+            raise PlanError("Mieru lane slot ports collide with the selected listeners")
         self._assert_planned_identities(facts)
-        self._assert_free_listeners(facts, transports)
+        self._assert_free_listeners(facts, transports + slots)
         url, package_sha256, executable_sha256 = self._pins()
         # `[egress]` (v0.4): the seed the manager owns from here on (ADR 007); an old
         # configuration derives it from `[three_xui].warp*` unchanged.
@@ -760,11 +782,14 @@ class MieruAdapter:
                     # Xray-router ingress (v0.5), or nothing.
                     f"warp-provider={config.effective_egress.provider_url() or ''}",
                     f"router-provider={config.effective_egress.router_url('mieru') or ''}",
+                    # Lane slots (v0.7): `mita@1…N` on 46101…, only with the router.
+                    f"lane-slots={config.mieru.lane_slots if config.mieru is not None else 0}",
                 ),
                 preconditions=(
                     "the Core runtime is verified",
                     "the selected Mieru listeners are free",
                     "fixed manager identity 10005 is free or already owned",
+                    *(("the lane slot ports are free",) if config.mieru is not None and config.mieru.lane_slots else ()),
                 ),
                 verification=(
                     "package and executable digests match the pinned release",
@@ -772,11 +797,12 @@ class MieruAdapter:
                     "the management UDS keeps its owner and 0770 mode",
                     "the official client reaches the Internet over every transport",
                     "manager and panel health pass and adjacent listeners are intact",
+                    *(("every lane slot daemon answers on its own socket",) if config.mieru is not None and config.mieru.lane_slots else ()),
                 ),
                 inverse=(
-                    "stop only the mita unit and the mieru-manager service",
+                    "stop only the mita unit, the lane slot units and the mieru-manager service",
                     "preserve manager state, token, and mita config unless purge",
-                    "remove only the owned binary, unit, tmpfiles, and helpers",
+                    "remove only the owned binary, units, tmpfiles, and helpers",
                 ),
                 credentials_required=True,
             ),
@@ -995,7 +1021,18 @@ class MieruAdapter:
             # own state directory; both empty on a host without a router.
             f"MIERU_EGRESS_ROUTER={selected.get('router_provider', '')}\n"
             f"MIERU_EGRESS_ROUTER_CREDENTIAL_FILE={self.paths.manager_state + '/' + _ROUTER_CREDENTIAL_NAME if selected.get('router_provider') else ''}\n"
+            # The lane slots (v0.7): `<n>:<port>:<socket>:<state dir>,…`, empty without slots.
+            f"MIERU_LANE_SLOTS={self._slots_env(selected)}\n"
         )
+
+    def _slots(self, selected: Mapping[str, object]) -> tuple[tuple[int, int], ...]:
+        """(index, port) per planned lane slot."""
+        count = int(selected.get("lane_slots", 0))
+        return tuple((index, lane_slot_port(index)) for index in range(1, count + 1))
+
+    def _slots_env(self, selected: Mapping[str, object]) -> str:
+        return ",".join(f"{index}:{port}:{self.paths.slot_socket(index)}:{self.paths.slot_state(index)}"
+                        for index, port in self._slots(selected))
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -1062,6 +1099,8 @@ class MieruAdapter:
         # 4. Long-running service and the proven RUNNING status.
         self._run("systemctl", "enable", "--now", _MITA_UNIT_NAME)
         self._assert_running()
+        # 4b. The lane slot daemons (v0.7), idle until the manager lands a lane in one.
+        self._start_slots(selected)
         # 5. Manager identity, token, state, and the Compose overlay.
         mita_gid = self._socket_group()
         self._prepare_manager(selected, mita_gid)
@@ -1071,6 +1110,24 @@ class MieruAdapter:
             "identities_created": identities,
             "ownership": self._ownership(prepared),
         }
+
+    def _start_slots(self, selected: Mapping[str, object]) -> None:
+        for index, _port in self._slots(selected):
+            self._run("systemctl", "enable", "--now", f"{_MITA_UNIT_NAME}@{index}")
+        self._assert_slots(selected)
+
+    def _assert_slots(self, selected: Mapping[str, object]) -> None:
+        """Every slot daemon answers on its own socket: idle, or running a lane already."""
+        slots = self._slots(selected)
+        if not slots:
+            return
+        status = getattr(self.runner, "mita_slot_status", None)
+        if not callable(status):
+            raise MieruError("lane slot verification is unavailable")
+        for index, _port in slots:
+            answer = str(status(self.paths.slot_socket(index))).strip()
+            if answer not in (_IDLE, _RUNNING):
+                raise MieruError(f"lane slot {index} did not answer on its socket")
 
     def reconcile_apply(
         self,
@@ -1138,14 +1195,17 @@ class MieruAdapter:
         result = MieruAcceptance(
             **{**result.details(), "temporary_state_removed": True}
         )
+        self._assert_slots(selected)
+        slots = self._slots(selected)
         return Evidence(
             action_id=action.id,
             success=True,
             observations=(
                 "pinned mita, UDS boundary, and official-client acceptance passed",
                 "temporary acceptance state was removed",
+                *((f"{len(slots)} lane slot daemon(s) answer on their sockets",) if slots else ()),
             ),
-            details=result.details(),
+            details={**result.details(), "lane_slots": [{"index": index, "port": port} for index, port in slots]},
         )
 
     def repair(
@@ -1160,6 +1220,7 @@ class MieruAdapter:
         self._run(self.paths.state_preparer, "verify", self.paths.manager_state)
         self._run("systemctl", "restart", _MITA_UNIT_NAME)
         self._assert_running()
+        self._start_slots(self._selection(action))
         self._compose("up", "-d", "--wait")
         return prepared
 
@@ -1194,6 +1255,8 @@ class MieruAdapter:
             durable_remove(pending, missing_ok=True)
         if self._unit_present():
             self._run_best_effort("systemctl", "disable", "--now", _MITA_UNIT_NAME)
+        for index, _port in self._slots(selected):
+            self._run_best_effort("systemctl", "disable", "--now", f"{_MITA_UNIT_NAME}@{index}")
         if self._compose_service_present():
             self._compose("rm", "--stop", "--force", "mieru-manager")
         self._remove_generation(
@@ -1291,7 +1354,7 @@ class MieruAdapter:
             "transports",
             "egress",
         }
-        optional = {"package", "warp-port", "warp-provider", "router-provider"}
+        optional = {"package", "warp-port", "warp-provider", "router-provider", "lane-slots"}
         if not required <= set(values) or set(values) - required - optional:
             raise MieruError("Mieru action is invalid")
         if (
@@ -1330,7 +1393,13 @@ class MieruAdapter:
             raise MieruError("invalid router provider")
         if values["egress"] == "router" and not router:
             raise MieruError("Mieru action is invalid")
+        lane_slots = values.get("lane-slots", "0")
+        if not lane_slots.isdigit() or int(lane_slots) > MAX_LANE_SLOTS:
+            raise MieruError("invalid lane slot count")
+        if int(lane_slots) and not router:
+            raise MieruError("lane slots need the node's Xray-router")
         return {
+            "lane_slots": int(lane_slots),
             "warp_port": warp_port,
             "warp_provider": provider,
             "router_provider": router,
@@ -1489,6 +1558,7 @@ class MieruAdapter:
         return (
             (self.paths.marker, True),
             (self.paths.unit, False),
+            (self.paths.slot_unit, False),
             (self.paths.tmpfiles, False),
             (self.paths.state_preparer, False),
             (self.paths.token_preparer, False),
@@ -1645,13 +1715,13 @@ class MieruAdapter:
             path = self._host(host_path)
             if path.exists() or path.is_symlink():
                 durable_remove(path)
-        state = self._host(self.paths.manager_state)
-        if state.is_dir() and not state.is_symlink():
-            for entry in sorted(state.rglob("*"), reverse=True):
-                if entry.is_dir() and not entry.is_symlink():
-                    entry.rmdir()
-                else:
-                    durable_remove(entry)
+        for directory in (self._host(self.paths.manager_state), self._host(_MITA_SLOT_STATE.rsplit("/", 1)[0])):
+            if directory.is_dir() and not directory.is_symlink():
+                for entry in sorted(directory.rglob("*"), reverse=True):
+                    if entry.is_dir() and not entry.is_symlink():
+                        entry.rmdir()
+                    else:
+                        durable_remove(entry)
 
     def _remove_identities(self, checkpoint: Mapping[str, object]) -> None:
         created = checkpoint.get("identities_created", {})

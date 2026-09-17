@@ -21,7 +21,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from installer.adapters.core import _DefaultCoreRunner, _file_sha256
+from installer.adapters.core import _DOMAIN, _DefaultCoreRunner, _file_sha256
 from installer.model import ROUTER_PORTS, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, MemberPin, ReleaseError, safe_extract_zip, verify_artifact
@@ -151,6 +151,35 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
         addresses = {fields[3] for fields in (line.split() for line in output.splitlines()) if len(fields) >= 4}
         return addresses == {f"127.0.0.1:{port}"}
 
+    def public_listener(self, port: int) -> bool:
+        """The relay inbound (v0.7) listens for the world: on every address, never the loopback only."""
+        try:
+            output = self.capture(("ss", "-H", "-lnt", f"sport = :{port}"), max_chars=4096)
+        except Exception:
+            return False
+        addresses = {fields[3] for fields in (line.split() for line in output.splitlines()) if len(fields) >= 4}
+        return any(address in (f"0.0.0.0:{port}", f"*:{port}", f"[::]:{port}") for address in addresses)
+
+    def _relay_json(self, *arguments: str) -> Mapping[str, object]:
+        output = self._capture_checked(
+            ("docker", "exec", _CONTAINER, "python", "-m", "xray_router_manager.healthcheck", *arguments)
+        )
+        try:
+            value = json.loads(output)
+        except ValueError as exc:
+            raise XrayRouterError("Xray-router relay view is not JSON") from exc
+        if not isinstance(value, Mapping):
+            raise XrayRouterError("Xray-router relay view is not an object")
+        return value
+
+    def router_relay(self) -> Mapping[str, object]:
+        """The relay's public part (`/v1/relay`) from inside the container."""
+        return self._relay_json("--relay")
+
+    def router_relay_enable(self, server_name: str, port: int) -> Mapping[str, object]:
+        """`POST /v1/relay`: the inbound up with the node's panel name as its cover (v0.7)."""
+        return self._relay_json("--relay-enable", server_name, str(port))
+
     def ingress_probe(self, port: int, credential_file: str) -> bool:
         """One authenticated SOCKS5 CONNECT through the ingress reaches the Internet.
 
@@ -273,7 +302,7 @@ class XrayRouterAdapter:
         if not (config.profile.includes_naive or config.profile.includes_mieru):
             raise PlanError("the Xray-router needs NaiveProxy or Mieru to feed")
         self._assert_planned_identities(facts)
-        self._assert_free_listeners(facts)
+        self._assert_free_listeners(facts, config.effective_egress.relay_port)
         url, archive_sha256, members = self._pins()
         return (
             Action(
@@ -295,18 +324,23 @@ class XrayRouterAdapter:
                     *(f"port-{service}={ROUTER_PORTS[service]}" for service in _SERVICES),
                     # The WARP endpoint the router may send traffic through (v0.4 provider).
                     f"warp-provider={config.effective_egress.provider_url() or ''}",
+                    # The relay inbound (v0.7): its public port and the panel name it hides behind.
+                    f"relay-port={config.effective_egress.relay_port}",
+                    f"relay-server-name={config.domains.panel.lower() if config.effective_egress.relay_port else ''}",
                 ),
                 preconditions=(
                     "the Core runtime is verified",
                     f"the pinned archive is staged in {self.paths.artifact_dir} or fetched from its pin",
                     "loopback ports 45101 and 45102 are free or held by the owned router",
                     "fixed router identity 10006 is free or already owned",
+                    *(("the relay port is free or held by the owned router",) if config.effective_egress.relay_port else ()),
                 ),
                 verification=(
                     "archive and member digests match the pinned release",
                     "the manager reports verified artifacts and a running generation",
                     "both ingresses listen on the loopback only",
                     "one authenticated CONNECT through the NaiveProxy ingress reaches the Internet",
+                    *(("the relay inbound is enabled on its port behind the panel name",) if config.effective_egress.relay_port else ()),
                 ),
                 inverse=(
                     "stop and remove only the xray-router Compose service",
@@ -335,15 +369,15 @@ class XrayRouterAdapter:
                 raise PlanError("audited identity facts are invalid")
             raise PlanError(f"{kind.upper()} {identifier} collision: {holder}")
 
-    def _assert_free_listeners(self, facts: AuditFacts) -> None:
+    def _assert_free_listeners(self, facts: AuditFacts, relay_port: int = 0) -> None:
         listeners = facts.listeners if isinstance(facts.listeners, Mapping) else {}
         observed = listeners.get("tcp")
         if not isinstance(observed, Sequence) or isinstance(observed, (str, bytes)):
             return
         held = {int(value) for value in observed if isinstance(value, int)}
         owners = listeners.get("owners")
-        for service in _SERVICES:
-            port = ROUTER_PORTS[service]
+        ports = [ROUTER_PORTS[service] for service in _SERVICES] + ([relay_port] if relay_port else [])
+        for port in ports:
             if port not in held:
                 continue
             holders = owners.get(str(port)) if isinstance(owners, Mapping) else None
@@ -363,7 +397,8 @@ class XrayRouterAdapter:
         required = {"project", "xray-version", "architecture", "archive", "archive-url", "archive-digest", "bin-dir",
                     "state-dir", "router-uid", "router-gid", "warp-provider",
                     *(f"{member}-digest" for member in _MEMBERS), *(f"port-{service}" for service in _SERVICES)}
-        if set(values) != required:
+        optional = {"relay-port", "relay-server-name"}  # v0.7; a v0.5/v0.6 action has neither
+        if not required <= set(values) or set(values) - required - optional:
             raise XrayRouterError("Xray-router action is invalid")
         url, archive_sha256, members = self._pins()
         if (
@@ -384,7 +419,14 @@ class XrayRouterAdapter:
         provider = values["warp-provider"]
         if provider and re.fullmatch(r"socks5://127\.0\.0\.1:[0-9]{4,5}", provider) is None:
             raise XrayRouterError("invalid WARP provider")
-        return {"url": url, "archive_sha256": archive_sha256, "members": members, "warp_provider": provider}
+        relay_port = values.get("relay-port", "0")
+        if not relay_port.isdigit() or int(relay_port) > 65535 or (0 < int(relay_port) < 1024):
+            raise XrayRouterError("invalid relay port")
+        server_name = values.get("relay-server-name", "")
+        if int(relay_port) and (not server_name or _DOMAIN.fullmatch(server_name) is None):
+            raise XrayRouterError("invalid relay server name")
+        return {"url": url, "archive_sha256": archive_sha256, "members": members, "warp_provider": provider,
+                "relay_port": int(relay_port), "relay_server_name": server_name}
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -464,7 +506,38 @@ class XrayRouterAdapter:
             self._atomic(self._host(self.paths.marker), (marker_value + "\n").encode(), 0o600)
         # 3. The service, healthy (the manager bootstraps generation 1 before it answers).
         self._compose("up", "-d", "--build", "--wait", _SERVICE)
+        # 4. The relay inbound (v0.7): the manager mints its keypair once and keeps it.
+        self._enable_relay(selected)
         return {**prepared, "identities_created": identities, "ownership": self._ownership()}
+
+    def _enable_relay(self, selected: Mapping[str, object]) -> Mapping[str, object] | None:
+        port, server_name = selected["relay_port"], selected["relay_server_name"]
+        if not port:
+            return None
+        enable = getattr(self.runner, "router_relay_enable", None)
+        if not callable(enable):
+            raise XrayRouterError("relay enablement is unavailable")
+        view = enable(str(server_name), int(port))
+        if not isinstance(view, Mapping) or view.get("enabled") is not True or view.get("port") != port:
+            raise XrayRouterError("the Xray-router did not enable its relay")
+        return view
+
+    def _relay_view(self, selected: Mapping[str, object]) -> Mapping[str, object] | None:
+        """The relay's public part as the manager reports it, checked against the plan."""
+        port, server_name = selected["relay_port"], selected["relay_server_name"]
+        if not port:
+            return None
+        view = getattr(self.runner, "router_relay", None)
+        if not callable(view):
+            raise XrayRouterError("relay verification is unavailable")
+        relay = view()
+        if not isinstance(relay, Mapping) or relay.get("enabled") is not True or relay.get("port") != port \
+                or relay.get("server_name") != server_name or not relay.get("public_key"):
+            raise XrayRouterError("the relay inbound is not enabled on its port behind the panel name")
+        listener = getattr(self.runner, "public_listener", None)
+        if not callable(listener) or not listener(int(port)):
+            raise XrayRouterError("the relay inbound does not listen on its public port")
+        return {"port": port, "server_name": server_name, "public_key": str(relay["public_key"])}
 
     reconcile_apply = apply
 
@@ -513,15 +586,17 @@ class XrayRouterAdapter:
             raise XrayRouterError("ingress verification is unavailable")
         if not probe(ROUTER_PORTS["naive"], str(self._host(self.paths.ingress("naive")))):
             raise XrayRouterError("an authenticated CONNECT through the NaiveProxy ingress did not reach the Internet")
+        relay = self._relay_view(selected)
         return Evidence(
             action_id=action.id,
             success=True,
             observations=(
                 "pinned Xray members, verified artifacts and a running generation",
                 "both ingresses are loopback-only and the NaiveProxy ingress relays",
+                *(("the relay inbound is up on its public port behind the panel name",) if relay else ()),
             ),
             details={"generation": generation, "xray_version": str(status.get("xray_version") or ""),
-                     "ports": {service: ROUTER_PORTS[service] for service in _SERVICES}},
+                     "ports": {service: ROUTER_PORTS[service] for service in _SERVICES}, "relay": relay},
         )
 
     def repair(self, action: Action, checkpoint: Mapping[str, object]) -> Mapping[str, object]:
@@ -531,6 +606,7 @@ class XrayRouterAdapter:
         self._run(self.paths.state_preparer, "verify", self.paths.state_dir)
         self._atomic(self._host(self.paths.env_overlay), self.env_text(selected).encode(), 0o600)
         self._compose("up", "-d", "--wait", _SERVICE)
+        self._enable_relay(selected)
         return prepared
 
     def rollback(
