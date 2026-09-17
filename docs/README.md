@@ -21,13 +21,13 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Mieru/mita](../MIERU.ru.md)
 - [Выдача Mieru URL, QR и client config](MIERU_SHARING.ru.md)
 - [Связанные панели (Fleet v2) и legacy mTLS-транспорт v1](../FLEET.ru.md)
-- [Маршрутизация: egress-политики NaiveProxy и Mieru (v0.4)](ROUTING.ru.md)
+- [Маршрутизация: egress-политики NaiveProxy и Mieru (v0.4), Xray-router (v0.5), цепи и полосы (v0.7)](ROUTING.ru.md)
 
 ### Эксплуатация
 
 - [Ежедневный операционный runbook](OPERATIONS.ru.md)
 - [Backup и restore](BACKUP_RESTORE.ru.md)
-- [Матрица сверки v0.2–v0.5 (v0.6)](VERIFICATION_MATRIX.md)
+- [Матрица сверки v0.2–v0.7](VERIFICATION_MATRIX.md)
 - [Upgrade и rollback](UPGRADING.ru.md)
 - [Troubleshooting](TROUBLESHOOTING.ru.md)
 - [Accounting semantics](ACCOUNTING.md)
@@ -47,6 +47,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 006 — нейтральный routing IR (accepted, v0.4)](adr/006-routing-policy-ir.md)
 - [ADR 007 — владение enforcement маршрутизации](adr/007-routing-enforcement-ownership.md)
 - [ADR 008 — транспорт панель→панель со scoped API-ключами](adr/008-panel-to-panel-transport.md)
+- [ADR 009 — полосы клиентов и цепи через relay парка (v0.7)](adr/009-lanes-and-chains.md)
 
 ### Выпуски
 
@@ -76,13 +77,13 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Mieru/mita](../MIERU.en.md)
 - [Mieru URL, QR, and client config sharing](MIERU_SHARING.en.md)
 - [Linked panels (Fleet v2) and the legacy mTLS transport v1](../FLEET.en.md)
-- [Routing: egress policies of NaiveProxy and Mieru (v0.4)](ROUTING.en.md)
+- [Routing: egress policies of NaiveProxy and Mieru (v0.4), the Xray-router (v0.5), chains and lanes (v0.7)](ROUTING.en.md)
 
 ### Operations
 
 - [Daily operations runbook](OPERATIONS.en.md)
 - [Backup and restore](BACKUP_RESTORE.en.md)
-- [Verification matrix v0.2–v0.5 (v0.6)](VERIFICATION_MATRIX.md)
+- [Verification matrix v0.2–v0.7](VERIFICATION_MATRIX.md)
 - [Upgrade and rollback](UPGRADING.md)
 - [Troubleshooting](TROUBLESHOOTING.en.md)
 - [Accounting semantics](ACCOUNTING.md)
@@ -102,6 +103,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 006 — engine-neutral routing IR (accepted, v0.4)](adr/006-routing-policy-ir.md)
 - [ADR 007 — routing enforcement ownership](adr/007-routing-enforcement-ownership.md)
 - [ADR 008 — panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md)
+- [ADR 009 — lanes per client and chains through the fleet's relays (v0.7)](adr/009-lanes-and-chains.md)
 
 ### Releases
 

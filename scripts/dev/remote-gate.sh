@@ -193,7 +193,7 @@ case $LEVEL in
            test \$hit = 1 || printf '%s=socks5://127.0.0.1:45000\\n' \"\$key\" >> .env; done \
       && files=(--env-file .env -f compose.yaml) \
       && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
-      && recreate=(); test -f /root/.node-b-hosts-added && { recreate=(--force-recreate); rm -f /root/.node-b-hosts-added; } \
+      && { recreate=(); if test -f /root/.node-b-hosts-added; then recreate=(--force-recreate); rm -f /root/.node-b-hosts-added; fi; } \
       && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait \"\${recreate[@]}\" xray-router naive-manager mieru-manager"
     remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
       --node-url https://panel.lab.test \

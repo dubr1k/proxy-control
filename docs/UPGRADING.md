@@ -224,6 +224,61 @@ curl -sS -H 'Host: panel.example.com' http://127.0.0.1:8787/api/routing/targets 
 docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
 ```
 
+## Upgrading to v0.7: chains and lanes
+
+v0.7 adds **exits through other nodes of the fleet** (the router's relay + chains) and a
+grant's **own lane** ([ROUTING](ROUTING.en.md), «Chains and lanes»; [ADR 009](adr/009-lanes-and-chains.md)).
+The update itself is the usual one: copy `panel/`, `naive_manager/`, `mieru_manager/`,
+`xray_router_manager/`, `compose*.yaml`, `deploy/`, `scripts/` and `VERSION` from the new release
+into the project directory and run `docker compose up -d --build --wait panel naive-manager
+mieru-manager xray-router` with the overlay set you keep. A node without a router behaves as in
+v0.6; a node with a router can do lanes (their keys on the panel's request) and chains as a
+**source** right after the update, while the relay and the Mieru slots come with the steps below.
+
+**Migration 16** (`routing-chains-lanes`) runs on the first start and is additive in effect: it
+rebuilds `routing_policies` / `routing_rules` / `routing_applies` (the policy key gains `lane`, the
+`egress = warp` constraint goes — an exit is now a string `warp | node:<guid>…`; every v0.6 row is
+kept as the `svc` lane), adds `access_grants.routing_lane`, the `relay_peers` and `router_relays`
+tables and `observed_generations.relay_json`. `python -m panel.cli db-status` shows sixteen applied.
+
+**The relay and the slots on an installed node.** Run the installer with the same TOML: with
+`router = true` the plan gets `relay_port = 45443` and `lane_slots = 4` by default (set them
+explicitly for other values or `0`); `xray_router.runtime` enables the relay through the manager
+(the Reality keypair is minted once), `mieru.runtime` installs the `mita@.service` template,
+enables `mita@1…4` and writes `MIERU_LANE_SLOTS` into `.env.mieru`; UFW opens `45443/tcp` and
+`46101…46104/tcp`. A hand-built host:
+
+```bash
+# the relay (the panel's domain is the Reality cover; the port is public)
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay-enable panel.example.com 45443
+ufw allow 45443/tcp
+# Mieru slots: the unit template, the daemons, the manager's env
+install -m 0644 deploy/mita@.service /etc/systemd/system/mita@.service && systemctl daemon-reload
+for n in 1 2 3 4; do systemctl enable --now mita@$n; ufw allow $((46100+n))/tcp; done
+printf 'MIERU_LANE_SLOTS=%s\n' "$(for n in 1 2 3 4; do printf '%s:%s:/run/mita/lane-%s.sock:/var/lib/mita/lanes/%s,' $n $((46100+n)) $n $n; done | sed 's/,$//')" >> .env.mieru
+docker compose --env-file .env --env-file .env.mieru -f compose.yaml -f compose.mieru.yaml up -d --wait mieru-manager
+```
+
+**Order in a fleet.** Nodes first, then the central, as before: a v0.7 central sends a
+resource's `lane` and the `relay` section only to a node that declared `egress.lanes.v1` /
+`relay.v1`; a v0.6 node never sees them and keeps its digests (a schema-2 intent is never sent
+to such a node: `node_lacks_lanes`, `node_lacks_relay`); a v0.6 central ignores
+`identity.router.relay`, `router.lanes` and `observed.relay`.
+
+**Rollback** follows the general procedure: the previous generation together with the database
+(a v0.6 image refuses a database at schema 16). Withdraw the grants' lanes and return the policies
+to `warp`/`direct` **before** rolling the panel back (a lane is a Caddy handler / mita slot and an
+ingress account the old panel does not know, and the old router refuses a schema-2 intent); the
+relay and the slots may stay — the old panel simply does not see them.
+
+Verification after the update:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 16
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay | python3 -m json.tool   # enabled, public_key
+systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

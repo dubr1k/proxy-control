@@ -1,4 +1,4 @@
-# Маршрутизация Proxy Control (v0.4–v0.5): куда сервис выпускает трафик клиентов
+# Маршрутизация Proxy Control (v0.4–v0.7): куда сервис выпускает трафик клиентов
 
 [English](ROUTING.en.md) · **Русский**
 
@@ -28,7 +28,7 @@
 | --- | --- | --- | --- |
 | NaiveProxy | `naive_native` — Caddy forwardproxy `upstream` + `acl` | весь сервис напрямую или через WARP; блокировка по домену (`example.com`, `*.example.com`) и по CIDR | выборочные правила `direct`/`egress` (один upstream на сервис); блокировку **рядом** с WARP по умолчанию — forwardproxy не применяет ACL при заданном upstream; блокировку по порту, geosite, geoip |
 | Mieru | `mieru_native` — mita `egress` | весь сервис напрямую или через WARP; блокировку по домену и по CIDR; выборочные `direct`/`egress` по домену и по CIDR, по порядку | блокировку по порту, geosite, geoip; `*.example.com` и `example.com` — один селектор (mita матчит суффикс домена) |
-| NaiveProxy или Mieru, **подключённые к Xray-router** (v0.5) | `xray_router` — правила `routing` Xray по ingress | весь сервис напрямую или через WARP; правила `block`, `direct` и `egress: warp` по домену, `geosite:`, CIDR, `geoip:` и порту, по порядку, любое из них рядом с WARP по умолчанию | UDP (UDP mita остаётся напрямую); правила per-grant |
+| NaiveProxy или Mieru, **подключённые к Xray-router** (v0.5) | `xray_router` — правила `routing` Xray по ingress | весь сервис напрямую или через WARP; правила `block`, `direct` и `egress` по домену, `geosite:`, CIDR, `geoip:` и порту, по порядку, любое из них рядом с WARP по умолчанию; с v0.7 — **выходы через другие узлы парка** (цепи) и **своя полоса** у отдельного доступа со своей политикой | UDP (UDP mita остаётся напрямую) |
 | MTProxy (Telemt) | — | — | вне области: `protocol_out_of_scope` |
 
 Приватные назначения — loopback, link-local, RFC 1918, CGNAT и их IPv6-аналоги, плюс
@@ -42,12 +42,13 @@ loopback узла.
 `/api/routing/*`:
 
 ```text
-default_action   direct | egress          default_egress  warp (при egress)
+default_action   direct | egress          default_egress  выход (при egress): warp | node:<guid>[,<guid>[,<guid>]][:warp]
 fallback         fail_closed | approved_direct
-rules[]          enabled, action: direct | block | egress, egress: warp (при egress),
+rules[]          enabled, action: direct | block | egress, egress: выход (при egress),
                  match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32},
                  note ≤ 120
 backend          naive_native | mieru_native | xray_router (v0.5; текущий backend цели)
+lane             svc (политика сервиса) | grant:<id> (v0.7: своя полоса доступа, только xray_router)
 ```
 
 - домены приводятся к нижнему регистру IDNA; `*.example.com` — «любой поддомен»,
@@ -96,6 +97,12 @@ backend          naive_native | mieru_native | xray_router (v0.5; текущий
 | `protocol_out_of_scope` | MTProxy |
 | `document_too_large` | больше 16 КиБ |
 | `manager_unavailable` | локальный менеджер не ответил |
+| `lane_requires_router` / `lane_not_attached` | политика полосы доступа, а на узле нет Xray-router или сервис к нему не подключён (v0.7) |
+| `node_unknown` / `node_lacks_relay` / `relay_disabled` | выход `node:<guid>` называет узел, которого нет в парке, у которого нет relay (обновите до v0.7 и включите relay) или relay выключен (v0.7) |
+| `relay_credential_pending` | узел-выход ещё не подтвердил учётку relay, которую центр выдал при apply — повторите после heartbeat (v0.7) |
+| `relay_no_warp` | цепь заканчивается «WARP узла-выхода», а у него нет WARP (v0.7) |
+| `chain_loop` | цепь проходит через этот же узел (v0.7) |
+| `node_lacks_lanes` | связанная панель без `egress.lanes.v1`: обновите её до v0.7 (v0.7) |
 
 Предупреждения: `adopts_unmanaged_upstream` / `adopts_unmanaged_egress` (на узле есть
 `upstream` или секция `egress`, написанные вручную — первое применение переносит их под
@@ -144,6 +151,86 @@ owner, с аудитом (`routing.target.attach | detach`), а на связа�
 предыдущему применённому документу из собственной истории центра (связанная панель — один
 шаг назад, не стек). `DELETE` допустим, только когда узел работает «напрямую, без правил»
 (иначе 409 `policy_applied`): забытая политика никогда не меняет того, что узел применяет.
+
+## Цепи и полосы (v0.7)
+
+С v0.7 политика может выпускать трафик **через другой узел парка**, а отдельный доступ клиента —
+получить **свою полосу** со своей политикой на том же узле ([ADR 009](adr/009-lanes-and-chains.md),
+спека `superpowers/specs/2026-09-17-v0.7-chains-design.md`). Всё это работает только на сервисе,
+подключённом к Xray-router узла: нативные backend'ы не умеют ни цепей, ни полос.
+
+**Выход** (`default_egress` и `egress` правила) — одно из:
+
+| Выход | Значение |
+| --- | --- |
+| `warp` | WARP этого узла (как в v0.4–v0.6) |
+| `node:<guid>` | через relay узла `<guid>` и дальше напрямую с него |
+| `node:<guid>:warp` | через relay узла и дальше через **его** WARP |
+| `node:<a>,<b>[,<c>][:warp]` | цепь до трёх хопов: этот узел → relay `a` → relay `b` → … → выход последнего |
+
+`guid` — идентификатор узла в парке (`node_id` связанной панели; для самой панели — её
+`panel_guid`). Узел не может быть выходом сам для себя (`chain_loop`); один и тот же узел в
+цепи дважды не принимается.
+
+**Relay** — вход vless+reality на публичном порту узла (`[egress] relay_port`, по умолчанию
+45443), прикрытие — TLS самой панели узла (`serverName` — домен панели). Он принимает только
+учётки, которые центр выдал другим узлам парка: по одной паре `(узел-источник, direct | warp)`
+на каждый источник. Ключевую пару Reality чеканит роутер узла один раз и никогда не отдаёт
+приватную часть; публичную часть панель узла сообщает в `identity.router.relay`, а связанная
+панель — ещё и в отчёте поколения. `POST /api/routing/relay/{node}/enable` включает relay
+локально (порт по умолчанию 45443, `{"port": …}` — иной) или, для связанной панели, через её
+следующее поколение (ответ `pending: true`, пока не пришёл отчёт с публичным ключом);
+`POST …/rotate` перевыпускает все учётки, выданные другим узлам, — политики источников после
+этого нужно применить заново. Обе операции — owner, аудит `routing.relay.enable | rotate`.
+
+**Учётки relay** чеканятся в момент `apply` политики, где встречается выход `node:<guid>`
+(UUID в эскроу панели, `secret_versions` с `purpose = relay-account`, таблица `relay_peers`), и
+доставляются узлу-выходу: локальному роутеру — сразу, связанной панели — секцией `relay`
+следующего поколения (UUID едут в `secrets` push-запроса). Пока узел-выход не подтвердил учётку
+отчётом, apply отвечает 422 с причиной `relay_credential_pending` — повторите после heartbeat.
+Компилятор кладёт в intent роутера **цепи** (`chains`): у каждого хопа адрес (домен панели
+узла), порт relay, `serverName`, публичный ключ, `shortId` и UUID учётки; средние хопы идут с
+учёткой `direct`, последний — с учёткой своего выхода. В API (`preview`, `apply`, история)
+UUID хопов маскируются (`***`); в базе панели скомпилированный документ хранится как есть —
+как и любой intent роутера на узле (это осознанное ограничение v0.7, см. ADR 009).
+
+**Полоса** — учётка SOCKS на существующем ingress роутера, за которой трафик группы
+пользователей идёт по своей политике. `svc:<protocol>` — полоса сервиса (учётка ingress
+установщика, политика сервиса, как раньше); `grant:<id>` — полоса одного доступа. Включается
+`POST /api/routing/lanes/{grant_id}` `{"mode": "own"}` (owner; `{"mode": "service"}` —
+обратно): роутер узла выпускает ключ полосы и сразу кладёт его на ingress (ключ показывается
+менеджеру сервиса один раз и нигде не хранится панелью), менеджер переносит пользователя:
+
+- **NaiveProxy** — отдельный обработчик `forward_proxy` в блоке `LANES` в начале `route {}`
+  Caddyfile с `basic_auth` пользователей полосы и `upstream` на учётку полосы; при
+  несовпадении `basic_auth` запрос падает на следующий обработчик (`probe_resistance`), поэтому
+  полоса сервиса остаётся последней;
+- **Mieru** — один из **слотов** `mita@<n>` (`[mieru] lane_slots`, порты `46101…`): слот
+  зеркалит пользователей полосы из основного демона и выходит через учётку полосы; ссылка и
+  подписка такого доступа получают **порт слота** (клиенту нужна новая ссылка; подписка
+  обновляется сама), при возврате в сервис — снова основной порт. Пользователь полосы
+  по-прежнему принимается и на основном порту (тогда его трафик идёт по политике сервиса) —
+  ограничение v0.7.
+
+Политика полосы — отдельная запись `(узел, протокол, lane)`: `?lane=grant:<id>` у
+`GET | PUT | DELETE /api/routing/policies/{node}/{protocol}` и у `preview | apply | rollback |
+history`. При включении полоса получает **черновик** — копию политики сервиса. Роутер применяет
+**все полосы сервиса одним intent'ом** (схема 2): apply любой полосы компилирует сервис и
+остальные полосы вместе, и все они становятся `applied` на общем digest; удалить политику
+полосы отдельно нельзя (409) — снимите полосу. На связанной панели полоса едет ресурсом
+поколения с полем `lane: own`, и узел строит её сам (ключ полосы не покидает узла);
+порт слота Mieru возвращается в центр через `learned.share_template`. Удаление доступа
+сначала снимает его полосу.
+
+`POST …/explain?lane=` `{"host", "port"}` — «куда пойдёт…»: компилятор проходит правила
+полосы по сохранённой политике и отвечает `{lane, rule_id, action, exit, hops[], via,
+uncertain[]}` — `uncertain` перечисляет правила `geosite`/`geoip`, которые решает только узел.
+
+`GET /api/routing/targets` у каждой цели показывает `lanes[]` (политики полос с доступом),
+`exits[]` (узлы парка с relay: `enabled`, `online`, `pending`, `exit: node:<guid>`) и `relay`
+самого узла. На экране «Маршрутизация» это чипы «Выходы узла», строка relay, вкладки полос,
+колонка «Куда» у правил и «Куда пойдёт…»; на «Клиентах» у доступа — «маршрут: как у сервиса /
+своя полоса».
 
 ## Чем владеют менеджеры ([ADR 007](adr/007-routing-enforcement-ownership.md))
 
@@ -205,8 +292,12 @@ WARP-политика в предпросмотре — `provider_unavailable`.
 - Управляющий трафик не маршрутизируется: сокеты панель ↔ менеджеры, ACME, Fleet и
   heartbeat не проходят через `forward_proxy` или egress mita.
 - Owner — для любых изменений; любая роль читает и делает предпросмотр. Аудит:
-  `routing.policy.update | apply | rollback | delete`, `routing.target.attach | detach`
+  `routing.policy.update | apply | rollback | delete`, `routing.target.attach | detach`,
+  с v0.7 — `grant.lane.enable | disable`, `routing.relay.enable | rotate`
   ([AUDIT_EVENTS](AUDIT_EVENTS.md)).
+- Ключи полос и UUID учёток relay — секреты: живут у менеджеров (0600) и в эскроу центра,
+  маскируются в API, diff, аудите и отчётах; relay принимает только известные UUID, Reality
+  отбивает чужие рукопожатия на прикрытие; `geoip:private → block` действует и на relay.
 
 ## Проверка
 
@@ -224,4 +315,8 @@ fail-closed и нетронутые nginx и nftables; `remote-gate.sh router` �
 router-01…14 (`--router`): подключение, весь сервис через WARP и блокировка рядом через
 роутер, правила по порту/geosite/geoip, отказ ingress без ключа и с чужим ключом, откат при
 нетронутом Caddy, watchdog после SIGKILL, fail-closed без провайдера, ротация ключей,
-отключение и нетронутый хост. Полная матрица — в [SECURITY_TEST_MATRIX](SECURITY_TEST_MATRIX.md).
+отключение и нетронутый хост; `remote-gate.sh chains` (v0.7, `--chains`) поднимает из дерева
+второй узел на стенде (роутер со своим stub-WARP и панель по TLS), связывает его, включает его
+relay через поколение, даёт пробному доступу свою полосу с цепью «→ узел B → WARP B» и правилом
+`geoip:cloudflare → напрямую`, проверяет трафик обоими stub'ами, слот Mieru, ротацию учёток,
+откат и снятие полосы. Полная матрица — в [SECURITY_TEST_MATRIX](SECURITY_TEST_MATRIX.md).
