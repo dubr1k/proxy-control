@@ -215,3 +215,17 @@ class NaiveAdapter:
         except NaiveError as exc:
             raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc
         return applied_egress_from_view(view)
+
+    # -- lanes (v0.7): the manager's per-client handlers / slots ---------------------------
+
+    async def lanes(self) -> dict:
+        try:
+            return await self.client.lanes()
+        except NaiveError as exc:
+            raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc
+
+    async def set_lanes(self, lanes: list[dict]) -> dict:
+        try:
+            return await self.client.set_lanes(lanes)
+        except NaiveError as exc:
+            raise egress_error("NaiveProxy", exc.status_code, exc.code) from exc

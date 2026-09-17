@@ -38,6 +38,7 @@ from .node_routes import register_node_routes
 from .protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
 from .protocols.xray_router import RouterAdapter
 from .nodes.service import NodeLifecycleService
+from .routing.lanes import LaneService, RelayRegistry
 from .routing.routes import register_routing_routes
 from .routing.service import RoutingService
 from .routing.store import RoutingStore
@@ -182,13 +183,20 @@ def create_app(
     app.state.pusher = FleetPusher(app.state.database, app.state.links, app.state.desired, app.state.secrets,
                                    app.state.clients, app.state.provisioning, app.state.events,
                                    interval=settings.fleet_heartbeat_seconds, routing=routing_store)
+    # Chains and lanes (v0.7): the relay accounts this panel issues, this node's own guid and
+    # the host other nodes dial for its relay (the panel's own name).
+    app.state.relays = RelayRegistry(app.state.database, app.state.secrets)
     app.state.routing = RoutingService(
         app.state.database, routing_store, app.state.adapters, app.state.nodes.nodes,
         enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled}.get(protocol, True),
         publisher=lambda db, node_id: publish(db, app.state.clients.store, app.state.desired, node_id=node_id,
                                               master_guid=app.state.panel_guid, routing=routing_store),
-        managed=app.state.managed, router=app.state.router,
+        managed=app.state.managed, router=app.state.router, relays=app.state.relays, own_guid=app.state.panel_guid,
+        local_host=settings.allowed_hosts[0] if settings.allowed_hosts else "",
+        confirmed=lambda node_id, email: node_id == "local" or app.state.desired.relay_confirmed(node_id, email),
     )
+    app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
+                                  app.state.router)
 
     # The heartbeat/delivery loop lives as a background task for the process's lifetime:
     # startup never waits on a node, and shutdown lets a tick in flight finish briefly

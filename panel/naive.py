@@ -91,6 +91,10 @@ class NaiveClient:
     async def egress_rollback(self, expected_revision):
         return await self._request("POST", "/v1/egress/rollback", {"expected_revision": expected_revision})
 
+    # v0.7: lanes
+    async def lanes(self): return await self._request("GET", "/v1/lanes")
+    async def set_lanes(self, lanes): return await self._request("PUT", "/v1/lanes", {"lanes": lanes})
+
 
 def _optional(password, operation_id) -> dict:
     """Only send what the caller chose; an explicit null would mean something else."""
@@ -129,6 +133,9 @@ class MemoryNaive:
         self.egress_operations: dict[str, dict] = {}
         self.egress_fail_next: str | None = None
         self.egress_custom: str | None = None
+        # lanes (v0.7): what PUT /v1/lanes recorded — lane → {users, upstream user}
+        self.lane_table: dict[str, dict] = {}
+        self.lanes_fail_next: str | None = None
 
     def seed(self, username, password, *, enabled=True, quota_bytes=None):
         self.users[username] = {
@@ -402,3 +409,36 @@ class MemoryNaive:
         self.egress_document = previous["document"] if previous["document"] is not None else EGRESS_DIRECT
         return {"revision": self._egress_revision(), "applied": previous["document"],
                 "readback_sha256": hashlib.sha256(canonical(self.egress_document)).hexdigest()}
+
+    # -- lanes (v0.7) ------------------------------------------------------------------
+
+    def _lanes_view(self) -> dict:
+        return {"lanes": [{"lane": lane, "users": list(entry["users"]), "upstream": "socks5://***@127.0.0.1:45101",
+                           "enabled_users": sum(1 for user in entry["users"] if self.users.get(user, {}).get("enabled", True))}
+                          for lane, entry in self.lane_table.items()]}
+
+    async def lanes(self):
+        if self.broken:
+            raise NaiveError("NaiveProxy manager unavailable")
+        return self._lanes_view()
+
+    async def set_lanes(self, lanes):
+        if self.broken:
+            raise NaiveError("NaiveProxy manager unavailable")
+        self.calls.append(("set_lanes", [(entry["lane"], list(entry["users"])) for entry in lanes]))
+        code, self.lanes_fail_next = self.lanes_fail_next, None
+        if code is not None:
+            raise NaiveError("NaiveProxy manager rejected request", 409, code)
+        if lanes and not self.router_url:
+            raise NaiveError("egress provider router is not configured on this node", 422, "egress_invalid")
+        seen: set[str] = set()
+        for entry in lanes:
+            if not entry["lane"].startswith("grant:") or not entry["users"]:
+                raise NaiveError("NaiveProxy manager rejected request", 409, "lanes_invalid")
+            for user in entry["users"]:
+                if user not in self.users or user in seen:
+                    raise NaiveError("NaiveProxy manager rejected request", 409, "lanes_invalid")
+                seen.add(user)
+        self.lane_table = {entry["lane"]: {"users": list(entry["users"]), "upstream_user": entry["upstream"]["user"]}
+                           for entry in lanes}
+        return self._lanes_view()

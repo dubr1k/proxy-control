@@ -294,7 +294,8 @@ async def test_delete_of_a_node_with_large_generations_needs_no_temp_directory(p
             db.execute("""INSERT INTO desired_generations(node_id,generation,digest,content_digest,document_json,
                           previous_generation,created_at,created_by) VALUES(?,?,?,?,?,?,0,'owner')""",
                        (node_id, generation, "d" * 64, "c" * 64, document, generation - 1))
-        db.execute("INSERT INTO observed_generations VALUES(?,17,'x','converged',?,0)", (node_id, observed))
+        db.execute("INSERT INTO observed_generations(node_id,applied_generation,digest,reconcile_state,resources_json,reported_at)"
+                   " VALUES(?,17,'x','converged',?,0)", (node_id, observed))
         assert db.execute("PRAGMA temp_store").fetchone()[0] == 2
     missing = tmp_path / "no-such-temp-dir"
     monkeypatch.setenv("SQLITE_TMPDIR", str(missing))

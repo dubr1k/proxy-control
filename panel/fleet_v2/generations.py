@@ -63,6 +63,26 @@ class DesiredStore:
                           WHERE node_id=?""", (observed.applied_generation, observed.applied_generation, node_id))
 
     @staticmethod
+    def record_relay(db, node_id: str, relay: dict | None) -> None:
+        """What the node's report said about its relay (v0.7): the accounts it carries, its
+        public part — beside the generation report."""
+        db.execute("UPDATE observed_generations SET relay_json=? WHERE node_id=?",
+                   (None if relay is None else json.dumps(relay, sort_keys=True), node_id))
+
+    @staticmethod
+    def observed_relay(db, node_id: str) -> dict | None:
+        row = db.execute("SELECT relay_json FROM observed_generations WHERE node_id=?", (node_id,)).fetchone()
+        if row is None or row["relay_json"] is None:
+            return None
+        return json.loads(row["relay_json"])
+
+    def relay_confirmed(self, node_id: str, email: str) -> bool:
+        """The node's relay carries this account, by its own last report."""
+        with self.database.connect() as db:
+            relay = self.observed_relay(db, node_id)
+        return bool(relay) and email in (relay.get("accounts") or [])
+
+    @staticmethod
     def observed(db, node_id: str) -> ObservedGeneration | None:
         row = db.execute("SELECT * FROM observed_generations WHERE node_id=?", (node_id,)).fetchone()
         return None if row is None else ObservedGeneration(

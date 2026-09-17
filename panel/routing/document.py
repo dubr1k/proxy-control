@@ -25,6 +25,11 @@ EGRESS_REASON_CODES = frozenset({
     "geosite_unknown",
     "geoip_unknown",
     "artifact_mismatch",
+    # Lanes and the relay (v0.7): the router's and the service managers' own codes.
+    "lane_unknown",
+    "lanes_invalid",
+    "lane_slots_exhausted",
+    "relay_disabled",
 })
 
 # The native document that hands a service's whole traffic to the node's Xray-router

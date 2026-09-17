@@ -118,7 +118,7 @@ async def test_apply_local_calls_manager_and_records_applied(stand):
     assert len(history) == 1 and history[0]["outcome"] == "applied" and history[0]["actor"] == "owner"
     assert json.loads(history[0]["detail"])["manager_revision"] == applied.revision
     audits = _audits(database, "routing.policy.apply")
-    assert audits == [(policy.id, {"node_id": "local", "protocol": "naive", "revision": 1, "outcome": "applied",
+    assert audits == [(policy.id, {"node_id": "local", "protocol": "naive", "lane": "svc", "revision": 1, "outcome": "applied",
                                    "digest": compiled.digest, "manager_revision": applied.revision,
                                    "readback_sha256": applied.readback_sha256, "replayed": False})]
     # The target now carries the applied document; a second apply of the same revision replays.
