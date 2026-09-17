@@ -144,8 +144,28 @@ function bindPanel(context) {
     }
   });
   query("#mobile-logout", root)?.addEventListener("click", () => query("#logout", root).click());
-  query("#profile-button", root).addEventListener("click", () => {
-    if (context.state.me) ui.toast(`${context.state.me.username} · ${ROLE_NAMES[context.state.me.role] || context.state.me.role}`);
+  // The chevron promises a menu, so there is one: who is signed in, the screens that belong to
+  // the account (admins with passwords and API keys, the journal — as the role allows) and sign-out.
+  const profileButton = query("#profile-button", root);
+  const profileMenu = query("#profile-menu", root);
+  const setProfileMenu = (open) => {
+    profileMenu.hidden = !open;
+    profileButton.setAttribute("aria-expanded", String(open));
+    if (open) profileMenu.querySelector("button:not([hidden])")?.focus();
+  };
+  profileButton.addEventListener("click", () => setProfileMenu(profileMenu.hidden));
+  profileMenu.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-profile-action]");
+    if (!item) return;
+    setProfileMenu(false);
+    if (item.dataset.profileAction === "logout") query("#logout", root).click();
+    else void context.navigate(item.dataset.profileAction);
+  });
+  document.addEventListener("click", (event) => {
+    if (!profileMenu.hidden && !profileMenu.contains(event.target) && !profileButton.contains(event.target)) setProfileMenu(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !profileMenu.hidden) { setProfileMenu(false); profileButton.focus(); }
   });
 
   bindUsers(context);
@@ -194,6 +214,8 @@ async function initialise(context) {
     context.state.me = await context.api("/api/auth/me");
     query("#profile-name", context.root).textContent = context.state.me.username;
     query("#profile-role", context.root).textContent = ROLE_NAMES[context.state.me.role] || context.state.me.role;
+    query("#profile-menu-name", context.root).textContent = context.state.me.username;
+    query("#profile-menu-role", context.root).textContent = ROLE_NAMES[context.state.me.role] || context.state.me.role;
     query("#avatar", context.root).textContent = context.state.me.username.slice(0, 2).toUpperCase();
     queryAll('[data-view="naive"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.naive !== true; });
     queryAll('[data-view="mieru"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.mieru !== true; });

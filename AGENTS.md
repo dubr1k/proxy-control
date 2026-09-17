@@ -336,8 +336,7 @@ sudo python3 -c 'import json;r=json.load(open("/var/lib/proxy-control/reports/re
 
 Отчёт владельцу: домены, профиль, digest плана, `VERSION`, статус контейнеров/служб,
 где лежат учётные данные (пути `<конфиг>.credentials` / `secrets/panel-bootstrap-password`, не
-содержимое; для managed 3x-ui — напоминание, что пароль и web base path без явного ввода в
-мастере не сохраняются, см. руководство §4.6), какие ручные приёмки остались (реальный клиент
+содержимое; для managed 3x-ui — путь `/var/lib/proxy-control/three-xui/panel-access`, см. руководство §4.6), какие ручные приёмки остались (реальный клиент
 Telegram, вход в панель человеком).
 
 ## 3. Алгоритм B — подготовить узел к центру

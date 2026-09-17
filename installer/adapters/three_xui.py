@@ -48,6 +48,8 @@ _DATABASE = "/etc/x-ui/x-ui.db"
 _UNIT = "/etc/systemd/system/x-ui.service"
 _MARKER = "/etc/proxy-control/three-xui-owned"
 _SNAPSHOT_DIR = "/var/lib/proxy-control/three-xui"
+# How to reach the managed panel — its random base path and its password — root-only.
+_PANEL_ACCESS = "/var/lib/proxy-control/three-xui/panel-access"
 
 _UNIT_NAME = "x-ui"
 _BOOTSTRAP_UNIT = "x-ui-bootstrap"
@@ -822,9 +824,26 @@ class ThreeXuiAdapter:
             # but do not become live until the panel service is restarted.
             self._run("systemctl", "restart", _UNIT_NAME)
             self._await_panel(_PANEL_BACKEND)
+            # Only now is there a panel worth reaching: the base path is random and the
+            # password may be generated, so this is the one place the operator can read
+            # both back (root-only, beside the subscription URL).
+            self._record_panel_access(config.three_xui.panel_domain, password)
             return configured
         finally:
             credential.unlink(missing_ok=True)
+
+    def _record_panel_access(self, panel_domain: str, password: str) -> None:
+        path = self._host(_PANEL_ACCESS)
+        durable_mkdir(path.parent, mode=0o700)
+        document = "".join(
+            f"{key} = {json.dumps(value)}\n"
+            for key, value in (
+                ("url", f"https://{panel_domain}{self.web_path}"),
+                ("username", self.panel_username),
+                ("password", password),
+            )
+        )
+        self._atomic(path, document.encode(), 0o600)
 
     def _await_panel(self, port: int, *, timeout: float = 60.0) -> None:
         """Wait until the panel is listening again after its restart.

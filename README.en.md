@@ -604,6 +604,10 @@ brings it to a working state with no manual step:
 4. it checks the pinned version, the panel's private listener, and a listener for
    each created inbound. This proves that Xray accepted the configuration; it is
    not a full VLESS/Hysteria2 client acceptance.
+5. it records how to reach the panel — its URL with the random base path, the
+   username and the password (the wizard's or a generated one) — in the root-only
+   file `/var/lib/proxy-control/three-xui/panel-access` (0600), beside the
+   subscription URL.
 
 The Reality keypair is minted by the very Xray that will serve it, and the cover
 site is the panel's own local TLS listener: a foreign site can change its

@@ -440,6 +440,11 @@ class Acceptance:
         text = b.page_text()
         self.check("dashboard.host_card_has_resources_or_reason", "Ресурсы сервера" in text and ("CPU" in text or "Недоступны" in text))
         self.check("dashboard.protocol_cards_rendered", all(name in text for name in ("MTProxy", "Mieru", "NaiveProxy")))
+        # The profile button's chevron opens a real menu (v0.6 finding): the account, its screens, sign-out.
+        b.click("#profile-button")
+        self.check("dashboard.profile_menu_opens_and_closes",
+                   b.wait("(() => { const m = document.querySelector('#profile-menu'); return m && !m.hidden && m.textContent.includes('Выйти') && document.querySelector('#profile-button').getAttribute('aria-expanded') === 'true'; })()", 5)
+                   and b.js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); document.querySelector('#profile-menu').hidden === true"))
         counts = {k: b.text(f"#{k}-count").strip() for k in ("users", "naive", "mieru")}
         api = {"users": len(self.api.json("/api/users")["items"]), "naive": len(self.api.json("/api/naive/users")["items"]),
                "mieru": len(self.api.json("/api/mieru/users")["items"])}
@@ -881,7 +886,12 @@ class Acceptance:
         self.check("audit.filter_by_action", b.wait("document.querySelectorAll('.audit-row').length >= 1 && [...document.querySelectorAll('.audit-row')].every(r => r.textContent.includes('Создан доступ') || r.textContent.includes('user.create'))", 20))
         b.click("[data-audit-action=clear]")
         self.check("audit.clear_restores_the_journal", b.wait("document.querySelectorAll('.audit-row').length >= 3 && (document.querySelector('#audit-action')?.value || '') === ''", 20))
-        self.cells_do_not_overlap("audit.cells_do_not_overlap", ".audit-row", ".audit-main > *, .audit-details")
+        self.cells_do_not_overlap("audit.cells_do_not_overlap", ".audit-row", ".audit-main > *")
+        # One line per entry at desktop width: the toggle sits on the line, nothing wraps underneath.
+        self.check("audit.rows_are_one_line", b.js("[...document.querySelectorAll('.audit-row > .audit-main')].slice(0, 12).every(m => m.getBoundingClientRect().height <= 56 && m.getBoundingClientRect().height >= 36)"))
+        b.click(".audit-row summary.audit-main")
+        self.check("audit.details_open_below_the_line", b.wait("(() => { const r = document.querySelector('details.audit-row[open]'); if (!r) return false; const m = r.querySelector('.audit-main').getBoundingClientRect(), d = r.querySelector('.audit-body').getBoundingClientRect(); return d.top >= m.bottom - 1 && d.height > 0; })()", 5))
+        b.click(".audit-row[open] summary.audit-main")
         self.frame_is_secret_free("audit")
         b.shot("audit.png")
 

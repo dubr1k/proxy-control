@@ -6,6 +6,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- A managed 3x-ui (`managed-new`) whose password the wizard generated could not be reached afterwards: the password was written nowhere and the panel's base path is random. `provision` now records the URL with the base path, the username and the password in the root-only `/var/lib/proxy-control/three-xui/panel-access` (0600, beside the subscription URL) — only once the panel is really configured; a failed provisioning leaves no record.
+- The Journal is one line per entry again: the whole line is the `<details>` summary, «Details and IP» ends the line and the body opens underneath at full width; 11 px type and 44 px rows like the other tables (the v0.1 rule had left 10 px type and, after the overlap fix, two-storey rows). Every action name from `docs/AUDIT_EVENTS.md` now has a Russian label (`ACTION_NAMES` had stopped at v0.2, so `routing.*`, `grant.*`, `client.*`, `subscription.*`, `api_key.*`, `node.*`, `fleet.*` rows showed raw codes); a test keeps the two in step.
+- The sidebar's profile button opens a real menu (who is signed in, «Administrators and API keys» for the owner, «Journal», «Sign out»); its chevron used to answer with a toast naming the role. The `ui` tier checks the menu, the one-line rows and the disclosure geometry.
 - The Journal's rows overlapped the actor and the «Details and IP» disclosure at desktop widths: a v0.1 four-column rule on `.audit-row` had survived the v0.2 layout that moved the columns into `.audit-main`. The row is one column at every width; the `ui` tier now checks that no two cells of a journal row share pixels (`audit.cells_do_not_overlap`), and a test refuses a multi-track `.audit-row` rule. Seen on AMS_Z after the v0.6 upgrade.
 
 ## [0.6.0-beta.1] - 2026-09-17

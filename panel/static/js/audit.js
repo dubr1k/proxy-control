@@ -26,12 +26,59 @@ const ACTION_NAMES = {
   "mieru.disable": "Mieru-доступ отключён",
   "mieru.rotate": "Mieru-ссылка обновлена",
   "mieru.delete": "Mieru-доступ удалён",
+  "mieru.metrics.baseline": "Сброшен Mieru-счётчик",
   "fleet.node.create": "Добавлен Fleet-узел",
   "fleet.command.queue": "Команда Fleet поставлена в очередь",
   "runtime.version.update": "Обновлена версия компонента",
   "admin.create": "Создан администратор",
   "admin.update": "Изменён администратор",
   "admin.delete": "Удалён администратор",
+  // v0.3+: every name from docs/AUDIT_EVENTS.md has a label here (a test keeps the two in step),
+  // so the journal never falls back to a raw code for an action the panel itself performs.
+  "api_key.create": "Создан API-ключ",
+  "api_key.enable": "API-ключ включён",
+  "api_key.disable": "API-ключ выключен",
+  "api_key.delete": "API-ключ удалён",
+  "client.create": "Создан клиент",
+  "client.active": "Клиент активен",
+  "client.suspended": "Клиент приостановлен",
+  "client.archived": "Клиент в архиве",
+  "client.import": "Импорт существующих пользователей",
+  "grant.provision.start": "Выдача доступов начата",
+  "grant.provision.succeeded": "Доступы выданы",
+  "grant.provision.compensated": "Выдача доступов откачена",
+  "grant.provision.manual_intervention_required": "Выдача доступов требует вмешательства",
+  "grant.enable": "Доступ клиента включён",
+  "grant.disable": "Доступ клиента выключен",
+  "grant.rotate": "Доступ клиента ротирован",
+  "grant.delete": "Доступ клиента удалён",
+  "grant.adopt_on_write": "Доступ подхвачен из runtime",
+  "grant.credential.capture": "Доступ принят",
+  "grant.credential.adopt": "Доступ принят с ротацией",
+  "subscription.create": "Создана подписка",
+  "subscription.rotate": "Подписка ротирована",
+  "subscription.revoke": "Подписка отозвана",
+  "node.register": "Зарегистрирован узел v1",
+  "node.rename": "Узел переименован",
+  "node.enable": "Узел включён",
+  "node.disable": "Узел отключён",
+  "node.certificates.revoke_all": "Отозваны сертификаты узла",
+  "node.link": "Панель подключена",
+  "node.link.update": "Связь с панелью изменена",
+  "node.pause": "Связь с панелью на паузе",
+  "node.resume": "Связь с панелью возобновлена",
+  "node.import": "Импорт пользователей с панели",
+  "node.version.update": "Обновление версии на панели",
+  "node.unlink": "Панель удалена",
+  "routing.policy.update": "Политика маршрутизации сохранена",
+  "routing.policy.apply": "Применение политики маршрутизации",
+  "routing.policy.rollback": "Откат политики маршрутизации",
+  "routing.policy.delete": "Политика маршрутизации удалена",
+  "routing.target.attach": "Сервис подключён к Xray-router",
+  "routing.target.detach": "Сервис отключён от Xray-router",
+  "fleet.generation.accept": "Принято поколение центра",
+  "fleet.credentials.capture": "Центр запросил учётные данные",
+  "fleet.unlink": "Связь с центром разорвана",
 };
 
 function auditQuery(audit, beforeId = null) {
@@ -43,19 +90,22 @@ function auditQuery(audit, beforeId = null) {
   return parameters;
 }
 
-function auditDetails(item) {
+function auditBody(item) {
   const ip = item.ip ?? item.ip_address ?? item.remote_ip;
   const detail = item.detail ?? {};
   const hasDetail = detail && typeof detail === "object" && Object.keys(detail).length > 0;
   if (!ip && !hasDetail) return "";
-  return `<details class="audit-details"><summary>Детали и IP</summary><dl><div><dt>IP</dt><dd>${esc(ip || "не зафиксирован")}</dd></div></dl>${hasDetail ? `<pre>${esc(serialise(detail))}</pre>` : ""}</details>`;
+  return `<div class="audit-body"><dl><dt>IP</dt><dd>${esc(ip || "не зафиксирован")}</dd></dl>${hasDetail ? `<pre>${esc(serialise(detail))}</pre>` : ""}</div>`;
 }
 
+// One line per entry. The whole line is the <summary> of a <details>, so «Детали и IP» sits
+// at the end of the same line and the body opens underneath at full width; an entry with
+// nothing to disclose renders the same line without a toggle.
 function auditRow(item) {
-  return `<article class="audit-row">
-    <div class="audit-main"><time datetime="${esc(item.happened_at || "")}">${date(item.happened_at)}</time><b>${esc(item.actor_username || "system")}</b><span class="audit-action">${esc(ACTION_NAMES[item.action] || item.action || "—")}</span><span>${esc(item.target || "—")}</span></div>
-    ${auditDetails(item)}
-  </article>`;
+  const body = auditBody(item);
+  const cells = `<time datetime="${esc(item.happened_at || "")}">${date(item.happened_at)}</time><b>${esc(item.actor_username || "system")}</b><span class="audit-action">${esc(ACTION_NAMES[item.action] || item.action || "—")}</span><span class="audit-target">${esc(item.target || "—")}</span>`;
+  if (!body) return `<article class="audit-row"><div class="audit-main">${cells}<span class="audit-toggle audit-toggle-none"></span></div></article>`;
+  return `<details class="audit-row"><summary class="audit-main">${cells}<span class="audit-toggle">Детали и IP</span></summary>${body}</details>`;
 }
 
 function auditMarkup(context) {

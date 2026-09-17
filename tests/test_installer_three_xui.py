@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import io
 import json
+import tomllib
 import tarfile
 from pathlib import Path
 
@@ -1001,6 +1002,54 @@ def test_apply_provisions_the_panel_and_the_inbounds(tmp_path, monkeypatch):
     created = [item for item in api.inbounds if not item.clients[0].acceptance]
     assert [item.protocol for item in created] == ["vless", "vless", "hysteria"]
     assert [item.network for item in created] == ["tcp", "xhttp", "hysteria"]
+
+
+def test_provisioning_records_how_to_reach_the_managed_panel(tmp_path):
+    """The panel's web base path is random and its password may be generated, and
+    neither used to be written anywhere: an operator who left the wizard's 3x-ui
+    password blank was locked out of the panel the installer had just configured.
+    Both go into one root-only file beside the subscription URL, after the panel
+    is really configured — never before."""
+    api = RecordingApi()
+    instance = adapter(tmp_path)
+    instance.api_factory = lambda port, path="/": api
+    instance.reality_keypair = lambda: ("private-key-value", "public-key-value")
+    record = tmp_path / "var/lib/proxy-control/three-xui/panel-access"
+
+    instance.provision(_runtime_action(), password="the-chosen-password")
+
+    assert record.exists() and (record.stat().st_mode & 0o777) == 0o600
+    assert (record.parent.stat().st_mode & 0o777) == 0o700
+    document = tomllib.loads(record.read_text())
+    assert document["url"] == f"https://xui.example.com{instance.web_path}"
+    assert instance.web_path.startswith("/") and instance.web_path.endswith("/") and len(instance.web_path) > 2
+    assert document["username"] == "owner"
+    assert document["password"] == "the-chosen-password"
+    assert set(document) == {"url", "username", "password"}
+
+
+def test_a_failed_provisioning_leaves_no_panel_access_record(tmp_path):
+    """A record that says «the panel is here» must not exist for a panel that
+    never got its inbounds: the next attempt starts from the same clean state."""
+    class LeakyApi(RecordingApi):
+        """A panel that keeps every client it ever saw, acceptance ones included."""
+
+        def add_inbound(self, inbound, client=None):
+            self.seen = [*getattr(self, "seen", []), *(item.email for item in inbound.clients)]
+            return super().add_inbound(inbound, client)
+
+        def effective_config(self):
+            return {**super().effective_config(), "client_emails": list(self.seen)}
+
+    api = LeakyApi()
+    instance = adapter(tmp_path)
+    instance.api_factory = lambda port, path="/": api
+    instance.reality_keypair = lambda: ("private-key-value", "public-key-value")
+
+    with pytest.raises(AcceptanceError, match="acceptance client is still present"):
+        instance.provision(_runtime_action(), password="the-chosen-password")
+
+    assert not (tmp_path / "var/lib/proxy-control/three-xui/panel-access").exists()
 
 
 def test_the_bootstrap_dialogue_moves_the_panel_before_it_is_reachable():
