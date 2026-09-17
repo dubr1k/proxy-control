@@ -89,3 +89,41 @@ def test_an_audit_row_stacks_its_main_line_and_its_details():
     assert re.search(r"\.audit-row\s*>\s*\*:nth-child", css) is None  # the row has two children, not four
     main_rules = re.findall(r"(?<![\w-])\.audit-main\s*\{[^}]*\}", css)
     assert any(multi_track.search(rule) for rule in main_rules)
+    # The redesign that followed the owner's second look (two-storey rows, 10 px type): the
+    # whole line is the <summary>, so the «Детали и IP» toggle ends the same line and the
+    # body opens underneath; an entry with nothing to disclose is the same line, no toggle.
+    audit = (STATIC / "js/audit.js").read_text(encoding="utf-8")
+    assert '<details class="audit-row"><summary class="audit-main">' in audit
+    assert '<article class="audit-row"><div class="audit-main">' in audit
+    assert '<span class="audit-toggle">Детали и IP</span></summary><div class="audit-body">' in audit.replace("${body}", '<div class="audit-body">')
+    assert "font-size:10px;color:var(--text-2)}" not in "".join(row_rules)
+
+
+def test_the_profile_button_opens_a_menu_instead_of_a_toast():
+    """The sidebar's profile button carries a chevron, and it used to answer a click with a
+    toast naming the role — «nothing happens, a window says I am owner» (the owner, on AMS_Z).
+    A chevron promises a menu: who is signed in, the account's screens by role, sign-out."""
+    index = (STATIC / "index.html").read_text(encoding="utf-8")
+    assert 'id="profile-button" aria-haspopup="menu" aria-expanded="false" aria-controls="profile-menu"' in index
+    assert 'id="profile-menu" role="menu" hidden' in index
+    for action in ("admins", "audit", "logout"):
+        assert f'data-profile-action="{action}"' in index
+    main = (STATIC / "js/main.js").read_text(encoding="utf-8")
+    handler = main[main.index('query("#profile-button", root)'):main.index("bindUsers(context)")]
+    assert "ui.toast" not in handler
+    assert 'setProfileMenu(profileMenu.hidden)' in handler and 'event.key === "Escape"' in handler
+    assert 'context.navigate(item.dataset.profileAction)' in handler and 'query("#logout", root).click()' in handler
+
+
+def test_every_documented_audit_action_has_a_journal_label():
+    """`docs/AUDIT_EVENTS.md` is the contract of action names; the journal's `ACTION_NAMES`
+    stopped at v0.2, so v0.3–v0.5 rows showed raw codes (`routing.policy.delete`,
+    `api_key.create`) between «Вход в панель» and «Создан доступ» — seen on AMS_Z."""
+    contract = (Path(__file__).resolve().parents[2] / "docs/AUDIT_EVENTS.md").read_text(encoding="utf-8")
+    documented = {code for code in re.findall(r"`([a-z_]+(?:\.[a-z_]+)+)`", contract)}
+    assert len(documented) > 60
+    audit = (STATIC / "js/audit.js").read_text(encoding="utf-8")
+    names = audit[audit.index("const ACTION_NAMES = {"):audit.index("};", audit.index("const ACTION_NAMES = {"))]
+    labelled = set(re.findall(r'^\s*"([a-z_.]+)":\s*"[^"]+"', names, re.MULTILINE))
+    assert documented - labelled == set()
+    assert labelled - documented == set(), "a label for an action the contract does not know"
