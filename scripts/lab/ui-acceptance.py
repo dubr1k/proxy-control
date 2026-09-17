@@ -282,10 +282,9 @@ class Browser:
 class Api:
     def __init__(self, base: str, ca_file: str | None):
         self.base = base.rstrip("/")
+        # A lab CA when given; otherwise the system's trust store (a production node has a
+        # public certificate) — never a disabled verification.
         context = ssl.create_default_context(cafile=ca_file) if ca_file else ssl.create_default_context()
-        if not ca_file:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar),
                                                   urllib.request.HTTPSHandler(context=context))
