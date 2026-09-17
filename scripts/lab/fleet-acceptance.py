@@ -1824,7 +1824,9 @@ class Scenario:
 
     def step_05c_chains(self) -> None:
         args = self.args
-        allowed, other = args.routing_allowed, args.routing_other
+        # The lane's rule sends geoip:cloudflare direct: the «through B» target must not be
+        # behind Cloudflare (api.ipify.org is), so the control target proves the chain.
+        allowed, control = args.routing_allowed, args.router_control
         node_b = self.node_b
         password = secrets.token_urlsafe(24)
         node_b.start(password)
@@ -1857,7 +1859,7 @@ class Scenario:
             items = self.central.json("/api/routing/targets")["items"]
             item = next((i for i in items if i["node_id"] == self.node_id and i["protocol"] == "naive"), {})
             exit_ = next((e for e in item.get("exits", []) if e["node_id"] == self.node_b_id), None)
-            return exit_ if exit_ and exit_.get("enabled") and exit_.get("online") else None
+            return exit_ if exit_ and exit_.get("enabled") and exit_.get("online") and not exit_.get("pending") else None
         exit_b, elapsed = self.wait(relay_known, 120, "node B relay reported")
         self.check("c02_node_b_is_an_exit_of_the_node", bool(exit_b), f"after {elapsed}s")
         relay_b = ((panel_b.with_bearer(key["plaintext"]).json("/api/fleet/v2/identity").get("router") or {}).get("relay") or {})
@@ -1918,15 +1920,15 @@ class Scenario:
         self.check("c04_history_masks_the_relay_account", all(h.get("uuid") == "***" for h in hops))
 
         # chains-05: the client's traffic — through B's WARP for the default, direct for geoip:cloudflare
-        mark = len(node_b.stub.lines())
-        ok, detail = self._probe("naive", allowed)
-        self.check("c05_lane_default_through_node_b_warp", ok and urllib.parse.urlsplit(allowed).hostname in node_b.stub.hosts_since(mark),
-                   f"{detail}; stub-b saw {node_b.stub.hosts_since(mark)[-3:]}")
         mark_a, mark_b = len(self.stub.lines()), len(node_b.stub.lines())
-        ok, detail = self._probe("naive", other)
-        self.check("c05_geoip_direct_bypasses_both_stubs", ok and urllib.parse.urlsplit(other).hostname not in node_b.stub.hosts_since(mark_b)
-                   and urllib.parse.urlsplit(other).hostname not in self.stub.hosts_since(mark_a), detail)
-        self.check("c05_node_a_stub_untouched_by_the_lane", urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(mark_a))
+        ok, detail = self._probe("naive", control)
+        self.check("c05_lane_default_through_node_b_warp", ok and urllib.parse.urlsplit(control).hostname in node_b.stub.hosts_since(mark_b),
+                   f"{detail}; stub-b saw {node_b.stub.hosts_since(mark_b)[-3:]}")
+        self.check("c05_node_a_stub_untouched_by_the_lane", urllib.parse.urlsplit(control).hostname not in self.stub.hosts_since(mark_a))
+        mark_a, mark_b = len(self.stub.lines()), len(node_b.stub.lines())
+        ok, detail = self._probe("naive", allowed)
+        self.check("c05_geoip_direct_bypasses_both_stubs", ok and urllib.parse.urlsplit(allowed).hostname not in node_b.stub.hosts_since(mark_b)
+                   and urllib.parse.urlsplit(allowed).hostname not in self.stub.hosts_since(mark_a), detail)
 
         # chains-06: a Mieru lane — the slot's port reaches the central's link
         mieru_grant = grant_ids.get("mieru")
@@ -1957,8 +1959,8 @@ class Scenario:
         applied, elapsed = self._wait_lane_applied("naive", lane, saved["revision"])
         self.check("c07_applied_with_the_new_accounts", bool(confirmed) and bool(applied), f"after {elapsed}s")
         mark = len(node_b.stub.lines())
-        ok, detail = self._probe("naive", allowed)
-        self.check("c07_chain_works_after_rotation", ok and urllib.parse.urlsplit(allowed).hostname in node_b.stub.hosts_since(mark), detail)
+        ok, detail = self._probe("naive", control)
+        self.check("c07_chain_works_after_rotation", ok and urllib.parse.urlsplit(control).hostname in node_b.stub.hosts_since(mark), detail)
 
         # chains-08: rollback of the lane's policy — the previous document again
         self.central.json(f"{self._policy_path('naive')}/rollback?lane={urllib.parse.quote(lane)}", method="POST",
@@ -1969,7 +1971,7 @@ class Scenario:
         # chains-09: nothing secret anywhere the operator or the central can read
         secrets_b = [line.split(":", 1)[1] for line in ((node_b.directory / f"ingress-{s}").read_text().strip() for s in ("naive", "mieru"))]
         texts = {"targets": json.dumps(self.central.json("/api/routing/targets")), "identity_b": json.dumps(identity_b),
-                 "audit": json.dumps(self.central.json("/api/audit?limit=300")), "history": json.dumps(history),
+                 "audit": json.dumps(self.central.json("/api/audit?limit=200")), "history": json.dumps(history),
                  "node_b_logs": node_b.logs(), "node_panel_logs": self.host.docker_logs(args.node_container)}
         uuid_shape = re.compile(r'"uuid":\s*"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"')
         leaks = [name for name, text in texts.items() if any(v in text for v in secrets_b) or uuid_shape.search(text)
@@ -1982,7 +1984,7 @@ class Scenario:
                                            and f"grant-{naive_grant}" not in self.host.caddyfile_text()) or None, 120, "lane withdrawn")
         self.check("c10_lane_withdrawn_on_the_node", bool(gone), f"after {elapsed}s")
         self.check("c10_lane_policy_gone", self._lane_policy("naive", lane) is None)
-        ok, detail = self._probe("naive", allowed)
+        ok, detail = self._probe("naive", control)
         self.check("c10_client_serves_with_the_service_again", ok, detail)
         status, _, _ = self.central.request(f"/api/nodes/{self.node_b_id}", method="DELETE")
         self.check("c10_node_b_unlinked", status in (200, 204), str(status))

@@ -273,6 +273,8 @@ class RoutingService:
             online = node_id == "local" or link.get("status") == "online"
             exits.append({"kind": "node", "node_id": node_id, "guid": guid, "display_name": row["display_name"],
                           "enabled": bool(relay.get("enabled")), "port": relay.get("port"), "online": online,
+                          # a linked node's relay is «pending» until its report brought the public key
+                          "pending": not relay.get("public_key"),
                           "via": ["direct", "warp"], "exit": f"node:{guid}"})
         return exits
 
