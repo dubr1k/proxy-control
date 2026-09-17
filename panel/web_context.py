@@ -81,6 +81,11 @@ class RequestContext:
                 raise HTTPException(403, "a node-sync or admin API key is required")
             return user
 
+        # `gate` names what each dependency enforces, for the route audit
+        # (`scripts/dev/route-coverage.py`): it never changes the behaviour.
+        current.gate = ("current",)  # type: ignore[attr-defined]
+        mutation.gate = ("mutation",)  # type: ignore[attr-defined]
+        fleet_key.gate = ("fleet_key",)  # type: ignore[attr-defined]
         self.current = current
         self.mutation = mutation
         self.fleet_key = fleet_key
@@ -91,6 +96,7 @@ class RequestContext:
                 raise HTTPException(403, "insufficient role")
             return user
 
+        check.gate = ("roles", *allowed)  # type: ignore[attr-defined]
         return check
 
     def read_roles(self, *allowed: str):
@@ -102,6 +108,7 @@ class RequestContext:
                 raise HTTPException(403, "insufficient role")
             return user
 
+        check.gate = ("read_roles", *allowed)  # type: ignore[attr-defined]
         return check
 
     @staticmethod
