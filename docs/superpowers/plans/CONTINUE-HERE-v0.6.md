@@ -26,7 +26,8 @@
 | `d8d8b6c` | 4 | tier `managed-xui` (реальный 3x-ui на стенде): приёмка выпускает сертификат панели; отказ 3x-ui называет род причины без повторения сообщения |
 | `e29d3fa` | 4 | сценарий `backup-restore` в `lab-host` (`scripts/lab/backup-restore-drill.py` по docs/BACKUP_RESTORE); матрица без пробелов |
 | `073a270`, `7205c70` | 6 | VERSION 0.6.0-beta.1, CHANGELOG en/ru, заметка, COMPATIBILITY, README, индекс; TLS-контекст приёмки |
-| далее | 5–6 | заметка заполнена по гейту и живой проверке, точка продолжения, публикация |
+| `5718663` | 5–6 | заметка заполнена по гейту и живой проверке, 12 скриншотов, точка продолжения — **тегированное дерево** |
+| далее | 6 | блок «Архив» заметки и этот раздел «Публикация» по факту |
 
 ## Гейт (финальное дерево) и живая проверка
 
@@ -37,12 +38,19 @@
 пробному пользователю на протокол, Caddyfile/mita/пользователи = снимкам; отчёт `/root/v06-live/ui-live/report.json`,
 точки отката `/root/v06-live/`. AMS_Z **на v0.6 без роутера**.
 
-## Публикация
+## Публикация (сделано 2026-09-17 11:18–11:30 UTC)
 
 Путь v0.4 (память `proxy-control-ci-only-on-ams-test`): архив дважды из чистого клона на `ams-test`
-(`/root/release-check-v06`, `release/build.py`, байты совпали) → аннотированный тег `v0.6.0-beta.1` с
-`lab-sha256: <digest>` → push ветки и тега → workflow `Release` → тело релиза из заметки с абсолютными
-ссылками (`gh release edit --notes-file`). Итог — в разделе «Архив» заметки и ниже (заполняется по факту).
+(`/root/release-check-v06`, дерево `5718663`, `release/build.py` → `/root/v06-dist-a` и `-b`, байты совпали,
+`--verify` OK) → аннотированный тег `v0.6.0-beta.1` на `5718663` с
+`lab-sha256: 882d82a980e5c01bb09a4df3587fee482fc1fbb78f6439cf0da3a44a81fa924a` → push ветки и тега →
+workflow `Release` run `35215016048` (quality, build-twice-and-compare, attest, draft-release, publish — все
+`success`) → pre-release опубликован: <https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1>
+(4 файла: архив 6 473 903 байта, `SHA256SUMS`, `release-manifest.json`, `sbom.spdx.json`; опубликованные
+`SHA256SUMS` = стендовые; `gh attestation verify` — SLSA v1, subject = `882d82a9…`, ref `refs/tags/v0.6.0-beta.1`)
+→ тело релиза из заметки с абсолютными ссылками (`gh release edit --notes-file`, 43 ссылки, каждая цель
+есть в тегированном дереве). Блок «Архив» заметки заполнен коммитом после тега (в самом теге — «появятся
+здесь после публикации», как и в v0.3–v0.5).
 
 ## Что дальше (владелец)
 
