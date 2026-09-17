@@ -206,7 +206,10 @@ def test_the_slot_unit_template_mirrors_the_main_unit_with_its_own_socket_and_st
     socket and state directory, and no `mita start` — an idle slot listens on nothing."""
     root = Path(__file__).resolve().parents[1] / "deploy"
     main, template = (root / "mita.service").read_text(), (root / "mita@.service").read_text()
-    assert "MITA_CONFIG_JSON_FILE=/var/lib/mita/lanes/%i/server_config.json" in template
+    # the slot's own state directory is bound over /var/lib/mita: mita's fixed metrics.pb and
+    # the config stay per daemon, never shared with the main one
+    assert "BindPaths=/var/lib/mita/lanes/%i:/var/lib/mita" in template
+    assert "MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json" in template
     assert "MITA_UDS_PATH=/run/mita/lane-%i.sock" in template and "StateDirectory=mita/lanes/%i" in template
     assert "ExecStart=/usr/bin/mita run" in template and "mita start" not in template
     for line in ("NoNewPrivileges=true", "ProtectSystem=strict", "ReadOnlyPaths=/usr/bin/mita", "ReadWritePaths=/run/mita /var/lib/mita", "User=mita"):

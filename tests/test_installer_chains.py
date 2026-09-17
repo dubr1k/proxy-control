@@ -292,7 +292,12 @@ def test_mieru_apply_starts_the_slot_units_and_verify_and_repair_check_them(tmp_
     assert instance.verify(action).success
     runner.slot_status = "exit=1"
     with pytest.raises(MieruError, match="lane slot 1 did not answer"):
-        instance.verify(action)
+        instance._assert_slots(instance._selection(action), patience=0.6)
+    # a daemon whose RPC server is still coming up answers on the second ask
+    answers = iter(["exit=1", mieru_module._IDLE, mieru_module._IDLE])
+    runner.mita_slot_status = lambda socket_path: next(answers)
+    instance._assert_slots(instance._selection(action), patience=5)
+    del runner.mita_slot_status  # back to the class method
     runner.slot_status = mieru_module._IDLE
     runner.calls.clear()
     instance.repair(action, checkpoint)

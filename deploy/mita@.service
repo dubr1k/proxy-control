@@ -10,10 +10,14 @@ Type=simple
 User=mita
 Group=mita
 Environment=MITA_LOG_NO_TIMESTAMP=true
-Environment=MITA_CONFIG_JSON_FILE=/var/lib/mita/lanes/%i/server_config.json
+# mita keeps its metrics at the fixed /var/lib/mita/metrics.pb: the slot sees its own state
+# directory there (a bind in its mount namespace), so daemons never share a metrics file
+# and the slot's config lives beside its metrics, at the main daemon's paths.
+Environment=MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json
 Environment=MITA_UDS_PATH=/run/mita/lane-%i.sock
 StateDirectory=mita/lanes/%i
 StateDirectoryMode=0700
+BindPaths=/var/lib/mita/lanes/%i:/var/lib/mita
 ExecStartPre=-/bin/rm -f /run/mita/lane-%i.sock
 # The daemon only: the proxy of an idle slot stays stopped — mieru-manager starts it when a
 # lane lands in this slot and stops it when the lane leaves.
