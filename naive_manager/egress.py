@@ -75,8 +75,15 @@ class ParsedEgress:
 
 
 def forward_proxy_bounds(lines: list[str]) -> tuple[int, int]:
-    """Start and end line indexes of the one `forward_proxy { … }` block."""
-    directives = [index for index, line in enumerate(lines) if re.match(r"^\s*forward_proxy(?:\s|$)", line)]
+    """Start and end line indexes of the service's own `forward_proxy { … }` block — the one
+    outside the lanes block (v0.7), whose handlers the lanes module owns."""
+    from .lanes import LanesInvalid, outside_lanes
+
+    try:
+        outside = outside_lanes(lines)
+    except LanesInvalid as exc:
+        raise EgressInvalid(str(exc)) from exc
+    directives = [index for index in outside if re.match(r"^\s*forward_proxy(?:\s|$)", lines[index])]
     if len(directives) != 1:
         raise EgressInvalid("exactly one forward_proxy block is required")
     start = directives[0]

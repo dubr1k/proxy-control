@@ -163,6 +163,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.manager.traffic_report())
             if path == "/v1/egress" and self.command == "GET":
                 return self._send(200, self.server.manager.egress())
+            if path == "/v1/lanes" and self.command == "GET":
+                return self._send(200, self.server.manager.lanes())
+            if path == "/v1/lanes" and self.command == "PUT":
+                return self._send(200, self.server.manager.set_lanes(self._body()))
             if self.command == "POST" and path in {"/v1/egress/plan", "/v1/egress/apply", "/v1/egress/rollback"}:
                 body = self._body()
                 revision = body.get("expected_revision")
@@ -243,6 +247,7 @@ class ManagerHandler(BaseHTTPRequestHandler):
 
     do_GET = _dispatch
     do_POST = _dispatch
+    do_PUT = _dispatch
     do_DELETE = _dispatch
 
 

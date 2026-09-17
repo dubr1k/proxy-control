@@ -116,8 +116,8 @@ def test_bootstrap_imports_existing_credentials_without_changing_them(tmp_path):
     service.bootstrap()
 
     assert service.list_users() == [
-        {"username": "old-user", "enabled": True, "quota_bytes": None, "disabled_reason": None},
-        {"username": "second", "enabled": True, "quota_bytes": None, "disabled_reason": None},
+        {"username": "old-user", "enabled": True, "quota_bytes": None, "disabled_reason": None, "lane": None},
+        {"username": "second", "enabled": True, "quota_bytes": None, "disabled_reason": None, "lane": None},
     ]
     assert service.reveal("old-user")["proxy_url"] == "https://old-user:old-password@naive.example.com"
     rendered = service.caddyfile.read_text()
@@ -335,8 +335,8 @@ def test_bootstrap_recovers_after_crash_between_initial_config_and_state_writes(
 
     assert recovered.caddyfile.read_text().count("# BEGIN NAIVE-MANAGER USERS") == 1
     assert recovered.list_users() == [
-        {"username": "old-user", "enabled": True, "quota_bytes": None, "disabled_reason": None},
-        {"username": "second", "enabled": True, "quota_bytes": None, "disabled_reason": None},
+        {"username": "old-user", "enabled": True, "quota_bytes": None, "disabled_reason": None, "lane": None},
+        {"username": "second", "enabled": True, "quota_bytes": None, "disabled_reason": None, "lane": None},
     ]
     assert not (recovered.state_file.parent / "transaction.json").exists()
 
@@ -398,7 +398,7 @@ def test_create_disable_enable_rotate_and_delete_are_transactional(tmp_path):
     assert "basic_auth phone " not in service.caddyfile.read_text()
     assert service.list_users()[-1] == {
         "username": "phone", "enabled": False,
-        "quota_bytes": None, "disabled_reason": "manual",
+        "quota_bytes": None, "disabled_reason": "manual", "lane": None,
     }
 
     service.set_enabled("phone", True)
@@ -679,7 +679,7 @@ def test_bootstrap_commits_files_replaced_transaction_by_reloading_current_files
 
     assert recovered.list_users()[-1] == {
         "username": "crash-commit", "enabled": True,
-        "quota_bytes": None, "disabled_reason": None,
+        "quota_bytes": None, "disabled_reason": None, "lane": None,
     }
     assert "basic_auth crash-commit new-password" in recovered.caddyfile.read_text()
     assert not transaction.exists()
@@ -818,8 +818,8 @@ def test_unix_api_requires_token_and_never_lists_passwords(tmp_path):
             response = client.get("/v1/users", headers={"X-Naive-Token": "internal-token"})
             assert response.status_code == 200
             assert response.json() == [
-                {"username": "old-user", "enabled": True, "quota_bytes": None, "disabled_reason": None},
-                {"username": "second", "enabled": True, "quota_bytes": None, "disabled_reason": None},
+                {"username": "old-user", "enabled": True, "quota_bytes": None, "disabled_reason": None, "lane": None},
+                {"username": "second", "enabled": True, "quota_bytes": None, "disabled_reason": None, "lane": None},
             ]
             assert "old-password" not in response.text
     finally:

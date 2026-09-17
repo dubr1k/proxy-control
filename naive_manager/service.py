@@ -18,7 +18,8 @@ from typing import Callable
 from urllib.parse import quote
 
 from . import egress as egress_block
-from .egress import EgressUnreachable
+from . import lanes as lanes_block
+from .egress import EgressInvalid, EgressUnreachable
 from .traffic import (
     ACCOUNTING_ROLL_KEEP,
     ACCOUNTING_ROLL_SIZE_BYTES,
@@ -268,6 +269,7 @@ class NaiveCredentialManager:
                 "enabled": bool(row["enabled"]),
                 "quota_bytes": row["quota_bytes"],
                 "disabled_reason": row["disabled_reason"],
+                "lane": row.get("lane"),
             }
             for row in state["users"]
         ]
@@ -479,6 +481,43 @@ class NaiveCredentialManager:
         state["tombstones"].append({"username": username, "deleted_at": _now()})
         self._apply(state)
         traffic.archive_user(username)
+
+    # ------------------------------------------------------------- lanes (v0.7)
+
+    @synchronized
+    def set_lanes(self, body: object) -> dict:
+        """Replace the lanes: every named user moves into its lane's handler with the
+        lane's router-ingress account as the upstream; users not named go back to the
+        service's own handler. One transaction, one reload, the same recovery as users."""
+        state = self._read_state()
+        try:
+            lanes = lanes_block.validate_request(body, {row["username"] for row in state["users"]})
+        except lanes_block.LanesInvalid as exc:
+            raise ManagerConflict(str(exc), "lanes_invalid") from exc
+        if lanes and not self.router_url:
+            raise EgressInvalid("egress provider router is not configured on this node")
+        desired = copy.deepcopy(state)
+        by_user = {user: entry["lane"] for entry in lanes for user in entry["users"]}
+        for row in desired["users"]:
+            row["lane"] = by_user.get(row["username"])
+        desired["lanes"] = {entry["lane"]: {"upstream": egress_block.with_credential(
+            self.router_url, (entry["upstream"]["user"], entry["upstream"]["password"]))} for entry in lanes}
+        self._apply(desired)
+        return self._lanes_view(desired)
+
+    @synchronized
+    def lanes(self) -> dict:
+        return self._lanes_view(self._read_state())
+
+    @staticmethod
+    def _lanes_view(state: dict) -> dict:
+        view = []
+        for lane, entry in state.get("lanes", {}).items():
+            members = [row for row in state["users"] if row.get("lane") == lane]
+            view.append({"lane": lane, "users": [row["username"] for row in members],
+                         "upstream": egress_block.redact_userinfo(entry["upstream"]),
+                         "enabled_users": sum(1 for row in members if row["enabled"])})
+        return {"lanes": view}
 
     def _archive_tombstones(self, state: dict) -> None:
         if self.traffic is None:
@@ -748,9 +787,10 @@ class NaiveCredentialManager:
                     walk(child)
 
         walk(config)
-        if len(found) != 1:
+        if not found:
             raise ManagerConflict("unexpected proxy handler", "egress_readback_mismatch")
-        return found[0]
+        # The service's own handler is the last one: lane handlers (v0.7) precede it.
+        return found[-1]
 
     def _commit(self, rendered: str, desired: dict, *, readback: Callable[[dict], None] | None = None) -> None:
         """`_apply`'s transaction for a rendered Caddyfile that is not a user change: backup,
@@ -923,8 +963,15 @@ class NaiveCredentialManager:
             raise ManagerConflict("invalid manager state") from exc
         if state.get("version") != 1 or state.get("host") != self.public_host or not isinstance(state.get("users"), list):
             raise ManagerConflict("unsupported manager state")
-        if set(state) - {"version", "host", "users", "tombstones", "operations", "egress"}:
+        if set(state) - {"version", "host", "users", "tombstones", "operations", "egress", "lanes"}:
             raise ManagerConflict("unsupported manager state")
+        # Lanes (v0.7) are optional: a state file from an older manager has none.
+        lanes = state.setdefault("lanes", {})
+        if not isinstance(lanes, dict) or any(
+            lanes_block.LANE_ID.fullmatch(lane) is None or not isinstance(entry, dict) or set(entry) != {"upstream"}
+            or not isinstance(entry["upstream"], str) for lane, entry in lanes.items()
+        ):
+            raise ManagerConflict("invalid lanes state")
         state["operations"] = self._pruned_operations(state.get("operations"))
         state.setdefault("tombstones", [])
         # The egress journal (v0.4) is optional: a state file from an older manager has none.
@@ -940,10 +987,13 @@ class NaiveCredentialManager:
                 raise ManagerConflict("invalid user state")
             row.setdefault("quota_bytes", None)
             row.setdefault("disabled_reason", None)
+            row.setdefault("lane", None)
             if set(row) - {
                 "username", "password", "enabled", "quota_bytes", "disabled_reason",
-                "created_at", "updated_at",
+                "created_at", "updated_at", "lane",
             }:
+                raise ManagerConflict("invalid user state")
+            if row["lane"] is not None and row["lane"] not in lanes:
                 raise ManagerConflict("invalid user state")
             try:
                 self._valid_username(row.get("username", ""))
@@ -1123,20 +1173,26 @@ class NaiveCredentialManager:
         text = self.caddyfile.read_text()
         self._assert_accounting_config(text)
         actual = self._managed_credentials(text)
-        expected = [(row["username"], row["password"]) for row in state["users"] if row["enabled"]]
+        expected = [(row["username"], row["password"]) for row in state["users"] if row["enabled"] and row.get("lane") is None]
         if actual != expected:
             raise ManagerConflict("managed Caddy credentials changed outside manager")
+        if lanes_block.lane_credentials(text) != [users for users, _url in self._lane_handlers(state) if users]:
+            raise ManagerConflict("managed Caddy lane credentials changed outside manager")
         self._validate_config(self.caddyfile)
 
     def _validate_config(self, path: Path) -> None:
-        expected_count = len(self._managed_credentials(path.read_text()))
+        text = path.read_text()
+        expected = [len(users) for users in lanes_block.lane_credentials(text)] + [len(self._managed_credentials(text))]
         config = self.validate(path)
-        self._assert_adapted_semantics(config, expected_count)
+        self._assert_adapted_semantics(config, expected)
 
     @staticmethod
-    def _assert_adapted_semantics(config: dict, expected_credentials: int) -> None:
+    def _assert_adapted_semantics(config: dict, expected_credentials: int | list[int]) -> None:
+        """One `forward_proxy` handler per expected count, in Caddyfile order — the lane
+        handlers first, the service's own last — each with exactly that many credentials."""
         if not isinstance(config, dict):
             raise ManagerConflict("invalid adapted Caddy configuration")
+        expected = [expected_credentials] if isinstance(expected_credentials, int) else list(expected_credentials)
         handlers = []
 
         def walk(value) -> None:
@@ -1152,15 +1208,16 @@ class NaiveCredentialManager:
         walk(config)
         forward = [node for node in handlers if node["handler"] == "forward_proxy"]
         authentication = [node for node in handlers if node["handler"] == "authentication"]
-        if len(forward) != 1 or authentication:
+        if len(forward) != len(expected) or authentication:
             raise ManagerConflict("unexpected proxy or authentication handler")
-        credentials = forward[0].get("auth_credentials")
-        if (
-            not isinstance(credentials, list)
-            or len(credentials) != expected_credentials
-            or any(not isinstance(value, str) or not value for value in credentials)
-        ):
-            raise ManagerConflict("adapted proxy credentials do not match managed state")
+        for node, count in zip(forward, expected, strict=True):
+            credentials = node.get("auth_credentials")
+            if (
+                not isinstance(credentials, list)
+                or len(credentials) != count
+                or any(not isinstance(value, str) or not value for value in credentials)
+            ):
+                raise ManagerConflict("adapted proxy credentials do not match managed state")
 
     @staticmethod
     def _find(state: dict, username: str) -> dict:
@@ -1258,7 +1315,11 @@ class NaiveCredentialManager:
 
     @staticmethod
     def _forward_bounds(lines: list[str]) -> tuple[int, int]:
-        directives = [index for index, line in enumerate(lines) if re.match(r"^\s*forward_proxy(?:\s|$)", line)]
+        try:
+            outside = lanes_block.outside_lanes(lines)
+        except lanes_block.LanesInvalid as exc:
+            raise ManagerConflict(str(exc)) from exc
+        directives = [index for index in outside if re.match(r"^\s*forward_proxy(?:\s|$)", lines[index])]
         if len(directives) != 1:
             raise ManagerConflict("exactly one forward_proxy block is required")
         start = directives[0]
@@ -1292,8 +1353,11 @@ class NaiveCredentialManager:
         forward_start, forward_end = cls._forward_bounds(lines)
         if not forward_start < start < end < forward_end:
             raise ManagerConflict("managed credential block is outside forward_proxy")
+        span = lanes_block.lanes_span(lines)
         for index in range(len(lines)):
             if re.match(r"^\s*basic_auth\s+", lines[index]) and not start < index < end:
+                if span is not None and span[0] < index < span[1]:
+                    continue  # a lane handler's user (v0.7)
                 raise ManagerConflict("basic_auth directive outside managed credential block")
         return start, end
 
@@ -1337,7 +1401,19 @@ class NaiveCredentialManager:
         start, end = cls._managed_bounds(lines)
         indent = re.match(r"^(\s*)", lines[start]).group(1)
         lines[start:end + 1] = cls._credential_lines(state, indent)
-        return "\n".join(lines) + "\n"
+        try:
+            return lanes_block.render("\n".join(lines) + "\n", cls._lane_handlers(state))
+        except lanes_block.LanesInvalid as exc:
+            raise ManagerConflict(str(exc)) from exc
+
+    @staticmethod
+    def _lane_handlers(state: dict) -> list[tuple[list[tuple[str, str]], str]]:
+        """Per lane, in state order: its enabled users and its upstream URL."""
+        handlers = []
+        for lane, entry in state.get("lanes", {}).items():
+            users = [(row["username"], row["password"]) for row in state["users"] if row["enabled"] and row.get("lane") == lane]
+            handlers.append((users, entry["upstream"]))
+        return handlers
 
     @classmethod
     def _render_accounting_migration(cls, text: str) -> str:
@@ -1355,7 +1431,8 @@ class NaiveCredentialManager:
 
     @staticmethod
     def _credential_lines(state: dict, indent: str) -> list[str]:
-        rows = [f"{indent}basic_auth {row['username']} {row['password']}" for row in state["users"] if row["enabled"]]
+        rows = [f"{indent}basic_auth {row['username']} {row['password']}"
+                for row in state["users"] if row["enabled"] and row.get("lane") is None]
         return [f"{indent}{BEGIN}", *rows, f"{indent}{END}"]
 
     @staticmethod
