@@ -42,6 +42,7 @@ case $LEVEL in
     remote "$ensure_venv && $build_images && .venv/bin/ruff check . \
       && .venv/bin/python -m pytest -q -p no:cacheprovider \
       && .venv/bin/python -m unittest -q tests/test_deploy.py \
+      && .venv/bin/python scripts/dev/route-coverage.py > /dev/null \
       && python3 scripts/check-doc-links.py \
       && bash scripts/dev/check-js-syntax.sh \
       && git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n \

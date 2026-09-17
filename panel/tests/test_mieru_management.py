@@ -474,3 +474,33 @@ async def test_mieru_client_rotate_sends_the_caller_credential_and_operation_id(
         "password": "rotated-password-0123456",
         "operation_id": "op-9",
     }
+
+
+@pytest.mark.anyio
+async def test_panel_mieru_quotas_are_replaced_with_the_revision_and_audited(client, login_user, mieru):
+    """`POST /api/mieru/users/{username}/quotas` (v0.1 API, the «Квоты» dialog of the
+    screen): the whole quota list is replaced under the service revision, the manager gets
+    exactly the typed list, the audit names the quotas and never a credential; a viewer is
+    refused and a stale revision is the manager's word (409), not the panel's."""
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    created = await client.post("/api/mieru/users", json={"username": "tablet", "quotas": [], "expected_revision": "rev-1"},
+                                headers={"X-CSRF-Token": csrf})
+    assert created.status_code == 201
+    revision = (await client.get("/api/mieru/users")).json()["service"]["revision"]
+    updated = await client.post("/api/mieru/users/tablet/quotas",
+                                json={"expected_revision": revision, "quotas": [{"days": 7, "megabytes": 512}, {"days": 30, "megabytes": 4096}]},
+                                headers={"X-CSRF-Token": csrf})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["username"] == "tablet" and updated.json()["revision"] != revision
+    assert mieru.users["tablet"]["quotas"] == [{"days": 7, "megabytes": 512}, {"days": 30, "megabytes": 4096}]
+    listed = next(u for u in (await client.get("/api/mieru/users")).json()["items"] if u["username"] == "tablet")
+    assert listed["quotas"] == [{"days": 7, "megabytes": 512}, {"days": 30, "megabytes": 4096}]
+    too_many = await client.post("/api/mieru/users/tablet/quotas",
+                                 json={"expected_revision": updated.json()["revision"], "quotas": [{"days": 1, "megabytes": 1}] * 17},
+                                 headers={"X-CSRF-Token": csrf})
+    assert too_many.status_code == 422
+    audit = (await client.get("/api/audit")).json()
+    entry = next(item for item in audit["items"] if item["action"] == "mieru.quotas")
+    assert entry["target"] == "tablet" and entry["detail"]["quotas"][0] == {"days": 7, "megabytes": 512}
+    assert "mierus://" not in str(audit)

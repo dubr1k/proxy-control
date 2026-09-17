@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import copy
 
+import httpx
+
 import pytest
 
 pytestmark = pytest.mark.anyio
@@ -290,3 +292,39 @@ async def test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_li
     assert '"host": "relay.node.example"' in learned and '"port": 8443' in learned
     grant = central.state.clients.client_with_grants(grant.client_id)[1][0]
     assert (grant.options.host, grant.options.port, grant.observed_state) == ("relay.node.example", 8443, "enabled")
+
+
+async def test_an_interrupted_operation_is_resumed_through_the_api(client, login_user, telemt, naive, mieru):
+    """`POST /api/operations/{id}/resume` (v0.2): a grant operation that crashed mid-flight
+    (journalled, not applied) is picked up by the route and finished; a second resume
+    changes nothing, an unknown id is 404 and a viewer is refused."""
+    await login_user(client)
+    headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    app = client._transport.app
+    created = await client.post("/api/clients", json={"display_name": "Sergey"}, headers=headers)
+    client_id = created.json()["id"]
+    service = app.state.provisioning
+    from panel.clients.models import GrantIntent, NaiveOptions
+    intents = [GrantIntent(protocol="naive", runtime_username="laptop", options=NaiveOptions())]
+    service.faults["before_first_apply"] = True
+    operation_id = await service.start(client_id, intents, actor={"id": 1, "username": "owner", "role": "owner"}, ip="127.0.0.1")
+    with pytest.raises(RuntimeError):
+        await service.run(operation_id)
+    service.faults.clear()
+    assert (await client.get(f"/api/operations/{operation_id}")).json()["status"] in {"pending", "applying"}
+    assert "laptop" not in naive.users
+
+    resumed = await client.post(f"/api/operations/{operation_id}/resume", headers=headers)
+    assert resumed.status_code == 200, resumed.text
+    assert resumed.json() == {"operation_id": operation_id, "status": "succeeded"}
+    assert "laptop" in naive.users
+    again = await client.post(f"/api/operations/{operation_id}/resume", headers=headers)
+    assert again.json()["status"] == "succeeded" and [u["username"] for u in await naive.list_users()].count("laptop") == 1
+    assert (await client.post("/api/operations/op-does-not-exist/resume", headers=headers)).status_code == 404
+    app.state.store.create_admin("watcher", "correct horse battery staple", "viewer")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as viewer:
+        page = await viewer.get("/login")
+        await viewer.post("/api/auth/login", json={"username": "watcher", "password": "correct horse battery staple"},
+                          headers={"X-CSRF-Token": page.cookies["panel_csrf"]})
+        refused = await viewer.post(f"/api/operations/{operation_id}/resume", headers={"X-CSRF-Token": viewer.cookies["panel_csrf"]})
+    assert refused.status_code == 403
