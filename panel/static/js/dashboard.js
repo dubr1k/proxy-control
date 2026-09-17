@@ -38,7 +38,7 @@ function hostRow(label, usage, detail) {
     ? "critical"
     : percent >= HOST_WARN_PERCENT ? "warn" : "";
   return `<span><small>${esc(label)}</small><b>${percent.toFixed(1)} %</b>
-    <span class="usage-bar ${level}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i style="width:${percent.toFixed(1)}%"></i></span>
+    <span class="usage-bar ${level}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i data-usage-percent="${percent.toFixed(1)}"></i></span>
     <em>${esc(detail)}</em></span>`;
 }
 
@@ -131,4 +131,7 @@ export async function renderDashboard(context, generation) {
     <div class="service-row ${naiveReady || !naiveAvailable ? "" : "degraded"}"><i></i><span><b>NaiveProxy · manager</b><small>${naiveState}</small></span><em>${esc(naive.status)}</em></div>
     <div class="service-row ${location.protocol === "https:" ? "" : "degraded"}"><i></i><span><b>Proxy Control</b><small>${location.protocol === "https:" ? "HTTPS · защищённое соединение" : "HTTP · соединение не защищено"}</small></span><em>${location.protocol === "https:" ? "secure" : "insecure"}</em></div>
   </div></section></div>`;
+  // The bars' widths go through the CSSOM: an inline style attribute is what the CSP
+  // (style-src 'self') drops, and a bar that never fills is worse than no bar.
+  for (const bar of ui.view.querySelectorAll("[data-usage-percent]")) bar.style.width = `${bar.dataset.usagePercent}%`;
 }

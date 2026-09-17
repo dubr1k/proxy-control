@@ -57,7 +57,8 @@ class NaiveOptions(BaseModel):
 class MieruOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    quotas: list[MieruQuota] = Field(max_length=16)
+    # No quota unless one is named: the grant dialog sends `{}` for every protocol.
+    quotas: list[MieruQuota] = Field(default_factory=list, max_length=16)
     share_template: str | None = Field(default=None, max_length=512)
 
     @field_validator("share_template")

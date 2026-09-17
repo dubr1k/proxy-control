@@ -275,7 +275,9 @@ export function bindClients(context) {
     const username = query("#grant-username", root).value.trim();
     const clientId = query("#grant-client-id", root).value;
     const nodeId = query("#grant-node", root).value || "local";
-    const protocols = [...queryAll(".grant-protocol input:checked", root)].map((box) => box.value);
+    // Only this dialog's boxes: the link dialog reuses the class for its TLS radios, and a
+    // document-wide query used to hand «verify» to the API as a protocol (422 every time).
+    const protocols = [...queryAll("#grant-form .grant-protocol input:checked", root)].map((box) => box.value);
     error.textContent = "";
     if (!protocols.length) {
       error.textContent = "Выберите хотя бы один протокол";

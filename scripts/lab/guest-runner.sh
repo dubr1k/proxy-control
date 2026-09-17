@@ -623,6 +623,8 @@ panel = "$PANEL"
 mtproxy = "$PROXY"
 naive = "naive.lab.test"
 mieru = "mieru.lab.test"
+# The subscription domain (v0.2): the node serves /s/{token} on it, the UI tier issues URLs.
+subscription = "sub.lab.test"
 
 [mieru]
 tcp_ports = [46001]
@@ -644,7 +646,7 @@ vless_tcp_domain = "vless.lab.test"
 [firewall]
 manage_ufw = false
 TOML
-  printf '%s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' "$(host_ip)" >> /etc/hosts
+  printf '%s naive.lab.test mieru.lab.test sub.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' "$(host_ip)" >> /etc/hosts
   stage_mita_package
   stage_xray_package
 }
@@ -886,7 +888,7 @@ container_setup() {
   local address
   address=$(host_ip)
   [[ -n $address ]]
-  printf '%s %s %s naive.lab.test mieru.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' \
+  printf '%s %s %s naive.lab.test mieru.lab.test sub.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' \
     "$address" "$PROXY" "$PANEL" >> /etc/hosts
 
   # A local resolver so the audit's mandatory CAA query answers instead of
@@ -986,6 +988,8 @@ panel = "$PANEL"
 mtproxy = "$PROXY"
 naive = "naive.lab.test"
 mieru = "mieru.lab.test"
+# The subscription domain (v0.2): the node serves /s/{token} on it, the UI tier issues URLs.
+subscription = "sub.lab.test"
 
 [mieru]
 tcp_ports = [46001]

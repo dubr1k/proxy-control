@@ -1,0 +1,1029 @@
+#!/usr/bin/env python3
+"""The panel's screen in a real browser (v0.6, tier `ui`): every view driven over CDP in a
+headless Chrome as the owner (and once as a viewer), through the real login form, the real
+dialogs and the real confirmations — the way an operator uses it. Every claim is a DOM
+state, a status code or a byte the browser received; every console error or uncaught
+exception fails the run; no secret may appear in any frame that is captured.
+
+    ui-acceptance.py --node-url https://panel.lab.test --password-file … --output lab-results/ui
+                     [--views login,dashboard,users,naive,mieru,clients,versions,fleet,routing,admins,audit]
+                     [--ca-file /etc/letsencrypt/lab-ca/ca.crt] [--stub] [--no-shots]
+    ui-acceptance.py --api-only …   # no browser: the same views through the API the screen uses
+                                    # (a production node: read, one throw-away user per protocol)
+
+Runs on the lab host itself (Chrome, the node's loopback). Everything it creates carries the
+run's own prefix and is deleted at the end; the runtime user lists must equal the initial ones.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import contextlib
+import http.cookiejar
+import json
+import os
+import re
+import secrets
+import shutil
+import socket
+import ssl
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+VIEWS = ("login", "dashboard", "users", "naive", "mieru", "clients", "versions", "fleet", "routing", "admins", "audit")
+# What must never be in a frame or a report (the fleet acceptance's shapes, kept in step).
+SECRET_SHAPES = [
+    re.compile(r"tg://proxy\?[^\s\"']*secret=", re.I),
+    re.compile(r"https://t\.me/proxy\?[^\s\"']*secret=", re.I),
+    re.compile(r"mierus?://[^\s\"']+@"),
+    re.compile(r"https://[^\s\"'/@]+:[^\s\"'/@]+@"),
+    re.compile(r"socks5://[^\s\"'/@]+:[^\s\"'/@]+@"),
+    re.compile(r"\bpc_[0-9a-f]{8}_[A-Za-z0-9_-]{43}\b"),
+    re.compile(r"\b(?:naive|mieru)-[0-9a-f]{8}:[A-Za-z0-9._~-]{16,}"),
+]
+PASSWORD_SHAPE = re.compile(r"\"password\"\s*:\s*\"[^\"]+\"")
+
+
+def redact(text: str) -> str:
+    for shape in SECRET_SHAPES:
+        text = shape.sub("[REDACTED]", text)
+    return PASSWORD_SHAPE.sub('"password": "[REDACTED]"', text)
+
+
+# ---------------------------------------------------------------------------
+# CDP over a stdlib websocket (the shape routing-shots.py proved on the lab host)
+# ---------------------------------------------------------------------------
+
+
+def _recv_exact(connection, size):
+    buffer = bytearray()
+    while len(buffer) < size:
+        chunk = connection.recv(size - len(buffer))
+        if not chunk:
+            raise RuntimeError("websocket closed")
+        buffer.extend(chunk)
+    return bytes(buffer)
+
+
+class CDP:
+    def __init__(self, url: str):
+        parts = urllib.parse.urlsplit(url)
+        self.connection = socket.create_connection((parts.hostname, parts.port), timeout=60)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.connection.sendall((f"GET {parts.path} HTTP/1.1\r\nHost: {parts.netloc}\r\nUpgrade: websocket\r\n"
+                                 f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+                                 "Origin: http://localhost\r\n\r\n").encode())
+        response = bytearray()
+        while b"\r\n\r\n" not in response:
+            response.extend(self.connection.recv(4096))
+        if not response.startswith(b"HTTP/1.1 101"):
+            raise RuntimeError(f"websocket handshake refused: {response[:80]!r}")
+        self.sequence = 1
+        self.events: list[dict] = []
+
+    def _send(self, payload: dict) -> None:
+        data = json.dumps(payload).encode()
+        mask = os.urandom(4)
+        if len(data) < 126:
+            header = bytes((0x81, 0x80 | len(data)))
+        elif len(data) <= 0xFFFF:
+            header = bytes((0x81, 0x80 | 126)) + struct.pack("!H", len(data))
+        else:
+            header = bytes((0x81, 0x80 | 127)) + struct.pack("!Q", len(data))
+        self.connection.sendall(header + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+    def _recv(self) -> dict:
+        first, second = _recv_exact(self.connection, 2)
+        opcode, length = first & 0x0F, second & 0x7F
+        if length == 126:
+            length = struct.unpack("!H", _recv_exact(self.connection, 2))[0]
+        elif length == 127:
+            length = struct.unpack("!Q", _recv_exact(self.connection, 8))[0]
+        payload = _recv_exact(self.connection, length)
+        if opcode == 0x8:
+            raise RuntimeError("websocket closed")
+        if opcode != 0x1:
+            return self._recv()
+        return json.loads(payload)
+
+    def call(self, method: str, params: dict | None = None) -> dict:
+        identifier = self.sequence
+        self.sequence += 1
+        self._send({"id": identifier, "method": method, "params": params or {}})
+        while True:
+            message = self._recv()
+            if message.get("id") == identifier:
+                if "error" in message:
+                    raise RuntimeError(f"{method}: {message['error']}")
+                return message.get("result", {})
+            if "method" in message:
+                self.events.append(message)
+
+    def drain(self, seconds: float) -> None:
+        self.connection.settimeout(seconds)
+        try:
+            while True:
+                message = self._recv()
+                if "method" in message:
+                    self.events.append(message)
+        except (socket.timeout, TimeoutError):
+            pass
+        finally:
+            self.connection.settimeout(60)
+
+    def close(self) -> None:
+        with contextlib.suppress(OSError):
+            self.connection.close()
+
+
+class Browser:
+    """One headless Chrome page: navigation, evaluation, waiting, clicking, typing, shots."""
+
+    def __init__(self, work: Path, shots: Path | None):
+        self.profile = work / "chrome-profile"
+        shutil.rmtree(self.profile, ignore_errors=True)
+        self.shots_dir = shots
+        self.process = subprocess.Popen(
+            ["google-chrome", "--headless=new", "--no-sandbox", "--disable-gpu", "--ignore-certificate-errors",
+             "--remote-allow-origins=*", "--remote-debugging-port=0", f"--user-data-dir={self.profile}",
+             "--window-size=1440,1000", "about:blank"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        port = None
+        for _ in range(600):
+            try:
+                port = int((self.profile / "DevToolsActivePort").read_text().splitlines()[0])
+                break
+            except (OSError, ValueError, IndexError):
+                time.sleep(0.1)
+        if not port:
+            raise RuntimeError("chrome did not start")
+        target = None
+        for _ in range(100):
+            targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5))
+            target = next((t["webSocketDebuggerUrl"] for t in targets if t.get("type") == "page"), None)
+            if target:
+                break
+            time.sleep(0.1)
+        self.cdp = CDP(target)
+        for domain in ("Runtime", "Log", "Page"):
+            self.cdp.call(f"{domain}.enable")
+        self.desktop()
+        self.shots: list[dict] = []
+
+    def close(self) -> None:
+        self.cdp.close()
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+
+    def desktop(self) -> None:
+        self.cdp.call("Emulation.setDeviceMetricsOverride", {"width": 1440, "height": 1000, "deviceScaleFactor": 1, "mobile": False})
+
+    def goto(self, url: str) -> None:
+        self.cdp.call("Page.navigate", {"url": url})
+
+    def js(self, expression: str, *, await_promise: bool = False):
+        result = self.cdp.call("Runtime.evaluate", {"expression": expression, "returnByValue": True, "awaitPromise": await_promise})
+        if result.get("exceptionDetails"):
+            raise RuntimeError(json.dumps(result["exceptionDetails"])[:400])
+        return result["result"].get("value")
+
+    def wait(self, expression: str, seconds: float = 20) -> bool:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                if self.js(expression):
+                    return True
+            except RuntimeError:
+                pass
+            time.sleep(0.2)
+        return False
+
+    def click(self, selector: str) -> bool:
+        return bool(self.js(f"(() => {{ const e = document.querySelector({json.dumps(selector)}); if (!e) return false; e.click(); return true; }})()"))
+
+    def type(self, selector: str, value: str) -> bool:
+        return bool(self.js(f"(() => {{ const i = document.querySelector({json.dumps(selector)}); if (!i) return false;"
+                            f" i.value = {json.dumps(value)}; i.dispatchEvent(new Event('input', {{bubbles: true}}));"
+                            f" i.dispatchEvent(new Event('change', {{bubbles: true}})); return true; }})()"))
+
+    def select(self, selector: str, value: str) -> bool:
+        return self.type(selector, value)
+
+    def text(self, selector: str) -> str:
+        return self.js(f"document.querySelector({json.dumps(selector)})?.textContent ?? ''") or ""
+
+    def value(self, selector: str) -> str:
+        return self.js(f"document.querySelector({json.dumps(selector)})?.value ?? ''") or ""
+
+    def exists(self, selector: str) -> bool:
+        return bool(self.js(f"!!document.querySelector({json.dumps(selector)})"))
+
+    def dialog_open(self, selector: str) -> bool:
+        return bool(self.js(f"document.querySelector({json.dumps(selector)})?.open === true"))
+
+    def close_dialog(self, selector: str) -> None:
+        self.js(f"document.querySelector({json.dumps(selector)})?.close(); true")
+
+    def confirm(self, seconds: float = 10) -> bool:
+        """The shared confirm dialog: wait for it, press its OK."""
+        if not self.wait("document.querySelector('#confirm')?.open === true", seconds):
+            return False
+        self.click("#confirm-ok")
+        return True
+
+    def page_text(self) -> str:
+        return self.js("document.body.innerText") or ""
+
+    def shot(self, name: str, width: int = 1440) -> None:
+        if self.shots_dir is None:
+            return
+        self.cdp.call("Emulation.setDeviceMetricsOverride", {"width": width, "height": 1000, "deviceScaleFactor": 1, "mobile": width < 600})
+        time.sleep(0.5)
+        height = self.js("Math.min(document.documentElement.scrollHeight, 2400)") or 1000
+        self.cdp.call("Emulation.setDeviceMetricsOverride", {"width": width, "height": int(height), "deviceScaleFactor": 1, "mobile": width < 600})
+        time.sleep(0.3)
+        data = self.cdp.call("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True})["data"]
+        path = self.shots_dir / name
+        path.write_bytes(base64.b64decode(data))
+        self.shots.append({"name": name, "bytes": path.stat().st_size, "width": width, "text_scanned": True})
+        self.desktop()
+
+    def errors(self) -> tuple[list[str], list[str]]:
+        self.cdp.drain(1.5)
+        exceptions, console = [], []
+        for event in self.cdp.events:
+            if event["method"] == "Runtime.exceptionThrown":
+                exceptions.append(redact(json.dumps(event["params"].get("exceptionDetails", {}))[:300]))
+            elif event["method"] == "Log.entryAdded" and event["params"]["entry"].get("level") == "error":
+                console.append(redact(event["params"]["entry"].get("text", "")[:300]))
+            elif event["method"] == "Runtime.consoleAPICalled" and event["params"].get("type") == "error":
+                console.append(redact(json.dumps(event["params"].get("args", []))[:300]))
+        self.cdp.events.clear()
+        return exceptions, console
+
+
+# ---------------------------------------------------------------------------
+# The panel's API, for setup, cross-checks and cleanup (the screen's own endpoints)
+# ---------------------------------------------------------------------------
+
+
+class Api:
+    def __init__(self, base: str, ca_file: str | None):
+        self.base = base.rstrip("/")
+        context = ssl.create_default_context(cafile=ca_file) if ca_file else ssl.create_default_context()
+        if not ca_file:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+        self.jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar),
+                                                  urllib.request.HTTPSHandler(context=context))
+        self.bearer: str | None = None
+
+    def csrf(self) -> str:
+        return next((c.value for c in self.jar if c.name == "panel_csrf"), "")
+
+    def request(self, path: str, method: str = "GET", payload=None, *, bearer: str | None = None) -> tuple[int, dict | list | str]:
+        data = json.dumps(payload).encode() if payload is not None else None
+        headers = {"Content-Type": "application/json"}
+        token = bearer or self.bearer
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        elif method != "GET":
+            headers["X-CSRF-Token"] = self.csrf()
+        request = urllib.request.Request(self.base + path, data=data, headers=headers, method=method)
+        try:
+            with self.opener.open(request, timeout=60) as response:
+                body, status = response.read(), response.status
+        except urllib.error.HTTPError as error:
+            body, status = error.read(), error.code
+        try:
+            return status, json.loads(body) if body else {}
+        except ValueError:
+            return status, body[:200].decode(errors="replace")
+
+    def json(self, path: str, method: str = "GET", payload=None):
+        status, body = self.request(path, method, payload)
+        if status >= 400:
+            raise RuntimeError(f"{method} {path} -> {status} {redact(json.dumps(body))[:200]}")
+        return body
+
+    def login(self, username: str, password: str) -> None:
+        self.request("/login")
+        status, body = self.request("/api/auth/login", "POST", {"username": username, "password": password})
+        if status not in (200, 204):
+            raise RuntimeError(f"login as {username} refused: {status}")
+
+
+# ---------------------------------------------------------------------------
+# The acceptance
+# ---------------------------------------------------------------------------
+
+
+class Acceptance:
+    def __init__(self, args: argparse.Namespace):
+        self.args = args
+        self.run_id = secrets.token_hex(3)
+        self.prefix = f"ui-{self.run_id}"
+        self.output = Path(args.output)
+        self.output.mkdir(parents=True, exist_ok=True)
+        self.report: dict = {"run_id": self.run_id, "checks": {}, "details": {}, "facts": {}, "durations": {}, "shots": [],
+                             "console": [], "exceptions": [], "failed": []}
+        self.password = Path(args.password_file).read_text().strip().splitlines()[-1].split("=")[-1].strip()
+        self.api = Api(args.node_url, args.ca_file)
+        self.browser: Browser | None = None
+        self.work = Path(tempfile.mkdtemp(prefix="ui-acceptance-"))
+        self.stub: subprocess.Popen | None = None
+        self.initial_users: dict[str, list[str]] = {}
+        self.created: dict[str, list[str]] = {"users": [], "naive": [], "mieru": [], "admins": [], "keys": [], "clients": []}
+        self.viewer = (f"{self.prefix}-viewer", "viewer-" + secrets.token_urlsafe(12))
+
+    # -- bookkeeping ------------------------------------------------------------
+
+    def check(self, name: str, ok: bool, detail: str = "") -> bool:
+        self.report["checks"][name] = bool(ok)
+        if not ok:
+            self.report["details"][name] = redact(str(detail))[:400]
+            self.report["failed"].append(name)
+        print(("PASS " if ok else "FAIL ") + name + ("" if ok else f"  {redact(str(detail))[:200]}"), flush=True)
+        return bool(ok)
+
+    def frame_is_secret_free(self, name: str) -> None:
+        text = self.browser.page_text() if self.browser else ""
+        hits = [shape.pattern for shape in SECRET_SHAPES if shape.search(text)]
+        self.check(f"{name}.frame_secret_free", not hits, str(hits))
+
+    def users(self) -> dict[str, list[str]]:
+        return {protocol: sorted(u["username"] for u in self.api.json(path)["items"])
+                for protocol, path in (("mtproxy", "/api/users"), ("naive", "/api/naive/users"), ("mieru", "/api/mieru/users"))}
+
+    # -- browser helpers -------------------------------------------------------------
+
+    def login(self, username: str, password: str) -> bool:
+        b = self.browser
+        b.goto(f"{self.args.node_url}/login")
+        if not b.wait("!!document.querySelector('#login input[name=username]')"):
+            return False
+        # The module binds the submit handler after paint: its first visible effect is the transport line.
+        b.wait("(document.querySelector('#transport-state')?.textContent || '').includes('соединение') && "
+               "!(document.querySelector('#transport-state')?.textContent || '').includes('Проверка')", 30)
+        b.js(f"(() => {{ const f = document.querySelector('#login'); f.querySelector('input[name=username]').value = {json.dumps(username)};"
+             f" f.querySelector('input[name=password]').value = {json.dumps(password)}; f.requestSubmit(); return true; }})()")
+        return b.wait("location.pathname === '/' && !!document.querySelector('#view') && "
+                      f"document.querySelector('#profile-name')?.textContent === {json.dumps(username)}", 30)
+
+    def goto_view(self, view: str, ready: str = "!!document.querySelector('#view')", seconds: float = 20) -> bool:
+        self.browser.js(f"document.querySelector('.nav-item[data-view={view}]').click(); true")
+        return self.browser.wait(ready, seconds)
+
+    def open_add(self, dialog: str) -> bool:
+        self.browser.click("#add")
+        return self.browser.wait(f"document.querySelector('{dialog}')?.open === true")
+
+    def row_action(self, attribute: str, action: str, username: str) -> bool:
+        return self.browser.click(f"[{attribute}={json.dumps(action)}][data-user={json.dumps(username)}]")
+
+    # -- views --------------------------------------------------------------------------
+
+    def view_login(self) -> None:
+        b = self.browser
+        b.goto(f"{self.args.node_url}/login")
+        self.check("login.form_rendered", b.wait("!!document.querySelector('#login input[name=username]')"))
+        b.wait("(document.querySelector('#transport-state')?.textContent || '').includes('соединение')", 30)
+        b.js("(() => { const f = document.querySelector('#login'); f.querySelector('input[name=username]').value = 'owner';"
+             " f.querySelector('input[name=password]').value = 'definitely-not-the-password'; f.requestSubmit(); return true; })()")
+        self.check("login.wrong_password_refused", b.wait("(document.querySelector('#error')?.textContent || '').length > 0 && location.pathname === '/login' && !!document.querySelector('#login input[name=username]')", 15))
+        error = b.text("#error")
+        self.check("login.refusal_is_the_servers_word_not_a_reload", "Сессия завершена" not in error and error.strip() != "", error)
+        self.check("login.right_password_lands_on_overview", self.login("owner", self.password))
+        self.check("login.session_cookie_is_httponly", "panel_session" not in (b.js("document.cookie") or ""))
+        b.shot("login-overview.png")
+        b.click("#logout")
+        self.check("login.logout_returns_to_form", b.wait("location.pathname === '/login' && !!document.querySelector('#login')", 15))
+        status, _ = self.api.request("/api/auth/me")
+        self.check("login.relogin_works", self.login("owner", self.password))
+
+    def view_dashboard(self) -> None:
+        b = self.browser
+        self.check("dashboard.rendered", self.goto_view("dashboard", "!!document.querySelector('.host-card') && document.querySelectorAll('.protocol-card').length >= 3"))
+        text = b.page_text()
+        self.check("dashboard.host_card_has_resources_or_reason", "Ресурсы сервера" in text and ("CPU" in text or "Недоступны" in text))
+        self.check("dashboard.protocol_cards_rendered", all(name in text for name in ("MTProxy", "Mieru", "NaiveProxy")))
+        counts = {k: b.text(f"#{k}-count").strip() for k in ("users", "naive", "mieru")}
+        api = {"users": len(self.api.json("/api/users")["items"]), "naive": len(self.api.json("/api/naive/users")["items"]),
+               "mieru": len(self.api.json("/api/mieru/users")["items"])}
+        self.check("dashboard.sidebar_counters_match_api", all(counts[k] == str(api[k]) for k in counts), f"{counts} vs {api}")
+        self.frame_is_secret_free("dashboard")
+        b.shot("dashboard.png")
+
+    def view_users(self) -> None:
+        b = self.browser
+        name = f"{self.prefix}-tg"
+        self.check("users.rendered", self.goto_view("users", "!!document.querySelector('#user-list') && !!document.querySelector('#user-search')"))
+        self.check("users.create_dialog_opens", self.open_add("#user-modal"))
+        b.type("#new-user", name)
+        self.check("users.create_button_enabled_after_input", b.wait("!document.querySelector('#create-user').disabled"))
+        b.click("#create-user")
+        self.check("users.create_reveals_link_and_qr", b.wait("document.querySelector('#access-modal')?.open === true && "
+                   "/^(tg:\\/\\/proxy|https:\\/\\/t\\.me\\/proxy)/.test(document.querySelector('#access-link')?.value || '') && "
+                   "!!document.querySelector('#qr-image')?.getAttribute('src')", 30))
+        first_link = b.value("#access-link")
+        self.created["users"].append(name)
+        b.close_dialog("#access-modal")
+        self.check("users.reveal_cleared_on_close", b.wait("(document.querySelector('#access-link')?.value || '') === ''"))
+        self.check("users.row_listed_without_reload", b.wait(f"!!document.querySelector('[data-user-action=limits][data-user={json.dumps(name)}]')", 20))
+        b.type("#user-search", name)
+        self.check("users.search_filters_rows", b.wait("document.querySelectorAll('#user-list .data-row').length === 1"))
+        b.type("#user-search", "")
+        self.row_action("data-user-action", "limits", name)
+        self.check("users.limits_dialog_opens", b.wait("document.querySelector('#limits-modal')?.open === true"))
+        b.type("#limit-quota", "1")
+        b.type("#limit-connections", "3")
+        b.click("#save-limits")
+        self.check("users.limits_saved", b.wait("document.querySelector('#limits-modal')?.open !== true", 20))
+        stored = next(u for u in self.api.json("/api/users")["items"] if u["username"] == name)
+        self.check("users.limits_reach_the_api", stored.get("data_quota_bytes") == 1_073_741_824 and stored.get("max_tcp_conns") == 3, json.dumps({k: stored.get(k) for k in ("data_quota_bytes", "max_tcp_conns")}))
+        b.wait(f"!!document.querySelector('[data-user-action=disable][data-user={json.dumps(name)}]')", 20)
+        self.row_action("data-user-action", "disable", name)
+        self.check("users.disable_asks_and_blocks", b.confirm() and b.wait(f"!!document.querySelector('[data-user-action=enable][data-user={json.dumps(name)}]')", 20))
+        self.row_action("data-user-action", "enable", name)
+        self.check("users.enable_restores", b.confirm() and b.wait(f"!!document.querySelector('[data-user-action=disable][data-user={json.dumps(name)}]')", 20))
+        self.row_action("data-user-action", "rotate", name)
+        self.check("users.rotate_reveals_a_new_link", b.confirm() and b.wait("document.querySelector('#access-modal')?.open === true && "
+                   f"(document.querySelector('#access-link')?.value || '').length > 0 && document.querySelector('#access-link').value !== {json.dumps(first_link)}", 30))
+        b.close_dialog("#access-modal")
+        b.wait(f"!!document.querySelector('[data-user-action=share][data-user={json.dumps(name)}]')", 20)
+        self.row_action("data-user-action", "share", name)
+        self.check("users.share_reopens_the_link", b.wait("document.querySelector('#access-modal')?.open === true && (document.querySelector('#access-link')?.value || '').startsWith('tg://') || (document.querySelector('#access-link')?.value || '').startsWith('https://t.me/')", 20))
+        b.close_dialog("#access-modal")
+        listing = json.dumps(self.api.json("/api/users"))
+        self.check("users.list_carries_no_secret", "secret=" not in listing and "tg://" not in listing)
+        b.shot("users.png")
+        self.frame_is_secret_free("users")
+        b.wait(f"!!document.querySelector('[data-user-action=delete][data-user={json.dumps(name)}]')", 20)
+        self.row_action("data-user-action", "delete", name)
+        self.check("users.delete_asks_and_removes_row", b.confirm() and b.wait(f"!document.querySelector('[data-user={json.dumps(name)}]')", 20))
+        if name not in [u["username"] for u in self.api.json("/api/users")["items"]]:
+            self.created["users"].remove(name)
+
+    def view_naive(self) -> None:
+        b = self.browser
+        name = f"{self.prefix}-nv"
+        self.check("naive.rendered", self.goto_view("naive", "!!document.querySelector('#naive-list')"))
+        self.check("naive.create_dialog_opens", self.open_add("#naive-modal"))
+        b.type("#new-naive-user", name)
+        b.type("#new-naive-quota", "100")
+        self.check("naive.create_button_enabled", b.wait("!document.querySelector('#create-naive').disabled"))
+        b.click("#create-naive")
+        self.check("naive.create_reveals_client_tabs", b.wait("document.querySelector('#naive-access-modal')?.open === true && "
+                   "document.querySelectorAll('#naive-client-tabs button[data-client]').length >= 2 && "
+                   "(document.querySelector('#naive-payload')?.value || '').length > 0", 40))
+        self.created["naive"].append(name)
+        tabs = b.js("[...document.querySelectorAll('#naive-client-tabs button[data-client]')].map(b => b.dataset.client)") or []
+        self.check("naive.reveal_offers_native_karing_nekobox", {"native", "karing", "nekobox"} <= set(tabs), str(tabs))
+        native_payload = b.value("#naive-payload")
+        b.click("#naive-client-tabs button[data-client=karing]")
+        self.check("naive.karing_tab_switches_payload", b.wait(f"(document.querySelector('#naive-payload')?.value || '') !== {json.dumps(native_payload)} && (document.querySelector('#naive-payload')?.value || '').length > 0", 10))
+        b.close_dialog("#naive-access-modal")
+        self.check("naive.row_listed_with_quota", b.wait(f"!!document.querySelector('[data-naive-name={json.dumps(name)}]') && (document.querySelector('[data-naive-name={json.dumps(name)}]')?.textContent || '').includes('квота')", 20))
+        self.row_action("data-naive-action", "quota", name)
+        self.check("naive.quota_dialog_opens_with_current", b.wait("document.querySelector('#naive-quota-modal')?.open === true && document.querySelector('#naive-quota-mib')?.value === '100'"))
+        b.type("#naive-quota-mib", "200")
+        b.click("#save-naive-quota")
+        self.check("naive.quota_saved", b.wait("document.querySelector('#naive-quota-modal')?.open !== true", 20))
+        stored = next(u for u in self.api.json("/api/naive/users")["items"] if u["username"] == name)
+        self.check("naive.quota_reaches_the_api", str(stored.get("quota_bytes_decimal")) == str(200 * 1_048_576), str(stored.get("quota_bytes_decimal")))
+        b.wait(f"!!document.querySelector('[data-naive-action=reset-traffic][data-user={json.dumps(name)}]')", 20)
+        self.row_action("data-naive-action", "reset-traffic", name)
+        self.check("naive.traffic_reset_confirmed", b.confirm() and b.wait(f"!!document.querySelector('[data-naive-action=disable][data-user={json.dumps(name)}]')", 20))
+        self.row_action("data-naive-action", "disable", name)
+        self.check("naive.disable_asks_and_marks", b.confirm() and b.wait(f"!!document.querySelector('[data-naive-action=enable][data-user={json.dumps(name)}]')", 30))
+        self.row_action("data-naive-action", "enable", name)
+        self.check("naive.enable_restores", b.confirm() and b.wait(f"!!document.querySelector('[data-naive-action=disable][data-user={json.dumps(name)}]')", 30))
+        self.row_action("data-naive-action", "rotate", name)
+        self.check("naive.rotate_reveals_again", b.confirm() and b.wait("document.querySelector('#naive-access-modal')?.open === true && (document.querySelector('#naive-payload')?.value || '').length > 0", 40))
+        rotated = b.value("#naive-payload")
+        self.check("naive.rotated_payload_differs", rotated != native_payload)
+        b.close_dialog("#naive-access-modal")
+        b.wait(f"!!document.querySelector('[data-naive-action=access][data-user={json.dumps(name)}]')", 20)
+        self.row_action("data-naive-action", "access", name)
+        self.check("naive.access_reopens_configuration", b.wait("document.querySelector('#naive-access-modal')?.open === true && (document.querySelector('#naive-payload')?.value || '').length > 0", 20))
+        b.close_dialog("#naive-access-modal")
+        listing = json.dumps(self.api.json("/api/naive/users"))
+        self.check("naive.list_carries_no_secret", not any(s.search(listing) for s in SECRET_SHAPES) and "proxy_url" not in listing)
+        b.shot("naive.png")
+        self.frame_is_secret_free("naive")
+        b.wait(f"!!document.querySelector('[data-naive-action=delete][data-user={json.dumps(name)}]')", 20)
+        self.row_action("data-naive-action", "delete", name)
+        self.check("naive.delete_asks_and_removes_row", b.confirm() and b.wait(f"!document.querySelector('[data-naive-name={json.dumps(name)}]')", 30))
+        if name not in [u["username"] for u in self.api.json("/api/naive/users")["items"]]:
+            self.created["naive"].remove(name)
+
+    def view_mieru(self) -> None:
+        b = self.browser
+        name = f"{self.prefix}-mr"
+        self.check("mieru.rendered", self.goto_view("mieru", "!!document.querySelector('.naive-overview') && (document.body.innerText || '').includes('revision')"))
+        self.check("mieru.create_dialog_opens", self.open_add("#mieru-modal"))
+        b.type("#new-mieru-user", name)
+        b.type("#mieru-days", "30")
+        b.type("#mieru-mib", "1024")
+        self.check("mieru.create_button_enabled", b.wait("!document.querySelector('#create-mieru').disabled"))
+        b.click("#create-mieru")
+        self.check("mieru.create_reveals_client_tabs", b.wait("document.querySelector('#mieru-access-modal')?.open === true && "
+                   "document.querySelectorAll('#mieru-client-tabs button[data-client]').length >= 2 && "
+                   "(document.querySelector('#mieru-payload')?.value || '').length > 0", 60))
+        self.created["mieru"].append(name)
+        tabs = b.js("[...document.querySelectorAll('#mieru-client-tabs button[data-client]')].map(b => b.dataset.client)") or []
+        self.check("mieru.reveal_offers_native_and_karing", {"native", "karing"} <= set(tabs), str(tabs))
+        native_payload = b.value("#mieru-payload")
+        self.check("mieru.native_payload_is_client_json", native_payload.lstrip().startswith("{") and "profiles" in native_payload, native_payload[:60])
+        b.close_dialog("#mieru-access-modal")
+        self.check("mieru.row_listed_with_quota", b.wait(f"[...document.querySelectorAll('.data-row')].some(r => r.textContent.includes({json.dumps(name)}) && r.textContent.includes('30'))", 30))
+        self.row_action("data-mieru-action", "quotas", name)
+        self.check("mieru.quota_dialog_opens_with_rows", b.wait("document.querySelector('#mieru-quota-modal')?.open === true && document.querySelectorAll('[data-mieru-quota-row]').length === 1"))
+        b.type("[data-mieru-quota-days]", "7")
+        b.type("[data-mieru-quota-mib]", "512")
+        b.click("#save-mieru-quota")
+        self.check("mieru.quota_saved", b.wait("document.querySelector('#mieru-quota-modal')?.open !== true", 30))
+        stored = next(u for u in self.api.json("/api/mieru/users")["items"] if u["username"] == name)
+        self.check("mieru.quota_reaches_the_api", stored.get("quotas") == [{"days": 7, "megabytes": 512}], json.dumps(stored.get("quotas")))
+        b.wait(f"!!document.querySelector('[data-mieru-action=disable][data-user={json.dumps(name)}]')", 30)
+        self.row_action("data-mieru-action", "disable", name)
+        self.check("mieru.disable_asks_and_marks", b.confirm() and b.wait(f"!!document.querySelector('[data-mieru-action=enable][data-user={json.dumps(name)}]')", 60))
+        self.row_action("data-mieru-action", "enable", name)
+        self.check("mieru.enable_restores", b.confirm() and b.wait(f"!!document.querySelector('[data-mieru-action=disable][data-user={json.dumps(name)}]')", 60))
+        self.row_action("data-mieru-action", "rotate", name)
+        self.check("mieru.rotate_reveals_again", b.confirm() and b.wait("document.querySelector('#mieru-access-modal')?.open === true && (document.querySelector('#mieru-payload')?.value || '').length > 0", 60))
+        self.check("mieru.rotated_payload_differs", b.value("#mieru-payload") != native_payload)
+        b.close_dialog("#mieru-access-modal")
+        listing = json.dumps(self.api.json("/api/mieru/users"))
+        self.check("mieru.list_carries_no_secret", not any(s.search(listing) for s in SECRET_SHAPES) and "share_url" not in listing)
+        b.shot("mieru.png")
+        self.frame_is_secret_free("mieru")
+        b.wait(f"!!document.querySelector('[data-mieru-action=delete][data-user={json.dumps(name)}]')", 30)
+        self.row_action("data-mieru-action", "delete", name)
+        self.check("mieru.delete_asks_and_removes_row", b.confirm() and b.wait(f"![...document.querySelectorAll('.data-row')].some(r => r.textContent.includes({json.dumps(name)}))", 60))
+        if name not in [u["username"] for u in self.api.json("/api/mieru/users")["items"]]:
+            self.created["mieru"].remove(name)
+
+    def view_clients(self) -> None:
+        b = self.browser
+        client_name = f"{self.prefix}-client"
+        grant_user = f"{self.prefix}-cl"
+        imported_user = f"{self.prefix}-imp"
+        self.check("clients.rendered", self.goto_view("clients", "!!document.querySelector('.client-list') && !!document.querySelector('[data-client-action=import]')"))
+        self.check("clients.create_dialog_opens", self.open_add("#client-modal"))
+        b.type("#client-name", client_name)
+        b.click("#create-client")
+        self.check("clients.card_listed", b.wait(f"[...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(client_name)})", 20))
+        client = next(e for e in self.api.json("/api/clients")["items"] if e["client"]["display_name"] == client_name)
+        client_id = client["client"]["id"]
+        self.created["clients"].append(client_id)
+        card = f"[data-client-id={json.dumps(client_id)}]"
+        b.click(f"{card} [data-client-action=grant]")
+        self.check("clients.grant_dialog_opens", b.wait("document.querySelector('#grant-modal')?.open === true"))
+        b.type("#grant-username", grant_user)
+        b.js("[...document.querySelectorAll('#grant-form .grant-protocol input')].forEach(i => { i.checked = true; }); true")
+        b.click("#create-grants")
+        self.check("clients.grants_issue_and_bundle_reveals", b.wait("document.querySelector('#bundle-modal')?.open === true && (document.querySelector('#bundle-body')?.textContent || '').length > 0", 90),
+                   f"grant-error: {b.text('#grant-error')!r}")
+        bundle = b.text("#bundle-body")
+        self.check("clients.bundle_names_three_protocols", all(word in bundle for word in ("mtproxy", "naive", "mieru")), bundle[:200])
+        b.close_dialog("#bundle-modal")
+        self.check("clients.three_grant_chips", b.wait(f"document.querySelectorAll('{card} .grant-chip[data-grant-id]').length === 3", 30))
+        for protocol in ("mtproxy", "naive", "mieru"):
+            self.created[{"mtproxy": "users", "naive": "naive", "mieru": "mieru"}[protocol]].append(grant_user)
+        chip = f"{card} .grant-chip[data-grant-protocol=naive]"
+        b.click(f"{chip} [data-client-action=grant-disable]")
+        self.check("clients.grant_disable_marks_chip", b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-enable]')", 30))
+        b.click(f"{chip} [data-client-action=grant-enable]")
+        self.check("clients.grant_enable_restores", b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-disable]')", 30))
+        b.click(f"{chip} [data-client-action=grant-rotate]")
+        self.check("clients.grant_rotate_asks", b.confirm() and b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-rotate]')", 30))
+        # The subscription: the URL shown once, rotated, revoked — each state proven at the public endpoint.
+        b.click(f"{card} [data-client-action=subscription]")
+        self.check("clients.subscription_dialog_opens", b.wait("document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#subscription-actions button')", 20))
+        configured = "не настроен" not in b.text("#subscription-status")
+        self.check("clients.subscription_domain_configured", configured, b.text("#subscription-status")[:120])
+        if configured:
+            b.click("[data-subscription-action=create]")
+            self.check("clients.subscription_url_revealed_once", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20))
+            first_url = b.value("#subscription-url")
+            self.report["facts"]["subscription_host"] = urllib.parse.urlsplit(first_url).hostname
+            self.check("clients.subscription_url_serves", self.fetch(first_url) == 200)
+            b.click("[data-subscription-action=rotate]")
+            self.check("clients.subscription_rotate_moves_url", b.confirm() and b.wait(f"(document.querySelector('#subscription-url')?.value || '').startsWith('https://') && document.querySelector('#subscription-url').value !== {json.dumps(first_url)}", 20))
+            second_url = b.value("#subscription-url")
+            self.check("clients.old_subscription_url_is_404", self.fetch(first_url) == 404)
+            self.check("clients.new_subscription_url_serves", self.fetch(second_url) == 200)
+            b.click("[data-subscription-action=revoke]")
+            self.check("clients.subscription_revoke_offers_create_again", b.confirm() and b.wait("!!document.querySelector('[data-subscription-action=create]')", 20))
+            self.check("clients.revoked_subscription_url_is_404", self.fetch(second_url) == 404)
+        b.close_dialog("#subscription-modal")
+        # Import: a runtime user the panel did not create is adopted without touching the manager.
+        self.api.json("/api/naive/users", "POST", {"username": imported_user})
+        self.created["naive"].append(imported_user)
+        self.goto_view("clients", "!!document.querySelector('[data-client-action=import]')")
+        b.click("[data-client-action=import]")
+        self.check("clients.import_dialog_lists_runtime_users", b.wait(f"document.querySelector('#client-import-modal')?.open === true && !!document.querySelector('#client-import-rows tr[data-import-username={json.dumps(imported_user)}]')", 30))
+        b.js(f"[...document.querySelectorAll('#client-import-rows tr')].forEach(r => {{ const p = r.querySelector('.import-pick'); if (p && !p.disabled) p.checked = r.dataset.importUsername === {json.dumps(imported_user)}; }}); true")
+        b.click("#confirm-client-import")
+        self.check("clients.import_creates_a_client_without_a_secret", b.wait(f"document.querySelector('#client-import-modal')?.open !== true && [...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(imported_user)} && !!c.querySelector('[data-client-action=adopt]'))", 30))
+        imported = next(e for e in self.api.json("/api/clients")["items"] if e["client"]["display_name"] == imported_user)
+        self.created["clients"].append(imported["client"]["id"])
+        icard = f"[data-client-id={json.dumps(imported['client']['id'])}]"
+        b.click(f"{icard} [data-client-action=adopt]")
+        self.check("clients.adopt_captures_the_credential", b.wait(f"!document.querySelector('{icard} [data-client-action=adopt]') && !!document.querySelector('{icard} .grant-chip[data-grant-id]')", 30))
+        b.click(f"{card} [data-client-action=suspend]")
+        self.check("clients.suspend_marks_card", b.wait(f"!!document.querySelector('{card} [data-client-action=resume]')", 30))
+        b.click(f"{card} [data-client-action=resume]")
+        self.check("clients.resume_restores", b.wait(f"!!document.querySelector('{card} [data-client-action=suspend]')", 30))
+        b.shot("clients.png")
+        self.frame_is_secret_free("clients")
+        # Every grant deleted through its chip, both clients archived: the runtime is as before.
+        for target in (card, icard):
+            for _ in range(4):
+                if not b.exists(f"{target} .grant-chip [data-client-action=grant-delete]"):
+                    break
+                b.click(f"{target} .grant-chip [data-client-action=grant-delete]")
+                b.confirm()
+                b.wait("document.querySelector('#confirm')?.open !== true", 10)
+                time.sleep(1.5)
+                b.wait(f"!!document.querySelector('{target}')", 30)
+        self.check("clients.grant_delete_empties_the_card", b.wait(f"document.querySelectorAll('{card} .grant-chip[data-grant-id]').length === 0 && document.querySelectorAll('{icard} .grant-chip[data-grant-id]').length === 0", 60))
+        for target in (card, icard):
+            b.wait(f"!!document.querySelector('{target} [data-client-action=archive]')", 30)
+            b.click(f"{target} [data-client-action=archive]")
+            b.confirm()
+            b.wait(f"!document.querySelector('{target} [data-client-action=archive]')", 30)
+        wanted = (client_id, imported["client"]["id"])
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            states = {e["client"]["id"]: e["client"]["state"] for e in self.api.json("/api/clients")["items"]}
+            if all(states.get(i) == "archived" for i in wanted):
+                break
+            time.sleep(1)
+        self.check("clients.archive_after_grants_gone", all(states.get(i) == "archived" for i in wanted),
+                   json.dumps({i: states.get(i) for i in wanted}) + " toasts: " + str(b.js("[...document.querySelectorAll('#toast-region *')].map(t => t.textContent).slice(0, 3)")))
+        for protocol, key in (("mtproxy", "users"), ("naive", "naive"), ("mieru", "mieru")):
+            listed = [u["username"] for u in self.api.json({"users": "/api/users", "naive": "/api/naive/users", "mieru": "/api/mieru/users"}[key])["items"]]
+            for name in list(self.created[key]):
+                if name.startswith(self.prefix) and name not in listed:
+                    self.created[key].remove(name)
+
+    def fetch(self, url: str) -> int:
+        argv = ["curl", "--silent", "--output", "/dev/null", "--write-out", "%{http_code}", "--max-time", "20"]
+        if self.args.ca_file:
+            argv += ["--cacert", self.args.ca_file]
+        else:
+            argv += ["--insecure"]
+        try:
+            return int(subprocess.run(argv + [url], capture_output=True, text=True, timeout=30).stdout.strip() or 0)
+        except (subprocess.SubprocessError, ValueError):
+            return 0
+
+    def view_versions(self) -> None:
+        b = self.browser
+        self.check("versions.rendered", self.goto_view("versions", "!!document.querySelector('.version-card') || (document.body.innerText || '').includes('Агент обновлений недоступен')"))
+        agent = self.api.json("/api/versions")
+        if agent.get("enabled"):
+            cards = b.js("[...document.querySelectorAll('.version-card h2')].map(h => h.textContent)") or []
+            self.check("versions.components_listed", len(cards) >= 3 and "Текущая версия" in b.page_text(), str(cards))
+            self.check("versions.update_needs_a_chosen_version", b.js("[...document.querySelectorAll('.version-update')].every(x => x.disabled)"))
+        else:
+            self.check("versions.agent_absence_is_honest", "Агент обновлений недоступен" in b.page_text())
+        self.report["facts"]["version_agent"] = bool(agent.get("enabled"))
+        self.frame_is_secret_free("versions")
+        b.shot("versions.png")
+
+    def view_fleet(self) -> None:
+        b = self.browser
+        self.check("fleet.rendered", self.goto_view("fleet", "!!document.querySelector('.local-node')"))
+        card = b.text(".local-node")
+        self.check("fleet.local_card_has_manager_health_and_routing_line", "Маршрутизация" in card and any(word in card for word in ("Telemt", "MTProxy", "NaiveProxy", "Mieru")), card[:200])
+        self.check("fleet.link_dialog_opens", self.open_add("#link-modal") and b.exists("#link-url") and b.exists("#link-key"))
+        b.close_dialog("#link-modal")
+        self.frame_is_secret_free("fleet")
+        b.shot("fleet.png")
+
+    def view_routing(self) -> None:
+        b = self.browser
+        loaded = "!!document.querySelector('#routing-preview .status-pill') && !(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('загружается')"
+        self.check("routing.rendered", self.goto_view("routing", f"!!document.querySelector('#routing-form') && !!document.querySelector('#routing-node') && {loaded}"))
+        self.check("routing.naive_tab_active", b.js("document.querySelector('[data-routing-action=protocol].active')?.dataset.protocol") == "naive")
+        targets = {i["protocol"]: i for i in self.api.json("/api/routing/targets")["items"] if i["node_id"] == "local"}
+        router = bool((targets.get("naive") or {}).get("router"))
+        self.report["facts"]["router_installed"] = router
+        # v0.4: a block rule beside a WARP default is refused by Caddy, honestly, at the rule.
+        b.select("#routing-form select[name=default_action]", "egress")
+        b.click("[data-routing-action=rule-add]")
+        self.check("routing.rule_row_added", b.wait("document.querySelectorAll('.routing-rule').length === 1"))
+        b.type("[data-rule-field=domains]", "example.com, *.example.com")
+        self.check("routing.native_preview_refuses_block_beside_warp", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('не применимо') && !!document.querySelector('.routing-reason')", 15))
+        b.select("#routing-form select[name=default_action]", "direct")
+        self.check("routing.native_preview_supports_direct_block", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается')", 15))
+        b.click("#routing-save")
+        self.check("routing.saved_as_draft", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20))
+        b.click("[data-routing-action=apply]")
+        self.check("routing.apply_asks", b.confirm())
+        self.check("routing.native_applied_badge", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено (rev') && {loaded}", 40))
+        b.click("[data-routing-action=history]")
+        self.check("routing.history_table", b.wait("!!document.querySelector('#routing-history table tbody tr')", 15))
+        b.shot("routing-naive-native-applied.png")
+        b.click("[data-routing-action=rollback]")
+        self.check("routing.rollback_asks_and_badge", b.confirm() and b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('откачено') && {loaded}", 60))
+        b.click("[data-routing-action=delete]")
+        self.check("routing.native_policy_deleted", b.confirm() and b.wait("(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('политика не задана')", 30))
+        if router:
+            self.routing_router(loaded)
+        self.frame_is_secret_free("routing")
+        b.shot("routing-mobile.png", width=390)
+
+    def routing_router(self, loaded: str) -> None:
+        b = self.browser
+        line = b.text(".routing-router-line")
+        self.check("routing.router_line_not_attached_with_version", "Xray-router: сервис не подключён" in line and "Xray" in line, line)
+        b.click("[data-routing-action=attach]")
+        self.check("routing.attach_asks", b.wait("document.querySelector('#confirm')?.open === true && (document.querySelector('#confirm')?.textContent || '').includes('Подключить NaiveProxy к Xray-router')"))
+        b.click("#confirm-ok")
+        self.check("routing.router_line_attached", b.wait(f"(document.querySelector('.routing-router-line')?.textContent || '').includes('сервис подключён') && !!document.querySelector('[data-routing-action=detach]') && {loaded}", 40))
+        self.check("routing.backend_badge_router", b.text(".routing-backend") == "Xray-router")
+        b.select("#routing-form select[name=default_action]", "egress")
+        b.click("[data-routing-action=rule-add]")
+        b.wait("document.querySelectorAll('.routing-rule').length === 1")
+        b.type("[data-rule-field=geosites]", "category-ads-all")
+        b.click("[data-routing-action=rule-add]")
+        b.wait("document.querySelectorAll('.routing-rule').length === 2")
+        b.js("(() => { const i = document.querySelectorAll('[data-rule-field=ports]')[1]; i.value = '25'; i.dispatchEvent(new Event('input', {bubbles: true})); return true; })()")
+        self.check("routing.router_preview_supports_geosite_and_port", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && !document.querySelector('.routing-reason')", 15))
+        b.click("#routing-save")
+        b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20)
+        b.click("[data-routing-action=apply]")
+        b.confirm()
+        self.check("routing.router_policy_applied_badge", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено (rev') && {loaded}", 60))
+        b.shot("routing-naive-router-applied.png")
+        self.goto_view("fleet", "!!document.querySelector('.local-node')")
+        self.check("routing.node_card_names_the_router", b.wait("(document.querySelector('.local-node')?.textContent || '').includes('[Xray-router]')", 20))
+        self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
+        b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('применено') && !document.querySelector('[data-routing-action=rollback]').disabled && {loaded}", 30)
+        b.click("[data-routing-action=rollback]")
+        self.check("routing.router_rollback_badge", b.confirm() and b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('откачено') && {loaded}", 60))
+        b.click("[data-routing-action=detach]")
+        self.check("routing.detach_asks", b.wait("document.querySelector('#confirm')?.open === true && (document.querySelector('#confirm')?.textContent || '').includes('Отключить NaiveProxy от Xray-router')"))
+        b.click("#confirm-ok")
+        self.check("routing.router_line_detached", b.wait(f"(document.querySelector('.routing-router-line')?.textContent || '').includes('сервис не подключён') && !!document.querySelector('[data-routing-action=attach]') && {loaded}", 40))
+        b.click("[data-routing-action=delete]")
+        self.check("routing.policy_deleted_right_after_detach", b.confirm() and b.wait("(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('политика не задана')", 30))
+
+    def view_admins(self) -> None:
+        b = self.browser
+        admin_name, admin_password = self.viewer
+        key_name = f"{self.prefix}-monitor"
+        self.check("admins.rendered", self.goto_view("admins", "!!document.querySelector('#api-keys') && document.querySelectorAll('.admin-grid.data-row').length >= 1 && !!document.querySelector('[data-key-action=create]')", 30))
+        self.check("admins.create_dialog_opens", self.open_add("#admin-modal"))
+        b.type("#admin-user", admin_name)
+        b.type("#admin-password", admin_password)
+        b.select("#admin-role", "viewer")
+        b.click("#save-admin")
+        self.check("admins.viewer_created_and_listed", b.wait(f"document.querySelector('#admin-modal')?.open !== true && [...document.querySelectorAll('.admin-grid.data-row')].some(r => r.textContent.includes({json.dumps(admin_name)}))", 20))
+        self.created["admins"].append(admin_name)
+        admin = next(a for a in self.api.json("/api/admins")["items"] if a["username"] == admin_name)
+        b.click(f"[data-management-action=toggle-admin][data-admin-id=\"{admin['id']}\"]")
+        self.check("admins.toggle_asks_and_disables", b.confirm() and b.wait(f"(document.querySelector('[data-management-action=toggle-admin][data-admin-id=\"{admin['id']}\"]')?.textContent || '').includes('Включить')", 20))
+        b.click(f"[data-management-action=toggle-admin][data-admin-id=\"{admin['id']}\"]")
+        self.check("admins.toggle_enables_again", b.confirm() and b.wait(f"(document.querySelector('[data-management-action=toggle-admin][data-admin-id=\"{admin['id']}\"]')?.textContent || '').includes('Отключить')", 20))
+        # API keys: the plaintext once, then only its prefix; a monitor key reads and never writes.
+        b.wait("!!document.querySelector('#api-keys .keys-head [data-key-action=create]')", 20)
+        b.click("[data-key-action=create]")
+        self.check("admins.key_dialog_opens", b.wait("document.querySelector('#key-modal')?.open === true"))
+        b.type("#key-name", key_name)
+        b.select("#key-scope", "monitor")
+        b.click("#create-key")
+        self.check("admins.key_plaintext_shown_once", b.wait("document.querySelector('#key-reveal')?.open === true && (document.querySelector('#key-plaintext')?.value || '').startsWith('pc_')", 20))
+        plaintext = b.value("#key-plaintext")
+        b.close_dialog("#key-reveal")
+        self.check("admins.key_plaintext_cleared_on_close", b.wait("(document.querySelector('#key-plaintext')?.value || '') === ''"))
+        self.check("admins.key_listed_by_prefix_only", b.wait(f"[...document.querySelectorAll('[data-key-id]')].some(r => r.textContent.includes({json.dumps(key_name)}) && !r.textContent.includes({json.dumps(plaintext)}))", 20))
+        key = next(k for k in self.api.json("/api/keys")["items"] if k["name"] == key_name)
+        self.created["keys"].append(key["id"])
+        reads, _ = self.api.request("/api/dashboard", bearer=plaintext)
+        writes, _ = self.api.request("/api/users", "POST", {"username": f"{self.prefix}-never"}, bearer=plaintext)
+        self.check("admins.monitor_key_reads_and_cannot_write", reads == 200 and writes == 403, f"read {reads} write {writes}")
+        b.click(f"[data-key-id=\"{key['id']}\"] [data-key-action=toggle]")
+        self.check("admins.key_disabled_from_the_row", b.wait(f"(document.querySelector('[data-key-id=\"{key['id']}\"]')?.textContent || '').includes('Выключен')", 20))
+        refused, _ = self.api.request("/api/dashboard", bearer=plaintext)
+        self.check("admins.disabled_key_is_401", refused == 401, str(refused))
+        self.frame_is_secret_free("admins")
+        b.shot("admins.png")
+        b.click(f"[data-key-id=\"{key['id']}\"] [data-key-action=delete]")
+        self.check("admins.key_delete_asks_and_removes", b.confirm() and b.wait(f"!document.querySelector('[data-key-id=\"{key['id']}\"]')", 20))
+        self.created["keys"].remove(key["id"])
+        # The viewer sees, and only sees.
+        b.click("#logout")
+        b.wait("location.pathname === '/login'", 15)
+        self.check("admins.viewer_can_log_in", self.login(admin_name, admin_password))
+        self.goto_view("users", "!!document.querySelector('#user-list')")
+        self.check("admins.viewer_has_no_add_button", b.js("document.querySelector('#add')?.hidden === true"))
+        self.goto_view("routing", "!!document.querySelector('#routing-form')")
+        self.check("admins.viewer_cannot_apply_routing", b.js("document.querySelector('[data-routing-action=apply]')?.disabled === true && document.querySelector('#routing-save')?.disabled === true"))
+        b.click("#logout")
+        b.wait("location.pathname === '/login'", 15)
+        self.login("owner", self.password)
+        self.goto_view("admins", "!!document.querySelector('#api-keys') && !!document.querySelector('[data-key-action=create]')", 30)
+        b.click(f"[data-management-action=edit-admin][data-admin-id=\"{admin['id']}\"]")
+        self.check("admins.edit_dialog_offers_delete", b.wait("document.querySelector('#admin-modal')?.open === true && document.querySelector('#delete-admin')?.hidden === false"))
+        b.click("#delete-admin")
+        self.check("admins.delete_asks_and_removes", b.confirm() and b.wait(f"![...document.querySelectorAll('.admin-grid.data-row')].some(r => r.textContent.includes({json.dumps(admin_name)}))", 20))
+        if admin_name not in [a["username"] for a in self.api.json("/api/admins")["items"]]:
+            self.created["admins"].remove(admin_name)
+
+    def view_audit(self) -> None:
+        b = self.browser
+        self.check("audit.rendered", self.goto_view("audit", "!!document.querySelector('#audit-filter-form') && document.querySelectorAll('.audit-row').length >= 1", 30))
+        b.type("#audit-target", f"{self.prefix}-tg")
+        b.js("document.querySelector('#audit-filter-form').requestSubmit(); true")
+        self.check("audit.filter_by_target_finds_this_run", b.wait(f"document.querySelectorAll('.audit-row').length >= 1 && [...document.querySelectorAll('.audit-row')].every(r => r.textContent.includes({json.dumps(self.prefix + '-tg')}))", 20))
+        b.type("#audit-target", "")
+        b.type("#audit-action", "user.create")
+        b.js("document.querySelector('#audit-filter-form').requestSubmit(); true")
+        # The journal names actions in the operator's words («Создан доступ» for user.create).
+        self.check("audit.filter_by_action", b.wait("document.querySelectorAll('.audit-row').length >= 1 && [...document.querySelectorAll('.audit-row')].every(r => r.textContent.includes('Создан доступ') || r.textContent.includes('user.create'))", 20))
+        b.click("[data-audit-action=clear]")
+        self.check("audit.clear_restores_the_journal", b.wait("document.querySelectorAll('.audit-row').length >= 3 && (document.querySelector('#audit-action')?.value || '') === ''", 20))
+        self.frame_is_secret_free("audit")
+        b.shot("audit.png")
+
+    # -- api-only (a production node) ---------------------------------------------------
+
+    def api_only(self) -> None:
+        prefix = f"live-ui-{self.run_id}"
+        self.api.login("owner", self.password)
+        me = self.api.json("/api/auth/me")
+        self.check("live.login_owner", me.get("role") == "owner")
+        for name, path in (("dashboard", "/api/dashboard"), ("users", "/api/users"), ("naive", "/api/naive/users"), ("mieru", "/api/mieru/users"),
+                           ("clients", "/api/clients"), ("versions", "/api/versions"), ("fleet", "/api/nodes"), ("routing", "/api/routing/targets"),
+                           ("admins", "/api/admins"), ("keys", "/api/keys"), ("audit", "/api/audit"), ("events", "/api/events"),
+                           ("compatibility", "/api/subscriptions/compatibility")):
+            status, body = self.api.request(path)
+            secret = any(shape.search(json.dumps(body)) for shape in SECRET_SHAPES) if isinstance(body, (dict, list)) else False
+            self.check(f"live.{name}_answers_secret_free", status == 200 and not secret, f"{status}")
+        before = self.users()
+        self.report["facts"]["users_initial"] = {k: len(v) for k, v in before.items()}
+        if not self.args.read_only:
+            created = self.api.json("/api/users", "POST", {"username": f"{prefix}-tg"})
+            reveal = self.api.json(f"/api/reveal/{created['reveal_token']}")
+            self.check("live.mtproxy_create_and_reveal", str(reveal.get("link", reveal.get("proxy_url", ""))).startswith(("tg://", "https://t.me/")) or "qr" in reveal)
+            status, _ = self.api.request(f"/api/users/{prefix}-tg", "DELETE")
+            self.check("live.mtproxy_delete", status in (200, 204))
+            created = self.api.json("/api/naive/users", "POST", {"username": f"{prefix}-nv"})
+            reveal = self.api.json(f"/api/reveal/{created['reveal_token']}")
+            self.check("live.naive_create_and_reveal", "native" in (reveal.get("clients") or {}))
+            status, _ = self.api.request(f"/api/naive/users/{prefix}-nv", "DELETE")
+            self.check("live.naive_delete", status in (200, 204))
+            revision = self.api.json("/api/mieru/users")["service"]["revision"]
+            created = self.api.json("/api/mieru/users", "POST", {"username": f"{prefix}-mr", "quotas": [], "expected_revision": revision})
+            reveal = self.api.json(f"/api/reveal/{created['reveal_token']}")
+            self.check("live.mieru_create_and_reveal", "native" in (reveal.get("clients") or {}))
+            revision = self.api.json("/api/mieru/users")["service"]["revision"]
+            status, _ = self.api.request(f"/api/mieru/users/{prefix}-mr", "DELETE", {"expected_revision": revision})
+            self.check("live.mieru_delete", status in (200, 204))
+        after = self.users()
+        self.check("live.runtime_users_equal_initial", after == before, json.dumps({"before": before, "after": after})[:400])
+
+    # -- the run ----------------------------------------------------------------------
+
+    def cleanup(self) -> None:
+        """Whatever the run created and did not remove — by the run's prefix, never by guess."""
+        with contextlib.suppress(Exception):
+            self.api.login("owner", self.password)
+        for key in list(self.api.json("/api/keys")["items"]) if self.created["keys"] else []:
+            if key["id"] in self.created["keys"]:
+                self.api.request(f"/api/keys/{key['id']}", "DELETE")
+        for admin in self.api.json("/api/admins")["items"]:
+            if admin["username"].startswith(self.prefix):
+                self.api.request(f"/api/admins/{admin['id']}", "DELETE")
+        for entry in self.api.json("/api/clients")["items"]:
+            if entry["client"]["display_name"].startswith(self.prefix) and entry["client"]["state"] != "archived":
+                for grant in entry["grants"]:
+                    if grant.get("desired_state") != "deleted":
+                        self.api.request(f"/api/clients/grants/{grant['id']}/delete", "POST")
+                time.sleep(2)
+                self.api.request(f"/api/clients/{entry['client']['id']}/state", "POST", {"state": "archived"})
+        for user in self.api.json("/api/users")["items"]:
+            if user["username"].startswith(self.prefix):
+                self.api.request(f"/api/users/{user['username']}", "DELETE")
+        for user in self.api.json("/api/naive/users")["items"]:
+            if user["username"].startswith(self.prefix):
+                self.api.request(f"/api/naive/users/{user['username']}", "DELETE")
+        listing = self.api.json("/api/mieru/users")
+        for user in listing["items"]:
+            if user["username"].startswith(self.prefix):
+                revision = self.api.json("/api/mieru/users")["service"]["revision"]
+                self.api.request(f"/api/mieru/users/{user['username']}", "DELETE", {"expected_revision": revision})
+        with contextlib.suppress(Exception):
+            for protocol in ("naive", "mieru"):
+                target = next((i for i in self.api.json("/api/routing/targets")["items"] if i["node_id"] == "local" and i["protocol"] == protocol), None)
+                if target and target.get("policy"):
+                    self.api.request(f"/api/routing/policies/local/{protocol}", "DELETE")
+
+    def start_stub(self) -> None:
+        if not self.args.stub:
+            return
+        self.stub = subprocess.Popen([sys.executable, str(ROOT / "scripts/lab/socks5-stub.py"), "--listen", "127.0.0.1:45000",
+                                      "--log", str(self.output / "socks5-stub.log")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1)
+
+    def run(self) -> bool:
+        started = time.monotonic()
+        views = VIEWS if self.args.views == "all" else tuple(v.strip() for v in self.args.views.split(",") if v.strip())
+        try:
+            if self.args.api_only:
+                self.api_only()
+            else:
+                self.api.login("owner", self.password)
+                self.initial_users = self.users()
+                self.report["facts"]["users_initial"] = {k: len(v) for k, v in self.initial_users.items()}
+                self.start_stub()
+                self.browser = Browser(self.work, None if self.args.no_shots else self.output)
+                if "login" in views:
+                    self.timed("login", self.view_login)
+                    # The refused login is a 401 the browser logs as a failed resource: expected.
+                    _, console = self.browser.errors()
+                    self.report["facts"]["login_console"] = [c for c in console if "401" not in c]
+                    self.check("login.no_console_error_but_the_refusal", not self.report["facts"]["login_console"], self.report["facts"]["login_console"])
+                else:
+                    self.check("login.session", self.login("owner", self.password))
+                for view in views:
+                    if view == "login":
+                        continue
+                    self.timed(view, getattr(self, f"view_{view}"))
+                exceptions, console = self.browser.errors()
+                self.report["exceptions"], self.report["console"] = exceptions, console
+                self.check("final.no_uncaught_exceptions", not exceptions, exceptions)
+                self.check("final.no_console_errors", not console, console)
+        except Exception as error:  # a crash is a failed check, not a lost report
+            self.check("final.run_completed", False, f"{type(error).__name__}: {error}")
+            import traceback
+            self.report["traceback"] = redact(traceback.format_exc())[-1500:]
+        finally:
+            if self.browser:
+                with contextlib.suppress(Exception):
+                    self.browser.close()
+                self.report["shots"] = self.browser.shots
+            if self.stub:
+                self.stub.terminate()
+            if not self.args.api_only:
+                with contextlib.suppress(Exception):
+                    self.cleanup()
+                with contextlib.suppress(Exception):
+                    final = self.users()
+                    self.check("final.runtime_users_equal_initial", final == self.initial_users,
+                               json.dumps({"initial": self.initial_users, "final": final})[:400])
+            shutil.rmtree(self.work, ignore_errors=True)
+        self.report["elapsed_seconds"] = round(time.monotonic() - started, 1)
+        self.report["ok"] = not self.report["failed"]
+        text = json.dumps(self.report, indent=2, ensure_ascii=False, sort_keys=True)
+        if any(shape.search(text) for shape in SECRET_SHAPES):
+            text = redact(text)
+            self.report["ok"] = False
+            self.report["failed"].append("final.report_secret_free")
+        (self.output / "report.json").write_text(text + "\n")
+        print(("UI_ACCEPTANCE_OK" if self.report["ok"] else "UI_ACCEPTANCE_FAILED " + str(self.report["failed"])) + f" ({len(self.report['checks'])} checks, {self.report['elapsed_seconds']} s)")
+        return self.report["ok"]
+
+    def timed(self, name: str, function) -> None:
+        started = time.monotonic()
+        try:
+            function()
+        except Exception as error:
+            self.check(f"{name}.scenario_completed", False, f"{type(error).__name__}: {error}")
+        self.report["durations"][name] = round(time.monotonic() - started, 1)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--node-url", required=True)
+    parser.add_argument("--password-file", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--ca-file", default=None)
+    parser.add_argument("--views", default="all")
+    parser.add_argument("--stub", action="store_true", help="start the SOCKS5 stub the routing tier uses as WARP")
+    parser.add_argument("--no-shots", action="store_true")
+    parser.add_argument("--api-only", action="store_true")
+    parser.add_argument("--read-only", action="store_true")
+    args = parser.parse_args()
+    return 0 if Acceptance(args).run() else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
