@@ -19,7 +19,10 @@ Protocol = Literal["naive", "mieru"]
 Backend = Literal["naive_native", "mieru_native", "xray_router"]
 Action = Literal["direct", "block", "egress"]
 DefaultAction = Literal["direct", "egress"]
-Egress = Literal["warp"]
+# An egress names where the connection leaves (v0.7): this node's WARP, or a chain of other
+# nodes' relays — `node:<guid>[,<guid>[,<guid>]][:warp]`, the last hop exiting direct or
+# through its own WARP. A `str` here; `normalise_exit` is the grammar.
+Egress = str
 Fallback = Literal["fail_closed", "approved_direct"]
 State = Literal["draft", "applying", "applied", "failed", "rolled_back"]
 
@@ -34,9 +37,60 @@ MAX_NOTE = 120
 COMPILER_VERSION = "2"
 
 _LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_GUID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
+LANE_SERVICE = "svc"
+LANE_GRANT = re.compile(r"grant:[A-Za-z0-9_-]{1,64}\Z")
+MAX_CHAIN_HOPS = 3
 _DOMAIN = re.compile(rf"(?=.{{1,253}}\Z)(?:{_LABEL}\.)*{_LABEL}\Z")
 _PORT_RANGE = re.compile(r"^([0-9]{1,5})-([0-9]{1,5})$")
 _GEO_CODE = re.compile(r"[a-z0-9][a-z0-9@!_-]{0,63}\Z")
+
+
+def normalise_exit(value: object) -> str:
+    """`warp`, or `node:<guid>[,<guid>…][:warp]` — lower-cased keyword and exit, guids as
+    given; a chain names each node once and at most three."""
+    if not isinstance(value, str) or not value:
+        raise ValueError("an egress must be warp or node:<guid>")
+    text = value.strip()
+    if text.lower() == "warp":
+        return "warp"
+    kind, _sep, rest = text.partition(":")
+    if kind.lower() != "node" or not rest:
+        raise ValueError("an egress must be warp or node:<guid>")
+    via = "direct"
+    if ":" in rest:
+        rest, _sep, tail = rest.partition(":")
+        if tail.lower() != "warp":
+            raise ValueError("a chain exits direct or through the last node's warp")
+        via = "warp"
+    guids = rest.split(",")
+    if not 1 <= len(guids) <= MAX_CHAIN_HOPS or len(set(guids)) != len(guids) or any(_GUID.fullmatch(g) is None for g in guids):
+        raise ValueError("a chain names one to three distinct nodes")
+    return "node:" + ",".join(guids) + (":warp" if via == "warp" else "")
+
+
+def exit_hops(value: str | None) -> tuple[list[str], str | None]:
+    """The node guids a normalised exit chains through and the last hop's exit; `warp` and
+    None have no hops."""
+    if not value or not value.startswith("node:"):
+        return [], None
+    body = value[5:]
+    via = "direct"
+    if body.endswith(":warp"):
+        body, via = body[:-5], "warp"
+    return body.split(","), via
+
+
+def is_node_exit(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("node:")
+
+
+def normalise_lane(value: object) -> str:
+    if value in (None, "", LANE_SERVICE):
+        return LANE_SERVICE
+    if isinstance(value, str) and LANE_GRANT.fullmatch(value):
+        return value
+    raise ValueError("a lane is svc or grant:<id>")
 
 
 def backends_for(protocol: str) -> tuple[str, ...]:
@@ -178,6 +232,11 @@ class RoutingRule(BaseModel):
     egress: Egress | None = None
     note: str = Field(default="", max_length=MAX_NOTE)
 
+    @field_validator("egress")
+    @classmethod
+    def _egress(cls, value: str | None) -> str | None:
+        return None if value is None else normalise_exit(value)
+
     @model_validator(mode="after")
     def _egress_only_for_egress(self):
         if self.action == "egress" and self.egress is None:
@@ -196,6 +255,11 @@ class _Intent(BaseModel):
     fallback: Fallback = "fail_closed"
     rules: list[RoutingRule] = Field(default_factory=list, max_length=MAX_RULES)
 
+    @field_validator("default_egress")
+    @classmethod
+    def _default_egress_value(cls, value: str | None) -> str | None:
+        return None if value is None else normalise_exit(value)
+
     @model_validator(mode="after")
     def _default_egress(self):
         if self.default_action == "egress" and self.default_egress is None:
@@ -203,6 +267,17 @@ class _Intent(BaseModel):
         if self.default_action != "egress" and self.default_egress is not None:
             raise ValueError("only a default of egress names an egress")
         return self
+
+    def exits(self) -> list[str]:
+        """Every distinct egress the intent names, the default first, in rule order."""
+        found: list[str] = []
+        for value in [self.default_egress, *(rule.egress for rule in self.rules if rule.enabled)]:
+            if value is not None and value not in found:
+                found.append(value)
+        return found
+
+    def node_exits(self) -> list[str]:
+        return [value for value in self.exits() if is_node_exit(value)]
 
 
 class PolicyInput(_Intent):
@@ -218,11 +293,13 @@ class PolicyInput(_Intent):
 
 
 class RoutingPolicy(_Intent):
-    """A stored policy: the intent plus where it stands on the node."""
+    """A stored policy: the intent plus where it stands on the node. `lane` (v0.7) is
+    `svc` — the service's own policy — or `grant:<id>`, a client's own lane."""
 
     id: str
     node_id: str
     protocol: Protocol
+    lane: str = LANE_SERVICE
     backend: Backend
     revision: int = Field(ge=1)
     state: State = "draft"

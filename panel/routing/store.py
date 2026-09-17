@@ -7,7 +7,17 @@ import time
 import uuid
 
 from ..database import Database
-from .models import backends_for, BACKEND_FOR, COMPILER_VERSION, PolicyInput, RoutingPolicy, RoutingRule, RuleMatch
+from .models import (
+    BACKEND_FOR,
+    COMPILER_VERSION,
+    LANE_SERVICE,
+    PolicyInput,
+    RoutingPolicy,
+    RoutingRule,
+    RuleMatch,
+    backends_for,
+    normalise_lane,
+)
 
 HISTORY_LIMIT = 50
 
@@ -40,7 +50,7 @@ class RoutingStore:
     @classmethod
     def _policy(cls, db, row) -> RoutingPolicy:
         return RoutingPolicy(
-            id=row["id"], node_id=row["node_id"], protocol=row["protocol"], backend=row["backend"],
+            id=row["id"], node_id=row["node_id"], protocol=row["protocol"], lane=row["lane"], backend=row["backend"],
             default_action=row["default_action"], default_egress=row["default_egress"], fallback=row["fallback"],
             revision=row["revision"], state=row["state"], applied_revision=row["applied_revision"],
             applied_digest=row["applied_digest"], applied_at=row["applied_at"], last_error=row["last_error"],
@@ -48,9 +58,17 @@ class RoutingStore:
         )
 
     @classmethod
-    def get(cls, db, node_id: str, protocol: str) -> RoutingPolicy | None:
-        row = db.execute("SELECT * FROM routing_policies WHERE node_id=? AND protocol=?", (node_id, protocol)).fetchone()
+    def get(cls, db, node_id: str, protocol: str, lane: str = LANE_SERVICE) -> RoutingPolicy | None:
+        row = db.execute("SELECT * FROM routing_policies WHERE node_id=? AND protocol=? AND lane=?",
+                         (node_id, protocol, normalise_lane(lane))).fetchone()
         return None if row is None else cls._policy(db, row)
+
+    @classmethod
+    def lanes_of(cls, db, node_id: str, protocol: str) -> list[RoutingPolicy]:
+        """Every policy of one service — its own first, then the grant lanes."""
+        rows = db.execute("SELECT * FROM routing_policies WHERE node_id=? AND protocol=? ORDER BY lane='svc' DESC, created_at, lane",
+                          (node_id, protocol)).fetchall()
+        return [cls._policy(db, row) for row in rows]
 
     @classmethod
     def get_by_id(cls, db, policy_id: str) -> RoutingPolicy:
@@ -64,30 +82,31 @@ class RoutingStore:
         query, params = "SELECT * FROM routing_policies", ()
         if node_id is not None:
             query, params = f"{query} WHERE node_id=?", (node_id,)
-        return [cls._policy(db, row) for row in db.execute(f"{query} ORDER BY node_id, protocol", params).fetchall()]
+        return [cls._policy(db, row) for row in db.execute(f"{query} ORDER BY node_id, protocol, lane='svc' DESC, created_at", params).fetchall()]
 
     # -- writes ----------------------------------------------------------------
 
     @classmethod
     def upsert(cls, db, node_id: str, protocol: str, policy: PolicyInput, *, expected_revision: int | None,
-               now: int | None = None) -> RoutingPolicy:
+               now: int | None = None, lane: str = LANE_SERVICE) -> RoutingPolicy:
         """Save the whole policy — head and every rule — as one revision. Rule ids the
         caller sends back are kept; anything else is a new rule. A rule id from another
         policy is not adopted: it becomes a new rule here."""
         now = int(time.time()) if now is None else now
+        lane = normalise_lane(lane)
         if policy.backend is not None and policy.backend not in backends_for(protocol):
             raise ValueError(f"{protocol} cannot run on {policy.backend}")
-        current = db.execute("SELECT id, revision, backend FROM routing_policies WHERE node_id=? AND protocol=?",
-                             (node_id, protocol)).fetchone()
+        current = db.execute("SELECT id, revision, backend FROM routing_policies WHERE node_id=? AND protocol=? AND lane=?",
+                             (node_id, protocol, lane)).fetchone()
         if current is None:
             if expected_revision not in (None, 0):
                 raise PolicyConflict(0)
             backend = policy.backend or BACKEND_FOR[protocol]
             policy_id, revision = str(uuid.uuid4()), 1
             db.execute(
-                "INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,default_egress,fallback,revision,"
-                "state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'draft',?,?)",
-                (policy_id, node_id, protocol, backend, policy.default_action, policy.default_egress, policy.fallback,
+                "INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,"
+                "state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'draft',?,?)",
+                (policy_id, node_id, protocol, lane, backend, policy.default_action, policy.default_egress, policy.fallback,
                  revision, now, now))
             known: set[str] = set()
         else:
