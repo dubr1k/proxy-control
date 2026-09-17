@@ -7,6 +7,7 @@ import re
 import secrets
 import shutil
 import stat
+import time
 import tempfile
 import urllib.request
 from collections.abc import Mapping, Sequence
@@ -1116,8 +1117,10 @@ class MieruAdapter:
             self._run("systemctl", "enable", "--now", f"{_MITA_UNIT_NAME}@{index}")
         self._assert_slots(selected)
 
-    def _assert_slots(self, selected: Mapping[str, object]) -> None:
-        """Every slot daemon answers on its own socket: idle, or running a lane already."""
+    def _assert_slots(self, selected: Mapping[str, object], *, patience: float = 20.0) -> None:
+        """Every slot daemon answers on its own socket: idle, or running a lane already.
+        `enable --now` returns before the daemon's RPC server listens (the lab caught slot 4
+        a moment early), so an unanswered socket is asked again for a while."""
         slots = self._slots(selected)
         if not slots:
             return
@@ -1125,9 +1128,17 @@ class MieruAdapter:
         if not callable(status):
             raise MieruError("lane slot verification is unavailable")
         for index, _port in slots:
-            answer = str(status(self.paths.slot_socket(index))).strip()
-            if answer not in (_IDLE, _RUNNING):
-                raise MieruError(f"lane slot {index} did not answer on its socket")
+            deadline = time.monotonic() + patience
+            while True:
+                try:
+                    answer = str(status(self.paths.slot_socket(index))).strip()
+                except Exception:  # noqa: BLE001 — the query is retried until the deadline
+                    answer = ""
+                if answer in (_IDLE, _RUNNING):
+                    break
+                if time.monotonic() >= deadline:
+                    raise MieruError(f"lane slot {index} did not answer on its socket")
+                time.sleep(0.5)
 
     def reconcile_apply(
         self,
