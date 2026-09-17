@@ -24,9 +24,21 @@ import ipaddress
 import json
 
 from ..protocols.base import EgressTarget, RouterTarget
-from .adapters.xray_router import compile_intent
+from .adapters.xray_router import ChainHop, compile_intent
 from .document import ROUTER_DIRECT_INTENT, canonical, document_digest
-from .models import BACKEND_FOR, COMPILER_VERSION, Compiled, Reason, RoutingPolicy, RoutingRule
+from .models import (
+    BACKEND_FOR,
+    COMPILER_VERSION,
+    LANE_SERVICE,
+    Compiled,
+    Reason,
+    RoutingPolicy,
+    RoutingRule,
+    exit_hops,
+    is_node_exit,
+)
+
+__all__ = ["ChainHop", "compile", "direct_document", "explain"]
 
 MAX_DOCUMENT_BYTES = 16384
 # forwardproxy takes at most this many subjects per `deny` line (naive_manager/egress.py).
@@ -97,10 +109,13 @@ def _mieru_document(default_action: str, rules: list[RoutingRule]) -> dict:
 
 
 def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v1: bool = True,  # noqa: A001
-            router: RouterTarget | None = None) -> Compiled:
+            router: RouterTarget | None = None, lanes: list[RoutingPolicy] | None = None, chains=None,
+            own_guids: set[str] | None = None) -> Compiled:
     """What the node would run for this policy, or exactly why it cannot. `target` is the
     service's native manager; `router` its section on the node's Xray-router (v0.5), None
-    when the panel knows of no router."""
+    when the panel knows of no router. `lanes` (v0.7) are the service's other policies —
+    its own and the grant lanes — the router runs as one intent; `chains` resolves a node
+    exit's guid into a `ChainHop` or a `Reason`; `own_guids` name this node (a loop)."""
     backend = BACKEND_FOR.get(policy.protocol)
     unsupported = Compiled(status="unsupported", backend=policy.backend, compiler_version=COMPILER_VERSION,
                            runtime_version=None if target is None else target.runtime_version)
@@ -114,16 +129,27 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
         unsupported.reasons.append(Reason(code="protocol_disabled_on_node",
                                           message=f"{policy.protocol} reports no egress target on this node"))
         return unsupported
+    is_lane = policy.lane != LANE_SERVICE or any(other.lane != LANE_SERVICE for other in (lanes or []))
+    if is_lane and (router is None or not router.available):
+        unsupported.reasons.append(Reason(code="lane_requires_router",
+                                          message="a client lane runs only on the node's Xray-router"))
+        return unsupported
     if policy.backend == "xray_router":
         if router is None or not router.available:
             code = "router_unavailable" if router is None or router.reason in (None, "router_unavailable") else router.reason
             unsupported.reasons.append(Reason(code=code, message="the node has no Xray-router to run this policy"))
             return unsupported
         if not target.router_attached:
-            unsupported.reasons.append(Reason(code="not_attached",
+            code = "lane_not_attached" if is_lane else "not_attached"
+            unsupported.reasons.append(Reason(code=code,
                                               message=f"{policy.protocol} is not attached to the node's Xray-router"))
             return unsupported
-        return compile_intent(policy, router, private=_private, warnings=list(target.warnings))
+        return compile_intent(policy, router, private=_private, warnings=list(target.warnings), lanes=lanes,
+                              resolver=chains, own_guids=own_guids)
+    if is_lane:
+        unsupported.reasons.append(Reason(code="lane_requires_router",
+                                          message="a client lane runs only on the node's Xray-router"))
+        return unsupported
     if policy.backend != target.backend:
         unsupported.reasons.append(Reason(code="backend_capability_missing",
                                           message=f"the node runs {target.backend}, the policy targets {policy.backend}"))
@@ -141,7 +167,14 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     whole = "whole_warp" if default_action == "egress" else "whole_direct"
     if whole not in target.capabilities:
         reasons.append(Reason(code="backend_capability_missing", message=f"{target.backend} lacks {whole}"))
+    if is_node_exit(policy.default_egress):
+        reasons.append(Reason(code="rule_kind_unsupported",
+                              message="an exit through another node is enforced only by xray_router"))
     for rule in rules:
+        if is_node_exit(rule.egress):
+            reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
+                                  message="an exit through another node is enforced only by xray_router"))
+            continue
         if rule.match.ports or rule.match.geosites or rule.match.geoips:
             reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
                                   message="matching by port, geosite or geoip is enforced only by xray_router"))
@@ -199,3 +232,69 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
         rollback=None if applied is None else {"to_revision": applied["revision"], "to_digest": applied["digest"]},
         compiler_version=COMPILER_VERSION, backend=target.backend, runtime_version=target.runtime_version,
     )
+
+
+def _port_matches(ports: list[int | str], port: int) -> bool:
+    for item in ports:
+        if isinstance(item, int):
+            if item == port:
+                return True
+        else:
+            low, high = item.split("-")
+            if int(low) <= port <= int(high):
+                return True
+    return False
+
+
+def _destination_matches(rule: RoutingRule, host: str, port: int) -> bool | None:
+    """True/False when the rule's selectors decide on their own; None when only geodata
+    (`geosite`/`geoip`) could say — the panel has no geodata, the router has."""
+    match = rule.match
+    if match.ports and not _port_matches(match.ports, port):
+        return False
+    address = None
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    named = False
+    if match.domains:
+        lowered = host.lower().rstrip(".")
+        for domain in match.domains:
+            suffix = domain[2:] if domain.startswith("*.") else domain
+            if lowered == suffix or lowered.endswith("." + suffix):
+                named = True
+    if match.cidrs and address is not None:
+        for cidr in match.cidrs:
+            network = ipaddress.ip_network(cidr)
+            if network.version == address.version and address in network:
+                named = True
+    if named:
+        return True
+    if match.geosites or match.geoips:
+        return None
+    if not match.domains and not match.cidrs:
+        return True  # a rule on ports alone, and the port matched
+    return False
+
+
+def explain(policy: RoutingPolicy, host: str, port: int) -> dict:
+    """The path a destination takes through one lane's rules: the first rule that decides
+    it, the lane's default otherwise, and the rules before it that only geodata could
+    match (`uncertain`) — what the screen shows for «куда пойдёт этот домен»."""
+    uncertain: list[str] = []
+    winner: RoutingRule | None = None
+    for rule in policy.rules:
+        if not rule.enabled:
+            continue
+        verdict = _destination_matches(rule, host, port)
+        if verdict is None:
+            uncertain.append(rule.id or "")
+        elif verdict:
+            winner = rule
+            break
+    action = winner.action if winner else policy.default_action
+    value = winner.egress if winner else policy.default_egress
+    hops, via = exit_hops(value)
+    return {"lane": policy.lane, "rule_id": winner.id if winner else None, "action": action, "exit": value,
+            "hops": hops, "via": via, "uncertain": uncertain}
