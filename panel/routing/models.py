@@ -325,6 +325,15 @@ class Reason(BaseModel):
 class Compiled(BaseModel):
     """The honest preview: a document the backend can enforce, or the reasons it cannot."""
 
+    def redacted(self) -> dict:
+        """The API's form of it: a chain's relay accounts masked in the document and the diff."""
+        from .document import redact_diff, redact_document
+
+        value = self.model_dump()
+        value["document"] = redact_document(value["document"])
+        value["diff"] = redact_diff(value["diff"])
+        return value
+
     model_config = ConfigDict(extra="forbid")
     status: Literal["supported", "unsupported"]
     reasons: list[Reason] = Field(default_factory=list)

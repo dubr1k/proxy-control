@@ -111,6 +111,19 @@ async def test_a_lane_policy_with_rules_applies_as_one_intent_with_the_service(c
     assert (await client.get("/api/routing/policies/local/naive?lane=bogus")).status_code == 422
 
 
+async def test_deleting_a_laned_grant_drops_the_lane_first(client, login_user, router, naive):
+    grant_id, _client_id, csrf = await _grant(client, login_user)
+    await _attach(client, csrf)
+    assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=csrf)).status_code == 200
+    lane = f"grant:{grant_id}"
+    deleted = await client.post(f"/api/clients/grants/{grant_id}/delete", headers=csrf)
+    assert deleted.status_code == 200, deleted.text
+    assert naive.lane_table == {} and lane not in router.lane_accounts["naive"]
+    assert (await client.get(f"/api/routing/policies/local/naive?lane={lane}")).status_code == 404
+    actions = [row["action"] for row in client._transport.app.state.store.audits()]  # newest first
+    assert actions.index("grant.lane.disable") > actions.index("grant.delete")
+
+
 async def test_lane_refusals_carry_codes(client, login_user, router, naive):
     grant_id, first_client, csrf = await _grant(client, login_user)
     # without the service attached to the router, the lane's policy says so

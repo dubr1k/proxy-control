@@ -197,6 +197,7 @@ def create_app(
     )
     app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
                                   app.state.router, publisher=app.state.routing.publisher)
+    app.state.lifecycle.lanes = app.state.lanes
 
     # The heartbeat/delivery loop lives as a background task for the process's lifetime:
     # startup never waits on a node, and shutdown lets a tick in flight finish briefly

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..web_context import RequestContext
+from .document import redact_document
 from .lanes import DEFAULT_RELAY_PORT, LaneError
 from .models import LANE_SERVICE, PolicyInput, RoutingPolicy
 from .service import RoutingError
@@ -52,7 +53,7 @@ def policy_view(policy: RoutingPolicy) -> dict:
 def _refusal(exc: RoutingError) -> JSONResponse:
     body = {"detail": str(exc), "code": exc.code}
     if exc.compiled is not None:
-        body["compiled"] = exc.compiled.model_dump()
+        body["compiled"] = exc.compiled.redacted()
     return JSONResponse(body, exc.status)
 
 
@@ -95,7 +96,7 @@ def register_routing_routes(app, context: RequestContext) -> None:
     @app.post("/api/routing/policies/{node_id}/{protocol}/preview")
     async def preview(node_id: str, protocol: str, request: Request, body: PolicyInput | None = None,
                       lane: str = LaneQuery, _user=Depends(anyone)):
-        return (await service.preview(node_id, protocol, body, lane)).model_dump()
+        return (await service.preview(node_id, protocol, body, lane)).redacted()
 
     @app.post("/api/routing/policies/{node_id}/{protocol}/apply")
     async def apply(node_id: str, protocol: str, body: RevisionBody, request: Request, lane: str = LaneQuery,
@@ -113,7 +114,7 @@ def register_routing_routes(app, context: RequestContext) -> None:
 
     @app.get("/api/routing/policies/{node_id}/{protocol}/history")
     async def history(node_id: str, protocol: str, lane: str = LaneQuery, _user=Depends(context.current)):
-        return {"items": service.history(node_id, protocol, lane)}
+        return {"items": [{**row, "document": redact_document(row.get("document"))} for row in service.history(node_id, protocol, lane)]}
 
     # «Куда пойдёт этот домен» (v0.7): the lane's rules walked for one destination — reads only.
     @app.post("/api/routing/policies/{node_id}/{protocol}/explain")
@@ -155,5 +156,5 @@ def _outcome(result: dict) -> dict:
         "policy": policy_view(result["policy"]),
         "applied": None if applied is None else {"revision": applied.revision, "digest": applied.digest,
                                                  "readback_sha256": applied.readback_sha256, "replayed": applied.replayed},
-        "compiled": result["compiled"].model_dump(),
+        "compiled": result["compiled"].redacted(),
     }
