@@ -127,3 +127,21 @@ def test_every_documented_audit_action_has_a_journal_label():
     labelled = set(re.findall(r'^\s*"([a-z_.]+)":\s*"[^"]+"', names, re.MULTILINE))
     assert documented - labelled == set()
     assert labelled - documented == set(), "a label for an action the contract does not know"
+
+
+def test_the_brand_mark_is_the_product_artwork_that_actually_ships():
+    """The sidebar and the login card carry the product's own logo, cut out of its frame
+    (transparent corners, no black square), and every asset they name exists — a broken
+    `src` shows nothing at all where the brand should be."""
+    static = STATIC
+    referenced = set()
+    for page in ("index.html", "login.html"):
+        text = (static / page).read_text(encoding="utf-8")
+        assert "🦄" not in text
+        referenced.update(re.findall(r'(?:src|href)="/static/(img/[^"]+)"', text))
+    assert {"img/logo.png", "img/logo-mark.png", "img/logo-64.png"} <= referenced
+    for name in referenced:
+        asset = static / name
+        assert asset.is_file() and asset.stat().st_size < 150 * 1024, name
+        header = asset.read_bytes()[:8]
+        assert header == b"\x89PNG\r\n\x1a\n", name

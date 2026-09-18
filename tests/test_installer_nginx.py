@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import os
 import hashlib
 import stat
@@ -11,6 +12,7 @@ from typing import Sequence
 import pytest
 
 from installer.adapters.nginx import (
+    _action_specification,
     CertificatePlan,
     NginxAdapter,
     TopologyError,
@@ -1231,3 +1233,78 @@ def test_a_foreign_stream_context_without_the_router_is_still_refused_at_plannin
     with pytest.raises(TopologyError, match="included by the stream context"):
         NginxAdapter(root=root, runner=runner).plan(config(HostMode.FRESH), observed)
     assert "other.d" in conf.read_text() and "stream.d" not in conf.read_text()
+
+
+def test_the_shared_router_carries_the_three_xui_routes(tmp_path: Path) -> None:
+    """A loopback backend nobody routes to is not published: after a real install the
+    managed 3x-ui panel, its subscription server and both VLESS inbounds answered only on
+    127.0.0.1, and `https://<xui domain>` reached the panel's own vhost instead (ams-test,
+    v0.7). The map this adapter owns carries them."""
+    from installer.model import ThreeXuiConfig, ThreeXuiMode
+
+    root = tmp_path / "root"
+    root.mkdir()
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n"
+    )
+    executor = FreshExecutor(effective, root=root)
+    adapter = NginxAdapter(root=root, runner=CommandRunner(executor=executor))
+    managed = dataclasses.replace(
+        config(HostMode.FRESH),
+        three_xui=ThreeXuiConfig(
+            mode=ThreeXuiMode.MANAGED_NEW,
+            panel_domain="xui.example.com",
+            vless_tcp_domain="vless.example.com",
+            vless_xhttp_domain="xhttp.example.com",
+            hysteria_domain="hy2.example.com",
+        ),
+    )
+    observed = AuditFacts(
+        topology={"nginx": {"observation": "observed", "route_target": None, "stream_enabled": True}}
+    )
+
+    (action,) = adapter.plan(managed, observed)
+    routed = dict(_action_specification(action)["routes"])
+
+    assert routed["xui.example.com"] == "127.0.0.1:8451"
+    assert routed["vless.example.com"] == "127.0.0.1:8449"
+    assert routed["xhttp.example.com"] == "127.0.0.1:8450"
+    # Hysteria2 is UDP/443 with its own certificate: never an SNI route of this map.
+    assert "hy2.example.com" not in routed
+
+    checkpoint = adapter.prepare(action)
+    adapter.apply(action, checkpoint)
+    generated = (root / "etc/nginx/stream.d/proxy-control.conf").read_text()
+    assert "xui.example.com 127.0.0.1:8451;" in generated
+    assert adapter.verify(action).success is True
+
+
+def test_a_subscription_domain_of_the_managed_three_xui_is_routed_too(tmp_path: Path) -> None:
+    from installer.model import ThreeXuiConfig, ThreeXuiMode
+
+    root = tmp_path / "root"
+    root.mkdir()
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n"
+    )
+    adapter = NginxAdapter(root=root, runner=CommandRunner(executor=FreshExecutor(effective, root=root)))
+    managed = dataclasses.replace(
+        config(HostMode.FRESH),
+        three_xui=ThreeXuiConfig(
+            mode=ThreeXuiMode.MANAGED_NEW,
+            panel_domain="xui.example.com",
+            vless_tcp_domain="vless.example.com",
+            vless_xhttp_domain="xhttp.example.com",
+            hysteria_domain="hy2.example.com",
+            subscription_domain="sub-xui.example.com",
+        ),
+    )
+    observed = AuditFacts(
+        topology={"nginx": {"observation": "observed", "route_target": None, "stream_enabled": True}}
+    )
+
+    (action,) = adapter.plan(managed, observed)
+
+    assert dict(_action_specification(action)["routes"])["sub-xui.example.com"] == "127.0.0.1:2096"

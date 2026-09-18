@@ -55,6 +55,9 @@ with the relay between nodes issued and rotated by the panel. Release note:
 
 ### Changed
 
+- The brand mark is the product's own logo instead of an emoji: the artwork cut out of its
+  frame (transparent corners, no black square) — the «443 ♥» lane of it in the sidebar, where
+  30 px is all there is, the whole picture on the login card, and both as the favicon.
 - Migration 16 (`routing-chains-lanes`): `routing_policies` keyed by `(node, protocol, lane)`,
   the `egress = warp` constraint dropped, `access_grants.routing_lane`, tables `relay_peers` and
   `router_relays`, `observed_generations.relay_json` — additive in effect.
@@ -85,6 +88,10 @@ with the relay between nodes issued and rotated by the panel. Release note:
 - The journal showed the system events (`subscription.fetched`, `subscription.revoked`,
   `subscription.generation.changed`, `node.up`, `node.down`) as raw codes: they now have labels
   and a place in `docs/AUDIT_EVENTS.md` (seen in the `ui` tier's journal frame).
+- The shared 443 router carried no 3x-ui route at all: the managed panel, its subscription
+  server and both VLESS inbounds answered only on loopback, and their domains landed on the
+  panel's own vhost (the real install of ams-test). The Nginx adapter — the only owner of that
+  map — now plans them with the rest.
 - The certificate renewal dry run (the installer's proof that a lineage renews) failed the
   whole install on `orderNotReady` — Boulder still calling the order `pending` when certbot 2.9,
   which polls the authorization rather than the order, comes to finalize it (the real install of

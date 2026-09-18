@@ -509,6 +509,7 @@ class NginxAdapter:
         root: Path = Path("/"),
         runner: CommandRunner | None = None,
         fresh_path: str = _DEFAULT_FRESH_PATH,
+        three_xui: object | None = None,
     ) -> None:
         if runner is None:
             from installer.audit import CommandRunner
@@ -517,6 +518,8 @@ class NginxAdapter:
         self.root = root.resolve()
         self.runner = runner
         self.fresh_path = _safe_host_path(fresh_path)
+        # Only for the tests and the lab: the 3x-ui whose routes this map must carry.
+        self.three_xui = three_xui
 
     def plan(self, config: InstallerConfig, facts: AuditFacts) -> tuple[Action, ...]:
         if getattr(facts, "hard_stops", ()):
@@ -543,6 +546,10 @@ class NginxAdapter:
                 raise TopologyError("Naive route domain is missing")
             # The private Caddy listener never competes for TCP/443 itself.
             routes += ((config.domains.naive, "127.0.0.1:4443"),)
+        # 3x-ui's loopback backends (its panel, its subscription server and the VLESS
+        # inbounds) reach the outside through this map too: the 3x-ui adapter proves each
+        # one answers on loopback, this adapter is the only owner of the router file.
+        routes += self._three_xui_routes(config)
         known_domains: set[str] = set()
         observed_routes = nginx.get("sni_routes", {})
         if isinstance(observed_routes, Mapping):
@@ -654,6 +661,14 @@ class NginxAdapter:
                 credentials_required=False,
             ),
         )
+
+    def _three_xui_routes(self, config: InstallerConfig) -> tuple[tuple[str, str], ...]:
+        if config.three_xui.mode.value == "none":
+            return ()
+        from installer.adapters.three_xui import ThreeXuiAdapter
+
+        adapter = self.three_xui or ThreeXuiAdapter(root=self.root)
+        return tuple(adapter.planned_routes(config))
 
     def _stock_nginx_conf(self) -> bool:
         """A regular `nginx.conf` with no stream context of its own (Ubuntu's stock file)."""
@@ -1448,7 +1463,7 @@ def _action_specification(action: Action) -> dict[str, object]:
         or stream_context not in {"present", "create"}
         or (stream_context == "create" and values["mode"] != "fresh")
         or values["path_kind"] not in {"missing", "file", "symlink"}
-        or not 2 <= len(routes) <= 8
+        or not 2 <= len(routes) <= 12
         or len({domain for domain, _backend in routes}) != len(routes)
     ):
         raise TopologyError("Nginx action is malformed")
