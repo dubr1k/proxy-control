@@ -1,110 +1,51 @@
 # CONTINUE HERE — v0.7 (цепи и полосы)
 
-Состояние на 2026-09-18 11:20 UTC, ветка `feature/vnext-v0.7-chains`, последний коммит `eaa37a5`.
+Состояние на 2026-09-18 12:55 UTC, ветка `feature/vnext-v0.7-chains`. **v0.7.0-beta.1 выпущен.**
 Спека: `docs/superpowers/specs/2026-09-17-v0.7-chains-design.md`, план:
-`docs/superpowers/plans/2026-09-17-v0.7-chains.md` (галочки актуальны, Tasks 0–13 закрыты).
+`docs/superpowers/plans/2026-09-17-v0.7-chains.md` (Tasks 0–15 закрыты).
 
-## Что уже доказано
+## Выпуск (сделано 2026-09-18 10:16–12:50 UTC)
 
-- **Гейт на стенде зелёный** (ams-test), по частям и на разных деревьях:
-  - `bbcab08`: `fleet` 84/84 (198,9 с), `routing` 154/154 (302,1 с), `router` 242/242 (472,8 с),
-    `chains` **277/277** (35 c01…c10, 531,3 с), `ui` 197/197, `managed-xui` OK,
-    `full` 2283 passed/3 skipped, `compose`, `lab-container`, `lab-host` без и с KEEP;
-    `lab-sha256` `a2dc937903b01ee61f613776c123f7de85b911dec34d08683d039c19a96ab0ee`.
-  - `41ec41e`: `full` 2285 passed, `compose`, `lab-container`, `lab-host` без KEEP (20 `passed`)
-    и с KEEP (18 `passed`), `ui` 197/197 (155,8 с) — `lab-sha256` `920be8f8c927f77d3…`.
-  - `130a8a0`: `full` 2287 passed, `lab-host` без KEEP — `lab-sha256` `983dc49ab98f41fd2…`.
-- **Заметка о выпуске** `docs/releases/v0.7.0-beta.1.md`: таблица гейта заполнена, 14 скриншотов
-  tier'а `ui` лежат в `docs/releases/assets/v0.7.0-beta.1/` (≤150 КБ, без метаданных).
-- **Настоящая установка ams-test по TOML владельца прошла** (`/root/install-v07.toml` =
-  `/root/install.toml` + `[egress] warp=false, router=true, naive/mieru="router"` +
-  `[three_xui] subscription_domain = "zenith.sky.dubr1kkk.uk"`): статус `active`, 14 действий,
-  роутер с relay 45443 и четыре слота `mita@1…4` (46101…46104) в UFW, `VERSION` 0.7.0-beta.1.
+- **Гейт на стенде** (`ams-test`), заметка `docs/releases/v0.7.0-beta.1.md`: на `0371c69` все tier'ы
+  (full 2291, compose, lab-container, lab-host 20/20 без KEEP и 18 с KEEP, fleet 84/84, routing 154/154,
+  router 242/242, chains 277/277, ui 197/197, managed-xui) — `lab-sha256` `ba5e9690…`; на финальном
+  `644bea8` — full 2293, lab-host 18 с KEEP, chains 277/277 — `lab-sha256` `9bb30461…`. 14 скриншотов
+  tier'а `ui` пересняты (новый знак бренда). Первый `chains` на `0371c69` дал 275/277 — обрывы проб
+  (curl 55/35) в момент смены поколения роутера; повтор 277/277; проба получила повтор (`bed7f44`).
+- **Живая проверка** (оба стенда параллельно): ams-test переустановлен по-настоящему из архива `9bb30461…`
+  (`/root/node-live-chain.sh`: teardown → `ams-test-install-v07.sh` → `live-node-v07.py` **26/26**);
+  AMS_Z обновлён v0.6 → v0.7 на месте (точки отката `/root/v07-live/20260918T101858Z`, миграция 16),
+  роутер адаптером, два слота, naive+mieru через WARP, связь с ams-test, цепь через его relay —
+  `live-v07.py` **41/41** (первый прогон 38/42 нашёл дефект: узел без WARP отказывал всему набору
+  relay-учёток → `relay_credential_pending` навсегда; исправлено `644bea8`, тесты менеджера и узла).
+- **Публикация**: две сборки из чистого клона `/root/release-check-v07` (дерево `a0a83d2`, байты совпали,
+  `--verify` OK) → тег `v0.7.0-beta.1` на `a0a83d2` с `lab-sha256:
+  9d5d22d899611bf53c9f5d9f0658e13aae9a4bdc8856f20485aae955f9642ab9` → push → workflow `Release` run
+  `35346449946` (quality, build-twice-and-compare, attest, draft-release, publish — `success`) →
+  pre-release <https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1> (4 файла, архив
+  7 551 935 байт; опубликованные `SHA256SUMS` = стендовые; `gh attestation verify` — SLSA v1,
+  `refs/tags/v0.7.0-beta.1`) → тело релиза из заметки с абсолютными ссылками (48 ссылок, все 200).
+  Блок «Архив» заметки и шапка README (RU/EN: текущий выпуск v0.7, до него v0.6, v0.5 без своего
+  релиза) — коммитом после тега.
 
-## Что нашла настоящая установка (исправлено в ветке, доказательства — тесты)
+## Что оставлено на хостах
 
-1. `8fbf13d` — `plan` правил `nginx.conf` (контекст `stream` у стокового Nginx) **при
-   планировании**, поэтому аудит в digest расходился с хостом и `install --accept-plan`
-   отказывал собственному плану. Теперь план только называет шаг (`stream_context=create`),
-   контекст добавляет `apply`. Там же: `host-teardown.sh` снимает юниты слотов `mita@<n>`.
-2. `130a8a0` — пробное продление сертификата валило установку на `orderNotReady` (гонка
-   certbot 2.9 ↔ Boulder); повторяется один раз, как и «authorization must be pending».
-3. `eaa37a5` — **общий роутер 443 не нёс ни одного маршрута 3x-ui**: панель, сервер подписок и
-   оба входа VLESS отвечали только на loopback, домены попадали на vhost нашей панели. Адаптер
-   Nginx планирует их вместе с остальными (тесты `test_installer_nginx.py`).
-4. `41ec41e` — системные события журнала (`subscription.fetched|revoked|generation.changed`,
-   `node.up|down`) показывались кодами: подписи + `docs/AUDIT_EVENTS.md`.
-5. `eaa37a5` — знак бренда: логотип продукта вместо эмодзи (вырезан из рамки, прозрачные углы),
-   полоса «443 ♥» в боковой панели, картинка целиком на экране входа, favicon.
+- **AMS_Z** (v0.7.0-beta.1, дерево `644bea8` + заметка): Xray-router (`relay_port = 0`, входы на
+  loopback), слоты `mita@1`/`mita@2` (46101/46102 в UFW), naive+mieru подключены к роутеру с политикой
+  сервиса «через WARP», связь с ams-test и его relay включён. Откат — `/root/v07-live/20260918T101858Z`
+  + образы `*:rollback-20260918T101858Z`. Скрипты: `/root/v07-live/live-v07.py`, `amsz-unlink-stale.py`.
+- **ams-test**: настоящая установка v0.7 по `/root/install-v07.toml` (`active`, relay 45443, слоты
+  `mita@1…4`, десятый домен подписки, 3x-ui с доменом подписки); один ключ `node-sync`
+  (`AMS_Z-central-20260918T123839Z`) — он у AMS_Z. Лабораторный узел снесён (`host-teardown.sh`); перед
+  следующим `lab-host` — `LAB_RESET=1`. Копия релиза `/tmp/proxy-control-release` = архив `9bb30461…`.
+  Скрипты: `/root/gate-v07.sh` (все tier'ы одной цепочкой, `TIERS=…`), `/root/gate-compose.sh`,
+  `/root/node-live-chain.sh`, `/root/live-node-v07.py`, `/root/node-keys-tidy.py`.
 
-## Что осталось (по порядку)
+## Что дальше (владелец)
 
-### 1. Гейт на финальном дереве `eaa37a5`
-
-Все tier'ы заново — менялись установщик (маршруты 3x-ui), панель (журнал, логотип) и лаборатория:
-
-```
-VERIFICATION_STRICT=1 scripts/dev/remote-gate.sh full
-scripts/dev/remote-gate.sh compose
-scripts/dev/remote-gate.sh lab-container
-LAB_RESET=1 LAB_KEEP_INSTALL=0 scripts/dev/remote-gate.sh lab-host
-LAB_RESET=1 LAB_KEEP_INSTALL=1 scripts/dev/remote-gate.sh lab-host
-scripts/dev/remote-gate.sh fleet | routing | router | chains | ui | managed-xui
-```
-
-Длинные прогоны — отсоединённо, с опросом лога (память `proxy-control-ams-test-lab-host`).
-После `ui` **переснять скриншоты**: знак бренда изменился на всех 14 кадрах
-(`scp ams-test:/root/dev/proxy-control/lab-results/ui/*.png`, палитра ≤150 КБ, без метаданных,
-каждый кадр просмотреть). Обновить таблицу гейта и `lab-sha256` в заметке.
-
-### 2. Живая проверка узла (ams-test, настоящая установка владельца)
-
-```
-ssh ams-test 'LAB_RESET=1 bash /tmp/proxy-control-release/proxy-control/scripts/lab/host-teardown.sh'
-ssh ams-test 'bash /root/ams-test-install-v07.sh'        # plan → digest → install, лог /root/v07-install.log
-ssh ams-test 'python3 /root/live-node-v07.py aurora.sky.dubr1kkk.uk eclipse.sky.dubr1kkk.uk \
-    zenith.sky.dubr1kkk.uk /root/install-v07.credentials /root/v07-live/node-sync.key \
-    /root/v07-live/node-report.json'
-```
-
-`live-node-v07.py` (на хосте и в scratchpad сессии) проверяет: relay и четыре слота от
-установщика, подписку нашей панели **на десятом домене** (`eclipse`, на панельном домене 404),
-полосу Mieru (ссылка и подписка переезжают на порт слота 46101 и обратно), подписку 3x-ui на
-`zenith`, и выдаёт ключ `node-sync` для центра. Свой клиент и полосу убирает за собой.
-
-### 3. Живая проверка центра (AMS_Z → ams-test)
-
-AMS_Z сейчас на v0.6.0-beta.1 без роутера; точки отката v0.6 — `/root/v06-live/`.
-
-```
-scp <scratchpad>/ams-z-prep-v07.sh AMS_Z:/root/ && ssh AMS_Z 'sudo bash /root/ams-z-prep-v07.sh'
-# rsync panel/ naive_manager/ mieru_manager/ xray_router_manager/ installer/ compose*.yaml
-#       deploy/ scripts/ VERSION release/  →  /opt/mtproxy-shared443 (см. память deploy-targets)
-ssh AMS_Z 'sudo docker compose … up -d --build --wait panel naive-manager mieru-manager'
-scp <scratchpad>/live-v07.py AMS_Z:/root/v07-live/ && ssh AMS_Z 'sudo python3 /root/v07-live/live-v07.py \
-    api.dubr1k-kawai.uk edge.dubr1k-kawai.uk <файл пароля> https://aurora.sky.dubr1kkk.uk \
-    <файл ключа node-sync с ams-test> /root/v07-live/report.json'
-```
-
-Скрипт ставит роутер адаптером (`relay_port=0`, `lane_slots=2`, UFW 46101/46102), подключает
-naive+mieru с политикой сервиса `egress: warp` (как было), связывает ams-test, включает его relay,
-создаёт временного клиента, включает полосы, применяет правило `api.ipify.org → node:<ams-test>`,
-проверяет выходные IP и маскировку UUID, затем убирает своего клиента. Роутер, связь и relay
-остаются владельцу. Заполнить «Живая проверка» в заметке (RU и EN).
-
-### 4. Публикация
-
-Две сборки из чистого клона на стенде (байты совпали) → аннотированный тег `v0.7.0-beta.1`
-с `lab-sha256: <digest>` → push ветки и тега → workflow `Release` (собирает дважды, сверяет с
-`lab-sha256`, attestation) → `gh attestation verify` → тело релиза из заметки →
-**проверить описание релиза и README** (поручение владельца) → обновить `CONTINUE-HERE` и память
-(`proxy-control-vnext-v07-branch`, `proxy-control-deploy-targets`, `proxy-control-ams-test-lab-host`).
-
-Слияние в `main` и раскатка на остальные боевые хосты — решение владельца.
-
-## Подводные камни стенда
-
-Длинные прогоны — только отсоединённо (`setsid nohup`, опрос лога); `pgrep -f` по
-`xray_router_manager` ловит менеджер **установленного** узла (cwd `/app`) — фильтровать по cwd;
-`node-b.lab.test` должен быть в `/etc/hosts` до создания контейнеров; `host-teardown.sh` нужен
-перед каждой настоящей установкой (`fresh` отказывает при живом лабораторном роутере).
+1. Слияние `feature/vnext-v0.3-fleet-v2` → … → `v0.7-chains` в `main` (ни одна ветка ещё не слита) и
+   раскатка `ams-server`/`AMS_P`/`AMS_R` — только владелец; порядок «узлы → центр» (`docs/UPGRADING.ru.md`).
+2. Своя полоса владельца на AMS_Z → цепь через ams-test: `docs/releases/v0.6-operator-guide.ru.md` §8.8
+   (relay ams-test уже включён, связь есть).
+3. По желанию: `emails` в relay view роутера появляется только у включённого relay (у выключенного —
+   старый вид без поля; узел тогда подтверждает `desired`, что для пустого набора одно и то же).
