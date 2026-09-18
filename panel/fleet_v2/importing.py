@@ -63,13 +63,15 @@ async def import_resources(state, node_id: str, decisions: list[ImportItem], *, 
             row = known.get((item.protocol, item.runtime_username))
             if row is None:
                 raise ValueError(f"the node does not run {_label(item.protocol, item.runtime_username)}")
+            if clients.store.find_grant(db, item.protocol, node_id, DEFAULT_ENDPOINT, item.runtime_username) is not None:
+                # This central's own grant (auto-import got there first, or a repeated import):
+                # idempotent, whatever the node reports as ownership by now.
+                already_linked.append(_label(item.protocol, item.runtime_username))
+                continue
             if row.get("ownership") == "central":
                 # Owned by a central already — this one after a restore, or another one: never
                 # two masters for one account, and never a silent takeover (ADR 003).
                 raise ValueError(f"{_label(item.protocol, item.runtime_username)} is already managed by a central panel")
-            if clients.store.find_grant(db, item.protocol, node_id, DEFAULT_ENDPOINT, item.runtime_username) is not None:
-                already_linked.append(_label(item.protocol, item.runtime_username))
-                continue
             if item.client != NEW_CLIENT:
                 try:
                     clients.store.client(db, item.client)
