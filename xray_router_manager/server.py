@@ -112,6 +112,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(200, manager.geodata_update())
             if path == "/v1/geodata/restore" and self.command == "POST":
                 return self._send(200, manager.geodata_restore())
+            if path == "/v1/exits/test" and self.command == "POST":
+                body = self._body()
+                self._exact(body, {"exit"})
+                return self._send(200, manager.exit_test(body["exit"]))
             # v0.7: lane accounts and the relay inbound (spec §4.3)
             if path.startswith("/v1/lanes/"):
                 tail = path[len("/v1/lanes/"):].split("/")

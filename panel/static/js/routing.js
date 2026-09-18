@@ -372,9 +372,13 @@ function geodataLine(context, target) {
       <button class="ghost" data-routing-action="geodata-update"${canUpdate ? "" : " disabled"}>Обновить сейчас</button>
       <button class="ghost" data-routing-action="geodata-settings"${owner ? "" : " disabled"}>Источник…</button>
     </span>
-    <datalist id="geodata-geosite-codes">${(state.codes?.geosite || []).map((code) => `<option value="${esc(code)}"></option>`).join("")}</datalist>
-    <datalist id="geodata-geoip-codes">${(state.codes?.geoip || []).map((code) => `<option value="${esc(code)}"></option>`).join("")}</datalist>
+    <datalist id="geodata-geosite-codes">${codeOptions(state.codes?.geosite)}</datalist>
+    <datalist id="geodata-geoip-codes">${codeOptions(state.codes?.geoip)}</datalist>
   </div>`;
+}
+
+function codeOptions(codes) {
+  return (codes || []).map((code) => `<option value="${esc(code)}"></option>`).join("");
 }
 
 function openGeodataModal(context) {
@@ -435,7 +439,7 @@ async function geodataUpdate(context, button) {
   try {
     const result = await context.api(`/api/routing/geodata/${action}?node=${encodeURIComponent(target.node_id)}`, { method: "POST" });
     ensureState(context).geodata = null;
-    context.ui.toast(result.changed ? `Списки обновлены${result.version ? ` до ${result.version}` : ""}` : "Списки уже актуальны");
+    context.ui.toast(result.changed ? `Списки обновлены${result.version ? ` до ${esc(result.version)}` : ""}` : "Списки уже актуальны");
     await context.navigate("routing");
   } catch (error) {
     context.ui.toast(error.message, "error");

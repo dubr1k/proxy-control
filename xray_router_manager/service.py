@@ -56,6 +56,8 @@ from .intent import (
     validate_document,
 )
 from .geodata import GeodataError, GeodataStore
+from .probe import probe_trace
+from . import render as render_module
 from .render import RENDER_VERSION, Ingress, LaneAccount, Relay, config_bytes, generation_digest, render_config
 
 OPERATION_ID = re.compile(r"[A-Za-z0-9._:-]{1,128}")
@@ -198,6 +200,15 @@ def check_hop_reachable(address: str, port: int, server_name: str, timeout: floa
         return False
 
 
+TRACE_HOST = "www.cloudflare.com"
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
 def _port_open(port: int) -> bool:
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=0.5):
@@ -277,6 +288,9 @@ class XrayRouterManager:
         self.geodata = GeodataStore(self.state_dir / "geodata",
                                     {name: self.artifacts[name][0] for name in ("geosite", "geoip") if name in self.artifacts})
         self._geodata_busy = threading.Lock()
+        # v0.8: how an exit is tried — a TLS fetch of the trace page through a throwaway Xray.
+        self.exit_prober = probe_trace
+        self._exit_busy = threading.Lock()
         self.handle: object | None = None
         self.artifact_error: str | None = None
         self.artifact_report: dict = {}
@@ -621,6 +635,51 @@ class XrayRouterManager:
         if not self.warp_url:
             return {}
         return {"warp": {"reachable": self.reachability(self.warp_url, 3.0) if probe else None}}
+
+    # ------------------------------------------------------------------ exits
+
+    def exit_test(self, spec: object, *, timeout: float = 8.0) -> dict:
+        """Try one custom outbound: a throwaway Xray with a dokodemo-door on a loopback port to
+        the trace host through that outbound, then one TLS fetch of the trace page through it.
+        The running router is not touched. Returns what the far end saw of us."""
+        from .intent import validate_exit
+        normalised = validate_exit(spec)
+        if not self._exit_busy.acquire(blocking=False):
+            raise ManagerConflict("an exit test is already running", "exit_test_busy")
+        started = time.monotonic()
+        handle = None
+        path = self.state_dir / "exit-test.json"
+        try:
+            port = _free_port()
+            config = {
+                "log": {"access": "none", "loglevel": "warning"},
+                "dns": {"servers": ["localhost"]},
+                "inbounds": [{"tag": "probe", "listen": "127.0.0.1", "port": port, "protocol": "dokodemo-door",
+                              "settings": {"address": TRACE_HOST, "port": 443, "network": "tcp"}}],
+                "outbounds": [render_module.exit_outbound("probe-exit", normalised), {"tag": "block", "protocol": "blackhole"}],
+                "routing": {"rules": [{"inboundTag": ["probe"], "outboundTag": "probe-exit"}]},
+            }
+            _atomic_write(path, config_bytes(config))
+            try:
+                self.runner.test(path)
+            except XrayError as exc:
+                return {"ok": False, "error": f"xray refused the outbound: {exc}"[:300], "code": "exit_invalid"}
+            try:
+                handle = self.runner.start(path)
+                self.runner.wait_ready([port], min(timeout, 5.0))
+            except XrayError as exc:
+                return {"ok": False, "error": f"probe did not start: {exc}"[:300], "code": "exit_test_failed"}
+            try:
+                result = self.exit_prober(port, TRACE_HOST, timeout)
+            except OSError as exc:
+                return {"ok": False, "error": f"no answer through the exit: {exc}"[:300], "code": "exit_unreachable",
+                        "latency_ms": int((time.monotonic() - started) * 1000)}
+            return {"ok": True, **result, "latency_ms": int((time.monotonic() - started) * 1000)}
+        finally:
+            if handle is not None:
+                self.runner.stop(handle)
+            path.unlink(missing_ok=True)
+            self._exit_busy.release()
 
     # --------------------------------------------------------------- geodata
 

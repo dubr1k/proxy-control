@@ -34,7 +34,12 @@ MAX_SELECTORS = 64
 MAX_PORTS = 32
 MAX_NOTE = 120
 # "2": rules may name geosite/geoip codes and stand on ports alone (v0.5).
-COMPILER_VERSION = "2"
+# "3": rules may name the sniffed protocol (`bittorrent`, `tls`, …) and carry a preset mark (v0.8).
+COMPILER_VERSION = "3"
+# What Xray's sniffer reports and a rule may stand on (router only).
+SNIFFED_PROTOCOLS = ("http", "tls", "quic", "bittorrent")
+MAX_PROTOCOLS = 4
+_PRESET = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
 _LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 _GUID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
@@ -178,6 +183,17 @@ class RuleMatch(BaseModel):
     ports: list[int | str] = Field(default_factory=list, max_length=MAX_PORTS)
     geosites: list[str] = Field(default_factory=list, max_length=MAX_SELECTORS)
     geoips: list[str] = Field(default_factory=list, max_length=MAX_SELECTORS)
+    protocols: list[str] = Field(default_factory=list, max_length=MAX_PROTOCOLS)
+
+    @field_validator("protocols")
+    @classmethod
+    def _protocols(cls, value: list[str]) -> list[str]:
+        cleaned = []
+        for item in value:
+            if not isinstance(item, str) or item.strip().lower() not in SNIFFED_PROTOCOLS:
+                raise ValueError(f"invalid protocol selector: {item!r} (one of {', '.join(SNIFFED_PROTOCOLS)})")
+            cleaned.append(item.strip().lower())
+        return _unique(cleaned)
 
     @field_validator("domains")
     @classmethod
@@ -209,8 +225,8 @@ class RuleMatch(BaseModel):
 
     @model_validator(mode="after")
     def _not_empty(self):
-        if not (self.domains or self.cidrs or self.geosites or self.geoips or self.ports):
-            raise ValueError("a rule must name at least one domain, geosite, cidr, geoip or port")
+        if not (self.domains or self.cidrs or self.geosites or self.geoips or self.ports or self.protocols):
+            raise ValueError("a rule must name at least one domain, geosite, cidr, geoip, port or protocol")
         return self
 
     @property
@@ -231,11 +247,22 @@ class RoutingRule(BaseModel):
     action: Action
     egress: Egress | None = None
     note: str = Field(default="", max_length=MAX_NOTE)
+    # v0.8: the quick setting that created this rule («Торренты → блок»); cleared once edited.
+    preset: str | None = Field(default=None, max_length=32)
 
     @field_validator("egress")
     @classmethod
     def _egress(cls, value: str | None) -> str | None:
         return None if value is None else normalise_exit(value)
+
+    @field_validator("preset")
+    @classmethod
+    def _preset(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if _PRESET.fullmatch(value) is None:
+            raise ValueError("invalid preset name")
+        return value
 
     @model_validator(mode="after")
     def _egress_only_for_egress(self):

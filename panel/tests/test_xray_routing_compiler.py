@@ -75,7 +75,7 @@ def test_backend_accepts_xray_router_and_backends_for():
     assert PolicyInput(backend="xray_router").backend == "xray_router"
     with pytest.raises(ValidationError):
         PolicyInput(backend="sing_box")
-    assert COMPILER_VERSION == "2"
+    assert COMPILER_VERSION == "3"
 
 
 # -- the router compiler --------------------------------------------------------------
@@ -88,7 +88,7 @@ def test_compile_router_whole_warp_intent():
     assert compiled.digest == document_digest(compiled.document)
     assert compiled.attach == attach_document("naive") and compiled.backend == "xray_router"
     assert compiled.restart_required is True and compiled.runtime_version == "Xray 26.3.27"
-    assert compiled.compiler_version == "2" and compiled.rollback is None
+    assert compiled.compiler_version == "3" and compiled.rollback is None
 
 
 def test_compile_router_block_beside_warp_default_is_supported():
@@ -236,7 +236,7 @@ def test_routing_v15_rebuilds_policies_keeping_rows_and_foreign_keys(tmp_path, m
                    " VALUES('22222222-0000-4000-8000-222222222222','p2',0,1,'{\"domains\": [\"a.example\"], \"cidrs\": [], \"ports\": []}','block',1,1)")
     # the store of today reads through the v0.7 schema; the v0.4 rule row still reads
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [16, 17]
+    assert apply_migrations(database) == [16, 17, 18]
     with database.transaction() as db:
         policy = RoutingStore.get(db, "local", "naive")
         assert policy.rules[0].match.geosites == [] and policy.rules[0].match.geoips == []

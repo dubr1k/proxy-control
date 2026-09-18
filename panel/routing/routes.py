@@ -11,6 +11,7 @@ from ..web_context import RequestContext
 from .document import redact_document
 from .lanes import DEFAULT_RELAY_PORT, LaneError
 from .models import LANE_SERVICE, PolicyInput, RoutingPolicy
+from .presets import PRESETS
 from .service import RoutingError
 
 
@@ -155,6 +156,11 @@ def register_routing_routes(app, context: RequestContext) -> None:
         return await lanes.disable(grant_id, **_ctx(request, user))
 
     # The node's Xray-router (v0.5): hand a service's whole traffic to it, or take it back.
+    # v0.8: the quick settings — presets are rules with a mark; the definitions are the server's
+    @app.get("/api/routing/presets")
+    async def presets(_user=Depends(context.current)):
+        return {"items": [dict(item) for item in PRESETS]}
+
     # v0.8: the geodata of a node's router
     @app.get("/api/routing/geodata")
     async def geodata_view(node: str = "local", _user=Depends(context.current)):

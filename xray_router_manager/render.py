@@ -77,7 +77,60 @@ def _domain_selector(value: str) -> str:
 def _outbound_tag(tag: str, action: str, egress: str | None, chain_tags: dict[str, str]) -> str:
     if action == "egress" and egress and egress.startswith("chain:"):
         return chain_tags[egress[6:]]
+    if action == "egress" and egress and egress.startswith("exit:"):
+        return chain_tags[egress]
     return OUTBOUND_FOR[action]
+
+
+def exit_outbound(tag: str, spec: dict) -> dict:
+    """The Xray outbound for one custom exit (v0.8): the protocol's settings, the transport
+    and the security layer as `validate_exit` normalised them."""
+    protocol, address, port = spec["protocol"], spec["address"], spec["port"]
+    credential = spec.get("credential") or {}
+    if protocol in ("socks", "http"):
+        server: dict = {"address": address, "port": port}
+        if credential.get("username") is not None:
+            server["users"] = [{"user": credential["username"], "pass": credential["password"]}]
+        settings: dict = {"servers": [server]}
+    elif protocol == "vless":
+        settings = {"vnext": [{"address": address, "port": port,
+                               "users": [{"id": credential["uuid"], "encryption": "none", "flow": spec.get("flow", "")}]}]}
+    elif protocol == "trojan":
+        settings = {"servers": [{"address": address, "port": port, "password": credential["password"]}]}
+    else:  # shadowsocks
+        settings = {"servers": [{"address": address, "port": port, "method": spec["method"], "password": credential["password"]}]}
+    transport = spec.get("transport") or {"network": "tcp"}
+    network = transport.get("network", "tcp")
+    stream: dict = {"network": {"tcp": "tcp", "ws": "ws", "grpc": "grpc", "xhttp": "xhttp"}[network]}
+    if network == "ws":
+        ws: dict = {"path": transport.get("path") or "/"}
+        if transport.get("host"):
+            ws["host"] = transport["host"]
+        stream["wsSettings"] = ws
+    elif network == "grpc":
+        stream["grpcSettings"] = {"serviceName": transport.get("service_name") or ""}
+    elif network == "xhttp":
+        xhttp: dict = {"path": transport.get("path") or "/"}
+        if transport.get("host"):
+            xhttp["host"] = transport["host"]
+        stream["xhttpSettings"] = xhttp
+    security = spec.get("security") or {"kind": "none"}
+    kind = security.get("kind", "none")
+    if kind == "tls":
+        stream["security"] = "tls"
+        tls: dict = {"fingerprint": security.get("fingerprint", "chrome")}
+        if security.get("server_name"):
+            tls["serverName"] = security["server_name"]
+        if security.get("alpn"):
+            tls["alpn"] = list(security["alpn"])
+        if security.get("insecure"):
+            tls["allowInsecure"] = True
+        stream["tlsSettings"] = tls
+    elif kind == "reality":
+        stream["security"] = "reality"
+        stream["realitySettings"] = {"serverName": security["server_name"], "fingerprint": security.get("fingerprint", "chrome"),
+                                     "publicKey": security["public_key"], "shortId": security.get("short_id", "")}
+    return {"tag": tag, "protocol": protocol, "settings": settings, "streamSettings": stream}
 
 
 def _rule(tag: str, rule: dict, *, user: str | None = None, chain_tags: dict[str, str] | None = None) -> dict:
@@ -92,6 +145,9 @@ def _rule(tag: str, rule: dict, *, user: str | None = None, chain_tags: dict[str
         entry["ip"] = addresses
     if rule["ports"]:
         entry["port"] = ",".join(str(port) for port in rule["ports"])
+    if rule.get("protocols"):
+        # What the ingress sniffer saw (`sniffing.enabled` with `routeOnly`): bittorrent, tls, …
+        entry["protocol"] = list(rule["protocols"])
     entry["outboundTag"] = _outbound_tag(tag, rule["action"], rule.get("egress"), chain_tags or {})
     return entry
 
@@ -116,8 +172,8 @@ def _hop_outbound(tag: str, hop: dict, previous: str | None) -> dict:
 
 
 def _chain_outbounds(tag: str, intent: dict) -> tuple[list[dict], dict[str, str]]:
-    """One outbound per hop of every chain the service's intent names; the tag a rule lands
-    on is the chain's last hop."""
+    """One outbound per hop of every chain the service's intent names — the tag a rule lands
+    on is the chain's last hop — and one per custom exit (v0.8), keyed `exit:<id>`."""
     outbounds: list[dict] = []
     chain_tags: dict[str, str] = {}
     for chain_id, chain in intent.get("chains", {}).items():
@@ -127,6 +183,10 @@ def _chain_outbounds(tag: str, intent: dict) -> tuple[list[dict], dict[str, str]
             outbounds.append(_hop_outbound(hop_tag, hop, previous))
             previous = hop_tag
         chain_tags[chain_id] = previous
+    for exit_id, spec in intent.get("exits", {}).items():
+        exit_tag = f"exit:{tag}:{exit_id}"
+        outbounds.append(exit_outbound(exit_tag, spec))
+        chain_tags[f"exit:{exit_id}"] = exit_tag
     return outbounds, chain_tags
 
 
