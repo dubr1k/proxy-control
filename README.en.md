@@ -210,13 +210,14 @@ names exactly which domain failed which check.
 
 ## The full guide and the protocol for AI agents
 
-- **[Operator guide v0.6 (Russian)](docs/releases/v0.6-operator-guide.ru.md)** — one document for everything:
+- **[Operator guide v0.6–v0.7 (Russian)](docs/releases/v0.6-operator-guide.ru.md)** — one document for everything:
   the node's final architecture (what runs where, ports, the shared 443), which domains are needed and how
   to spread them over a fleet of several hosts (with fictitious examples), unattended deployment through
   the wizard or a TOML (exactly what every adapter installs, 3x-ui included), linking nodes to the central,
   issuing grants and subscriptions from the central panel onto other panels, egress routing and the
-  Xray-router with policy examples, upgrades and backups, end-to-end checklists.
-- **[AGENTS.md → «Эксплуатационный протокол для ИИ-агентов (v0.6)»](AGENTS.md)** — the same operations as
+  Xray-router with policy examples, chains and client lanes (§8.8, v0.7), upgrades and backups,
+  end-to-end checklists.
+- **[AGENTS.md → «Эксплуатационный протокол для ИИ-агентов (v0.6–v0.7)»](AGENTS.md)** — the same operations as
   algorithms for an agent: unattended install (`plan --json` → digest → `install`), preparing and linking a
   node through the API, grants and subscriptions, routing and the Xray-router, upgrade and rollback — each
   with its verification command, a «refusal code → action» table, the production-host prohibitions, the
@@ -250,18 +251,18 @@ suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
 
-**Beta releases (v0.2.0-beta.1 … v0.6.0-beta.1).** `install-bootstrap` refuses a
+**Beta releases (v0.2.0-beta.1 … v0.7.0-beta.1).** `install-bootstrap` refuses a
 version with a pre-release suffix, so a beta is installed without it: the same
 four files from the release page, the same `SHA256SUMS` check, then extract the
 archive and run the wizard from the extracted directory — it writes the
 configuration, shows the plan and applies nothing until you confirm the plan
 digest. This is the path the release gate takes on the lab host
 (`scripts/lab/guest-runner.sh host` installs the beta from the extracted
-archive), and it is how v0.2, v0.3, v0.4 and v0.5 were installed:
+archive), and it is how v0.2, v0.3, v0.4, v0.5, v0.6 and v0.7 were installed:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.6.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.7.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
@@ -276,7 +277,7 @@ what gets installed, `--check-only` downloads and verifies only:
 
 ```bash
 scripts/install-release.sh --requirements
-scripts/install-release.sh --version 0.6.0-beta.1 --sha256 <lab-sha256 from the release note>
+scripts/install-release.sh --version 0.7.0-beta.1 --sha256 <lab-sha256 from the release note>
 ```
 
 The installer does not run from a Git clone: there is no `release/release.json`.
@@ -986,10 +987,12 @@ Routing (v0.4) and the Xray-router (v0.5) are beta, checked on the lab host and 
 on a production node to the extent of their release notes. v0.6 verifies everything promised
 in v0.2–v0.5: the [function → proof matrix](docs/VERIFICATION_MATRIX.md) under a guard test, a
 route audit, every screen in a real browser (`remote-gate.sh ui`), the managed 3x-ui against the
-real 3x-ui, a backup/restore drill — and the fixes for what that found (see the release note). Not claimed as completed: a
-3x-ui bridge, canary rollouts of policies, per-grant and UDP routing through the router,
-transitive nodes, metric history and updating a node's own panel from the central, and
-billing-grade traffic accounting.
+real 3x-ui, a backup/restore drill — and the fixes for what that found (see the release note).
+v0.7 — [chains and lanes](docs/releases/v0.7.0-beta.1.md): a policy's exit through the relays of
+other nodes of the fleet (a chain of up to three hops), a grant's own lane and policy, the `chains`
+tier on the stand and a live «central → exit node» check. Not claimed as completed: a 3x-ui
+bridge, canary rollouts of policies, UDP through the router, metric history and updating a node's
+own panel from the central, and billing-grade traffic accounting.
 
 ## Acknowledgements
 

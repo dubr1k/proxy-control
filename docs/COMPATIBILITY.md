@@ -43,6 +43,23 @@ The v0.3 identifiers above did not change; `schema_version` stays 1 and `api_ver
 - **Host identifiers**: container `proxy-control-xray-router` (Compose service `xray-router`, overlay `compose.xray-router.yaml`, image context `xray_router_manager/`), identity `xray-router` 10006:10006, binaries `/usr/local/lib/proxy-control/xray-router/{xray,geoip.dat,geosite.dat}`, state `/var/lib/xray-router` (0700), ingresses `127.0.0.1:45101` (naive) and `127.0.0.1:45102` (mieru), secrets `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive`, `secrets/xray-router-ingress-mieru` (root:10006 0440, `user:password`), the managers' copies `/var/lib/naive-manager/xray-router-ingress` and `/var/lib/mieru-manager/xray-router-ingress` (0400), volume `xray-router-run`, marker `/etc/proxy-control/xray-router-owned`, helpers `/usr/local/libexec/prepare-xray-router-state` and `rotate-xray-router-ingress`, env `.env.xray-router` (`XRAY_ROUTER_BIN_DIR`, `XRAY_ROUTER_STATE_DIR`, `XRAY_ROUTER_XRAY_SHA256`, `XRAY_ROUTER_GEOIP_SHA256`, `XRAY_ROUTER_GEOSITE_SHA256`, `XRAY_ROUTER_EGRESS_WARP`) and the managers' `NAIVE_EGRESS_ROUTER` / `NAIVE_EGRESS_ROUTER_CREDENTIAL_FILE`, `MIERU_EGRESS_ROUTER` / `MIERU_EGRESS_ROUTER_CREDENTIAL_FILE`; the installer's `[egress] router` and the choice `router` for `naive` / `mieru`; the pinned artifact `xray` 26.3.27 (`Xray-linux-64.zip`) in `release/external-artifacts.json` with per-member digests.
 - **Routing API and audit**: `POST /api/routing/targets/{node}/{protocol}/attach | detach`; `targets[].router = {available, attached, xray_version, restart_required, reason}` and `targets[].backend = xray_router` for an attached service; `PolicyInput.backend`; the codes `router_unavailable`, `router_unreachable`, `not_attached`, `node_lacks_router`, `artifact_mismatch` (503), `geosite_unknown`, `geoip_unknown` and the warning `router_credential_stale`; audit actions `routing.target.attach | detach`.
 
+## v0.7: lanes and chains — additive on the wire
+
+`schema_version` and `api_version` are unchanged. New, all optional and absent from the wire and the digest
+when unused: `Resource.lane` (`"own"`), `GenerationDocument.relay` (`{enabled, port, server_name,
+accounts[{email: relay:<guid>:<direct|warp>, credential_ref}]}` — the UUIDs travel in the push's `secrets`),
+`ObservedGeneration.relay` (`{state, enabled, port, server_name, public_key, short_id, accounts[], error}`),
+`ObservedEgress.lanes[]`; capabilities `egress.lanes.v1`, `relay.v1`; `identity.router.relay`
+(`{enabled, port, server_name, public_key, short_ids, accounts}`) and `identity.router.lanes`. A central sends the
+new fields only to a node that declared the capabilities (`node_lacks_lanes`, `node_lacks_relay` otherwise);
+a v0.6 central ignores the new report fields. A policy's exit is a string `warp | node:<guid>[,…][:warp]`, a
+policy key carries `lane` (`svc` for every pre-v0.7 row); migration 16 is additive in effect. New routes:
+`POST /api/routing/lanes/{grant_id}`, `POST /api/routing/policies/{node}/{protocol}/explain`,
+`POST /api/routing/relay/{node}/enable | rotate`; every policy route takes `?lane=`. Secret purpose
+`relay-account`. Host identifiers: relay port 45443 (`[egress] relay_port`), slot units `mita@<n>` with sockets
+`/run/mita/lane-<n>.sock`, state `/var/lib/mita/lanes/<n>`, ports `46100+n`, env `MIERU_LANE_SLOTS`; the
+router's `lanes.json` and `relay.json` in `/var/lib/xray-router` (0600); router intent schema 2.
+
 ## v0.6 (verification): nothing new on the wire
 
 `schema_version`, `api_version`, the Fleet v2 documents and every identifier above are unchanged. Two additive
