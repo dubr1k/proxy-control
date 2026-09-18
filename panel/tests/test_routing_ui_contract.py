@@ -178,7 +178,7 @@ def test_node_card_carries_the_routing_line():
 
 def test_style_has_the_routing_grid_and_its_phone_breakpoint():
     css = (STATIC / "style.css").read_text()
-    for selector in (".routing-layout{", ".routing-rule{", ".routing-preview{", ".routing-diff", ".routing-toolbar{"):
+    for selector in (".routing-layout{", ".routing-table td{", ".routing-preview{", ".routing-diff", ".routing-toolbar{"):
         assert selector in css, selector
     assert "@media(max-width:900px){.routing-layout{grid-template-columns:1fr}}" in css
 

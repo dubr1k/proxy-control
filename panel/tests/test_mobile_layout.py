@@ -349,8 +349,9 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
         """
 
     def routing_card() -> str:
-        """The routing editor (v0.4): defaults, one rule with its four fields and tools, the
-        preview beside it on a desktop and under it on a phone, then the action row."""
+        """The routing editor (v0.4, table since v0.8): defaults, the quick settings, one rule
+        row with its chips and tools, the preview beside it on a desktop and under it on a
+        phone, then the action row."""
         return """
           <article class="panel-card routing-card">
             <div class="routing-head"><b>NaiveProxy · naive_native</b><span class="status-pill"><i></i>есть неприменённые изменения (на узле rev 3)</span></div>
@@ -361,22 +362,17 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
                   <label>По умолчанию<select><option>Напрямую</option></select></label>
                   <label>При недоступности WARP<select><option>отказать</option></select></label>
                 </div>
-                <ol class="routing-rules">
-                  <li class="routing-rule" draggable="true">
-                    <div class="routing-rule-head">
-                      <span class="routing-rule-order">1</span>
-                      <label class="routing-rule-toggle"><input type="checkbox" checked> включено</label>
-                      <select><option>Блокировать</option></select>
-                      <span class="routing-rule-tools"><button class="ghost">↑</button><button class="ghost">↓</button><button class="ghost danger-text">Удалить</button></span>
-                    </div>
-                    <div class="routing-rule-fields">
-                      <label>Домены <small>example.com, *.cdn.example</small><input value="example.com, *.example.com, a-very-long-subdomain-name.tracking.example"></label>
-                      <label>CIDR <small>1.2.3.0/24</small><input value="203.0.113.0/24, 2001:db8::/32"></label>
-                      <label>Порты <small>не применяются в v0.4</small><input value=""></label>
-                      <label>Заметка<input value="рекламные сети"></label>
-                    </div>
-                  </li>
-                </ol>
+                <div class="routing-presets"><b>Быстрые настройки</b><label class="routing-preset on"><input type="checkbox" checked> Торренты → блок</label><label class="routing-preset"><input type="checkbox"> Реклама → блок</label><label class="routing-preset"><input type="checkbox"> Российские домены и IP → напрямую</label></div>
+                <div class="import-table-wrap"><table class="import-table routing-table"><thead><tr><th>#</th><th>вкл</th><th>Что</th><th>Куда</th><th>Заметка</th><th></th></tr></thead><tbody>
+                  <tr class="routing-rule" draggable="true">
+                    <td class="routing-rule-order">1</td>
+                    <td><input type="checkbox" checked aria-label="включено"></td>
+                    <td class="routing-rule-what"><span class="routing-chip">example.com</span><span class="routing-chip">a-very-long-subdomain-name.tracking.example</span><span class="routing-chip">geosite:category-ads-all</span><span class="routing-chip">203.0.113.0/24</span><span class="routing-chip">протокол bittorrent</span><span class="routing-chip">порт 443, 1000-2000</span></td>
+                    <td class="routing-rule-where">⛔ блок</td>
+                    <td class="routing-rule-note">рекламные сети<small class="routing-preset-mark">пресет</small></td>
+                    <td class="routing-rule-tools"><button type="button" class="ghost">Изменить</button><button type="button" class="ghost">↑</button><button type="button" class="ghost">↓</button><button type="button" class="ghost danger-text">✕</button></td>
+                  </tr>
+                </tbody></table></div>
                 <div class="routing-editor-actions"><button class="secondary">Добавить правило</button><button class="secondary">Сбросить</button><button class="primary">Сохранить</button></div>
               </form>
               <div class="routing-preview">

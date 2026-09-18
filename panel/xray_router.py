@@ -19,6 +19,8 @@ ROUTER_CAPABILITIES = (
     "whole_direct", "whole_warp",
     "block_domain", "block_cidr", "block_port", "block_geosite", "block_geoip",
     "selective_domain", "selective_cidr", "selective_port", "selective_geosite", "selective_geoip",
+    # v0.8: refreshable geodata, custom exits, the sniffed-protocol selector
+    "geodata", "custom_exits", "block_protocol", "selective_protocol",
 )
 
 
@@ -324,8 +326,7 @@ class MemoryXrayRouter:
                 "running": {"generation": self.generation, "digest": "0" * 64, "since": None},
                 "services": {service: {"revision": self._revision(service), "digest": self._digest(service),
                                        "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES},
-                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay", "geodata", "custom_exits",
-                                                                 "block_protocol", "selective_protocol"],
+                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay"],
                 "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES},
                 "relay": self._relay_view(),
                 "geodata": {key: self.geodata_state[key] for key in ("source", "origin", "version", "updated_at", "auto_update",
@@ -337,8 +338,7 @@ class MemoryXrayRouter:
         history = self.history[service]
         return {"revision": self._revision(service), "document": copy.deepcopy(document),
                 "mode": "proxy" if self._uses_warp(document) else "direct", "generation": self.generation,
-                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "custom_exits", "block_protocol", "selective_protocol"],
-                "restart_required": True,
+                "providers": self._providers(), "capabilities": list(ROUTER_CAPABILITIES), "restart_required": True,
                 "warnings": [], "runtime_version": self.xray_version,
                 "previous": {"revision": "previous"} if history else None,
                 "current": {"revision": self._revision(service), "digest": self._digest(service), "generation": self.generation,
