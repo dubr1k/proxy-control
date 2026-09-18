@@ -47,7 +47,7 @@ async def test_put_upserts_with_expected_revision_and_keeps_rule_ids(client, log
     body = created.json()
     assert body["revision"] == 1 and body["state"] == "draft" and body["backend"] == "mieru_native"
     rule_id = body["rules"][0]["id"]
-    assert body["rules"][0]["match"] == {"domains": ["example.com", "*.example.com"], "cidrs": [], "ports": [], "geosites": [], "geoips": []}
+    assert body["rules"][0]["match"] == {"domains": ["example.com", "*.example.com"], "cidrs": [], "ports": [], "geosites": [], "geoips": [], "protocols": []}
     assert body["applied_current"] is False
     stale = await client.put("/api/routing/policies/local/mieru", json={**BLOCK, "expected_revision": 5}, headers=_csrf(client))
     assert stale.status_code == 409 and stale.json()["code"] == "policy_conflict"
@@ -79,7 +79,7 @@ async def test_preview_of_a_draft_does_not_save(client, login_user):
     assert preview.status_code == 200
     body = preview.json()
     assert body["status"] == "unsupported" and body["reasons"][0]["code"] == "backend_capability_missing"
-    assert body["document"] is None and body["compiler_version"] == "2"
+    assert body["document"] is None and body["compiler_version"] == "3"
     assert (await client.get("/api/routing/policies/local/naive")).status_code == 404
     stored = await client.post("/api/routing/policies/local/naive/preview", headers=_csrf(client))
     assert stored.status_code == 404 and stored.json()["code"] == "policy_not_found"
@@ -124,7 +124,7 @@ async def test_apply_rollback_delete_and_history(client, login_user, naive):
     assert rolled.json()["policy"]["applied_revision"] == 1 and naive.egress_document["upstream"] is None
     history = (await client.get("/api/routing/policies/local/naive/history")).json()["items"]
     assert [row["outcome"] for row in history] == ["rolled_back", "applied", "failed", "applied"]
-    assert history[0]["actor"] == "owner" and history[0]["compiler_version"] == "2"
+    assert history[0]["actor"] == "owner" and history[0]["compiler_version"] == "3"
     audit = (await client.get("/api/audit")).json()["items"]
     actions = [row["action"] for row in audit]
     assert {"routing.policy.update", "routing.policy.apply", "routing.policy.rollback"} <= set(actions)

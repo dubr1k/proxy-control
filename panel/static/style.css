@@ -153,4 +153,4 @@
 .grant-lane small{color:var(--muted)}
 .choose-field{display:block;margin:8px 0 4px}
 .choose-field select{width:100%}
-@media(max-width:900px){.routing-explain input[name=host]{min-width:0;width:100%}.routing-lanes .ghost{margin-left:0}}
+@media(max-width:900px){.routing-explain input[name=host]{min-width:0;width:100%}.routing-lanes .ghost{margin-left:0}.routing-table thead,.routing-exits-table thead{display:none}.routing-table,.routing-table tbody,.routing-table tr,.routing-table td,.routing-exits-table,.routing-exits-table tbody,.routing-exits-table tr,.routing-exits-table td{display:block;width:100%}.routing-table tr,.routing-exits-table tr{padding:8px 10px;border:1px solid var(--line);border-radius:7px;margin-bottom:8px;box-sizing:border-box}.routing-table td,.routing-exits-table td{padding:3px 0;border-bottom:0}.routing-rule-order{width:auto;color:var(--quiet);font-size:10px}.routing-rule-where{white-space:normal}.routing-rule-tools{white-space:normal;text-align:left;display:flex;flex-wrap:wrap;gap:4px}.routing-rule-tools .ghost{flex:0 0 auto}.routing-rule-what{max-width:none}.routing-geodata-tools{margin-left:0}}
