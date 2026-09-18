@@ -382,9 +382,36 @@ class FakeFleet:
             link["status"] = "online" if online else "offline"
             if not online:
                 continue
+            # v0.8 auto-import: the heartbeat adopts the node's own users (fleet_v2.pusher._adopt).
+            pending = [{"protocol": p, "runtime_username": u} for p, rows in self.runtime.items() for u in rows
+                       if not any((g["protocol"], g["runtime_username"]) == (p, u) for g in self.grants.values())]
+            if pending:
+                self._import(node_id, pending, auto=True)
             if link["desired"] > link["acknowledged"]:
                 self.apply(node_id)
                 link["acknowledged"] = link["desired"]
+
+    def _import(self, node_id, resources, *, auto=False):
+        imported, without, already = [], [], []
+        for item in resources:
+            if any((g["protocol"], g["runtime_username"]) == (item["protocol"], item["runtime_username"]) for g in self.grants.values()):
+                already.append(f"{item['protocol']}:{item['runtime_username']}")
+                continue
+            cid = self._new_id("client")
+            self.clients[cid] = {"display_name": item["runtime_username"]}
+            gid = self._new_id("grant")
+            row = self.runtime[item["protocol"]][item["runtime_username"]]
+            self.grants[gid] = {"client_id": cid, "protocol": item["protocol"], "node_id": node_id,
+                                "runtime_username": item["runtime_username"], "desired_state": "enabled" if row["enabled"] else "disabled",
+                                "observed_state": "enabled", "origin": "imported", "version": 1, "secret": row["secret"]}
+            imported.append({"grant_id": gid, "client_id": cid, "protocol": item["protocol"],
+                             "runtime_username": item["runtime_username"], "has_credential": item["protocol"] != "mieru"})
+            if item["protocol"] == "mieru":
+                without.append(f"mieru:{item['runtime_username']}")
+        if imported:
+            self.events.append({"name": "node.import", "node_id": node_id, "auto": auto})
+            self.publish(node_id)
+        return {"imported": imported, "without_credential": without, "already_linked": already}
 
     def apply(self, node_id):
         if self.master_guid is None:
@@ -513,7 +540,7 @@ class FakeFleet:
     def _node_view(self, node_id):
         link = self.central_nodes[node_id]
         return {"node_id": node_id, "transport": "panel",
-                "link": {"status": link["status"], "desired_generation": link["desired"],
+                "link": {"status": link["status"], "desired_generation": link["desired"], "auto_import": True,
                          "acknowledged_generation": link["acknowledged"], "config_dirty": link["desired"] > link["acknowledged"],
                          "last_error": None if link["status"] == "online" else "NodeUnreachable: ConnectError"}}
 
@@ -573,21 +600,7 @@ class FakeFleet:
                                                        if (grant["protocol"], grant["runtime_username"]) == (protocol, row["runtime_username"])), None)
                 return 200, {"protocols": table}
             if rest == "/import":
-                imported, without = [], []
-                for item in payload["resources"]:
-                    cid = self._new_id("client")
-                    self.clients[cid] = {"display_name": item["runtime_username"]}
-                    gid = self._new_id("grant")
-                    row = self.runtime[item["protocol"]][item["runtime_username"]]
-                    self.grants[gid] = {"client_id": cid, "protocol": item["protocol"], "node_id": node_id,
-                                        "runtime_username": item["runtime_username"], "desired_state": "enabled" if row["enabled"] else "disabled",
-                                        "observed_state": "enabled", "origin": "imported", "version": 1, "secret": row["secret"]}
-                    imported.append({"grant_id": gid, "client_id": cid, "protocol": item["protocol"],
-                                     "runtime_username": item["runtime_username"], "has_credential": item["protocol"] != "mieru"})
-                    if item["protocol"] == "mieru":
-                        without.append(f"mieru:{item['runtime_username']}")
-                self.publish(node_id)
-                return 200, {"imported": imported, "without_credential": without, "already_linked": []}
+                return 200, self._import(node_id, payload["resources"])
             if rest == "/generations":
                 return 200, {"desired": {"generation": link["desired"]},
                              "observed": {"applied_generation": link["acknowledged"],

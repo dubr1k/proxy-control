@@ -977,19 +977,31 @@ class Scenario:
         self.check("s03_node_up_event", self.events("node.up") >= 1)
 
     def step_04_import(self) -> None:
-        table = self.central.json(f"/api/nodes/{self.node_id}/inventory")["protocols"]
-        candidates = [{"protocol": protocol, "runtime_username": row["runtime_username"], "client": "new"}
-                      for protocol, rows in table.items() for row in rows
-                      if row.get("linked_grant_id") is None and row.get("ownership") == "local"]
-        self.report["counts"]["import_candidates"] = {p: sum(1 for c in candidates if c["protocol"] == p) for p in PROTOCOLS}
-        self.check("s04_import_candidates_present", bool(candidates), "the node runs no user to import")
-        if not candidates:
+        # v0.8: the link adopts the node's own users by itself on the heartbeat (auto_import,
+        # default on) — the operator imports nothing by hand; a manual import of the same
+        # accounts afterwards is idempotent (`already_linked`).
+        wanted = {(protocol, username) for protocol, names in self.initial_users.items() for username in names}
+        self.report["counts"]["import_candidates"] = {p: len(self.initial_users.get(p, [])) for p in PROTOCOLS}
+        self.check("s04_import_candidates_present", bool(wanted), "the node runs no user to import")
+        if not wanted:
             return
+        self.check("s04_link_auto_import_on", self.node_view()["link"].get("auto_import") is True)
+
+        def linked_in_inventory():
+            table = self.central.json(f"/api/nodes/{self.node_id}/inventory")["protocols"]
+            linked = {(p, row["runtime_username"]) for p, rows in table.items() for row in rows if row.get("linked_grant_id")}
+            return wanted <= linked
+
+        done, elapsed = self.wait(linked_in_inventory, ENABLED_SECONDS, "auto-import linked")
+        self.report["counts"]["auto_import_seconds"] = elapsed
+        self.check("s04_auto_import_linked_every_user", bool(done), f"not all linked after {elapsed}s")
+        self.check("s04_auto_import_audited", self.events("node.import") >= 1)
+        candidates = [{"protocol": p, "runtime_username": u, "client": "new"} for p, u in sorted(wanted)]
         result = self.central.json(f"/api/nodes/{self.node_id}/import", method="POST", payload={"resources": candidates})
         self.report["counts"]["imported"] = len(result.get("imported", []))
         self.report["counts"]["imported_without_credential"] = len(result.get("without_credential", []))
-        self.check("s04_import_accepted", len(result.get("imported", [])) == len(candidates), json.dumps(result)[:300])
-        wanted = {(c["protocol"], c["runtime_username"]) for c in candidates}
+        self.check("s04_import_accepted", not result.get("imported") and len(result.get("already_linked", [])) == len(candidates),
+                   json.dumps(result)[:300])
 
         def adopted():
             owned = {(p, r["runtime_username"]) for p, rows in self.node_inventory().items()
