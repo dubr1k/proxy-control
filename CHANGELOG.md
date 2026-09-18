@@ -82,6 +82,9 @@ with the relay between nodes issued and rotated by the panel. Release note:
   Planning changes nothing now: the action names the step (`stream_context=create`) and `apply`
   adds the context before the router file it includes. `scripts/lab/host-teardown.sh` also removes
   the `mita@<n>` slot units.
+- The journal showed the system events (`subscription.fetched`, `subscription.revoked`,
+  `subscription.generation.changed`, `node.up`, `node.down`) as raw codes: they now have labels
+  and a place in `docs/AUDIT_EVENTS.md` (seen in the `ui` tier's journal frame).
 
 ### Fixed (post-v0.6, on the branch before this tag)
 

@@ -48,6 +48,16 @@ checks the fleet and grant names against this file.
 | `grant.credential.adopt` | grant id | «Принять доступ» with rotation (Mieru) |
 | `subscription.create` / `subscription.rotate` / `subscription.revoke` | subscription id | subscriptions |
 
+System events (actor `system`, `ip = local`) share the table — `panel/events.py` records them
+so the journal and `GET /api/events` tell one story:
+
+| Event | Target | Recorded by |
+| --- | --- | --- |
+| `subscription.fetched` | subscription id | a subscriber's client fetched the feed (`status`, `format`; never the token) |
+| `subscription.revoked` | subscription id | the subscription stopped answering — revoked by an operator or replaced by a rotation |
+| `subscription.generation.changed` | subscription id | the set of grants the feed carries changed |
+| `node.up` / `node.down` | node guid | a linked panel became reachable / stopped answering |
+
 ## Nodes (central side)
 
 | Action | Target | Recorded by |
