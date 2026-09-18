@@ -1,55 +1,47 @@
 # CONTINUE HERE — v0.8 (свои выходы, таблица правил, geodata, автоимпорт)
 
-Состояние на 2026-09-18 (вечер UTC), ветка `main`, `VERSION = 0.8.0-beta.1`, **не тегировано, не
-опубликовано, парк на v0.7 (ams-server — на промежуточных коммитах v0.8 без автоимпорта)**.
-Спека: `docs/superpowers/specs/2026-09-18-v0.8-exits-and-rules-design.md` (статус «утверждено и
-реализовано», решения владельца в шапке). Заметка о выпуске: `docs/releases/v0.8.0-beta.1.md`
-(разделы гейта, скриншотов и живой проверки — плейсхолдеры).
+Состояние на 2026-09-18 (поздний вечер UTC), ветка `main`, `VERSION = 0.8.0-beta.1`.
+**Гейт зелёный, парк на v0.8, живые проверки пройдены; тег и публикация — последний шаг**
+(см. «Что дальше»). Спека: `docs/superpowers/specs/2026-09-18-v0.8-exits-and-rules-design.md`.
+Заметка о выпуске: `docs/releases/v0.8.0-beta.1.md` (гейт, скриншоты, живая проверка заполнены;
+блок «Архив» — после тега).
 
-## Сделано (коммиты 8595133 … e904187, все на `main`)
+## Сделано
 
-- **UI-мелочи по замечаниям владельца**: одношаговый «Новый клиент» (имя + узел + протоколы),
-  явное закрытие диалогов, отступ жёлтой плашки, бренд-терминал в боковой панели, поле «Узел» в
-  диалогах MTProxy/Naive/Mieru (доступ на связанной панели — через клиента).
-- **Подписки на центре**: домен `sub.panel-tga.unicorndubr1k.org` на ams-server (nginx только `/s/`,
-  LE-сертификат, `.env` панели) — раскатано.
-- **Автоимпорт** (миграция 17, `node_links.auto_import`, по умолчанию 1): pusher на каждом
-  heartbeat принимает пользователей узла; одно имя — один клиент; аудит `node.import` с `auto`.
-- **Geodata роутера** (`xray_router_manager/geodata.py`): `<state>/geodata` + `XRAY_LOCATION_ASSET`,
-  источники xray/loyalsoldier/custom, транзакция обновления, автообновление, коды из protobuf;
-  `/v1/geodata*`; панель `/api/routing/geodata*` (локально и через `/api/fleet/v2/geodata*`).
-- **Свои выходы** (миграция 19, `egress_exits`, escrow `exit.credential`): `panel/routing/exits.py`
-  (ExitInput, парсер ссылок), `/api/routing/exits*`, `exit:<id>` в политике, intent схемы 2 с
-  `exits`, рендер аутбаундов, проба `/v1/exits/test` (`probe.py`), `/api/fleet/v2/exits/test`.
-- **Пресеты и протокол сниффера** (миграция 18, `routing_rules.preset`, `match.protocols`),
-  `/api/routing/presets`, компилятор версии 3.
-- **UI «Маршрутизации»**: таблица правил + модалка, быстрые настройки, панель своих выходов
-  с модалкой (форма/ссылка), блок Geodata с диалогом источника; tier `ui` расширен
-  (`add_rule`, `routing_exits_and_geodata`).
-- Документация: ROUTING/XRAY_ROUTER/UPGRADING ru+en, FLEET (автоимпорт), AUDIT_EVENTS, CHANGELOG
-  en/ru, README RU/EN, docs/README.
-
-## Проверено
-
-- Юнит-тесты затронутых модулей зелёные на стенде (`remote-gate.sh quick …`), JS-синтаксис,
-  контракт UI, route coverage, doc links; полный `gate-full.sh` на дереве e904187 запущен
-  отсоединённо (`/root/gate-v08-full.log`, маркер `GATE_FULL_EXIT=`).
-- На настоящей установке ams-test (v0.7 + статика/менеджер v0.8, пересобраны `panel` и
-  `xray-router`): geodata посеялась (1 429 geosite, 260 geoip), экран «Маршрутизация» с таблицей,
-  пресетами, выходами и geodata отрисован; скриншоты в scratchpad сессии.
+- Код v0.8 (коммиты 8595133 … f653552): автоимпорт (миграция 17), geodata роутера
+  (Loyalsoldier / свои URL, транзакция, автообновление), свои выходы (миграция 19, escrow,
+  проба на роутере, Fleet API), пресеты и селектор протокола (миграция 18, компилятор 3),
+  таблица правил + модалки, одношаговый клиент, поле «Узел», подписки на ams-server, бренд.
+- Найдено и исправлено гейтом/живой проверкой (10bc043 … c9ca50c): повторный импорт после
+  автоимпорта отвечал 422 → `already_linked`; версия Loyalsoldier терялась на редиректе GitHub;
+  действия с выходами/geodata перезагружали экран и выбрасывали несохранённые правила;
+  сценарии `fleet` и `ui` переписаны под v0.8.
+- Гейт на ams-test: full 2338/2 (b010721), compose, lab-container, lab-host ×2, fleet 87/87,
+  routing 157/157, router 245/245, chains 280/280 (5446e5d), ui 221/221 и managed-xui на
+  финальном c9ca50c; `lab-sha256` финального дерева `737a922c…` (журналы `/root/gate-v08-run*.log`).
+- Раскатка на весь парк (18:09–18:13 UTC, узлы → центр) скриптами `/root/v08-rollout-{a,b,c}.sh`
+  (точки отката `/root/v08-rollout/<ts>/`, прогон миграций на копии базы, пересборка только
+  panel [+ xray-router на AMS_Z]); после c9ca50c панель пересобрана ещё раз на всех четырёх
+  (`mtproxy-panel:rollback-final-<ts>`). Автоимпорт на ams-server принял 14 клиентов.
+- Живые проверки: ams-server → AMS_Z 31/31 (`/root/v08-rollout/live-v08.py`, отчёт
+  `live-central-report.json`); ams-test переустановлен из архива гейта (`node-live-chain-v08.sh`,
+  узел 26/26); AMS_Z → ams-test 8/8 (перелинковка, geodata через Fleet, автоимпорт).
+  Geodata AMS_Z оставлена на Loyalsoldier с автообновлением (решение владельца).
 
 ## Что дальше (по порядку)
 
-1. Дождаться `GATE_FULL_EXIT=0`; при красных тестах — чинить и повторять.
-2. Tier-гейт: `setsid nohup env TIERS="compose lab-container lab-host-0 lab-host-1 fleet routing router chains ui managed-xui" bash /root/gate-v08.sh > /root/gate-v08.log 2>&1 &`
-   (LAB_RESET сносит настоящую установку ams-test; LE-лимит — восстановить `/etc/letsencrypt` из
-   `/root/le-backup-v07` перед переустановкой; после гейта — `node-live-chain.sh` для настоящей
-   установки и связи с AMS_Z).
-3. Заполнить заметку о выпуске (гейт, скриншоты tier'а `ui`, находки), обновить
-   `docs/VERIFICATION_MATRIX.md` при необходимости.
-4. Живая проверка AMS_Z → ams-test: выход socks через WARP-сокет AMS_Z, VLESS-выход на relay
-   ams-test, пресет «реклама → блок», geodata → Loyalsoldier с обновлением, автоимпорт.
-5. Тег `v0.8.0-beta.1` с `lab-sha256`, push, workflow Release, тело релиза.
-6. Раскатка: узлы AMS_P, AMS_R, AMS_Z (rsync `panel/ xray_router_manager/ compose*.yaml scripts/
-   VERSION`, `up -d --build --no-deps --wait panel xray-router`), потом центр ams-server; миграции
-   17–19 при старте; автоимпорт включится сам — на ams-server ожидать появления клиентов AMS_P/R/Z.
+1. `REMOTE_GATE_FULL_OK` финального дерева (`/root/gate-v08-full-final.log`) → в таблицу гейта.
+2. Коммит заметки + скриншотов + этого файла, push.
+3. Две сборки из чистого клона на ams-test (`/root/release-check-v08`, `release/build.py`,
+   байты совпали, `--verify`) → тег `v0.8.0-beta.1` с `lab-sha256: <digest>` → push тега →
+   workflow `Release` → pre-release; блок «Архив» в заметке и шапка README — коммитом после тега.
+4. Замечание владельца: на ams-server блок Geodata не виден — там нет роутера (сервисы нативные);
+   показать подсказку «нужен Xray-router» на нативном сервисе и/или сделать Loyalsoldier с
+   автообновлением значением по умолчанию — решение владельца, отдельным коммитом после выпуска.
+
+## Что оставлено на хостах
+
+- ams-test: настоящая установка v0.8 из архива `737a922c…`, связана с AMS_Z как «ams-test»;
+  `/root/install-v08.credentials` (0600, из сгенерированного bootstrap-пароля), `/root/v08-live/`.
+- AMS_Z: `/root/v08-rollout/` (точки отката, live-v08.py, отчёты); ключ node-sync ams-test стёрт.
+- ams-server: временный owner `rollout-tmp-v08` удалён, файл пароля стёрт; `/root/v08-check-central.py`.
