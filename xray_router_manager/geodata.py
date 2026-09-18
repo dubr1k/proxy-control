@@ -157,10 +157,18 @@ def fetch(url: str, *, max_bytes: int = MAX_FILE_BYTES, timeout: float = DOWNLOA
     if _URL.fullmatch(url) is None:
         raise GeodataError("only https URLs are fetched", "geodata_invalid")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
+    hops: list[str] = []
+
+    class _Hops(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            hops.append(newurl)
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl.create_default_context()), _Hops())
     try:
-        with urllib.request.urlopen(request, timeout=timeout, context=ssl.create_default_context()) as response:
+        with opener.open(request, timeout=timeout) as response:
             final = response.geturl()
-            if not final.startswith("https://"):
+            if not final.startswith("https://") or any(not hop.startswith("https://") for hop in hops):
                 raise GeodataError("redirected off https", "geodata_fetch_failed")
             data = response.read(max_bytes + 1)
     except (urllib.error.URLError, OSError, ValueError) as exc:
@@ -169,6 +177,9 @@ def fetch(url: str, *, max_bytes: int = MAX_FILE_BYTES, timeout: float = DOWNLOA
         raise GeodataError("file larger than the limit", "geodata_too_large")
     if not data:
         raise GeodataError("empty file", "geodata_fetch_failed")
+    # GitHub's `releases/latest/download/…` names the release only on its first hop; the last
+    # hop is a signed asset URL without it — report the hop that carries the release tag.
+    final = next((hop for hop in hops if _RELEASE_TAG.search(hop)), final)
     return data, final
 
 

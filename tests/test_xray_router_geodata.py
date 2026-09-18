@@ -273,3 +273,43 @@ def test_block_document_still_applies_after_an_update(tmp_path):
     result = instance.egress_apply("naive", revision, BLOCK_DOC, "op-1")
     assert result["applied"]["rules"][0]["action"] == "block"
     assert json.loads((instance.state_dir / "current.json").read_text())["generation"] == 2
+
+
+def test_fetch_reports_the_hop_that_names_the_release(monkeypatch):
+    """GitHub's `releases/latest/download/<file>` carries the release tag on its first hop only;
+    the last hop is a signed asset URL. The version comes from the hop that names it."""
+    import io
+    import urllib.request
+
+    from xray_router_manager import geodata
+
+    hops = ["https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/202609172350/geosite.dat",
+            "https://release-assets.githubusercontent.com/asset/abc?sig=xyz"]
+
+    class _Response(io.BytesIO):
+        def geturl(self):
+            return hops[-1]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class _Opener:
+        def open(self, request, timeout=None):
+            handler = built["handler"]
+            for hop in hops:
+                handler.redirect_request(request, None, 302, "Found", {}, hop)
+            return _Response(b"geodata-bytes")
+
+    built = {}
+
+    def build_opener(*handlers):
+        built["handler"] = next(h for h in handlers if isinstance(h, urllib.request.HTTPRedirectHandler))
+        return _Opener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", build_opener)
+    data, final = geodata.fetch("https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat")
+    assert data == b"geodata-bytes" and final == hops[0]
+    assert geodata._RELEASE_TAG.search(final).group(1) == "202609172350"
