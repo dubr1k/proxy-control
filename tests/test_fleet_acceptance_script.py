@@ -88,6 +88,28 @@ def test_required_arguments_are_enforced():
         fa.parse_args(["--node-url", "https://panel.lab.test"])
 
 
+def test_naive_probe_retries_a_cut_connection_but_not_a_refusal(tmp_path, monkeypatch):
+    """[v0.7] A probe through Caddy right after a lane withdrawal or a policy apply can land
+    on the router's generation swap (the process restarts) or on Caddy's reload: curl 55
+    («send failure») / 35 (TLS cut mid-way) — the Internet or the swap blinked, not the
+    thing under test. Those get another try, like `_socks_probe`; a refusal (the proxy
+    answered) is final and is never retried."""
+    calls: list[tuple[int, str]] = []
+    outcomes = iter([(55, "curl: (55) Send failure: Broken pipe"), (0, "200")])
+    monkeypatch.setattr(fa.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(fa.RoutingProbes, "_run", staticmethod(lambda *argv, timeout=40: calls.append(next(outcomes)) or calls[-1]))
+    probes = fa.RoutingProbes(fa.parse_args(REQUIRED), tmp_path)
+    probes.naive_artifact = "naive+https://user:pass@naive.lab.test"
+    ok, detail = probes.naive("https://www.wikipedia.org/")
+    assert ok and len(calls) == 2 and "pass" not in detail
+    assert 55 in fa._TRANSIENT_CURL and 35 in fa._TRANSIENT_CURL
+    # a refusal (curl 7 / the proxy's 403): no retry — the check reads it as-is
+    calls.clear()
+    outcomes = iter([(7, "curl: (7) Failed to connect")])
+    ok, _ = probes.naive("https://www.wikipedia.org/")
+    assert not ok and len(calls) == 1
+
+
 # --- the node's credential file, in every shape the installer produces -----------------
 
 def test_plain_bootstrap_password_file(tmp_path):
