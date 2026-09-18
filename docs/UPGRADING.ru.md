@@ -273,6 +273,50 @@ docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck 
 systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
 ```
 
+## Обновление до v0.8: geodata, свои выходы, быстрые настройки, автоимпорт
+
+v0.8 добавляет **обновляемые geodata** роутера, **свои выходы** (аутбаунды VPN/прокси) и
+**быстрые настройки** маршрутизации, **автоимпорт** пользователей связанных панелей и
+**одношаговое** создание клиента с узлом ([ROUTING](ROUTING.ru.md) «Свои выходы, быстрые
+настройки и geodata», [FLEET](../FLEET.ru.md) «Импорт существующих пользователей»). Само
+обновление — обычное: `panel/`, `xray_router_manager/`, `compose*.yaml`, `scripts/`, `VERSION`
+в каталог проекта и `docker compose up -d --build --wait panel xray-router` с сохранённым
+набором оверлеев (менеджеры naive/mieru не менялись).
+
+**Миграции 17–19** (`links-auto-import`, `routing-presets`, `routing-exits`) выполняются при
+первом старте и аддитивны: `node_links.auto_import` (по умолчанию **1**), `routing_rules.preset`,
+таблица `egress_exits`. `python -m panel.cli db-status` покажет девятнадцать применённых.
+
+**Автоимпорт включается сам.** На центре после обновления каждый heartbeat принимает
+пользователей связанных панелей, которых панель узла ведёт сама: они становятся клиентами
+центра с именем учётной записи (одно имя во всех протоколах и на всех узлах — один клиент),
+секреты MTProxy/NaiveProxy захватываются, Mieru — без секрета до «Принять с ротацией». Если
+это нежелательно для какой-то связи, снимите галочку в «Изменить связь» **до** обновления
+центра или сразу после (`auto_import: false` в `POST /api/nodes/{id}/link`).
+
+**Geodata роутера.** При первом старте v0.8 менеджер копирует закреплённую пару в
+`/var/lib/xray-router/geodata/` (каталог состояния уже доступен ему на запись; ≈ 30 MB) и с
+этого момента читает списки оттуда; источник остаётся `xray` (пин) без автообновления, пока вы
+не выберете Loyalsoldier или свои URL на «Маршрутизации» → Geodata → «Источник…». Узел v0.7 не
+знает `exits`/`protocols` в intent и отвечает `egress_invalid`: центр v0.8 показывает
+`backend_capability_missing`/`node_lacks_exits` и не отправляет такой intent, пока узел не
+обновлён.
+
+**Порядок в парке** — сначала узлы, потом центр: центр v0.8 требует от узла `geodata.v1` для
+geodata и проб выходов и `custom_exits` роутера для политик с выходами; центр v0.7 ничего из
+этого не видит и работает как раньше.
+
+**Откат** — по общему порядку (образ v0.7 отказывается от базы на схеме 19). Перед откатом
+уберите из политик `exit:<id>` и правила с `protocols` (роутер v0.7 отвергнет такой intent),
+`geodata/` в каталоге состояния можно оставить — старый менеджер читает списки из каталога бинарей.
+
+Проверка после обновления:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 19
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
+```
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.

@@ -42,11 +42,12 @@ One policy per (node, protocol), edited on the «Маршрутизация» sc
 `/api/routing/*`:
 
 ```text
-default_action   direct | egress          default_egress  an exit (with egress): warp | node:<guid>[,<guid>[,<guid>]][:warp]
+default_action   direct | egress          default_egress  an exit (with egress): warp | exit:<id> | node:<guid>[,<guid>[,<guid>]][:warp]
 fallback         fail_closed | approved_direct
 rules[]          enabled, action: direct | block | egress, egress: an exit (with egress),
-                 match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32},
-                 note ≤ 120
+                 match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32,
+                         protocols[] ≤ 4 (v0.8: http | tls | quic | bittorrent — what the sniffer saw)},
+                 note ≤ 120, preset (v0.8: the quick setting's mark, cleared once edited)
 backend          naive_native | mieru_native | xray_router (v0.5; the target's current one)
 lane             svc (the service's policy) | grant:<id> (v0.7: a grant's own lane, xray_router only)
 ```
@@ -232,6 +233,55 @@ rules of the saved policy and answers `{lane, rule_id, action, exit, hops[], via
 node's own `relay`. On the «Маршрутизация» screen these are the «Выходы узла» chips, the relay
 line, the lane tabs, the «Куда» column of the rules and «Куда пойдёт…»; on «Клиенты» a grant
 shows «маршрут: как у сервиса / своя полоса».
+
+## Custom exits, quick settings and geodata (v0.8)
+
+What 3x-ui calls an outbound is a node's **custom exit** here: a server the node's Xray-router
+leaves through — somebody's VPN, your own proxy, a second host. An exit belongs to one node (it
+is an outbound of that node's router), a policy names it as `exit:<id>`, and only the
+`xray_router` backend enforces it (native backends: `rule_kind_unsupported`). Protocols: `socks`,
+`http`(s), `vless`, `trojan`, `shadowsocks`; transport `tcp | ws | grpc | xhttp`; security
+`none | tls | reality` (SNI, fingerprint, ALPN, `allowInsecure`, the Reality public key and short
+id), `flow` `xtls-rprx-vision` for VLESS; WireGuard is deliberately not supported. The exit's
+credential (password, UUID) lives in the panel's encrypted store (`exit.credential`, permitted
+to the exit's node only) and reaches **only** the intent compiled for that node; the preview, the
+history and the diff mask it. At most 16 exits per node.
+
+```text
+GET    /api/routing/exits?node=<id>              the node's exits (no secrets; used_by — where each is used)
+POST   /api/routing/exits                        {node_id, name, protocol, address, port, credential?, method?, flow?, transport?, security?}
+POST   /api/routing/exits/import                 {node_id, link, name?} — vless://, trojan://, ss://, socks://, http(s)://; the link is never stored
+PUT    /api/routing/exits/{id}                   edit; no credential field keeps the old one; a change leaves the policies using it as drafts
+POST   /api/routing/exits/{id}/test              a probe on the node's router: a throwaway Xray + one TLS fetch of the trace page → {ok, ip, colo, latency_ms | code}
+POST   /api/routing/exits/{id}/enable | disable | delete    delete — 409 exit_in_use with the policies
+```
+
+The compiler answers `exit_unknown`, `exit_other_node`, `exit_disabled`, `exit_secret_pending`,
+`backend_capability_missing` (a node's router without `custom_exits` — before v0.8); on a linked
+panel the probe runs through `POST /api/fleet/v2/exits/test` of its Fleet API (the credential
+travels the channel the generations use). Audit: `routing.exit.create | import | update | enable
+| disable | delete | test`, on the node `fleet.exit.test` — never a secret, never a link.
+
+**Quick settings** — the toggles «Торренты → блок», «Реклама → блок», «Российские домены и IP →
+напрямую» (`GET /api/routing/presets`). They are ordinary rules with a `preset` mark: on adds the
+rule (blocks first, directions last), off removes it, an edit clears the mark. Torrents are the
+selector `protocols: ["bittorrent"]` on Xray's sniffer (router only); ads — `geosite:category-ads-all`;
+RU — `geosite:category-ru` + `geoip:ru` (both the Xray archive and Loyalsoldier carry the codes;
+foreign lists may not — then `geosite_unknown` in the preview).
+
+**Geodata** — the `geosite.dat`/`geoip.dat` files the router resolves codes against. They live in
+the router's state directory, are seeded from the installer's pinned pair and refreshed from the
+chosen source: `xray` (the pin), `loyalsoldier` (the community lists, daily releases) or two HTTPS
+URLs of your own. A refresh is a router transaction ([XRAY_ROUTER](XRAY_ROUTER.en.md)); the panel
+shows the version, the code counts and the date, suggests codes in the rule editor and drives
+the automatic refresh: `GET /api/routing/geodata?node=`, `GET …/geodata/codes`,
+`PUT …/geodata/settings` (`{source, auto_update, interval_hours 1…336}`),
+`POST …/geodata/update | restore`; on a linked panel through `/api/fleet/v2/geodata*`. Audit
+`routing.geodata.settings | update | restore`, on the node `fleet.geodata.*`.
+
+The «Маршрутизация» screen (v0.8): rules as a «what / where / note» table with a rule modal and
+drag-and-drop; the quick settings above it; on the node's card — «Свои выходы» (a form per
+protocol or a share-link import, a test, on/off) and the Geodata block.
 
 ## What the managers own ([ADR 007](adr/007-routing-enforcement-ownership.md))
 

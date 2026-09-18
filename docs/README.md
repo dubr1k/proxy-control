@@ -51,6 +51,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Выпуски
 
+- [v0.8.0-beta.1](releases/v0.8.0-beta.1.md) — свои выходы, таблица правил с быстрыми настройками, обновляемые geodata, автоимпорт пользователей узлов
 - [v0.7.0-beta.1](releases/v0.7.0-beta.1.md) — цепи и полосы: выход через узлы парка (relay), своя полоса у доступа, tier `chains`
 
 - [CHANGELOG.ru.md](../CHANGELOG.ru.md) — журнал изменений по-русски (с v0.4); [CHANGELOG.md](../CHANGELOG.md) — основной, все выпуски; [scripts/install-release.sh](../scripts/install-release.sh) — скачать, проверить и поставить выпуск (`--requirements` — что нужно и что устанавливается)
@@ -109,6 +110,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Releases
 
+- [v0.8.0-beta.1](releases/v0.8.0-beta.1.md) — custom exits, a rule table with quick settings, refreshable geodata, auto-import of node users
 - [v0.7.0-beta.1](releases/v0.7.0-beta.1.md) — chains and lanes: exits through the fleet's relays, a grant's own lane, the `chains` tier
 
 - [CHANGELOG.md](../CHANGELOG.md) — the changelog, every release; [CHANGELOG.ru.md](../CHANGELOG.ru.md) — in Russian (from v0.4); [scripts/install-release.sh](../scripts/install-release.sh) — fetch, verify and install a release (`--requirements` — what is needed and what gets installed)

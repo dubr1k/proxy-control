@@ -4,8 +4,37 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.8.0-beta.1] - 2026-09-18
+
+Routing the way 3x-ui does it, on our model: custom exits (VPN/proxy outbounds), a rule table with
+quick settings, refreshable geodata lists — plus the fleet doing the tedious part by itself
+(auto-import of node users) and one-step clients. Release note:
+[docs/releases/v0.8.0-beta.1.md](docs/releases/v0.8.0-beta.1.md); design:
+[docs/superpowers/specs/2026-09-18-v0.8-exits-and-rules-design.md](docs/superpowers/specs/2026-09-18-v0.8-exits-and-rules-design.md).
+
 ### Added
 
+- **Custom exits** — a node's own outbounds a policy may leave through (`egress: exit:<id>`,
+  `xray_router` only): `socks`, `http(s)`, `vless`, `trojan`, `shadowsocks` over `tcp | ws | grpc |
+  xhttp` with `none | tls | reality`; created from a form or a share link (`vless://`, `trojan://`,
+  `ss://`, `socks://`, `http(s)://`), tested on the router (a throwaway Xray + one TLS fetch of the
+  trace page: IP, colo, latency), enabled/disabled/deleted (`exit_in_use` names the policies).
+  The credential is escrowed (`exit.credential`, the exit's node only) and reaches only that node's
+  intent; preview, history and diff mask it. `/api/routing/exits*`, migration 19, audit
+  `routing.exit.*`, `fleet.exit.test` ([ROUTING](docs/ROUTING.en.md), [XRAY_ROUTER](docs/XRAY_ROUTER.en.md)).
+- **Refreshable geodata** — the router's `geosite.dat`/`geoip.dat` live in its state directory,
+  seeded from the pinned pair; sources `xray` (pin), `loyalsoldier` (community lists) or two HTTPS
+  URLs; a refresh is a transaction (size cap, `.sha256sum` sidecar, `xray -test` of the running
+  config against the candidates, atomic swap, restart) with automatic refreshes at an interval;
+  the panel shows version/counts/date, suggests codes in the rule editor, drives it locally and on
+  linked panels (`/api/routing/geodata*`, `/api/fleet/v2/geodata*`, `/v1/geodata*`; audit
+  `routing.geodata.*`, `fleet.geodata.*`).
+- **Quick settings** — «Торренты → блок», «Реклама → блок», «Российские домены и IP → напрямую»
+  as marked rules (`preset`, migration 18; `GET /api/routing/presets`); the **sniffed-protocol
+  selector** `protocols` (`http | tls | quic | bittorrent`, router only, capabilities
+  `block_protocol`/`selective_protocol`); compiler version 3.
+- **Rule table** — «Маршрутизация» paints rules as «what / where / note» rows with a rule modal
+  (selectors, protocol boxes, the exit picker with custom exits), drag-and-drop and arrows.
 - **Auto-import from linked panels** — a link adopts the node's own users by itself on every
   heartbeat (`auto_import`, on by default, a box in the link dialog): each becomes a client of
   the central named after the account, one name across protocols and nodes is one client (as

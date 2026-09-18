@@ -89,7 +89,9 @@ link-local, RFC 1918, CGNAT или их IPv6-аналоги, отвергает�
   `xray-router-manager-token`): `GET /v1/status`, `GET /v1/health`,
   `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`; с v0.7 —
   `GET | POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`, `GET | POST | DELETE /v1/relay`,
-  `PUT /v1/relay/accounts` (см. ниже). Панель — единственный клиент; `docker exec
+  `PUT /v1/relay/accounts` (см. ниже); с v0.8 — `GET /v1/geodata`, `GET /v1/geodata/codes`,
+  `PUT /v1/geodata/settings`, `POST /v1/geodata/update | restore`, `POST /v1/exits/test`
+  (см. «Geodata и свои выходы»). Панель — единственный клиент; `docker exec
   proxy-control-xray-router python -m xray_router_manager.healthcheck --status` печатает статус
   оператору или проверке установщика (`--relay`, `--relay-enable <server_name> <port>` — relay).
 
@@ -185,10 +187,41 @@ Intent **схемы 2** переносит роутер с «одной поли
 
 Пределы: ≤ 32 полос и ≤ 16 цепей на сервис, ≤ 3 хопов в цепи, intent схемы 2 ≤ 64 KiB.
 
+## Geodata и свои выходы (v0.8)
+
+**Geodata.** Xray читает `geosite.dat`/`geoip.dat` из `<state>/geodata` (`XRAY_LOCATION_ASSET`),
+а не из каталога бинарей: при первом старте менеджер копирует туда закреплённую пару (её
+дайджесты по-прежнему проверяются при старте), дальше файлы — выбор оператора: `xray` (пин),
+`loyalsoldier` (`https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/…`) или
+два своих HTTPS-URL. Обновление — транзакция: оба файла скачиваются во временные имена (≤ 64 MiB,
+только HTTPS до конца редиректов, `<url>.sha256sum` сверяется, если издатель его отдаёт),
+конфиг текущего поколения прогоняется через `xray run -test` против кандидатов (код, которого
+новые списки не знают, падает здесь — `geodata_rejected`), затем атомарная подмена и перезапуск
+текущего поколения. Неудача оставляет старые файлы и пишется в `last_error`
+(`geodata_fetch_failed`, `geodata_digest_mismatch`, `geodata_too_large`, `geodata_corrupt`).
+Автообновление — из потока watchdog по интервалу (`interval_hours` 1…336, по умолчанию 24);
+`meta.json` рядом с файлами хранит источник, версию (тег релиза), дату и sha256. `restore`
+возвращает пин и выключает автообновление. Коды списков менеджер читает из protobuf сам
+(`/v1/geodata/codes`, кэш по sha256) — для подсказчика в правилах. Капабилити `geodata`.
+
+**Свои выходы.** Intent схемы 2 несёт `exits: {<id>: {protocol, address, port, credential,
+transport, security, method?, flow?}}` (≤ 16), а правило или default — `egress: exit:<id>`;
+рендер даёт аутбаунд `exit:<svc>:<id>` (`socks`/`http` с `users`, `vless` с `vnext`, `trojan`,
+`shadowsocks`; `streamSettings` по транспорту и `tls`/`reality`). Credential маскируется в
+`redact_intent`, статусе и дифф. Правило может стоять на `protocols` (`http | tls | quic |
+bittorrent`) — это `protocol` правила Xray по снифферу ingress'а (`routeOnly`). Капабилити
+`custom_exits`, `block_protocol`, `selective_protocol`. `POST /v1/exits/test` `{exit}` поднимает
+одноразовый `xray` с `dokodemo-door` на loopback к `www.cloudflare.com:443` через этот аутбаунд
+и делает один TLS-запрос `/cdn-cgi/trace`: `{ok, ip, colo, latency_ms}` или `{ok: false, code:
+exit_invalid | exit_test_failed | exit_unreachable}`; рабочий роутер не трогается, одна проба
+в момент времени.
+
 ## Ограничения и что отложено
 
-Правил ≤ 128 на политику, ≤ 64 селекторов каждого вида, ≤ 32 портов, скомпилированный
-intent ≤ 16 KiB на сервис (схема 2 — 64 KiB); токен менеджера — 64 hex. Отложено за v0.5
+Правил ≤ 128 на политику, ≤ 64 селекторов каждого вида, ≤ 32 портов, ≤ 4 протоколов сниффера,
+≤ 16 своих выходов на узел, скомпилированный intent ≤ 16 KiB на сервис (схема 2 — 64 KiB);
+токен менеджера — 64 hex. WireGuard как выход не поддерживается намеренно (решение владельца,
+2026-09-18). Отложено за v0.5
 (спека §15): статический мост в Xray 3x-ui, canary-раскатка, ретрансляция UDP, регулярные
 выражения; per-grant маршрутизация пришла в v0.7 полосами. Совместимость с узлами и центрами v0.4 — в [COMPATIBILITY](COMPATIBILITY.md) и
 [FLEET](../FLEET.ru.md).
