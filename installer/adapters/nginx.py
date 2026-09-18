@@ -2271,13 +2271,20 @@ class CertificatePlan:
         """
         result = self.runner.run(argv)
         # Certbot 2.9 deactivates a cached staging authorization. Boulder may
-        # briefly return the just-invalidated order to the next new-order call.
-        # Retry that specific race once, never DNS/auth failures in general.
+        # briefly return the just-invalidated order to the next new-order call
+        # («authorization must be pending»), or still call the order `pending`
+        # when certbot — which polls the authorization, not the order — comes
+        # to finalize it («orderNotReady», seen on the real install of ams-test
+        # for v0.7). Retry those two races once, never DNS/auth failures in general.
         if (
             result.returncode != 0
             and argv[:2] == ("certbot", "renew")
             and "--dry-run" in argv
-            and "authorization must be pending" in f"{result.stderr}\n{result.stdout}"
+            and any(
+                race in f"{result.stderr}\n{result.stdout}"
+                for race in ("authorization must be pending", "orderNotReady",
+                             "not acceptable for finalization")
+            )
         ):
             import time
             time.sleep(3)
