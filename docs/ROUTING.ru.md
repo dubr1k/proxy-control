@@ -42,11 +42,12 @@ loopback узла.
 `/api/routing/*`:
 
 ```text
-default_action   direct | egress          default_egress  выход (при egress): warp | node:<guid>[,<guid>[,<guid>]][:warp]
+default_action   direct | egress          default_egress  выход (при egress): warp | exit:<id> | node:<guid>[,<guid>[,<guid>]][:warp]
 fallback         fail_closed | approved_direct
 rules[]          enabled, action: direct | block | egress, egress: выход (при egress),
-                 match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32},
-                 note ≤ 120
+                 match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32,
+                         protocols[] ≤ 4 (v0.8: http | tls | quic | bittorrent — что увидел сниффер)},
+                 note ≤ 120, preset (v0.8: метка быстрой настройки, снимается при правке)
 backend          naive_native | mieru_native | xray_router (v0.5; текущий backend цели)
 lane             svc (политика сервиса) | grant:<id> (v0.7: своя полоса доступа, только xray_router)
 ```
@@ -231,6 +232,56 @@ uncertain[]}` — `uncertain` перечисляет правила `geosite`/`g
 самого узла. На экране «Маршрутизация» это чипы «Выходы узла», строка relay, вкладки полос,
 колонка «Куда» у правил и «Куда пойдёт…»; на «Клиентах» у доступа — «маршрут: как у сервиса /
 своя полоса».
+
+## Свои выходы, быстрые настройки и geodata (v0.8)
+
+Что в 3x-ui называется «аутбаунд», здесь — **свой выход** узла: сервер, через который Xray-router
+узла выпускает трафик, — чужой VPN, свой прокси, второй хостер. Выход принадлежит одному узлу
+(это аутбаунд его роутера), в политике называется `exit:<id>`, доступен только backend'у
+`xray_router` (нативные — `rule_kind_unsupported`). Протоколы: `socks`, `http`(s), `vless`,
+`trojan`, `shadowsocks`; транспорт `tcp | ws | grpc | xhttp`; шифрование `none | tls | reality`
+(SNI, fingerprint, ALPN, `allowInsecure`, публичный ключ и short id Reality), `flow`
+`xtls-rprx-vision` у VLESS; WireGuard намеренно не поддерживается. Секрет выхода (пароль, UUID)
+хранится в зашифрованном хранилище панели (`exit.credential`, разрешён только узлу выхода) и
+попадает **только** в intent, скомпилированный для этого узла; предпросмотр, история и дифф
+маскируют его. Не больше 16 выходов на узел.
+
+```text
+GET    /api/routing/exits?node=<id>              выходы узла (без секретов; used_by — где используется)
+POST   /api/routing/exits                        {node_id, name, protocol, address, port, credential?, method?, flow?, transport?, security?}
+POST   /api/routing/exits/import                 {node_id, link, name?} — vless://, trojan://, ss://, socks://, http(s)://; ссылка не сохраняется
+PUT    /api/routing/exits/{id}                   правка; credential без поля — оставить прежний; смена делает политики с выходом черновиками
+POST   /api/routing/exits/{id}/test              проба на роутере узла: одноразовый Xray + TLS-запрос trace-страницы → {ok, ip, colo, latency_ms | code}
+POST   /api/routing/exits/{id}/enable | disable | delete    delete — 409 exit_in_use с перечнем политик
+```
+
+Компилятор отвечает `exit_unknown`, `exit_other_node`, `exit_disabled`, `exit_secret_pending`,
+`backend_capability_missing` (роутер узла без `custom_exits` — до v0.8); на связанной панели
+проба идёт через `POST /api/fleet/v2/exits/test` её Fleet API (секрет едет тем же каналом, что и
+поколения). Аудит: `routing.exit.create | import | update | enable | disable | delete | test`,
+на узле — `fleet.exit.test` — без секретов и без ссылок.
+
+**Быстрые настройки** — переключатели «Торренты → блок», «Реклама → блок», «Российские домены
+и IP → напрямую» (`GET /api/routing/presets`). Это обычные правила с меткой `preset`:
+включение добавляет правило (блокировки — первыми, направления — последними), выключение
+удаляет его, правка снимает метку. Торренты — селектор `protocols: ["bittorrent"]` по снифферу
+Xray (только роутер); реклама — `geosite:category-ads-all`; RU — `geosite:category-ru` +
+`geoip:ru` (коды есть и в архиве Xray, и у Loyalsoldier; чужие списки могут их не знать — тогда
+`geosite_unknown` в предпросмотре).
+
+**Geodata** — файлы `geosite.dat`/`geoip.dat`, по которым роутер понимает коды. Они лежат в
+каталоге состояния роутера, сеются из закреплённой установщиком пары и обновляются из
+выбранного источника: `xray` (пин), `loyalsoldier` (сообщество, ежедневные выпуски) или два
+своих HTTPS-URL. Обновление — транзакция роутера ([XRAY_ROUTER](XRAY_ROUTER.ru.md)); панель
+показывает версию, число кодов и дату, подсказывает коды в правилах и управляет автообновлением:
+`GET /api/routing/geodata?node=`, `GET …/geodata/codes`, `PUT …/geodata/settings`
+(`{source, auto_update, interval_hours 1…336}`), `POST …/geodata/update | restore`; на
+связанной панели — через `/api/fleet/v2/geodata*`. Аудит `routing.geodata.settings | update |
+restore`, на узле `fleet.geodata.*`.
+
+Экран «Маршрутизация» (v0.8): правила — таблица «что / куда / заметка» с модалкой правила и
+перетаскиванием; над ней быстрые настройки; на карточке узла — «Свои выходы» (форма по
+протоколу или импорт ссылки, проверка, вкл/выкл) и блок Geodata.
 
 ## Чем владеют менеджеры ([ADR 007](adr/007-routing-enforcement-ownership.md))
 

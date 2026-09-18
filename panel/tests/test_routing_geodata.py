@@ -97,3 +97,35 @@ async def test_a_linked_panels_geodata_is_driven_through_its_fleet_api(pair, mon
     with pytest.raises(RoutingError) as refused:
         await central.state.routing.geodata(node_id, "update", actor=ACTOR, ip="x")
     assert refused.value.status == 422 and refused.value.code == "geodata_rejected"
+
+
+async def test_node_geodata_and_exit_routes_answer_the_central_key(client, login_user, router):
+    """The node side of v0.8 under the node-sync key: geodata view/codes/settings/actions and
+    the exit probe — audited as `fleet.*`, refused without the key, 404 without a router."""
+    await login_user(client)
+    created = await client.post("/api/keys", json={"name": "central", "scope": "node-sync"},
+                                headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
+    client.cookies.clear()
+    headers = {"Authorization": f"Bearer {created.json()['plaintext']}"}
+    assert (await client.get("/api/fleet/v2/geodata")).status_code == 401
+    view = await client.get("/api/fleet/v2/geodata", headers=headers)
+    assert view.status_code == 200 and view.json()["source"]["kind"] == "xray"
+    codes = await client.get("/api/fleet/v2/geodata/codes", headers=headers)
+    assert codes.json()["codes"]["geoip"] == ["cn", "ru"]
+    saved = await client.put("/api/fleet/v2/geodata/settings", headers=headers, json={"source": {"kind": "loyalsoldier"}, "auto_update": True})
+    assert saved.status_code == 200 and saved.json()["auto_update"] is True
+    assert (await client.put("/api/fleet/v2/geodata/settings", headers=headers, json={"nope": 1})).status_code == 422
+    updated = await client.post("/api/fleet/v2/geodata/update", headers=headers)
+    assert updated.status_code == 200 and updated.json()["changed"] is True
+    assert (await client.post("/api/fleet/v2/geodata/reboot", headers=headers)).status_code == 422
+    probe = await client.post("/api/fleet/v2/exits/test", headers=headers,
+                              json={"exit": {"protocol": "socks", "address": "10.0.0.2", "port": 1080, "credential": {}}})
+    assert probe.status_code == 200 and probe.json()["ok"] is True and probe.headers["cache-control"] == "no-store"
+    bad = await client.post("/api/fleet/v2/exits/test", headers=headers, json={"exit": {"protocol": "wireguard"}})
+    assert bad.status_code == 422 and bad.json()["code"] == "egress_invalid"
+    actions = [row["action"] for row in client._transport.app.state.store.audits()]
+    for action in ("fleet.geodata.settings", "fleet.geodata.update", "fleet.exit.test"):
+        assert action in actions, action
+    client._transport.app.state.router = None
+    missing = await client.get("/api/fleet/v2/geodata", headers=headers)
+    assert missing.status_code == 404 and missing.json()["code"] == "router_unavailable"

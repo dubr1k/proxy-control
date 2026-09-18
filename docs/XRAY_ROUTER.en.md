@@ -89,7 +89,9 @@ the connection.
   `xray-router-manager-token`): `GET /v1/status`, `GET /v1/health`,
   `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`; from v0.7
   `GET | POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`, `GET | POST | DELETE /v1/relay`,
-  `PUT /v1/relay/accounts` (below). The panel is its only client; `docker exec
+  `PUT /v1/relay/accounts` (below); from v0.8 `GET /v1/geodata`, `GET /v1/geodata/codes`,
+  `PUT /v1/geodata/settings`, `POST /v1/geodata/update | restore`, `POST /v1/exits/test`
+  («Geodata and custom exits» below). The panel is its only client; `docker exec
   proxy-control-xray-router python -m xray_router_manager.healthcheck --status` prints the
   status for an operator or the installer's verify (`--relay`, `--relay-enable <server_name>
   <port>` — the relay).
@@ -187,6 +189,36 @@ policies. Schema 1 renders byte for byte as in v0.5/v0.6.
   rollback; the router's `capabilities` gain `lanes`, `chains`, `relay`.
 
 Limits: ≤ 32 lanes and ≤ 16 chains per service, ≤ 3 hops per chain, a schema-2 intent ≤ 64 KiB.
+
+## Geodata and custom exits (v0.8)
+
+**Geodata.** Xray reads `geosite.dat`/`geoip.dat` from `<state>/geodata` (`XRAY_LOCATION_ASSET`),
+not from the binary directory: on first start the manager copies the pinned pair there (their
+digests are still checked at start), and from then on the files are the operator's choice —
+`xray` (the pin), `loyalsoldier` (`https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/…`)
+or two HTTPS URLs of your own. A refresh is a transaction: both files are downloaded under
+temporary names (≤ 64 MiB, HTTPS end to end, the `<url>.sha256sum` sidecar checked when the
+publisher offers one), the running generation's config is `xray run -test`-ed against the
+candidates (a code the new lists lack fails here — `geodata_rejected`), then an atomic swap and
+a restart of the current generation. A failure leaves the old files in place and lands in
+`last_error` (`geodata_fetch_failed`, `geodata_digest_mismatch`, `geodata_too_large`,
+`geodata_corrupt`). Automatic refreshes run from the watchdog thread at `interval_hours`
+(1…336, default 24); `meta.json` beside the files keeps the source, the version (release tag),
+the date and the sha256s. `restore` returns to the pin and switches the automatic refresh off.
+The manager parses the lists' codes from the protobuf itself (`/v1/geodata/codes`, cached by
+sha256) for the rule editor's suggestions. Capability `geodata`.
+
+**Custom exits.** A schema-2 intent carries `exits: {<id>: {protocol, address, port, credential,
+transport, security, method?, flow?}}` (≤ 16) and a rule or the default names `egress: exit:<id>`;
+the renderer emits the outbound `exit:<svc>:<id>` (`socks`/`http` with `users`, `vless` with
+`vnext`, `trojan`, `shadowsocks`; `streamSettings` per transport and `tls`/`reality`). The
+credential is masked in `redact_intent`, the status and the diff. A rule may stand on
+`protocols` (`http | tls | quic | bittorrent`) — Xray's `protocol` rule field on the ingress
+sniffer (`routeOnly`). Capabilities `custom_exits`, `block_protocol`, `selective_protocol`.
+`POST /v1/exits/test` `{exit}` starts a throwaway `xray` with a `dokodemo-door` on loopback to
+`www.cloudflare.com:443` through that outbound and makes one TLS fetch of `/cdn-cgi/trace`:
+`{ok, ip, colo, latency_ms}` or `{ok: false, code: exit_invalid | exit_test_failed |
+exit_unreachable}`; the running router is untouched, one probe at a time.
 
 ## Limits and what is deferred
 

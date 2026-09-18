@@ -279,6 +279,51 @@ docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck 
 systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
 ```
 
+## Upgrading to v0.8: geodata, custom exits, quick settings, auto-import
+
+v0.8 adds **refreshable geodata** for the router, **custom exits** (VPN/proxy outbounds) and
+**quick settings** for routing, **auto-import** of linked panels' users and a **one-step**
+client with its node ([ROUTING](ROUTING.en.md) «Custom exits, quick settings and geodata»,
+[FLEET](../FLEET.en.md) «Import existing users»). The upgrade itself is the usual one:
+`panel/`, `xray_router_manager/`, `compose*.yaml`, `scripts/`, `VERSION` into the project
+directory and `docker compose up -d --build --wait panel xray-router` with the overlays you keep
+(the naive/mieru managers did not change).
+
+**Migrations 17–19** (`links-auto-import`, `routing-presets`, `routing-exits`) run on first start
+and are additive: `node_links.auto_import` (default **1**), `routing_rules.preset`, the table
+`egress_exits`. `python -m panel.cli db-status` shows nineteen applied.
+
+**Auto-import switches itself on.** After the upgrade a central adopts, on every heartbeat, the
+users its linked panels run on their own: each becomes a client of the central named after the
+account (one name across protocols and nodes is one client), MTProxy/NaiveProxy credentials are
+captured, Mieru accounts wait for «Принять с ротацией». Untick the box in «Изменить связь»
+**before** upgrading the central, or right after (`auto_import: false` in
+`POST /api/nodes/{id}/link`), where that is not wanted.
+
+**The router's geodata.** On its first v0.8 start the manager copies the pinned pair into
+`/var/lib/xray-router/geodata/` (the state directory is already writable to it; ≈ 30 MB) and
+reads the lists from there from then on; the source stays `xray` (the pin) without automatic
+refresh until you pick Loyalsoldier or your own URLs on «Маршрутизация» → Geodata → «Источник…».
+A v0.7 node does not know `exits`/`protocols` in an intent and answers `egress_invalid`: a v0.8
+central shows `backend_capability_missing`/`node_lacks_exits` and does not send such an intent
+until the node is upgraded.
+
+**Order in the fleet** — nodes first, then the central: a v0.8 central needs `geodata.v1` from
+the node for geodata and exit probes and `custom_exits` from its router for policies with exits;
+a v0.7 central sees none of it and works as before.
+
+**Rollback** — the general procedure (a v0.7 image refuses a schema-19 database). Remove
+`exit:<id>` and rules with `protocols` from the policies before rolling back (a v0.7 router
+refuses such an intent); `geodata/` in the state directory may stay — the old manager reads the
+lists from the binary directory.
+
+Verification after the upgrade:
+
+```bash
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 19
+docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.
