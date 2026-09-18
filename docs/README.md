@@ -51,6 +51,8 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Выпуски
 
+- [v0.7.0-beta.1](releases/v0.7.0-beta.1.md) — цепи и полосы: выход через узлы парка (relay), своя полоса у доступа, tier `chains`
+
 - [CHANGELOG.ru.md](../CHANGELOG.ru.md) — журнал изменений по-русски (с v0.4); [CHANGELOG.md](../CHANGELOG.md) — основной, все выпуски; [scripts/install-release.sh](../scripts/install-release.sh) — скачать, проверить и поставить выпуск (`--requirements` — что нужно и что устанавливается)
 - [Руководство оператора v0.6](releases/v0.6-operator-guide.ru.md) — архитектура, домены и их распределение по парку, автоматическое развёртывание, 3x-ui, привязка узлов, доступы из центра, маршрутизация и Xray-router — всё в одном месте; протокол для ИИ-агентов — в [AGENTS.md](../AGENTS.md)
 - [v0.6.0-beta.1](releases/v0.6.0-beta.1.md) — выпуск-сверка v0.2–v0.5: матрица доказательств, tier `ui` в настоящем браузере, `managed-xui`, `backup-restore`
@@ -106,6 +108,8 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 009 — lanes per client and chains through the fleet's relays (v0.7)](adr/009-lanes-and-chains.md)
 
 ### Releases
+
+- [v0.7.0-beta.1](releases/v0.7.0-beta.1.md) — chains and lanes: exits through the fleet's relays, a grant's own lane, the `chains` tier
 
 - [CHANGELOG.md](../CHANGELOG.md) — the changelog, every release; [CHANGELOG.ru.md](../CHANGELOG.ru.md) — in Russian (from v0.4); [scripts/install-release.sh](../scripts/install-release.sh) — fetch, verify and install a release (`--requirements` — what is needed and what gets installed)
 - [Operator guide v0.6 (Russian)](releases/v0.6-operator-guide.ru.md) — architecture, domains and how they spread over a fleet, unattended deployment, 3x-ui, linking nodes, grants from the central, routing and the Xray-router in one place; the AI-agent protocol is in [AGENTS.md](../AGENTS.md)

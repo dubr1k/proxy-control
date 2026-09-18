@@ -4,7 +4,81 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.7.0-beta.1] - 2026-09-18
+
+Chains and lanes: a client's own traffic routed by geosite/geoip rules through a chosen node
+of the fleet, the rest through the node's WARP — set up per client, from the central panel,
+with the relay between nodes issued and rotated by the panel. Release note:
+[docs/releases/v0.7.0-beta.1.md](docs/releases/v0.7.0-beta.1.md); design:
+[ADR 009](docs/adr/009-lanes-and-chains.md).
+
+### Added
+
+- **Exits through the fleet** — a policy's `default_egress` and a rule's `egress` are now
+  `warp | node:<guid>[,<guid>[,<guid>]][:warp]`: a chain of up to three relays of other nodes,
+  leaving directly or through the last hop's WARP ([ROUTING](docs/ROUTING.en.md), «Chains and lanes»).
+  The compiler resolves hops (address, port, `serverName`, public key, `shortId`, account) and
+  refuses by code: `node_unknown`, `node_lacks_relay`, `relay_disabled`, `relay_credential_pending`,
+  `relay_no_warp`, `chain_loop`, `node_lacks_lanes`.
+- **Relay** — every node with an Xray-router carries a `vless`+`reality` inbound on a public port
+  (`[egress] relay_port`, 45443 by default) behind the node's own panel TLS; it accepts only the
+  accounts the central issued — one `(source node, direct|warp)` pair per source, escrowed as
+  `relay-account` secrets, minted on `apply`, delivered to the local router at once or to a linked
+  panel in the `relay` section of its next generation, confirmed by the node's report.
+  `POST /api/routing/relay/{node}/enable | rotate` (owner, audited).
+- **Lanes** — `POST /api/routing/lanes/{grant_id}` `{mode: own | service}`: a grant's own SOCKS
+  account on the router's ingress, its own policy `(node, protocol, lane)` (`?lane=grant:<id>` on
+  every policy route, born as a copy of the service's), every lane of a service applied as **one
+  schema-2 intent**; NaiveProxy gets a `forward_proxy` handler per lane (the `LANES` block),
+  Mieru a slot daemon `mita@<n>` (`[mieru] lane_slots`, ports 46101…) whose port the grant's link
+  and subscription carry; on a linked panel the resource travels with `lane: own` and the node
+  builds the lane itself — the lane key never leaves the node. Deleting a grant withdraws its lane.
+- **«Where will it go»** — `POST …/explain {host, port}` walks a lane's saved rules.
+- **UI** — «Выходы узла» chips, the node's relay line, lane tabs («Добавить полосу для клиента…»,
+  «Вернуть в полосу сервиса»), a «Куда» column with chains, «Куда пойдёт…»; «Клиенты» shows and
+  flips a grant's lane. Compiled documents mask relay accounts in the API, diffs and history.
+- **Router manager** — `GET|POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`,
+  `GET|POST|DELETE /v1/relay`, `PUT /v1/relay/accounts`; chain hops checked for reachability on
+  `plan`/`apply`; `healthcheck --relay`, `--relay-enable`.
+- **Installer** — `[egress] relay_port` and `[mieru] lane_slots` (defaults with `router = true`),
+  UFW rules, the `mita@.service` template (its own `/var/lib/mita` per slot), relay enabled and
+  proven on verify, slots verified by their sockets; upgrade path in [UPGRADING](docs/UPGRADING.md).
+- **Fleet v2** — capabilities `egress.lanes.v1`, `relay.v1`; `identity.router.relay` and
+  `.lanes`; generation `relay` section and resource `lane` (absent from the wire and the digest
+  when unused — a v0.6 node never sees them); `observed.relay`, `observed.egress[].lanes`.
+- **Lab** — tier `chains` (`remote-gate.sh chains`): a second node started from the tree on the
+  stand (router with its own stub-WARP, panel over TLS), linked, its relay enabled through a
+  generation, the probe grant's lane with a chain through it, `geoip → direct`, the Mieru slot,
+  account rotation, rollback, withdrawal — 31 checks beside routing/router; tier `ui` drives the
+  lane flow in a real browser; matrix rows `routing-lanes`, `routing-chains`, `routing-relay`,
+  `routing-over-fleet-chains`, `installer-chains`, `ui-routing-chains`.
+
+### Changed
+
+- Migration 16 (`routing-chains-lanes`): `routing_policies` keyed by `(node, protocol, lane)`,
+  the `egress = warp` constraint dropped, `access_grants.routing_lane`, tables `relay_peers` and
+  `router_relays`, `observed_generations.relay_json` — additive in effect.
+- The router's schema-2 render makes the service's lane the user-less catch-all: a lane account
+  without an applied policy follows the service's policy instead of Xray's first outbound.
+- Audit: `grant.lane.enable | disable`, `routing.relay.enable | rotate`; `routing.policy.*` rows
+  carry `lane`.
+
 ### Fixed
+
+- The Xray-router crash-looped at start when the running intent named a lane whose account had
+  been forgotten (found by the `chains` tier): a lane is forgotten atomically — the intent loses
+  its rules in the same generation, `lanes.json` changes only after a successful swap — and a
+  start or a rollback strips such lanes instead of dying.
+- A withdrawn lane on a linked panel left the service's section with the lane and its chain, so
+  the node's router kept checking a hop that might be gone and refused every generation: the next
+  generation carries the section without the lane.
+- The fleet pusher logged a traceback when a node was unlinked during its own heartbeat.
+- The installer's Mieru slot verification raced `enable --now` (the RPC server opens after
+  systemd returns); the ingress probe of the router gets three tries.
+- The routing preview no longer sends a rule still being typed (no selector) to the compiler.
+
+### Fixed (post-v0.6, on the branch before this tag)
+
 
 - A managed 3x-ui (`managed-new`) whose password the wizard generated could not be reached afterwards: the password was written nowhere and the panel's base path is random. `provision` now records the URL with the base path, the username and the password in the root-only `/var/lib/proxy-control/three-xui/panel-access` (0600, beside the subscription URL) — only once the panel is really configured; a failed provisioning leaves no record.
 - The Journal is one line per entry again: the whole line is the `<details>` summary, «Details and IP» ends the line and the body opens underneath at full width; 11 px type and 44 px rows like the other tables (the v0.1 rule had left 10 px type and, after the overlap fix, two-storey rows). Every action name from `docs/AUDIT_EVENTS.md` now has a Russian label (`ACTION_NAMES` had stopped at v0.2, so `routing.*`, `grant.*`, `client.*`, `subscription.*`, `api_key.*`, `node.*`, `fleet.*` rows showed raw codes); a test keeps the two in step.
