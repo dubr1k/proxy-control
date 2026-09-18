@@ -769,6 +769,9 @@ class Acceptance:
             b.js("document.querySelector('#rule-egress-row').hidden = document.querySelector('#rule-action').value !== 'egress'; true")
         if "egress" in fields:
             b.select("#rule-egress", fields["egress"])
+            self.report["facts"]["rule_modal_last_egress"] = {
+                "wanted": fields["egress"], "value": b.value("#rule-egress"),
+                "options": b.js("[...document.querySelectorAll('#rule-egress option')].map(o => o.value)")}
         if "protocols" in fields:
             b.js(f"[...document.querySelectorAll('[data-rule-protocol]')].forEach(i => {{ i.checked = {json.dumps(fields['protocols'])}.includes(i.value); }}); true")
         b.click("#rule-save")
@@ -871,8 +874,13 @@ class Acceptance:
         self.check("routing.exit_test_answers", b.wait(f"!!document.querySelector('#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}] td:nth-child(4)') && !(document.querySelector('#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}] td:nth-child(4)')?.textContent || '').includes('не проверялся')", 40),
                    b.text(f"#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}]"))
         self.report["facts"]["exit_test"] = b.text(f"#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}] td:nth-child(4)")
+        # The probe's result is painted by the screen's first render; the policy load that
+        # follows it rerenders the table — a rule added in between would be lost.
+        b.wait(loaded, 30)
         self.add_rule(domains="ifconfig.co", action="egress", egress=f"exit:{exit_id}")
-        self.check("routing.rule_leaves_through_the_exit", b.wait("(document.querySelector('.routing-rule:last-child .routing-rule-where')?.textContent || '').includes('lab socks')", 10))
+        self.check("routing.rule_leaves_through_the_exit", b.wait("(document.querySelector('.routing-rule:last-child .routing-rule-where')?.textContent || '').includes('lab socks')", 10),
+                   json.dumps({"where": b.js("[...document.querySelectorAll('.routing-rule .routing-rule-where')].map(c => c.textContent)"),
+                               "modal": self.report["facts"].get("rule_modal_last_egress")}, ensure_ascii=False)[:600])
         self.check("routing.router_preview_supports_custom_exit", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"exits\"')", 20),
                    (b.js("document.querySelector('#routing-preview')?.innerText") or "")[:300])
         b.click("#routing-save")
