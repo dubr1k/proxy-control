@@ -53,8 +53,12 @@ def test_routing_js_speaks_the_router():
     for text in ("Подключить к Xray-router", "Отключить от Xray-router", "Xray-router: не установлен",
                  "сессии сервиса прервутся", "Xray-router", "Caddy", "mita", "geosite", "geoip"):
         assert text in ROUTING, text
-    for field in ('data-rule-field="geosites"', 'data-rule-field="geoips"', 'data-rule-field="ports"'):
-        assert field in ROUTING, field
+    # v0.8: the rule is edited in a modal; the selectors are its fields.
+    html = (STATIC / "index.html").read_text()
+    for field in ('id="rule-geosites"', 'id="rule-geoips"', 'id="rule-ports"', 'id="rule-domains"', 'id="rule-cidrs"', "data-rule-protocol"):
+        assert field in html, field
+    for fragment in ("#rule-geosites", "#rule-geoips", "#rule-ports", "[data-rule-protocol]", "openRuleModal", "saveRuleModal"):
+        assert fragment in ROUTING, fragment
     for code in ("router_unavailable", "router_unreachable", "not_attached", "node_lacks_router", "artifact_mismatch",
                  "geosite_unknown", "geoip_unknown", "router_credential_stale"):
         assert code in ROUTING, code
@@ -70,7 +74,7 @@ def test_routing_js_speaks_lanes_chains_and_the_relay():
     for fragment in ("/api/routing/lanes/", "/explain", "/api/routing/relay/", "/enable", "laneQuery(context)",
                      'data-routing-action="lane"', 'data-routing-action="lane-add"', 'data-routing-action="lane-remove"',
                      'data-routing-action="relay-enable"', 'id="routing-exits"', 'id="routing-lanes"', 'id="routing-explain"',
-                     'data-rule-field="egress"', 'exitSelect(target, "default_egress"', "routingLane"):
+                     "#rule-egress", 'exitSelect(target, "default_egress"', "routingLane"):
         assert fragment in ROUTING, fragment
     for text in ("Выходы узла", "Сервис", "Добавить полосу для клиента…", "Вернуть в полосу сервиса", "Куда пойдёт…",
                  "Через выход", "WARP этого узла", "→ напрямую", "Включить relay", "relay включён", "relay выключен",
@@ -91,6 +95,27 @@ def test_routing_js_speaks_lanes_chains_and_the_relay():
     assert 'id="choose"' in html and 'id="choose-select"' in html
     css = (STATIC / "style.css").read_text()
     for selector in (".routing-exits{", ".routing-exit-chip{", ".routing-lanes{", ".routing-explain{", ".grant-lane{"):
+        assert selector in css, selector
+
+
+def test_routing_js_speaks_presets_exits_and_geodata():
+    """v0.8: quick settings as marked rules, custom exits with their modal and test, the
+    geodata block — and the rule table that replaced the cards."""
+    for fragment in ("/api/routing/presets", "data-routing-preset", "togglePreset", "rule.preset", "preset: rule.preset || null",
+                     "/api/routing/exits", "/api/routing/exits/import", "customExitsPanel", 'data-routing-action="exit-add"',
+                     'data-routing-action="exit-test"', "exit:", "EXIT_FIELDS", "/api/routing/geodata", "geodataLine",
+                     "protocols: rule.match.protocols || []", 'data-routing-action="rule-edit"', "routing-table"):
+        assert fragment in ROUTING, fragment
+    for text in ("Быстрые настройки", "Свои выходы", "+ Выход", "Проверить", "пресет", "Geodata", "Обновить сейчас", "Источник…"):
+        assert text in ROUTING, text
+    for code in ("exit_unknown", "exit_disabled", "exit_other_node", "exit_secret_pending", "exit_in_use", "exit_unreachable",
+                 "geodata_rejected", "geodata_fetch_failed", "geodata_digest_mismatch"):
+        assert code in ROUTING, code
+    html = (STATIC / "index.html").read_text()
+    for fragment in ('id="rule-modal"', 'id="exit-modal"', 'id="geodata-modal"', 'id="exit-link"', 'id="geodata-source"', 'value="loyalsoldier"'):
+        assert fragment in html, fragment
+    css = (STATIC / "style.css").read_text()
+    for selector in (".routing-table td{", ".routing-presets{", ".routing-custom-exits{", ".routing-geodata{", ".rule-what{"):
         assert selector in css, selector
 
 
@@ -122,7 +147,7 @@ def _interpolations(source: str) -> list[str]:
 # helpers, URL-encoded path parts, counters and flags — never a bare API string.
 _ALLOWED = (
     re.compile(r"^(esc|number|encodeURIComponent)\("),
-    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect|geodataLine|codeOptions)\("),
+    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect|geodataLine|codeOptions|whatChips|whereLabel|presetsLine|customExitsPanel|ruleRow)\("),
     re.compile(r"^(policyPath|laneQuery)\("),  # URL builders: encoded path parts and a `?lane=` query
     re.compile(r"^(chips|tabs)\.join\(\"\"\)$"),  # our own escaped pieces
     re.compile(r"^[\w+\- ]+$"),  # a local composed of escaped pieces, or index arithmetic
@@ -140,7 +165,8 @@ def test_every_interpolated_value_from_the_api_is_escaped():
     for expression in _interpolations(ROUTING):
         assert any(rule.match(expression) for rule in _ALLOWED), expression
     # Strings that come from the API are escaped where they are interpolated.
-    for field in ("meta.name", "protocol", "backend", "message", "note", "actor", "digest", "domains.join", "cidrs.join"):
+    # v0.8: a rule's selectors are painted as chips (`esc(prefix + item)`), its ports joined.
+    for field in ("meta.name", "protocol", "backend", "message", "note", "actor", "digest", "prefix + item", "match.ports.join"):
         assert re.search(rf"esc\([^)]*{re.escape(field)}", ROUTING), field
 
 

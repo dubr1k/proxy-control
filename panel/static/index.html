@@ -137,6 +137,76 @@
   </dialog>
 
 
+  <dialog id="rule-modal" class="sheet wide">
+    <form method="dialog" id="rule-form">
+      <div class="modal-head"><div><span class="eyebrow">ПРАВИЛО</span><h2 id="rule-title">Правило маршрутизации</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Правила читаются сверху вниз, побеждает первое совпавшее; чего нет ни в одном правиле — идёт «по умолчанию». Домены и IP — через запятую; коды geosite/geoip подсказывает список узла.</p>
+      <input id="rule-index" type="hidden">
+      <div class="link-grid">
+        <label>Действие<select id="rule-action"><option value="block">Блокировать</option><option value="direct">Напрямую</option><option value="egress">Через выход</option></select></label>
+        <label id="rule-egress-row">Куда<select id="rule-egress"></select></label>
+      </div>
+      <fieldset class="grant-protocols rule-what">
+        <legend>Что</legend>
+        <label>Домены<input id="rule-domains" placeholder="youtube.com, *.googlevideo.com"></label>
+        <label>geosite<input id="rule-geosites" list="geodata-geosite-codes" placeholder="youtube, category-ads-all"></label>
+        <label>IP и сети<input id="rule-cidrs" placeholder="203.0.113.0/24, 2001:db8::/32"></label>
+        <label>geoip<input id="rule-geoips" list="geodata-geoip-codes" placeholder="ru, cloudflare"></label>
+        <label>Порты<input id="rule-ports" placeholder="443, 1000-2000"></label>
+        <div class="rule-protocols"><small>Протокол (по снифферу Xray)</small>
+          <label class="grant-protocol"><input type="checkbox" value="tls" data-rule-protocol> tls</label>
+          <label class="grant-protocol"><input type="checkbox" value="http" data-rule-protocol> http</label>
+          <label class="grant-protocol"><input type="checkbox" value="quic" data-rule-protocol> quic</label>
+          <label class="grant-protocol"><input type="checkbox" value="bittorrent" data-rule-protocol> bittorrent</label>
+        </div>
+      </fieldset>
+      <label>Заметка<input id="rule-note" maxlength="120" placeholder="зачем это правило"></label>
+      <label class="grant-protocol"><input type="checkbox" id="rule-enabled" checked> включено</label>
+      <div class="form-error" id="rule-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="rule-save" type="button">Готово</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="exit-modal" class="sheet wide">
+    <form method="dialog" id="exit-form">
+      <div class="modal-head"><div><span class="eyebrow">СВОЙ ВЫХОД</span><h2 id="exit-title">Новый выход</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Сервер, через который Xray-router узла будет выпускать трафик: чужой VPN, свой прокси, второй хостер. Пароль и UUID хранятся в шифрованном хранилище панели и уходят только на этот узел.</p>
+      <input id="exit-id" type="hidden">
+      <div class="node-tabs exit-tabs" role="tablist"><button type="button" class="active" data-exit-tab="form" role="tab">Форма</button><button type="button" data-exit-tab="link" role="tab">Из ссылки</button></div>
+      <div id="exit-link-tab" hidden>
+        <label>Ссылка<textarea id="exit-link" rows="3" placeholder="vless://… trojan://… ss://… socks://user:pass@host:port"></textarea><small>Ссылка разбирается на панели и нигде не сохраняется; имя берётся из её хвоста после #</small></label>
+      </div>
+      <div id="exit-form-tab">
+        <div class="link-grid">
+          <label>Имя<input id="exit-name" maxlength="48" placeholder="например, NL VPS"></label>
+          <label>Протокол<select id="exit-protocol"><option value="vless">VLESS</option><option value="trojan">Trojan</option><option value="shadowsocks">Shadowsocks</option><option value="socks">SOCKS5</option><option value="http">HTTP(S) proxy</option></select></label>
+          <label>Адрес<input id="exit-address" maxlength="253" placeholder="vpn.example.org или 203.0.113.9"></label>
+          <label>Порт<input id="exit-port" type="number" min="1" max="65535" value="443"></label>
+        </div>
+        <div class="link-grid" id="exit-credential">
+          <label data-exit-field="uuid">UUID<input id="exit-uuid" maxlength="36" placeholder="xxxxxxxx-xxxx-…"><small id="exit-uuid-hint"></small></label>
+          <label data-exit-field="username">Логин<input id="exit-username" maxlength="128" placeholder="пусто — без авторизации"></label>
+          <label data-exit-field="password">Пароль<input id="exit-password" type="password" maxlength="256" autocomplete="new-password"><small id="exit-password-hint"></small></label>
+          <label data-exit-field="method">Метод<select id="exit-method"><option>aes-256-gcm</option><option>aes-128-gcm</option><option>chacha20-ietf-poly1305</option><option>2022-blake3-aes-128-gcm</option><option>2022-blake3-aes-256-gcm</option><option>2022-blake3-chacha20-poly1305</option><option>none</option></select></label>
+          <label data-exit-field="flow">Flow<select id="exit-flow"><option value="">нет</option><option value="xtls-rprx-vision">xtls-rprx-vision</option></select></label>
+        </div>
+        <div class="link-grid" id="exit-stream">
+          <label data-exit-field="network">Транспорт<select id="exit-network"><option value="tcp">TCP (raw)</option><option value="ws">WebSocket</option><option value="grpc">gRPC</option><option value="xhttp">XHTTP</option></select></label>
+          <label data-exit-field="path">Путь / serviceName<input id="exit-path" maxlength="512" placeholder="/ws"></label>
+          <label data-exit-field="host">Host<input id="exit-host" maxlength="253" placeholder="cdn.example.org"></label>
+          <label data-exit-field="security">Шифрование<select id="exit-security"><option value="none">нет</option><option value="tls">TLS</option><option value="reality">Reality</option></select></label>
+          <label data-exit-field="sni">SNI<input id="exit-sni" maxlength="253" placeholder="www.example.com"></label>
+          <label data-exit-field="fp">Fingerprint<select id="exit-fp"><option>chrome</option><option>firefox</option><option>safari</option><option>ios</option><option>android</option><option>edge</option><option>random</option><option>randomized</option></select></label>
+          <label data-exit-field="pbk">Public key (Reality)<input id="exit-pbk" maxlength="64"></label>
+          <label data-exit-field="sid">Short id (Reality)<input id="exit-sid" maxlength="16"></label>
+          <label class="grant-protocol" data-exit-field="insecure"><input type="checkbox" id="exit-insecure"> не проверять сертификат (allowInsecure)</label>
+        </div>
+      </div>
+      <div class="form-error" id="exit-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="exit-save" type="button">Сохранить</button></footer>
+    </form>
+  </dialog>
+
   <dialog id="geodata-modal" class="sheet">
     <form method="dialog" id="geodata-form">
       <div class="modal-head"><div><span class="eyebrow">GEODATA</span><h2>Списки geosite и geoip</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>

@@ -2,7 +2,7 @@
 // form and previewed as what the node's backend would actually enforce. The preview is the
 // compiler's honest answer: an unsupported rule is named, not silently dropped, and
 // «Применить» is enabled only for a saved, supported policy.
-import { esc, number, query, queryAll } from "./common.js";
+import { date, esc, number, query, queryAll } from "./common.js";
 import { isCurrent } from "./state.js";
 
 const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy" };
@@ -60,8 +60,32 @@ const WARNING_TEXT = {
   adopts_unmanaged_egress: "на узле есть секция egress, заданная вручную — она будет заменена и сохранена для отката",
   policy_empty: "политика пустая: узел пойдёт напрямую без правил",
   router_credential_stale: "ключ ingress на узле обновлён, менеджер перерисует блок при перезапуске",
+  // v0.8: custom exits and geodata
+  exit_unknown: "политика называет выход, которого нет",
+  exit_disabled: "выход выключен",
+  exit_other_node: "выход принадлежит другому узлу",
+  exit_secret_pending: "у выхода нет читаемого секрета — задайте пароль заново",
+  exit_in_use: "выход используется в политиках",
+  exit_unreachable: "через выход ничего не отвечает",
+  exit_invalid: "Xray отверг такой аутбаунд",
+  exit_test_failed: "проба выхода не запустилась",
+  exit_test_busy: "проверка выхода уже идёт",
+  exit_link_invalid: "ссылка не разобрана: поддерживаются vless://, trojan://, ss://, socks://, http(s)://",
+  node_lacks_exits: "панель узла ещё не умеет свои выходы — обновите её до v0.8",
+  node_lacks_geodata: "панель узла ещё не управляет geodata — обновите её до v0.8",
+  secret_store_disabled: "нужен мастер-ключ панели (PANEL_MASTER_KEY_FILE)",
+  geodata_rejected: "текущая конфигурация не собирается с новыми списками",
+  geodata_fetch_failed: "списки не скачались",
+  geodata_digest_mismatch: "контрольная сумма списков не совпала с опубликованной",
+  geodata_too_large: "файл списков больше допустимого",
+  geodata_corrupt: "файл списков не читается",
+  geodata_busy: "обновление списков уже идёт",
+  geodata_invalid: "источник geodata задан неверно",
+  geodata_install_failed: "списки не удалось положить на место",
 };
 const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", xray_router: "Xray-router" };
+const EXIT_PROTOCOL_NAMES = { vless: "VLESS", trojan: "Trojan", shadowsocks: "Shadowsocks", socks: "SOCKS5", http: "HTTP" };
+const SNIFFED_PROTOCOLS = ["tls", "http", "quic", "bittorrent"];
 const STATE_TEXT = {
   draft: "черновик", applying: "применяется", applied: "применено", failed: "ошибка", rolled_back: "откачено",
 };
@@ -75,7 +99,7 @@ function emptyPolicy() {
 }
 
 function newRule() {
-  return { id: null, enabled: true, action: "block", egress: null, match: { domains: [], cidrs: [], ports: [], geosites: [], geoips: [] }, note: "" };
+  return { id: null, enabled: true, action: "block", egress: null, match: { domains: [], cidrs: [], ports: [], geosites: [], geoips: [], protocols: [] }, note: "", preset: null };
 }
 
 // Exits (v0.7): `warp` — this node's WARP; `node:<guid>[,<guid>][:warp]` — a chain through
@@ -94,6 +118,9 @@ function laneQuery(context) {
 // Plain-text labels (data, not markup): every place that paints one passes it through esc().
 function exitOptions(target) {
   const options = [{ value: "warp", label: "WARP этого узла" }];
+  for (const exit of target?.custom_exits || []) {
+    options.push({ value: "exit:" + exit.id, label: "⇢ " + exit.name + " (" + (EXIT_PROTOCOL_NAMES[exit.protocol] || exit.protocol) + ")" + (exit.enabled ? "" : " — выключен") });
+  }
   for (const exit of target?.exits || []) {
     options.push({ value: exit.exit, label: "→ " + exit.display_name + " → напрямую" });
     options.push({ value: exit.exit + ":warp", label: "→ " + exit.display_name + " → WARP " + exit.display_name });
@@ -129,9 +156,9 @@ function draftFromPolicy(policy) {
     fallback: policy.fallback,
     revision: policy.revision,
     rules: (policy.rules || []).map((rule) => ({
-      id: rule.id, enabled: rule.enabled, action: rule.action, egress: rule.egress, note: rule.note || "",
+      id: rule.id, enabled: rule.enabled, action: rule.action, egress: rule.egress, note: rule.note || "", preset: rule.preset || null,
       match: { domains: [...rule.match.domains], cidrs: [...rule.match.cidrs], ports: [...rule.match.ports],
-        geosites: [...(rule.match.geosites || [])], geoips: [...(rule.match.geoips || [])] },
+        geosites: [...(rule.match.geosites || [])], geoips: [...(rule.match.geoips || [])], protocols: [...(rule.match.protocols || [])] },
     })),
   };
 }
@@ -151,8 +178,9 @@ export function policyBody(draft, backend = null) {
       action: rule.action,
       egress: rule.action === "egress" ? rule.egress || "warp" : null,
       match: { domains: rule.match.domains, cidrs: rule.match.cidrs, ports: rule.match.ports,
-        geosites: rule.match.geosites, geoips: rule.match.geoips },
+        geosites: rule.match.geosites, geoips: rule.match.geoips, protocols: rule.match.protocols || [] },
       note: rule.note,
+      preset: rule.preset || null,
     })),
   };
 }
@@ -211,39 +239,56 @@ function protocolTabs(context) {
   }).join("");
 }
 
-function ruleRow(target, rule, index, total, editable) {
-  const match = rule.match;
-  const selective = rule.action !== "block";
-  return `<li class="routing-rule${rule.enabled ? "" : " disabled"}" data-rule-index="${index}" draggable="${editable}">
-    <div class="routing-rule-head">
-      <span class="routing-rule-order">${index + 1}</span>
-      <label class="routing-rule-toggle"><input type="checkbox" data-rule-field="enabled" data-rule-index="${index}"${rule.enabled ? " checked" : ""}${editable ? "" : " disabled"}> включено</label>
-      <select data-rule-field="action" data-rule-index="${index}"${editable ? "" : " disabled"}>
-        <option value="block"${rule.action === "block" ? " selected" : ""}>Блокировать</option>
-        <option value="direct"${rule.action === "direct" ? " selected" : ""}>Напрямую</option>
-        <option value="egress"${rule.action === "egress" ? " selected" : ""}>Через выход</option>
-      </select>
-      ${rule.action === "egress" ? `<label class="routing-rule-exit">Куда ${exitSelect(target, "", rule.egress, index, editable)}</label>` : ""}
-      <span class="routing-rule-tools">
-        <button class="ghost" data-routing-action="rule-up" data-rule-index="${index}" title="Выше"${index === 0 || !editable ? " disabled" : ""}>↑</button>
-        <button class="ghost" data-routing-action="rule-down" data-rule-index="${index}" title="Ниже"${index === total - 1 || !editable ? " disabled" : ""}>↓</button>
-        <button class="ghost danger-text" data-routing-action="rule-remove" data-rule-index="${index}"${editable ? "" : " disabled"}>Удалить</button>
-      </span>
-    </div>
-    <div class="routing-rule-fields">
-      <label>Домены <small>example.com, *.cdn.example</small><input data-rule-field="domains" data-rule-index="${index}" value="${esc(match.domains.join(", "))}" placeholder="example.com, *.example.com"${editable ? "" : " disabled"}></label>
-      <label>CIDR <small>1.2.3.0/24</small><input data-rule-field="cidrs" data-rule-index="${index}" value="${esc(match.cidrs.join(", "))}" placeholder="203.0.113.0/24"${editable ? "" : " disabled"}></label>
-      <label>geosite <small>только Xray-router</small><input data-rule-field="geosites" data-rule-index="${index}" list="geodata-geosite-codes" value="${esc((match.geosites || []).join(", "))}" placeholder="category-ads-all, cn"${editable ? "" : " disabled"}></label>
-      <label>geoip <small>только Xray-router</small><input data-rule-field="geoips" data-rule-index="${index}" list="geodata-geoip-codes" value="${esc((match.geoips || []).join(", "))}" placeholder="cn, cloudflare"${editable ? "" : " disabled"}></label>
-      <label>Порты <small>только Xray-router</small><input data-rule-field="ports" data-rule-index="${index}" value="${esc(match.ports.join(", "))}" placeholder="443, 1000-2000"${editable ? "" : " disabled"}></label>
-      <label>Заметка<input data-rule-field="note" data-rule-index="${index}" value="${esc(rule.note)}" maxlength="120"${editable ? "" : " disabled"}></label>
-    </div>
-    ${selective ? '<p class="form-hint">Выборочное правило: NaiveProxy его не умеет (один upstream на сервис), Mieru и Xray-router — умеют.</p>' : ""}
-  </li>`;
+// One rule as a table row (v0.8): what it matches, where it sends, its note — edited in a
+// modal, reordered by drag or the arrows. The enabled box is the one inline control.
+function whatChips(match) {
+  const chips = [];
+  for (const [key, prefix] of [["domains", ""], ["geosites", "geosite:"], ["cidrs", ""], ["geoips", "geoip:"], ["protocols", "протокол "]]) {
+    for (const item of match[key] || []) chips.push(`<span class="routing-chip">${esc(prefix + item)}</span>`);
+  }
+  if ((match.ports || []).length) chips.push(`<span class="routing-chip">порт ${esc(match.ports.join(", "))}</span>`);
+  return chips.join("") || '<span class="routing-chip muted">пусто</span>';
 }
 
-function editor(target, draft, editable) {
+function whereLabel(target, rule) {
+  if (rule.action === "block") return "⛔ блок";
+  if (rule.action === "direct") return "напрямую";
+  return "→ " + (exitLabel(target, rule.egress) || "WARP");
+}
+
+function ruleRow(target, rule, index, total, editable) {
+  const preset = rule.preset ? `<small class="routing-preset-mark">пресет</small>` : "";
+  return `<tr class="routing-rule${rule.enabled ? "" : " disabled"}" data-rule-index="${index}" draggable="${editable}">
+    <td class="routing-rule-order">${index + 1}</td>
+    <td><input type="checkbox" data-rule-field="enabled" data-rule-index="${index}" aria-label="включено"${rule.enabled ? " checked" : ""}${editable ? "" : " disabled"}></td>
+    <td class="routing-rule-what">${whatChips(rule.match)}</td>
+    <td class="routing-rule-where">${esc(whereLabel(target, rule))}</td>
+    <td class="routing-rule-note">${esc(rule.note || "")}${preset}</td>
+    <td class="routing-rule-tools">
+      <button type="button" class="ghost" data-routing-action="rule-edit" data-rule-index="${index}"${editable ? "" : " disabled"}>Изменить</button>
+      <button type="button" class="ghost" data-routing-action="rule-up" data-rule-index="${index}" title="Выше"${index === 0 || !editable ? " disabled" : ""}>↑</button>
+      <button type="button" class="ghost" data-routing-action="rule-down" data-rule-index="${index}" title="Ниже"${index === total - 1 || !editable ? " disabled" : ""}>↓</button>
+      <button type="button" class="ghost danger-text" data-routing-action="rule-remove" data-rule-index="${index}"${editable ? "" : " disabled"}>✕</button>
+    </td>
+  </tr>`;
+}
+
+// Quick settings (v0.8): each toggle is one preset rule in the draft.
+function presetsLine(context, target, draft, editable) {
+  const presets = context.state.routingPresets || [];
+  if (!presets.length || target.backend !== "xray_router") return "";
+  const buttons = presets.map((item) => {
+    const on = draft.rules.some((rule) => rule.preset === item.id);
+    return `<label class="routing-preset${on ? " on" : ""}" title="${esc(item.description)}"><input type="checkbox" data-routing-preset="${esc(item.id)}"${on ? " checked" : ""}${editable ? "" : " disabled"}> ${esc(item.title)}</label>`;
+  }).join("");
+  return `<div class="routing-presets"><b>Быстрые настройки</b>${buttons}</div>`;
+}
+
+function editor(context, target, draft, editable) {
   const rules = draft.rules.map((rule, index) => ruleRow(target, rule, index, draft.rules.length, editable)).join("");
+  const table = rules
+    ? `<div class="import-table-wrap"><table class="import-table routing-table"><thead><tr><th>#</th><th>вкл</th><th>Что</th><th>Куда</th><th>Заметка</th><th></th></tr></thead><tbody id="routing-rules">${rules}</tbody></table></div>`
+    : '<p class="routing-empty">Правил нет: весь сервис идёт по умолчанию.</p>';
   return `<form class="routing-editor" id="routing-form" data-node-id="${esc(target.node_id)}" data-protocol="${esc(target.protocol)}">
     <div class="routing-defaults">
       <label>По умолчанию
@@ -258,7 +303,8 @@ function editor(target, draft, editable) {
           <option value="approved_direct"${draft.fallback === "approved_direct" ? " selected" : ""}>напрямую</option>
         </select></label>
     </div>
-    <ol class="routing-rules" id="routing-rules">${rules || '<li class="routing-empty">Правил нет: весь сервис идёт по умолчанию.</li>'}</ol>
+    ${presetsLine(context, target, draft, editable)}
+    ${table}
     <div class="routing-editor-actions">
       <button type="button" class="secondary" data-routing-action="rule-add"${editable ? "" : " disabled"}>Добавить правило</button>
       <button type="button" class="secondary" data-routing-action="reset"${editable ? "" : " disabled"}>Сбросить</button>
@@ -447,6 +493,37 @@ async function geodataUpdate(context, button) {
   }
 }
 
+// Custom exits (v0.8): the operator's own outbounds on this node's router.
+function customExitsPanel(context, target) {
+  if (!target.router) return "";
+  const owner = context.state.me?.role === "owner";
+  const rows = (target.custom_exits || []).map((exit) => {
+    const test = exit.last_test
+      ? (exit.last_test.ok ? `✓ ${esc(exit.last_test.ip || "")} ${esc(exit.last_test.colo || "")} · ${number(exit.last_test.latency_ms || 0)} мс` : `✗ ${esc(reasonText(exit.last_test.code) || exit.last_test.error || "не отвечает")}`)
+      : "не проверялся";
+    const used = (exit.used_by || []).length;
+    return `<tr data-exit-id="${esc(exit.id)}" class="${exit.enabled ? "" : "disabled"}">
+      <td><b>${esc(exit.name)}</b>${exit.enabled ? "" : " <small>выключен</small>"}</td>
+      <td>${esc(EXIT_PROTOCOL_NAMES[exit.protocol] || exit.protocol)}</td>
+      <td>${esc(exit.address)}:${number(exit.port)}${exit.security?.kind && exit.security.kind !== "none" ? ` · ${esc(exit.security.kind)}` : ""}</td>
+      <td class="${exit.last_test && !exit.last_test.ok ? "danger-text" : ""}">${test}</td>
+      <td class="routing-rule-tools">
+        <button type="button" class="ghost" data-routing-action="exit-test" data-exit-id="${esc(exit.id)}"${owner && target.router.available ? "" : " disabled"}>Проверить</button>
+        <button type="button" class="ghost" data-routing-action="exit-edit" data-exit-id="${esc(exit.id)}"${owner ? "" : " disabled"}>Изменить</button>
+        <button type="button" class="ghost" data-routing-action="${exit.enabled ? "exit-disable" : "exit-enable"}" data-exit-id="${esc(exit.id)}"${owner ? "" : " disabled"}>${exit.enabled ? "Выключить" : "Включить"}</button>
+        <button type="button" class="ghost danger-text" data-routing-action="exit-delete" data-exit-id="${esc(exit.id)}"${owner && !used ? "" : " disabled"} title="${used ? "используется в политиках" : ""}">Удалить</button>
+      </td>
+    </tr>`;
+  }).join("");
+  const table = rows
+    ? `<div class="import-table-wrap"><table class="import-table routing-exits-table"><thead><tr><th>Выход</th><th>Протокол</th><th>Сервер</th><th>Проверка</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : '<p class="form-hint">Своих выходов нет. Добавьте VPN или прокси — и его можно будет выбрать в «Куда».</p>';
+  return `<details class="routing-custom-exits" id="routing-custom-exits"${(target.custom_exits || []).length ? " open" : ""}>
+    <summary><b>Свои выходы</b> <small>${number((target.custom_exits || []).length)}</small><span class="spacer"></span><button type="button" class="secondary" data-routing-action="exit-add"${owner ? "" : " disabled"}>+ Выход</button></summary>
+    ${table}
+  </details>`;
+}
+
 // This node's own relay: the door other nodes' chains come in through.
 function relayLine(context, target) {
   const relay = target.relay;
@@ -521,6 +598,7 @@ function targetCard(context) {
     </div>
     <p class="form-hint">Возможности: ${esc((target.capabilities || []).join(", ") || "—")} · провайдеры — ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress" : ""}</p>
     ${exitsLine(context, target)}
+    ${customExitsPanel(context, target)}
     ${routerLine(context, target)}
     ${geodataLine(context, target)}
     ${relayLine(context, target)}
@@ -528,7 +606,7 @@ function targetCard(context) {
     ${laneTabs(context, target)}
     ${laneTools}
     <div class="routing-layout">
-      ${editor(target, state.draft, editable)}
+      ${editor(context, target, state.draft, editable)}
       ${previewPanel(state.compiled, policy, state.dirty)}
     </div>
     ${explainPanel(context)}
@@ -662,9 +740,10 @@ function screen(context) {
 }
 
 export async function renderRouting(context, generation) {
-  const data = await context.api("/api/routing/targets");
+  const [data, presets] = await Promise.all([context.api("/api/routing/targets"), context.state.routingPresets ? null : context.api("/api/routing/presets").catch(() => null)]);
   if (!isCurrent(context.state, generation, "routing")) return;
   context.state.routingTargets = data.items || [];
+  if (presets) context.state.routingPresets = presets.items || [];
   const nodes = [...new Set(context.state.routingTargets.map((item) => item.node_id))];
   if (!nodes.includes(context.state.routingNode)) context.state.routingNode = nodes.includes("local") ? "local" : nodes[0] || null;
   const protocols = targetsFor(context).map((item) => item.protocol);
@@ -685,15 +764,9 @@ function readDraft(context) {
   state.draft.default_action = form.elements.default_action.value;
   state.draft.default_egress = form.elements.default_egress ? form.elements.default_egress.value : state.draft.default_egress;
   state.draft.fallback = form.elements.fallback.value;
-  for (const input of queryAll("[data-rule-field]", form)) {
+  for (const input of queryAll("[data-rule-field=enabled]", form)) {
     const rule = state.draft.rules[Number(input.dataset.ruleIndex)];
-    if (!rule) continue;
-    const field = input.dataset.ruleField;
-    if (field === "enabled") rule.enabled = input.checked;
-    else if (field === "action") rule.action = input.value;
-    else if (field === "egress") rule.egress = input.value;
-    else if (field === "note") rule.note = input.value;
-    else rule.match[field] = splitList(input.value);
+    if (rule) rule.enabled = input.checked;
   }
   return state.draft;
 }
@@ -725,11 +798,242 @@ export function handleRoutingChange(context, element) {
     void context.navigate("routing");
     return true;
   }
+  if (element.dataset.routingPreset) {
+    togglePreset(context, element.dataset.routingPreset, element.checked);
+    return true;
+  }
   if (!element.closest?.("#routing-form")) return Boolean(element.closest?.("#routing-explain"));
   readDraft(context);
   markDirty(context);
   rerender(context);
   return true;
+}
+
+function togglePreset(context, presetId, on) {
+  const state = ensureState(context);
+  const item = (context.state.routingPresets || []).find((preset) => preset.id === presetId);
+  if (!item) return;
+  readDraft(context);
+  state.draft.rules = state.draft.rules.filter((rule) => rule.preset !== presetId);
+  if (on) {
+    const rule = { ...newRule(), action: item.rule.action, egress: item.rule.egress || null, note: item.rule.note || "", preset: presetId,
+      match: { ...newRule().match, ...Object.fromEntries(Object.entries(item.rule.match || {}).map(([key, values]) => [key, [...values]])) } };
+    if (item.placement === "first") state.draft.rules.unshift(rule);
+    else state.draft.rules.push(rule);
+  }
+  markDirty(context);
+  rerender(context);
+}
+
+// -- the rule modal (v0.8) ---------------------------------------------------------------
+
+function openRuleModal(context, index) {
+  const { root } = context;
+  const state = ensureState(context);
+  const target = currentTarget(context);
+  const adding = index === null;
+  const rule = adding ? newRule() : state.draft.rules[index];
+  if (!rule || !target) return;
+  query("#rule-form", root).reset();
+  query("#rule-error", root).textContent = "";
+  query("#rule-index", root).value = adding ? "" : String(index);
+  query("#rule-title", root).textContent = adding ? "Новое правило" : `Правило ${index + 1}`;
+  query("#rule-action", root).value = rule.action;
+  const select = query("#rule-egress", root);
+  select.innerHTML = exitOptions(target).map((option) => `<option value="${esc(option.value)}"${option.value === (rule.egress || "warp") ? " selected" : ""}>${esc(option.label)}</option>`).join("");
+  query("#rule-egress-row", root).hidden = rule.action !== "egress";
+  for (const key of ["domains", "geosites", "cidrs", "geoips", "ports"]) query(`#rule-${key}`, root).value = (rule.match[key] || []).join(", ");
+  for (const box of queryAll("[data-rule-protocol]", root)) box.checked = (rule.match.protocols || []).includes(box.value);
+  query("#rule-note", root).value = rule.note || "";
+  query("#rule-enabled", root).checked = rule.enabled !== false;
+  context.ui.openModal("#rule-modal", "#rule-domains");
+}
+
+function saveRuleModal(context) {
+  const { root } = context;
+  const state = ensureState(context);
+  const raw = query("#rule-index", root).value;
+  const index = raw === "" ? null : Number(raw);
+  const existing = index === null ? newRule() : state.draft.rules[index];
+  if (!existing) return;
+  const match = {
+    domains: splitList(query("#rule-domains", root).value), geosites: splitList(query("#rule-geosites", root).value),
+    cidrs: splitList(query("#rule-cidrs", root).value), geoips: splitList(query("#rule-geoips", root).value),
+    ports: splitList(query("#rule-ports", root).value),
+    protocols: queryAll("[data-rule-protocol]", root).filter((box) => box.checked).map((box) => box.value),
+  };
+  if (!Object.values(match).some((items) => items.length)) {
+    query("#rule-error", root).textContent = "Правилу нужен хотя бы один селектор: домен, geosite, IP, geoip, порт или протокол";
+    return;
+  }
+  const action = query("#rule-action", root).value;
+  const rule = { ...existing, match, action, egress: action === "egress" ? query("#rule-egress", root).value || "warp" : null,
+    note: query("#rule-note", root).value.trim(), enabled: query("#rule-enabled", root).checked };
+  // An edited preset rule is the operator's rule now: the toggle must not claim it.
+  if (existing.preset && JSON.stringify([existing.match, existing.action, existing.egress]) !== JSON.stringify([match, action, rule.egress])) rule.preset = null;
+  readDraft(context);
+  if (index === null) state.draft.rules.push(rule);
+  else state.draft.rules[index] = rule;
+  query("#rule-modal", root).close();
+  markDirty(context);
+  rerender(context);
+}
+
+// -- the exit modal (v0.8) ---------------------------------------------------------------
+
+const EXIT_FIELDS = {
+  vless: ["uuid", "flow", "network", "path", "host", "security", "sni", "fp", "pbk", "sid", "insecure"],
+  trojan: ["password", "network", "path", "host", "security", "sni", "fp", "pbk", "sid", "insecure"],
+  shadowsocks: ["password", "method"],
+  socks: ["username", "password"],
+  http: ["username", "password", "security", "sni", "fp", "insecure"],
+};
+
+function syncExitFields(context) {
+  const { root } = context;
+  const protocol = query("#exit-protocol", root).value;
+  const shown = new Set(EXIT_FIELDS[protocol] || []);
+  const security = query("#exit-security", root).value;
+  const network = query("#exit-network", root).value;
+  for (const label of queryAll("[data-exit-field]", root)) {
+    const field = label.dataset.exitField;
+    let visible = shown.has(field);
+    if (["sni", "fp", "insecure"].includes(field) && security === "none") visible = false;
+    if (["pbk", "sid"].includes(field) && security !== "reality") visible = false;
+    if (field === "insecure" && security !== "tls") visible = false;
+    if (field === "path" && network === "tcp") visible = false;
+    if (field === "host" && !["ws", "xhttp"].includes(network)) visible = false;
+    label.hidden = !visible;
+  }
+  const editing = Boolean(query("#exit-id", root).value);
+  query("#exit-password-hint", root).textContent = editing ? "Пусто — оставить прежний" : "";
+  query("#exit-uuid-hint", root).textContent = editing ? "Пусто — оставить прежний" : "";
+}
+
+function openExitModal(context, exit = null) {
+  const { root } = context;
+  query("#exit-form", root).reset();
+  query("#exit-error", root).textContent = "";
+  query("#exit-id", root).value = exit?.id || "";
+  query("#exit-title", root).textContent = exit ? "Выход «" + exit.name + "»" : "Новый выход";
+  setExitTab(context, "form");
+  if (exit) {
+    query("#exit-name", root).value = exit.name;
+    query("#exit-protocol", root).value = exit.protocol;
+    query("#exit-address", root).value = exit.address;
+    query("#exit-port", root).value = String(exit.port);
+    query("#exit-method", root).value = exit.method || "aes-256-gcm";
+    query("#exit-flow", root).value = exit.flow || "";
+    query("#exit-network", root).value = exit.transport?.network || "tcp";
+    query("#exit-path", root).value = exit.transport?.path || exit.transport?.service_name || "";
+    query("#exit-host", root).value = exit.transport?.host || "";
+    query("#exit-security", root).value = exit.security?.kind || "none";
+    query("#exit-sni", root).value = exit.security?.server_name || "";
+    query("#exit-fp", root).value = exit.security?.fingerprint || "chrome";
+    query("#exit-pbk", root).value = exit.security?.public_key || "";
+    query("#exit-sid", root).value = exit.security?.short_id || "";
+    query("#exit-insecure", root).checked = exit.security?.insecure === true;
+  }
+  query("#exit-protocol", root).disabled = Boolean(exit);
+  syncExitFields(context);
+  context.ui.openModal("#exit-modal", exit ? "#exit-name" : "#exit-name");
+}
+
+function setExitTab(context, tab) {
+  const { root } = context;
+  for (const button of queryAll("[data-exit-tab]", root)) button.classList.toggle("active", button.dataset.exitTab === tab);
+  query("#exit-form-tab", root).hidden = tab !== "form";
+  query("#exit-link-tab", root).hidden = tab !== "link";
+}
+
+function exitBody(context) {
+  const { root } = context;
+  const protocol = query("#exit-protocol", root).value;
+  const network = query("#exit-network", root).value;
+  const securityKind = query("#exit-security", root).value;
+  const shown = new Set(EXIT_FIELDS[protocol] || []);
+  const body = { name: query("#exit-name", root).value.trim(), protocol, address: query("#exit-address", root).value.trim(),
+    port: Number(query("#exit-port", root).value) || 0, transport: { network: shown.has("network") ? network : "tcp" }, security: { kind: shown.has("security") ? securityKind : "none" } };
+  if (shown.has("network")) {
+    const path = query("#exit-path", root).value.trim();
+    if (network === "grpc" && path) body.transport.service_name = path;
+    else if (network !== "tcp" && path) body.transport.path = path;
+    const host = query("#exit-host", root).value.trim();
+    if (["ws", "xhttp"].includes(network) && host) body.transport.host = host;
+  }
+  if (body.security.kind !== "none") {
+    const sni = query("#exit-sni", root).value.trim();
+    if (sni) body.security.server_name = sni;
+    body.security.fingerprint = query("#exit-fp", root).value;
+    if (body.security.kind === "reality") {
+      body.security.public_key = query("#exit-pbk", root).value.trim();
+      body.security.short_id = query("#exit-sid", root).value.trim();
+    }
+    if (body.security.kind === "tls" && query("#exit-insecure", root).checked) body.security.insecure = true;
+  }
+  if (protocol === "shadowsocks") body.method = query("#exit-method", root).value;
+  if (protocol === "vless") body.flow = query("#exit-flow", root).value;
+  const uuid = query("#exit-uuid", root).value.trim();
+  const username = query("#exit-username", root).value.trim();
+  const password = query("#exit-password", root).value;
+  if (protocol === "vless" && uuid) body.credential = { uuid };
+  else if (["trojan", "shadowsocks"].includes(protocol) && password) body.credential = { password };
+  else if (["socks", "http"].includes(protocol) && (username || password)) body.credential = { username, password };
+  return body;
+}
+
+async function saveExit(context, button) {
+  const { root } = context;
+  const target = currentTarget(context);
+  const error = query("#exit-error", root);
+  error.textContent = "";
+  const exitId = query("#exit-id", root).value;
+  const linkTab = !query("#exit-link-tab", root).hidden;
+  context.ui.setBusy(button, true, "Сохраняем…");
+  try {
+    if (linkTab && !exitId) {
+      const link = query("#exit-link", root).value.trim();
+      if (!link) throw new Error("Вставьте ссылку");
+      const name = query("#exit-name", root).value.trim();
+      await context.api("/api/routing/exits/import", { method: "POST", body: JSON.stringify({ node_id: target.node_id, link, ...(name ? { name } : {}) }) });
+    } else {
+      const body = exitBody(context);
+      if (!body.name || !body.address || !body.port) throw new Error("Заполните имя, адрес и порт");
+      if (exitId) await context.api(`/api/routing/exits/${encodeURIComponent(exitId)}`, { method: "PUT", body: JSON.stringify(body) });
+      else await context.api("/api/routing/exits", { method: "POST", body: JSON.stringify({ ...body, node_id: target.node_id }) });
+    }
+    query("#exit-link", root).value = "";
+    query("#exit-modal", root).close();
+    context.ui.toast(exitId ? "Выход сохранён" : "Выход добавлен — проверьте его кнопкой «Проверить»");
+    await context.navigate("routing");
+  } catch (exception) {
+    error.textContent = exception.message;
+  } finally {
+    context.ui.setBusy(button, false);
+  }
+}
+
+async function exitAction(context, action, button) {
+  const target = currentTarget(context);
+  const exitId = button.dataset.exitId;
+  const exit = (target?.custom_exits || []).find((item) => item.id === exitId);
+  if (!exit) return;
+  if (action === "exit-edit") {
+    openExitModal(context, exit);
+    return;
+  }
+  const verb = action.slice("exit-".length);
+  if (verb === "delete" && !(await context.ui.confirmed("Удалить выход?", "«" + exit.name + "» исчезнет из списка выходов узла; политики его не используют.", "Удалить"))) return;
+  context.ui.setBusy(button, true, verb === "test" ? "Проверяем…" : "…");
+  try {
+    const result = await context.api(`/api/routing/exits/${encodeURIComponent(exitId)}/${verb}`, { method: "POST" });
+    if (verb === "test") context.ui.toast(result.ok ? "Выход отвечает: " + (result.ip || "?") + " " + (result.colo || "") + " за " + number(result.latency_ms || 0) + " мс" : "Выход не отвечает: " + (reasonText(result.code) || result.error || ""), result.ok ? "" : "error");
+    else context.ui.toast({ enable: "Выход включён", disable: "Выход выключен: политики с ним стали черновиками", delete: "Выход удалён" }[verb]);
+    await context.navigate("routing");
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+    context.ui.setBusy(button, false);
+  }
 }
 
 async function save(context) {
@@ -952,6 +1256,19 @@ export function handleRoutingClick(context, button) {
     void geodataUpdate(context, button);
     return true;
   }
+  if (action === "rule-edit") {
+    readDraft(context);
+    openRuleModal(context, Number(button.dataset.ruleIndex));
+    return true;
+  }
+  if (action === "exit-add") {
+    openExitModal(context);
+    return true;
+  }
+  if (action.startsWith("exit-")) {
+    void exitAction(context, action, button);
+    return true;
+  }
   if (action === "geodata-settings") {
     openGeodataModal(context);
     return true;
@@ -970,8 +1287,11 @@ export function handleRoutingClick(context, button) {
   }
   readDraft(context);
   const index = Number(button.dataset.ruleIndex);
-  if (action === "rule-add") state.draft.rules.push(newRule());
-  else if (action === "rule-remove") state.draft.rules.splice(index, 1);
+  if (action === "rule-add") {
+    openRuleModal(context, null);
+    return true;
+  }
+  if (action === "rule-remove") state.draft.rules.splice(index, 1);
   else if (action === "rule-up") moveRule(context, index, -1);
   else if (action === "rule-down") moveRule(context, index, 1);
   else if (action === "reset") state.draft = { ...emptyPolicy(), revision: state.draft.revision };
@@ -985,6 +1305,19 @@ export function handleRoutingClick(context, button) {
 export function bindRouting(context) {
   const view = context.ui.view;
   query("#geodata-save", context.root)?.addEventListener("click", ({ currentTarget: button }) => { void saveGeodata(context, button); });
+  query("#rule-save", context.root)?.addEventListener("click", () => saveRuleModal(context));
+  query("#rule-action", context.root)?.addEventListener("change", ({ currentTarget: select }) => {
+    query("#rule-egress-row", context.root).hidden = select.value !== "egress";
+  });
+  query("#rule-form", context.root)?.addEventListener("submit", (event) => { event.preventDefault(); saveRuleModal(context); });
+  query("#exit-save", context.root)?.addEventListener("click", ({ currentTarget: button }) => { void saveExit(context, button); });
+  query("#exit-form", context.root)?.addEventListener("submit", (event) => { event.preventDefault(); void saveExit(context, query("#exit-save", context.root)); });
+  for (const id of ["exit-protocol", "exit-security", "exit-network"]) {
+    query(`#${id}`, context.root)?.addEventListener("change", () => syncExitFields(context));
+  }
+  for (const button of queryAll("[data-exit-tab]", context.root)) {
+    button.addEventListener("click", () => setExitTab(context, button.dataset.exitTab));
+  }
   query("#geodata-source", context.root)?.addEventListener("change", ({ currentTarget: select }) => {
     query("#geodata-custom", context.root).hidden = select.value !== "custom";
   });

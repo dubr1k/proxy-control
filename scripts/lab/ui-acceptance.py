@@ -754,6 +754,26 @@ class Acceptance:
         self.frame_is_secret_free("fleet")
         b.shot("fleet.png")
 
+    def add_rule(self, **fields) -> None:
+        """v0.8: a rule is made in its modal — the fields by name (domains, geosites, cidrs,
+        geoips, ports as text; protocols as a list; action, egress); the row count grows by one."""
+        b = self.browser
+        rows = int(b.js("document.querySelectorAll('.routing-rule').length") or 0)
+        b.click("[data-routing-action=rule-add]")
+        b.wait("document.querySelector('#rule-modal')?.open === true", 10)
+        for key in ("domains", "geosites", "cidrs", "geoips", "ports"):
+            if key in fields:
+                b.type(f"#rule-{key}", fields[key])
+        if "action" in fields:
+            b.select("#rule-action", fields["action"])
+            b.js("document.querySelector('#rule-egress-row').hidden = document.querySelector('#rule-action').value !== 'egress'; true")
+        if "egress" in fields:
+            b.select("#rule-egress", fields["egress"])
+        if "protocols" in fields:
+            b.js(f"[...document.querySelectorAll('[data-rule-protocol]')].forEach(i => {{ i.checked = {json.dumps(fields['protocols'])}.includes(i.value); }}); true")
+        b.click("#rule-save")
+        b.wait(f"document.querySelector('#rule-modal')?.open !== true && document.querySelectorAll('.routing-rule').length === {rows + 1}", 10)
+
     def view_routing(self) -> None:
         b = self.browser
         loaded = "!!document.querySelector('#routing-preview .status-pill') && !(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('загружается')"
@@ -764,9 +784,9 @@ class Acceptance:
         self.report["facts"]["router_installed"] = router
         # v0.4: a block rule beside a WARP default is refused by Caddy, honestly, at the rule.
         b.select("#routing-form select[name=default_action]", "egress")
-        b.click("[data-routing-action=rule-add]")
+        self.add_rule(domains="example.com, *.example.com")
         self.check("routing.rule_row_added", b.wait("document.querySelectorAll('.routing-rule').length === 1"))
-        b.type("[data-rule-field=domains]", "example.com, *.example.com")
+        self.check("routing.rule_row_shows_what_and_where", "example.com" in b.text(".routing-rule .routing-rule-what") and "блок" in b.text(".routing-rule .routing-rule-where"))
         self.check("routing.native_preview_refuses_block_beside_warp", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('не применимо') && !!document.querySelector('.routing-reason')", 15))
         b.select("#routing-form select[name=default_action]", "direct")
         self.check("routing.native_preview_supports_direct_block", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается')", 15))
@@ -797,13 +817,16 @@ class Acceptance:
         self.check("routing.router_line_attached", b.wait(f"(document.querySelector('.routing-router-line')?.textContent || '').includes('сервис подключён') && !!document.querySelector('[data-routing-action=detach]') && {loaded}", 40))
         self.check("routing.backend_badge_router", b.text(".routing-backend") == "Xray-router")
         b.select("#routing-form select[name=default_action]", "egress")
-        b.click("[data-routing-action=rule-add]")
-        b.wait("document.querySelectorAll('.routing-rule').length === 1")
-        b.type("[data-rule-field=geosites]", "category-ads-all")
-        b.click("[data-routing-action=rule-add]")
-        b.wait("document.querySelectorAll('.routing-rule').length === 2")
-        b.js("(() => { const i = document.querySelectorAll('[data-rule-field=ports]')[1]; i.value = '25'; i.dispatchEvent(new Event('input', {bubbles: true})); return true; })()")
+        self.add_rule(geosites="category-ads-all")
+        self.add_rule(ports="25")
         self.check("routing.router_preview_supports_geosite_and_port", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && !document.querySelector('.routing-reason')", 15))
+        # v0.8: a quick setting is a marked rule at the top; the sniffed protocol is a selector the router takes.
+        b.js("(() => { const i = document.querySelector('[data-routing-preset=torrent]'); i.checked = true; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
+        self.check("routing.preset_adds_a_marked_rule_first", b.wait("document.querySelectorAll('.routing-rule').length === 3 && !!document.querySelector('.routing-rule[data-rule-index=\"0\"] .routing-preset-mark') && (document.querySelector('.routing-rule[data-rule-index=\"0\"] .routing-rule-what')?.textContent || '').includes('bittorrent')", 10))
+        self.check("routing.router_preview_supports_protocol_selector", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('bittorrent')", 15))
+        b.js("(() => { const i = document.querySelector('[data-routing-preset=torrent]'); i.checked = false; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
+        self.check("routing.preset_off_removes_its_rule", b.wait("document.querySelectorAll('.routing-rule').length === 2", 10))
+        self.routing_exits_and_geodata(loaded)
         b.click("#routing-save")
         b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20)
         b.click("[data-routing-action=apply]")
@@ -823,6 +846,48 @@ class Acceptance:
         self.check("routing.router_line_detached", b.wait(f"(document.querySelector('.routing-router-line')?.textContent || '').includes('сервис не подключён') && !!document.querySelector('[data-routing-action=attach]') && {loaded}", 40))
         b.click("[data-routing-action=delete]")
         self.check("routing.policy_deleted_right_after_detach", b.confirm() and b.wait("(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('политика не задана')", 30))
+
+    def routing_exits_and_geodata(self, loaded: str) -> None:
+        """v0.8 on the attached service: a custom exit made from the screen, tested on the
+        router, offered in «Куда», refused for deletion while a rule uses it; the geodata block
+        with its source dialog — never a credential in a frame."""
+        b = self.browser
+        self.check("routing.geodata_block", b.wait("!!document.querySelector('#routing-geodata') && (document.querySelector('#routing-geodata')?.textContent || '').includes('geosite')", 15))
+        b.click("[data-routing-action=geodata-settings]")
+        self.check("routing.geodata_dialog_opens", b.wait("document.querySelector('#geodata-modal')?.open === true && !!document.querySelector('#geodata-source option[value=loyalsoldier]')", 10))
+        b.close_dialog("#geodata-modal")
+        b.click("[data-routing-action=exit-add]")
+        self.check("routing.exit_dialog_opens", b.wait("document.querySelector('#exit-modal')?.open === true", 10))
+        b.type("#exit-name", "lab socks")
+        b.select("#exit-protocol", "socks")
+        b.js("document.querySelector('#exit-protocol').dispatchEvent(new Event('change', {bubbles: true})); true")
+        b.type("#exit-address", "127.0.0.1")
+        b.type("#exit-port", "45000")
+        b.click("#exit-save")
+        self.check("routing.exit_listed", b.wait("document.querySelector('#exit-modal')?.open !== true && [...document.querySelectorAll('#routing-custom-exits tbody tr')].some(r => r.textContent.includes('lab socks'))", 30), b.text("#exit-error"))
+        exit_id = b.js("[...document.querySelectorAll('#routing-custom-exits tbody tr')].find(r => r.textContent.includes('lab socks'))?.dataset.exitId")
+        self.check("routing.exit_has_id", bool(exit_id))
+        b.click(f"[data-routing-action=exit-test][data-exit-id={json.dumps(exit_id)}]")
+        self.check("routing.exit_test_answers", b.wait(f"!!document.querySelector('#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}] td:nth-child(4)') && !(document.querySelector('#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}] td:nth-child(4)')?.textContent || '').includes('не проверялся')", 40),
+                   b.text(f"#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}]"))
+        self.report["facts"]["exit_test"] = b.text(f"#routing-custom-exits tr[data-exit-id={json.dumps(exit_id)}] td:nth-child(4)")
+        self.add_rule(domains="ifconfig.co", action="egress", egress=f"exit:{exit_id}")
+        self.check("routing.rule_leaves_through_the_exit", b.wait("(document.querySelector('.routing-rule:last-child .routing-rule-where')?.textContent || '').includes('lab socks')", 10))
+        self.check("routing.router_preview_supports_custom_exit", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"exits\"')", 20),
+                   (b.js("document.querySelector('#routing-preview')?.innerText") or "")[:300])
+        b.click("#routing-save")
+        b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && {loaded}", 20)
+        status, refused = self.api.request(f"/api/routing/exits/{exit_id}/delete", "POST")
+        self.check("routing.exit_in_use_refuses_delete", status == 409 and refused.get("code") == "exit_in_use", f"{status} {str(refused)[:200]}")
+        self.frame_is_secret_free("routing-exits")
+        # The rule goes, then the exit.
+        b.click(".routing-rule:last-child [data-routing-action=rule-remove]")
+        b.wait("document.querySelectorAll('.routing-rule').length === 2", 10)
+        b.click("#routing-save")
+        b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && {loaded}", 20)
+        self.api.json(f"/api/routing/exits/{exit_id}/delete", "POST")
+        self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
+        self.check("routing.exit_deleted", b.wait("![...document.querySelectorAll('#routing-custom-exits tbody tr')].some(r => r.textContent.includes('lab socks'))", 20))
 
     def routing_lanes(self, loaded: str) -> None:
         """Lanes and chains (v0.7) on the attached NaiveProxy: the node's exits as chips, a
@@ -852,10 +917,7 @@ class Acceptance:
         # intent with the service. The draft came as a copy of the service's policy (rules included),
         # so the new rule is the last row.
         b.select("#routing-form select[name=default_action]", "egress")
-        rows = int(b.js("document.querySelectorAll('.routing-rule').length") or 0)
-        b.click("[data-routing-action=rule-add]")
-        b.wait(f"document.querySelectorAll('.routing-rule').length === {rows + 1}")
-        b.type(f"[data-rule-field=geosites][data-rule-index=\"{rows}\"]", "category-ads-all")
+        self.add_rule(geosites="category-ads-all")
         self.check("routing.lane_preview_folds_the_service", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"schema\": 2')", 20),
                    (b.js("document.querySelector('#routing-preview')?.innerText") or "")[:300])
         b.click("#routing-save")
