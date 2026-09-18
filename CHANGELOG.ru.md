@@ -86,6 +86,9 @@ relay между узлами панель выдаёт и ротирует са
   установка ams-test). Планирование теперь ничего не меняет: действие называет шаг
   (`stream_context=create`), а контекст добавляет `apply` — перед файлом роутера, который он
   включает. `scripts/lab/host-teardown.sh` также снимает юниты слотов `mita@<n>`.
+- Журнал показывал системные события (`subscription.fetched`, `subscription.revoked`,
+  `subscription.generation.changed`, `node.up`, `node.down`) кодами: у них появились подписи и
+  место в `docs/AUDIT_EVENTS.md` (замечено на кадре журнала tier'а `ui`).
 
 ### Исправлено (после v0.6, в ветке до этого тега)
 
