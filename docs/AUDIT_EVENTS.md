@@ -84,6 +84,9 @@ so the journal and `GET /api/events` tell one story:
 | `grant.lane.enable` | grant id | `POST /api/routing/lanes/{grant_id}` `{mode: own}` (v0.7): the client's own lane — the router minted the lane's account, the manager moved the user into the lane's handler / slot, a draft policy copied from the service's (`node_id`, `protocol`, `lane: grant:<id>`); a lane key never appears here |
 | `grant.lane.disable` | grant id | `{mode: service}`: the user back in the service's handler, the lane's policy dropped, the router's account forgotten — the same fields |
 | `routing.relay.enable` | node id | `POST /api/routing/relay/{node}/enable` (v0.7): the node's relay inbound (vless+reality) for chains from other nodes — `port`, `server_name`; the keypair stays on the node |
+| `routing.geodata.settings` | node id | `PUT /api/routing/geodata/settings?node=` (v0.8): the router's geodata source, `auto_update`, `interval_hours` |
+| `routing.geodata.update` | node id | `POST /api/routing/geodata/update?node=`: the lists refreshed from the source (`origin`, `version`, `changed`) |
+| `routing.geodata.restore` | node id | `POST /api/routing/geodata/restore?node=`: back to the installer's pinned pair |
 | `routing.relay.rotate` | node id | `POST …/rotate`: every relay account this node issued to other nodes re-minted — `accounts` (how many) |
 
 ## Nodes (node side, through the central's key)
@@ -92,4 +95,5 @@ so the journal and `GET /api/events` tell one story:
 | --- | --- | --- |
 | `fleet.generation.accept` | generation | `PUT /api/fleet/v2/generation` (`digest`, `resources`) |
 | `fleet.credentials.capture` | panel guid | `POST /api/fleet/v2/credentials/capture` (`purpose`: `escrow` or `import`, the labels answered, unanswered, unsupported and refused — never a value) |
+| `fleet.geodata.settings`, `fleet.geodata.update`, `fleet.geodata.restore` | panel guid | the central drove this node's router geodata through `/api/fleet/v2/geodata/*` (v0.8) |
 | `fleet.unlink` | panel guid | `POST /api/fleet/v2/unlink` (a central) or `POST /api/nodes/local/unlink` (the owner) |

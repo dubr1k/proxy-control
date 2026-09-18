@@ -22,11 +22,14 @@ def _env(name: str, default: str | None = None) -> str:
 
 def build_manager() -> XrayRouterManager:
     bin_dir = Path(_env("XRAY_ROUTER_BIN_DIR", "/opt/xray"))
+    state_dir = Path(os.getenv("XRAY_ROUTER_STATE_DIR", "/var/lib/xray-router"))
     ports = {"naive": int(os.getenv("XRAY_ROUTER_PORT_NAIVE", str(PORTS["naive"]))),
              "mieru": int(os.getenv("XRAY_ROUTER_PORT_MIERU", str(PORTS["mieru"])))}
     return XrayRouterManager(
-        state_dir=Path(os.getenv("XRAY_ROUTER_STATE_DIR", "/var/lib/xray-router")),
-        runner=SubprocessXrayRunner(bin_dir / "xray", bin_dir),
+        state_dir=state_dir,
+        # Xray resolves geosite/geoip codes against the manager's own copy (v0.8): the pinned
+        # pair seeds it, updates replace it, the binary directory stays read-only.
+        runner=SubprocessXrayRunner(bin_dir / "xray", state_dir / "geodata"),
         ingress_files={"naive": Path(_env("XRAY_ROUTER_INGRESS_NAIVE_FILE", "/run/secrets/xray-router-ingress-naive")),
                        "mieru": Path(_env("XRAY_ROUTER_INGRESS_MIERU_FILE", "/run/secrets/xray-router-ingress-mieru"))},
         # The WARP proxy-mode endpoint the router may send traffic through (v0.4 provider).

@@ -1,6 +1,8 @@
 """The routing API (spec §8.1): owner for mutations, any role for reading and previewing."""
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +36,18 @@ class ExplainBody(BaseModel):
 class RelayEnableBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     port: int = Field(default=DEFAULT_RELAY_PORT, ge=1024, le=65535)
+
+
+class GeodataSourceBody(BaseModel):
+    kind: Literal["xray", "loyalsoldier", "custom"]
+    geosite_url: str | None = Field(default=None, max_length=1024)
+    geoip_url: str | None = Field(default=None, max_length=1024)
+
+
+class GeodataSettingsBody(BaseModel):
+    source: GeodataSourceBody | None = None
+    auto_update: bool | None = None
+    interval_hours: int | None = Field(default=None, ge=1, le=336)
 
 
 class LaneModeBody(BaseModel):
@@ -141,6 +155,23 @@ def register_routing_routes(app, context: RequestContext) -> None:
         return await lanes.disable(grant_id, **_ctx(request, user))
 
     # The node's Xray-router (v0.5): hand a service's whole traffic to it, or take it back.
+    # v0.8: the geodata of a node's router
+    @app.get("/api/routing/geodata")
+    async def geodata_view(node: str = "local", _user=Depends(context.current)):
+        return await app.state.routing.geodata(node, "view")
+
+    @app.get("/api/routing/geodata/codes")
+    async def geodata_codes(node: str = "local", _user=Depends(context.current)):
+        return await app.state.routing.geodata(node, "codes")
+
+    @app.put("/api/routing/geodata/settings")
+    async def geodata_settings(body: GeodataSettingsBody, request: Request, node: str = "local", user=Depends(owner)):
+        return await app.state.routing.geodata(node, "settings", body.model_dump(exclude_none=True), **_ctx(request, user))
+
+    @app.post("/api/routing/geodata/{action}")
+    async def geodata_action(action: Literal["update", "restore"], request: Request, node: str = "local", user=Depends(owner)):
+        return await app.state.routing.geodata(node, action, **_ctx(request, user))
+
     @app.post("/api/routing/targets/{node_id}/{protocol}/attach")
     async def attach(node_id: str, protocol: str, request: Request, user=Depends(owner)):
         return {"target": await service.attach(node_id, protocol, **_ctx(request, user))}

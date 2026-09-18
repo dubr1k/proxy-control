@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .geodata import GeodataError
 from .intent import SERVICES, EgressInvalid, EgressUnreachable
 from .service import ArtifactMismatch, ManagerConflict, ManualInterventionRequired, ValidationError, XrayError
 
@@ -97,6 +98,20 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if self.command == "GET" and path == "/v1/status":
                 status = manager.status()
                 return self._send(503 if status["artifact_error"] else 200, status)
+            # v0.8: the geodata files and their source
+            if path == "/v1/geodata" and self.command == "GET":
+                return self._send(200, manager.geodata_view())
+            if path == "/v1/geodata/codes" and self.command == "GET":
+                return self._send(200, manager.geodata_codes())
+            if path == "/v1/geodata/settings" and self.command == "PUT":
+                body = self._body()
+                if not set(body) <= {"source", "auto_update", "interval_hours"} or not body:
+                    raise ValidationError("invalid request fields")
+                return self._send(200, manager.geodata_settings(body))
+            if path == "/v1/geodata/update" and self.command == "POST":
+                return self._send(200, manager.geodata_update())
+            if path == "/v1/geodata/restore" and self.command == "POST":
+                return self._send(200, manager.geodata_restore())
             # v0.7: lane accounts and the relay inbound (spec §4.3)
             if path.startswith("/v1/lanes/"):
                 tail = path[len("/v1/lanes/"):].split("/")
@@ -151,6 +166,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
             self.close_connection = True
         except EgressInvalid as exc:
             return self._send_error(422, {"detail": str(exc)[:400], "code": exc.code})
+        except GeodataError as exc:
+            status = 422 if exc.code in ("geodata_invalid", "geodata_corrupt", "geodata_rejected") else 502
+            return self._send_error(status, {"detail": str(exc)[:400], "code": exc.code})
         except EgressUnreachable as exc:
             return self._send_error(409, {"detail": str(exc), "code": "egress_unreachable"})
         except ManagerConflict as exc:

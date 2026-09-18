@@ -45,6 +45,8 @@ CAPABILITIES = (
     "whole_direct", "whole_warp",
     "block_domain", "block_cidr", "block_port", "block_geosite", "block_geoip",
     "selective_domain", "selective_cidr", "selective_port", "selective_geosite", "selective_geoip",
+    # v0.8: the geodata files are the operator's to choose and refresh (`/v1/geodata`).
+    "geodata",
 )
 MAX_RULES = 128
 MAX_SELECTORS = 64

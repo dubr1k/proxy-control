@@ -86,7 +86,7 @@ def test_validate_document_limits_and_size():
 def test_direct_document_is_the_floor():
     assert validate_document(direct_document()) == direct_document()
     assert direct_document()["rules"] == [] and direct_document()["default"]["action"] == "direct"
-    assert len(CAPABILITIES) == 12 and "block_port" in CAPABILITIES
+    assert len(CAPABILITIES) == 13 and "block_port" in CAPABILITIES and "geodata" in CAPABILITIES
 
 
 def test_provider_endpoint_accepts_socks5_only():

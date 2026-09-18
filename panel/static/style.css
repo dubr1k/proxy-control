@@ -136,7 +136,7 @@
 .routing-exit-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);font-size:.85rem}
 .routing-exit-chip small{color:var(--muted)}
 .routing-exit-chip.muted{opacity:.6}
-.routing-exit-chip.blocked{border-color:var(--red);color:var(--red)}
+.routing-exit-chip.blocked{border-color:var(--red);color:var(--red)}.routing-geodata{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}.routing-geodata b{font-size:.85rem;color:var(--muted);margin-right:4px}.routing-geodata small{color:var(--muted);font-size:11px}.routing-geodata-error{color:var(--red)}.routing-geodata-tools{display:inline-flex;gap:6px;margin-left:auto}.routing-geodata datalist{display:none}#geodata-custom{display:grid}
 .routing-relay-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 10px}
 .routing-lanes{margin:10px 0 4px}
 .routing-lanes .ghost{margin-left:auto}

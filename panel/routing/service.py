@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 from .. import audit
 from ..database import Database
+from ..fleet_v2.client import NodeAuthFailed, NodeRejected, NodeUnreachable
 from ..nodes.registry import NodeRegistry
 from ..protocols.base import AdapterError, AppliedEgress, EgressTarget, RouterTarget
 from .compiler import compile as compile_policy
@@ -33,6 +34,8 @@ from .models import (
     normalise_lane,
 )
 from .store import PolicyConflict, RoutingStore
+
+GEODATA_REFUSALS = ("geodata_invalid", "geodata_corrupt", "geodata_rejected", "geodata_busy")
 
 PROTOCOLS = ("mtproxy", "naive", "mieru")
 # What an apply failure costs the caller: the manager's own refusals are conflicts, an
@@ -96,7 +99,7 @@ class RoutingService:
     def __init__(self, database: Database, store: RoutingStore, adapters: dict, nodes: NodeRegistry, *,
                  enabled: Callable[[str], bool] = lambda protocol: True, publisher=None, managed=None, clock=time,
                  router=None, relays: RelayRegistry | None = None, own_guid: str = "local", local_host: str = "",
-                 confirmed=None):
+                 confirmed=None, node_client=None):
         self.database = database
         self.store = store
         self.adapters = adapters
@@ -112,6 +115,8 @@ class RoutingService:
         self.confirmed = confirmed or (lambda node_id, email: node_id == "local")
         # The local node's Xray-router adapter (v0.5), None when this panel runs no router.
         self.router = router
+        # v0.8: `node_client(node_id)` — the client to a linked panel, for its router's geodata.
+        self.node_client = node_client
         # The remote path (spec §8.3): `publisher(db, node_id)` publishes a generation carrying
         # the node's desired egress sections; None means this panel applies locally only.
         self.publisher = publisher
@@ -300,6 +305,48 @@ class RoutingService:
         raise RoutingError(404, "node_not_found", "node not found")
 
     # -- policies ----------------------------------------------------------------------
+
+    # -- geodata (v0.8) --------------------------------------------------------------------
+    # The manager's own refusals are the operator's 422; anything else is the router being away.
+
+    async def geodata(self, node_id: str, action: str = "view", body: dict | None = None, *, actor=None, ip="", request_id=None) -> dict:
+        """The geodata of a node's router: this server's through its adapter, a linked panel's
+        through the node's Fleet API. `settings`, `update` and `restore` are audited here."""
+        with self.database.connect() as db:
+            row = self._node(db, node_id)
+        kind = self._kind(row)
+        if kind == "local":
+            if self.router is None:
+                raise RoutingError(404, "router_unavailable", "this server runs no Xray-router")
+            try:
+                result = await self.router.geodata(action, body)
+            except AdapterError as exc:
+                code = exc.code or "router_unavailable"
+                raise RoutingError(422 if code in GEODATA_REFUSALS else 502, code, str(exc)) from exc
+        elif kind == "remote":
+            if self.node_client is None:
+                raise RoutingError(404, "router_unavailable", "no client for linked panels")
+            identity = row["link"].get("identity") or {}
+            if "geodata.v1" not in (identity.get("capabilities") or []):
+                raise RoutingError(409, "node_lacks_geodata", "the node's panel does not manage geodata yet (upgrade it to v0.8)")
+            try:
+                result = await self.node_client(node_id).geodata(action, body)
+            except NodeRejected as exc:
+                raise RoutingError(exc.status, exc.code or "router_unavailable", str(exc)) from exc
+            except (NodeUnreachable, NodeAuthFailed) as exc:
+                raise RoutingError(502, "node_unreachable", type(exc).__name__) from exc
+        else:
+            raise RoutingError(404, "router_unavailable", "this node has no Xray-router")
+        if action in ("settings", "update", "restore") and actor is not None:
+            detail = {"node_id": node_id}
+            if action == "settings":
+                detail.update(body or {})
+            else:
+                detail.update({key: result.get(key) for key in ("origin", "version", "changed")})
+            with self.database.transaction() as db:
+                audit.record(db, actor=actor, action=f"routing.geodata.{action}", target=node_id, ip=ip, request_id=request_id,
+                             detail=detail)
+        return result
 
     @staticmethod
     def _protocol(protocol: str) -> None:

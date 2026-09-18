@@ -169,7 +169,7 @@ export function bindNaive(context) {
         // A linked panel: the access is a client's grant there, with the same quota option.
         const quota = naiveQuotaBytes(context, "#new-naive-quota");
         const result = await issueOnNode(context, { protocol: "naive", username: input.value, nodeId, options: quota === null ? {} : { quota_bytes: quota } });
-        query("#naive-modal", root).close();
+        closeCreateDialog(root);
         if (result.status === "succeeded") await context.navigate("clients");
         return;
       }
@@ -230,4 +230,10 @@ export function handleNaiveClick(context, button) {
     return true;
   }
   return false;
+}
+
+// The creation dialog closes only once the remote issue has answered — the same order the
+// local path keeps (reveal fetched, then close), so an error stays visible in the dialog.
+function closeCreateDialog(root) {
+  query("#naive-modal", root).close();
 }

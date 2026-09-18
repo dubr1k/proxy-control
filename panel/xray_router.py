@@ -26,7 +26,8 @@ class XrayRouterError(RuntimeError):
     def __init__(self, message: str, status_code: int = 502, code: str | None = None):
         super().__init__(message)
         self.status_code = status_code
-        self.code = code if code in EGRESS_REASON_CODES else None
+        # The egress vocabulary, plus the manager's own geodata codes (v0.8) — anything else is noise.
+        self.code = code if code in EGRESS_REASON_CODES or (isinstance(code, str) and code.startswith("geodata_")) else None
 
 
 class XrayRouterClient:
@@ -79,6 +80,12 @@ class XrayRouterClient:
     async def relay_enable(self, server_name, port):
         return await self._request("POST", "/v1/relay", {"server_name": server_name, "port": port})
     async def relay_disable(self): return await self._request("DELETE", "/v1/relay")
+    # v0.8: the geodata files and their source
+    async def geodata(self): return await self._request("GET", "/v1/geodata")
+    async def geodata_codes(self): return await self._request("GET", "/v1/geodata/codes")
+    async def geodata_settings(self, body): return await self._request("PUT", "/v1/geodata/settings", body)
+    async def geodata_update(self): return await self._request("POST", "/v1/geodata/update")
+    async def geodata_restore(self): return await self._request("POST", "/v1/geodata/restore")
     async def relay_set_accounts(self, accounts):
         return await self._request("PUT", "/v1/relay/accounts", {"accounts": accounts})
 
@@ -104,6 +111,14 @@ class MemoryXrayRouter:
         self.lane_accounts: dict[str, dict[str, str]] = {service: {} for service in ROUTER_SERVICES}
         self.relay_state: dict = {"enabled": False, "port": None, "server_name": None, "public_key": None,
                                   "short_ids": [], "accounts": []}
+        # v0.8: the geodata the router resolves codes against, as the manager reports it
+        self.geodata_state: dict = {"source": {"kind": "xray", "geosite_url": None, "geoip_url": None}, "auto_update": False,
+                                    "interval_hours": 24, "origin": "seed", "version": None, "updated_at": None,
+                                    "last_check_at": None, "last_error": None,
+                                    "files": {"geosite": {"sha256": "a" * 64, "size": 3, "codes": 3},
+                                              "geoip": {"sha256": "b" * 64, "size": 2, "codes": 2}}}
+        self.geodata_codes_state = {"geosite": ["category-ads-all", "cn", "youtube"], "geoip": ["cn", "ru"]}
+        self.geodata_updates = 0
         self.public_key = "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s"
 
     def _revision(self, service: str) -> str:
@@ -226,6 +241,64 @@ class MemoryXrayRouter:
     def _providers(self) -> dict:
         return {"warp": {"url": self.warp_url, "reachable": self.reachable}} if self.warp_url else {}
 
+    # -- v0.8: geodata -------------------------------------------------------------------
+
+    def _geodata_view(self) -> dict:
+        return {**copy.deepcopy(self.geodata_state), "seed": {"geosite": {"sha256": "a" * 64}, "geoip": {"sha256": "b" * 64}},
+                "limits": {"max_file_bytes": 64 * 1024 * 1024, "interval_hours": [1, 336]}}
+
+    async def geodata(self):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        return self._geodata_view()
+
+    async def geodata_codes(self):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        return {"codes": copy.deepcopy(self.geodata_codes_state)}
+
+    async def geodata_settings(self, body):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        self.calls.append(("geodata_settings", copy.deepcopy(body)))
+        if "source" in body:
+            source = body["source"]
+            if source.get("kind") not in ("xray", "loyalsoldier", "custom"):
+                raise XrayRouterError("source.kind must be xray, loyalsoldier or custom", 422, "geodata_invalid")
+            if source["kind"] == "custom" and not all(str(source.get(f"{n}_url", "")).startswith("https://") for n in ("geosite", "geoip")):
+                raise XrayRouterError("geosite_url must be an https URL", 422, "geodata_invalid")
+            self.geodata_state["source"] = {"kind": source["kind"], "geosite_url": source.get("geosite_url"),
+                                            "geoip_url": source.get("geoip_url")}
+        if "auto_update" in body:
+            self.geodata_state["auto_update"] = bool(body["auto_update"])
+        if "interval_hours" in body:
+            if not isinstance(body["interval_hours"], int) or not 1 <= body["interval_hours"] <= 336:
+                raise XrayRouterError("interval_hours must be 1..336", 422, "geodata_invalid")
+            self.geodata_state["interval_hours"] = body["interval_hours"]
+        return self._geodata_view()
+
+    async def geodata_update(self):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        self.calls.append(("geodata_update",))
+        self._fail()
+        if self.geodata_state["source"]["kind"] == "xray":
+            return {**self._geodata_view(), "changed": False}
+        self.geodata_updates += 1
+        self.geodata_state.update({"origin": "download", "version": f"v{self.geodata_updates}", "updated_at": "2026-09-18T00:00:00Z",
+                                   "last_error": None})
+        self.generation += 1
+        return {**self._geodata_view(), "changed": True}
+
+    async def geodata_restore(self):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        self.calls.append(("geodata_restore",))
+        self.geodata_state.update({"source": {"kind": "xray", "geosite_url": None, "geoip_url": None}, "auto_update": False,
+                                   "origin": "seed", "version": None})
+        self.generation += 1
+        return {**self._geodata_view(), "changed": True}
+
     async def status(self):
         if not self.available:
             raise XrayRouterError("Xray-router manager unavailable")
@@ -236,9 +309,11 @@ class MemoryXrayRouter:
                 "running": {"generation": self.generation, "digest": "0" * 64, "since": None},
                 "services": {service: {"revision": self._revision(service), "digest": self._digest(service),
                                        "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES},
-                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay"],
+                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay", "geodata"],
                 "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES},
-                "relay": self._relay_view()}
+                "relay": self._relay_view(),
+                "geodata": {key: self.geodata_state[key] for key in ("source", "origin", "version", "updated_at", "auto_update",
+                                                                       "interval_hours", "last_error", "files")}}
 
     async def egress(self, service):
         self._check(service)

@@ -137,6 +137,26 @@
   </dialog>
 
 
+  <dialog id="geodata-modal" class="sheet">
+    <form method="dialog" id="geodata-form">
+      <div class="modal-head"><div><span class="eyebrow">GEODATA</span><h2>Списки geosite и geoip</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Откуда роутер узла берёт файлы, по которым понимает коды вроде <code>geosite:youtube</code> и <code>geoip:ru</code>. Обновление проверяется: оба файла скачиваются по HTTPS, сверяются с опубликованной контрольной суммой, текущая конфигурация прогоняется через <code>xray -test</code>, и только потом файлы подменяются и роутер перезапускается.</p>
+      <label>Источник<select id="geodata-source" name="kind">
+        <option value="xray">Архив Xray-core (закреплённый пин установщика)</option>
+        <option value="loyalsoldier">Loyalsoldier v2ray-rules-dat (сообщество, ежедневные выпуски)</option>
+        <option value="custom">Свои URL</option>
+      </select></label>
+      <div id="geodata-custom" hidden>
+        <label>URL geosite.dat<input id="geodata-geosite-url" type="url" maxlength="1024" placeholder="https://example.org/geosite.dat"><small>Только https; если рядом лежит <code>&lt;url&gt;.sha256sum</code>, он проверяется</small></label>
+        <label>URL geoip.dat<input id="geodata-geoip-url" type="url" maxlength="1024" placeholder="https://example.org/geoip.dat"></label>
+      </div>
+      <label class="grant-protocol"><input type="checkbox" id="geodata-auto"> Обновлять автоматически</label>
+      <label>Раз в, часов<input id="geodata-interval" type="number" min="1" max="336" step="1" value="24"></label>
+      <div class="form-error" id="geodata-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="geodata-save" type="button">Сохранить</button></footer>
+    </form>
+  </dialog>
+
   <dialog id="client-modal" class="sheet">
     <form method="dialog" id="client-form">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2>Новый клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
