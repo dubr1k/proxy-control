@@ -590,19 +590,20 @@ class NginxAdapter:
                 raise TopologyError(
                     "fresh mode cannot replace an active stream router"
                 )
+            stream_context = "present"
             if not self._fresh_path_is_included(topology):
                 # A host in fresh mode is the installer's to configure, and a
                 # stock Nginx simply has no stream context. Creating it is part
-                # of the installation, not a prerequisite for it.
-                created = self._create_stream_context()
-                if created:
-                    topology = parse_effective_nginx(
-                        self.runner.capture(("nginx", "-T"))
-                    )
-                if not created or not self._fresh_path_is_included(topology):
+                # of the installation — of `apply`, never of planning: the audit
+                # is in the plan's digest, so a context created here changed the
+                # host under the plan and the very next `install --accept-plan`
+                # refused it. A configuration that already streams without
+                # including this router is somebody else's arrangement.
+                if topology.stream_enabled or not self._stock_nginx_conf():
                     raise TopologyError(
                         "fresh router path is not included by the stream context"
                     )
+                stream_context = "create"
             mode = "fresh"
             target_path = self.fresh_path
             variable = "$proxy_control_backend"
@@ -613,6 +614,7 @@ class NginxAdapter:
             target = select_route_target(parse_effective_nginx(effective))
             self._authenticate_source(effective, target.source_file)
             mode = "coexist"
+            stream_context = "present"
             target_path = _safe_host_path(target.source_file)
             variable = target.variable
             existing = dict(target.routes)
@@ -625,6 +627,7 @@ class NginxAdapter:
         )
         mutations = (
             f"mode={mode}",
+            f"stream_context={stream_context}",
             f"target={target_path}",
             f"variable={variable}",
             f"path_kind={planned_identity['kind']}",
@@ -632,18 +635,36 @@ class NginxAdapter:
             f"symlink_target={planned_identity['symlink_target'] or '-'}",
             *(f"route={domain} {backend}" for domain, backend in routes),
         )
+        creates = stream_context == "create"
         return (
             Action(
                 id="nginx.routes",
                 adapter=self.name,
                 owner="proxy-control:nginx",
                 mutations=mutations,
-                preconditions=("effective Nginx topology is observed and unambiguous",),
-                verification=("Nginx configuration test passes before reload",),
+                preconditions=(
+                    "effective Nginx topology is observed and unambiguous",
+                    *(("Nginx has no stream context: one including the router is added first",) if creates else ()),
+                ),
+                verification=(
+                    *(("the router path is included by the stream context",) if creates else ()),
+                    "Nginx configuration test passes before reload",
+                ),
                 inverse=("restore content, owner, group, mode, and symlink identity",),
                 credentials_required=False,
             ),
         )
+
+    def _stock_nginx_conf(self) -> bool:
+        """A regular `nginx.conf` with no stream context of its own (Ubuntu's stock file)."""
+        config = self._root_path(_NGINX_CONF)
+        if not config.is_file() or config.is_symlink():
+            return False
+        try:
+            text = config.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+        return _STREAM_CONTEXT.search(text) is None
 
     def prepare(self, action: Action) -> Mapping[str, object]:
         specification = _action_specification(action)
@@ -682,6 +703,17 @@ class NginxAdapter:
         specification = _action_specification(action)
         identity = _checkpoint_identity(checkpoint, specification)
         path = self._validate_planned_path(specification, allow_created=False)
+        if specification["stream_context"] == "create":
+            # The planned stream context lands now, before the router file it will
+            # include. A resume finds it present already: nothing to add, the same
+            # proof.
+            self._create_stream_context()
+            if not self._fresh_path_is_included(
+                parse_effective_nginx(self.runner.capture(("nginx", "-T")))
+            ):
+                raise TopologyError(
+                    "fresh router path is not included by the stream context"
+                )
         original = path.read_bytes() if bool(identity["exists"]) else b""
         original_hash = identity["original_sha256"]
         desired = _desired_content(specification, original)
@@ -1407,10 +1439,14 @@ def _action_specification(action: Action) -> dict[str, object]:
         "symlink_target",
     }
     # The router always owns the MTProto and panel routes, and one more per
-    # protocol the profile selected; every domain appears exactly once.
+    # protocol the profile selected; every domain appears exactly once. The
+    # stream context (v0.7) is `present`, or `create` for a stock fresh host.
+    stream_context = values.pop("stream_context", "present")
     if (
         set(values) != required_values
         or values["mode"] not in {"fresh", "coexist"}
+        or stream_context not in {"present", "create"}
+        or (stream_context == "create" and values["mode"] != "fresh")
         or values["path_kind"] not in {"missing", "file", "symlink"}
         or not 2 <= len(routes) <= 8
         or len({domain for domain, _backend in routes}) != len(routes)
@@ -1443,6 +1479,7 @@ def _action_specification(action: Action) -> dict[str, object]:
         raise TopologyError("Nginx action is malformed")
     return {
         "mode": values["mode"],
+        "stream_context": stream_context,
         "target": target,
         "variable": values["variable"],
         "path_kind": values["path_kind"],

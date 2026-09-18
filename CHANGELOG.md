@@ -76,6 +76,12 @@ with the relay between nodes issued and rotated by the panel. Release note:
 - The installer's Mieru slot verification raced `enable --now` (the RPC server opens after
   systemd returns); the ingress probe of the router gets three tries.
 - The routing preview no longer sends a rule still being typed (no selector) to the compiler.
+- `plan` on a fresh host with a stock Nginx (no `stream` context) edited `nginx.conf` and reloaded
+  Nginx while planning, so the audit in the plan's digest no longer matched the host and the very
+  next `install --accept-plan` refused its own plan (found by the real install of ams-test).
+  Planning changes nothing now: the action names the step (`stream_context=create`) and `apply`
+  adds the context before the router file it includes. `scripts/lab/host-teardown.sh` also removes
+  the `mita@<n>` slot units.
 
 ### Fixed (post-v0.6, on the branch before this tag)
 
