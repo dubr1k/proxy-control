@@ -888,13 +888,21 @@ class Acceptance:
         status, refused = self.api.request(f"/api/routing/exits/{exit_id}/delete", "POST")
         self.check("routing.exit_in_use_refuses_delete", status == 409 and refused.get("code") == "exit_in_use", f"{status} {str(refused)[:200]}")
         self.frame_is_secret_free("routing-exits")
-        # The rule goes, then the exit.
-        b.click(".routing-rule:last-child [data-routing-action=rule-remove]")
-        b.wait("document.querySelectorAll('.routing-rule').length === 2", 10)
-        b.click("#routing-save")
-        b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && {loaded}", 20)
+        # The rule goes, then the exit — through the API, so the cleanup never depends on the
+        # screen's timing; the screen is then reopened (another view first: a fresh state,
+        # a fresh revision) and must show neither.
+        rows = int(b.js("document.querySelectorAll('.routing-rule').length") or 0)
+        policy = self.api.json("/api/routing/policies/local/naive")
+        kept = [{k: v for k, v in rule.items() if k != "position"} for rule in policy.get("rules", []) if rule.get("egress") != f"exit:{exit_id}"]
+        if len(kept) != len(policy.get("rules", [])):
+            policy = self.api.json("/api/routing/policies/local/naive", "PUT",
+                                   {"backend": policy["backend"], "default_action": policy["default_action"], "default_egress": policy.get("default_egress"),
+                                    "fallback": policy["fallback"], "rules": kept, "expected_revision": policy["revision"]})
+        self.check("routing.saved_policy_no_longer_names_the_exit", not any(r.get("egress") == f"exit:{exit_id}" for r in policy.get("rules", [])))
         self.api.json(f"/api/routing/exits/{exit_id}/delete", "POST")
+        self.goto_view("dashboard", "!!document.querySelector('#view') && !document.querySelector('#routing-form')")
         self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
+        self.check("routing.rule_with_the_exit_gone_from_the_table", b.wait(f"document.querySelectorAll('.routing-rule').length === {rows - 1} && ![...document.querySelectorAll('.routing-rule-where')].some(c => c.textContent.includes('lab socks'))", 20))
         self.check("routing.exit_deleted", b.wait("![...document.querySelectorAll('#routing-custom-exits tbody tr')].some(r => r.textContent.includes('lab socks'))", 20))
 
     def routing_lanes(self, loaded: str) -> None:
