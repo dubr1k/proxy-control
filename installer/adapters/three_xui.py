@@ -633,6 +633,21 @@ class ThreeXuiAdapter:
             actions.append(self._warp_action(config))
         return tuple(actions)
 
+    def planned_routes(self, config: InstallerConfig) -> tuple[tuple[str, str], ...]:
+        """The SNI routes this 3x-ui needs on the shared 443 router, or none.
+
+        The Nginx adapter owns that map and asks for them while planning, because a
+        loopback backend nobody routes to is not published at all: the managed panel,
+        its subscription server and both VLESS inbounds answered only on 127.0.0.1
+        after a real install (ams-test, v0.7).
+        """
+        mode = config.three_xui.mode
+        if mode is ThreeXuiMode.NONE:
+            return ()
+        if mode is ThreeXuiMode.EXISTING:
+            return self._existing_routes(config)
+        return self._managed_routes(config)
+
     def _existing_routes(
         self,
         config: InstallerConfig,
