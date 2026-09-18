@@ -995,7 +995,9 @@ class Scenario:
         done, elapsed = self.wait(linked_in_inventory, ENABLED_SECONDS, "auto-import linked")
         self.report["counts"]["auto_import_seconds"] = elapsed
         self.check("s04_auto_import_linked_every_user", bool(done), f"not all linked after {elapsed}s")
-        self.check("s04_auto_import_audited", self.events("node.import") >= 1)
+        audited = self.central.json("/api/audit?limit=200&action=node.import")["items"]
+        self.check("s04_auto_import_audited", any(item.get("detail", {}).get("auto") is True for item in audited),
+                   json.dumps(audited)[:200])
         candidates = [{"protocol": p, "runtime_username": u, "client": "new"} for p, u in sorted(wanted)]
         result = self.central.json(f"/api/nodes/{self.node_id}/import", method="POST", payload={"resources": candidates})
         self.report["counts"]["imported"] = len(result.get("imported", []))

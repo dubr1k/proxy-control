@@ -698,7 +698,11 @@ class FakeFleet:
             return 200, {"id": match.group(1), "state": payload["state"]}
         if path == "/api/events" and method == "GET":
             return 200, {"items": [{"id": i + 1, "name": e["name"], "detail": {"node_id": e["node_id"]}}
-                                   for i, e in enumerate(self.events)]}
+                                   for i, e in enumerate(self.events) if e["name"] != "node.import"]}
+        if path == "/api/audit" and method == "GET":
+            wanted = dict(pair.split("=", 1) for pair in query.split("&") if "=" in pair).get("action")
+            return 200, {"items": [{"id": i + 1, "action": e["name"], "target": e["node_id"], "detail": {"auto": e.get("auto", False)}}
+                                   for i, e in enumerate(self.events) if e["name"] == "node.import" and wanted in (None, "node.import")]}
         raise KeyError(path)
 
     # --- the subscription the scenario fetches over plain HTTP ---
