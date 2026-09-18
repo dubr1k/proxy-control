@@ -371,8 +371,11 @@ class XrayRouterManager:
         record = self._relay_record()
         if not record:
             return {"enabled": False, "port": None, "server_name": None, "public_key": None, "short_ids": [], "accounts": 0}
+        # `emails` names the accounts the inbound carries — the node's report to the central
+        # confirms exactly these (never a UUID).
         return {"enabled": bool(record["enabled"]), "port": record["port"], "server_name": record["server_name"],
-                "public_key": record["public_key"], "short_ids": list(record["short_ids"]), "accounts": len(record["accounts"])}
+                "public_key": record["public_key"], "short_ids": list(record["short_ids"]), "accounts": len(record["accounts"]),
+                "emails": sorted(account["email"] for account in record["accounts"])}
 
     def _rerender_current(self) -> None:
         """Commit a new generation with the same intents: what changed is what the accounts and
@@ -468,6 +471,12 @@ class XrayRouterManager:
             if not isinstance(account["uuid"], str) or UUID.fullmatch(account["uuid"]) is None:
                 raise ValidationError("invalid relay account")
             cleaned.append({"email": account["email"], "uuid": account["uuid"]})
+        if not self.warp_url:
+            # The central mints a `direct` and a `warp` account for every source. Without a WARP
+            # provider this node cannot serve the warp one: it carries the rest and names only
+            # what it carries, so a chain through its direct exit converges and «via warp»
+            # stays `relay_no_warp` on the central — instead of refusing the whole set.
+            cleaned = [account for account in cleaned if not account["email"].endswith(":warp")]
         with self.lock:
             record = self._relay_record()
             if not record or not record.get("enabled"):

@@ -158,6 +158,29 @@ async def test_relay_section_enables_the_relay_and_sets_accounts_before_the_egre
     assert router.relay_state["enabled"] is False and observed.relay.state == "converged" and observed.relay.enabled is False
 
 
+async def test_a_node_without_warp_carries_the_direct_account_and_reports_only_what_it_carries(node):
+    """The central mints `direct` and `warp` accounts for every source; a node without WARP
+    (`[egress] warp = false`) cannot serve the warp one. It carries the direct account and its
+    report names only that — so the central's chain through this node's direct exit converges
+    and «via warp» stays `relay_no_warp`. Found live: AMS_Z → ams-test never converged because
+    the router refused the whole set (`egress_invalid`)."""
+    router = node["router"]
+    router.warp_url = None
+    warp_email = f"relay:{MASTER}:warp"
+    section = _relay(accounts=[RelayAccount(email=EMAIL, credential_ref=f"{SECRET_ID}:1"),
+                               RelayAccount(email=warp_email, credential_ref=f"{SECRET_ID}:2")])
+    await _accept(node, _doc(1, relay=section), {f"{SECRET_ID}:1": UUID_DIRECT, f"{SECRET_ID}:2": "9a1e2c8f-5d7e-4a10-8b6e-3f0d9c6e1b4e"})
+    observed, _ = await node["reconciler"].apply(1)
+    assert observed.reconcile_state == "converged", observed
+    assert router.relay_state["accounts"] == [{"email": EMAIL, "uuid": UUID_DIRECT}]
+    assert observed.relay.state == "converged" and observed.relay.accounts == [EMAIL]
+    # the same section again is «converged» already: nothing re-applied, the report unchanged
+    router.calls.clear()
+    await _accept(node, _doc(2, relay=section), {f"{SECRET_ID}:1": UUID_DIRECT, f"{SECRET_ID}:2": "9a1e2c8f-5d7e-4a10-8b6e-3f0d9c6e1b4e"})
+    observed, _ = await node["reconciler"].apply(2)
+    assert router.calls == [] and observed.relay.accounts == [EMAIL]
+
+
 async def test_relay_section_without_a_router_fails_the_generation(node):
     node["reconciler"].router = None
     await _accept(node, _doc(1, relay=_relay()), {f"{SECRET_ID}:1": UUID_DIRECT})

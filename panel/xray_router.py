@@ -189,7 +189,8 @@ class MemoryXrayRouter:
         return {"lane": lane, "forgotten": True}
 
     def _relay_view(self) -> dict:
-        return {**self.relay_state, "accounts": len(self.relay_state["accounts"])}
+        return {**self.relay_state, "accounts": len(self.relay_state["accounts"]),
+                "emails": sorted(a["email"] for a in self.relay_state["accounts"])}
 
     async def relay(self):
         if not self.available:
@@ -214,8 +215,9 @@ class MemoryXrayRouter:
     async def relay_set_accounts(self, accounts):
         if not self.relay_state["enabled"]:
             raise XrayRouterError("the relay is not enabled", 409, "relay_disabled")
-        if any(a["email"].endswith(":warp") for a in accounts) and not self.warp_url:
-            raise XrayRouterError("warp", 422, "egress_invalid")
+        # as the manager: without WARP the warp accounts are set aside, the rest carried
+        if not self.warp_url:
+            accounts = [a for a in accounts if not a["email"].endswith(":warp")]
         self.calls.append(("relay_accounts", [a["email"] for a in accounts]))
         self.relay_state["accounts"] = [dict(a) for a in accounts]
         self.generation += 1
