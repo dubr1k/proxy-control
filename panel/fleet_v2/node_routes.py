@@ -39,7 +39,7 @@ CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "unli
 ROUTER_CAPABILITY = "egress.router.v1"
 # v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
 # and applies the `relay` section, reporting both in `identity.router`.
-ROUTER_CAPABILITIES = (ROUTER_CAPABILITY, "egress.lanes.v1", "relay.v1")
+ROUTER_CAPABILITIES = (ROUTER_CAPABILITY, "egress.lanes.v1", "relay.v1", "geodata.v1")
 VERSIONS_UNAVAILABLE = {"enabled": False, "components": {}, "reason": "version_agent_unavailable"}
 NO_STORE = {"Cache-Control": "no-store"}
 log = logging.getLogger(__name__)
@@ -58,6 +58,24 @@ class CaptureRequest(BaseModel):
     # already owns here; `import` is the operator's explicit adoption of the node's own users
     # (spec §6) and is the only purpose that reveals a local user — audited as such.
     purpose: Literal["escrow", "import"] = "escrow"
+
+
+# The manager's own refusals (a bad source, corrupt or rejected lists) are the caller's 422.
+GEODATA_REFUSALS = ("geodata_invalid", "geodata_corrupt", "geodata_rejected", "geodata_busy")
+
+
+class GeodataSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["xray", "loyalsoldier", "custom"]
+    geosite_url: str | None = Field(default=None, max_length=1024)
+    geoip_url: str | None = Field(default=None, max_length=1024)
+
+
+class GeodataSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source: GeodataSource | None = None
+    auto_update: bool | None = None
+    interval_hours: int | None = Field(default=None, ge=1, le=336)
 
 
 class VersionUpdateRequest(VersionUpdate):
@@ -317,6 +335,41 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                              "unsupported": unsupported, "refused": refused})
         return JSONResponse({"credentials": credentials, "unsupported": unsupported, "refused": refused},
                             headers=NO_STORE)
+
+    # v0.8: the router's geodata, for the central's «Маршрутизация» screen (owner actions there
+    # arrive here under the node-sync key and are audited on the node as `fleet.geodata.*`).
+    async def _geodata(action: str, body: dict | None = None):
+        router = getattr(app.state, "router", None)
+        if router is None:
+            return JSONResponse({"detail": "this node runs no Xray-router", "code": "router_unavailable"}, status_code=404)
+        try:
+            return await router.geodata(action, body)
+        except AdapterError as exc:
+            code = exc.code or "router_unavailable"
+            return JSONResponse({"detail": str(exc), "code": code}, status_code=422 if code in GEODATA_REFUSALS else 502)
+
+    @app.get("/api/fleet/v2/geodata")
+    async def geodata_view(_key=Depends(context.fleet_key)):
+        return await _geodata("view")
+
+    @app.get("/api/fleet/v2/geodata/codes")
+    async def geodata_codes(_key=Depends(context.fleet_key)):
+        return await _geodata("codes")
+
+    @app.put("/api/fleet/v2/geodata/settings")
+    async def geodata_settings(body: GeodataSettings, request: Request, key=Depends(context.fleet_key)):
+        result = await _geodata("settings", body.model_dump(exclude_none=True))
+        if not isinstance(result, JSONResponse):
+            await context.audit(key, "fleet.geodata.settings", app.state.panel_guid, request, body.model_dump(exclude_none=True))
+        return result
+
+    @app.post("/api/fleet/v2/geodata/{action}")
+    async def geodata_action(action: Literal["update", "restore"], request: Request, key=Depends(context.fleet_key)):
+        result = await _geodata(action)
+        if not isinstance(result, JSONResponse):
+            await context.audit(key, f"fleet.geodata.{action}", app.state.panel_guid, request,
+                                {"origin": result.get("origin"), "version": result.get("version"), "changed": result.get("changed")})
+        return result
 
     @app.post("/api/fleet/v2/versions/update")
     async def update_version(body: VersionUpdateRequest, request: Request, key=Depends(context.fleet_key)):

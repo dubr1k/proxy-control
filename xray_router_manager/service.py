@@ -31,6 +31,7 @@ import os
 import re
 import secrets
 import socket
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -54,6 +55,7 @@ from .intent import (
     uses_provider,
     validate_document,
 )
+from .geodata import GeodataError, GeodataStore
 from .render import RENDER_VERSION, Ingress, LaneAccount, Relay, config_bytes, generation_digest, render_config
 
 OPERATION_ID = re.compile(r"[A-Za-z0-9._:-]{1,128}")
@@ -135,10 +137,12 @@ class SubprocessXrayRunner:
             raise XrayError("xray x25519 printed no keypair")
         return private.group(1), public.group(1)
 
-    def test(self, config_path: Path) -> None:
+    def test(self, config_path: Path, asset_dir: Path | None = None) -> None:
+        """`asset_dir` points Xray at candidate geodata files instead of the live ones."""
+        env = self.env if asset_dir is None else {**self.env, "XRAY_LOCATION_ASSET": str(asset_dir)}
         try:
             completed = subprocess.run([str(self.binary), "run", "-test", "-config", str(config_path)],
-                                       capture_output=True, text=True, timeout=self.test_timeout, check=False, env=self.env)
+                                       capture_output=True, text=True, timeout=self.test_timeout, check=False, env=env)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise XrayError(f"xray -test did not finish: {exc}") from exc
         if completed.returncode != 0:
@@ -269,6 +273,10 @@ class XrayRouterManager:
         self.reachability = reachability or intent_module.check_reachable
         self.hop_reachability = check_hop_reachable
         self.lock = threading.RLock()
+        # v0.8: the geodata the router resolves codes against — seeded from the pinned pair.
+        self.geodata = GeodataStore(self.state_dir / "geodata",
+                                    {name: self.artifacts[name][0] for name in ("geosite", "geoip") if name in self.artifacts})
+        self._geodata_busy = threading.Lock()
         self.handle: object | None = None
         self.artifact_error: str | None = None
         self.artifact_report: dict = {}
@@ -530,6 +538,8 @@ class XrayRouterManager:
                 raise ArtifactMismatch(self.artifact_error)
             self.artifact_error = None
             self.xray_version = self.runner.version()
+            if len(self.geodata.seed) == 2:
+                self.geodata.ensure_seed()
             self._recover()
             current = self._current()
             if current is None:
@@ -581,6 +591,7 @@ class XrayRouterManager:
     def watchdog_tick(self) -> None:
         """Restart the current generation when the process died on its own; after
         `MAX_START_FAILURES` attempts in a row the router is `broken` and stays so."""
+        self.geodata_tick()
         with self.lock:
             state = self._state()
             if state.get("phase") != "idle" or self.artifact_error:
@@ -611,6 +622,98 @@ class XrayRouterManager:
             return {}
         return {"warp": {"reachable": self.reachability(self.warp_url, 3.0) if probe else None}}
 
+    # --------------------------------------------------------------- geodata
+
+    def geodata_view(self) -> dict:
+        return self.geodata.view()
+
+    def geodata_codes(self) -> dict:
+        return {"codes": self.geodata.codes()}
+
+    def geodata_settings(self, body: dict) -> dict:
+        from .geodata import parse_source
+        source = parse_source(body["source"]) if "source" in body else None
+        auto = body.get("auto_update")
+        if auto is not None and not isinstance(auto, bool):
+            raise GeodataError("auto_update must be a boolean")
+        interval = body.get("interval_hours")
+        return self.geodata.settings(source=source, auto_update=auto, interval_hours=interval)
+
+    def geodata_update(self, fetcher=None) -> dict:
+        """Fetch the source's pair, prove the running config still compiles against it,
+        swap the files and restart the router on them. Serialised; the result view says
+        `changed`."""
+        if not self._geodata_busy.acquire(blocking=False):
+            raise ManagerConflict("a geodata update is already running", "geodata_busy")
+        try:
+            try:
+                staged = self.geodata.stage(fetcher) if fetcher is not None else self.geodata.stage()
+            except GeodataError as exc:
+                self.geodata.record_failure(exc)
+                raise
+            if staged is None:
+                return {**self.geodata.view(), "changed": False}
+            return self._install_geodata(staged)
+        finally:
+            self._geodata_busy.release()
+
+    def geodata_restore(self) -> dict:
+        """Back to the installer's pinned pair — the source becomes `xray` again."""
+        if not self._geodata_busy.acquire(blocking=False):
+            raise ManagerConflict("a geodata update is already running", "geodata_busy")
+        try:
+            from .geodata import Source
+            self.geodata.settings(source=Source("xray"), auto_update=False)
+            staged = {}
+            for name, path in self.geodata.seed.items():
+                fd, tmp = tempfile.mkstemp(prefix=f"{name}.", suffix=".dat.tmp", dir=self.geodata.directory)
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(path.read_bytes())
+                os.chmod(tmp, 0o644)
+                staged[name] = {"tmp": Path(tmp), "version": None}
+            return self._install_geodata(staged, origin="seed")
+        finally:
+            self._geodata_busy.release()
+
+    def _install_geodata(self, staged: dict, *, origin: str = "download") -> dict:
+        with self.lock:
+            current = self._current()
+            test_dir = self.geodata.staged_dir(staged)
+            try:
+                if current is not None:
+                    try:
+                        self.runner.test(self._generation_path(current["generation"]), asset_dir=test_dir)
+                    except XrayError as exc:
+                        failure = GeodataError(f"the running config does not compile against the new lists: {exc}"[:300],
+                                               "geodata_rejected")
+                        self.geodata.record_failure(failure)
+                        raise failure from exc
+            finally:
+                shutil.rmtree(test_dir, ignore_errors=True)
+            try:
+                view = self.geodata.commit(staged, origin=origin)
+            except OSError as exc:
+                self.geodata.discard(staged)
+                failure = GeodataError(f"could not install the lists: {exc}"[:300], "geodata_install_failed")
+                self.geodata.record_failure(failure)
+                raise failure from exc
+            if current is not None and self.handle is not None:
+                # Xray reads the .dat files at start: the running process still holds the old ones.
+                self.runner.stop(self.handle)
+                self.handle = None
+                self._start_generation(current["generation"])
+            return {**view, "changed": True}
+
+    def geodata_tick(self) -> None:
+        """Automatic updates at the configured interval, off the watchdog thread; a failure
+        is recorded and tried again after the interval."""
+        if self.artifact_error or not self.geodata.due():
+            return
+        try:
+            self.geodata_update()
+        except (GeodataError, ManagerConflict, XrayError, ManualInterventionRequired):
+            return
+
     def status(self) -> dict:
         with self.lock:
             state = self._state()
@@ -625,7 +728,18 @@ class XrayRouterManager:
                 "providers": self._providers(probe=True), "capabilities": [*CAPABILITIES, *CAPABILITIES_V2],
                 "restart_required": True,
                 "lanes": {tag: sorted(lanes) for tag, lanes in self._lanes().items()}, "relay": self._relay_view(),
+                "geodata": self._geodata_summary(),
             }
+
+    def _geodata_summary(self) -> dict:
+        """What identity/status carries to a central: the source and version, never the codes."""
+        meta = self.geodata.meta()
+        files = meta.get("files") or {}
+        return {"source": meta["source"], "origin": meta.get("origin"), "version": meta.get("version"),
+                "updated_at": meta.get("updated_at"), "auto_update": bool(meta.get("auto_update")),
+                "interval_hours": meta.get("interval_hours"), "last_error": meta.get("last_error"),
+                "files": {name: {"sha256": (entry or {}).get("sha256"), "codes": (entry or {}).get("codes")}
+                          for name, entry in files.items()}}
 
     def egress(self, service: str) -> dict:
         self._service(service)

@@ -97,3 +97,26 @@ class RouterAdapter:
             return await self.client.relay_set_accounts(accounts)
         except XrayRouterError as exc:
             raise self._error(exc) from exc
+
+    # -- v0.8: geodata ----------------------------------------------------------------
+
+    async def geodata(self, action: str = "view", body: dict | None = None) -> dict:
+        """One of `view`, `codes`, `settings` (with a body), `update`, `restore`."""
+        try:
+            if action == "view":
+                return await self.client.geodata()
+            if action == "codes":
+                return await self.client.geodata_codes()
+            if action == "settings":
+                return await self.client.geodata_settings(body or {})
+            if action == "update":
+                return await self.client.geodata_update()
+            if action == "restore":
+                return await self.client.geodata_restore()
+        except XrayRouterError as exc:
+            # The manager's geodata codes are the operator's answer as they are — `egress_error`
+            # would fold them into the egress vocabulary.
+            if exc.code and exc.code.startswith("geodata_"):
+                raise AdapterError(f"Xray-router: {exc}", code=exc.code) from exc
+            raise self._error(exc) from exc
+        raise ValueError(f"unknown geodata action {action!r}")

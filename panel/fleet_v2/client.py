@@ -205,3 +205,13 @@ class NodeClient:
 
     async def unlink(self) -> dict:
         return (await self._call("POST", "/api/fleet/v2/unlink"))[1]
+
+    # v0.8: the node's router geodata, driven by the central on the operator's behalf
+    async def geodata(self, action: str = "view", body: dict | None = None) -> dict:
+        if action == "view":
+            return (await self._call("GET", "/api/fleet/v2/geodata"))[1]
+        if action == "codes":
+            return (await self._call("GET", "/api/fleet/v2/geodata/codes"))[1]
+        if action == "settings":
+            return (await self._call("PUT", "/api/fleet/v2/geodata/settings", json=body or {}))[1]
+        return (await self._call("POST", f"/api/fleet/v2/geodata/{action}"))[1]

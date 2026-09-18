@@ -41,8 +41,8 @@ class FakeRunner:
     def version(self) -> str:
         return "Xray 26.3.27 (fake)"
 
-    def test(self, config_path: Path) -> None:
-        self.calls.append(("test", config_path.name))
+    def test(self, config_path: Path, asset_dir: Path | None = None) -> None:
+        self.calls.append(("test", config_path.name) if asset_dir is None else ("test", config_path.name, asset_dir.name))
         json.loads(config_path.read_text())
         if self.fail_test:
             message, self.fail_test = self.fail_test, None

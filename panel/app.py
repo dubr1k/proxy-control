@@ -194,6 +194,7 @@ def create_app(
         managed=app.state.managed, router=app.state.router, relays=app.state.relays, own_guid=app.state.panel_guid,
         local_host=settings.allowed_hosts[0] if settings.allowed_hosts else "",
         confirmed=lambda node_id, email: node_id == "local" or app.state.desired.relay_confirmed(node_id, email),
+        node_client=app.state.links.client_for,
     )
     app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
                                   app.state.router, publisher=app.state.routing.publisher)

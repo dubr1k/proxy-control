@@ -233,8 +233,8 @@ function ruleRow(target, rule, index, total, editable) {
     <div class="routing-rule-fields">
       <label>Домены <small>example.com, *.cdn.example</small><input data-rule-field="domains" data-rule-index="${index}" value="${esc(match.domains.join(", "))}" placeholder="example.com, *.example.com"${editable ? "" : " disabled"}></label>
       <label>CIDR <small>1.2.3.0/24</small><input data-rule-field="cidrs" data-rule-index="${index}" value="${esc(match.cidrs.join(", "))}" placeholder="203.0.113.0/24"${editable ? "" : " disabled"}></label>
-      <label>geosite <small>только Xray-router</small><input data-rule-field="geosites" data-rule-index="${index}" value="${esc((match.geosites || []).join(", "))}" placeholder="category-ads-all, cn"${editable ? "" : " disabled"}></label>
-      <label>geoip <small>только Xray-router</small><input data-rule-field="geoips" data-rule-index="${index}" value="${esc((match.geoips || []).join(", "))}" placeholder="cn, cloudflare"${editable ? "" : " disabled"}></label>
+      <label>geosite <small>только Xray-router</small><input data-rule-field="geosites" data-rule-index="${index}" list="geodata-geosite-codes" value="${esc((match.geosites || []).join(", "))}" placeholder="category-ads-all, cn"${editable ? "" : " disabled"}></label>
+      <label>geoip <small>только Xray-router</small><input data-rule-field="geoips" data-rule-index="${index}" list="geodata-geoip-codes" value="${esc((match.geoips || []).join(", "))}" placeholder="cn, cloudflare"${editable ? "" : " disabled"}></label>
       <label>Порты <small>только Xray-router</small><input data-rule-field="ports" data-rule-index="${index}" value="${esc(match.ports.join(", "))}" placeholder="443, 1000-2000"${editable ? "" : " disabled"}></label>
       <label>Заметка<input data-rule-field="note" data-rule-index="${index}" value="${esc(rule.note)}" maxlength="120"${editable ? "" : " disabled"}></label>
     </div>
@@ -344,6 +344,105 @@ function exitsLine(context, target) {
   return `<div class="routing-exits" id="routing-exits"><b>Выходы узла</b>${chips.join("")}</div>`;
 }
 
+// Geodata (v0.8): what the router's geosite/geoip codes are resolved against, and where
+// the lists come from — the operator sees the version and refreshes or changes the source.
+const GEODATA_SOURCES = { xray: "архив Xray-core (пин)", loyalsoldier: "Loyalsoldier", custom: "свои URL" };
+
+function geodataLine(context, target) {
+  const state = ensureState(context);
+  if (!target.router?.available) return "";
+  const owner = context.state.me?.role === "owner";
+  if (state.geodataError) return `<div class="routing-geodata"><b>Geodata</b><span class="status-pill blocked"><i></i>${esc(reasonText(state.geodataError))}</span></div>`;
+  const geo = state.geodata;
+  if (!geo) return "";
+  const files = geo.files || {};
+  const counts = `geosite: ${number(files.geosite?.codes || 0)} кодов · geoip: ${number(files.geoip?.codes || 0)}`;
+  const source = GEODATA_SOURCES[geo.source?.kind] || geo.source?.kind || "?";
+  const version = geo.version ? ` ${esc(geo.version)}` : "";
+  const when = geo.updated_at ? ` · обновлено ${esc(date(Date.parse(geo.updated_at) / 1000))}` : "";
+  const auto = geo.auto_update ? ` · автообновление раз в ${number(geo.interval_hours || 24)} ч` : " · без автообновления";
+  const error = geo.last_error ? `<small class="routing-geodata-error">последняя попытка: ${esc(geo.last_error)}</small>` : "";
+  const canUpdate = owner && geo.source?.kind !== "xray";
+  return `<div class="routing-geodata" id="routing-geodata">
+    <b>Geodata</b>
+    <span class="status-pill ${geo.last_error ? "blocked" : ""}"><i></i>${esc(source)}${version}</span>
+    <small>${esc(counts)}${when}${auto}</small>
+    ${error}
+    <span class="routing-geodata-tools">
+      <button class="ghost" data-routing-action="geodata-update"${canUpdate ? "" : " disabled"}>Обновить сейчас</button>
+      <button class="ghost" data-routing-action="geodata-settings"${owner ? "" : " disabled"}>Источник…</button>
+    </span>
+    <datalist id="geodata-geosite-codes">${(state.codes?.geosite || []).map((code) => `<option value="${esc(code)}"></option>`).join("")}</datalist>
+    <datalist id="geodata-geoip-codes">${(state.codes?.geoip || []).map((code) => `<option value="${esc(code)}"></option>`).join("")}</datalist>
+  </div>`;
+}
+
+function openGeodataModal(context) {
+  const { root } = context;
+  const geo = ensureState(context).geodata;
+  if (!geo) return;
+  query("#geodata-form", root).reset();
+  query("#geodata-error", root).textContent = "";
+  query("#geodata-source", root).value = geo.source?.kind || "xray";
+  query("#geodata-geosite-url", root).value = geo.source?.geosite_url || "";
+  query("#geodata-geoip-url", root).value = geo.source?.geoip_url || "";
+  query("#geodata-auto", root).checked = geo.auto_update === true;
+  query("#geodata-interval", root).value = String(geo.interval_hours || 24);
+  query("#geodata-custom", root).hidden = query("#geodata-source", root).value !== "custom";
+  context.ui.openModal("#geodata-modal", "#geodata-source");
+}
+
+async function saveGeodata(context, button) {
+  const { root } = context;
+  const target = currentTarget(context);
+  const error = query("#geodata-error", root);
+  const kind = query("#geodata-source", root).value;
+  const body = {
+    source: { kind },
+    auto_update: query("#geodata-auto", root).checked,
+    interval_hours: Number(query("#geodata-interval", root).value) || 24,
+  };
+  if (kind === "custom") {
+    body.source.geosite_url = query("#geodata-geosite-url", root).value.trim();
+    body.source.geoip_url = query("#geodata-geoip-url", root).value.trim();
+  }
+  if (!query("#geodata-form", root).reportValidity()) return;
+  error.textContent = "";
+  context.ui.setBusy(button, true, "Сохраняем…");
+  try {
+    await context.api(`/api/routing/geodata/settings?node=${encodeURIComponent(target.node_id)}`, { method: "PUT", body: JSON.stringify(body) });
+    query("#geodata-modal", root).close();
+    ensureState(context).geodata = null;
+    context.ui.toast(kind === "xray" ? "Источник — пин установщика; списки вернутся к нему кнопкой «Вернуть пин» или сами при следующем обновлении" : "Настройки geodata сохранены");
+    await context.navigate("routing");
+  } catch (exception) {
+    error.textContent = exception.message;
+  } finally {
+    context.ui.setBusy(button, false);
+  }
+}
+
+async function geodataUpdate(context, button) {
+  const target = currentTarget(context);
+  const geo = ensureState(context).geodata;
+  if (!target || !geo) return;
+  const action = geo.source?.kind === "xray" ? "restore" : "update";
+  const text = action === "restore"
+    ? "Списки вернутся к паре, закреплённой установщиком; роутер перезапустится."
+    : "Оба файла будут скачаны из источника, проверены и подменены; роутер перезапустится, сессии подключённых сервисов прервутся на мгновение.";
+  if (!(await context.ui.confirmed(action === "restore" ? "Вернуть списки к пину?" : "Обновить списки geodata?", text, action === "restore" ? "Вернуть" : "Обновить"))) return;
+  context.ui.setBusy(button, true, "…");
+  try {
+    const result = await context.api(`/api/routing/geodata/${action}?node=${encodeURIComponent(target.node_id)}`, { method: "POST" });
+    ensureState(context).geodata = null;
+    context.ui.toast(result.changed ? `Списки обновлены${result.version ? ` до ${result.version}` : ""}` : "Списки уже актуальны");
+    await context.navigate("routing");
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+    context.ui.setBusy(button, false);
+  }
+}
+
 // This node's own relay: the door other nodes' chains come in through.
 function relayLine(context, target) {
   const relay = target.relay;
@@ -419,6 +518,7 @@ function targetCard(context) {
     <p class="form-hint">Возможности: ${esc((target.capabilities || []).join(", ") || "—")} · провайдеры — ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress" : ""}</p>
     ${exitsLine(context, target)}
     ${routerLine(context, target)}
+    ${geodataLine(context, target)}
     ${relayLine(context, target)}
     ${reason}
     ${laneTabs(context, target)}
@@ -436,7 +536,7 @@ function targetCard(context) {
 function ensureState(context) {
   if (!context.state.routing) {
     context.state.routing = { policy: null, draft: emptyPolicy(), compiled: null, dirty: false, loading: false, previewTimer: null, previewSeq: 0,
-      explained: null, explainHost: "", explainPort: 443 };
+      explained: null, explainHost: "", explainPort: 443, geodata: null, geodataError: null, codes: null };
   }
   return context.state.routing;
 }
@@ -455,8 +555,36 @@ function resetPolicy(context) {
   return state;
 }
 
+// The router's geodata (v0.8): shown on every card of a node that has a router; the codes
+// feed the rule inputs' suggestions. One fetch per node, never per protocol tab.
+async function loadGeodata(context, target) {
+  const state = ensureState(context);
+  if (!target?.router?.available) {
+    state.geodata = null;
+    state.geodataError = null;
+    return;
+  }
+  if (state.geodata && state.geodata.node_id === target.node_id) return;
+  try {
+    const view = await context.api(`/api/routing/geodata?node=${encodeURIComponent(target.node_id)}`);
+    state.geodata = { ...view, node_id: target.node_id };
+    state.geodataError = null;
+  } catch (error) {
+    state.geodata = null;
+    state.geodataError = error.message;
+    return;
+  }
+  try {
+    const codes = await context.api(`/api/routing/geodata/codes?node=${encodeURIComponent(target.node_id)}`);
+    state.codes = codes.codes || null;
+  } catch {
+    state.codes = null;
+  }
+}
+
 async function loadPolicy(context, target) {
   const state = resetPolicy(context);
+  await loadGeodata(context, target);
   if (!target?.backend) {
     state.loading = false;
     return;
@@ -581,7 +709,12 @@ export function handleRoutingInput(context, element) {
 
 export function handleRoutingChange(context, element) {
   if (context.state.view !== "routing") return false;
+  if (element.id === "geodata-source") {
+    query("#geodata-custom", context.root).hidden = element.value !== "custom";
+    return true;
+  }
   if (element.id === "routing-node") {
+    ensureState(context).geodata = null;
     context.state.routingNode = element.value;
     context.state.routingProtocol = null;
     context.state.routingLane = LANE_SERVICE;
@@ -811,6 +944,14 @@ export function handleRoutingClick(context, button) {
     void relayEnable(context, button);
     return true;
   }
+  if (action === "geodata-update") {
+    void geodataUpdate(context, button);
+    return true;
+  }
+  if (action === "geodata-settings") {
+    openGeodataModal(context);
+    return true;
+  }
   if (action === "apply" || action === "rollback" || action === "delete") {
     void operate(context, action, button);
     return true;
@@ -839,6 +980,10 @@ export function handleRoutingClick(context, button) {
 // HTML5 drag between rule rows: the dragged row lands before the row it is dropped on.
 export function bindRouting(context) {
   const view = context.ui.view;
+  query("#geodata-save", context.root)?.addEventListener("click", ({ currentTarget: button }) => { void saveGeodata(context, button); });
+  query("#geodata-source", context.root)?.addEventListener("change", ({ currentTarget: select }) => {
+    query("#geodata-custom", context.root).hidden = select.value !== "custom";
+  });
   let dragged = null;
   view.addEventListener("dragstart", (event) => {
     const row = event.target.closest?.(".routing-rule");
