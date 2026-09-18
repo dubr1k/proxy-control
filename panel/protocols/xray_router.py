@@ -98,6 +98,14 @@ class RouterAdapter:
         except XrayRouterError as exc:
             raise self._error(exc) from exc
 
+    # -- v0.8: exits ------------------------------------------------------------------
+
+    async def exit_test(self, spec: dict) -> dict:
+        try:
+            return await self.client.exit_test(spec)
+        except XrayRouterError as exc:
+            raise self._error(exc) from exc
+
     # -- v0.8: geodata ----------------------------------------------------------------
 
     async def geodata(self, action: str = "view", body: dict | None = None) -> dict:

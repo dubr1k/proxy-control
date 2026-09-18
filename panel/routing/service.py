@@ -20,6 +20,7 @@ from ..protocols.base import AdapterError, AppliedEgress, EgressTarget, RouterTa
 from .compiler import compile as compile_policy
 from .compiler import direct_document, explain
 from .document import ROUTER_DIRECT_INTENT, attach_document, document_digest
+from .exits import ExitInUse, ExitInput, ExitStore, parse_share_link
 from .lanes import DEFAULT_RELAY_PORT, ChainResolver, RelayRegistry, lane_policies
 from .models import (
     BACKEND_FOR,
@@ -117,6 +118,8 @@ class RoutingService:
         self.router = router
         # v0.8: `node_client(node_id)` — the client to a linked panel, for its router's geodata.
         self.node_client = node_client
+        # v0.8: the operator's own outbounds, credentials in escrow (None without a secret store).
+        self.exits = None if relays is None else ExitStore(relays.secrets)
         # The remote path (spec §8.3): `publisher(db, node_id)` publishes a generation carrying
         # the node's desired egress sections; None means this panel applies locally only.
         self.publisher = publisher
@@ -214,6 +217,7 @@ class RoutingService:
             master = self._master(db)
             exits = self._exits(db, rows)
             relays = {row["node_id"]: self._relay_view(db, row["node_id"]) for row in rows}
+            custom = {} if self.exits is None else {row["node_id"]: self.exits.list(db, row["node_id"]) for row in rows}
         items = []
         for row in rows:
             node_id, kind = row["node_id"], self._kind(row)
@@ -223,6 +227,7 @@ class RoutingService:
                         "mode": None, "policy": None, "reason": None, "router": None,
                         "lanes": lanes.get((node_id, protocol), []),
                         "exits": [exit_ for exit_ in exits if exit_["node_id"] != node_id],
+                        "custom_exits": custom.get(node_id, []),
                         "relay": relays.get(node_id)}
                 policy = policies.get((node_id, protocol))
                 if policy is not None:
@@ -305,6 +310,135 @@ class RoutingService:
         raise RoutingError(404, "node_not_found", "node not found")
 
     # -- policies ----------------------------------------------------------------------
+
+    # -- custom exits (v0.8) ------------------------------------------------------------------
+
+    def _exit_store(self) -> ExitStore:
+        if self.exits is None:
+            raise RoutingError(409, "secret_store_disabled", "custom exits need the secret store (PANEL_MASTER_KEY_FILE)")
+        return self.exits
+
+    def _exit_audit(self, db, action: str, exit_id: str, detail: dict, *, actor, ip, request_id) -> None:
+        audit.record(db, actor=actor, action=f"routing.exit.{action}", target=exit_id, ip=ip, request_id=request_id, detail=detail)
+
+    def list_exits(self, node_id: str) -> list[dict]:
+        store = self._exit_store()
+        with self.database.connect() as db:
+            self._node(db, node_id)
+            items = store.list(db, node_id)
+            for item in items:
+                item["used_by"] = store.usage(db, item["id"])
+            return items
+
+    def create_exit(self, node_id: str, data: ExitInput, *, actor, ip, request_id=None, imported: bool = False) -> dict:
+        store = self._exit_store()
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            row = self._node(db, node_id)
+            if self._kind(row) == "v1":
+                raise RoutingError(409, "node_lacks_egress_v1", "the node must be updated")
+            try:
+                created = store.create(db, node_id, data, now=now)
+            except ValueError as exc:
+                raise RoutingError(422, "exit_invalid", str(exc)) from exc
+            self._exit_audit(db, "import" if imported else "create", created["id"],
+                             {"node_id": node_id, "name": created["name"], "protocol": created["protocol"], "address": created["address"],
+                              "port": created["port"]}, actor=actor, ip=ip, request_id=request_id)
+            return created
+
+    def import_exit(self, node_id: str, link: str, *, name: str | None = None, actor, ip, request_id=None) -> dict:
+        try:
+            data = parse_share_link(link)
+        except ValueError as exc:
+            raise RoutingError(422, "exit_link_invalid", str(exc)) from exc
+        if name:
+            data = data.model_copy(update={"name": name.strip()[:48]})
+        return self.create_exit(node_id, data, actor=actor, ip=ip, request_id=request_id, imported=True)
+
+    def update_exit(self, exit_id: str, data: ExitInput, *, actor, ip, request_id=None) -> dict:
+        store = self._exit_store()
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            try:
+                updated = store.update(db, exit_id, data, now=now)
+            except KeyError as exc:
+                raise RoutingError(404, "exit_not_found", "exit not found") from exc
+            except ValueError as exc:
+                raise RoutingError(422, "exit_invalid", str(exc)) from exc
+            self._exit_audit(db, "update", exit_id, {"node_id": updated["node_id"], "name": updated["name"],
+                                                     "credential_rotated": data.credential_bytes() is not None},
+                             actor=actor, ip=ip, request_id=request_id)
+            # A changed exit leaves every policy that uses it dirty: the node runs the old outbound.
+            for use in store.usage(db, exit_id):
+                self.store.mark(db, use["policy_id"], state="draft", now=now)
+            return updated
+
+    def exit_action(self, exit_id: str, action: str, *, actor, ip, request_id=None) -> dict:
+        store = self._exit_store()
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            found = store.get(db, exit_id)
+            if found is None:
+                raise RoutingError(404, "exit_not_found", "exit not found")
+            if action == "delete":
+                used = store.usage(db, exit_id)
+                if used:
+                    raise RoutingError(409, "exit_in_use", "policies still leave through this exit", ) from ExitInUse(used)
+                store.delete(db, exit_id)
+                self._exit_audit(db, "delete", exit_id, {"node_id": found["node_id"], "name": found["name"]}, actor=actor, ip=ip, request_id=request_id)
+                return {"ok": True}
+            updated = store.set_enabled(db, exit_id, action == "enable", now=now)
+            self._exit_audit(db, action, exit_id, {"node_id": found["node_id"], "name": found["name"]}, actor=actor, ip=ip, request_id=request_id)
+            if action == "disable":
+                for use in store.usage(db, exit_id):
+                    self.store.mark(db, use["policy_id"], state="draft", now=now)
+            return updated
+
+    def exit_usage(self, exit_id: str) -> list[dict]:
+        store = self._exit_store()
+        with self.database.connect() as db:
+            return store.usage(db, exit_id)
+
+    async def test_exit(self, exit_id: str, *, actor, ip, request_id=None) -> dict:
+        """Try the exit on its node's router: locally through the adapter, on a linked panel
+        through its Fleet API (the credential travels as a generation would carry it)."""
+        store = self._exit_store()
+        with self.database.connect() as db:
+            found = store.get(db, exit_id)
+            if found is None:
+                raise RoutingError(404, "exit_not_found", "exit not found")
+            row = self._node(db, found["node_id"])
+            spec, reason = store.spec(db, exit_id, node_id=found["node_id"])
+        if reason is not None:
+            raise RoutingError(409, reason.code, reason.message)
+        kind = self._kind(row)
+        if kind == "local":
+            if self.router is None:
+                raise RoutingError(404, "router_unavailable", "this server runs no Xray-router")
+            try:
+                result = await self.router.exit_test(spec)
+            except AdapterError as exc:
+                raise RoutingError(422 if exc.code == "egress_invalid" else 502, exc.code or "router_unavailable", str(exc)) from exc
+        elif kind == "remote":
+            if self.node_client is None:
+                raise RoutingError(404, "router_unavailable", "no client for linked panels")
+            identity = row["link"].get("identity") or {}
+            if "geodata.v1" not in (identity.get("capabilities") or []):
+                raise RoutingError(409, "node_lacks_exits", "the node's panel does not test exits yet (update it to v0.8)")
+            try:
+                result = await self.node_client(found["node_id"]).exit_test(spec)
+            except NodeRejected as exc:
+                raise RoutingError(exc.status, exc.code or "router_unavailable", str(exc)) from exc
+            except (NodeUnreachable, NodeAuthFailed) as exc:
+                raise RoutingError(502, "node_unreachable", type(exc).__name__) from exc
+        else:
+            raise RoutingError(404, "router_unavailable", "this node has no Xray-router")
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            store.record_test(db, exit_id, result, now=now)
+            self._exit_audit(db, "test", exit_id, {"node_id": found["node_id"], "name": found["name"], "ok": result.get("ok"),
+                                                   "code": result.get("code")}, actor=actor, ip=ip, request_id=request_id)
+        return {**result, "at": now}
 
     # -- geodata (v0.8) --------------------------------------------------------------------
     # The manager's own refusals are the operator's 422; anything else is the router being away.
@@ -458,10 +592,11 @@ class RoutingService:
         return {row["node_id"], self.own_guid} if row["node_id"] == "local" else {row["node_id"]}
 
     def _compile(self, db, policy: RoutingPolicy, row: dict, target, egress_v1: bool, router, *, issue: bool) -> Compiled:
-        """The policy with the service's other lanes folded in and the chains resolved."""
+        """The policy with the service's other lanes folded in, the chains and the custom exits resolved."""
         others = [other for other in lane_policies(self.store, db, policy.node_id, policy.protocol) if other.id != policy.id]
+        exits = None if self.exits is None else (lambda exit_id: self.exits.spec(db, exit_id, node_id=policy.node_id))
         return compile_policy(policy, target, node_egress_v1=egress_v1, router=router, lanes=others,
-                              chains=self._resolver(db, row, issue=issue), own_guids=self._own_guids(row))
+                              chains=self._resolver(db, row, issue=issue), own_guids=self._own_guids(row), exits=exits)
 
     async def preview(self, node_id: str, protocol: str, draft: PolicyInput | None, lane: str = LANE_SERVICE) -> Compiled:
         self._protocol(protocol)

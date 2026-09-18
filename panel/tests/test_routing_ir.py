@@ -416,7 +416,7 @@ def test_routing_v14_on_populated_db(tmp_path, monkeypatch):
         db.execute("INSERT INTO managed_resources(protocol,runtime_username,ref,generation,state,updated_at)"
                    " VALUES('naive','alice','r1',1,'converged',1)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [14, 15, 16, 17, 18]
+    assert apply_migrations(database) == [14, 15, 16, 17, 18, 19]
     assert apply_migrations(database) == []
     with database.transaction() as db:
         assert db.execute("SELECT count(*) FROM managed_resources").fetchone()[0] == 1

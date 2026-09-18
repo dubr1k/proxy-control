@@ -86,6 +86,7 @@ class XrayRouterClient:
     async def geodata_settings(self, body): return await self._request("PUT", "/v1/geodata/settings", body)
     async def geodata_update(self): return await self._request("POST", "/v1/geodata/update")
     async def geodata_restore(self): return await self._request("POST", "/v1/geodata/restore")
+    async def exit_test(self, spec): return await self._request("POST", "/v1/exits/test", {"exit": spec})
     async def relay_set_accounts(self, accounts):
         return await self._request("PUT", "/v1/relay/accounts", {"accounts": accounts})
 
@@ -147,7 +148,7 @@ class MemoryXrayRouter:
     @staticmethod
     def _validate(document) -> dict:
         if isinstance(document, dict) and document.get("schema") == 2:
-            if (set(document) != {"schema", "lanes", "chains"} or not isinstance(document["lanes"], dict)
+            if (set(document) - {"exits"} != {"schema", "lanes", "chains"} or not isinstance(document["lanes"], dict)
                     or not document["lanes"] or not isinstance(document["chains"], dict)
                     or sum(1 for lane in document["lanes"] if lane.startswith("svc:")) != 1):
                 raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
@@ -156,6 +157,8 @@ class MemoryXrayRouter:
                     raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
                 for value in [body["default"].get("egress"), *(rule.get("egress") for rule in body["rules"])]:
                     if isinstance(value, str) and value.startswith("chain:") and value[6:] not in document["chains"]:
+                        raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
+                    if isinstance(value, str) and value.startswith("exit:") and value[5:] not in document.get("exits", {}):
                         raise XrayRouterError("invalid routing intent", 422, "egress_invalid")
             return copy.deepcopy(document)
         if (not isinstance(document, dict) or set(document) != {"schema", "default", "rules"} or document["schema"] != 1
@@ -241,6 +244,18 @@ class MemoryXrayRouter:
     def _providers(self) -> dict:
         return {"warp": {"url": self.warp_url, "reachable": self.reachable}} if self.warp_url else {}
 
+    # -- v0.8: exits ---------------------------------------------------------------------
+
+    async def exit_test(self, spec):
+        if not self.available:
+            raise XrayRouterError("Xray-router manager unavailable")
+        self.calls.append(("exit_test", spec.get("protocol"), spec.get("address")))
+        if spec.get("protocol") not in ("socks", "http", "vless", "trojan", "shadowsocks"):
+            raise XrayRouterError("Xray-router manager rejected request", 422, "egress_invalid")
+        if spec.get("address") == "down.example.org":
+            return {"ok": False, "error": "no answer through the exit: connection refused", "code": "exit_unreachable", "latency_ms": 12}
+        return {"ok": True, "ip": "203.0.113.9", "colo": "AMS", "latency_ms": 84}
+
     # -- v0.8: geodata -------------------------------------------------------------------
 
     def _geodata_view(self) -> dict:
@@ -309,7 +324,8 @@ class MemoryXrayRouter:
                 "running": {"generation": self.generation, "digest": "0" * 64, "since": None},
                 "services": {service: {"revision": self._revision(service), "digest": self._digest(service),
                                        "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES},
-                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay", "geodata"],
+                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay", "geodata", "custom_exits",
+                                                                 "block_protocol", "selective_protocol"],
                 "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES},
                 "relay": self._relay_view(),
                 "geodata": {key: self.geodata_state[key] for key in ("source", "origin", "version", "updated_at", "auto_update",
@@ -321,7 +337,8 @@ class MemoryXrayRouter:
         history = self.history[service]
         return {"revision": self._revision(service), "document": copy.deepcopy(document),
                 "mode": "proxy" if self._uses_warp(document) else "direct", "generation": self.generation,
-                "providers": self._providers(), "capabilities": list(ROUTER_CAPABILITIES), "restart_required": True,
+                "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "custom_exits", "block_protocol", "selective_protocol"],
+                "restart_required": True,
                 "warnings": [], "runtime_version": self.xray_version,
                 "previous": {"revision": "previous"} if history else None,
                 "current": {"revision": self._revision(service), "digest": self._digest(service), "generation": self.generation,

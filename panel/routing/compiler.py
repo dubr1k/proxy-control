@@ -35,6 +35,7 @@ from .models import (
     RoutingPolicy,
     RoutingRule,
     exit_hops,
+    is_custom_exit,
     is_node_exit,
 )
 
@@ -110,7 +111,7 @@ def _mieru_document(default_action: str, rules: list[RoutingRule]) -> dict:
 
 def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v1: bool = True,  # noqa: A001
             router: RouterTarget | None = None, lanes: list[RoutingPolicy] | None = None, chains=None,
-            own_guids: set[str] | None = None) -> Compiled:
+            own_guids: set[str] | None = None, exits=None) -> Compiled:
     """What the node would run for this policy, or exactly why it cannot. `target` is the
     service's native manager; `router` its section on the node's Xray-router (v0.5), None
     when the panel knows of no router. `lanes` (v0.7) are the service's other policies —
@@ -145,7 +146,7 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
                                               message=f"{policy.protocol} is not attached to the node's Xray-router"))
             return unsupported
         return compile_intent(policy, router, private=_private, warnings=list(target.warnings), lanes=lanes,
-                              resolver=chains, own_guids=own_guids)
+                              resolver=chains, own_guids=own_guids, exits_resolver=exits)
     if is_lane:
         unsupported.reasons.append(Reason(code="lane_requires_router",
                                           message="a client lane runs only on the node's Xray-router"))
@@ -167,13 +168,13 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     whole = "whole_warp" if default_action == "egress" else "whole_direct"
     if whole not in target.capabilities:
         reasons.append(Reason(code="backend_capability_missing", message=f"{target.backend} lacks {whole}"))
-    if is_node_exit(policy.default_egress):
+    if is_node_exit(policy.default_egress) or is_custom_exit(policy.default_egress):
         reasons.append(Reason(code="rule_kind_unsupported",
-                              message="an exit through another node is enforced only by xray_router"))
+                              message="an exit through another node or a custom outbound is enforced only by xray_router"))
     for rule in rules:
-        if is_node_exit(rule.egress):
+        if is_node_exit(rule.egress) or is_custom_exit(rule.egress):
             reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
-                                  message="an exit through another node is enforced only by xray_router"))
+                                  message="an exit through another node or a custom outbound is enforced only by xray_router"))
             continue
         if rule.match.ports or rule.match.geosites or rule.match.geoips or rule.match.protocols:
             reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,

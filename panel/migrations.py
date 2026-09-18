@@ -442,10 +442,26 @@ ROUTING_V18 = Migration(18, "routing-presets", (
     "ALTER TABLE routing_rules ADD COLUMN preset TEXT",
 ))
 
+# Custom exits (v0.8): the operator's own outbounds on a node's router; the credential lives
+# in `secret_versions` (`exit:<id>`), the row keeps everything else.
+EXITS_V19 = Migration(19, "routing-exits", (
+    """CREATE TABLE IF NOT EXISTS egress_exits (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      protocol TEXT NOT NULL CHECK(protocol IN ('socks','http','vless','trojan','shadowsocks')),
+      settings_json TEXT NOT NULL,
+      secret_id TEXT, secret_version INTEGER,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_test_json TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(node_id, name))""",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
-    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18,
+    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

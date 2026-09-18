@@ -71,6 +71,11 @@ class GeodataSource(BaseModel):
     geoip_url: str | None = Field(default=None, max_length=1024)
 
 
+class ExitTestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    exit: dict
+
+
 class GeodataSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source: GeodataSource | None = None
@@ -347,6 +352,20 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         except AdapterError as exc:
             code = exc.code or "router_unavailable"
             return JSONResponse({"detail": str(exc), "code": code}, status_code=422 if code in GEODATA_REFUSALS else 502)
+
+    @app.post("/api/fleet/v2/exits/test")
+    async def exit_test(body: ExitTestRequest, request: Request, key=Depends(context.fleet_key)):
+        router = getattr(app.state, "router", None)
+        if router is None:
+            return JSONResponse({"detail": "this node runs no Xray-router", "code": "router_unavailable"}, status_code=404)
+        try:
+            result = await router.exit_test(body.exit)
+        except AdapterError as exc:
+            code = exc.code or "router_unavailable"
+            return JSONResponse({"detail": str(exc), "code": code}, status_code=422 if code == "egress_invalid" else 502)
+        await context.audit(key, "fleet.exit.test", app.state.panel_guid, request,
+                            {"protocol": body.exit.get("protocol"), "address": body.exit.get("address"), "ok": result.get("ok")})
+        return JSONResponse(result, headers=NO_STORE)
 
     @app.get("/api/fleet/v2/geodata")
     async def geodata_view(_key=Depends(context.fleet_key)):

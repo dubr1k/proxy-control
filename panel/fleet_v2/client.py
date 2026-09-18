@@ -206,6 +206,11 @@ class NodeClient:
     async def unlink(self) -> dict:
         return (await self._call("POST", "/api/fleet/v2/unlink"))[1]
 
+    async def exit_test(self, spec: dict) -> dict:
+        """v0.8: the node's router tries one custom outbound; the spec carries the credential
+        (the same channel the generations use)."""
+        return (await self._call("POST", "/api/fleet/v2/exits/test", json={"exit": spec}))[1]
+
     # v0.8: the node's router geodata, driven by the central on the operator's behalf
     async def geodata(self, action: str = "view", body: dict | None = None) -> dict:
         if action == "view":
