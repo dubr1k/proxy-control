@@ -270,6 +270,7 @@
         <label class="link-pin">Отпечаток SHA-256<span class="copy-field"><input id="link-pinned" pattern="[0-9a-fA-F]{64}" maxlength="64" autocomplete="off" placeholder="64 шестнадцатеричных символа"><button type="button" id="link-fingerprint">Получить отпечаток</button></span><small>Панель запросит сертификат по URL; сверьте отпечаток с тем, что показывает сама добавляемая панель</small></label>
       </fieldset>
       <label class="grant-protocol" id="link-private-row"><input type="checkbox" id="link-private"> Разрешить приватный адрес (лаборатория, внутренняя сеть)</label>
+      <label class="grant-protocol" id="link-auto-import-row"><input type="checkbox" id="link-auto-import" checked> Подхватывать пользователей панели автоматически — каждый её пользователь становится клиентом центра (одно имя во всех протоколах и на всех узлах — один клиент); Mieru-доступы приходят без секрета, пока их не ротировать</label>
       <div id="link-result" class="link-result" hidden>
         <p class="form-hint"><b>Панель ответила.</b> Ниже — что она о себе сообщила и кого можно забрать под управление центра.</p>
         <div id="link-result-facts"></div>

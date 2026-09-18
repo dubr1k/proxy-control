@@ -85,7 +85,7 @@ class NodeLinkService:
                 "latency_ms": int((self.clock.monotonic() - started) * 1000), "url": url}
 
     async def add(self, display_name, url, api_key, tls_verify, pinned_sha256, allow_private, *, actor, ip,
-                  request_id=None) -> str:
+                  request_id=None, auto_import: bool = True) -> str:
         probe = await self.test(url, api_key, tls_verify, pinned_sha256, allow_private)
         identity = probe["identity"]
         if identity.get("api_version") != 2 or not identity.get("guid"):
@@ -105,17 +105,19 @@ class NodeLinkService:
             # What the probe saw is kept for the operator; `status` stays `unknown` until
             # the first heartbeat, which is what turns it into a `node.up` event.
             db.execute("""INSERT INTO node_links(node_id,panel_url,tls_verify,pinned_cert_sha256,api_key_secret_id,
-                          allow_private_address,latency_ms,panel_version,identity_json,status_json,created_at,updated_at)
-                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                          allow_private_address,latency_ms,panel_version,identity_json,status_json,created_at,updated_at,
+                          auto_import)
+                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                        (node_id, probe["url"], tls_verify, pinned_sha256, secret_id, 1 if allow_private else 0,
                         probe["latency_ms"], identity.get("panel_version"), json.dumps(identity),
-                        json.dumps(probe["status"]), now, now))
+                        json.dumps(probe["status"]), now, now, 1 if auto_import else 0))
             record(db, actor=actor, action="node.link", target=node_id, ip=ip, request_id=request_id,
-                   detail={"display_name": display_name, "panel": probe["url"], "tls_verify": tls_verify})
+                   detail={"display_name": display_name, "panel": probe["url"], "tls_verify": tls_verify,
+                           "auto_import": bool(auto_import)})
         return node_id
 
     def update(self, node_id: str, *, display_name=None, url=None, api_key=None, tls_verify=None, pinned_sha256=None,
-               actor, ip, request_id=None) -> None:
+               auto_import=None, actor, ip, request_id=None) -> None:
         """Only the fields given change; a new key gets a new secret row and the old one is revoked."""
         now = int(self.clock.time())
         with self.database.transaction() as db:
@@ -136,6 +138,8 @@ class NodeLinkService:
                 changes["tls_verify"] = mode
             if pinned_sha256 is not None:
                 changes["pinned_cert_sha256"] = pin
+            if auto_import is not None:
+                changes["auto_import"] = 1 if auto_import else 0
             if api_key is not None:
                 changes["api_key_secret_id"] = self._store_key(db, node_id, api_key)
                 self.secrets.transition(db, SecretRef(link["api_key_secret_id"], 1), "revoked")

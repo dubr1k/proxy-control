@@ -17,6 +17,7 @@ the others; a node is synced by one coroutine at a time.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -27,7 +28,12 @@ from ..routing.lanes import RELAY_PURPOSE, RelayRegistry
 from ..secrets_store import SecretError, SecretRef
 from .client import NodeAuthFailed, NodeRejected, NodeUnreachable
 from .generations import compile, content_digest
+from .importing import auto_import
 from .protocol import CAPTURE_MAX_RESOURCES, ObservedGeneration, PushRequest, canonical_digest
+
+
+def _inventory_digest(inventory: dict) -> str:
+    return hashlib.sha256(json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 log = logging.getLogger(__name__)
 CREDENTIAL_PURPOSE = "grant.credential"
@@ -84,6 +90,13 @@ def _describe(exc: Exception) -> str:
     return f"{type(exc).__name__}: {code}"[:200]
 
 
+class _ImportState:
+    """What `importing` needs of `app.state`, from the pusher's own references."""
+
+    def __init__(self, pusher):
+        self.database, self.links, self.secrets, self.clients = pusher.database, pusher.links, pusher.secrets, pusher.clients
+
+
 class FleetPusher:
     def __init__(self, database, links, desired, secrets, clients, provisioning, events, *, interval=15.0, clock=time,
                  routing=None):
@@ -94,6 +107,9 @@ class FleetPusher:
         self.routing = routing
         self.interval, self.clock, self._stop = interval, clock, asyncio.Event()
         self._locks: dict[str, asyncio.Lock] = {}
+        # Per node: the inventory the last auto-import saw, so an unchanged node costs one
+        # `inventory` read per tick and no capture.
+        self._adopted: dict[str, str] = {}
         # In memory on purpose: a restart is a fresh attempt, and nothing here is worth a column.
         self._backoff: dict[str, _Backoff] = {}
         # (generation, consecutive converged reports with a credential still withheld) per node.
@@ -162,6 +178,12 @@ class FleetPusher:
             # The node was unlinked while its heartbeat was in flight: nothing to record.
             log.info("fleet: node %s was unlinked during its heartbeat", node_id)
             return
+        if link["enabled"] and link.get("auto_import"):
+            # Adoption publishes a generation of its own, so what the node owes is re-read.
+            if await self._adopt(client, node_id):
+                with self.database.connect() as db:
+                    latest = self.desired.latest(db, node_id)
+                    observed = self.desired.observed(db, node_id)
         if latest is None or not link["enabled"]:
             return  # a paused link is probed dry: the heartbeat above, nothing delivered
         if self._in_flight(latest, observed):
@@ -170,6 +192,33 @@ class FleetPusher:
             return  # heartbeat done; the re-push waits for its slot
         elif link["config_dirty"] or link["acknowledged_generation"] < latest["generation"]:
             await self._push(client, node_id, latest)
+
+    async def _adopt(self, client, node_id: str) -> bool:
+        """The node's own users become clients here (auto-import). A failure is this tick's
+        business only: logged, never a `node.down`, never a stall. True when something was
+        imported."""
+        read = getattr(client, "inventory", None)
+        if read is None:
+            return False  # a transport that only heartbeats (test doubles) has nothing to adopt
+        try:
+            inventory = (await read()).get("protocols") or {}
+        except CLIENT_ERRORS as exc:
+            log.info("fleet: node %s: inventory unavailable for auto-import (%s)", node_id, _describe(exc))
+            return False
+        digest = _inventory_digest(inventory)
+        if self._adopted.get(node_id) == digest:
+            return False
+        try:
+            result = await auto_import(_ImportState(self), node_id, inventory=inventory)
+        except (ValueError, KeyError, *CLIENT_ERRORS) as exc:
+            log.warning("fleet: node %s: auto-import failed: %s", node_id, _describe(exc))
+            return False
+        self._adopted[node_id] = digest
+        if result and result["imported"]:
+            log.info("fleet: node %s: adopted %d account(s), %d without credential", node_id,
+                     len(result["imported"]), len(result["without_credential"]))
+            return True
+        return False
 
     def _in_flight(self, latest: dict, observed: ObservedGeneration | None) -> bool:
         """The node answered 202 for this very generation and is still applying it."""

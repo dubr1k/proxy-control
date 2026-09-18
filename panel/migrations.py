@@ -430,10 +430,16 @@ ROUTING_V16 = Migration(16, "routing-chains-lanes", (
     "ALTER TABLE observed_generations ADD COLUMN relay_json TEXT",
 ))
 
+# A linked panel's own users are adopted by the central on every heartbeat unless the owner
+# turns it off for that link (owner decision 2026-09-18: «как в 3x-ui — само»).
+LINKS_V17 = Migration(17, "links-auto-import", (
+    "ALTER TABLE node_links ADD COLUMN auto_import INTEGER NOT NULL DEFAULT 1",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
-    ROUTING_V14, ROUTING_V15, ROUTING_V16,
+    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

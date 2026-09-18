@@ -790,3 +790,54 @@ async def test_a_null_capture_withholds_the_manager_origin_grant_and_confirms_th
     assert runtime == f"ee{bare}" and _escrowed(central, node_id, grants["alice"]) == runtime
     assert _versions(central, grants["alice"]) == [(1, "active")]
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
+
+
+# --- auto-import (owner decision 2026-09-18: a node's own users become clients by themselves) ---
+
+
+async def test_auto_import_adopts_the_nodes_own_users_on_the_heartbeat(pair):
+    """A user the node already runs becomes a client named after it on the first tick,
+    with the credential captured; the second tick changes nothing; a user created on the
+    node later is adopted on the next tick; the account is marked the central's."""
+    node, central, plaintext = pair
+    node.state.naive.seed("legacy", "pw-legacy")
+    await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    clients = {c.display_name: c for c in central.state.clients.list_clients()}
+    assert "legacy" in clients
+    grants = central.state.clients.client_with_grants(clients["legacy"].id)[1]
+    assert [(g.protocol, g.runtime_username, g.origin, g.secret_ref is not None) for g in grants] == [("naive", "legacy", "imported", True)]
+    before = central.state.clients.list_clients()
+    await central.state.pusher.tick()
+    assert [c.id for c in central.state.clients.list_clients()] == [c.id for c in before]
+    node.state.naive.seed("later", "pw-later")
+    await central.state.pusher.tick()
+    assert "later" in {c.display_name for c in central.state.clients.list_clients()}
+    with central.state.database.connect() as db:
+        rows = db.execute("SELECT detail_json FROM audit_log WHERE action='node.import'").fetchall()
+    assert len(rows) == 2 and all('"auto": true' in row[0] for row in rows)
+
+
+async def test_auto_import_can_be_switched_off_per_link_and_on_again(pair):
+    node, central, plaintext = pair
+    node.state.naive.seed("legacy", "pw-legacy")
+    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
+                                            actor=ACTOR, ip="x", auto_import=False)
+    await central.state.pusher.tick()
+    assert central.state.clients.list_clients() == []
+    central.state.links.update(node_id, auto_import=True, actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    assert [c.display_name for c in central.state.clients.list_clients()] == ["legacy"]
+
+
+async def test_auto_import_joins_one_name_into_one_client_across_nodes(pair):
+    """`alice` on this node and an `alice` client adopted earlier are one person, as 3x-ui
+    treats one email; a client the operator named the same way by hand is also joined."""
+    node, central, plaintext = pair
+    existing = central.state.clients.create_client("legacy", actor=ACTOR, ip="x")
+    node.state.naive.seed("legacy", "pw-legacy")
+    await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
+    await central.state.pusher.tick()
+    assert [c.display_name for c in central.state.clients.list_clients()] == ["legacy"]
+    grants = central.state.clients.client_with_grants(existing.id)[1]
+    assert [(g.protocol, g.runtime_username) for g in grants] == [("naive", "legacy")]
