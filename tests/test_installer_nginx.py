@@ -1175,3 +1175,59 @@ def test_the_stream_context_is_never_added_inside_another_block(tmp_path: Path):
     http_at = text.index("http {")
     http_end = text.rindex("}", http_at, stream_at) if stream_at > http_at else -1
     assert stream_at > http_at and http_end != -1
+
+
+def test_planning_on_a_stock_nginx_changes_nothing_and_apply_adds_the_context(tmp_path: Path) -> None:
+    """The plan's digest carries the audit; a stream context created while planning
+    changed the host under the plan, and the very next `install --accept-plan` on a
+    stock Ubuntu Nginx refused its own digest (ams-test, v0.7). Planning now only
+    names the step; `apply` adds the context, then the router file it includes."""
+    root = tmp_path / "root"
+    conf = root / "etc/nginx/nginx.conf"
+    conf.parent.mkdir(parents=True)
+    conf.write_text(STOCK_NGINX_CONF)
+    effective = (
+        "# configuration file /etc/nginx/nginx.conf:\n"
+        "# configuration file /etc/nginx/stream.d/proxy-control.conf:\n"
+    )
+    runner, executor = runner_for(effective, root=root)
+    adapter = NginxAdapter(root=root, runner=runner)
+    observed = AuditFacts(
+        topology={"nginx": {"observation": "observed", "route_target": None, "stream_enabled": False}}
+    )
+
+    (action,) = adapter.plan(config(HostMode.FRESH), observed)
+
+    assert "stream_context=create" in action.mutations
+    assert conf.read_text() == STOCK_NGINX_CONF, "planning wrote to the host"
+    assert ("nginx", "-t") not in executor.calls and ("systemctl", "reload", "nginx") not in executor.calls
+    # The same audit plans the same action again: the digest an operator confirmed holds.
+    assert adapter.plan(config(HostMode.FRESH), observed)[0].mutations == action.mutations
+
+    checkpoint = adapter.prepare(action)
+    adapter.apply(action, checkpoint)
+
+    text = conf.read_text()
+    assert "stream {" in text and "include /etc/nginx/stream.d/*.conf;" in text
+    assert (root / "etc/nginx/stream.d/proxy-control.conf").is_file()
+    assert executor.calls.count(("systemctl", "reload", "nginx")) == 2  # the context, then the route
+    assert adapter.verify(action).success is True
+    # A resume reconciles with the context present: nothing to add, the same proof.
+    adapter.reconcile_apply(action, checkpoint)
+    assert conf.read_text() == text
+
+
+def test_a_foreign_stream_context_without_the_router_is_still_refused_at_planning(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    conf = root / "etc/nginx/nginx.conf"
+    conf.parent.mkdir(parents=True)
+    conf.write_text(STOCK_NGINX_CONF + "stream { include /etc/nginx/other.d/*.conf; }\n")
+    effective = "# configuration file /etc/nginx/nginx.conf:\n"
+    runner, _executor = runner_for(effective, root=root)
+    observed = AuditFacts(
+        topology={"nginx": {"observation": "observed", "route_target": None, "stream_enabled": True}}
+    )
+
+    with pytest.raises(TopologyError, match="included by the stream context"):
+        NginxAdapter(root=root, runner=runner).plan(config(HostMode.FRESH), observed)
+    assert "other.d" in conf.read_text() and "stream.d" not in conf.read_text()

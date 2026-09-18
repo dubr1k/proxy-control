@@ -24,11 +24,17 @@ docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&
 docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
 docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
 
-# 2. Lab-only services and units.
+# 2. Lab-only services and units — the Mieru lane slots (v0.7, `mita@<n>`) included: an
+# uninstall that did not run to its end leaves them restarting forever without the binary.
 systemctl disable --now caddy-naive mita lab-xray x-ui >/dev/null 2>&1 || true
+for slot in $(systemctl list-units --all --plain --no-legend 'mita@*' | awk '{print $1}'); do
+  systemctl disable --now "$slot" >/dev/null 2>&1 || true
+done
 rm -f /etc/systemd/system/lab-xray.service /etc/systemd/system/x-ui.service \
-  /etc/systemd/system/caddy-naive.service /etc/systemd/system/mita.service /etc/tmpfiles.d/mita.conf
+  /etc/systemd/system/caddy-naive.service /etc/systemd/system/mita.service \
+  /etc/systemd/system/mita@.service /etc/tmpfiles.d/mita.conf
 systemctl daemon-reload
+systemctl reset-failed >/dev/null 2>&1 || true
 
 # 3. Files the runner and the installer wrote.
 rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt /etc/proxy-control \
