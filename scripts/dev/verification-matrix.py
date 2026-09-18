@@ -68,7 +68,7 @@ def load() -> list[dict]:
 
 def render(rows: list[dict]) -> str:
     lines = [
-        "# Verification matrix — v0.2–v0.7 functions and their proofs",
+        "# Verification matrix — v0.2–v0.8 functions and their proofs",
         "",
         "Generated from `tests/fixtures/verification-matrix.json` by `scripts/dev/verification-matrix.py --render`;",
         "`tests/test_verification_matrix.py` keeps every proof pointing at something that exists and refuses a",
