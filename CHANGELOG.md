@@ -85,6 +85,10 @@ with the relay between nodes issued and rotated by the panel. Release note:
 - The journal showed the system events (`subscription.fetched`, `subscription.revoked`,
   `subscription.generation.changed`, `node.up`, `node.down`) as raw codes: they now have labels
   and a place in `docs/AUDIT_EVENTS.md` (seen in the `ui` tier's journal frame).
+- The certificate renewal dry run (the installer's proof that a lineage renews) failed the
+  whole install on `orderNotReady` — Boulder still calling the order `pending` when certbot 2.9,
+  which polls the authorization rather than the order, comes to finalize it (the real install of
+  ams-test); that race is retried once, like the «authorization must be pending» one.
 
 ### Fixed (post-v0.6, on the branch before this tag)
 
