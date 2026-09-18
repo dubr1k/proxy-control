@@ -1,5 +1,6 @@
 import { bytes, date, esc, initials, localDateTime, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
+import { issueOnNode, loadNodeOptions } from "./clients.js";
 
 export async function refreshUsers(context, generation = null) {
   const data = await context.api("/api/users");
@@ -71,6 +72,7 @@ export function openUserModal(context) {
   query("#user-error", context.root).textContent = "";
   syncCreateButton(context);
   context.ui.openModal("#user-modal", "#new-user");
+  void loadNodeOptions(context, "#user-modal", query("#user-node", context.root));
 }
 
 function syncCreateButton(context) {
@@ -153,8 +155,16 @@ export function bindUsers(context) {
     const error = query("#user-error", root);
     error.textContent = "";
     if (!input.reportValidity()) return;
+    const nodeId = query("#user-node", root).value || "local";
     try {
       ui.setBusy(button, true, "Создаём…");
+      if (nodeId !== "local") {
+        // A linked panel: the access is a client's grant there, not a Telemt user here.
+        const result = await issueOnNode(context, { protocol: "mtproxy", username: input.value, nodeId });
+        query("#user-modal", root).close();
+        if (result.status === "succeeded") await context.navigate("clients");
+        return;
+      }
       const data = await api("/api/users", { method: "POST", body: JSON.stringify({ username: input.value }) });
       const access = await api(`/api/reveal/${encodeURIComponent(data.reveal_token)}`);
       query("#user-modal", root).close();
