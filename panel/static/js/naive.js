@@ -1,5 +1,6 @@
 import { bytes, date, esc, icon, initials, number, query, sumNaiveTraffic } from "./common.js";
 import { isCurrent } from "./state.js";
+import { issueOnNode, loadNodeOptions } from "./clients.js";
 
 export async function refreshNaive(context, generation = null) {
   const data = await context.api("/api/naive/users");
@@ -88,6 +89,7 @@ export function openNaiveModal(context) {
   query("#naive-error", context.root).textContent = "";
   syncNaiveCreateButton(context);
   context.ui.openModal("#naive-modal", "#new-naive-user");
+  void loadNodeOptions(context, "#naive-modal", query("#naive-node", context.root));
 }
 
 function openNaiveQuotaModal(context, user) {
@@ -160,8 +162,17 @@ export function bindNaive(context) {
     const error = query("#naive-error", root);
     error.textContent = "";
     if (!form.reportValidity()) return;
+    const nodeId = query("#naive-node", root).value || "local";
     try {
       ui.setBusy(button, true, "Применяем…");
+      if (nodeId !== "local") {
+        // A linked panel: the access is a client's grant there, with the same quota option.
+        const quota = naiveQuotaBytes(context, "#new-naive-quota");
+        const result = await issueOnNode(context, { protocol: "naive", username: input.value, nodeId, options: quota === null ? {} : { quota_bytes: quota } });
+        query("#naive-modal", root).close();
+        if (result.status === "succeeded") await context.navigate("clients");
+        return;
+      }
       const data = await api("/api/naive/users", { method: "POST", body: JSON.stringify({ username: input.value, quota_bytes: naiveQuotaBytes(context, "#new-naive-quota") }) });
       const access = await api(`/api/reveal/${encodeURIComponent(data.reveal_token)}`);
       query("#naive-modal", root).close();

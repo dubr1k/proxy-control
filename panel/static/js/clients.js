@@ -165,10 +165,8 @@ export async function openClientModal(context) {
   form.reset();
   query("#client-error", context.root).textContent = "";
   query("#client-username-row", context.root).hidden = true;
-  const select = query("#client-node", context.root);
-  select.innerHTML = '<option value="local">Этот сервер</option>';
   context.ui.openModal("#client-modal", "#client-name");
-  await loadNodeOptions(context, "#client-modal", select);
+  await loadNodeOptions(context, "#client-modal", query("#client-node", context.root));
 }
 
 // A runtime account name proposed from the display name: Latin letters, digits, `.`, `-`,
@@ -258,7 +256,8 @@ function nodeOptions(nodes) {
 
 // The node list is read when the dialog opens, so a panel linked a moment ago is offered;
 // the dialog keeps its «Этот сервер» default while the list loads or when it fails.
-async function loadNodeOptions(context, dialogSelector, select) {
+export async function loadNodeOptions(context, dialogSelector, select) {
+  select.innerHTML = '<option value="local">Этот сервер</option>';
   try {
     const nodes = await context.api("/api/nodes");
     context.state.nodes = nodes.items || [];
@@ -268,15 +267,34 @@ async function loadNodeOptions(context, dialogSelector, select) {
   }
 }
 
+// The protocol screens («MTProxy», «NaiveProxy», «Mieru») manage this server's own
+// services; an account on a linked panel is a client's grant there. When one of those
+// dialogs names another node, the access is issued that way: a client with the account's
+// name, one grant on the node, the bundle revealed as on «Клиенты».
+export async function issueOnNode(context, { protocol, username, nodeId, options = {} }) {
+  const { api, ui } = context;
+  const client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: username }) });
+  const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
+    method: "POST",
+    body: JSON.stringify({ grants: [{ protocol, node_id: nodeId, runtime_username: username, options }] }),
+  });
+  const node = context.state.nodes.find((item) => item.node_id === nodeId);
+  const where = node?.display_name || nodeId;
+  ui.toast(result.status === "succeeded" ? `Доступ выдан на узле ${where}: карточка — в «Клиентах»` : OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
+  if (result.status === "manual_intervention_required") {
+    ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
+  }
+  if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
+  return result;
+}
+
 export async function openGrantModal(context, clientId) {
   const form = query("#grant-form", context.root);
   form.reset();
   query("#grant-client-id", context.root).value = clientId;
   query("#grant-error", context.root).textContent = "";
-  const select = query("#grant-node", context.root);
-  select.innerHTML = '<option value="local">Этот сервер</option>';
   context.ui.openModal("#grant-modal", "#grant-username");
-  await loadNodeOptions(context, "#grant-modal", select);
+  await loadNodeOptions(context, "#grant-modal", query("#grant-node", context.root));
 }
 
 const OPERATION_MESSAGE = {

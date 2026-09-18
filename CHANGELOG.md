@@ -6,6 +6,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Protocol screens on a central** — the «MTProxy», «NaiveProxy» and «Mieru» dialogs offer a
+  «Узел» select: this server (as before) or a linked panel, where the access is issued as a client's
+  grant with the same name and quota, revealed as a bundle and listed under «Клиенты».
 - **Clients** — «Новый клиент» creates the client and, when protocols are ticked, its first
   grants on the chosen node (this server or a linked panel) in one go; the account name is
   proposed from the display name (Cyrillic transliterated) and can be edited. The «Выдать

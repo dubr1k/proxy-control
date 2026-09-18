@@ -459,6 +459,7 @@ class Acceptance:
         name = f"{self.prefix}-tg"
         self.check("users.rendered", self.goto_view("users", "!!document.querySelector('#user-list') && !!document.querySelector('#user-search')"))
         self.check("users.create_dialog_opens", self.open_add("#user-modal"))
+        self.check("users.create_dialog_offers_node", b.wait("!!document.querySelector('#user-node option[value=local]')", 5))
         b.type("#new-user", name)
         self.check("users.create_button_enabled_after_input", b.wait("!document.querySelector('#create-user').disabled"))
         b.click("#create-user")
@@ -509,6 +510,7 @@ class Acceptance:
         name = f"{self.prefix}-nv"
         self.check("naive.rendered", self.goto_view("naive", "!!document.querySelector('#naive-list')"))
         self.check("naive.create_dialog_opens", self.open_add("#naive-modal"))
+        self.check("naive.create_dialog_offers_node", b.wait("!!document.querySelector('#naive-node option[value=local]')", 5))
         b.type("#new-naive-user", name)
         b.type("#new-naive-quota", "100")
         self.check("naive.create_button_enabled", b.wait("!document.querySelector('#create-naive').disabled"))
@@ -562,6 +564,7 @@ class Acceptance:
         name = f"{self.prefix}-mr"
         self.check("mieru.rendered", self.goto_view("mieru", "!!document.querySelector('.naive-overview') && (document.body.innerText || '').includes('revision')"))
         self.check("mieru.create_dialog_opens", self.open_add("#mieru-modal"))
+        self.check("mieru.create_dialog_offers_node", b.wait("!!document.querySelector('#mieru-node option[value=local]')", 5))
         b.type("#new-mieru-user", name)
         b.type("#mieru-days", "30")
         b.type("#mieru-mib", "1024")

@@ -1,5 +1,6 @@
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
+import { issueOnNode, loadNodeOptions } from "./clients.js";
 
 export async function refreshMieru(context, generation = null) {
   const data = await context.api("/api/mieru/users");
@@ -91,6 +92,7 @@ export function openMieruModal(context) {
   query("#mieru-error", context.root).textContent = "";
   syncMieruCreateButton(context);
   context.ui.openModal("#mieru-modal", "#new-mieru-user");
+  void loadNodeOptions(context, "#mieru-modal", query("#mieru-node", context.root));
 }
 
 function openMieruQuotaModal(context, user) {
@@ -154,8 +156,16 @@ export function bindMieru(context) {
     error.textContent = "";
     if (!form.reportValidity()) return;
     const username = query("#new-mieru-user", root).value;
+    const nodeId = query("#mieru-node", root).value || "local";
     try {
       ui.setBusy(button, true);
+      if (nodeId !== "local") {
+        // A linked panel: the access is a client's grant there, with the same rolling quota.
+        const result = await issueOnNode(context, { protocol: "mieru", username, nodeId, options: { quotas: createQuotas(context) } });
+        query("#mieru-modal", root).close();
+        if (result.status === "succeeded") await context.navigate("clients");
+        return;
+      }
       const data = await api("/api/mieru/users", {
         method: "POST",
         body: JSON.stringify({ username, quotas: createQuotas(context), expected_revision: context.state.mieruService.revision }),
