@@ -51,6 +51,17 @@ export function createUi(root) {
     if (focusSelector) window.setTimeout(() => query(focusSelector, root)?.focus(), 50);
   }
 
+  // Every «×» and «Отмена» is a `value="cancel"` submit button of a `method="dialog"` form,
+  // which the browser turns into `dialog.close()`. Where that submission does not happen
+  // (an extension swallowing `submit`, a browser quirk), the dialog would be stuck with no
+  // way out — so the close is also done explicitly, without depending on form semantics.
+  root.addEventListener("click", (event) => {
+    const button = event.target.closest?.('dialog[open] form[method="dialog"] button[value="cancel"]');
+    if (!button) return;
+    event.preventDefault();
+    button.closest("dialog").close("cancel");
+  });
+
   function confirmed(title, text, button = "Продолжить") {
     const dialog = query("#confirm", root);
     query("#confirm-title", root).textContent = title;

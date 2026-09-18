@@ -158,11 +158,31 @@ function safeCard(context, entry) {
   }
 }
 
-export function openClientModal(context) {
+// One dialog creates the client and, when protocols are ticked, its first grants on the
+// chosen node — the two-step «create, then grant» stays available from the card.
+export async function openClientModal(context) {
   const form = query("#client-form", context.root);
   form.reset();
   query("#client-error", context.root).textContent = "";
+  query("#client-username-row", context.root).hidden = true;
+  const select = query("#client-node", context.root);
+  select.innerHTML = '<option value="local">Этот сервер</option>';
   context.ui.openModal("#client-modal", "#client-name");
+  await loadNodeOptions(context, "#client-modal", select);
+}
+
+// A runtime account name proposed from the display name: Latin letters, digits, `.`, `-`,
+// `_` only (the managers' shape), Cyrillic transliterated, anything else a dash.
+const TRANSLIT = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m",
+  н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch",
+  ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+};
+
+export function proposeUsername(displayName) {
+  const latin = String(displayName || "").toLowerCase().split("").map((char) => TRANSLIT[char] ?? char).join("");
+  const slug = latin.replace(/[^a-z0-9_.-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").replace(/-{2,}/g, "-");
+  return slug.slice(0, 64) || "client";
 }
 
 function proposalRow(proposal, clients) {
@@ -236,6 +256,18 @@ function nodeOptions(nodes) {
     .join("");
 }
 
+// The node list is read when the dialog opens, so a panel linked a moment ago is offered;
+// the dialog keeps its «Этот сервер» default while the list loads or when it fails.
+async function loadNodeOptions(context, dialogSelector, select) {
+  try {
+    const nodes = await context.api("/api/nodes");
+    context.state.nodes = nodes.items || [];
+    if (query(dialogSelector, context.root).open) select.innerHTML = nodeOptions(context.state.nodes) || select.innerHTML;
+  } catch (exception) {
+    context.ui.toast(`Список узлов не загружен: ${exception.message}`, "error");
+  }
+}
+
 export async function openGrantModal(context, clientId) {
   const form = query("#grant-form", context.root);
   form.reset();
@@ -244,13 +276,7 @@ export async function openGrantModal(context, clientId) {
   const select = query("#grant-node", context.root);
   select.innerHTML = '<option value="local">Этот сервер</option>';
   context.ui.openModal("#grant-modal", "#grant-username");
-  try {
-    const nodes = await context.api("/api/nodes");
-    context.state.nodes = nodes.items || [];
-    if (query("#grant-modal", context.root).open) select.innerHTML = nodeOptions(context.state.nodes) || select.innerHTML;
-  } catch (exception) {
-    context.ui.toast(`Список узлов не загружен: ${exception.message}`, "error");
-  }
+  await loadNodeOptions(context, "#grant-modal", select);
 }
 
 const OPERATION_MESSAGE = {
@@ -261,22 +287,58 @@ const OPERATION_MESSAGE = {
 
 export function bindClients(context) {
   const { api, root, ui } = context;
+  // Ticking a protocol reveals the account name, proposed from the display name until the
+  // operator types their own; unticking every protocol hides it again.
+  query("#client-form", root)?.addEventListener("change", (event) => {
+    if (!event.target.matches?.(".grant-protocol input")) return;
+    const row = query("#client-username-row", root);
+    const input = query("#client-username", root);
+    const any = queryAll("#client-form .grant-protocol input:checked", root).length > 0;
+    row.hidden = !any;
+    if (any && !input.dataset.typed) input.value = proposeUsername(query("#client-name", root).value);
+  });
+  query("#client-username", root)?.addEventListener("input", ({ currentTarget: input }) => {
+    input.dataset.typed = input.value ? "1" : "";
+  });
   query("#create-client", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#client-form", root);
     const error = query("#client-error", root);
+    const protocols = [...queryAll("#client-form .grant-protocol input:checked", root)].map((box) => box.value);
+    const usernameInput = query("#client-username", root);
+    usernameInput.required = protocols.length > 0;
     if (!form.reportValidity()) return;
     error.textContent = "";
+    const displayName = query("#client-name", root).value.trim();
+    const nodeId = query("#client-node", root).value || "local";
+    let client = null;
     try {
       ui.setBusy(button, true, "Создаём…");
-      await api("/api/clients", {
+      client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: displayName }) });
+      if (!protocols.length) {
+        query("#client-modal", root).close();
+        ui.toast("Клиент создан");
+        await context.navigate("clients");
+        return;
+      }
+      ui.setBusy(button, true, "Выдаём доступы…");
+      const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
         method: "POST",
-        body: JSON.stringify({ display_name: query("#client-name", root).value.trim() }),
+        body: JSON.stringify({
+          grants: protocols.map((protocol) => ({ protocol, node_id: nodeId, runtime_username: usernameInput.value.trim(), options: {} })),
+        }),
       });
       query("#client-modal", root).close();
-      ui.toast("Клиент создан");
+      ui.toast(result.status === "succeeded" ? "Клиент создан, доступы выданы" : OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
+      if (result.status === "manual_intervention_required") {
+        ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
+      }
+      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
       await context.navigate("clients");
     } catch (exception) {
-      error.textContent = exception.message;
+      // The client may already exist when the grants are refused: say so, and let the list
+      // behind the dialog show the card, so nothing is created twice on a retry.
+      error.textContent = client ? `Клиент «${displayName}» создан, но доступы не выданы: ${exception.message}. Выдайте их с карточки клиента.` : exception.message;
+      if (client) await context.navigate("clients");
     } finally {
       ui.setBusy(button, false);
     }

@@ -125,7 +125,7 @@ function bindPanel(context) {
   queryAll("[data-view]", root).forEach((button) => button.addEventListener("click", () => context.navigate(button.dataset.view)));
   query("#add", root).addEventListener("click", () => {
     if (context.state.view === "admins") openAdminModal(context);
-    else if (context.state.view === "clients") openClientModal(context);
+    else if (context.state.view === "clients") void openClientModal(context);
     else if (context.state.view === "fleet") openLinkModal(context);
     else if (context.state.view === "naive") openNaiveModal(context);
     else if (context.state.view === "mieru") openMieruModal(context);

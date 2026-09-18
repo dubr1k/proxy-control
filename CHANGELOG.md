@@ -4,6 +4,25 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Clients** — «Новый клиент» creates the client and, when protocols are ticked, its first
+  grants on the chosen node (this server or a linked panel) in one go; the account name is
+  proposed from the display name (Cyrillic transliterated) and can be edited. The «Выдать
+  доступ» button on the card still adds grants later.
+- **Brand** — the sidebar no longer pastes the raster logo beside vector icons: it draws the
+  logo's motif natively — a terminal window with the «>_ 443 ♥» prompt and a blinking
+  cursor (still, under `prefers-reduced-motion`). The full artwork stays on the login card
+  and as the favicon; `logo-mark.png` is gone.
+
+### Fixed
+
+- **Dialogs** — every «×» and «Отмена» closes its dialog explicitly, not only through the
+  `method="dialog"` form submission, so a swallowed `submit` (an extension, a browser quirk)
+  can no longer leave a dialog stuck.
+- **Notes** — the amber note at the top of «Mieru», «Узлы» and «Маршрутизация» had no bottom
+  margin, so the toolbar and cards sat flush against it.
+
 ## [0.7.0-beta.1] - 2026-09-18
 
 Chains and lanes: a client's own traffic routed by geosite/geoip rules through a chosen node
