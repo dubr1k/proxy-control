@@ -45,7 +45,7 @@ class RoutingStore:
         rows = db.execute("SELECT * FROM routing_rules WHERE policy_id=? ORDER BY position", (policy_id,)).fetchall()
         return [RoutingRule(id=row["id"], position=row["position"], enabled=bool(row["enabled"]),
                             match=RuleMatch.model_validate(json.loads(row["match_json"])), action=row["action"],
-                            egress=row["egress"], note=row["note"]) for row in rows]
+                            egress=row["egress"], note=row["note"], preset=row["preset"]) for row in rows]
 
     @classmethod
     def _policy(cls, db, row) -> RoutingPolicy:
@@ -126,10 +126,10 @@ class RoutingStore:
             rule_id = rule.id if rule.id in known and rule.id not in used else str(uuid.uuid4())
             used.add(rule_id)
             db.execute(
-                "INSERT INTO routing_rules(id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at)"
-                " VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO routing_rules(id,policy_id,position,enabled,match_json,action,egress,note,preset,created_at,updated_at)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (rule_id, policy_id, position, int(rule.enabled), json.dumps(rule.match.model_dump(), sort_keys=True),
-                 rule.action, rule.egress, rule.note, now, now))
+                 rule.action, rule.egress, rule.note, rule.preset, now, now))
         return cls.get_by_id(db, policy_id)
 
     @classmethod

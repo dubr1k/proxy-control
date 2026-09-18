@@ -175,9 +175,9 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
             reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
                                   message="an exit through another node is enforced only by xray_router"))
             continue
-        if rule.match.ports or rule.match.geosites or rule.match.geoips:
+        if rule.match.ports or rule.match.geosites or rule.match.geoips or rule.match.protocols:
             reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
-                                  message="matching by port, geosite or geoip is enforced only by xray_router"))
+                                  message="matching by port, geosite, geoip or protocol is enforced only by xray_router"))
             continue
         missing = sorted(_needed(rule) - target.capabilities)
         if missing:
@@ -271,8 +271,8 @@ def _destination_matches(rule: RoutingRule, host: str, port: int) -> bool | None
                 named = True
     if named:
         return True
-    if match.geosites or match.geoips:
-        return None
+    if match.geosites or match.geoips or match.protocols:
+        return None  # only the router sees the geodata and the sniffed protocol
     if not match.domains and not match.cidrs:
         return True  # a rule on ports alone, and the port matched
     return False

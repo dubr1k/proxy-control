@@ -45,9 +45,24 @@ CAPABILITIES = (
     "whole_direct", "whole_warp",
     "block_domain", "block_cidr", "block_port", "block_geosite", "block_geoip",
     "selective_domain", "selective_cidr", "selective_port", "selective_geosite", "selective_geoip",
-    # v0.8: the geodata files are the operator's to choose and refresh (`/v1/geodata`).
-    "geodata",
+    # v0.8: the geodata files are the operator's to choose and refresh (`/v1/geodata`); a rule
+    # may stand on what the sniffer saw (`bittorrent`, `tls`, `http`, `quic`).
+    "geodata", "block_protocol", "selective_protocol",
+    # v0.8: outbounds of the operator's own (`exits` of a schema-2 intent, `/v1/exits/test`).
+    "custom_exits",
 )
+# An operator's own outbound (v0.8): what Xray dials on the operator's behalf.
+EXIT_PROTOCOLS = ("socks", "http", "vless", "trojan", "shadowsocks")
+EXIT_NETWORKS = ("tcp", "ws", "grpc", "xhttp")
+EXIT_SECURITY = ("none", "tls", "reality")
+EXIT_FLOWS = ("", "xtls-rprx-vision")
+SS_METHODS = ("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "2022-blake3-aes-128-gcm",
+              "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305", "none")
+MAX_EXITS = 16
+_EXIT_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
+_FINGERPRINTS = ("chrome", "firefox", "safari", "ios", "android", "edge", "360", "qq", "random", "randomized")
+SNIFFED_PROTOCOLS = ("http", "tls", "quic", "bittorrent")
+MAX_PROTOCOLS = 4
 MAX_RULES = 128
 MAX_SELECTORS = 64
 MAX_PORTS = 32
@@ -123,6 +138,12 @@ def _geo_code(value: object, kind: str) -> str:
     return value
 
 
+def _protocol_name(value: object) -> str:
+    if not isinstance(value, str) or value not in SNIFFED_PROTOCOLS:
+        raise EgressInvalid("invalid protocol selector")
+    return value
+
+
 def _port(value: object) -> int | str:
     if isinstance(value, bool):
         raise EgressInvalid("invalid port")
@@ -155,11 +176,13 @@ def _selectors(rule: dict, key: str, convert, limit: int) -> list:
     return _unique([convert(item) for item in values])
 
 
-def _egress(action: str, egress: object, *, label: str, chains: tuple[str, ...] = ()) -> str | None:
+def _egress(action: str, egress: object, *, label: str, chains: tuple[str, ...] = (), exits: tuple[str, ...] = ()) -> str | None:
     if action == "egress":
         if egress in PROVIDERS:
             return egress
         if isinstance(egress, str) and egress.startswith("chain:") and egress[6:] in chains:
+            return egress
+        if isinstance(egress, str) and egress.startswith("exit:") and egress[5:] in exits:
             return egress
         raise EgressInvalid(f"{label} must name its egress provider")
     if egress is not None:
@@ -175,13 +198,13 @@ def validate_document(document: object) -> dict:
         raise EgressInvalid("unknown field in routing intent")
     if document.get("schema") != SCHEMA:
         raise EgressInvalid("unsupported routing intent schema")
-    lane = _validate_lane(document, chains=())
+    lane = _validate_lane(document, chains=(), exits=())
     if len(canonical(lane)) > MAX_DOCUMENT_BYTES:
         raise EgressInvalid("routing intent too large")
     return {"schema": SCHEMA, **lane}
 
 
-def _validate_lane(document: dict, *, chains: tuple[str, ...]) -> dict:
+def _validate_lane(document: dict, *, chains: tuple[str, ...], exits: tuple[str, ...] = ()) -> dict:
     """One lane's body — a default and its first-match rules — normalised."""
     if not isinstance(document, dict) or set(document) - {"schema", "default", "rules"}:
         raise EgressInvalid("unknown field in routing intent")
@@ -189,13 +212,13 @@ def _validate_lane(document: dict, *, chains: tuple[str, ...]) -> dict:
     if not isinstance(default, dict) or set(default) - {"action", "egress"} or default.get("action") not in DEFAULT_ACTIONS:
         raise EgressInvalid("invalid default")
     default_action = default["action"]
-    default_egress = _egress(default_action, default.get("egress"), label="default", chains=chains)
+    default_egress = _egress(default_action, default.get("egress"), label="default", chains=chains, exits=exits)
     rules = document.get("rules", [])
     if not isinstance(rules, list) or len(rules) > MAX_RULES:
         raise EgressInvalid("invalid rules list")
     normalised_rules = []
     for rule in rules:
-        if not isinstance(rule, dict) or set(rule) - {"domains", "geosites", "cidrs", "geoips", "ports", "action", "egress"}:
+        if not isinstance(rule, dict) or set(rule) - {"domains", "geosites", "cidrs", "geoips", "ports", "protocols", "action", "egress"}:
             raise EgressInvalid("invalid rule")
         if rule.get("action") not in ACTIONS:
             raise EgressInvalid("invalid rule action")
@@ -206,9 +229,12 @@ def _validate_lane(document: dict, *, chains: tuple[str, ...]) -> dict:
             "geoips": _selectors(rule, "geoips", lambda v: _geo_code(v, "geoip"), MAX_SELECTORS),
             "ports": _selectors(rule, "ports", _port, MAX_PORTS),
             "action": rule["action"],
-            "egress": _egress(rule["action"], rule.get("egress"), label="rule", chains=chains),
+            "egress": _egress(rule["action"], rule.get("egress"), label="rule", chains=chains, exits=exits),
         }
-        if not any(entry[key] for key in ("domains", "geosites", "cidrs", "geoips", "ports")):
+        protocols = _selectors(rule, "protocols", _protocol_name, MAX_PROTOCOLS)
+        if protocols:
+            entry["protocols"] = protocols
+        if not any(entry.get(key) for key in ("domains", "geosites", "cidrs", "geoips", "ports", "protocols")):
             raise EgressInvalid("a rule must name at least one selector")
         normalised_rules.append(entry)
     return {"default": {"action": default_action, "egress": default_egress}, "rules": normalised_rules}
@@ -245,9 +271,128 @@ def _hop(value: object) -> dict:
             "public_key": value["public_key"], "short_id": value["short_id"], "uuid": value["uuid"]}
 
 
+def _host(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise EgressInvalid(f"invalid {label}")
+    try:
+        ipaddress.ip_address(value)
+        return value
+    except ValueError:
+        host = _domain(value)
+        if host.startswith("*."):
+            raise EgressInvalid(f"invalid {label}")
+        return host
+
+
+def _text(value: object, label: str, *, limit: int = 256, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or len(value) > limit or (not value and not allow_empty) or any(c in value for c in "\r\n\x00"):
+        raise EgressInvalid(f"invalid {label}")
+    return value
+
+
+def validate_exit(value: object) -> dict:
+    """One custom outbound of the intent: protocol, where to dial, the credential, the
+    transport and the security layer — bounded, and nothing Xray would not understand."""
+    if not isinstance(value, dict) or set(value) - {"protocol", "address", "port", "credential", "transport", "security", "method", "flow"}:
+        raise EgressInvalid("invalid exit")
+    protocol = value.get("protocol")
+    if protocol not in EXIT_PROTOCOLS:
+        raise EgressInvalid("invalid exit protocol")
+    address = _host(value.get("address"), "exit address")
+    port = value.get("port")
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise EgressInvalid("invalid exit port")
+    credential = value.get("credential") or {}
+    if not isinstance(credential, dict) or set(credential) - {"username", "password", "uuid"}:
+        raise EgressInvalid("invalid exit credential")
+    out_credential: dict = {}
+    if protocol in ("socks", "http"):
+        username = credential.get("username")
+        password = credential.get("password")
+        if (username is None) != (password is None):
+            raise EgressInvalid("exit credential needs both username and password")
+        if username is not None:
+            out_credential = {"username": _text(username, "exit username", limit=128), "password": _text(password, "exit password", limit=256)}
+    elif protocol == "vless":
+        uuid = credential.get("uuid")
+        if not isinstance(uuid, str) or _UUID.fullmatch(uuid) is None:
+            raise EgressInvalid("invalid exit uuid")
+        out_credential = {"uuid": uuid}
+    else:  # trojan, shadowsocks
+        out_credential = {"password": _text(credential.get("password"), "exit password", limit=256)}
+    entry: dict = {"protocol": protocol, "address": address, "port": port, "credential": out_credential}
+    if protocol == "shadowsocks":
+        method = value.get("method")
+        if method not in SS_METHODS:
+            raise EgressInvalid("invalid shadowsocks method")
+        entry["method"] = method
+    if protocol == "vless":
+        flow = value.get("flow") or ""
+        if flow not in EXIT_FLOWS:
+            raise EgressInvalid("invalid exit flow")
+        entry["flow"] = flow
+    transport = value.get("transport") or {"network": "tcp"}
+    if not isinstance(transport, dict) or set(transport) - {"network", "path", "host", "service_name"}:
+        raise EgressInvalid("invalid exit transport")
+    network = transport.get("network", "tcp")
+    if network not in EXIT_NETWORKS:
+        raise EgressInvalid("invalid exit transport network")
+    if protocol in ("socks", "http", "shadowsocks") and network != "tcp":
+        raise EgressInvalid("this exit protocol runs over tcp only")
+    out_transport = {"network": network}
+    for key in ("path", "host", "service_name"):
+        if transport.get(key) not in (None, ""):
+            out_transport[key] = _text(transport[key], f"exit transport {key}", limit=512)
+    entry["transport"] = out_transport
+    security = value.get("security") or {"kind": "none"}
+    if not isinstance(security, dict) or set(security) - {"kind", "server_name", "fingerprint", "alpn", "public_key", "short_id", "insecure"}:
+        raise EgressInvalid("invalid exit security")
+    kind = security.get("kind", "none")
+    if kind not in EXIT_SECURITY:
+        raise EgressInvalid("invalid exit security kind")
+    if protocol in ("socks", "http", "shadowsocks") and kind == "reality":
+        raise EgressInvalid("reality needs vless or trojan")
+    out_security: dict = {"kind": kind}
+    if kind != "none":
+        if security.get("server_name") not in (None, ""):
+            out_security["server_name"] = _host(security["server_name"], "exit server name")
+        fingerprint = security.get("fingerprint") or "chrome"
+        if fingerprint not in _FINGERPRINTS:
+            raise EgressInvalid("invalid exit fingerprint")
+        out_security["fingerprint"] = fingerprint
+        alpn = security.get("alpn")
+        if alpn not in (None, ""):
+            if not isinstance(alpn, list) or len(alpn) > 4 or not all(isinstance(item, str) and 0 < len(item) <= 16 for item in alpn):
+                raise EgressInvalid("invalid exit alpn")
+            out_security["alpn"] = list(alpn)
+        if kind == "tls" and security.get("insecure") is True:
+            out_security["insecure"] = True
+    if kind == "reality":
+        public_key, short_id = security.get("public_key"), security.get("short_id") or ""
+        if not isinstance(public_key, str) or _PUBLIC_KEY.fullmatch(public_key) is None:
+            raise EgressInvalid("invalid exit public key")
+        if not isinstance(short_id, str) or (short_id and _SHORT_ID.fullmatch(short_id) is None):
+            raise EgressInvalid("invalid exit short id")
+        if "server_name" not in out_security:
+            raise EgressInvalid("reality needs a server name")
+        out_security.update({"public_key": public_key, "short_id": short_id})
+    if protocol == "vless" and entry["flow"] and (network != "tcp" or kind == "none"):
+        raise EgressInvalid("xtls-rprx-vision needs tcp with tls or reality")
+    entry["security"] = out_security
+    return entry
+
+
 def _validate_v2(document: dict) -> dict:
-    if set(document) - {"schema", "lanes", "chains"}:
+    if set(document) - {"schema", "lanes", "chains", "exits"}:
         raise EgressInvalid("unknown field in routing intent")
+    exits = document.get("exits", {})
+    if not isinstance(exits, dict) or len(exits) > MAX_EXITS:
+        raise EgressInvalid("invalid exits list")
+    normalised_exits: dict[str, dict] = {}
+    for exit_id, exit_ in exits.items():
+        if not isinstance(exit_id, str) or _EXIT_ID.fullmatch(exit_id) is None:
+            raise EgressInvalid("invalid exit id")
+        normalised_exits[exit_id] = validate_exit(exit_)
     chains = document.get("chains", {})
     if not isinstance(chains, dict) or len(chains) > MAX_CHAINS:
         raise EgressInvalid("invalid chains list")
@@ -270,10 +415,14 @@ def _validate_v2(document: dict) -> dict:
     for lane_id, lane in lanes.items():
         if not isinstance(lane_id, str) or _LANE.fullmatch(lane_id) is None:
             raise EgressInvalid("invalid lane id")
-        normalised_lanes[lane_id] = _validate_lane(lane, chains=tuple(normalised_chains))
+        normalised_lanes[lane_id] = _validate_lane(lane, chains=tuple(normalised_chains), exits=tuple(normalised_exits))
     if sum(1 for lane_id in normalised_lanes if lane_id.startswith("svc:")) != 1:
         raise EgressInvalid("exactly one service lane is required")
     normalised = {"schema": SCHEMA_V2, "lanes": normalised_lanes, "chains": normalised_chains}
+    if normalised_exits:
+        # Only when named: a v0.7 router refuses an unknown key, and a document without exits
+        # hashes as it always did.
+        normalised["exits"] = normalised_exits
     if len(canonical(normalised)) > MAX_DOCUMENT_BYTES_V2:
         raise EgressInvalid("routing intent too large")
     return normalised
@@ -297,13 +446,16 @@ def uses_chain(document: dict, chain_id: str) -> bool:
 
 
 def redact_intent(document: dict) -> dict:
-    """The intent with every hop credential masked — what may reach a log, a diff or an API answer."""
+    """The intent with every hop credential and exit credential masked — what may reach a
+    log, a diff or an API answer."""
     if document.get("schema") != SCHEMA_V2:
         return document
     masked = json.loads(json.dumps(document))
     for chain in masked["chains"].values():
         for hop in chain["hops"]:
             hop["uuid"] = "***"
+    for exit_ in masked.get("exits", {}).values():
+        exit_["credential"] = {key: "***" for key in exit_.get("credential", {})}
     return masked
 
 

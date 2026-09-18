@@ -436,10 +436,16 @@ LINKS_V17 = Migration(17, "links-auto-import", (
     "ALTER TABLE node_links ADD COLUMN auto_import INTEGER NOT NULL DEFAULT 1",
 ))
 
+# A rule remembers the quick setting that created it (v0.8 presets); the selector on the
+# sniffed protocol lives in `match_json` like the others.
+ROUTING_V18 = Migration(18, "routing-presets", (
+    "ALTER TABLE routing_rules ADD COLUMN preset TEXT",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
-    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17,
+    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

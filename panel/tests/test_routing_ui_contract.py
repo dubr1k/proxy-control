@@ -122,7 +122,7 @@ def _interpolations(source: str) -> list[str]:
 # helpers, URL-encoded path parts, counters and flags — never a bare API string.
 _ALLOWED = (
     re.compile(r"^(esc|number|encodeURIComponent)\("),
-    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect)\("),
+    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect|geodataLine|codeOptions)\("),
     re.compile(r"^(policyPath|laneQuery)\("),  # URL builders: encoded path parts and a `?lane=` query
     re.compile(r"^(chips|tabs)\.join\(\"\"\)$"),  # our own escaped pieces
     re.compile(r"^[\w+\- ]+$"),  # a local composed of escaped pieces, or index arithmetic

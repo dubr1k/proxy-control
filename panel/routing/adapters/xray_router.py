@@ -59,6 +59,8 @@ def _needed(rule: RoutingRule) -> set[str]:
         needed.add(f"{kind}_geoip")
     if rule.match.ports:
         needed.add(f"{kind}_port")
+    if rule.match.protocols:
+        needed.add(f"{kind}_protocol")
     return needed
 
 
@@ -73,9 +75,14 @@ def _lane_body(default_action: str, default_egress: str | None, rules: list[Rout
             suffix = domain[2:] if domain.startswith("*.") else domain
             if suffix not in domains:
                 domains.append(suffix)
-        compiled.append({"domains": domains, "geosites": list(rule.match.geosites), "cidrs": list(rule.match.cidrs),
-                         "geoips": list(rule.match.geoips), "ports": list(rule.match.ports),
-                         "action": rule.action, "egress": None if rule.egress is None else egress_map(rule.egress)})
+        entry = {"domains": domains, "geosites": list(rule.match.geosites), "cidrs": list(rule.match.cidrs),
+                 "geoips": list(rule.match.geoips), "ports": list(rule.match.ports),
+                 "action": rule.action, "egress": None if rule.egress is None else egress_map(rule.egress)}
+        if rule.match.protocols:
+            # Only when named: a v0.7 router refuses an unknown rule field, and a rule without
+            # the selector compiles to the same intent it always did.
+            entry["protocols"] = list(rule.match.protocols)
+        compiled.append(entry)
     return {"default": {"action": default_action, "egress": None if default_egress is None else egress_map(default_egress)},
             "rules": compiled}
 
