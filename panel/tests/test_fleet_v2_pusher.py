@@ -841,3 +841,20 @@ async def test_auto_import_joins_one_name_into_one_client_across_nodes(pair):
     assert [c.display_name for c in central.state.clients.list_clients()] == ["legacy"]
     grants = central.state.clients.client_with_grants(existing.id)[1]
     assert [(g.protocol, g.runtime_username) for g in grants] == [("naive", "legacy")]
+
+
+async def test_a_manual_import_after_auto_import_is_idempotent_even_once_the_node_calls_the_account_central(pair):
+    """Auto-import got there first and the generation made the node report the account as
+    central-owned; the operator's (or the lab's) import of the same account is then
+    `already_linked`, not a refusal — the refusal is for *another* central's accounts."""
+    from panel.fleet_v2.importing import NEW_CLIENT, ImportItem, import_resources
+    node, central, plaintext = pair
+    node.state.naive.seed("legacy", "pw-legacy")
+    node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
+    for _ in range(3):
+        await central.state.pusher.tick()
+    inventory = (await central.state.links.client_for(node_id).inventory())["protocols"]
+    assert [row["ownership"] for row in inventory["naive"] if row["runtime_username"] == "legacy"] == ["central"]
+    result = await import_resources(central.state, node_id, [ImportItem("naive", "legacy", NEW_CLIENT)], actor=ACTOR, ip="x")
+    assert result == {"imported": [], "without_credential": [], "already_linked": ["naive:legacy"]}
+    assert [c.display_name for c in central.state.clients.list_clients()] == ["legacy"]
