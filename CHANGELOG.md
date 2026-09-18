@@ -96,6 +96,11 @@ with the relay between nodes issued and rotated by the panel. Release note:
   whole install on `orderNotReady` — Boulder still calling the order `pending` when certbot 2.9,
   which polls the authorization rather than the order, comes to finalize it (the real install of
   ams-test); that race is retried once, like the «authorization must be pending» one.
+- Lab: a probe through Caddy in `fleet-acceptance.py` was a single shot, and one that landed on
+  the router's generation swap (a lane withdrawal restarts Xray) or on Caddy's reload died with
+  curl 55/35 and failed the tier (`chains` on the final tree: c10 and x06, both green on the rerun
+  and in the `router` tier of the same run). The probe now retries a cut connection the way the
+  ingress probe already did (`_TRANSIENT_CURL` + 55); a refusal is never retried.
 
 ### Fixed (post-v0.6, on the branch before this tag)
 

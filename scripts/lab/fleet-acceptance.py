@@ -72,9 +72,12 @@ RUN_USERNAME = re.compile(r"^fleet-(probe|offline|bulk)(-[0-9a-f]{6})?(-[0-9]{2}
 ONLINE_SECONDS = 10
 ENABLED_SECONDS = 30
 RESTART_SECONDS = 240
-# curl exit codes that mean the Internet blinked (timeout, TLS handshake cut, recv reset), not
-# that the thing under test refused: a probe expecting success gets one more try on these.
-_TRANSIENT_CURL = frozenset({28, 35, 52, 56})
+# curl exit codes that mean the Internet blinked (timeout, TLS handshake cut, recv reset, send
+# on a closed socket), not that the thing under test refused: a probe expecting success gets
+# one more try on these. Through Caddy the cut also comes from the node itself: a lane
+# withdrawal or a policy apply swaps the router's Xray process and reloads Caddy, and a probe
+# that lands on the swap dies with 55/35 — the next one goes through (tier `chains`, c10/x06).
+_TRANSIENT_CURL = frozenset({28, 35, 52, 55, 56})
 POLL = 1.0
 _SECRET_SHAPES = (
     re.compile(r"tg://proxy\?"), re.compile(r"secret=[0-9a-fA-F]"), re.compile(r"pc_[0-9a-f]{8}_[A-Za-z0-9_-]{20,}"),
@@ -746,7 +749,13 @@ class RoutingProbes:
                 "--proxy", f"https://{parts.hostname}:{parts.port or 443}", "--proxy-header", f"Proxy-Authorization: Basic {token}"]
         if self.args.client_ca_file:
             argv += ["--proxy-cacert", str(self.args.client_ca_file)]
-        code, out = self._run(*argv, target)
+        for attempt in range(3):
+            code, out = self._run(*argv, target)
+            # A cut connection (the swap, the reload, the Internet) gets another try; a refusal
+            # — the proxy answered, or nothing listens — is the answer and never does.
+            if code not in _TRANSIENT_CURL or attempt == 2:
+                break
+            time.sleep(2)
         return code == 0 and out.endswith("200"), redact(f"curl {code} {out}")
 
     def mieru_start(self, share_url: str) -> None:
