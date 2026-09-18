@@ -52,16 +52,21 @@ _GEO_CODE = re.compile(r"[a-z0-9][a-z0-9@!_-]{0,63}\Z")
 
 
 def normalise_exit(value: object) -> str:
-    """`warp`, or `node:<guid>[,<guid>…][:warp]` — lower-cased keyword and exit, guids as
-    given; a chain names each node once and at most three."""
+    """`warp`, `exit:<id>` (v0.8: the operator's own outbound on the node), or
+    `node:<guid>[,<guid>…][:warp]` — lower-cased keyword and exit, ids as given; a chain
+    names each node once and at most three."""
     if not isinstance(value, str) or not value:
-        raise ValueError("an egress must be warp or node:<guid>")
+        raise ValueError("an egress must be warp, exit:<id> or node:<guid>")
     text = value.strip()
     if text.lower() == "warp":
         return "warp"
     kind, _sep, rest = text.partition(":")
+    if kind.lower() == "exit":
+        if not rest or _GUID.fullmatch(rest) is None:
+            raise ValueError("an exit egress is exit:<id>")
+        return "exit:" + rest
     if kind.lower() != "node" or not rest:
-        raise ValueError("an egress must be warp or node:<guid>")
+        raise ValueError("an egress must be warp, exit:<id> or node:<guid>")
     via = "direct"
     if ":" in rest:
         rest, _sep, tail = rest.partition(":")
@@ -88,6 +93,10 @@ def exit_hops(value: str | None) -> tuple[list[str], str | None]:
 
 def is_node_exit(value: object) -> bool:
     return isinstance(value, str) and value.startswith("node:")
+
+
+def is_custom_exit(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("exit:")
 
 
 def normalise_lane(value: object) -> str:
@@ -305,6 +314,9 @@ class _Intent(BaseModel):
 
     def node_exits(self) -> list[str]:
         return [value for value in self.exits() if is_node_exit(value)]
+
+    def custom_exits(self) -> list[str]:
+        return [value[5:] for value in self.exits() if is_custom_exit(value)]
 
 
 class PolicyInput(_Intent):

@@ -1,6 +1,8 @@
 """The routing API (spec §8.1): owner for mutations, any role for reading and previewing."""
 from __future__ import annotations
 
+import asyncio
+
 from typing import Literal
 
 from fastapi import Depends, Query, Request
@@ -10,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..web_context import RequestContext
 from .document import redact_document
 from .lanes import DEFAULT_RELAY_PORT, LaneError
+from .exits import ExitInput
 from .models import LANE_SERVICE, PolicyInput, RoutingPolicy
 from .presets import PRESETS
 from .service import RoutingError
@@ -49,6 +52,16 @@ class GeodataSettingsBody(BaseModel):
     source: GeodataSourceBody | None = None
     auto_update: bool | None = None
     interval_hours: int | None = Field(default=None, ge=1, le=336)
+
+
+class ExitImportBody(BaseModel):
+    node_id: str = Field(min_length=1, max_length=64)
+    link: str = Field(min_length=1, max_length=4096)
+    name: str | None = Field(default=None, max_length=48)
+
+
+class ExitCreateBody(ExitInput):
+    node_id: str = Field(min_length=1, max_length=64)
 
 
 class LaneModeBody(BaseModel):
@@ -156,6 +169,37 @@ def register_routing_routes(app, context: RequestContext) -> None:
         return await lanes.disable(grant_id, **_ctx(request, user))
 
     # The node's Xray-router (v0.5): hand a service's whole traffic to it, or take it back.
+    # v0.8: custom exits — the operator's own outbounds on a node's router
+    @app.get("/api/routing/exits")
+    async def exits_list(node: str = "local", _user=Depends(context.current)):
+        return {"items": await asyncio.to_thread(app.state.routing.list_exits, node)}
+
+    @app.post("/api/routing/exits", status_code=201)
+    async def exits_create(body: ExitCreateBody, request: Request, user=Depends(owner)):
+        data = ExitInput.model_validate(body.model_dump(exclude={"node_id"}))
+        return await asyncio.to_thread(app.state.routing.create_exit, body.node_id, data, **_ctx(request, user))
+
+    @app.post("/api/routing/exits/import", status_code=201)
+    async def exits_import(body: ExitImportBody, request: Request, user=Depends(owner)):
+        return await asyncio.to_thread(app.state.routing.import_exit, body.node_id, body.link, name=body.name, **_ctx(request, user))
+
+    @app.put("/api/routing/exits/{exit_id}")
+    async def exits_update(exit_id: str, body: ExitInput, request: Request, user=Depends(owner)):
+        return await asyncio.to_thread(app.state.routing.update_exit, exit_id, body, **_ctx(request, user))
+
+    @app.post("/api/routing/exits/{exit_id}/test")
+    async def exits_test(exit_id: str, request: Request, user=Depends(owner)):
+        return await app.state.routing.test_exit(exit_id, **_ctx(request, user))
+
+    @app.post("/api/routing/exits/{exit_id}/{action}")
+    async def exits_action(exit_id: str, action: Literal["enable", "disable", "delete"], request: Request, user=Depends(owner)):
+        try:
+            return await asyncio.to_thread(app.state.routing.exit_action, exit_id, action, **_ctx(request, user))
+        except RoutingError as exc:
+            if exc.code == "exit_in_use":
+                return JSONResponse({"detail": str(exc), "code": exc.code, "used_by": app.state.routing.exit_usage(exit_id)}, status_code=409)
+            raise
+
     # v0.8: the quick settings — presets are rules with a mark; the definitions are the server's
     @app.get("/api/routing/presets")
     async def presets(_user=Depends(context.current)):

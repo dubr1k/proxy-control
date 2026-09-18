@@ -68,7 +68,7 @@ def document_digest(document: dict) -> str:
     return hashlib.sha256(canonical(document)).hexdigest()
 
 
-_UUID_LINE = re.compile(r'("uuid":\s*")[^"]*(")')
+_UUID_LINE = re.compile(r'("(?:uuid|password)":\s*")[^"]*(")')
 
 
 def redact_document(document):
@@ -84,6 +84,9 @@ def redact_document(document):
         for hop in chain.get("hops", []) if isinstance(chain, dict) else []:
             if isinstance(hop, dict) and "uuid" in hop:
                 hop["uuid"] = "***"
+    for exit_ in (copy.get("exits") or {}).values():
+        if isinstance(exit_, dict) and isinstance(exit_.get("credential"), dict):
+            exit_["credential"] = {key: "***" for key in exit_["credential"]}
     return copy
 
 
@@ -100,4 +103,11 @@ def without_lane(document: dict, lane: str) -> dict:
     used = {rule.get("egress") for body in lanes.values() for rule in body.get("rules", [])}
     used |= {body.get("default", {}).get("egress") for body in lanes.values()}
     chains = {chain_id: chain for chain_id, chain in document.get("chains", {}).items() if f"chain:{chain_id}" in used}
-    return {**document, "lanes": lanes, "chains": chains}
+    result = {**document, "lanes": lanes, "chains": chains}
+    if "exits" in document:
+        exits = {exit_id: spec for exit_id, spec in document["exits"].items() if f"exit:{exit_id}" in used}
+        if exits:
+            result["exits"] = exits
+        else:
+            result.pop("exits", None)
+    return result

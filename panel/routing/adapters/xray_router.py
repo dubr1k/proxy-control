@@ -23,6 +23,7 @@ from ..models import (
     RoutingPolicy,
     RoutingRule,
     exit_hops,
+    is_custom_exit,
     is_node_exit,
 )
 
@@ -93,12 +94,19 @@ def intent_of(default_action: str, rules: list[RoutingRule]) -> dict:
     return {"schema": 1, **body}
 
 
-def intent_v2(protocol: str, lanes: list[tuple[str, str, str | None, list[RoutingRule]]], chains: dict[str, dict]) -> dict:
+def intent_v2(protocol: str, lanes: list[tuple[str, str, str | None, list[RoutingRule]]], chains: dict[str, dict],
+              exits: dict[str, dict] | None = None) -> dict:
     """The schema-2 intent (v0.7): every lane of the service — `(lane id, default action,
-    default egress, rules)`, the service's own first — and the chains they name."""
+    default egress, rules)`, the service's own first — the chains they name and, v0.8, the
+    custom exits (`exit:<id>` → `exit:eN` with the outbound's spec)."""
     ids: dict[str, str] = {}
+    exit_ids: dict[str, str] = {}
 
     def egress_map(value: str) -> str:
+        if is_custom_exit(value):
+            if value not in exit_ids:
+                exit_ids[value] = f"e{len(exit_ids) + 1}"
+            return f"exit:{exit_ids[value]}"
         if not is_node_exit(value):
             return value
         if value not in ids:
@@ -109,7 +117,10 @@ def intent_v2(protocol: str, lanes: list[tuple[str, str, str | None, list[Routin
     for lane, default_action, default_egress, rules in lanes:
         key = f"svc:{protocol}" if lane == LANE_SERVICE else lane
         rendered[key] = _lane_body(default_action, default_egress, rules, egress_map)
-    return {"schema": 2, "lanes": rendered, "chains": {ids[value]: chains[value] for value in ids}}
+    document = {"schema": 2, "lanes": rendered, "chains": {ids[value]: chains[value] for value in ids}}
+    if exit_ids:
+        document["exits"] = {exit_ids[value]: (exits or {})[value] for value in exit_ids}
+    return document
 
 
 def resolve_chain(value: str, resolver, *, own_guids: set[str]) -> tuple[dict | None, Reason | None]:
@@ -141,7 +152,8 @@ def _diff(before: dict | None, after: dict) -> list[str]:
 
 
 def _check_lane(policy: RoutingPolicy, router: RouterTarget, *, private, reasons: list[Reason], warnings: list[str],
-                chains: dict[str, dict], resolver, own_guids: set[str]) -> tuple[str, str | None, list[RoutingRule]]:
+                chains: dict[str, dict], resolver, own_guids: set[str], exits: dict[str, dict] | None = None,
+                exits_resolver=None) -> tuple[str, str | None, list[RoutingRule]]:
     """One lane against the router: capabilities, private destinations, this node's warp
     (with the lane's own fallback), and every node exit resolved into `chains`. Returns
     the lane's effective default and rules."""
@@ -160,7 +172,22 @@ def _check_lane(policy: RoutingPolicy, router: RouterTarget, *, private, reasons
             reasons.append(Reason(code="private_destination", rule_id=rule.id,
                                   message="loopback, link-local and private networks may only be blocked"))
     for rule_id, value in [(None, default_egress), *((rule.id, rule.egress) for rule in rules)]:
-        if value is None or not is_node_exit(value) or value in chains:
+        if value is None:
+            continue
+        if is_custom_exit(value):
+            if exits is None or value in exits:
+                continue
+            if exits_resolver is None or "custom_exits" not in router.capabilities:
+                reasons.append(Reason(code="backend_capability_missing", rule_id=rule_id,
+                                      message="the node's router does not run custom exits (update it to v0.8)"))
+                continue
+            spec, reason = exits_resolver(value[5:])
+            if reason is not None:
+                reasons.append(reason.model_copy(update={"rule_id": rule_id}))
+            else:
+                exits[value] = spec
+            continue
+        if not is_node_exit(value) or value in chains:
             continue
         chain, reason = resolve_chain(value, resolver, own_guids=own_guids)
         if reason is not None:
@@ -186,7 +213,8 @@ def _check_lane(policy: RoutingPolicy, router: RouterTarget, *, private, reasons
 
 
 def compile_intent(policy: RoutingPolicy, router: RouterTarget, *, private, warnings: list[str],
-                   lanes: list[RoutingPolicy] | None = None, resolver=None, own_guids: set[str] | None = None) -> Compiled:
+                   lanes: list[RoutingPolicy] | None = None, resolver=None, own_guids: set[str] | None = None,
+                   exits_resolver=None) -> Compiled:
     """`private(rule)` is the compiler's own private-destination test, shared with the native
     backends; `warnings` are the target's, carried through. `lanes` (v0.7) are the other
     policies of the same service — the service's own and the grant lanes — folded into the
@@ -199,18 +227,19 @@ def compile_intent(policy: RoutingPolicy, router: RouterTarget, *, private, warn
     grants = [item for item in every if item.lane != LANE_SERVICE]
     ordered = [*service, *grants]
     chains: dict[str, dict] = {}
+    exits: dict[str, dict] = {}
     checked = []
     for item in ordered:
         default_action, default_egress, rules = _check_lane(
             item, router, private=private, reasons=reasons, warnings=warnings, chains=chains,
-            resolver=resolver, own_guids=own_guids or {"local"})
+            resolver=resolver, own_guids=own_guids or {"local"}, exits=exits, exits_resolver=exits_resolver)
         checked.append((item.lane, default_action, default_egress, rules))
     if reasons:
         unsupported.reasons, unsupported.warnings = reasons, warnings
         return unsupported
-    schema_2 = bool(grants) or bool(chains)
+    schema_2 = bool(grants) or bool(chains) or bool(exits)
     if schema_2:
-        document = intent_v2(policy.protocol, checked, chains)
+        document = intent_v2(policy.protocol, checked, chains, exits)
         limit = MAX_DOCUMENT_BYTES_V2
     else:
         _lane, default_action, _egress, rules = checked[0]
