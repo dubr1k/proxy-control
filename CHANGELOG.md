@@ -101,6 +101,14 @@ with the relay between nodes issued and rotated by the panel. Release note:
   curl 55/35 and failed the tier (`chains` on the final tree: c10 and x06, both green on the rerun
   and in the `router` tier of the same run). The probe now retries a cut connection the way the
   ingress probe already did (`_TRANSIENT_CURL` + 55); a refusal is never retried.
+- A node without WARP (`[egress] warp = false`) never confirmed a relay account, so no chain
+  through it ever converged (`relay_credential_pending` forever — the live check AMS_Z → ams-test):
+  the central mints a `direct` and a `warp` account for every source, and the node's router
+  refused the whole set (`egress_invalid`) because the warp one needs a provider it has not got.
+  The router now carries the direct accounts, sets the warp ones aside and names what it
+  carries (`emails` in its relay view); the node's report confirms exactly those, so the direct
+  chain converges and «via warp» through such a node stays `relay_no_warp`. The lab never saw it:
+  node B of the `chains` tier has a stub WARP.
 
 ### Fixed (post-v0.6, on the branch before this tag)
 

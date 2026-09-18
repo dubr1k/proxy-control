@@ -475,7 +475,7 @@ def test_relay_enable_mints_a_keypair_once_listens_and_takes_accounts_from_the_c
     instance.bootstrap()
     view = instance.relay_enable("panel.node-a.example.org", 45443)
     assert view == {"enabled": True, "port": 45443, "server_name": "panel.node-a.example.org",
-                    "public_key": runner.public_key, "short_ids": view["short_ids"], "accounts": 0}
+                    "public_key": runner.public_key, "short_ids": view["short_ids"], "accounts": 0, "emails": []}
     assert len(view["short_ids"]) == 1 and len(view["short_ids"][0]) == 8
     relay_file = instance.state_dir / "relay.json"
     assert (relay_file.stat().st_mode & 0o777) == 0o600 and runner.private_key in relay_file.read_text()
@@ -493,18 +493,28 @@ def test_relay_enable_mints_a_keypair_once_listens_and_takes_accounts_from_the_c
     inbound = next(item for item in runner.running["config"]["inbounds"] if item["tag"] == "relay")
     assert [client["email"] for client in inbound["settings"]["clients"]] == [account["email"] for account in accounts]
     assert instance.status()["relay"] == {"enabled": True, "port": 45444, "server_name": "panel.node-a.example.org",
-                                          "public_key": runner.public_key, "short_ids": view["short_ids"], "accounts": 2}
+                                          "public_key": runner.public_key, "short_ids": view["short_ids"], "accounts": 2,
+                                          "emails": sorted(account["email"] for account in accounts)}
     assert HOP["uuid"] not in json.dumps(instance.status())
     for bad in ([{"email": "nope", "uuid": HOP["uuid"]}], [{"email": "relay:x:direct", "uuid": "bad"}], [{"email": "relay:x:direct"}]):
         with pytest.raises(ValidationError):
             instance.relay_set_accounts(bad)
-    # a warp account needs the node's warp
+    # the view names the accounts the inbound carries (emails only, never a UUID)
+    assert instance.relay()["emails"] == sorted(account["email"] for account in accounts)
+    # a node without WARP carries the direct accounts and sets the warp ones aside — the central
+    # mints both per source, and a chain through this node's direct exit must still work (the
+    # live check AMS_Z → ams-test: the whole set was refused and no chain ever converged)
     (tmp_path / "second").mkdir()
-    no_warp, _ = manager(tmp_path / "second", warp=None)
+    no_warp, second_runner = manager(tmp_path / "second", warp=None)
     no_warp.bootstrap()
     no_warp.relay_enable("panel.node-a.example.org", 45443)
-    with pytest.raises(EgressInvalid, match="warp"):
-        no_warp.relay_set_accounts([{"email": "relay:x:warp", "uuid": HOP["uuid"]}])
+    carried = no_warp.relay_set_accounts([{"email": "relay:x:warp", "uuid": HOP["uuid"]},
+                                          {"email": "relay:x:direct", "uuid": "9a1e2c8f-5d7e-4a10-8b6e-3f0d9c6e1b4e"}])
+    assert carried["accounts"] == 1 and carried["emails"] == ["relay:x:direct"]
+    inbound = next(item for item in second_runner.running["config"]["inbounds"] if item["tag"] == "relay")
+    assert [client["email"] for client in inbound["settings"]["clients"]] == ["relay:x:direct"]
+    assert all(outbound["tag"] != "warp" for outbound in second_runner.running["config"]["outbounds"])
+    assert no_warp.relay_set_accounts([{"email": "relay:x:warp", "uuid": HOP["uuid"]}]) == {**carried, "accounts": 0, "emails": []}
     # disabling closes the inbound and keeps the keypair
     assert instance.relay_disable()["enabled"] is False
     assert all(item["tag"] != "relay" for item in runner.running["config"]["inbounds"])

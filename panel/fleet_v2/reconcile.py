@@ -515,9 +515,13 @@ class Reconciler:
             self._record_relay({"state": "failed", "error": code, "desired": desired})
             return True
         short_ids = current.get("short_ids") or []
+        # The report confirms the accounts the router says it carries (`emails`): a node without
+        # WARP sets the `:warp` ones aside, and the central must not take them as confirmed.
+        carried = current.get("emails")
         self._record_relay({"state": "converged", "enabled": bool(current.get("enabled")), "port": current.get("port"),
                             "server_name": current.get("server_name"), "public_key": current.get("public_key"),
-                            "short_id": short_ids[0] if short_ids else None, "accounts": desired["accounts"],
+                            "short_id": short_ids[0] if short_ids else None,
+                            "accounts": sorted(carried) if isinstance(carried, list) else desired["accounts"],
                             "desired": desired})
         return False
 
