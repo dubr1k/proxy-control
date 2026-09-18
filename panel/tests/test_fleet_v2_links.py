@@ -112,7 +112,7 @@ async def test_add_writes_node_link_key_and_audit_together_and_the_view_is_secre
     assert view.link["identity"]["guid"] == node_id and "protocols" in view.link["identity"]
     assert set(view.link) == {"panel_url", "tls_verify", "status", "latency_ms", "panel_version", "last_heartbeat_at",
                               "last_error", "config_dirty", "desired_generation", "acknowledged_generation", "identity",
-                              "status_json", "has_api_key", "enabled", "observed_generation", "observed_state"}
+                              "status_json", "has_api_key", "enabled", "observed_generation", "observed_state", "auto_import"}
     with central.state.database.connect() as db:
         node_row = db.execute("SELECT kind, auth_state, transport FROM fleet_nodes WHERE node_id=?", (node_id,)).fetchone()
         audit = db.execute("SELECT action, target, detail_json FROM audit_log WHERE action='node.link'").fetchone()

@@ -257,6 +257,15 @@ same heartbeat and delivery immediately.
 
 ## Import existing users
 
+Import is **automatic by default** (the «Подхватывать пользователей панели автоматически»
+box in the link dialog, field `auto_import`): on every heartbeat the central reads the
+node's inventory and adopts every user the node runs on its own — one runtime name across
+protocols and nodes is one client of that name, the way 3x-ui treats an e-mail (a client
+created by hand under that name qualifies too). A user created on the node later is adopted
+on the next heartbeat; a user another central owns never is. The audit row `node.import`
+carries `auto: true` and the system actor. Untick the box to import by hand as described
+below.
+
 Import makes users a node already runs the central's — **without touching them**.
 From the link dialog (after «Проверить») or later from the node card's tab
 «Пользователи» → «Импортировать выбранных»:

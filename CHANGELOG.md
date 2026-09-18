@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Auto-import from linked panels** — a link adopts the node's own users by itself on every
+  heartbeat (`auto_import`, on by default, a box in the link dialog): each becomes a client of
+  the central named after the account, one name across protocols and nodes is one client (as
+  3x-ui treats an e-mail), MTProxy/NaiveProxy credentials are captured, Mieru accounts arrive
+  without a credential until rotated. Migration 17. Manual import stays for links with the box
+  unticked.
+
 ### Changed
 
 - **Protocol screens on a central** — the «MTProxy», «NaiveProxy» and «Mieru» dialogs offer a

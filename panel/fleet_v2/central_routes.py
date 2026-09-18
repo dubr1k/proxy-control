@@ -117,6 +117,7 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
         try:
             node_id = await app.state.links.add(body.display_name, body.url, body.api_key, body.tls_verify,
                                                 body.pinned_sha256, body.allow_private_address,
+                                                auto_import=body.auto_import,
                                                 **context.domain_context(request, user))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -127,7 +128,8 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
         try:
             await asyncio.to_thread(
                 app.state.links.update, node_id, display_name=body.display_name, url=body.url, api_key=body.api_key,
-                tls_verify=body.tls_verify, pinned_sha256=body.pinned_sha256, **context.domain_context(request, user),
+                tls_verify=body.tls_verify, pinned_sha256=body.pinned_sha256, auto_import=body.auto_import,
+                **context.domain_context(request, user),
             )
         except KeyError as exc:
             raise HTTPException(404, "node not found") from exc

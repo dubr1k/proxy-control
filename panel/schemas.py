@@ -222,6 +222,8 @@ class NodeLinkTest(BaseModel):
 
 class NodeLinkCreate(NodeLinkTest):
     display_name: str = Field(min_length=1, max_length=128)
+    # The node's own users become the central's clients on every heartbeat (spec 2026-09-18).
+    auto_import: bool = True
 
 
 class NodeLinkUpdate(BaseModel):
@@ -232,6 +234,7 @@ class NodeLinkUpdate(BaseModel):
     api_key: str | None = Field(default=None, min_length=1, max_length=256)
     tls_verify: Literal["verify", "pin"] | None = None
     pinned_sha256: str | None = Field(default=None, pattern=SHA256_RE)
+    auto_import: bool | None = None
 
 
 class NodeImportItem(BaseModel):

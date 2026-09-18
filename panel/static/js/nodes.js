@@ -187,7 +187,7 @@ function overviewTab(context, node) {
     ["Связь", `${status}${latency} · ${heartbeat}`],
     ["Панель", `${link.panel_version || link.identity?.panel_version || "версия не определена"} · GUID ${node.node_id}`],
     ["Поколение", `desired ${number(link.desired_generation)} · applied ${number(link.acknowledged_generation)}${generationNote(link)}`],
-    ["Пользователи", usersSummary(link)],
+    ["Пользователи", `${usersSummary(link)} · ${link.auto_import === false ? "импорт вручную" : "подхватываются автоматически"}`],
     ["Трафик", trafficTotal(link)],
     routingLine(context, node),
   ];
@@ -352,6 +352,7 @@ export function openLinkModal(context, node = null) {
     radio.checked = radio.value === (node?.link?.tls_verify || "verify");
   });
   query("#link-private-row", root).hidden = editing;
+  query("#link-auto-import", root).checked = node?.link ? node.link.auto_import !== false : true;
   query("#link-test", root).hidden = editing;
   query("#link-result", root).hidden = true;
   query("#node-import-list", root).innerHTML = "";
@@ -374,6 +375,7 @@ function linkForm(context) {
     url: query("#link-url", root).value.trim(),
     tls_verify: tls,
     allow_private_address: query("#link-private", root).checked,
+    auto_import: query("#link-auto-import", root).checked,
   };
   if (tls === "pin" && pinned) payload.pinned_sha256 = pinned;
   const key = query("#link-key", root).value;

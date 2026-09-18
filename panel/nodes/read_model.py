@@ -15,6 +15,7 @@ def _link_view(link: dict) -> dict:
     view = {key: link[key] for key in LINK_VIEW_KEYS}
     view["config_dirty"] = bool(link["config_dirty"])
     view["enabled"] = bool(link["enabled"])
+    view["auto_import"] = bool(link.get("auto_import", 1))
     # What the node last reported (`observed_generations`), so the UI can tell "the node
     # has not applied this yet" from "applied, a credential is still to be captured" — the
     # link stays `config_dirty` in both cases (spec §6: `converged` clears it only once every
