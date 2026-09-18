@@ -611,7 +611,14 @@ class Acceptance:
         imported_user = f"{self.prefix}-imp"
         self.check("clients.rendered", self.goto_view("clients", "!!document.querySelector('.client-list') && !!document.querySelector('[data-client-action=import]')"))
         self.check("clients.create_dialog_opens", self.open_add("#client-modal"))
+        # One dialog: the node the grants will live on and the protocols to issue at once;
+        # the account name appears only once a protocol is ticked, proposed from the name.
+        self.check("clients.create_dialog_offers_node_and_protocols", b.wait("!!document.querySelector('#client-node option[value=local]') && document.querySelectorAll('#client-form .grant-protocol input').length === 3 && document.querySelector('#client-username-row')?.hidden === true", 5))
         b.type("#client-name", client_name)
+        b.js("(() => { const i = document.querySelector('#client-form .grant-protocol input[value=naive]'); i.checked = true; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
+        self.check("clients.protocol_tick_proposes_username", b.wait(f"document.querySelector('#client-username-row')?.hidden === false && document.querySelector('#client-username')?.value === {json.dumps(client_name.lower())}", 5), b.value("#client-username"))
+        b.js("(() => { const i = document.querySelector('#client-form .grant-protocol input[value=naive]'); i.checked = false; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
+        self.check("clients.untick_hides_username", b.wait("document.querySelector('#client-username-row')?.hidden === true", 5))
         b.click("#create-client")
         self.check("clients.card_listed", b.wait(f"[...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(client_name)})", 20))
         client = next(e for e in self.api.json("/api/clients")["items"] if e["client"]["display_name"] == client_name)

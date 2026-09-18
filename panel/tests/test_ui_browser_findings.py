@@ -130,16 +130,20 @@ def test_every_documented_audit_action_has_a_journal_label():
 
 
 def test_the_brand_mark_is_the_product_artwork_that_actually_ships():
-    """The sidebar and the login card carry the product's own logo, cut out of its frame
-    (transparent corners, no black square), and every asset they name exists — a broken
-    `src` shows nothing at all where the brand should be."""
+    """The login card carries the product's own artwork and the tab its favicon; the sidebar
+    does not paste the picture — it draws the logo's motif natively (a terminal window with
+    the «>_ 443 ♥» prompt), so no raster sits beside the vector nav icons. Every asset the
+    pages name exists — a broken `src` shows nothing at all where the brand should be."""
     static = STATIC
     referenced = set()
     for page in ("index.html", "login.html"):
         text = (static / page).read_text(encoding="utf-8")
         assert "🦄" not in text
         referenced.update(re.findall(r'(?:src|href)="/static/(img/[^"]+)"', text))
-    assert {"img/logo.png", "img/logo-mark.png", "img/logo-64.png"} <= referenced
+    assert {"img/logo.png", "img/logo-64.png"} <= referenced
+    index = (static / "index.html").read_text(encoding="utf-8")
+    assert 'class="brand-term"' in index and "443" in index and "brand-mark" not in index
+    assert not (static / "img/logo-mark.png").exists()
     for name in referenced:
         asset = static / name
         assert asset.is_file() and asset.stat().st_size < 150 * 1024, name
