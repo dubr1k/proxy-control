@@ -891,8 +891,9 @@ class Acceptance:
         # The rule goes, then the exit — through the API, so the cleanup never depends on the
         # screen's timing; the screen is then reopened (another view first: a fresh state,
         # a fresh revision) and must show neither.
-        rows = int(b.js("document.querySelectorAll('.routing-rule').length") or 0)
         policy = self.api.json("/api/routing/policies/local/naive")
+        rows = len(policy.get("rules", []))
+        self.check("routing.saved_policy_kept_the_earlier_rules", rows >= 3, f"{rows} rules saved: adding/testing an exit must not drop unsaved rules")
         kept = [{k: v for k, v in rule.items() if k != "position"} for rule in policy.get("rules", []) if rule.get("egress") != f"exit:{exit_id}"]
         if len(kept) != len(policy.get("rules", [])):
             policy = self.api.json("/api/routing/policies/local/naive", "PUT",
@@ -902,7 +903,11 @@ class Acceptance:
         self.api.json(f"/api/routing/exits/{exit_id}/delete", "POST")
         self.goto_view("dashboard", "!!document.querySelector('#view') && !document.querySelector('#routing-form')")
         self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
-        self.check("routing.rule_with_the_exit_gone_from_the_table", b.wait(f"document.querySelectorAll('.routing-rule').length === {rows - 1} && ![...document.querySelectorAll('.routing-rule-where')].some(c => c.textContent.includes('lab socks'))", 20))
+        self.check("routing.rule_with_the_exit_gone_from_the_table", b.wait(f"document.querySelectorAll('.routing-rule').length === {len(kept)} && ![...document.querySelectorAll('.routing-rule-where')].some(c => c.textContent.includes('lab socks'))", 20),
+                   json.dumps({"rows_saved": rows, "rows_expected": len(kept), "rows_now": b.js("document.querySelectorAll('.routing-rule').length"),
+                               "where": b.js("[...document.querySelectorAll('.routing-rule-where')].map(c => c.textContent)"),
+                               "pill": b.text(".routing-head .status-pill"), "api_rules": [(r.get("action"), r.get("egress")) for r in self.api.json("/api/routing/policies/local/naive").get("rules", [])],
+                               "api_revision": self.api.json("/api/routing/policies/local/naive").get("revision")}, ensure_ascii=False)[:700])
         self.check("routing.exit_deleted", b.wait("![...document.querySelectorAll('#routing-custom-exits tbody tr')].some(r => r.textContent.includes('lab socks'))", 20))
 
     def routing_lanes(self, loaded: str) -> None:

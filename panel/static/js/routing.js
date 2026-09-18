@@ -464,7 +464,7 @@ async function saveGeodata(context, button) {
     query("#geodata-modal", root).close();
     ensureState(context).geodata = null;
     context.ui.toast(kind === "xray" ? "Источник — пин установщика; списки вернутся к нему кнопкой «Вернуть пин» или сами при следующем обновлении" : "Настройки geodata сохранены");
-    await context.navigate("routing");
+    await refreshSidePanels(context);
   } catch (exception) {
     error.textContent = exception.message;
   } finally {
@@ -486,7 +486,7 @@ async function geodataUpdate(context, button) {
     const result = await context.api(`/api/routing/geodata/${action}?node=${encodeURIComponent(target.node_id)}`, { method: "POST" });
     ensureState(context).geodata = null;
     context.ui.toast(result.changed ? `Списки обновлены${result.version ? ` до ${esc(result.version)}` : ""}` : "Списки уже актуальны");
-    await context.navigate("routing");
+    await refreshSidePanels(context);
   } catch (error) {
     context.ui.toast(error.message, "error");
     context.ui.setBusy(button, false);
@@ -639,6 +639,24 @@ function resetPolicy(context) {
 
 // The router's geodata (v0.8): shown on every card of a node that has a router; the codes
 // feed the rule inputs' suggestions. One fetch per node, never per protocol tab.
+// Exits and geodata live beside the policy: after one of them changes, the targets (their
+// custom_exits) and the geodata block are refetched and the card is redrawn — the operator's
+// unsaved rules stay as they are (a navigate would throw the draft away).
+async function refreshSidePanels(context) {
+  const target = currentTarget(context);
+  try {
+    const data = await context.api("/api/routing/targets");
+    if (context.state.view !== "routing") return;
+    context.state.routingTargets = data.items || [];
+  } catch (error) {
+    context.ui.toast(error.message, "error");
+  }
+  ensureState(context).geodata = null;
+  await loadGeodata(context, currentTarget(context) || target);
+  rerender(context);
+  schedulePreview(context);
+}
+
 async function loadGeodata(context, target) {
   const state = ensureState(context);
   if (!target?.router?.available) {
@@ -1005,7 +1023,7 @@ async function saveExit(context, button) {
     query("#exit-link", root).value = "";
     query("#exit-modal", root).close();
     context.ui.toast(exitId ? "Выход сохранён" : "Выход добавлен — проверьте его кнопкой «Проверить»");
-    await context.navigate("routing");
+    await refreshSidePanels(context);
   } catch (exception) {
     error.textContent = exception.message;
   } finally {
@@ -1029,7 +1047,7 @@ async function exitAction(context, action, button) {
     const result = await context.api(`/api/routing/exits/${encodeURIComponent(exitId)}/${verb}`, { method: "POST" });
     if (verb === "test") context.ui.toast(result.ok ? "Выход отвечает: " + (result.ip || "?") + " " + (result.colo || "") + " за " + number(result.latency_ms || 0) + " мс" : "Выход не отвечает: " + (reasonText(result.code) || result.error || ""), result.ok ? "" : "error");
     else context.ui.toast({ enable: "Выход включён", disable: "Выход выключен: политики с ним стали черновиками", delete: "Выход удалён" }[verb]);
-    await context.navigate("routing");
+    await refreshSidePanels(context);
   } catch (error) {
     context.ui.toast(error.message, "error");
     context.ui.setBusy(button, false);
