@@ -324,6 +324,26 @@ docker compose exec panel python -m panel.cli db-status | python3 -m json.tool |
 docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
 ```
 
+## Upgrading to v0.9: the panel says what the node already does
+
+v0.9 is a panel-only release ([note](releases/v0.9.0-beta.1.md)): `matches_node` on the policies
+of `GET /api/routing/targets`, API refusals in the screen's words, fixes on the «Маршрутизация»
+screen and the node card. **No migrations**; the NaiveProxy/Mieru/Xray-router managers did not
+change: copy `panel/`, `VERSION` and `CHANGELOG*` from the archive into the project directory and
+run `docker compose up -d --build --wait --no-deps panel` with the overlays you keep. Order in the
+fleet does not matter: a v0.9 central asks nothing new of its nodes, a v0.9 node under a v0.8
+central works as before.
+
+**Rollback** — the previous panel image (`docker tag mtproxy-panel:<old> mtproxy-panel:latest`,
+`up -d --no-deps panel`); the database did not change.
+
+Verification after the upgrade:
+
+```bash
+docker exec proxy-control-panel cat /app/VERSION   # 0.9.0-beta.1
+docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 19, as in v0.8
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.
