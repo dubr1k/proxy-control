@@ -39,6 +39,11 @@ code. Release note: [docs/releases/v0.9.0-beta.1.md](docs/releases/v0.9.0-beta.1
   the node's key», not «relay available».
 - The node card names the policy and the reason when the node's backend cannot be asked
   (manager down, protocol off, node offline) instead of «не настроена».
+- The Mieru tab of the routing screen: the editor's buttons and selects no longer stretch to
+  the height of the preview (a long mita diff inflated them to 80–130 px).
+- Phone: the bottom navigation bar shows that it scrolls (the current section scrolls into
+  view, the hiding edge fades) — «Узлы», «Маршруты», «Админы» and «Журнал» no longer hide past the
+  right edge without a cue; small routing buttons are at least 32 px tall on a phone.
 
 ## [0.8.0-beta.1] - 2026-09-18
 

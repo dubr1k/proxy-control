@@ -72,6 +72,12 @@ def test_routing_js_seam_fixes_of_v09():
     css = (STATIC / "style.css").read_text()
     assert ".routing-editor{display:grid;gap:12px;min-width:0;align-content:start}" in css
     assert "minmax(0,2fr);gap:14px;min-width:0;align-items:start}" in css
+    # Phone audit (v0.9): the bottom bar hid «Узлы»/«Маршруты» off-screen without a cue — the
+    # current section scrolls into view and the hiding edge fades; ghost buttons reach 32 px.
+    main = (STATIC / "js/main.js").read_text()
+    assert "markMobileNavEdges" in main and '"more-right"' in main and 'inline: "center"' in main
+    assert ".mobile-nav.more-right{-webkit-mask-image" in css and ".mobile-nav.more-left.more-right{" in css
+    assert ".routing-card .ghost,.routing-geodata-tools .ghost,.routing-rule-tools .ghost{min-height:32px" in css
 
 
 def test_routing_js_speaks_the_router():

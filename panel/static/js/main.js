@@ -67,6 +67,10 @@ function createNavigator(context) {
     query("#title", context.root).textContent = title;
     query("#subtitle", context.root).textContent = subtitle;
     queryAll("[data-view]", context.root).forEach((button) => button.classList.toggle("active", button.dataset.view === name));
+    // The phone bar scrolls sideways: the current section is brought into view and the
+    // edges say there is more (v0.9 — «Узлы» and «Маршруты» used to sit off-screen without a hint).
+    query(".mobile-nav .active", context.root)?.scrollIntoView?.({ inline: "center", block: "nearest" });
+    markMobileNavEdges(context.root);
 
     const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "clients"].includes(name))
       || (name === "fleet" && context.state.me?.role === "owner")
@@ -120,9 +124,21 @@ function bindLogin(root) {
   return true;
 }
 
+// `more-left` / `more-right` on the phone bar: which side still hides sections; the CSS
+// fades that edge so the operator sees the bar goes on.
+function markMobileNavEdges(root) {
+  const bar = query(".mobile-nav", root);
+  if (!bar) return;
+  bar.classList.toggle("more-left", bar.scrollLeft > 12);
+  bar.classList.toggle("more-right", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 4);
+}
+
 function bindPanel(context) {
   const { root, ui } = context;
   queryAll("[data-view]", root).forEach((button) => button.addEventListener("click", () => context.navigate(button.dataset.view)));
+  query(".mobile-nav", root)?.addEventListener("scroll", () => markMobileNavEdges(root), { passive: true });
+  window.addEventListener("resize", () => markMobileNavEdges(root));
+  markMobileNavEdges(root);
   query("#add", root).addEventListener("click", () => {
     if (context.state.view === "admins") openAdminModal(context);
     else if (context.state.view === "clients") void openClientModal(context);
