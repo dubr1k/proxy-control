@@ -4,6 +4,42 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.9.0-beta.1] - 2026-09-19
+
+The seam between the screen and the backend after v0.8 went live: the panel says in words
+what the node already does and keeps state where it used to stay silent or answer with a
+code. Release note: [docs/releases/v0.9.0-beta.1.md](docs/releases/v0.9.0-beta.1.md).
+
+### Added
+
+- **«The node already works this way»** — `GET /api/routing/targets` carries `matches_node`
+  on a policy: whether what the node runs right now equals what the policy compiles to,
+  whether or not the panel ever applied it. The node card and the policy pill say «узел уже
+  так работает, политика не закреплена» (a WARP upstream written into the Caddyfile by hand
+  before policies existed) or «узел настроен иначе» on an applied policy changed behind the
+  panel's back, instead of a bare «не применено»; the preview under an empty diff of a draft
+  explains that «Apply» takes the setting under management and gives a rollback
+  ([ROUTING](docs/ROUTING.en.md)).
+
+### Fixed
+
+- Refusals of the routing API (`{detail, code}`: `policy_conflict`, `policy_applied`,
+  `exit_in_use`, `node_lacks_relay`, `geodata_*` and the rest) are shown in the screen's words,
+  not the server's English `detail` (a code registry in `api.js`); `exit_*` and `geodata_*`
+  codes in preview reasons and exit test outcomes no longer render raw.
+- Disabling or editing a custom exit no longer wipes the applied revision of the policies that
+  use it: the policy becomes a draft «with changes (node runs rev N)», «Rollback» stays, an
+  applied policy still cannot be deleted; the card refetches the policy itself after an exit
+  action, not only the targets.
+- «Restore the pin» for geodata is reachable from the screen: with the pin as the source the
+  refresh button becomes «Вернуть пин» (it used to be disabled while the hint pointed at it).
+- A policy that exists but failed to load closes the editor: «Save» no longer goes out with
+  `expected_revision: null` and overwrites somebody's revision without a 409.
+- An exit node's relay that has not reported its public key yet (`pending`) reads «waiting for
+  the node's key», not «relay available».
+- The node card names the policy and the reason when the node's backend cannot be asked
+  (manager down, protocol off, node offline) instead of «не настроена».
+
 ## [0.8.0-beta.1] - 2026-09-18
 
 Routing the way 3x-ui does it, on our model: custom exits (VPN/proxy outbounds), a rule table with

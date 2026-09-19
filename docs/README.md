@@ -51,6 +51,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Выпуски
 
+- [v0.9.0-beta.1](releases/v0.9.0-beta.1.md) — панель говорит, что узел уже делает (`matches_node`); отказы API словами экрана; правки экрана «Маршрутизация» и карточки узла
 - [v0.8.0-beta.1](releases/v0.8.0-beta.1.md) — свои выходы, таблица правил с быстрыми настройками, обновляемые geodata, автоимпорт пользователей узлов
 - [v0.7.0-beta.1](releases/v0.7.0-beta.1.md) — цепи и полосы: выход через узлы парка (relay), своя полоса у доступа, tier `chains`
 
@@ -110,6 +111,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 
 ### Releases
 
+- [v0.9.0-beta.1](releases/v0.9.0-beta.1.md) — the panel says what the node already does (`matches_node`); API refusals in the screen's words; fixes on the routing screen and the node card
 - [v0.8.0-beta.1](releases/v0.8.0-beta.1.md) — custom exits, a rule table with quick settings, refreshable geodata, auto-import of node users
 - [v0.7.0-beta.1](releases/v0.7.0-beta.1.md) — chains and lanes: exits through the fleet's relays, a grant's own lane, the `chains` tier
 
