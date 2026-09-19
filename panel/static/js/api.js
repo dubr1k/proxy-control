@@ -10,12 +10,24 @@ function cookie(name) {
 const API_REASONS = {
   quota_exhausted: "Квота исчерпана: сбросьте трафик или увеличьте квоту",
 };
+// Refusals whose English `detail` says more than the code alone (what Xray or the node
+// rejected): it follows the operator's words in parentheses.
+const DETAIL_WORTH_SHOWING = new Set(["exit_invalid", "egress_invalid", "lanes_invalid", "geodata_rejected", "geodata_fetch_failed", "geodata_invalid", "exit_link_invalid"]);
+
+// A screen registers the operator's words for the refusal codes its API speaks (v0.9):
+// a `{detail, code}` refusal is then shown in those words, not as the server's English.
+export function registerReasons(reasons) {
+  Object.assign(API_REASONS, reasons);
+}
 
 // FastAPI validation failures are structured objects. Convert only their safe,
 // human-facing fields rather than rendering "[object Object]" in a dialog.
 export function problemText(body) {
   if (!body || typeof body !== "object") return "";
-  if (API_REASONS[body.code]) return API_REASONS[body.code];
+  if (API_REASONS[body.code]) {
+    const detail = typeof body.detail === "string" && DETAIL_WORTH_SHOWING.has(body.code) && body.detail !== body.code ? ` (${body.detail})` : "";
+    return API_REASONS[body.code] + detail;
+  }
   if (typeof body.detail === "string") return body.detail;
   if (!Array.isArray(body.detail)) return "";
 

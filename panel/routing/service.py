@@ -259,15 +259,30 @@ class RoutingService:
                 else:
                     item.update({"backend": target.backend, "capabilities": sorted(target.capabilities),
                                  "providers": target.providers, "mode": target.mode})
+                if policy is not None:
+                    item["policy"]["matches_node"] = self._matches_node(policy, row, target, egress_v1, router)
                 items.append(item)
         return items
+
+    def _matches_node(self, policy: RoutingPolicy, row: dict, target, egress_v1: bool, router) -> bool | None:
+        """Whether the node runs exactly what the policy compiles to — regardless of whether
+        the panel ever applied it (v0.9): a hand-written upstream that already names WARP makes
+        a draft «match», a change behind the panel's back makes an applied policy not match.
+        None when the node cannot be asked."""
+        if target is None:
+            return None
+        with self.database.connect() as db:
+            compiled = self._compile(db, policy, row, target, egress_v1, router, issue=False)
+        if compiled.status != "supported":
+            return None
+        return not compiled.diff
 
     @staticmethod
     def _policy_view(policy: RoutingPolicy) -> dict:
         enabled_rules = [rule for rule in policy.rules if rule.enabled]
         return {"id": policy.id, "lane": policy.lane, "revision": policy.revision, "state": policy.state, "backend": policy.backend,
                 "applied_revision": policy.applied_revision, "applied_current": policy.applied_current,
-                "last_error": policy.last_error, "default_action": policy.default_action,
+                "matches_node": None, "last_error": policy.last_error, "default_action": policy.default_action,
                 "default_egress": policy.default_egress,
                 "rules": {action: sum(rule.action == action for rule in enabled_rules) for action in ("block", "direct", "egress")},
                 "node_exits": policy.node_exits()}
@@ -370,8 +385,16 @@ class RoutingService:
                              actor=actor, ip=ip, request_id=request_id)
             # A changed exit leaves every policy that uses it dirty: the node runs the old outbound.
             for use in store.usage(db, exit_id):
-                self.store.mark(db, use["policy_id"], state="draft", now=now)
+                self._unsettle(db, use["policy_id"], now)
             return updated
+
+    def _unsettle(self, db, policy_id: str, now: int) -> None:
+        """The policy is no longer what the node should run, but the node still runs what was
+        applied: `draft` with the applied revision kept — the card says «есть неприменённые
+        изменения (на узле rev N)» and «Откатить» stays (v0.9; a bare `draft` used to wipe them)."""
+        policy = self.store.get_by_id(db, policy_id)
+        self.store.mark(db, policy_id, state="draft", applied_revision=policy.applied_revision,
+                        applied_digest=policy.applied_digest, now=now)
 
     def exit_action(self, exit_id: str, action: str, *, actor, ip, request_id=None) -> dict:
         store = self._exit_store()
@@ -391,7 +414,7 @@ class RoutingService:
             self._exit_audit(db, action, exit_id, {"node_id": found["node_id"], "name": found["name"]}, actor=actor, ip=ip, request_id=request_id)
             if action == "disable":
                 for use in store.usage(db, exit_id):
-                    self.store.mark(db, use["policy_id"], state="draft", now=now)
+                    self._unsettle(db, use["policy_id"], now)
             return updated
 
     def exit_usage(self, exit_id: str) -> list[dict]:

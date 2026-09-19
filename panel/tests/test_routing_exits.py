@@ -122,6 +122,11 @@ async def test_exits_crud_import_test_and_the_policy_that_uses_one(client, login
     assert disabled.json()["enabled"] is False
     preview = await client.post("/api/routing/policies/local/naive/preview", headers=headers)
     assert preview.json()["status"] == "unsupported" and preview.json()["reasons"][0]["code"] == "exit_disabled"
+    # v0.9: dirty, but the node still runs the applied revision — kept, so the card says
+    # «на узле rev N» and «Откатить» stays; the applied policy is not deletable either.
+    stored = (await client.get("/api/routing/policies/local/naive")).json()
+    assert stored["state"] == "draft" and stored["applied_revision"] == saved.json()["revision"] and stored["applied_current"] is False
+    assert (await client.delete("/api/routing/policies/local/naive", headers=headers)).status_code == 409
     await client.post(f"/api/routing/exits/{exit_id}/enable", headers=headers)
     # An update rotates the credential and leaves the policy a draft again.
     updated = await client.put(f"/api/routing/exits/{exit_id}", headers=headers, json={

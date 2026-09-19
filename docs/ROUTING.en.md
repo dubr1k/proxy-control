@@ -67,7 +67,14 @@ lane             svc (the service's policy) | grant:<id> (v0.7: a grant's own la
 - `revision` grows with every save (`expected_revision` on `PUT` → 409 `policy_conflict`
   when somebody saved in between); `applied_revision`/`applied_digest` say what the node
   runs — `state = applied` **and** `applied_revision = revision` is «applied», otherwise
-  the card says «есть неприменённые изменения».
+  the card says «есть неприменённые изменения»;
+- `matches_node` (v0.9, `GET /api/routing/targets` only) — whether the node runs right now
+  exactly what the policy compiles to (the preview's diff is empty), whether or not the panel
+  ever applied it: `true` on a draft means «the node already works this way» (say, a WARP
+  `upstream` written into the Caddyfile by hand before policies existed) — «Apply» takes the
+  setting into the managed block and gives a rollback; `false` on an applied policy — the node
+  was changed behind the panel's back; `null` — the node cannot be asked or the policy does
+  not compile. The node card and the policy pill say it in words instead of a bare «не применено».
 
 `fallback` is the one explicit way to trade fail-closed for availability: with
 `approved_direct`, a WARP the node reports as unreachable makes the compiler replace

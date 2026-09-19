@@ -2,6 +2,7 @@
 // form and previewed as what the node's backend would actually enforce. The preview is the
 // compiler's honest answer: an unsupported rule is named, not silently dropped, and
 // «Применить» is enabled only for a saved, supported policy.
+import { registerReasons } from "./api.js";
 import { date, esc, number, query, queryAll } from "./common.js";
 import { isCurrent } from "./state.js";
 
@@ -90,8 +91,14 @@ const STATE_TEXT = {
   draft: "черновик", applying: "применяется", applied: "применено", failed: "ошибка", rolled_back: "откачено",
 };
 
+// A refusal of the routing API (`{detail, code}`) is shown in these words too (v0.9):
+// a 409 `policy_conflict` no longer surfaces as the server's «policy revision is 7».
+registerReasons({ ...WARNING_TEXT, ...REASON_TEXT });
+
+// The exit_* and geodata_* codes (v0.8) live in WARNING_TEXT but reach the preview as
+// reasons and the exit table as test outcomes: one lookup covers both tables.
 export function reasonText(code) {
-  return REASON_TEXT[code] || code || "";
+  return REASON_TEXT[code] || WARNING_TEXT[code] || code || "";
 }
 
 function emptyPolicy() {
@@ -190,22 +197,34 @@ function policyState(policy, loading = false) {
   if (!policy) return ["muted", "политика не задана"];
   if (policy.state === "failed") return ["blocked", `ошибка: ${reasonText(policy.last_error)}`];
   if (policy.state === "applying") return ["", "применяется…"];
-  if (policy.applied_current) return ["active", `применено (rev ${number(policy.applied_revision)})`];
-  if (policy.applied_revision) return ["", `есть неприменённые изменения (на узле rev ${number(policy.applied_revision)})`];
-  return ["muted", STATE_TEXT[policy.state] || policy.state];
+  if (policy.applied_current) {
+    return policy.matches_node === false
+      ? ["blocked", `применено (rev ${number(policy.applied_revision)}) · узел настроен иначе`]
+      : ["active", `применено (rev ${number(policy.applied_revision)})`];
+  }
+  // v0.9: the node may already run what the policy says (an upstream set by hand, a policy
+  // saved but never applied) — the pill says so instead of a bare «черновик».
+  const already = policy.matches_node === true ? " · узел уже так работает, «Применить» закрепит" : "";
+  if (policy.applied_revision) return ["", `есть неприменённые изменения (на узле rev ${number(policy.applied_revision)})${already}`];
+  return ["muted", (STATE_TEXT[policy.state] || policy.state) + already];
 }
 
 // The one-line summary the node card shows (spec §8.4): «naive → WARP, 2 блокировки».
 export function routingSummary(items) {
   const parts = items
-    .filter((item) => item.policy && item.backend)
+    .filter((item) => item.policy)
     .map((item) => {
       const policy = item.policy;
+      // A policy on a node whose backend cannot be asked (manager down, protocol off, node
+      // offline) is still a policy: named with the reason, not hidden behind «не настроена».
+      if (!item.backend) return `${item.protocol}: ${reasonText(item.reason) || "backend недоступен"}`;
       const target = policy.default_action === "egress" ? "WARP" : "напрямую";
       const blocks = policy.rules?.block ? `, ${number(policy.rules.block)} блокир.` : "";
       const selective = (policy.rules?.direct || 0) + (policy.rules?.egress || 0);
       const extra = selective ? `, ${number(selective)} исключ.` : "";
-      const note = policy.applied_current ? "" : policy.state === "failed" ? " (ошибка)" : " (не применено)";
+      const note = policy.applied_current ? (policy.matches_node === false ? " (узел настроен иначе)" : "")
+        : policy.state === "failed" ? " (ошибка)"
+        : policy.matches_node === true ? " (узел уже так работает, политика не закреплена)" : " (не применено)";
       const via = item.backend === "xray_router" ? " [Xray-router]" : "";
       const lanes = item.lanes?.length ? `, полос: ${number(item.lanes.length)}` : "";
       const exits = new Set([...(policy.node_exits || []), ...(item.lanes || []).flatMap((lane) => lane.node_exits || [])]);
@@ -328,7 +347,7 @@ function previewPanel(compiled, policy, dirty) {
     ${reasons ? `<ul class="routing-reasons">${reasons}</ul>` : ""}
     ${warnings ? `<ul class="routing-warnings">${warnings}</ul>` : ""}
     <p class="form-hint">${compiled.restart_required ? "потребуется перезапуск сервиса на узле" : "перезапуск не требуется"} · ${rollback}${compiled.runtime_version ? ` · ${esc(compiled.runtime_version)}` : ""}</p>
-    ${diff ? `<pre class="routing-diff">${diff}</pre>` : '<p class="form-hint">Изменений относительно узла нет.</p>'}
+    ${diff ? `<pre class="routing-diff">${diff}</pre>` : `<p class="form-hint">${supported && policy && !policy.applied_current && !dirty ? "Узел уже работает так, но политика не закреплена: «Применить» возьмёт настройку под управление панели и даст откат." : "Изменений относительно узла нет."}</p>`}
     ${compiled.document ? `<details class="routing-document"><summary>Документ для менеджера</summary><pre>${esc(JSON.stringify(compiled.document, null, 2))}</pre></details>` : ""}
   </div>`;
 }
@@ -382,8 +401,10 @@ function exitsLine(context, target) {
     `<span class="routing-exit-chip ${warpTone}" data-exit="warp">WARP${warpNote}</span>`,
     '<span class="routing-exit-chip" data-exit="block">Блок</span>',
     ...(target.exits || []).map((exit) => {
-      const tone = !exit.online ? "blocked" : exit.enabled ? "" : "muted";
-      const note = !exit.online ? "не на связи" : exit.enabled ? "relay доступен" : "relay выключен";
+      // `pending`: the relay is enabled but the node has not reported its public key yet —
+      // the resolver refuses such a hop (node_lacks_relay), so the chip must not promise it.
+      const tone = !exit.online ? "blocked" : exit.enabled && !exit.pending ? "" : "muted";
+      const note = !exit.online ? "не на связи" : !exit.enabled ? "relay выключен" : exit.pending ? "relay ждёт ключ узла (heartbeat)" : "relay доступен";
       return `<span class="routing-exit-chip ${tone}" data-exit="${esc(exit.exit)}" title="дальше: напрямую или WARP ${esc(exit.display_name)}">→ ${esc(exit.display_name)} <small>${note}</small></span>`;
     }),
   ];
@@ -408,14 +429,16 @@ function geodataLine(context, target) {
   const when = geo.updated_at ? ` · обновлено ${esc(date(Date.parse(geo.updated_at) / 1000))}` : "";
   const auto = geo.auto_update ? ` · автообновление раз в ${number(geo.interval_hours || 24)} ч` : " · без автообновления";
   const error = geo.last_error ? `<small class="routing-geodata-error">последняя попытка: ${esc(geo.last_error)}</small>` : "";
-  const canUpdate = owner && geo.source?.kind !== "xray";
+  // With the pin as the source the same button restores the pinned pair (the lists may
+  // still be a previous source's until then) — `geodataUpdate` picks the action by the kind.
+  const pinned = geo.source?.kind === "xray";
   return `<div class="routing-geodata" id="routing-geodata">
     <b>Geodata</b>
     <span class="status-pill ${geo.last_error ? "blocked" : ""}"><i></i>${esc(source)}${version}</span>
     <small>${esc(counts)}${when}${auto}</small>
     ${error}
     <span class="routing-geodata-tools">
-      <button class="ghost" data-routing-action="geodata-update"${canUpdate ? "" : " disabled"}>Обновить сейчас</button>
+      <button class="ghost" data-routing-action="geodata-update"${owner ? "" : " disabled"}>${pinned ? "Вернуть пин" : "Обновить сейчас"}</button>
       <button class="ghost" data-routing-action="geodata-settings"${owner ? "" : " disabled"}>Источник…</button>
     </span>
     <datalist id="geodata-geosite-codes">${codeOptions(state.codes?.geosite)}</datalist>
@@ -574,11 +597,14 @@ function targetCard(context) {
   if (!target) return '<div class="empty-state"><span>◇</span><h3>Нет узлов для маршрутизации</h3><p>Появятся этот сервер и связанные панели, когда будут на связи.</p></div>';
   const state = context.state.routing;
   const lane = currentLane(context);
-  const laneKnown = lane === LANE_SERVICE ? Boolean(target.policy) : (target.lanes || []).some((item) => item.lane === lane);
-  const policy = laneKnown ? state.policy : null;
+  const laneView = lane === LANE_SERVICE ? target.policy : (target.lanes || []).find((item) => item.lane === lane);
+  // The policy itself comes from its own endpoint; whether the node already runs it
+  // (`matches_node`, v0.9) is the targets table's word — carried over for the pill.
+  const policy = laneView && state.policy ? { ...state.policy, matches_node: laneView.matches_node ?? null } : null;
   const [tone, statusText] = policyState(policy, state.loading);
-  const reason = target.reason ? `<p class="form-hint routing-reason-line">${esc(reasonText(target.reason))}</p>` : "";
-  const editable = context.state.me?.role === "owner" && !target.reason && Boolean(target.backend) && !state.loading;
+  const reason = target.reason ? `<p class="form-hint routing-reason-line">${esc(reasonText(target.reason))}</p>`
+    : state.policyError ? `<p class="form-hint routing-reason-line">Политика не загрузилась (${esc(state.policyError)}) — обновите экран, редактор закрыт.</p>` : "";
+  const editable = context.state.me?.role === "owner" && !target.reason && !state.policyError && Boolean(target.backend) && !state.loading;
   if (!target.backend) {
     return `<article class="panel-card routing-card">
       <div class="routing-head"><b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)}</b><span class="status-pill muted"><i></i>${esc(reasonText(target.reason) || "недоступно")}</span></div>
@@ -617,7 +643,7 @@ function targetCard(context) {
 
 function ensureState(context) {
   if (!context.state.routing) {
-    context.state.routing = { policy: null, draft: emptyPolicy(), compiled: null, dirty: false, loading: false, previewTimer: null, previewSeq: 0,
+    context.state.routing = { policy: null, policyError: null, draft: emptyPolicy(), compiled: null, dirty: false, loading: false, previewTimer: null, previewSeq: 0,
       explained: null, explainHost: "", explainPort: 443, geodata: null, geodataError: null, codes: null };
   }
   return context.state.routing;
@@ -629,6 +655,7 @@ function ensureState(context) {
 function resetPolicy(context) {
   const state = ensureState(context);
   state.policy = null;
+  state.policyError = null;
   state.compiled = null;
   state.dirty = false;
   state.draft = emptyPolicy();
@@ -651,8 +678,20 @@ async function refreshSidePanels(context) {
   } catch (error) {
     context.ui.toast(error.message, "error");
   }
-  ensureState(context).geodata = null;
-  await loadGeodata(context, currentTarget(context) || target);
+  const state = ensureState(context);
+  state.geodata = null;
+  const fresh = currentTarget(context) || target;
+  await loadGeodata(context, fresh);
+  // An exit action can move the policy itself (a disabled exit leaves it a draft): its
+  // state is refetched too; the operator's unsaved rules stay.
+  if (fresh && state.policy) {
+    try {
+      state.policy = await context.api(`${policyPath(fresh)}${laneQuery(context)}`);
+      if (!state.dirty) state.draft = draftFromPolicy(state.policy);
+    } catch (error) {
+      context.ui.toast(error.message, "error");
+    }
+  }
   rerender(context);
   schedulePreview(context);
 }
@@ -696,6 +735,9 @@ async function loadPolicy(context, target) {
       state.policy = await context.api(`${policyPath(target)}${laneQuery(context)}`);
       state.draft = draftFromPolicy(state.policy);
     } catch (error) {
+      // A policy exists but did not load: the editor stays closed — a save now would go out
+      // with `expected_revision: null` and silently replace what is stored.
+      state.policyError = error.message;
       context.ui.toast(error.message, "error");
     }
   }
