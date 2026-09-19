@@ -45,6 +45,35 @@ def test_routing_js_names_the_states_and_refusals_in_the_operator_words():
         assert code in ROUTING, code
 
 
+def test_routing_js_tells_the_operator_when_the_node_already_runs_the_policy():
+    """v0.9: `matches_node` from the targets — a draft the node already runs is said so on the
+    pill, in the node card's line and under an empty diff, never as a bare «не применено»."""
+    assert ROUTING.count("matches_node") >= 3
+    for text in ("узел уже так работает", "узел настроен иначе", "политика не закреплена",
+                 "«Применить» возьмёт настройку под управление панели"):
+        assert text in ROUTING, text
+
+
+def test_routing_js_seam_fixes_of_v09():
+    """v0.9 seam audit: refusal codes reach the toasts in the operator's words (api.js
+    registry), exit_*/geodata_* codes resolve as reasons too, «Вернуть пин» is reachable,
+    a pending relay is not promised, a policy that failed to load closes the editor, and
+    the node card names a policy whose backend cannot be asked."""
+    api = (STATIC / "js/api.js").read_text()
+    assert "export function registerReasons" in api and "DETAIL_WORTH_SHOWING" in api
+    assert 'import { registerReasons } from "./api.js"' in ROUTING and "registerReasons({ ...WARNING_TEXT, ...REASON_TEXT })" in ROUTING
+    assert "REASON_TEXT[code] || WARNING_TEXT[code]" in ROUTING
+    for text in ("Вернуть пин", "relay ждёт ключ узла", "Политика не загрузилась", "backend недоступен"):
+        assert text in ROUTING, text
+    assert "!state.policyError && Boolean(target.backend)" in ROUTING
+    assert ".filter((item) => item.policy)" in ROUTING and "exit.pending" in ROUTING
+    # The editor beside a tall preview (a long mita diff) must not stretch its rows: the
+    # selects and the buttons grew to 80–130 px on the Mieru tab (owner's report, v0.9).
+    css = (STATIC / "style.css").read_text()
+    assert ".routing-editor{display:grid;gap:12px;min-width:0;align-content:start}" in css
+    assert "minmax(0,2fr);gap:14px;min-width:0;align-items:start}" in css
+
+
 def test_routing_js_speaks_the_router():
     """v0.5: the Xray-router — attach/detach as explicit actions, the three selectors only
     the router enforces, the words for its states and refusals."""

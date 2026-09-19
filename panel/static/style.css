@@ -111,8 +111,10 @@
 /* Routing (v0.4, spec §8.4): editor beside the compiler's preview; one column on a phone. */
 .routing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}.routing-toolbar label{display:flex;align-items:center;gap:8px;color:var(--text-2);font-size:11px}.routing-toolbar select{width:auto;min-width:180px;max-width:100%}
 .routing-card{display:grid;gap:14px;margin-top:12px;min-width:0}.routing-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}.routing-head b{font-size:13px}.routing-card .status-pill{width:auto;max-width:100%;white-space:normal}
-.routing-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;min-width:0}
-.routing-editor{display:grid;gap:12px;min-width:0}.routing-defaults{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.routing-defaults label{display:grid;gap:6px;color:var(--text-2);font-size:11px}
+.routing-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;min-width:0;align-items:start}
+/* align-content:start — the editor sits beside a preview that can be much taller (a long mita diff); without it the
+   grid stretched the editor's auto rows to the preview's height and the selects and buttons inflated with them. */
+.routing-editor{display:grid;gap:12px;min-width:0;align-content:start}.routing-defaults{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.routing-defaults label{display:grid;gap:6px;color:var(--text-2);font-size:11px}
 .routing-rule.disabled{opacity:.6}.routing-rule[draggable="true"]{cursor:grab}
 
 

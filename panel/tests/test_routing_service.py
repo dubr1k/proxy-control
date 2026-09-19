@@ -80,6 +80,26 @@ async def test_targets_lists_local_protocols_with_backends_and_mtproxy_out_of_sc
     assert "socks5://" not in json.dumps(await service.targets())
 
 
+async def test_targets_say_whether_the_node_already_runs_the_policy(stand):
+    """v0.9: a hand-written upstream that names the provider makes the node run exactly what
+    a draft compiles to — the target says so (`matches_node`), instead of a bare «не применено»;
+    a policy the node drifted away from after an apply says the opposite."""
+    service, naive = stand["service"], stand["naive"]
+    naive.egress_document = {"schema": 1, "upstream": {"provider": "warp"}, "acl": []}  # adopted line, no journal
+    service.save("local", "naive", _warp(), expected_revision=None, **CTX)
+    service.save("local", "mieru", _warp(), expected_revision=None, **CTX)
+    items = {item["protocol"]: item for item in await service.targets()}
+    assert items["naive"]["policy"]["applied_current"] is False and items["naive"]["policy"]["matches_node"] is True
+    assert items["mieru"]["policy"]["matches_node"] is False
+    assert items["mtproxy"]["policy"] is None
+    await service.apply("local", "mieru", expected_revision=1, **CTX)
+    assert (await service.targets())[2]["policy"]["matches_node"] is True
+    stand["mieru"].egress_document = {"schema": 1, "proxies": [], "rules": []}  # changed behind the panel's back
+    assert (await service.targets())[2]["policy"]["matches_node"] is False
+    stand["naive"].broken = True
+    assert (await service.targets())[1]["policy"]["matches_node"] is None
+
+
 async def test_preview_of_a_draft_never_saves_and_reports_unsupported_rules(stand):
     service = stand["service"]
     with pytest.raises(RoutingError) as failure:
