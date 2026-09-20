@@ -12,7 +12,8 @@ errors: list[str] = []
 for document in sorted(ROOT.rglob("*.md")):
     # graphify-out is a derived, git-ignored knowledge graph whose report links are
     # written relative to the repository root, not to the report's own directory.
-    if any(part in document.parts for part in (".git", ".venv", "graphify-out")):
+    # .superpowers holds git-ignored agent scratch (plan briefs, review packages).
+    if any(part in document.parts for part in (".git", ".venv", "graphify-out", ".superpowers")):
         continue
     for raw in LINK.findall(document.read_text(encoding="utf-8")):
         target = raw.strip().split(maxsplit=1)[0].strip("<>")
