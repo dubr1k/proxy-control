@@ -66,9 +66,10 @@ async def test_the_grant_dialog_body_issues_a_mieru_grant(client, login_user, te
 def test_the_grant_dialog_reads_only_its_own_protocol_boxes():
     """The link dialog (v0.3) reuses `.grant-protocol` for its TLS radios; a document-wide
     `:checked` query handed «verify» to the API as a protocol, so issuing grants from the
-    Clients screen answered 422 every time. The collection is scoped to the grant form."""
+    Clients screen answered 422 every time. The collection stays scoped to the form that
+    owns the boxes — since v0.10 «Выдать доступ» is gone and «Новый клиент» is that form."""
     clients = (STATIC / "js/clients.js").read_text(encoding="utf-8")
-    assert '"#grant-form .grant-protocol input:checked"' in clients
+    assert '"#client-form .grant-protocol input:checked"' in clients
     assert re.search(r'queryAll\("\.grant-protocol input', clients) is None
     index = (STATIC / "index.html").read_text(encoding="utf-8")
     assert index.count('class="grant-protocol"') >= 5  # the class is shared on purpose; the scope is not

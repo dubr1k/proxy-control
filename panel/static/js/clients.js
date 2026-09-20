@@ -91,21 +91,17 @@ function adoptNote(context, grants) {
 }
 
 function actions(context, client) {
-  // The subscription dialog is read-only for viewers, so it is offered to everyone;
-  // the buttons that change anything appear inside it by role.
-  const subscription = client.state === "archived"
-    ? ""
-    : '<button class="secondary" data-client-action="subscription">Подписка</button>';
+  // The client window is read-only for viewers, so it is offered to everyone; the buttons
+  // that change anything appear inside it by role.
+  const open = '<button class="secondary" data-client-action="open">Открыть</button>';
   if (context.state.me?.role === "viewer" || client.state === "archived") {
-    return subscription ? `<div class="client-actions">${subscription}</div>` : "";
+    return `<div class="client-actions">${open}</div>`;
   }
-  const grant = '<button class="secondary" data-client-action="grant">Выдать доступ</button>';
   const toggle = client.state === "suspended"
     ? '<button class="secondary" data-client-action="resume">Возобновить</button>'
     : '<button class="secondary" data-client-action="suspend">Приостановить</button>';
   return `<div class="client-actions">
-    ${grant}
-    ${subscription}
+    ${open}
     ${toggle}
     <button class="danger ghost" data-client-action="archive">Архивировать</button>
   </div>`;
@@ -117,10 +113,10 @@ function clientCard(context, entry) {
   const canWrite = context.state.me?.role !== "viewer" && client.state !== "archived";
   return `<article class="data-row client-card" data-client-id="${esc(client.id)}">
     <span class="user-glyph">${esc(initials(client.display_name))}</span>
-    <div class="client-identity">
+    <button type="button" class="client-identity" data-client-action="open">
       <b>${esc(client.display_name)}</b>
       <small>Доступов: ${grants.length}</small>
-    </div>
+    </button>
     <span class="status-pill ${tone}"><i></i>${esc(label)}</span>
     <ul class="client-grants">${grants.length
       ? grants.map((grant) => grantChip(context, grant, canWrite)).join("")
@@ -288,15 +284,6 @@ export async function issueOnNode(context, { protocol, username, nodeId, options
   return result;
 }
 
-export async function openGrantModal(context, clientId) {
-  const form = query("#grant-form", context.root);
-  form.reset();
-  query("#grant-client-id", context.root).value = clientId;
-  query("#grant-error", context.root).textContent = "";
-  context.ui.openModal("#grant-modal", "#grant-username");
-  await loadNodeOptions(context, "#grant-modal", query("#grant-node", context.root));
-}
-
 const OPERATION_MESSAGE = {
   succeeded: "Доступы выданы",
   compensated: "Операция отменена: созданное удалено, ничего лишнего не тронуто",
@@ -357,43 +344,6 @@ export function bindClients(context) {
       // behind the dialog show the card, so nothing is created twice on a retry.
       error.textContent = client ? `Клиент «${displayName}» создан, но доступы не выданы: ${exception.message}. Выдайте их с карточки клиента.` : exception.message;
       if (client) await context.navigate("clients");
-    } finally {
-      ui.setBusy(button, false);
-    }
-  });
-  query("#create-grants", root)?.addEventListener("click", async ({ currentTarget: button }) => {
-    const form = query("#grant-form", root);
-    const error = query("#grant-error", root);
-    if (!form.reportValidity()) return;
-    const username = query("#grant-username", root).value.trim();
-    const clientId = query("#grant-client-id", root).value;
-    const nodeId = query("#grant-node", root).value || "local";
-    // Only this dialog's boxes: the link dialog reuses the class for its TLS radios, and a
-    // document-wide query used to hand «verify» to the API as a protocol (422 every time).
-    const protocols = [...queryAll("#grant-form .grant-protocol input:checked", root)].map((box) => box.value);
-    error.textContent = "";
-    if (!protocols.length) {
-      error.textContent = "Выберите хотя бы один протокол";
-      return;
-    }
-    try {
-      ui.setBusy(button, true, "Выдаём…");
-      const result = await api(`/api/clients/${encodeURIComponent(clientId)}/grants`, {
-        method: "POST",
-        body: JSON.stringify({
-          grants: protocols.map((protocol) => ({ protocol, node_id: nodeId, runtime_username: username, options: {} })),
-        }),
-      });
-      query("#grant-modal", root).close();
-      // Any outcome is reported as itself; a compensated operation is not a success.
-      ui.toast(OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
-      if (result.status === "manual_intervention_required") {
-        ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
-      }
-      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
-      await context.navigate("clients");
-    } catch (exception) {
-      error.textContent = exception.message;
     } finally {
       ui.setBusy(button, false);
     }
@@ -553,12 +503,7 @@ export function handleClientsClick(context, button) {
     void grantAction(context, button);
     return true;
   }
-  if (action === "grant") {
-    const card = button.closest("[data-client-id]");
-    if (card) void openGrantModal(context, card.dataset.clientId);
-    return true;
-  }
-  if (action === "subscription") {
+  if (action === "open") {
     const card = button.closest("[data-client-id]");
     const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
     if (entry) void context.subscriptions.open(entry.client.id, entry.client.display_name);
