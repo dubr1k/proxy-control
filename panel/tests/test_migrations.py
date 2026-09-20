@@ -118,7 +118,7 @@ def test_migration_12_rebuilds_provisioning_operations_with_existing_rows(tmp_pa
             db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
                        " VALUES('op-x','c1','pending_remote','[]',9,9)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19]
+    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19, 20]
     with database.transaction() as db:
         rows = db.execute("SELECT operation_id,status,steps_json,created_at FROM provisioning_operations ORDER BY created_at").fetchall()
         assert [tuple(row) for row in rows] == [
@@ -142,6 +142,30 @@ def test_migration_creates_exactly_one_local_node_idempotently(tmp_path):
             "SELECT node_id,kind,display_name,disabled,auth_state FROM fleet_nodes"
         ).fetchall()
     assert [tuple(row) for row in rows] == [("local", "local", "Этот сервер", 0, "local")]
+
+
+def test_migration_20_adds_escrow_columns_and_keeps_old_subscriptions_readable(tmp_path, monkeypatch):
+    """The escrow copy is new in v0.10; a subscription row written before it (hash only,
+    no secret_id/secret_version) stays readable, with `secret_ref` reported as None."""
+    from panel import migrations as module
+    from panel.subscriptions.store import SubscriptionStore
+
+    database = Database(tmp_path / "panel.sqlite3")
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS[:19])
+    apply_migrations(database)
+    with database.transaction() as db:
+        db.execute("INSERT INTO clients(id,display_name,state,created_at,updated_at) VALUES('c1','Old','active',1,1)")
+        db.execute(
+            "INSERT INTO client_subscriptions(id,client_id,public_token_hash,generation,state,update_interval_hours,created_at,updated_at)"
+            " VALUES('s1','c1','hash-1',1,'active',12,1,1)"
+        )
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
+    assert apply_migrations(database) == [20]
+    with database.connect() as db:
+        columns = {row[1] for row in db.execute("PRAGMA table_info(client_subscriptions)")}
+        assert {"secret_id", "secret_version"} <= columns
+        old = SubscriptionStore.active(db, "c1")
+    assert old is not None and old.secret_ref is None
 
 
 def test_fresh_database_gets_the_same_schema_as_a_migrated_one(tmp_path):

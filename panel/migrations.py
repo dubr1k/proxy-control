@@ -458,10 +458,18 @@ EXITS_V19 = Migration(19, "routing-exits", (
       UNIQUE(node_id, name))""",
 ))
 
+# The subscription token gets an escrowed copy under the keyring (v0.10): the hash keeps
+# serving /s/{token}, the copy lets the operator see the URL again. NULL = issued without
+# escrow (before v0.10 or with no master key) — such a URL can only be rotated.
+SUBSCRIPTION_ESCROW_V20 = Migration(20, "subscription-escrow", (
+    "ALTER TABLE client_subscriptions ADD COLUMN secret_id TEXT",
+    "ALTER TABLE client_subscriptions ADD COLUMN secret_version INTEGER",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
-    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19,
+    ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19, SUBSCRIPTION_ESCROW_V20,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]
