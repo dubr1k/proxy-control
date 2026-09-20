@@ -236,7 +236,7 @@ def test_routing_v15_rebuilds_policies_keeping_rows_and_foreign_keys(tmp_path, m
                    " VALUES('22222222-0000-4000-8000-222222222222','p2',0,1,'{\"domains\": [\"a.example\"], \"cidrs\": [], \"ports\": []}','block',1,1)")
     # the store of today reads through the v0.7 schema; the v0.4 rule row still reads
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [16, 17, 18, 19]
+    assert apply_migrations(database) == [16, 17, 18, 19, 20]
     with database.transaction() as db:
         policy = RoutingStore.get(db, "local", "naive")
         assert policy.rules[0].match.geosites == [] and policy.rules[0].match.geoips == []

@@ -72,7 +72,7 @@ def test_migration_16_adds_lanes_relay_tables_and_keeps_every_row(tmp_path, monk
         with pytest.raises(sqlite3.IntegrityError):
             db.execute("UPDATE routing_policies SET default_egress='node:" + GUID_B + "' WHERE id='p1'")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [16, 17, 18, 19]
+    assert apply_migrations(database) == [16, 17, 18, 19, 20]
     with database.transaction() as db:
         row = db.execute("SELECT id,lane,default_egress,revision,state FROM routing_policies").fetchone()
         assert tuple(row) == ("p1", "svc", "warp", 2, "applied")
