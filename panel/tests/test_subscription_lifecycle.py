@@ -217,3 +217,35 @@ async def test_the_app_wires_the_generation_hook_to_every_change(tmp_path, login
         await http.post("/api/naive/users/alice/disable", headers=headers)
         assert app.state.subscriptions.get(client_id).generation == 2
         assert app.state.subscriptions.public_base == "https://eclipse.example.com"
+
+
+async def test_a_client_and_its_subscription_are_born_in_one_transaction(subscriptions, clients, monkeypatch):
+    subscriptions.public_base = "https://sub.example.com"
+    client, subscription, token = subscriptions.create_with_client("Together", **CTX)
+    assert subscription.client_id == client.id and subscription.generation == 1 and len(token) >= 43
+    assert subscriptions.resolve(token).id == subscription.id
+    with subscriptions.database.connect() as db:
+        actions = [r[0] for r in db.execute("SELECT action FROM audit_log ORDER BY id")]
+    assert actions[-2:] == ["client.create", "subscription.create"]
+
+    from panel.subscriptions import service as module
+
+    original = module.record
+
+    def fail_on_subscription(db, **kwargs):
+        if kwargs.get("action") == "subscription.create":
+            raise RuntimeError("audit down")
+        return original(db, **kwargs)
+
+    monkeypatch.setattr(module, "record", fail_on_subscription)
+    with pytest.raises(RuntimeError):
+        subscriptions.create_with_client("Half", **CTX)
+    # Neither the client nor the subscription survived: one transaction.
+    assert all(c.display_name != "Half" for c in clients.list_clients())
+
+
+async def test_create_with_client_without_a_subscription_domain_makes_only_the_client(subscriptions, clients):
+    subscriptions.public_base = ""
+    client, subscription, token = subscriptions.create_with_client("Alone", **CTX)
+    assert subscription is None and token is None
+    assert subscriptions.get(client.id) is None

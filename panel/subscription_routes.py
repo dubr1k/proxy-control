@@ -69,6 +69,21 @@ def _public(subscription) -> dict:
     return body
 
 
+def subscription_reveal_payload(app, subscription, token: str) -> dict:
+    """Everything a dialog shows: the URL, its variants and their QR codes."""
+    url = app.state.subscriptions.public_url(token)
+    return {
+        "subscription_id": subscription.id,
+        "generation": subscription.generation,
+        "url": url,
+        "qr": qr_data(url),
+        "variants": {
+            name: {"url": f"{url}{query}", "qr": qr_data(f"{url}{query}")}
+            for name, query in SHARE_VARIANTS.items()
+        },
+    }
+
+
 def register_subscription_admin_routes(app, context: RequestContext) -> None:
     """The operator's side: one subscription per client; its URL is shown at creation and,
     with a keyring, again on request."""
@@ -101,20 +116,6 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
             ],
         }
 
-    def reveal_payload(subscription, token: str) -> dict:
-        """Everything the dialog shows once: the URL, its variants and their QR codes."""
-        url = service().public_url(token)
-        return {
-            "subscription_id": subscription.id,
-            "generation": subscription.generation,
-            "url": url,
-            "qr": qr_data(url),
-            "variants": {
-                name: {"url": f"{url}{query}", "qr": qr_data(f"{url}{query}")}
-                for name, query in SHARE_VARIANTS.items()
-            },
-        }
-
     async def issue(operation, client_id: str, request: Request, user: dict) -> dict:
         if not service().public_base:
             raise HTTPException(409, "PANEL_SUBSCRIPTION_URL is not configured: there is no URL to hand out")
@@ -127,7 +128,7 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
         except ClientConflict as exc:
             raise HTTPException(409, str(exc)) from exc
         # The plaintext token lives only inside this reveal; the row keeps its hash.
-        return {"reveal_token": context.create_reveal(reveal_payload(subscription, token), user)}
+        return {"reveal_token": context.create_reveal(subscription_reveal_payload(app, subscription, token), user)}
 
     @app.get("/api/subscriptions/compatibility")
     async def compatibility(_user=Depends(context.current)):
@@ -171,7 +172,7 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
             raise HTTPException(409, str(exc)) from exc
         except SecretError as exc:
             raise HTTPException(409, str(exc)) from exc
-        return {"reveal_token": context.create_reveal(reveal_payload(subscription, token), user)}
+        return {"reveal_token": context.create_reveal(subscription_reveal_payload(app, subscription, token), user)}
 
     @app.post("/api/clients/{client_id}/subscription/revoke")
     async def revoke(client_id: str, request: Request, user=Depends(context.roles("owner", "admin"))):

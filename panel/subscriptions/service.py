@@ -25,7 +25,7 @@ import secrets as secret_tokens
 import time
 import uuid
 
-from ..audit import record
+from ..audit import digest, record
 from ..clients.models import effective_enabled
 from ..clients.store import ClientConflict
 from ..secrets_store import SecretError, SecretRef
@@ -113,6 +113,27 @@ class SubscriptionService:
                 detail={"client_id": client_id},
             )
         return subscription, token
+
+    def create_with_client(self, display_name: str, *, actor: dict, ip: str, request_id: str | None = None):
+        """A client and its URL in one transaction: the operator sees the link on the same
+        screen the client was made on. Without a subscription domain only the client is made."""
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            client = self.clients.new_client(db, display_name, now=now)
+            record(
+                db, actor=actor, action="client.create", target=client.id, ip=ip,
+                request_id=request_id, after_digest=digest(client.model_dump()),
+            )
+            self.clients.notify(db, client.id)
+            if not self.public_base:
+                return client, None, None
+            subscription, token = self._issue(db, client.id, generation=1)
+            record(
+                db, actor=actor, action="subscription.create", target=subscription.id,
+                ip=ip, request_id=request_id, generation=subscription.generation,
+                detail={"client_id": client.id},
+            )
+        return client, subscription, token
 
     def rotate(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None):
         """A new URL and the old one's revocation land together: never two live at once."""

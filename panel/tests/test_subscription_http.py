@@ -367,3 +367,19 @@ async def test_the_endpoint_is_off_entirely_without_a_subscription_host(tmp_path
         transport=httpx.ASGITransport(app=dark), base_url=f"http://{SUB_HOST}"
     ) as client:
         assert (await client.get(f"/s/{token}")).status_code == 404
+
+
+async def test_post_clients_hands_back_a_subscription_reveal(owner, public):
+    created = await owner.post("/api/clients", json={"display_name": "Phone"})
+    assert created.status_code == 201, created.text
+    body = created.json()
+    token = body["subscription_reveal_token"]
+    assert token and "token" not in {k for k in body if k != "subscription_reveal_token"}
+    payload = (await owner.get(f"/api/reveal/{token}")).json()
+    assert payload["url"].startswith(f"https://{SUB_HOST}/s/") and payload["generation"] == 1
+    assert (await public.get("/s/" + payload["url"].rsplit("/", 1)[1])).status_code == 200
+    overview = (await owner.get(f"/api/clients/{body['id']}/subscription")).json()
+    assert overview["subscription"]["generation"] == 1 and overview["escrowed"] is True
+
+    without = await owner.post("/api/clients", json={"display_name": "Card only", "subscription": False})
+    assert without.status_code == 201 and without.json()["subscription_reveal_token"] is None
