@@ -1,12 +1,13 @@
 """What a subscription is, and what a client's manifest says right now.
 
-Neither type carries the token: the panel keeps only its hash, so nothing that can be
-handed to a subscriber is ever loaded back into a model, logged, or serialised by
-accident.
+Neither type carries the token: the panel keeps its hash and, with a keyring, an
+encrypted copy referenced by `secret_ref`; the plaintext never lives in a model.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+from ..secrets_store import SecretRef
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,8 @@ class Subscription:
     created_at: int
     updated_at: int
     revoked_at: int | None = None
+    # Where the escrowed token lives (v0.10); None = the URL can only be rotated, not shown.
+    secret_ref: SecretRef | None = None
 
 
 @dataclass(frozen=True)

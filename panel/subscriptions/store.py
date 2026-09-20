@@ -1,11 +1,13 @@
-"""Subscription rows. Only the token's hash is ever written."""
+"""Subscription rows. The token itself is written only as a hash; its escrowed copy lives
+in `secret_versions` and the row keeps a reference."""
 from __future__ import annotations
 
+from ..secrets_store import SecretRef
 from .models import Subscription
 
 COLUMNS = (
     "id, client_id, generation, state, update_interval_hours, last_fetched_at, "
-    "created_at, updated_at, revoked_at"
+    "created_at, updated_at, revoked_at, secret_id, secret_version"
 )
 
 
@@ -20,21 +22,31 @@ def to_subscription(row) -> Subscription:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         revoked_at=row["revoked_at"],
+        secret_ref=SecretRef(row["secret_id"], row["secret_version"]) if row["secret_id"] else None,
     )
 
 
 class SubscriptionStore:
     @staticmethod
     def insert(db, subscription: Subscription, token_hash: str) -> None:
+        ref = subscription.secret_ref
         db.execute(
             """INSERT INTO client_subscriptions(id,client_id,public_token_hash,generation,state,
-               update_interval_hours,last_fetched_at,created_at,updated_at,revoked_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?)""",
+               update_interval_hours,last_fetched_at,created_at,updated_at,revoked_at,secret_id,secret_version)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 subscription.id, subscription.client_id, token_hash, subscription.generation,
                 subscription.state, subscription.update_interval_hours, subscription.last_fetched_at,
                 subscription.created_at, subscription.updated_at, subscription.revoked_at,
+                ref.secret_id if ref else None, ref.version if ref else None,
             ),
+        )
+
+    @staticmethod
+    def set_secret_ref(db, subscription_id: str, ref: SecretRef) -> None:
+        db.execute(
+            "UPDATE client_subscriptions SET secret_id=?,secret_version=? WHERE id=?",
+            (ref.secret_id, ref.version, subscription_id),
         )
 
     @staticmethod
