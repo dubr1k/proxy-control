@@ -48,3 +48,8 @@ def test_the_dialog_is_reachable_by_viewers_but_only_writers_get_the_buttons():
     assert clients.index('data-client-action="subscription"') < clients.index('role === "viewer" || client.state === "archived"')
     # ...and the dialog itself hides create/rotate/revoke from viewers.
     assert 'role !== "viewer"' in javascript and "canWrite" in javascript
+
+
+def test_the_audit_screen_names_the_reveal():
+    audit = (ROOT / "static/js/audit.js").read_text()
+    assert '"subscription.reveal": "Ссылка подписки показана"' in audit

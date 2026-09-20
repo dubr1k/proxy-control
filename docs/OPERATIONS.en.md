@@ -121,8 +121,11 @@ A client subscription URL (`https://<subscription domain>/s/<token>`) is a beare
 credential: whoever holds it receives every access of that client. By design it
 never reaches a log — the panel runs uvicorn without an access log, the Nginx
 `server` block for the subscription domain has `access_log off`, and the panel
-stores only a hash of the token. Do not add request logging to that path, and do
-not paste a subscription URL into a ticket.
+stores the token's hash plus (since v0.10) a copy encrypted under the panel master
+key — no key, no copy. Showing the URL in the panel («Показать» in the client
+window) is an owner/admin action through a one-time reveal, audited as
+`subscription.reveal`. Do not add request logging to that path, and do not paste
+a subscription URL into a ticket.
 
 If a URL leaks, rotate the client's subscription in the panel: the old token stops
 answering (404, same as an unknown token) in the same transaction that issues the
