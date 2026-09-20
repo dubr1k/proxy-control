@@ -102,6 +102,13 @@
 .grant-tools button{min-height:22px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:10px}
 .grant-tools button:hover{border-color:var(--line);color:var(--text)}
 .grant-tools button.danger-text{color:#d97880}
+.placement-scroll{overflow-x:auto;max-width:100%;margin:10px 0;-webkit-overflow-scrolling:touch}
+.placement{border-collapse:collapse;min-width:100%;font-size:12px}
+.placement th,.placement td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;white-space:nowrap}
+.placement th[scope=row]{font-weight:560}.placement th[scope=row] small{color:var(--muted);font-weight:400;margin-left:4px}
+.placement-cell label{display:inline-flex;align-items:center;gap:6px;margin:0}.placement-cell small{color:var(--muted);font-size:10px}
+.placement-cell button{margin-left:4px;min-height:24px;padding:0 6px}
+.placement-row-locked th,.placement-row-locked td{color:var(--muted)}
 @media(max-width:560px){.node-card.linked-node{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "tabs tabs" "body body" "actions actions"}.node-tabs button{flex:1 1 auto;min-height:38px}.link-grid{grid-template-columns:1fr}.node-component>span,.node-component select{flex-basis:100%}.node-component button{flex:1 1 100%}.node-import-actions button{flex:1 1 100%}.grant-tools{flex-basis:100%;margin-left:0}}
 @media(max-width:900px){.key-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.key-grid.data-head{display:none}.key-grid .row-actions{grid-column:1 / -1;justify-content:flex-start}}
 .subscription-grants{margin:10px 0}.subscription-grants .auto-refresh{display:inline-flex;gap:4px}.subscription-grants .auto-refresh small{padding:1px 6px;border-radius:99px;border:1px solid var(--line);font-size:9px}.refresh-supported{color:var(--green);border-color:rgba(45,186,116,.4)!important}.refresh-unsupported{color:var(--quiet)}.refresh-unproven{color:var(--amber);border-color:rgba(231,168,75,.4)!important}
