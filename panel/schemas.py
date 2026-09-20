@@ -142,6 +142,8 @@ class FleetCommandCreate(BaseModel):
 
 class ClientCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=128)
+    # A subscription URL is issued with the client when a subscription domain is configured.
+    subscription: bool = True
 
 
 class ClientState(BaseModel):

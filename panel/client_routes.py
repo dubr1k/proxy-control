@@ -13,6 +13,7 @@ from .clients.store import ClientConflict
 from .fleet_v2.central_routes import public_hosts_for
 from .protocols.base import AdapterError, ManualInterventionRequired
 from .secrets_store import SecretError
+from .subscription_routes import subscription_reveal_payload
 from .schemas import (
     ClientCreate,
     ClientImport,
@@ -67,10 +68,17 @@ def register_client_routes(app, context: RequestContext) -> None:
 
     @app.post("/api/clients", status_code=201)
     async def create(body: ClientCreate, request: Request, user=Depends(context.roles("owner", "admin"))):
+        subscriptions = app.state.subscriptions
+        if body.subscription and subscriptions.public_base:
+            client, subscription, token = await asyncio.to_thread(
+                subscriptions.create_with_client, body.display_name, **_context(request, user)
+            )
+            reveal = context.create_reveal(subscription_reveal_payload(app, subscription, token), user)
+            return {**client.model_dump(), "subscription_reveal_token": reveal}
         client = await asyncio.to_thread(
             app.state.clients.create_client, body.display_name, **_context(request, user)
         )
-        return client.model_dump()
+        return {**client.model_dump(), "subscription_reveal_token": None}
 
     @app.get("/api/clients/import/inventory")
     async def import_inventory(_user=Depends(context.read_roles("owner", "admin"))):
