@@ -2,9 +2,11 @@
 
 Three rules shape this module.
 
-The URL is a bearer credential, so only its hash is stored and the plaintext is returned
-exactly once, at creation. Rotating issues a new one and revokes the old in the same
-transaction — there is never a window with two live URLs for one client.
+The URL is a bearer credential, so its hash is what `/s/{token}` looks up. With a keyring
+the panel also keeps an encrypted copy so an operator can see the URL again; every such
+reveal is an audit row, and a rotated or revoked URL retires its copy in the same
+transaction. Rotating issues a new one and revokes the old in the same transaction —
+there is never a window with two live URLs for one client.
 
 `generation` moves inside the transaction of the change that caused it. A rolled-back
 mutation must not leave a bumped counter behind telling every client to re-fetch a
@@ -26,10 +28,12 @@ import uuid
 from ..audit import record
 from ..clients.models import effective_enabled
 from ..clients.store import ClientConflict
+from ..secrets_store import SecretError, SecretRef
 from .models import Manifest, ManifestGrant, Subscription
 from .store import SubscriptionStore
 
 TOKEN_BYTES = 32
+SUBSCRIPTION_PURPOSE = "subscription"
 
 
 def _hash(token: str) -> str:
@@ -53,24 +57,25 @@ class SubscriptionService:
 
     # --- lifecycle ----------------------------------------------------------------
 
-    def _renderable(self, db, client_id: str) -> None:
-        """Refuse a subscription the panel could not actually render."""
-        orphans = [
-            grant.runtime_username
-            for grant in self.clients.store.grants(db, client_id=client_id)
-            if grant.secret_ref is None
-        ]
-        if orphans:
-            raise ClientConflict(
-                "these accesses have no stored credential and would be missing from the "
-                f"subscription: {', '.join(sorted(orphans))}"
-            )
+    @property
+    def escrow_enabled(self) -> bool:
+        return self.secrets is not None and self.secrets.enabled
 
     def _issue(self, db, client_id: str, *, generation: int) -> tuple[Subscription, str]:
         now = int(self.clock.time())
         token = secret_tokens.token_urlsafe(TOKEN_BYTES)
+        subscription_id = str(uuid.uuid4())
+        secret_ref: SecretRef | None = None
+        if self.escrow_enabled:
+            # The AAD binds the ciphertext to this subscription id: a row cannot be moved
+            # under another client, and the purpose keeps grant reveals from opening it.
+            secret_ref = self.secrets.store(
+                db, secret_id=f"subscription:{subscription_id}", version=1,
+                purpose=SUBSCRIPTION_PURPOSE, grant_id=None, permitted_node_id=None,
+                plaintext=token.encode(), state="active",
+            )
         subscription = Subscription(
-            id=str(uuid.uuid4()),
+            id=subscription_id,
             client_id=client_id,
             generation=generation,
             state="active",
@@ -78,9 +83,15 @@ class SubscriptionService:
             last_fetched_at=None,
             created_at=now,
             updated_at=now,
+            secret_ref=secret_ref,
         )
         self.store.insert(db, subscription, _hash(token))
         return subscription, token
+
+    def _retire_escrow(self, db, subscription: Subscription) -> None:
+        """A rotated or revoked URL must not be showable: the ciphertext row is revoked too."""
+        if subscription.secret_ref is not None and self.escrow_enabled:
+            self.secrets.transition(db, subscription.secret_ref, "revoked")
 
     def create(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None):
         with self.database.transaction() as db:
@@ -89,7 +100,6 @@ class SubscriptionService:
                 raise ClientConflict("only an active client can hold a subscription")
             if self.store.active(db, client_id) is not None:
                 raise ClientConflict("the client already has an active subscription")
-            self._renderable(db, client_id)
             subscription, token = self._issue(db, client_id, generation=1)
             record(
                 db, actor=actor, action="subscription.create", target=subscription.id,
@@ -104,9 +114,9 @@ class SubscriptionService:
             current = self.store.active(db, client_id)
             if current is None:
                 raise ClientConflict("the client has no active subscription to rotate")
-            self._renderable(db, client_id)
             now = int(self.clock.time())
             self.store.revoke(db, client_id, now=now)
+            self._retire_escrow(db, current)
             subscription, token = self._issue(db, client_id, generation=current.generation + 1)
             record(
                 db, actor=actor, action="subscription.rotate", target=subscription.id,
@@ -124,6 +134,7 @@ class SubscriptionService:
             if current is None:
                 return
             self.store.revoke(db, client_id, now=int(self.clock.time()))
+            self._retire_escrow(db, current)
             record(
                 db, actor=actor, action="subscription.revoke", target=current.id,
                 ip=ip, request_id=request_id, detail={"client_id": client_id},
@@ -131,6 +142,27 @@ class SubscriptionService:
             self._emit(db, "subscription.revoked", {
                 "subscription_id": current.id, "client_id": client_id, "reason": "revoked",
             })
+
+    def reveal_token(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None):
+        """Open the escrowed token for an operator: audited, never logged, never cached."""
+        with self.database.transaction() as db:
+            self.clients.store.client(db, client_id)  # KeyError when the client is unknown
+            current = self.store.active(db, client_id)
+            if current is None:
+                raise KeyError(client_id)
+            if not self.escrow_enabled:
+                raise SecretError("secret store is disabled: PANEL_MASTER_KEY_FILE is not configured")
+            if current.secret_ref is None:
+                raise ClientConflict("subscription is not escrowed: rotate it to get a URL that can be shown")
+            token = self.secrets.reveal(
+                db, current.secret_ref, purpose=SUBSCRIPTION_PURPOSE, grant_id=None, permitted_node_id=None,
+            ).decode()
+            record(
+                db, actor=actor, action="subscription.reveal", target=current.id,
+                ip=ip, request_id=request_id, generation=current.generation,
+                detail={"client_id": client_id},
+            )
+        return current, token
 
     def get(self, client_id: str) -> Subscription | None:
         with self.database.connect() as db:

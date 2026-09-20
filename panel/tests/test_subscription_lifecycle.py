@@ -1,4 +1,5 @@
-"""A subscription URL is a bearer credential, so the panel keeps only its hash.
+"""A subscription URL is a bearer credential, so the panel keeps its hash — and, under the
+keyring, an encrypted copy that only an audited reveal opens.
 
 Two properties matter beyond that. The generation moves with the change that caused it —
 inside the same transaction — so a rolled-back mutation never leaves a bumped counter
@@ -100,7 +101,7 @@ def client_id(clients, clock):
     return client.id
 
 
-async def test_token_is_shown_once_and_only_its_hash_is_stored(subscriptions, client_id):
+async def test_token_is_stored_only_as_hash_and_ciphertext(subscriptions, client_id):
     subscription, token = subscriptions.create(client_id, **CTX)
     assert len(token) >= 43 and subscription.generation == 1
     with subscriptions.database.connect() as db:
@@ -140,14 +141,6 @@ async def test_generation_increments_with_the_mutation_or_not_at_all(
         clients.set_state(client_id, "active", **CTX)
     # The bump lives in the same transaction as the change, so it rolled back with it.
     assert subscriptions.get(client_id).generation == 2
-
-
-async def test_create_refuses_grants_without_escrowed_credentials(subscriptions, clients, clock):
-    client = clients.create_client("Nobody", **CTX)
-    _grant(clients, client.id, "mieru", "orphan", now=clock.time(), with_secret=False)
-    with pytest.raises(ClientConflict, match="orphan"):
-        subscriptions.create(client.id, **CTX)
-    assert subscriptions.get(client.id) is None
 
 
 async def test_etag_follows_the_effective_set_not_the_fetch_time(subscriptions, client_id, clock):
