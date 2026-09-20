@@ -6,12 +6,24 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
+
+# Node 18 (the lab host) decides CommonJS vs ESM by file extension, and panel/static/js has no
+# package.json (panel/static/ is served as-is and shipped in the Docker image — it must stay
+# plain static files, not gain Node-only metadata). scripts/dev/check-js-syntax.sh solves the
+# same problem by copying each module to a .mjs name; do the same here, module content copied
+# verbatim apart from rewriting the one `./common.js` import specifier to `./common.mjs`.
+_TMP = tempfile.TemporaryDirectory()
+_TMPDIR = Path(_TMP.name)
+shutil.copy(ROOT / "static/js/common.js", _TMPDIR / "common.mjs")
+_placement_src = (ROOT / "static/js/placement.js").read_text()
+(_TMPDIR / "placement.mjs").write_text(_placement_src.replace("./common.js", "./common.mjs"))
 
 NODES = [
     {"node_id": "local", "display_name": "self", "transport": "local"},
@@ -28,7 +40,7 @@ GRANTS = [
 
 
 def run(script: str) -> dict:
-    module = (ROOT / "static/js/placement.js").as_uri()
+    module = (_TMPDIR / "placement.mjs").as_uri()
     code = f"import * as p from {json.dumps(module)}; const NODES={json.dumps(NODES)}; const GRANTS={json.dumps(GRANTS)}; {script}"
     result = subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
