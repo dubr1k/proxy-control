@@ -78,7 +78,9 @@ const OPERATION_MESSAGE = {
 // node × protocol matrix below. Both read the same client, so one load feeds both.
 export function createSubscriptionDialog(context) {
   const { api, root, ui } = context;
-  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, format: "singbox", matrix: {} };
+  // `generation` counts the openings: an answer that comes back after the window was
+  // reopened for another client belongs to nobody and is dropped.
+  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, format: "singbox", matrix: {}, generation: 0 };
 
   function canWrite() {
     return context.state.me?.role !== "viewer" && state.client?.state !== "archived";
@@ -156,6 +158,7 @@ export function createSubscriptionDialog(context) {
   }
 
   async function load() {
+    const generation = state.generation;
     const id = encodeURIComponent(state.clientId);
     const [overview, detail, nodes, compatibility] = await Promise.all([
       api(`/api/clients/${id}/subscription`),
@@ -163,6 +166,9 @@ export function createSubscriptionDialog(context) {
       api("/api/nodes"),
       api("/api/subscriptions/compatibility"),
     ]);
+    // The window is already someone else's (or closed): its rows must not be replaced by
+    // this client's, or «Применить» would act on grants that are no longer on screen.
+    if (generation !== state.generation) return;
     state.client = detail.client;
     state.grants = detail.grants || [];
     state.name = detail.client.display_name;
@@ -173,6 +179,8 @@ export function createSubscriptionDialog(context) {
 
   // `reveal` may be a payload already in hand (the client was just created): shown at once.
   async function open(clientId, name, reveal = null) {
+    state.generation += 1;
+    const generation = state.generation;
     state.clientId = clientId;
     state.name = name;
     state.reveal = reveal;
@@ -182,6 +190,7 @@ export function createSubscriptionDialog(context) {
     try {
       await load();
     } catch (exception) {
+      if (generation !== state.generation) return;
       query("#subscription-error", root).textContent = exception.message;
     }
   }
@@ -317,12 +326,20 @@ export function createSubscriptionDialog(context) {
     query("#placement-username", root)?.addEventListener("input", ({ currentTarget: input }) => {
       input.dataset.typed = input.value ? "1" : "";
     });
+    // Enter in a dialog form submits it — here the first submit button is the head ×, so the
+    // window would simply close. Enter means «Применить», and nothing else.
+    query("#placement-username", root)?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      query("#placement-actions button[data-placement-action]", root)?.click();
+    });
     query("#copy-subscription-url", root)?.addEventListener("click", async () => {
       await ui.copyText(query("#subscription-url", root));
       ui.toast("Ссылка подписки скопирована");
     });
     dialog.addEventListener("close", async () => {
       // Nothing of the URL survives the window; the list behind it shows what changed.
+      state.generation += 1;
       state.reveal = null;
       showReveal();
       state.client = null;
@@ -331,6 +348,10 @@ export function createSubscriptionDialog(context) {
       queryAll("#subscription-grants li", root).forEach((node) => node.remove());
       query("#placement-body", root).innerHTML = "";
       query("#placement-actions", root).innerHTML = "";
+      // Nothing of the previous client either: a next opening whose load fails would
+      // otherwise offer its «Ротировать»/«Отозвать» against the client now on screen.
+      query("#subscription-status", root).textContent = "";
+      query("#subscription-actions", root).innerHTML = "";
       if (context.state.view === "clients") await context.navigate("clients");
     });
   }
