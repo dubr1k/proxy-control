@@ -24,6 +24,7 @@ from .clients.store import ClientConflict
 from .events import MAX_PAGE
 from .fleet_v2.central_routes import public_hosts_for
 from .reveals import qr_data
+from .secrets_store import SecretError
 from .subscriptions.compatibility import MATRIX, NOTES
 from .subscriptions.renderers import RENDERERS, resolve_artifacts
 from .subscriptions.service import SubscriptionService
@@ -61,8 +62,16 @@ SHARE_VARIANTS = {
 FORMAT_CLIENTS = {"singbox": ("karing", "singbox")}
 
 
+def _public(subscription) -> dict:
+    """The row as the operator sees it: no secret reference, no token."""
+    body = dataclasses.asdict(subscription)
+    body.pop("secret_ref", None)
+    return body
+
+
 def register_subscription_admin_routes(app, context: RequestContext) -> None:
-    """The operator's side: one subscription per client, its URL shown exactly once."""
+    """The operator's side: one subscription per client; its URL is shown at creation and,
+    with a keyring, again on request."""
 
     def service() -> SubscriptionService:
         return app.state.subscriptions
@@ -76,11 +85,14 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
             current = service().store.active(db, client_id)
         return {
             "configured": bool(service().public_base),
-            "subscription": dataclasses.asdict(current) if current else None,
+            "secret_store": service().escrow_enabled,
+            "escrowed": current is not None and current.secret_ref is not None,
+            "subscription": _public(current) if current else None,
             "grants": [
                 {
                     "grant_id": grant.id,
                     "protocol": grant.protocol,
+                    "node_id": grant.node_id,
                     "runtime_username": grant.runtime_username,
                     "enabled": effective_enabled(grant, client, now),
                     "has_credential": grant.secret_ref is not None,
@@ -145,6 +157,21 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
     @app.post("/api/clients/{client_id}/subscription/rotate")
     async def rotate(client_id: str, request: Request, user=Depends(context.roles("owner", "admin"))):
         return await issue(service().rotate, client_id, request, user)
+
+    @app.post("/api/clients/{client_id}/subscription/reveal")
+    async def reveal(client_id: str, request: Request, user=Depends(context.roles("owner", "admin"))):
+        """Show the current URL again: the escrowed token is opened for one reveal and audited."""
+        try:
+            subscription, token = await asyncio.to_thread(
+                service().reveal_token, client_id, **context.domain_context(request, user)
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "client or subscription not found") from exc
+        except ClientConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except SecretError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return {"reveal_token": context.create_reveal(reveal_payload(subscription, token), user)}
 
     @app.post("/api/clients/{client_id}/subscription/revoke")
     async def revoke(client_id: str, request: Request, user=Depends(context.roles("owner", "admin"))):
