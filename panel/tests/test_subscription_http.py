@@ -294,6 +294,37 @@ async def test_rotate_and_revoke_move_the_public_url(owner, public, client_id, a
     assert operator_actions == ["subscription.create", "subscription.rotate", "subscription.revoke"]
 
 
+async def test_the_url_can_be_shown_again_through_an_audited_reveal(owner, public, client_id, app):
+    created = await owner.post(f"/api/clients/{client_id}/subscription")
+    first = (await owner.get(f"/api/reveal/{created.json()['reveal_token']}")).json()
+    overview = (await owner.get(f"/api/clients/{client_id}/subscription")).json()
+    assert overview["escrowed"] is True and overview["secret_store"] is True
+    assert {item["node_id"] for item in overview["grants"]} == {"local"}
+
+    shown = await owner.post(f"/api/clients/{client_id}/subscription/reveal")
+    assert shown.status_code == 200 and set(shown.json()) == {"reveal_token"}
+    payload = (await owner.get(f"/api/reveal/{shown.json()['reveal_token']}")).json()
+    assert payload["url"] == first["url"] and set(payload["variants"]) == {"raw", "singbox", "singbox-official", "clash"}
+    assert payload["qr"].startswith("data:image/svg+xml;base64,")
+    # Consumed on first read, like every reveal.
+    assert (await owner.get(f"/api/reveal/{shown.json()['reveal_token']}")).status_code == 410
+    with app.state.database.connect() as db:
+        actions = [row[0] for row in db.execute("SELECT action FROM audit_log ORDER BY id").fetchall()]
+    assert actions.count("subscription.reveal") == 1
+
+    await owner.post(f"/api/clients/{client_id}/subscription/revoke")
+    assert (await owner.post(f"/api/clients/{client_id}/subscription/reveal")).status_code == 404
+
+
+async def test_reveal_refuses_a_subscription_without_an_escrowed_copy(owner, client_id, app):
+    await owner.post(f"/api/clients/{client_id}/subscription")
+    with app.state.database.transaction() as db:
+        db.execute("UPDATE client_subscriptions SET secret_id=NULL, secret_version=NULL")
+    refused = await owner.post(f"/api/clients/{client_id}/subscription/reveal")
+    assert refused.status_code == 409 and "rotate" in refused.json()["detail"]
+    assert (await owner.get(f"/api/clients/{client_id}/subscription")).json()["escrowed"] is False
+
+
 async def test_subscription_management_needs_a_writer_role_and_a_configured_url(app, login_user, client_id, tmp_path):
     app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
     async with httpx.AsyncClient(
@@ -305,6 +336,7 @@ async def test_subscription_management_needs_a_writer_role_and_a_configured_url(
         assert (await viewer.post(f"/api/clients/{client_id}/subscription")).status_code == 403
         assert (await viewer.post(f"/api/clients/{client_id}/subscription/rotate")).status_code == 403
         assert (await viewer.post(f"/api/clients/{client_id}/subscription/revoke")).status_code == 403
+        assert (await viewer.post(f"/api/clients/{client_id}/subscription/reveal")).status_code == 403
         compat = await viewer.get("/api/subscriptions/compatibility")
         assert compat.status_code == 200 and set(compat.json()["matrix"]) == {"mtproxy", "naive", "mieru"}
 
