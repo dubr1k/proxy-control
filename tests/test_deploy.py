@@ -543,7 +543,11 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("compensated:", javascript)
         self.assertIn("manual_intervention_required:", javascript)
         self.assertIn("operations-resume", javascript)
-        self.assertIn('id="grant-modal"', html)
+        # Since v0.10 a grant is issued from the client window's node × protocol matrix,
+        # not from a separate «Выдать доступ» dialog.
+        self.assertIn('id="subscription-modal"', html)
+        self.assertIn('id="placement-body"', html)
+        self.assertNotIn('id="grant-modal"', html)
         self.assertIn('id="bundle-modal"', html)
 
     def test_coexist_adds_one_marked_route_and_removes_only_that_route(self):
