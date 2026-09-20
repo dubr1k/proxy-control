@@ -1,6 +1,6 @@
 # ADR 004: Client, AccessGrant and subscription as a projection
 
-Status: accepted (v0.2)
+Status: accepted (v0.2), amended v0.10 (escrowed token)
 
 ## Context
 
@@ -24,6 +24,14 @@ subscription URL has trained everyone to expect.
 - `ClientSubscription` is a stable, revocable token per client. The response is a
   **pull projection of the current grants**, recomputed per request; the panel
   never stores a rendered bundle.
+- **Since v0.10** the token is also kept encrypted under the panel keyring
+  (`secret_versions`, purpose `subscription`). Showing the URL again is an
+  owner/admin action that goes through a one-time reveal and writes an audit row;
+  rotation and revocation retire the encrypted copy in the same transaction.
+  Without a keyring nothing is escrowed and the URL is shown once, as before.
+- A subscription is issued together with the client when a subscription domain is
+  configured; grants without a stored credential do not block it — they render as
+  `unsupported`, honestly, as every renderer already does.
 - Every change to the effective set bumps a generation; the HTTP `ETag` is
   derived from the effective manifest plus the renderer version, so a client that
   refetches gets `304` until something real changes.
