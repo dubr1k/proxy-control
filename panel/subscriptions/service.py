@@ -89,8 +89,14 @@ class SubscriptionService:
         return subscription, token
 
     def _retire_escrow(self, db, subscription: Subscription) -> None:
-        """A rotated or revoked URL must not be showable: the ciphertext row is revoked too."""
-        if subscription.secret_ref is not None and self.escrow_enabled:
+        """A rotated or revoked URL must not be showable: the ciphertext row is revoked too.
+
+        `transition` only flips a state column — it needs no key material — so this must
+        run whenever the subscription was ever escrowed, even if the keyring has since been
+        disabled. Gating on `escrow_enabled` here would leave an old row stuck `active`
+        forever once the keyring goes away.
+        """
+        if subscription.secret_ref is not None and self.secrets is not None:
             self.secrets.transition(db, subscription.secret_ref, "revoked")
 
     def create(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None):

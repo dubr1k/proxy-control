@@ -126,6 +126,20 @@ def test_grants_without_a_credential_no_longer_block_a_subscription(tmp_path):
     assert subscription.generation == 1
 
 
+def test_revoke_retires_the_escrowed_copy_even_after_the_keyring_is_disabled(tmp_path):
+    clients, subscriptions = _world(tmp_path, keyring=Keyring.generate())
+    client = clients.create_client("Sergey", **CTX)
+    _grant(clients, client.id)
+    subscription, _ = subscriptions.create(client.id, **CTX)
+    subscriptions.secrets = SecretStore(None)
+    subscriptions.revoke(client.id, **CTX)
+    with subscriptions.database.connect() as db:
+        state = db.execute(
+            "SELECT state FROM secret_versions WHERE secret_id=?", (subscription.secret_ref.secret_id,)
+        ).fetchone()[0]
+    assert state == "revoked"
+
+
 def test_rewrap_and_verify_cover_subscription_tokens(tmp_path):
     keyring = Keyring.generate()
     clients, subscriptions = _world(tmp_path, keyring=keyring)
