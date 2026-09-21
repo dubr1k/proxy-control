@@ -44,6 +44,16 @@ def test_the_client_window_shows_the_url_on_request_and_never_keeps_it():
     assert 'if (dialog.open) return;' in javascript[close_listener : close_listener + 500]
 
 
+def test_open_clears_the_previous_client_before_reopening_the_modal():
+    javascript = (ROOT / "static/js/subscriptions.js").read_text()
+    # A reopen whose load() fails must never show the previous client's URL/matrix under
+    # the new title — reset() runs right after the generation bump, before openModal().
+    open_start = javascript.index("async function open(clientId")
+    open_body = javascript[open_start : javascript.index("async function issue(", open_start)]
+    assert "reset()" in open_body
+    assert open_body.index("reset()") < open_body.index("ui.openModal(")
+
+
 def test_the_client_card_opens_the_window_and_main_wires_it():
     clients = (ROOT / "static/js/clients.js").read_text()
     main = (ROOT / "static/js/main.js").read_text()
@@ -78,3 +88,12 @@ def test_new_client_places_grants_by_matrix_and_hands_the_subscription_over():
     assert "subscription_reveal_token" in clients and "openOperationBundle(" in clients
     # The bundle dialog carries the subscription block when a reveal came with the client.
     assert 'id="bundle-subscription"' in html and "bundle-subscription" in access and "subscription.qr" in access
+
+
+def test_service_screens_issue_clients_without_a_subscription():
+    clients = (ROOT / "static/js/clients.js").read_text()
+    # MTProxy/NaiveProxy/Mieru screens issue clients through issueOnNode; the client
+    # window offers «Создать URL» later, so this call must not issue one up front.
+    start = clients.index("export async function issueOnNode")
+    body = clients[start : clients.index("export function bindClients")]
+    assert "subscription: false" in body

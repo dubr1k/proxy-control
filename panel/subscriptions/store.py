@@ -43,13 +43,6 @@ class SubscriptionStore:
         )
 
     @staticmethod
-    def set_secret_ref(db, subscription_id: str, ref: SecretRef) -> None:
-        db.execute(
-            "UPDATE client_subscriptions SET secret_id=?,secret_version=? WHERE id=?",
-            (ref.secret_id, ref.version, subscription_id),
-        )
-
-    @staticmethod
     def active(db, client_id: str) -> Subscription | None:
         row = db.execute(
             f"SELECT {COLUMNS} FROM client_subscriptions WHERE client_id=? AND state='active'",
