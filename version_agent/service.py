@@ -1145,10 +1145,14 @@ class VersionAgent:
         return files
 
     def _compose_up(self, service: str) -> None:
-        """Recreate one Compose service with the overlays it was installed with and wait for health."""
+        """Recreate one Compose service with the overlays it was installed with and wait for health.
+
+        `--no-deps`: the panel depends on the managers and the managers on the data plane;
+        without it a panel update recreated the Mieru manager as well (seen live).
+        """
         override = self.compose_dir / "version-overrides" / "compose.versions.yaml" if self.compose_dir else None
         command = self._compose_command(
-            "up", "-d", "--wait", service,
+            "up", "-d", "--no-deps", "--wait", service,
             include_override=bool(override and override.exists()),
             env_files=True,
         )
