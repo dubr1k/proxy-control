@@ -40,6 +40,8 @@
   каталога и state, и экран «Версии» был пуст; ручные шаги из [UPGRADING](docs/UPGRADING.ru.md)
   остаются для старых хостов.
 
+- **MCP-сервер** (`compose.mcp.yaml`, контейнер `proxy-control-mcp`, только на центральной панели): API панели как инструменты Model Context Protocol для Claude Code и Claude Desktop по `https://<домен mcp>/mcp` с bearer-токеном. Инструменты строятся из OpenAPI-схемы панели (по одному на операцию, `<метод>_<путь>`), curated-инструменты (`overview`, `create_client`, `client_subscription`, `set_client_placement`, `versions_check`, `versions_update`, `routing_preview`, `routing_apply`, `audit_tail`) с человеческими описаниями, необратимые действия требуют `confirm: true`, каждый вызов идёт через API-ключ области `admin` с именем `mcp` — в аудите он виден как `via: api-key`. Панель отдаёт `GET /api/openapi.json` владельцу и администратору; `python -m panel.cli api-key-create` / `api-key-revoke` выпускают и отзывают ключи без сессии ([docs/MCP.ru.md](docs/MCP.ru.md)).
+
 ### Изменено
 
 - Обзор: «Ресурсы сервера» одной строкой на всю ширину, MTProxy, Mieru и NaiveProxy тремя

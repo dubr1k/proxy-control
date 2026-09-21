@@ -47,6 +47,7 @@ What you get:
 | **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
 | **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
 | **Routing** | Since v0.4 — an egress policy per node and service: NaiveProxy and Mieru direct or through WARP, block by domain and CIDR, selective rules on Mieru; the preview tells exactly what the node's backend will enforce, and apply is transactional with a rollback — locally and on linked panels ([docs/ROUTING.en.md](docs/ROUTING.en.md)). Since v0.5 — an optional **Xray-router** on the node: a service attached to it gets geosite, geoip, ports and blocks beside WARP through a dedicated, pinned Xray with an authenticated ingress ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)). |
+| **MCP** *(optional, central)* | Since v0.11 — the `proxy-control-mcp` container on the central panel: the panel's API as Model Context Protocol tools for Claude Code and Claude Desktop over `https://<mcp domain>/mcp` with a bearer token; irreversible actions require `confirm`, every call goes through the `mcp` API key and shows in the audit log ([docs/MCP.en.md](docs/MCP.en.md)). |
 
 Traffic accounting differs per protocol, and the panel does not hide that:
 Telemt separates the process counter from quota consumption, Naive counts
@@ -921,6 +922,7 @@ release build embeds in the SBOM.
 | `naive_manager/Dockerfile` | The NaiveProxy credential and accounting manager | `python:3.13.5-slim` |
 | `mieru_manager/Dockerfile` | The Mieru credential and quota manager | `python:3.13.5-slim` |
 | `xray_router_manager/Dockerfile` | The Xray egress-router and its manager (v0.5) | `python:3.13.5-slim` |
+| `mcp_server/Dockerfile` | The MCP server for Claude Code and Claude Desktop (v0.11, central only) | `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | The Fleet node agent | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | The Fleet mTLS ingress | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | The official Mieru client used by the acceptance | `python:3.13.5-slim` |
@@ -937,6 +939,13 @@ Runtime (`panel/requirements.txt`): `fastapi`, `starlette`, `pydantic`,
 `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
 `argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
 `qrcode`.
+
+The MCP server (`mcp_server/requirements.txt`, its own image): `mcp`, `mcp-types`,
+`starlette`, `sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`,
+`anyio`, `pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`,
+`typing_extensions`, `jsonschema`, `jsonschema-specifications`, `referencing`, `rpds-py`,
+`attrs`, `PyJWT`, `cryptography`, `cffi`, `pycparser`, `python-multipart`,
+`opentelemetry-api`, `truststore`, `certifi`, `idna`, `click`.
 
 Development only (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`,
 `iniconfig`, `packaging`, `pluggy`, `Pygments`, `ruff`.
