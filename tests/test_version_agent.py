@@ -394,6 +394,112 @@ def test_xray_is_refused_without_the_router_and_with_a_mismatched_archive(tmp_pa
     assert (bin_dir / "xray").read_bytes() == b"old-xray" and overlay.read_text() == ""
 
 
+def _build_catalog(path: Path) -> None:
+    path.write_text(json.dumps({"schema": 1, "components": {"naive": [{"version": "2.12.0", "kind": "build", "build": {
+        "caddy_version": "2.12.0", "builder_image": "caddy:2.12.0-builder@sha256:" + "e" * 64,
+        "forwardproxy_commit": "d" * 40}}]}}))
+
+
+def test_naive_build_writes_a_pinned_dockerfile_builds_extracts_and_installs(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    _build_catalog(catalog)
+    target = tmp_path / "caddy"
+    target.write_bytes(b"old")
+    target.chmod(0o755)
+    pin = tmp_path / "caddy-naive.pin"
+    pin.write_text(PINNED_CADDY + "\n")
+    build_dir = tmp_path / "caddy-build"
+    commands = []
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        commands.append((command, env))
+        if command[:2] == ["docker", "create"]:
+            return "0123456789abcdef\n"
+        if command[:2] == ["docker", "cp"]:
+            Path(command[3]).write_bytes(BINARY)
+            return ""
+        if len(command) == 2 and command[1] == "version":
+            return "v2.12.0 h1:newbuildhash=\n"
+        return "active\n"
+
+    def no_download(url):
+        raise AssertionError("no download for a build")
+
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", binary_paths={"naive": target},
+                         service_names={"naive": "caddy-naive"}, checkers={"naive": "/usr/local/libexec/check-naive-caddy-build"},
+                         version_pins={"naive": pin}, caddy_build_dir=build_dir, downloader=no_download, runner=run)
+
+    result = agent.update("naive", "2.12.0", expected_current=None)
+
+    assert result["changed"] is True
+    dockerfile = (build_dir / "Dockerfile").read_text()
+    assert "FROM caddy:2.12.0-builder@sha256:" + "e" * 64 + " AS builder" in dockerfile
+    assert "xcaddy build v2.12.0" in dockerfile and "github.com/klzgrad/forwardproxy@" + "d" * 40 in dockerfile
+    assert "COPY --from=builder /usr/bin/caddy /caddy" in dockerfile
+    [build] = [c for c, _ in commands if c[:2] == ["docker", "build"]]
+    assert build[2:4] == ["-f", str(build_dir / "Dockerfile")] and build[-1] == str(build_dir)
+    assert ["docker", "rm", "0123456789abcdef"] in [c for c, _ in commands]
+    assert target.read_bytes() == BINARY and pin.read_text().strip() == "v2.12.0 h1:newbuildhash="
+    assert any(env and env.get("EXPECTED_CADDY_VERSION") == "v2.12.0 h1:newbuildhash=" for _, env in commands)
+    assert ["systemctl", "restart", "caddy-naive"] in [c for c, _ in commands]
+    assert not (build_dir / "caddy").exists()
+    state = json.loads((tmp_path / "state.json").read_text())["components"]["naive"]
+    assert state["version"] == "2.12.0" and state["kind"] == "build" and state["runtime_version"] == "v2.12.0 h1:newbuildhash="
+    assert state["sha256"] == BINARY_SHA256 and state["build"]["caddy_version"] == "2.12.0"
+
+
+def test_naive_build_failure_leaves_the_running_binary_alone(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    _build_catalog(catalog)
+    target = tmp_path / "caddy"
+    target.write_bytes(b"old")
+    pin = tmp_path / "caddy-naive.pin"
+    pin.write_text(PINNED_CADDY + "\n")
+    commands = []
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        commands.append(command)
+        if command[:2] == ["docker", "build"]:
+            raise RuntimeError("build failed")
+        return "active\n"
+
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", binary_paths={"naive": target},
+                         service_names={"naive": "caddy-naive"}, version_pins={"naive": pin},
+                         caddy_build_dir=tmp_path / "caddy-build", downloader=lambda url: BINARY, runner=run)
+
+    with pytest.raises(UpdateError) as failure:
+        agent.update("naive", "2.12.0", expected_current=None)
+
+    assert not isinstance(failure.value, RolledBackError)
+    assert target.read_bytes() == b"old" and pin.read_text().strip() == PINNED_CADDY
+    assert not any(c[:2] == ["systemctl", "restart"] for c in commands)
+
+
+def test_naive_build_that_reports_another_caddy_version_is_refused(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    _build_catalog(catalog)
+    target = tmp_path / "caddy"
+    target.write_bytes(b"old")
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        if command[:2] == ["docker", "create"]:
+            return "0123456789abcdef\n"
+        if command[:2] == ["docker", "cp"]:
+            Path(command[3]).write_bytes(BINARY)
+            return ""
+        if len(command) == 2 and command[1] == "version":
+            return "v2.11.4 h1:oldbuildhash=\n"
+        return "active\n"
+
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", binary_paths={"naive": target},
+                         service_names={"naive": "caddy-naive"}, caddy_build_dir=tmp_path / "caddy-build",
+                         downloader=lambda url: BINARY, runner=run)
+
+    with pytest.raises(UpdateError, match="expected v2.12.0"):
+        agent.update("naive", "2.12.0", expected_current=None)
+    assert target.read_bytes() == b"old"
+
+
 def test_catalog_rejects_non_https_binary_sources(tmp_path: Path):
     catalog = tmp_path / "catalog.json"
     catalog.write_text(
