@@ -125,7 +125,7 @@ export async function renderDashboard(context, generation) {
       <div class="protocol-metrics"><span><small>Соединения сейчас</small><b>${number(mt.runtime?.current_connections)}</b></span><span><small>Активные IP</small><b>${number(mt.runtime?.active_ips)}</b></span><span><small>Runtime-трафик</small><b>${bytes(mt.runtime?.traffic_octets)}</b><em>Для текущего runtime-поколения; не квота</em></span></div>
     </article>
     <article class="protocol-card ${mieruReady ? "" : "degraded"}">
-      <div class="protocol-head"><span><small>Native AEAD · TCP/UDP</small><h2>Mieru</h2></span><span class="status-pill ${mieruReady ? "active" : "blocked"}"><i></i>${!mieruAvailable ? "Отключён" : mieruReady ? "Работает" : "Недоступен"}</span></div>
+      <div class="protocol-head"><span><small>Native AEAD · TCP</small><h2>Mieru</h2></span><span class="status-pill ${mieruReady ? "active" : "blocked"}"><i></i>${!mieruAvailable ? "Отключён" : mieruReady ? "Работает" : "Недоступен"}</span></div>
       <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(mieru.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(mieru.credentials?.disabled)}</strong></span></div>
     </article>
     <article class="protocol-card naive-card ${naiveReady ? "" : "degraded"}">

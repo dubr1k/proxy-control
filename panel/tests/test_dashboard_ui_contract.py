@@ -24,7 +24,8 @@ def test_host_card_is_one_full_width_row_and_protocols_are_three_columns():
 def test_overview_has_phone_breakpoints():
     assert "@media(max-width:1040px){.protocol-overview{grid-template-columns:repeat(2,minmax(0,1fr))}" in CSS
     assert "@media(max-width:900px){.protocol-overview{grid-template-columns:1fr}" in CSS
-    assert "@media(max-width:560px){.host-metrics{grid-template-columns:1fr}" in CSS
+    # The host row's own three-column rule is more specific, so the phone rule names it too.
+    assert "@media(max-width:560px){.host-metrics,.host-row .host-metrics{grid-template-columns:1fr}" in CSS
 
 
 def test_clients_badge_is_painted_from_the_clients_list():
