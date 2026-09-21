@@ -63,6 +63,22 @@ LAB_RESET остался `/etc/nginx/stream.d/proxy-control.conf` настоящ
   Syncthing. Найдено при инвентаризации: у AMS_P/AMS_R в env агента был чужой `COMPOSE_DIR`
   (путь ams-server) — скрипт исправляет.
 
+## Стенд после раскатки
+
+`lab-host` (LAB_RESET=1, LAB_KEEP_INSTALL=1) зелёный целиком (`REMOTE_GATE_LAB_HOST_OK`) после двух
+правок LAB_RESET (stream-роутер и настоящий 3x-ui) и правки учения backup/restore под v0.10:
+установщик с нуля поднял version-agent (env с четырьмя compose, роутер on, state со всеми
+компонентами; Telemt записан как `sha256:ab27edbceb9f`). На ams-test теперь **лабораторный узел**
+(`panel.lab.test`), настоящая установка `aurora…` снесена — следующая настоящая установка только
+после `host-teardown.sh`.
+
+## MCP-сервер (решение владельца: в v0.11, полный набор, с ноутбука через SNI, только на центре)
+
+Спек §9a. Два агента в работе: `mcp_server/` + панель (OpenAPI-маршрут, CLI ключей) и установщик
+(`domains.mcp` — одиннадцатый домен, nginx/core, адаптер `mcp`, version-agent, lab, docs). После
+слияния: гейт full, `lab-host` с `mcp.lab.test`, живая проверка с ноутбука на ams-server — для
+неё владелец должен завести DNS-запись домена MCP на ams-server (домен пока не назван).
+
 ## Открытые мелочи
 
 - На AMS_Z проверка `naive` ответила `upstream answered 422 for /repos/klzgrad/forwardproxy/commits/caddy2`
