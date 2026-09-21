@@ -119,6 +119,28 @@ def _atomic_write(path: Path, content: bytes, mode: int = 0o600) -> None:
             pass
 
 
+def _restore_copy(backup: Path, target: Path, mode: int) -> None:
+    """Put a backed-up file back in place atomically without a cross-directory rename.
+
+    The backup lives in the agent's state directory and the target under `/usr`: with
+    the unit's `ProtectSystem=strict` each `ReadWritePaths` entry is its own bind mount,
+    so `os.replace(backup, target)` fails with EXDEV (found live on ams-test). The bytes
+    are copied next to the target first and swapped in from there.
+    """
+    stage = target.with_name(f".{target.name}.proxy-control-restore")
+    try:
+        shutil.copyfile(backup, stage)
+        os.chmod(stage, mode)
+        os.replace(stage, target)
+        directory = os.open(target.parent, os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        stage.unlink(missing_ok=True)
+
+
 def _load_state(path: Path) -> dict:
     if not path.exists():
         return {"schema": 2, "components": {}}
@@ -459,8 +481,7 @@ class VersionAgent:
             try:
                 for name in members:
                     if existed[name]:
-                        os.replace(backup_dir / name, self.xray_bin_dir / name)
-                        os.chmod(self.xray_bin_dir / name, self.XRAY_MODES[name])
+                        _restore_copy(backup_dir / name, self.xray_bin_dir / name, self.XRAY_MODES[name])
                     else:
                         (self.xray_bin_dir / name).unlink(missing_ok=True)
                 self._fsync_directory(self.xray_bin_dir)
@@ -556,7 +577,7 @@ class VersionAgent:
         except Exception as exc:
             try:
                 if existed:
-                    os.replace(backup, target)
+                    _restore_copy(backup, target, backup.stat().st_mode & 0o777)
                 else:
                     target.unlink(missing_ok=True)
                 self._fsync_directory(target.parent)
