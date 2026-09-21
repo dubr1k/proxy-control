@@ -355,6 +355,26 @@ def test_xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_
     assert listed["current"] == "26.4.1"
 
 
+def test_compose_commands_carry_the_mcp_overlay_and_the_panel_sync_ships_its_file(tmp_path: Path):
+    """v0.11 §9a: `.env.mcp` rides along like the protocol overlays, after them, and the
+    panel self-update syncs `compose.mcp.yaml` with the other Compose files."""
+    from version_agent.service import PANEL_SYNC
+
+    assert "compose.mcp.yaml" in PANEL_SYNC
+    for name, text in ((".env", "PANEL_DOMAIN=p.example.com\n"), (".env.mieru", "MIERU_PUBLIC_HOST=m\n"),
+                       (".env.mcp", "MCP_DOMAIN=mcp.example.com\nMCP_PANEL_HOST=p.example.com\n")):
+        (tmp_path / name).write_text(text)
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {}}))
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", compose_dir=tmp_path,
+                         compose_files=("compose.yaml", "compose.mieru.yaml", "compose.mcp.yaml"), runner=lambda *a, **k: "")
+    command = agent._compose_command("up", "-d", "--no-deps", "--wait", "mcp", include_override=False, env_files=True)
+    assert [command[i + 1] for i, part in enumerate(command) if part == "--env-file"] == [
+        str(tmp_path / ".env"), str(tmp_path / ".env.mieru"), str(tmp_path / ".env.mcp")]
+    assert [command[i + 1] for i, part in enumerate(command) if part == "-f"] == [
+        str(tmp_path / "compose.yaml"), str(tmp_path / "compose.mieru.yaml"), str(tmp_path / "compose.mcp.yaml")]
+
+
 def test_xray_update_rolls_back_all_three_members_when_the_router_reports_another_version(tmp_path: Path, exdev_between_directories):
     bin_dir, overlay, catalog, payload = _xray_fixture(tmp_path, overlay_text="XRAY_ROUTER_XRAY_SHA256=" + "0" * 64 + "\n")
     state = tmp_path / "state.json"

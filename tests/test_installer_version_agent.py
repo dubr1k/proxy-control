@@ -291,6 +291,23 @@ def test_apply_installs_code_unit_env_catalog_state_and_starts_the_agent(tmp_pat
     assert ownership[PATHS.env] == {"sha256": _sha(env.read_bytes()), "mutable": True}
 
 
+def test_env_names_the_mcp_overlay_when_the_central_panel_runs_it(tmp_path):
+    """v0.11 §9a: with `domains.mcp` the profile's Compose list carries `compose.mcp.yaml`
+    and the agent's env says so; the agent then recreates the panel with that overlay."""
+    from dataclasses import replace
+
+    stage_host(tmp_path, naive=False, mieru=False, router=False)
+    central = replace(config(profile=Profile.CORE, router=False),
+                      domains=DomainConfig(panel="panel.example.com", mtproxy="proxy.example.com", mcp="mcp.example.com"))
+    instance = adapter(tmp_path)
+    (action,) = instance.plan(central, AuditFacts())
+    assert dict(item.split("=", 1) for item in action.mutations)["compose-files"] == "compose.yaml:compose.mcp.yaml"
+    instance.apply(action, instance.prepare(action))
+    lines = dict(line.split("=", 1) for line in host(tmp_path, PATHS.env).read_text().splitlines() if line and not line.startswith("#"))
+    assert lines["PROXY_CONTROL_COMPOSE_FILES"] == "compose.yaml:compose.mcp.yaml"
+    instance._assert_env(instance._selection(action))
+
+
 def test_apply_records_only_the_components_of_the_profile(tmp_path):
     stage_host(tmp_path, naive=False, mieru=False, router=False)
     instance = adapter(tmp_path)

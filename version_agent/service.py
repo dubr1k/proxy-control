@@ -60,7 +60,7 @@ PANEL_SYNC = (
     "panel", "installer", "scripts", "docker", "mieru_manager", "naive_manager", "xray_router_manager",
     "release", "docs",
     "compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml",
-    "compose.agent.yaml", "compose.fleet-central.yaml",
+    "compose.mcp.yaml", "compose.agent.yaml", "compose.fleet-central.yaml",
     "VERSION", "uninstall.sh", "install.sh", "install-bootstrap",
     "CHANGELOG.md", "CHANGELOG.ru.md", "README.md", "README.en.md", "THIRD_PARTY_NOTICES.md", "LICENSE",
 )
@@ -1138,7 +1138,7 @@ class VersionAgent:
         optional = self.compose_dir / ".optional.env"
         if optional.is_file():
             files.append(optional)
-        for sibling in ("naive", "mieru", "xray-router"):
+        for sibling in ("naive", "mieru", "xray-router", "mcp"):
             overlay = self.compose_dir / f".env.{sibling}"
             if overlay.is_file():
                 files.append(overlay)
