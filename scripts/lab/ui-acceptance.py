@@ -614,30 +614,34 @@ class Acceptance:
         imported_user = f"{self.prefix}-imp"
         self.check("clients.rendered", self.goto_view("clients", "!!document.querySelector('.client-list') && !!document.querySelector('[data-client-action=import]')"))
         self.check("clients.create_dialog_opens", self.open_add("#client-modal"))
-        # One dialog: the node the grants will live on and the protocols to issue at once;
-        # the account name appears only once a protocol is ticked, proposed from the name.
-        self.check("clients.create_dialog_offers_node_and_protocols", b.wait("!!document.querySelector('#client-node option[value=local]') && document.querySelectorAll('#client-form .grant-protocol input').length === 3 && document.querySelector('#client-username-row')?.hidden === true", 5))
+        # One dialog: the node × protocol matrix; the account name appears once a cell is ticked.
+        self.check("clients.create_dialog_offers_matrix", b.wait("!!document.querySelector('#client-placement input[data-node=local][data-protocol=naive]') && document.querySelector('#client-username-row')?.hidden === true", 10))
         b.type("#client-name", client_name)
-        b.js("(() => { const i = document.querySelector('#client-form .grant-protocol input[value=naive]'); i.checked = true; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
-        self.check("clients.protocol_tick_proposes_username", b.wait(f"document.querySelector('#client-username-row')?.hidden === false && document.querySelector('#client-username')?.value === {json.dumps(client_name.lower())}", 5), b.value("#client-username"))
-        b.js("(() => { const i = document.querySelector('#client-form .grant-protocol input[value=naive]'); i.checked = false; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
+        b.js("(() => { const i = document.querySelector('#client-placement input[data-node=local][data-protocol=naive]'); i.checked = true; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
+        self.check("clients.matrix_tick_proposes_username", b.wait(f"document.querySelector('#client-username-row')?.hidden === false && document.querySelector('#client-username')?.value === {json.dumps(client_name.lower())}", 5), b.value("#client-username"))
+        b.js("(() => { const i = document.querySelector('#client-placement input[data-node=local][data-protocol=naive]'); i.checked = false; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
         self.check("clients.untick_hides_username", b.wait("document.querySelector('#client-username-row')?.hidden === true", 5))
         b.click("#create-client")
+        # No cells: the card and (with a subscription domain) the client window with the URL at once.
         self.check("clients.card_listed", b.wait(f"[...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(client_name)})", 20))
         client = next(e for e in self.api.json("/api/clients")["items"] if e["client"]["display_name"] == client_name)
         client_id = client["client"]["id"]
         self.created["clients"].append(client_id)
         card = f"[data-client-id={json.dumps(client_id)}]"
-        b.click(f"{card} [data-client-action=grant]")
-        self.check("clients.grant_dialog_opens", b.wait("document.querySelector('#grant-modal')?.open === true"))
-        b.type("#grant-username", grant_user)
-        b.js("[...document.querySelectorAll('#grant-form .grant-protocol input')].forEach(i => { i.checked = true; }); true")
-        b.click("#create-grants")
-        self.check("clients.grants_issue_and_bundle_reveals", b.wait("document.querySelector('#bundle-modal')?.open === true && (document.querySelector('#bundle-body')?.textContent || '').length > 0", 90),
-                   f"grant-error: {b.text('#grant-error')!r}")
+        if b.wait("document.querySelector('#subscription-modal')?.open === true", 10):
+            b.close_dialog("#subscription-modal")
+        # Grants from the client window: tick three cells on this server, apply, get the bundle.
+        b.click(f"{card} [data-client-action=open]")
+        self.check("clients.window_opens_from_card", b.wait("document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#placement-body input[data-node=local]')", 20))
+        b.type("#placement-username", grant_user)
+        b.js("[...document.querySelectorAll('#placement-body input[data-node=local]')].forEach(i => { i.checked = true; }); true")
+        b.click("#placement-actions button[data-placement-action=apply]")
+        self.check("clients.matrix_apply_issues_grants", b.wait("document.querySelector('#bundle-modal')?.open === true && (document.querySelector('#bundle-body')?.textContent || '').length > 0", 90),
+                   f"subscription-error: {b.text('#subscription-error')!r}")
         bundle = b.text("#bundle-body")
         self.check("clients.bundle_names_three_protocols", all(word in bundle for word in ("mtproxy", "naive", "mieru")), bundle[:200])
         b.close_dialog("#bundle-modal")
+        b.close_dialog("#subscription-modal")
         self.check("clients.three_grant_chips", b.wait(f"document.querySelectorAll('{card} .grant-chip[data-grant-id]').length === 3", 30))
         for protocol in ("mtproxy", "naive", "mieru"):
             self.created[{"mtproxy": "users", "naive": "naive", "mieru": "mieru"}[protocol]].append(grant_user)
@@ -648,17 +652,30 @@ class Acceptance:
         self.check("clients.grant_enable_restores", b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-disable]')", 30))
         b.click(f"{chip} [data-client-action=grant-rotate]")
         self.check("clients.grant_rotate_asks", b.confirm() and b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-rotate]')", 30))
-        # The subscription: the URL shown once, rotated, revoked — each state proven at the public endpoint.
-        b.click(f"{card} [data-client-action=subscription]")
-        self.check("clients.subscription_dialog_opens", b.wait("document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#subscription-actions button')", 20))
+        # The subscription: issued with the client, shown again on request, rotated, revoked.
+        b.click(f"{card} [data-client-action=open]")
+        self.check("clients.subscription_window_opens", b.wait("document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#subscription-actions button')", 20))
         configured = "не настроен" not in b.text("#subscription-status")
         self.check("clients.subscription_domain_configured", configured, b.text("#subscription-status")[:120])
         if configured:
-            b.click("[data-subscription-action=create]")
-            self.check("clients.subscription_url_revealed_once", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20))
+            if b.exists("[data-subscription-action=create]"):
+                b.click("[data-subscription-action=create]")
+                b.wait("document.querySelector('#subscription-reveal')?.hidden === false", 20)
+                b.close_dialog("#subscription-modal")
+                b.click(f"{card} [data-client-action=open]")
+                b.wait("!!document.querySelector('#subscription-actions button')", 20)
+            b.click("[data-subscription-action=show]")
+            self.check("clients.window_show_reveals_url_again", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20), b.text("#subscription-error"))
             first_url = b.value("#subscription-url")
             self.report["facts"]["subscription_host"] = urllib.parse.urlsplit(first_url).hostname
             self.check("clients.subscription_url_serves", self.fetch(first_url) == 200)
+            # Untick one cell: the grant is disabled and leaves the subscription.
+            b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = false; return true; })()")
+            b.click("#placement-actions button[data-placement-action=apply]")
+            self.check("clients.matrix_untick_disables", b.wait("(document.querySelector('#placement-body input[data-node=local][data-protocol=naive]')?.checked === false) && (document.querySelector('#placement-body td.placement-cell:has(input[data-protocol=naive][data-node=local]) small')?.textContent || '').includes('выключен')", 30), b.text("#subscription-error"))
+            b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = true; return true; })()")
+            b.click("#placement-actions button[data-placement-action=apply]")
+            self.check("clients.matrix_tick_enables", b.wait("(document.querySelector('#placement-body td.placement-cell:has(input[data-protocol=naive][data-node=local]) small')?.textContent || '').includes('включён')", 30), b.text("#subscription-error"))
             b.click("[data-subscription-action=rotate]")
             self.check("clients.subscription_rotate_moves_url", b.confirm() and b.wait(f"(document.querySelector('#subscription-url')?.value || '').startsWith('https://') && document.querySelector('#subscription-url').value !== {json.dumps(first_url)}", 20))
             second_url = b.value("#subscription-url")
@@ -1138,15 +1155,19 @@ class Acceptance:
             b.type("#client-name", remote_user)
             b.click("#create-client")
             b.wait(f"[...document.querySelectorAll('[data-client-id]')].some(c => c.querySelector('.client-identity b')?.textContent === {json.dumps(remote_user)})", 20)
+            if b.wait("document.querySelector('#subscription-modal')?.open === true", 10):
+                b.close_dialog("#subscription-modal")
             client = next(e for e in central.json("/api/clients")["items"] if e["client"]["display_name"] == remote_user)
             ccard = f"[data-client-id={json.dumps(client['client']['id'])}]"
-            b.click(f"{ccard} [data-client-action=grant]")
-            self.check("central.grant_dialog_offers_the_node", b.wait(f"document.querySelector('#grant-modal')?.open === true && !!document.querySelector('#grant-node option[value={json.dumps(node_id)}]')", 20))
-            b.type("#grant-username", remote_user)
-            b.select("#grant-node", node_id)
-            b.js("[...document.querySelectorAll('#grant-form .grant-protocol input')].forEach(i => { i.checked = i.value === 'naive'; }); true")
-            b.click("#create-grants")
-            self.check("central.remote_grant_accepted", b.wait("document.querySelector('#grant-modal')?.open !== true", 30), b.text("#grant-error"))
+            b.click(f"{ccard} [data-client-action=open]")
+            self.check("central.matrix_offers_the_node", b.wait(f"document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]')", 20))
+            b.type("#placement-username", remote_user)
+            b.js(f"(() => {{ const i = document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]'); i.checked = true; return true; }})()")
+            b.click("#placement-actions button[data-placement-action=apply]")
+            self.check("central.remote_grant_accepted", b.wait("document.querySelector('#bundle-modal')?.open === true || (document.querySelector('#subscription-error')?.textContent || '') !== ''", 30) and not b.text("#subscription-error"), b.text("#subscription-error"))
+            if b.exists("#bundle-modal[open]"):
+                b.close_dialog("#bundle-modal")
+            b.close_dialog("#subscription-modal")
             deadline = time.monotonic() + 90
             delivered = False
             while time.monotonic() < deadline and not delivered:
