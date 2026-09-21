@@ -9,6 +9,9 @@ Type=simple
 User=root
 Group=root
 EnvironmentFile=-/etc/proxy-control/version-agent.env
+# `docker build` (the Caddy rebuild, v0.11) writes buildx state under $DOCKER_CONFIG;
+# ProtectHome makes /root read-only, so it lives in the agent's own state directory.
+Environment=DOCKER_CONFIG=/var/lib/proxy-control/version-agent/docker
 WorkingDirectory=/opt/proxy-control
 ExecStartPre=/usr/bin/chown root:10001 /run/proxy-control
 ExecStartPre=/usr/bin/install -d -o root -g root -m 0750 /opt/mtproxy-shared443/version-overrides
