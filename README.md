@@ -133,7 +133,7 @@ Nginx — он останавливается, а не угадывает.
 
 ### Сколько доменов нужно
 
-**Полный beta-комплект** — профиль `full`, режим `managed-new` для 3x-ui и отдельный домен подписки — требует **9 разных доменов**: панель Proxy Control, Fake-TLS MTProxy, NaiveProxy, Mieru, панель 3x-ui, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2 и subscription 3x-ui. Все должны иметь корректные DNS-записи на VPS; сертификаты нужны не всем.
+**Полный beta-комплект** — профиль `full`, режим `managed-new` для 3x-ui, отдельный домен подписки клиентов и домен MCP-сервера — требует **11 разных доменов**: панель Proxy Control, Fake-TLS MTProxy, NaiveProxy, Mieru, панель 3x-ui, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2, subscription 3x-ui, подписка клиентов Proxy Control (десятый) и MCP-сервер (одиннадцатый, только на центральной панели — узлам он не нужен). Все должны иметь корректные DNS-записи на VPS; сертификаты нужны не всем.
 
 Зависит от профиля. Домен нужен не всем протоколам:
 
@@ -148,6 +148,8 @@ Nginx — он останавливается, а не угадывает.
 | `three_xui.vless_tcp_domain` | В режиме 3x-ui | **Нет** |
 | `three_xui.vless_xhttp_domain` | В режиме 3x-ui | **Нет** |
 | `three_xui.subscription_domain` | `managed-new`, если нужна отдельная subscription | Да |
+| `subscription` — подписка клиентов | Если нужны ссылки подписки `https://<subscription>/s/<token>` | Да |
+| `mcp` — MCP-сервер | Только на центральной панели, если нужен | Да |
 
 Mieru и VLESS Reality сертификатов Let's Encrypt не требуют: Mieru работает по
 собственному протоколу, а Reality маскируется под чужой сайт и использует его

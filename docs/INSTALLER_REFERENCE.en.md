@@ -178,6 +178,15 @@ subscription URLs are `https://<subscription>/s/<token>`; the panel's own domain
 never serves that path, so a subscriber cannot learn where the panel lives.
 Without the key the public endpoint stays switched off.
 
+`domains.mcp` (v0.11) is optional, must differ from every other name and is set on
+the central panel only — a node needs no MCP server, the central manages it through
+its own API. When it is set, the installer adds the name to the Core certificate as
+a SAN, routes it to the panel's TLS listener with its own Nginx `server` block that
+serves only `/mcp` (`access_log off`, HTTP/1.1 without buffering, a 3600 s read
+timeout; `/healthz` and everything else answer 404), and selects the `mcp` adapter.
+Without the key the MCP server is not installed. `PANEL_ALLOWED_HOSTS` is unchanged:
+the MCP container calls the panel with the panel's own `Host`.
+
 ## Profiles and examples
 
 Every profile is a prefix of the same order, and unsupported combinations are
@@ -222,6 +231,7 @@ boundary:
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
+| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (the bearer MCP clients present, 32 random bytes), `secrets/mcp-panel-key` (a panel API key of scope `admin` named `mcp`, issued through `panel.cli api-key-create`), the `mcp` Compose service (container `proxy-control-mcp`, overlay `compose.mcp.yaml`) and the marker `/etc/proxy-control/mcp-owned`; verify — the container is healthy, `https://<mcp>` over SNI answers 401 without a token and 200 to `initialize` with it; rollback removes the service, revokes the key (`api-key-revoke`) and removes the env, secrets and marker (v0.11) |
 | `version_agent` | The agent's code under `/opt/proxy-control/version_agent`, `version-agent.service`, its tmpfiles fragment, `/etc/proxy-control/version-agent.env` and the ownership marker; the catalog `versions.json` and the state under `/var/lib/proxy-control/version-agent` are seeded only when absent and kept unless the purge is explicit (v0.11) |
 
 Each action is applied through a durable journal: prepare, apply, verify. An
@@ -375,8 +385,9 @@ including one a previous `uninstall` preserved; reinstalling needs `uninstall
   describe a credential at all, and any fact outside the allowlist is dropped
   rather than summarized.
 - `credentials/handoff.json`, mode `0600` inside a `0700` directory, carries the
-  credentials the installation produced. The public report never links, quotes,
-  or summarizes it.
+  credentials the installation produced: with `domains.mcp` set, the address
+  `https://<mcp>/mcp` (`mcp_url`) and the MCP bearer token (`mcp_token`). The public
+  report never links, quotes, or summarizes it — it only notes that MCP is enabled.
 
 ## Upgrading an existing 3x-ui
 
