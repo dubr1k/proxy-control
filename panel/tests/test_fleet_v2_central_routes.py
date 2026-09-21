@@ -82,7 +82,7 @@ async def test_node_version_update_is_relayed_to_the_node_and_audited_on_both_si
     done = await http.post(f"/api/nodes/{node_id}/versions/telemt", json={"version": "3.4.25", "expected_current": "3.4.24"})
     assert done.status_code == 200 and done.json() == {"component": "telemt", "version": "3.4.25", "changed": True}
     assert node.state.versions.components["telemt"]["current"] == "3.4.25"
-    unknown = await http.post(f"/api/nodes/{node_id}/versions/panel", json={"version": "1", "expected_current": None})
+    unknown = await http.post(f"/api/nodes/{node_id}/versions/nginx", json={"version": "1", "expected_current": None})
     assert unknown.status_code == 422  # the component list is closed
     # v0.11: the central asks the node to poll upstream, and `xray` is a component now.
     checked = await http.post(f"/api/nodes/{node_id}/versions/check")

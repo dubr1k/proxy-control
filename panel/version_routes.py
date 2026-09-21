@@ -37,7 +37,7 @@ def register_version_routes(app, context: RequestContext) -> None:
 
     @app.post("/api/versions/{component}/update")
     async def update_version(
-        component: Literal["telemt", "naive", "mita", "xray"],
+        component: Literal["telemt", "naive", "mita", "xray", "panel"],
         body: VersionUpdate,
         request: Request,
         user=Depends(context.roles("owner")),

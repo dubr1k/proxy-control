@@ -3,6 +3,12 @@ import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
 const ROLE_NAMES = { owner: "Владелец", admin: "Администратор", viewer: "Наблюдатель" };
+// The panel's own update (v0.11) restarts the panel: the browser polls until the agent's
+// state leaves `updating`, ignoring the fetch errors of the restart window.
+const PANEL_POLL_MS = 3000;
+const PANEL_POLL_LIMIT_MS = 10 * 60 * 1000;
+const PANEL_CONFIRM = "Панель пересоберётся и перезапустится; страница перезагрузится сама, когда панель ответит новой версией. База данных и код сохраняются в rollback-копии.";
+let panelPoll = null;
 
 export { ROLE_NAMES };
 
@@ -16,7 +22,7 @@ export async function renderVersions(context, generation) {
   }
   // The agent lists `xray` only on a host that runs the Xray-router, so there is no
   // "router not installed" branch here.
-  const names = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core" };
+  const names = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core", panel: "Proxy Control / панель" };
   const RISK = "Версия из upstream: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась";
   const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Upstream ещё не проверялся";
   const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
@@ -31,13 +37,57 @@ export async function renderVersions(context, generation) {
       : !offered.length && upstream.latest && upstream.reason === "manager_unsupported"
         ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но менеджер этой версии ещё не поддерживает — поддержка придёт с обновлением панели</p>`
         : "";
-    const control = offered.length
-      ? `<label>Установить версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
-      : `${notInstallable || `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий для этого компонента"}</p>`}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
+    // The panel's own update runs in the agent's background (another tab may have started it).
+    const updating = component === "panel" && item.status === "updating";
+    const control = updating
+      ? `<p class="version-empty"><b>Обновление идёт…</b> Панель пересобирается и перезапускается; страница перезагрузится сама.</p><button class="primary version-update" disabled>Обновление идёт…</button>`
+      : offered.length
+        ? `<label>Установить версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
+        : `${notInstallable || `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий для этого компонента"}</p>`}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
-    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${failure}<small class="version-note">«Каталог» — версии, проверенные оператором в <code>versions.json</code> на хосте; «upstream» — релизы GitHub и реестров образов. Источник и SHA-256 проверяет host-agent; произвольные URL из браузера запрещены.</small></article>`;
+    // Managers the agent does not rebuild: their sources changed with the release.
+    const pending = Array.isArray(item.pending_rebuild) && item.pending_rebuild.length
+      ? `<p class="version-empty">Изменились менеджеры: ${esc(item.pending_rebuild.join(", "))} — пересоберите их по UPGRADING</p>`
+      : "";
+    const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
+    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}<small class="version-note">«Каталог» — версии, проверенные оператором в <code>versions.json</code> на хосте; «upstream» — релизы GitHub и реестров образов. Источник и SHA-256 проверяет host-agent; произвольные URL из браузера запрещены.</small></article>`;
   }).join("");
   context.ui.view.innerHTML = `<div class="security-note">Обновления выполняются только owner-ролью через отдельный host version-agent. Перед каждой заменой он проверяет allowlist-каталог, immutable digest или SHA-256, сохраняет rollback-копию и проверяет health.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
+  if (context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+// Waits for the panel's own update to finish: `GET /api/versions` every 3 s (the panel is
+// down for part of it — a failed fetch is expected, not an error), at most 10 minutes.
+// The page reloads itself once the panel answers with the new version.
+async function pollPanelUpdate(context, version) {
+  if (panelPoll) return panelPoll;
+  panelPoll = (async () => {
+    const deadline = Date.now() + PANEL_POLL_LIMIT_MS;
+    let panel = null;
+    while (Date.now() < deadline) {
+      await sleep(PANEL_POLL_MS);
+      try {
+        const data = await context.api("/api/versions");
+        panel = data?.components?.panel || null;
+      } catch {
+        continue; // the panel is restarting
+      }
+      if (panel && panel.status !== "updating") break;
+      panel = null;
+    }
+    if (panel && (version ? panel.current === version : !panel.last_error)) {
+      context.ui.toast(`Панель обновлена до ${panel.current}`);
+      window.location.reload();
+      return;
+    }
+    context.ui.toast(panel ? (panel.last_error || "Панель не обновилась") : "Панель не ответила за 10 минут", "error");
+    if (context.state.view === "versions") await context.navigate("versions");
+  })().finally(() => { panelPoll = null; });
+  return panelPoll;
 }
 
 async function checkVersions(context, button) {
@@ -61,10 +111,17 @@ async function versionAction(context, component, button) {
   // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min).
   const building = component === "naive" && select.selectedOptions[0]?.dataset.kind === "build";
   const warning = building ? " Caddy будет пересобран на хосте, это занимает до 15 минут." : "";
-  if (!await context.ui.confirmed("Обновить runtime?", `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`, "Обновить")) return;
+  const panel = component === "panel";
+  const text = panel ? `Панель: ${current} → ${version}. ${PANEL_CONFIRM}` : `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`;
+  if (!await context.ui.confirmed(panel ? "Обновить панель?" : "Обновить runtime?", text, "Обновить")) return;
   try {
-    context.ui.setBusy(button, true, building ? "Собираем…" : "Обновляем…");
+    context.ui.setBusy(button, true, panel ? "Перезапускаем…" : building ? "Собираем…" : "Обновляем…");
     await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }) });
+    if (panel) {
+      // The agent answered before restarting the panel: do not navigate, wait for it.
+      await pollPanelUpdate(context, version);
+      return;
+    }
     context.ui.toast(`${component} обновлён до ${version}`);
     await context.navigate("versions");
   } catch (error) {

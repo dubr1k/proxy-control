@@ -36,6 +36,24 @@ def test_versions_screen_hides_the_check_when_upstream_polling_is_off():
     assert "Агент обновлений недоступен" in JS
 
 
+def test_versions_screen_updates_the_panel_itself_and_waits_for_it_to_come_back():
+    """The panel card (v0.11): the confirm text names the rollback copy, the request does not
+    navigate but polls `GET /api/versions` every 3 s for up to 10 min, ignoring the fetch
+    errors of the restart, and reloads the page once the panel answers with the new version."""
+    assert 'panel: "Proxy Control / панель"' in JS
+    assert "Панель пересоберётся и перезапустится; страница перезагрузится сама, когда панель ответит новой версией. База данных и код сохраняются в rollback-копии." in JS
+    for text in ("Перезапускаем…", "Обновление идёт…", "Панель обновлена до ", "Изменились менеджеры: ", "пересоберите их по UPGRADING", "Панель не ответила за 10 минут"):
+        assert text in JS, text
+    assert "const PANEL_POLL_MS = 3000;" in JS and "const PANEL_POLL_LIMIT_MS = 10 * 60 * 1000;" in JS
+    assert 'components?.panel?.status === "updating"' in JS and 'panel.status !== "updating"' in JS
+    assert "window.location.reload()" in JS and "await pollPanelUpdate(context, version)" in JS
+    # While the panel restarts, a failed fetch is expected, not an error.
+    assert "continue; // the panel is restarting" in JS
+    # Another tab may have started it: the card is disabled and the poll begins at render.
+    assert 'item.status === "updating"' in JS and "void pollPanelUpdate(context, null)" in JS
+    assert "item.pending_rebuild" in JS
+
+
 def test_versions_screen_has_styles_for_the_check_bar_and_the_risk_note():
     assert ".version-check{" in CSS and ".version-risk{" in CSS
     assert "@media(max-width:560px){.version-check{flex-direction:column" in CSS
