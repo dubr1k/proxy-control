@@ -28,7 +28,9 @@ export async function renderVersions(context, generation) {
     const risk = offered.some((entry) => entry.source === "upstream") ? `<small class="version-risk">${RISK}</small>` : "";
     const notInstallable = !offered.length && upstream.latest && upstream.reason === "no_published_digest"
       ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но релиз без опубликованного хэша — установка невозможна</p>`
-      : "";
+      : !offered.length && upstream.latest && upstream.reason === "manager_unsupported"
+        ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но менеджер этой версии ещё не поддерживает — поддержка придёт с обновлением панели</p>`
+        : "";
     const control = offered.length
       ? `<label>Установить версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
       : `${notInstallable || `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий для этого компонента"}</p>`}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;

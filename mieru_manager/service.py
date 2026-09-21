@@ -32,7 +32,11 @@ from .egress import EgressUnreachable
 from .lanes import Slot
 
 
-SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.(?:35|36)\.\d+)\Z")
+# Every mita line the manager's CLI/config contract was verified against: 3.37 added in
+# v0.11 (its only change is an optional listen address; `help`, `describe config` and
+# `apply config` are byte-identical to 3.36). `version_agent.upstream.MITA_SUPPORTED`
+# mirrors this so the Versions screen never offers a mita the manager would refuse.
+SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.(?:35|36|37)\.\d+)\Z")
 LOG_LEVELS = {"DEFAULT", "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"}
 TRANSPORTS = {"TCP", "UDP"}
 DUAL_STACK = {"USE_FIRST_IP", "PREFER_IPv4", "PREFER_IPv6", "ONLY_IPv4", "ONLY_IPv6"}
@@ -777,7 +781,7 @@ class MieruManager:
                 self._recover()
             match = SUPPORTED_VERSION.fullmatch(str(self.mita.version()).strip())
             if not match:
-                raise ConfigConflict("only mita v3.35.x or v3.36.x is supported")
+                raise ConfigConflict("only mita v3.35.x, v3.36.x or v3.37.x is supported")
             observed = self.mita.observe()
             validate_config(observed, elevated=True)
             if self.state_file.exists():

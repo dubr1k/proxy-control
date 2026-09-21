@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import logging
 import os
 import socket
 import socketserver
@@ -12,6 +13,21 @@ from .host import host_metrics
 from .service import ConflictError, UpdateError, agent_from_env
 
 _MAX_BODY = 16 * 1024
+
+
+def _log_failure(component: str, version: str, exc: BaseException) -> None:
+    """One journal line per failed update: the exception chain's types and messages, and
+    the stderr tail of a failed command — never a request body or an artifact."""
+    chain = []
+    cause: BaseException | None = exc
+    while cause is not None and len(chain) < 6:
+        text = str(cause).strip().replace("\n", " ")[:300]
+        stderr = getattr(cause, "stderr", None)
+        if isinstance(stderr, str) and stderr.strip():
+            text += " | stderr: " + stderr.strip().replace("\n", " ")[-400:]
+        chain.append(f"{type(cause).__name__}: {text}")
+        cause = cause.__cause__ or cause.__context__
+    logging.getLogger("version_agent").error("update %s -> %s failed: %s", component, version, " <- ".join(chain))
 
 
 class UnixHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
@@ -118,6 +134,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except CatalogError as exc:
             self._send(422, {"detail": str(exc)})
         except UpdateError as exc:
+            _log_failure(component, version, exc)
             detail = {
                 "rollback_failed": "update failed and the previous generation could not be verified",
                 "rolled_back": "update failed and the previous generation was restored",
@@ -145,6 +162,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
     agent = agent_from_env()
     socket_path = os.getenv("PROXY_CONTROL_VERSION_SOCKET", "/run/proxy-control/version-agent.sock")
     gid = int(os.getenv("PROXY_CONTROL_VERSION_SOCKET_GID", "10001"))

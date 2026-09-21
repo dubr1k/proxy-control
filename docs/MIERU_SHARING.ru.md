@@ -40,7 +40,7 @@ Mita хранит `hashedPassword`; plaintext password восстановить 
 | Shadowrocket | Не предлагается; проверенного формата нет | Не предлагается | Нет |
 | NekoBox+ | Не предлагается; проверенного формата нет | Не предлагается | Нет |
 
-Используйте official Mieru client, совместимый с server `mita` 3.35.x или 3.36.x, либо текущий Karing build. [Официальная инструкция Mieru](https://github.com/enfein/mieru/blob/main/docs/client-install.md) определяет `mierus://`, `mieru import config` и поля Mieru outbound для sing-box. Karing документирует импорт config content и [URL scheme](https://karing.app/en/cooperation/scheme); текущий source Karing содержит Mieru outbound type.
+Используйте official Mieru client, совместимый с server `mita` 3.35.x, 3.36.x или 3.37.x, либо текущий Karing build. [Официальная инструкция Mieru](https://github.com/enfein/mieru/blob/main/docs/client-install.md) определяет `mierus://`, `mieru import config` и поля Mieru outbound для sing-box. Karing документирует импорт config content и [URL scheme](https://karing.app/en/cooperation/scheme); текущий source Karing содержит Mieru outbound type.
 
 После импорта проверьте ожидаемые hostname/port, доступность declared TCP/UDP listeners, end-to-end transport и отказ старого config после rotation. Не публикуйте credential payload в общедоступных tickets, chats или screenshots.
 

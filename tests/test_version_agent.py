@@ -851,6 +851,10 @@ def test_telemt_update_persists_override_and_uses_expected_compose_files(tmp_pat
     assert TELEMT_IMAGE in override.read_text(encoding="utf-8")
     assert any("pull" in command for command in commands)
     assert any("up" in command and "mtproxy" in command for command in commands)
+    # The overlays' variables are required by the model: every Compose call names them.
+    for command in commands:
+        if command[:2] == ["docker", "compose"]:
+            assert [command[i + 1] for i, part in enumerate(command) if part == "--env-file"] == [str(compose_dir / ".env")], command
     assert any(command[:2] == ["docker", "inspect"] for command in commands)
     inspect_commands = [command for command in commands if command[:2] == ["docker", "inspect"]]
     assert inspect_commands and inspect_commands[-1][-1] == "telemt-test"
