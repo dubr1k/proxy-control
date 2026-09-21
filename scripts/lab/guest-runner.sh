@@ -904,7 +904,7 @@ container_setup() {
   local address
   address=$(host_ip)
   [[ -n $address ]]
-  printf '%s %s %s naive.lab.test mieru.lab.test sub.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' \
+  printf '%s %s %s naive.lab.test mieru.lab.test sub.lab.test mcp.lab.test xui.lab.test vless.lab.test xhttp.lab.test hy2.lab.test\n' \
     "$address" "$PROXY" "$PANEL" >> /etc/hosts
 
   # A local resolver so the audit's mandatory CAA query answers instead of
@@ -1006,6 +1006,8 @@ naive = "naive.lab.test"
 mieru = "mieru.lab.test"
 # The subscription domain (v0.2): the node serves /s/{token} on it, the UI tier issues URLs.
 subscription = "sub.lab.test"
+# The MCP domain (v0.11 §9a): this host plays the central panel, so the MCP server runs.
+mcp = "mcp.lab.test"
 
 [mieru]
 tcp_ports = [46001]
@@ -1079,7 +1081,8 @@ import json
 plan = json.load(open('/tmp/plan.json'))
 order = plan['adapter_order']
 assert order[:3] == ['packages', 'nginx', 'certificates'], order
-assert order[-2:] == ['three_xui', 'version_agent'], order
+# The MCP server (v0.11 §9a) is planned after every service and before the version-agent.
+assert order[-3:] == ['three_xui', 'mcp', 'version_agent'], order
 assert 'naive' in order and 'mieru' in order, order
 # The Xray-router (v0.5) is planned between Core and the services it feeds.
 assert order.index('core') < order.index('xray_router') < order.index('naive'), order
@@ -1147,7 +1150,7 @@ DNSPY
 }
 
 container_secrets_scan() {
-  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token|xray-router-manager-token|xray-router-ingress-[a-z]+)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey|socks5://[^/@[:space:]]+:[^/@[:space:]]+@' \
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token|xray-router-manager-token|xray-router-ingress-[a-z]+|mcp-token|mcp-panel-key)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey|socks5://[^/@[:space:]]+:[^/@[:space:]]+@' \
       /tmp/plan*.json /tmp/plan*.err 2>/dev/null; then
     return 1
   fi
@@ -1356,6 +1359,40 @@ host_report() {
   ! grep -Eiq '(password|token|secret|privateKey)' /var/lib/proxy-control/reports/report.json
 }
 
+host_mcp() {
+  # The MCP server (v0.11 §9a): the container is healthy; through Nginx on the eleventh
+  # name an anonymous request answers 401 and `initialize` with the token from the
+  # root-only handoff answers 200. The token travels in a 0600 header file, never argv.
+  local header status
+  test "$(docker inspect --format '{{.State.Health.Status}}' proxy-control-mcp)" = healthy
+  test "$(stat -c %a /var/lib/proxy-control/reports/credentials/handoff.json)" = 600
+  header=$(mktemp)
+  chmod 0600 "$header"
+  python3 - /var/lib/proxy-control/reports/credentials/handoff.json "$header" <<'HANDOFFPY'
+import json, sys
+credentials = json.load(open(sys.argv[1]))['credentials']
+assert credentials['mcp_url'] == 'https://mcp.lab.test/mcp', credentials['mcp_url']
+token = credentials['mcp_token']
+assert len(token) >= 32
+open(sys.argv[2], 'w').write('Authorization: Bearer ' + token + '\n')
+HANDOFFPY
+  status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 \
+    --cacert /etc/letsencrypt/lab-ca/ca.crt https://mcp.lab.test/mcp)
+  test "$status" = 401
+  status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 \
+    --cacert /etc/letsencrypt/lab-ca/ca.crt --request POST \
+    --header 'Accept: application/json, text/event-stream' --header 'Content-Type: application/json' \
+    --header @"$header" \
+    --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"lab","version":"0"}}}' \
+    https://mcp.lab.test/mcp)
+  rm -f "$header"
+  test "$status" = 200
+  # The MCP name serves nothing else, and the panel's name never serves /mcp.
+  status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 \
+    --cacert /etc/letsencrypt/lab-ca/ca.crt https://mcp.lab.test/healthz)
+  test "$status" = 404
+}
+
 # Fleet v2 on the stand (v0.3 spec §10): the node just installed is linked to a second,
 # in-process central panel started from the release bytes under test, and the whole
 # flow (key → link → import → grants → disable/rotate/delete → offline convergence →
@@ -1392,6 +1429,8 @@ host_uninstall() {
   container_cmd uninstall --json >/tmp/uninstall-again.json
   test ! -e /opt/mtproxy-shared443/compose.yaml
   test ! -e /etc/systemd/system/version-agent.service
+  test ! -e /etc/proxy-control/mcp-owned
+  if docker ps -a --format '{{.Names}}' | grep -qx proxy-control-mcp; then return 1; fi
   # `! cmd` is exempt from errexit; a still-running agent must fail the scenario itself.
   if systemctl is-active version-agent >/dev/null 2>&1; then return 1; fi
   # The foreign topology and the foreign 3x-ui are byte-identical afterwards.
@@ -1402,7 +1441,7 @@ host_uninstall() {
 
 host_secrets_scan() {
   # The fleet report and the rendered feeds it saved are scanned like every other artefact.
-  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token|xray-router-manager-token|xray-router-ingress-[a-z]+)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey|socks5://[^/@[:space:]]+:[^/@[:space:]]+@' \
+  if grep -ERi '(panel-bootstrap-password|telemt-api-token|naive-manager-token|mieru-manager-token|xray-router-manager-token|xray-router-ingress-[a-z]+|mcp-token|mcp-panel-key)[=:][^[:space:]]+|tg://proxy\?.*secret=|privateKey|socks5://[^/@[:space:]]+:[^/@[:space:]]+@' \
       /tmp/plan*.json /tmp/*.out /var/lib/proxy-control/reports/report.json "$CLIENT_RESULTS/fleet/report.json" \
       "$CLIENT_RESULTS/fleet/central.log" 2>/dev/null; then
     return 1
@@ -1506,6 +1545,8 @@ elif [[ $MODE == host ]]; then
   case_run reboot-recovery host_reboot_recovery idempotence
   case_run crash-every-phase host_crash_every_phase reboot-recovery
   case_run report host_report crash-every-phase
+  # The MCP check reads the token from the handoff the report scenario wrote.
+  case_run mcp host_mcp report
   # The fleet scenario needs the live node; a failure there must not hide what the
   # remaining cases say, so they keep depending on `report`, not on `fleet`.
   case_run fleet host_fleet report
