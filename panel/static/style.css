@@ -99,8 +99,8 @@
 .grant-chip>span:not(.grant-tools):not(.grant-node){overflow-wrap:anywhere;min-width:0}
 .grant-node{color:var(--muted);font-size:10px}
 .grant-tools{display:inline-flex;flex-wrap:wrap;gap:2px;margin-left:2px}
-.grant-tools button{min-height:22px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:10px}
-.grant-tools button:hover{border-color:var(--line);color:var(--text)}
+.grant-tools button,.grant-lane button{min-height:22px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:10px}
+.grant-tools button:hover,.grant-lane button:hover{border-color:var(--line);color:var(--text)}
 .grant-tools button.danger-text{color:#d97880}
 .placement-box{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:12px 0;display:flex;flex-direction:column;gap:8px;min-width:0}.placement-box legend{padding:0 6px;color:var(--muted);font-size:11px}
 #placement-body{min-width:0}

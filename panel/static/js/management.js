@@ -43,7 +43,7 @@ export async function renderVersions(context, generation) {
       ? `<p class="version-empty"><b>Обновление идёт…</b> Панель пересобирается и перезапускается; страница перезагрузится сама.</p><button class="primary version-update" disabled>Обновление идёт…</button>`
       : offered.length
         ? `<label>Установить версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
-        : `${notInstallable || `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий для этого компонента"}</p>`}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
+        : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
     // Managers the agent does not rebuild: their sources changed with the release.
     const pending = Array.isArray(item.pending_rebuild) && item.pending_rebuild.length
@@ -88,6 +88,17 @@ async function pollPanelUpdate(context, version) {
     if (context.state.view === "versions") await context.navigate("versions");
   })().finally(() => { panelPoll = null; });
   return panelPoll;
+}
+
+// Nothing to offer is good news once upstream answered: say so instead of «в каталоге нет
+// версий», which reads like a fault. Without a check the catalog is all there is.
+function upToDate(current, upstream, available) {
+  if (upstream.checked_at && upstream.latest) {
+    const same = upstream.latest === current || current.startsWith(`${upstream.latest}-`);
+    return `<p class="version-empty"><b>Установлена актуальная версия</b> — ${same ? "новее в upstream нет" : `последний релиз ${esc(upstream.latest)} не новее установленной`}</p>`;
+  }
+  if (upstream.checked_at) return '<p class="version-empty"><b>Обновлений не обнаружено</b> — upstream не ответил версией, каталог пуст</p>';
+  return `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий; нажмите «Проверить обновления»"}</p>`;
 }
 
 async function checkVersions(context, button) {
