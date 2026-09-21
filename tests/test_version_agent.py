@@ -190,7 +190,7 @@ def test_check_upstream_caches_candidates_and_lists_them_after_the_catalog(tmp_p
     agent = _agent(tmp_path, clock=lambda: now[0])
     agent.check_all = fake_check_all
     listed = agent.check_upstream()
-    assert calls == [{"telemt": None, "naive": None, "mita": None}]
+    assert calls == [{"telemt": None, "naive": None, "mita": None, "panel": None}]
     mita = listed["components"]["mita"]
     assert [e["version"] for e in mita["available"]] == ["3.35.0", "3.37.0"]
     assert mita["available"][0]["source"] == "catalog" and mita["available"][1]["source"] == "upstream"
