@@ -1023,11 +1023,11 @@ def test_the_project_directory_carries_every_compose_overlay(tmp_path):
     instance.apply(action, instance.prepare(action))
 
     project = tmp_path / "opt/mtproxy-shared443"
-    for name in ("compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml"):
+    for name in ("compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml", "compose.mcp.yaml"):
         assert (project / name).is_file(), name
         assert (project / name).read_bytes() == (ROOT / name).read_bytes()
-    # The overlays build their managers from this same context.
-    for directory in ("naive_manager", "mieru_manager", "panel", "xray_router_manager"):
+    # The overlays build their managers (and the MCP server, v0.11) from this same context.
+    for directory in ("naive_manager", "mieru_manager", "panel", "xray_router_manager", "mcp_server"):
         assert (project / directory / "Dockerfile").is_file(), directory
 
 

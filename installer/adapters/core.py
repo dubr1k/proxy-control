@@ -57,6 +57,10 @@ _COPY_FILES = (
     "compose.mieru.yaml",
     "compose.naive.yaml",
     "compose.xray-router.yaml",
+    # The MCP overlay (v0.11) builds its container from `mcp_server/` in this same
+    # directory; the `mcp` adapter runs Compose here (found live: a lab install without
+    # the file died on `open compose.mcp.yaml: no such file`).
+    "compose.mcp.yaml",
     "uninstall.sh",
     "scripts/proxyctl.py",
     # Mounted into the panel container: the version it reports to a central panel.
@@ -67,6 +71,7 @@ _COPY_FILES = (
 _COPY_DIRECTORIES = (
     "docker",
     "installer",
+    "mcp_server",
     "mieru_manager",
     "naive_manager",
     "panel",
