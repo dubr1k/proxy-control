@@ -332,6 +332,39 @@ def test_status_json_is_deterministic_and_omits_legacy_payload():
     assert "hunter2" not in first[1]
 
 
+def test_report_puts_the_mcp_address_and_token_in_the_handoff_only(tmp_path):
+    """v0.11 §9a: the public report says MCP is enabled; the root-only handoff holds
+    `https://<domain>/mcp` and the bearer token, and nothing of it leaks to the report."""
+    config_path = tmp_path / "central.toml"
+    config_path.write_text(CORE_CONFIG.read_text().replace("[domains]\n", '[domains]\nmcp = "mcp.example.com"\n'))
+    config = load_config(config_path)
+    assert config.domains.mcp == "mcp.example.com"
+    token_path = tmp_path / "opt/mtproxy-shared443/secrets/mcp-token"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text("t" * 43 + "\n")
+    services, _engine = _services(config)
+    output = tmp_path / "reports"
+
+    result, stdout, stderr = _run(
+        ["--root", str(tmp_path), "report", "--config", str(config_path), "--output", str(output), "--json"], services
+    )
+
+    assert result == 0, stderr
+    public = json.loads((output / "report.json").read_text())
+    assert "MCP server: enabled on mcp.example.com" in public["operator_notes"]
+    assert "t" * 43 not in (output / "report.json").read_text()
+    handoff = json.loads((output / "credentials/handoff.json").read_text())
+    assert handoff["credentials"] == {"mcp_url": "https://mcp.example.com/mcp", "mcp_token": "t" * 43}
+    assert "handoff" not in (output / "report.json").read_text()
+
+    # Without the name there is no handoff at all and the note is absent.
+    plain_output = tmp_path / "plain-reports"
+    plain_services, _ = _services(load_config(CORE_CONFIG))
+    assert _run(["--root", str(tmp_path), "report", "--config", str(CORE_CONFIG), "--output", str(plain_output)], plain_services)[0] == 0
+    assert not (plain_output / "credentials").exists()
+    assert "MCP" not in (plain_output / "report.json").read_text()
+
+
 def test_explicit_lifecycle_commands_share_the_transaction_engine():
     config = load_config(CORE_CONFIG)
     services, engine = _services(config)

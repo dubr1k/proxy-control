@@ -26,7 +26,7 @@ from installer.planner import (
     build_plan,
     compose_file_list,
 )
-from installer.report import AcceptanceReport, ReportWriter
+from installer.report import AcceptanceReport, CredentialHandoff, ReportWriter
 from installer.transaction import (
     OwnershipError,
     TransactionEngine,
@@ -333,17 +333,27 @@ def _write_reports(
                 details=dict(details) if isinstance(details, Mapping) else {},
             )
         )
+    operator_notes = ["compose files: " + " ".join(compose_file_list(config))]
+    if config.domains.mcp is not None:
+        # The public report only says MCP is on; the address and the bearer go to the
+        # root-only handoff next to it (v0.11 §9a).
+        operator_notes.append(f"MCP server: enabled on {config.domains.mcp}")
     report = AcceptanceReport.from_evidence(
         profile=config.profile.value,
         release_tag=state.origin,
         release_digest=state.plan_digest,
         evidence=evidence,
-        operator_notes=(
-            "compose files: " + " ".join(compose_file_list(config)),
-        ),
+        operator_notes=tuple(operator_notes),
     )
     writer = ReportWriter(args.output)
     public = writer.write_public(report)
+    if config.domains.mcp is not None:
+        from installer.adapters.mcp import McpError, mcp_handoff
+
+        try:
+            writer.write_credentials(CredentialHandoff(entries=mcp_handoff(args.root, config)))
+        except McpError as exc:
+            raise CliError(f"the MCP handoff cannot be written: {exc}") from exc
     if args.json:
         output.write(json.dumps({"report": str(public)}, sort_keys=True) + "\n")
     else:

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from installer.adapters.mcp import McpAdapter, McpError, McpPaths, mcp_url
+from installer.adapters.mcp import McpAdapter, McpError, McpPaths, mcp_handoff, mcp_url
 from installer.model import (
     DomainConfig,
     EgressConfig,
@@ -313,6 +313,18 @@ def test_verify_refuses_an_unhealthy_container_an_open_endpoint_or_a_refused_ini
     host(tmp_path, PATHS.token).unlink()
     with pytest.raises(McpError, match="token is missing"):
         instance.verify(action)
+
+
+# -- handoff -------------------------------------------------------------------
+
+
+def test_handoff_carries_the_address_and_the_token_only_when_mcp_is_on(tmp_path):
+    assert mcp_handoff(tmp_path, config(mcp=None)) == {}
+    with pytest.raises(McpError, match="token is missing"):
+        mcp_handoff(tmp_path, config())
+    _installed(tmp_path)
+    token = host(tmp_path, PATHS.token).read_text().strip()
+    assert mcp_handoff(tmp_path, config()) == {"mcp_url": "https://mcp.example.com/mcp", "mcp_token": token}
 
 
 # -- rollback / repair ---------------------------------------------------------
