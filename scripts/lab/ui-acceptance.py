@@ -177,6 +177,13 @@ class Browser:
         self.cdp = CDP(target)
         for domain in ("Runtime", "Log", "Page"):
             self.cdp.call(f"{domain}.enable")
+        # An API refusal's body reaches the console log: `final.no_console_errors` then names
+        # the code and detail, not just the status (a 409 on apply was otherwise opaque).
+        self.cdp.call("Page.addScriptToEvaluateOnNewDocument", {"source": (
+            "(() => { const f = window.fetch; window.fetch = async (...a) => { const r = await f(...a); const u = (typeof a[0] === 'string' ? a[0] : a[0]?.url) || '';"
+                        " if (r.status >= 400 && r.status !== 401) { try { const t = await r.clone().text();"
+            " console.error('api ' + r.status + ' ' + new URL((typeof a[0] === 'string' ? a[0] : a[0]?.url) || '', location.href).href + ' ' + t.slice(0, 400)); } catch (e) {} }"
+            " return r; }; })();")})
         self.desktop()
         self.shots: list[dict] = []
 
@@ -871,7 +878,7 @@ class Acceptance:
         self.check("routing.native_preview_refuses_block_beside_warp", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('не применимо') && !!document.querySelector('.routing-reason')", 15))
         b.select("#routing-form select[name=default_action]", "direct")
         self.check("routing.native_preview_supports_direct_block", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается')", 15))
-        b.click("#routing-save")
+        self.save_policy(loaded)
         self.check("routing.saved_as_draft", b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20))
         b.click("[data-routing-action=apply]")
         self.check("routing.apply_asks", b.confirm())
@@ -887,6 +894,18 @@ class Acceptance:
             self.routing_router(loaded)
         self.frame_is_secret_free("routing")
         b.shot("routing-mobile.png", width=390)
+
+    def save_policy(self, loaded: str) -> None:
+        """Click «Сохранить» and wait for the save to land: the badge already says «черновик»
+        before the PUT answers, so an apply right after it carried the previous revision
+        (found live: 409 policy_conflict)."""
+        b = self.browser
+        b.click("#routing-save")
+        # element.click() runs the submit handler synchronously up to its first await, so the
+        # button is already busy («Сохраняем…», disabled) here; it is free again only once the
+        # screen re-rendered after the PUT (or the save was refused).
+        free = "(() => { const s = document.querySelector('#routing-save'); return !!s && !s.disabled && !(s.textContent || '').includes('Сохраняем'); })()"
+        b.wait(f"{free} && {loaded}", 30)
 
     def routing_router(self, loaded: str) -> None:
         b = self.browser
@@ -908,7 +927,7 @@ class Acceptance:
         b.js("(() => { const i = document.querySelector('[data-routing-preset=torrent]'); i.checked = false; i.dispatchEvent(new Event('change', {bubbles: true})); return true; })()")
         self.check("routing.preset_off_removes_its_rule", b.wait("document.querySelectorAll('.routing-rule').length === 2", 10))
         self.routing_exits_and_geodata(loaded)
-        b.click("#routing-save")
+        self.save_policy(loaded)
         b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20)
         b.click("[data-routing-action=apply]")
         b.confirm()
@@ -961,7 +980,7 @@ class Acceptance:
                                "modal": self.report["facts"].get("rule_modal_last_egress")}, ensure_ascii=False)[:600])
         self.check("routing.router_preview_supports_custom_exit", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"exits\"')", 20),
                    (b.js("document.querySelector('#routing-preview')?.innerText") or "")[:300])
-        b.click("#routing-save")
+        self.save_policy(loaded)
         b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && {loaded}", 20)
         status, refused = self.api.request(f"/api/routing/exits/{exit_id}/delete", "POST")
         self.check("routing.exit_in_use_refuses_delete", status == 409 and refused.get("code") == "exit_in_use", f"{status} {str(refused)[:200]}")
@@ -1019,7 +1038,7 @@ class Acceptance:
         self.add_rule(geosites="category-ads-all")
         self.check("routing.lane_preview_folds_the_service", b.wait("document.querySelector('#routing-preview .status-pill')?.textContent.includes('поддерживается') && (document.querySelector('.routing-document pre')?.textContent || '').includes('\"schema\": 2')", 20),
                    (b.js("document.querySelector('#routing-preview')?.innerText") or "")[:300])
-        b.click("#routing-save")
+        self.save_policy(loaded)
         b.wait(f"(document.querySelector('.routing-head .status-pill')?.textContent || '').includes('черновик') && !document.querySelector('[data-routing-action=apply]').disabled && {loaded}", 20)
         b.click("[data-routing-action=apply]")
         b.confirm()
@@ -1223,8 +1242,17 @@ class Acceptance:
             self.check("central.matrix_offers_the_node", self.open_client_window(ccard) and b.wait(f"!!document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]')", 20))
             b.type("#placement-username", remote_user)
             b.js(f"(() => {{ const i = document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]'); i.checked = true; return true; }})()")
-            b.click("#placement-actions button[data-placement-action=apply]")
-            self.check("central.remote_grant_accepted", b.wait("document.querySelector('#bundle-modal')?.open === true || (document.querySelector('#subscription-error')?.textContent || '') !== ''", 30) and not b.text("#subscription-error"), b.text("#subscription-error"))
+            cell_state = b.js(f"(() => {{ const i = document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]'); return {{disabled: i?.disabled, checked: i?.checked, username: document.querySelector('#placement-username')?.value, valid: document.querySelector('#placement-username')?.checkValidity()}}; }})()")
+            clicked = b.click("#placement-actions button[data-placement-action=apply]")
+            after_click = b.js("({open: document.querySelector('#subscription-modal')?.open, actions: document.querySelector('#placement-actions')?.innerHTML, busy: document.querySelector('#placement-actions button')?.disabled})")
+            accepted = ("document.querySelector('#bundle-modal')?.open === true || (document.querySelector('#subscription-error')?.textContent || '') !== ''"
+                        " || [...document.querySelectorAll('#toast-region *')].some(t => /Доступы выданы|Отправлено узлу|Операция|Состав клиента|Изменений нет|нужно имя/.test(t.textContent || ''))")
+            self.check("central.remote_grant_accepted", b.wait(accepted, 120) and not b.text("#subscription-error"),
+                       json.dumps({"error": b.text("#subscription-error"), "cell": cell_state, "clicked": clicked, "after_click": after_click, "toasts": b.js("[...document.querySelectorAll('#toast-region *')].map(t => t.textContent).slice(0, 4)"),
+                                   "apply_busy": b.js("document.querySelector('#placement-actions button[data-placement-action=apply]')?.disabled"),
+                                   "bundle_open": b.js("document.querySelector('#bundle-modal')?.open")}, ensure_ascii=False)[:400])
+            # apply() ends (and the bundle window, if any, has opened) once the button is free again.
+            b.wait("!document.querySelector('#placement-actions button[data-placement-action=apply]')?.disabled", 30)
             if b.exists("#bundle-modal[open]"):
                 b.close_dialog("#bundle-modal")
             b.close_dialog("#subscription-modal")

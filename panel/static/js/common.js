@@ -107,9 +107,14 @@ export function serialise(value) {
 // window both start sagas and must say the same thing about the same status.
 export const OPERATION_MESSAGE = {
   succeeded: "Доступы выданы",
+  // A grant on a linked node (v0.7): the central has recorded it, the node picks it up on
+  // its next heartbeat — not an error, and not «done» either.
+  pending_remote: "Отправлено узлу: доступ появится после доставки",
   compensated: "Операция отменена: созданное удалено, ничего лишнего не тронуто",
   manual_intervention_required: "Требуется вмешательство: часть изменений не удалось откатить",
 };
+// The outcomes that are not failures: done, or handed to the node.
+export const OPERATION_OK = new Set(["succeeded", "pending_remote"]);
 
 export function cssEscape(value) {
   if (globalThis.CSS?.escape) return globalThis.CSS.escape(value);
