@@ -80,6 +80,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(503, {"detail": "version catalog unavailable"})
 
     def do_POST(self):  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path == "/v1/upstream/check":
+            self._check_upstream()
+            return
         if self.path != "/v1/update":
             self._send(404, {"detail": "not found"})
             return
@@ -122,6 +125,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(502, {"detail": detail, "state": exc.state})
         else:
             self._send(200, result)
+
+    def _check_upstream(self) -> None:
+        # The check takes no input: the sources are fixed in code, so any body is
+        # drained (bounded) and ignored rather than parsed.
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if length < 0 or length > _MAX_BODY:
+            self._send(413, {"detail": "request body too large"})
+            return
+        if length:
+            self.rfile.read(length)
+        try:
+            self._send(200, self.server.agent.check_upstream())
+        except (CatalogError, UpdateError) as exc:
+            self._send(502, {"detail": str(exc), "state": getattr(exc, "state", "update_failed")})
 
 
 def main() -> None:

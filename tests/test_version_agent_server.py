@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from version_agent.server import Handler, UnixHTTPServer
-from version_agent.service import RollbackFailedError
+from version_agent.service import RollbackFailedError, UpdateError
 
 
 class FakeAgent:
@@ -57,6 +57,68 @@ def test_unix_socket_server_preserves_update_contract(tmp_path: Path):
             )
             assert response.status_code == 200
             assert agent.calls == [("telemt", "new", "old")]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_unix_socket_server_checks_upstream_on_post(tmp_path: Path):
+    class Agent:
+        def __init__(self):
+            self.checked = 0
+
+        def list_versions(self):
+            return {"enabled": True, "components": {}}
+
+        def check_upstream(self, force=False):
+            self.checked += 1
+            return {"enabled": True, "components": {}, "checked_at": 1}
+
+    socket_path = tmp_path / "version-agent.sock"
+    server = UnixHTTPServer(str(socket_path), Handler, gid=os.getgid())
+    agent = Agent()
+    server.agent = agent
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(base_url="http://version-agent", transport=transport) as client:
+            response = client.post("/v1/upstream/check")
+            assert response.status_code == 200
+            assert response.json()["checked_at"] == 1 and agent.checked == 1
+            # A body is tolerated but never read as input: the check takes no parameters.
+            response = client.post("/v1/upstream/check", content=b"{}", headers={"Content-Type": "application/json"})
+            assert response.status_code == 200 and agent.checked == 2
+            assert client.get("/v1/upstream/check").status_code == 404
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_unix_socket_server_reports_a_failed_or_disabled_upstream_check(tmp_path: Path):
+    class Agent:
+        def list_versions(self):
+            return {"enabled": True, "components": {}}
+
+        def check_upstream(self, force=False):
+            raise UpdateError("upstream check is disabled on this host")
+
+    socket_path = tmp_path / "version-agent.sock"
+    server = UnixHTTPServer(str(socket_path), Handler, gid=os.getgid())
+    server.agent = Agent()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(base_url="http://version-agent", transport=transport) as client:
+            response = client.post("/v1/upstream/check")
+            assert response.status_code == 502
+            assert response.json() == {
+                "detail": "upstream check is disabled on this host",
+                "state": "update_failed",
+            }
     finally:
         server.shutdown()
         server.server_close()
