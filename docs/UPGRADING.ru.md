@@ -416,9 +416,25 @@ Panel Compose должен монтировать `/run/proxy-control` и зад
 - `PROXY_CONTROL_UPSTREAM_CHECK=off` — выключить опрос, остаётся только каталог;
 - `PROXY_CONTROL_XRAY_ROUTER=on` — компонент `xray` (установщик Xray-router пишет `on` сам); `PROXY_CONTROL_XRAY_BIN_DIR`, `PROXY_CONTROL_XRAY_OVERLAY` — каталог бинарников и `.env.xray-router`;
 - `PROXY_CONTROL_CONSUMER_OVERLAYS=mita=/opt/mtproxy-shared443/.env.mieru:MIERU_MITA_SHA256:mieru-manager` заменяет `PROXY_CONTROL_PINNED_CONSUMERS`: обновление `mita` больше не отказывает из-за контейнера `mieru-manager`, а переписывает его пин в `.env.mieru`, перезапускает `mita` и слоты `mita@<n>` и пересоздаёт менеджер; при обновлении агента удалите старую переменную из env-файла;
-- `ReadWritePaths` unit'а дополнен `/usr/local/lib/proxy-control` — переустановите `deploy/version-agent.service` и выполните `systemctl daemon-reload`.
+- `ReadWritePaths` unit'а дополнен `/usr/local/lib/proxy-control`, `/opt/proxy-control` и `/var/lib/docker/volumes` (обновление самой панели, ниже) — переустановите `deploy/version-agent.service` и выполните `systemctl daemon-reload`.
 
 Обновление `xray` заменяет три файла в каталоге роутера, переписывает `XRAY_ROUTER_*_SHA256` в `.env.xray-router`, пересоздаёт контейнер `xray-router` и сверяет `xray version` внутри него; любая ошибка возвращает файлы, overlay и контейнер. Установщик после такого обновления знает о новой версии из `state.json`: `verify`/`repair` принимают либо свой пин, либо версию, записанную агентом.
+
+#### Обновление самой панели из UI
+
+На экране «Версии» есть карточка «Proxy Control / панель»: агент показывает релизы самого проекта на GitHub (`dubr1k/proxy-control`; все они pre-release и все считаются) с хэшем архива из `SHA256SUMS` и ставит выбранный так же, как ручная процедура выше — только из архива релиза, никогда из ветки. Запрос отвечает сразу (`async: true`), потому что панель посередине перезапускается: браузер опрашивает `GET /api/versions`, пока `status` компонента не покинет `updating`, и перезагружает страницу, когда панель отвечает новой версией.
+
+Что делает агент, по порядку:
+
+1. скачивает `proxy-control-v<версия>.tar.gz`, сверяет SHA-256 со строкой `SHA256SUMS` и отказывает архиву, где есть член вне `proxy-control/`, с `..`, абсолютный или не обычный файл/каталог — на хосте к этому моменту ничего не тронуто;
+2. переносит текущие копии в `/var/lib/proxy-control/version-agent/backups/panel.previous/` и копирует из архива в каталог проекта ровно этот набор: `panel/`, `installer/`, `scripts/`, `docker/`, `mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `release/`, `docs/`, файлы `compose*.yaml`, `VERSION`, `uninstall.sh`, `install.sh`, `install-bootstrap`, `CHANGELOG*`, `README*`, `THIRD_PARTY_NOTICES.md`, `LICENSE`. **Не трогает**: `secrets/`, `.env*`, `version-overrides/`, сертификаты и всё остальное в каталоге. `version_agent/` так же уходит в `/opt/proxy-control` (с резервной копией);
+3. помечает работающий образ тегом `mtproxy-panel:rollback-<время>`, выполняет `docker compose … build panel`, останавливает панель, копирует `panel.sqlite3`, `-wal` и `-shm` из volume `mtproxy_panel-data` в `backups/panel-db.previous/` (владелец и права сохраняются), поднимает панель `up -d --wait` и сверяет `docker exec proxy-control-panel cat /app/VERSION`.
+
+**Откат.** Любая ошибка после шага 2 возвращает сохранённые записи на место, восстанавливает файлы базы в volume (старая панель отказывает более новой, мигрированной базе, поэтому копия — часть отката), возвращает прежнему образу тег `latest`, поднимает панель и проверяет, что она отвечает прежней версией. Состояние тогда `ready` с `last_error`; если не прошла даже эта проверка — `rollback_failed`, и агент не примет следующее обновление панели, пока оператор не разберётся (в `backups/` есть всё нужное).
+
+**Менеджеры не пересобираются.** Если между двумя релизами изменились `mieru_manager/`, `naive_manager/`, `xray_router_manager/` или `docker/`, агент называет их в `pending_rebuild`, и карточка об этом говорит: пересоберите эти службы вручную (`docker compose … up -d --build <service>` с вашими overlay), как в разделе обновления самого релиза. Код агента синхронизируется с релизом; если он изменился, агент планирует свой перезапуск (`systemd-run --on-active=5 … systemctl restart version-agent`) самым последним шагом, после записи состояния.
+
+Переменные в `version-agent.env` (значения по умолчанию совпадают с установщиком): `PROXY_CONTROL_AGENT_DIR=/opt/proxy-control`, `PROXY_CONTROL_PANEL_IMAGE=mtproxy-panel`, `PROXY_CONTROL_PANEL_CONTAINER=proxy-control-panel`, `PROXY_CONTROL_PANEL_VOLUME=mtproxy_panel-data`.
 
 ## Проверка после обновления
 
