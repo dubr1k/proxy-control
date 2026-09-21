@@ -348,6 +348,15 @@ docker compose exec panel python -m panel.cli db-status | python3 -m json.tool |
 
 Panel only; database migration 20 (`subscription-escrow`) runs at start-up. A subscription issued before v0.10 has no encrypted copy and cannot be shown — it gets no «Показать» button; rotate it from the client window. The panel master key (`secrets/panel-master-key`) is required for showing; without it the panel behaves as before. Rollback: the previous panel image; migration 20's columns do not get in the old code's way.
 
+On an installer-based host, `/app/VERSION` is bind-mounted from the project directory's `VERSION` file: update `VERSION` in the project directory, not only the image, or the container keeps reporting the previous release.
+
+Verification after the upgrade:
+
+```bash
+docker compose exec -T panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 20
+docker exec proxy-control-panel cat /app/VERSION   # 0.10.0-beta.1
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.
