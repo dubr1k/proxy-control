@@ -78,6 +78,63 @@ def test_catalog_requires_immutable_artifacts(tmp_path: Path):
         load_catalog(catalog)
 
 
+def test_catalog_accepts_archive_members_and_the_xray_component(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {
+        "xray": [{"version": "26.4.1", "kind": "binary",
+                  "url": "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/Xray-linux-64.zip",
+                  "sha256": "a" * 64,
+                  "archive": {"format": "zip", "members": {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}}}],
+        "mita": [{"version": "3.37.0", "kind": "binary",
+                  "url": "https://github.com/enfein/mieru/releases/download/v3.37.0/mita_3.37.0_linux_amd64.tar.gz",
+                  "sha256": "b" * 64, "archive": {"format": "tar.gz", "member": "mita"}}]}}))
+    loaded = load_catalog(catalog)
+    entry = loaded.entry("xray", "26.4.1")
+    assert entry.archive["members"]["geosite.dat"] == "geosite.dat" and entry.source == "catalog"
+    assert loaded.entry("mita", "3.37.0").public()["archive"] == {"format": "tar.gz", "member": "mita"}
+    assert loaded.entry("mita", "3.37.0").public()["source"] == "catalog"
+
+
+def test_catalog_rejects_archive_members_that_escape(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {"mita": [{
+        "version": "3.37.0", "kind": "binary", "url": "https://github.com/enfein/mieru/releases/download/v3.37.0/x.tar.gz",
+        "sha256": "b" * 64, "archive": {"format": "tar.gz", "member": "../mita"}}]}}))
+    with pytest.raises(CatalogError, match="archive member"):
+        load_catalog(catalog)
+
+
+def test_catalog_requires_the_xray_member_set_and_a_single_member_elsewhere(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {"xray": [{
+        "version": "26.4.1", "kind": "binary", "url": "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/x.zip",
+        "sha256": "a" * 64, "archive": {"format": "zip", "member": "xray"}}]}}))
+    with pytest.raises(CatalogError, match="members"):
+        load_catalog(catalog)
+    catalog.write_text(json.dumps({"schema": 1, "components": {"naive": [{
+        "version": "2.12.0", "kind": "binary", "url": "https://example.com/caddy",
+        "sha256": "a" * 64, "source": "somewhere"}]}}))
+    with pytest.raises(CatalogError, match="source"):
+        load_catalog(catalog)
+
+
+def test_catalog_accepts_a_caddy_build_entry(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {"naive": [{
+        "version": "2.12.0", "kind": "build",
+        "build": {"caddy_version": "2.12.0", "builder_image": "caddy:2.12.0-builder@sha256:" + "c" * 64,
+                  "forwardproxy_commit": "d" * 40}}]}}))
+    entry = load_catalog(catalog).entry("naive", "2.12.0")
+    assert entry.kind == "build" and entry.build["caddy_version"] == "2.12.0"
+    assert entry.public()["build"]["forwardproxy_commit"] == "d" * 40
+    catalog.write_text(json.dumps({"schema": 1, "components": {"mita": [{
+        "version": "2.12.0", "kind": "build",
+        "build": {"caddy_version": "2.12.0", "builder_image": "caddy:2.12.0-builder@sha256:" + "c" * 64,
+                  "forwardproxy_commit": "d" * 40}}]}}))
+    with pytest.raises(CatalogError, match="unsupported artifact kind"):
+        load_catalog(catalog)
+
+
 def test_catalog_rejects_non_https_binary_sources(tmp_path: Path):
     catalog = tmp_path / "catalog.json"
     catalog.write_text(
