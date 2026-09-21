@@ -800,11 +800,17 @@ class VersionAgent:
             "  mtproxy:\n"
             f"    image: {entry.image}\n"
         ).encode()
+        # Every Compose call carries the protocol overlays (`.env.naive`, `.env.mieru`,
+        # `.env.xray-router`): the model includes their files, whose required variables
+        # live only there — without them Compose refuses before touching anything (found
+        # live on ams-test in v0.11).
         try:
             _atomic_write(override, content, 0o640)
-            self.runner(self._compose_command("pull", "mtproxy"), cwd=self.compose_dir, timeout=900)
             self.runner(
-                self._compose_command("up", "-d", "--no-deps", "mtproxy"),
+                self._compose_command("pull", "mtproxy", env_files=True), cwd=self.compose_dir, timeout=900
+            )
+            self.runner(
+                self._compose_command("up", "-d", "--no-deps", "mtproxy", env_files=True),
                 cwd=self.compose_dir,
                 timeout=300,
             )
@@ -814,11 +820,11 @@ class VersionAgent:
                 if previous is None:
                     override.unlink(missing_ok=True)
                     command = self._compose_command(
-                        "up", "-d", "--no-deps", "mtproxy", include_override=False
+                        "up", "-d", "--no-deps", "mtproxy", include_override=False, env_files=True
                     )
                 else:
                     _atomic_write(override, previous, 0o640)
-                    command = self._compose_command("up", "-d", "--no-deps", "mtproxy")
+                    command = self._compose_command("up", "-d", "--no-deps", "mtproxy", env_files=True)
                 self.runner(command, cwd=self.compose_dir, timeout=300)
                 self._verify_telemt_generation(previous_image)
             except Exception as rollback_exc:

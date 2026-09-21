@@ -29,6 +29,10 @@ MAX_DIGEST_FILE = 4096
 MAX_MANIFEST = 64 * 1024
 MAX_TOKEN = 16 * 1024
 USER_AGENT = "proxy-control-version-agent/1"
+# The mita lines `mieru_manager.service.SUPPORTED_VERSION` accepts; a newer release is
+# shown but not offered (reason `manager_unsupported`) until the manager is verified
+# against it and both patterns move together (a test keeps them equal).
+MITA_SUPPORTED = re.compile(r"3\.(?:35|36|37)\.\d+")
 COMPONENTS = ("telemt", "naive", "mita", "xray")
 XRAY_MEMBERS = {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}
 TELEMT_REPOSITORY = "samnet-dev/mtproxymax-telemt"
@@ -228,6 +232,7 @@ def _github_binary(
     archive_for: Callable[[str], dict],
     *,
     prereleases: bool = False,
+    supported: re.Pattern[str] | None = None,
 ) -> dict:
     releases = _releases(fetcher, repository, prereleases=prereleases)
     if not releases:
@@ -237,6 +242,9 @@ def _github_binary(
     reason = None
     for release in releases:
         if current is not None and compare_versions(release["version"], current) <= 0:
+            continue
+        if supported is not None and not supported.fullmatch(release["version"]):
+            reason = reason or "manager_unsupported"
             continue
         name = asset_for(release["version"])
         url = _asset_url(release["assets"], name, repository)
@@ -385,6 +393,7 @@ def check_component(component: str, current: str | None, *, fetcher: Fetcher, ro
             ".sha256.txt",
             parse_sha256_txt,
             lambda _v: {"format": "tar.gz", "member": "mita"},
+            supported=MITA_SUPPORTED,
         )
     if component == "telemt":
         return _telemt(fetcher, current)

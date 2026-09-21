@@ -40,7 +40,7 @@ Warn the user that the old config stops working as soon as rotation succeeds.
 | Shadowrocket | Not offered; no verified format | Not offered | None |
 | NekoBox+ | Not offered; no verified format | Not offered | None |
 
-Use an official Mieru client compatible with server `mita` 3.35.x or 3.36.x, or a current Karing build. The [official Mieru client guide](https://github.com/enfein/mieru/blob/main/docs/client-install.md) defines `mierus://`, `mieru import config`, and the sing-box Mieru outbound fields. Karing documents configuration-content import and its [URL scheme](https://karing.app/en/cooperation/scheme); its current source lists the Mieru outbound type.
+Use an official Mieru client compatible with server `mita` 3.35.x, 3.36.x or 3.37.x, or a current Karing build. The [official Mieru client guide](https://github.com/enfein/mieru/blob/main/docs/client-install.md) defines `mierus://`, `mieru import config`, and the sing-box Mieru outbound fields. Karing documents configuration-content import and its [URL scheme](https://karing.app/en/cooperation/scheme); its current source lists the Mieru outbound type.
 
 After import verify expected hostname/port, declared TCP/UDP listener reachability, end-to-end transport, and rejection of the old config after rotation. Never paste any credential payload into a broadly visible ticket/chat or screenshot.
 

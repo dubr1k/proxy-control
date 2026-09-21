@@ -287,6 +287,16 @@ def test_bootstrap_accepts_mita_3_36(tmp_path):
     assert result["version"] == "3.36.0"
 
 
+def test_bootstrap_accepts_mita_3_37_and_refuses_an_unverified_line(tmp_path):
+    """v0.11: 3.37 verified live (same CLI, one optional field); 3.38 is not until it is."""
+    mita = FakeMita()
+    mita.version = lambda: "3.37.0"
+    assert manager(tmp_path, mita).bootstrap()["version"] == "3.37.0"
+    mita.version = lambda: "3.38.0"
+    with pytest.raises(ConfigConflict, match="3.37.x"):
+        manager(tmp_path, mita).bootstrap()
+
+
 def test_bootstrap_creates_private_durable_journal_authentication_key(tmp_path):
     root = tmp_path / "state"
 

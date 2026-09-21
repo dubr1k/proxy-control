@@ -90,6 +90,23 @@ def test_mita_candidate_reads_sha256_txt_and_names_the_tar_member():
     assert candidate["archive"] == {"format": "tar.gz", "member": "mita"} and candidate["sha256"] == "b" * 64
 
 
+def test_mita_newer_than_the_manager_supports_is_shown_but_not_offered():
+    """The manager refuses a mita line it was not verified against; the agent must not
+    hand it an update it would crash-loop on (found live on ams-test with 3.37 before the
+    manager learnt it). The two patterns move together."""
+    from mieru_manager.service import SUPPORTED_VERSION
+    from version_agent.upstream import MITA_SUPPORTED
+    for version in ("3.35.0", "3.36.2", "3.37.0", "3.38.0", "4.0.0"):
+        assert bool(MITA_SUPPORTED.fullmatch(version)) == bool(SUPPORTED_VERSION.fullmatch(version)), version
+    releases = [{**MIERU_RELEASES[0], "tag_name": "v3.38.0",
+                 "assets": [{"name": "mita_3.38.0_linux_amd64.tar.gz", "browser_download_url": "https://github.com/enfein/mieru/releases/download/v3.38.0/mita_3.38.0_linux_amd64.tar.gz"},
+                            {"name": "mita_3.38.0_linux_amd64.tar.gz.sha256.txt", "browser_download_url": "https://github.com/enfein/mieru/releases/download/v3.38.0/mita_3.38.0_linux_amd64.tar.gz.sha256.txt"}]}]
+    fetch = fetcher_from({"https://api.github.com/repos/enfein/mieru/releases?per_page=10": (200, {}, json.dumps(releases).encode())})
+    result = check_component("mita", "3.37.0", fetcher=fetch, router_enabled=False)
+    assert result == {"latest": "3.38.0", "installable": False, "reason": "manager_unsupported", "candidates": []}
+    assert fetch.seen == ["https://api.github.com/repos/enfein/mieru/releases?per_page=10"]  # the digest is never fetched
+
+
 def test_release_without_a_digest_file_is_visible_but_not_installable():
     releases = [{**MIERU_RELEASES[0], "assets": MIERU_RELEASES[0]["assets"][:1]}]
     fetch = fetcher_from({"https://api.github.com/repos/enfein/mieru/releases?per_page=10": (200, {}, json.dumps(releases).encode())})
