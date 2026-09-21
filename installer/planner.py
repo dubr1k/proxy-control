@@ -327,6 +327,9 @@ _PROFILE_ORDER = (
     "naive",
     "mieru",
     "three_xui",
+    # The version-agent (v0.11) comes last: its state records what every adapter before
+    # it installed, and its env names the overlays the profile runs with.
+    "version_agent",
 )
 
 
@@ -342,6 +345,7 @@ def adapter_factories() -> dict[str, type]:
     from installer.adapters.nginx import CertificatePlan, NginxAdapter
     from installer.adapters.packages import PackagesAdapter
     from installer.adapters.three_xui import ThreeXuiAdapter
+    from installer.adapters.version_agent import VersionAgentAdapter
     from installer.adapters.warp import WarpAdapter
     from installer.adapters.xray_router import XrayRouterAdapter
 
@@ -356,6 +360,7 @@ def adapter_factories() -> dict[str, type]:
         "three_xui": ThreeXuiAdapter,
         "warp": WarpAdapter,
         "xray_router": XrayRouterAdapter,
+        "version_agent": VersionAgentAdapter,
     }
 
 
@@ -394,6 +399,8 @@ def adapters_for(
         selected.append("mieru")
     if config.three_xui.mode.value != "none":
         selected.append("three_xui")
+    # Every profile gets the version-agent: without it the «Версии» screen is empty.
+    selected.append("version_agent")
     ordered = [name for name in _PROFILE_ORDER if name in set(selected)]
     return tuple(
         overrides.get(name) or factories[name]()  # type: ignore[misc]
