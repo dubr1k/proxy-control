@@ -102,7 +102,9 @@ _ADJACENT_CREDENTIALS = (
     "secrets/mcp-panel-key",
 )
 # Compose services other adapters add to the shared project.
-_ADJACENT_SERVICES = ("naive-manager", "mieru-manager", "xray-router")
+# `mcp` is the MCP server (v0.11); it runs in this project on the central only (found
+# live: `repair` on a lab install with MCP failed its health-check roll call).
+_ADJACENT_SERVICES = ("naive-manager", "mieru-manager", "xray-router", "mcp")
 _PANEL_VHOST = "/etc/nginx/conf.d/proxy-control-panel.conf"
 # The shared 443 router forwards raw TLS, so the panel needs a TLS listener of
 # its own: the panel application itself speaks plain HTTP on its app port.
