@@ -163,11 +163,15 @@ def test_core_never_claims_adjacent_naive_token(tmp_path):
     (project / 'secrets').mkdir(parents=True)
     (project / 'owned.txt').write_text('core')
     (project / 'secrets/naive-manager-token').write_text('adjacent-token')
+    (project / 'secrets/mcp-token').write_text('adjacent-token')
+    (project / 'secrets/mcp-panel-key').write_text('adjacent-token')
     for name in ('xray-router-manager-token', 'xray-router-ingress-naive', 'xray-router-ingress-mieru'):
         (project / 'secrets' / name).write_text('adjacent-router-secret')
     owned = adapter._ownership()
     assert '/opt/mtproxy-shared443/owned.txt' in owned
     assert '/opt/mtproxy-shared443/secrets/naive-manager-token' not in owned
+    assert '/opt/mtproxy-shared443/secrets/mcp-token' not in owned
+    assert '/opt/mtproxy-shared443/secrets/mcp-panel-key' not in owned
     assert not any('xray-router' in path for path in owned)
     # And a repair's credential check tolerates them beside Core's own files (v0.5).
     (project / 'secrets').chmod(0o700)

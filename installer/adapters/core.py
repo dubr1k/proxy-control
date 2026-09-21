@@ -96,6 +96,10 @@ _ADJACENT_CREDENTIALS = (
     "secrets/xray-router-manager-token",
     "secrets/xray-router-ingress-naive",
     "secrets/xray-router-ingress-mieru",
+    # The MCP server's (v0.11) bearer token and panel API key; the `mcp` adapter owns
+    # them (found live: `repair` on a lab install with MCP refused the secrets dir).
+    "secrets/mcp-token",
+    "secrets/mcp-panel-key",
 )
 # Compose services other adapters add to the shared project.
 _ADJACENT_SERVICES = ("naive-manager", "mieru-manager", "xray-router")
