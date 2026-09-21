@@ -161,6 +161,9 @@ class VersionAgent:
         upstream_enabled: bool = True,
         router_enabled: bool = False,
         clock: Callable[[], float] = time.time,
+        xray_bin_dir: Path = Path("/usr/local/lib/proxy-control/xray-router"),
+        xray_overlay: Path = Path("/opt/mtproxy-shared443/.env.xray-router"),
+        xray_container: str = "proxy-control-xray-router",
     ):
         self.catalog_path = catalog_path
         self.state_path = state_path
@@ -181,6 +184,9 @@ class VersionAgent:
         self.upstream_enabled = upstream_enabled
         self.router_enabled = router_enabled
         self.clock = clock
+        self.xray_bin_dir = xray_bin_dir
+        self.xray_overlay = xray_overlay
+        self.xray_container = xray_container
         self.check_all = _check_all
         self.lock_path = state_path.with_suffix(state_path.suffix + ".lock")
 
@@ -317,9 +323,12 @@ class VersionAgent:
             if current == version:
                 return {"component": component, "version": version, "changed": False}
             installed_sha256 = entry.sha256
+            members: dict[str, str] | None = None
             try:
                 if component == "telemt":
                     self._update_telemt(entry)
+                elif component == "xray":
+                    members = self._update_xray(entry, current)
                 else:
                     installed_sha256 = self._update_binary(component, entry)
             except RollbackFailedError:
@@ -349,8 +358,108 @@ class VersionAgent:
                 "runtime_version": entry.runtime_version,
                 "updated_at": int(time.time()),
             }
+            if members is not None:
+                state["components"][component]["members"] = members
             self._save_state(state)
             return {"component": component, "version": version, "changed": True}
+
+    # ------------------------------------------------------------------
+    # xray (the router's pinned bin-dir: xray, geoip.dat, geosite.dat)
+    # ------------------------------------------------------------------
+
+    XRAY_MODES = {"xray": 0o755, "geoip.dat": 0o644, "geosite.dat": 0o644}
+    XRAY_KEYS = {
+        "xray": "XRAY_ROUTER_XRAY_SHA256",
+        "geoip.dat": "XRAY_ROUTER_GEOIP_SHA256",
+        "geosite.dat": "XRAY_ROUTER_GEOSITE_SHA256",
+    }
+
+    def _xray_status(self) -> dict:
+        """The manager's `/v1/status`, read over its own socket from inside the container."""
+        output = self.runner(
+            ["docker", "exec", self.xray_container, "python", "-m", "xray_router_manager.healthcheck", "--status"],
+            timeout=30,
+        )
+        try:
+            value = json.loads(output)
+        except ValueError as exc:
+            raise UpdateError("xray-router status is not JSON") from exc
+        if not isinstance(value, dict):
+            raise UpdateError("xray-router status is not an object")
+        return value
+
+    def _assert_xray_running(self, expected_version: str | None) -> None:
+        status = self._xray_status()
+        if status.get("phase") != "idle":
+            raise UpdateError(f"xray-router is not idle: {status.get('phase') or 'unknown'}")
+        reported = str(status.get("xray_version") or "")
+        words = reported.split()
+        running = words[1] if len(words) >= 2 and words[0] == "Xray" else ""
+        if expected_version is not None and running != expected_version:
+            raise UpdateError(f"xray-router runs {running or 'unknown'}, expected {expected_version}")
+
+    def _update_xray(self, entry: CatalogEntry, previous_version: str | None) -> dict[str, str]:
+        if (
+            entry.kind != "binary"
+            or not entry.url
+            or not entry.sha256
+            or not entry.archive
+            or set(entry.archive.get("members", {})) != set(self.XRAY_MODES)
+        ):
+            raise UpdateError("xray entry must name the archive members")
+        if self.xray_bin_dir.is_symlink() or not self.xray_bin_dir.is_dir():
+            raise UpdateError("xray-router binary directory is missing")
+        payload = self.downloader(entry.url)
+        if sha256_bytes(payload) != entry.sha256:
+            raise UpdateError("xray artifact SHA-256 mismatch")
+        try:
+            members = {
+                name: extract_member(payload, entry.archive, path)
+                for name, path in entry.archive["members"].items()
+            }
+        except ArtifactError as exc:
+            raise UpdateError(f"xray archive: {exc}") from exc
+        digests = {name: sha256_bytes(data) for name, data in members.items()}
+        backup_dir = self.state_path.parent / "backups" / "xray.previous"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        existed: dict[str, bool] = {}
+        for name in members:
+            path = self.xray_bin_dir / name
+            if path.is_symlink():
+                raise UpdateError(f"refusing to replace symlink {path}")
+            existed[name] = path.exists()
+            if existed[name]:
+                shutil.copyfile(path, backup_dir / name)
+                os.chmod(backup_dir / name, self.XRAY_MODES[name])
+        previous_overlay = self.xray_overlay.read_bytes() if self.xray_overlay.exists() else None
+        try:
+            for name, data in members.items():
+                _atomic_write(self.xray_bin_dir / name, data, self.XRAY_MODES[name])
+            self._fsync_directory(self.xray_bin_dir)
+            for name, digest in digests.items():
+                self._rewrite_env_line(self.xray_overlay, self.XRAY_KEYS[name], digest)
+            self._compose_up("xray-router")
+            self._assert_xray_running(entry.version)
+        except Exception as exc:
+            try:
+                for name in members:
+                    if existed[name]:
+                        os.replace(backup_dir / name, self.xray_bin_dir / name)
+                        os.chmod(self.xray_bin_dir / name, self.XRAY_MODES[name])
+                    else:
+                        (self.xray_bin_dir / name).unlink(missing_ok=True)
+                self._fsync_directory(self.xray_bin_dir)
+                self._restore_file(self.xray_overlay, previous_overlay, 0o600)
+                self._compose_up("xray-router")
+                self._assert_xray_running(previous_version)
+            except Exception as rollback_exc:
+                raise RollbackFailedError(
+                    "xray update failed; restored generation could not be verified"
+                ) from rollback_exc
+            raise RolledBackError(
+                "xray update failed; previous generation was restored and verified"
+            ) from exc
+        return digests
 
     def _fetch_binary(self, component: str, entry: CatalogEntry) -> bytes:
         """Download the catalog artifact, verify it, and unpack the named member if any."""
@@ -721,4 +830,7 @@ def agent_from_env() -> VersionAgent:
         health_timeout=float(os.getenv("PROXY_CONTROL_VERSION_HEALTH_TIMEOUT", "60")),
         upstream_enabled=os.getenv("PROXY_CONTROL_UPSTREAM_CHECK", "on").strip().lower() != "off",
         router_enabled=_flag("PROXY_CONTROL_XRAY_ROUTER", "off"),
+        xray_bin_dir=Path(os.getenv("PROXY_CONTROL_XRAY_BIN_DIR", "/usr/local/lib/proxy-control/xray-router")),
+        xray_overlay=Path(os.getenv("PROXY_CONTROL_XRAY_OVERLAY", "/opt/mtproxy-shared443/.env.xray-router")),
+        xray_container=os.getenv("PROXY_CONTROL_XRAY_CONTAINER", "proxy-control-xray-router"),
     )

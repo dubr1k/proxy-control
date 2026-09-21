@@ -258,6 +258,142 @@ def test_upstream_disabled_lists_only_the_catalog_and_refuses_to_check(tmp_path:
         agent.check_upstream()
 
 
+XRAY_MEMBERS = ("xray", "geoip.dat", "geosite.dat")
+XRAY_STATUS = ["docker", "exec", "proxy-control-xray-router", "python", "-m", "xray_router_manager.healthcheck", "--status"]
+
+
+def _xray_zip() -> bytes:
+    return _zip({"xray": b"xray-new", "geoip.dat": b"geoip", "geosite.dat": b"geosite", "README.md": b"x"})
+
+
+def _xray_status(version: str, phase: str = "idle") -> str:
+    return json.dumps({"xray_version": f"Xray {version} (Xray, Penetrates Everything.) Custom (go1.24 linux/amd64)",
+                       "phase": phase, "running": {"generation": 3}}) + "\n"
+
+
+def _xray_fixture(tmp_path: Path, *, overlay_text: str) -> tuple[Path, Path, Path, bytes]:
+    bin_dir = tmp_path / "xray-router"
+    bin_dir.mkdir()
+    for name in XRAY_MEMBERS:
+        (bin_dir / name).write_bytes(b"old-" + name.encode())
+    (bin_dir / "xray").chmod(0o755)
+    overlay = tmp_path / ".env.xray-router"
+    overlay.write_text(overlay_text)
+    payload = _xray_zip()
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {"xray": [{
+        "version": "26.4.1", "kind": "binary",
+        "url": "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/Xray-linux-64.zip",
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "archive": {"format": "zip", "members": {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}}}]}}))
+    return bin_dir, overlay, catalog, payload
+
+
+def test_xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_version(tmp_path: Path):
+    bin_dir, overlay, catalog, payload = _xray_fixture(tmp_path, overlay_text=(
+        "XRAY_ROUTER_BIN_DIR=" + str(tmp_path / "xray-router") + "\nXRAY_ROUTER_XRAY_SHA256=" + "0" * 64
+        + "\nXRAY_ROUTER_GEOIP_SHA256=" + "1" * 64 + "\nXRAY_ROUTER_GEOSITE_SHA256=" + "2" * 64 + "\nXRAY_ROUTER_EGRESS_WARP=\n"))
+    (tmp_path / ".env").write_text("PANEL_DOMAIN=p.example.com\n")
+    commands = []
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        commands.append(command)
+        if command == XRAY_STATUS:
+            return _xray_status("26.4.1")
+        return ""
+
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", compose_dir=tmp_path,
+                         compose_files=("compose.yaml", "compose.xray-router.yaml"), router_enabled=True,
+                         xray_bin_dir=bin_dir, xray_overlay=overlay, downloader=lambda url: payload, runner=run)
+
+    result = agent.update("xray", "26.4.1", expected_current=None)
+
+    assert result["changed"] is True
+    assert (bin_dir / "xray").read_bytes() == b"xray-new" and (bin_dir / "geosite.dat").read_bytes() == b"geosite"
+    assert (bin_dir / "xray").stat().st_mode & 0o777 == 0o755 and (bin_dir / "geoip.dat").stat().st_mode & 0o777 == 0o644
+    assert not (bin_dir / "README.md").exists()
+    text = overlay.read_text()
+    assert f"XRAY_ROUTER_XRAY_SHA256={hashlib.sha256(b'xray-new').hexdigest()}" in text
+    assert f"XRAY_ROUTER_GEOSITE_SHA256={hashlib.sha256(b'geosite').hexdigest()}" in text
+    assert "XRAY_ROUTER_EGRESS_WARP=" in text and "XRAY_ROUTER_BIN_DIR=" in text and "0" * 64 not in text
+    [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
+    assert up[-4:] == ["up", "-d", "--wait", "xray-router"]
+    assert [up[i + 1] for i, part in enumerate(up) if part == "--env-file"] == [str(tmp_path / ".env"), str(overlay)]
+    assert commands.index(up) < commands.index(XRAY_STATUS)
+    state = json.loads((tmp_path / "state.json").read_text())["components"]["xray"]
+    assert state["members"] == {name: hashlib.sha256(data).hexdigest() for name, data in
+                                (("xray", b"xray-new"), ("geoip.dat", b"geoip"), ("geosite.dat", b"geosite"))}
+    assert state["version"] == "26.4.1" and state["sha256"] == hashlib.sha256(payload).hexdigest()
+    backups = tmp_path / "backups" / "xray.previous"
+    assert (backups / "xray").read_bytes() == b"old-xray"
+    listed = agent.list_versions()["components"]["xray"]
+    assert listed["current"] == "26.4.1"
+
+
+def test_xray_update_rolls_back_all_three_members_when_the_router_reports_another_version(tmp_path: Path):
+    bin_dir, overlay, catalog, payload = _xray_fixture(tmp_path, overlay_text="XRAY_ROUTER_XRAY_SHA256=" + "0" * 64 + "\n")
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"schema": 2, "components": {"xray": {"version": "26.3.27"}}}))
+    ups = 0
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        nonlocal ups
+        if command[-4:] == ["up", "-d", "--wait", "xray-router"]:
+            ups += 1
+        if command == XRAY_STATUS:
+            # The container keeps reporting the old build: the new one never came up.
+            return _xray_status("26.3.27")
+        return ""
+
+    agent = VersionAgent(catalog_path=catalog, state_path=state, compose_dir=tmp_path, compose_files=("compose.yaml",),
+                         router_enabled=True, xray_bin_dir=bin_dir, xray_overlay=overlay, downloader=lambda url: payload, runner=run)
+
+    with pytest.raises(RolledBackError, match="restored and verified"):
+        agent.update("xray", "26.4.1", expected_current="26.3.27")
+
+    assert {n: (bin_dir / n).read_bytes() for n in XRAY_MEMBERS} == {n: b"old-" + n.encode() for n in XRAY_MEMBERS}
+    assert (bin_dir / "xray").stat().st_mode & 0o777 == 0o755
+    assert overlay.read_text() == "XRAY_ROUTER_XRAY_SHA256=" + "0" * 64 + "\n"
+    assert ups == 2
+    assert json.loads(state.read_text())["components"]["xray"]["version"] == "26.3.27"
+
+
+def test_xray_rollback_that_does_not_reach_idle_is_reported_as_unverified(tmp_path: Path):
+    bin_dir, overlay, catalog, payload = _xray_fixture(tmp_path, overlay_text="XRAY_ROUTER_XRAY_SHA256=" + "0" * 64 + "\n")
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"schema": 2, "components": {"xray": {"version": "26.3.27"}}}))
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        if command == XRAY_STATUS:
+            return _xray_status("26.3.27", phase="broken")
+        return ""
+
+    agent = VersionAgent(catalog_path=catalog, state_path=state, compose_dir=tmp_path, compose_files=("compose.yaml",),
+                         router_enabled=True, xray_bin_dir=bin_dir, xray_overlay=overlay, downloader=lambda url: payload, runner=run)
+
+    with pytest.raises(RollbackFailedError):
+        agent.update("xray", "26.4.1", expected_current="26.3.27")
+
+    saved = json.loads(state.read_text())["components"]["xray"]
+    assert saved["version"] == "26.3.27" and saved["status"] == "rollback_failed"
+
+
+def test_xray_is_refused_without_the_router_and_with_a_mismatched_archive(tmp_path: Path):
+    bin_dir, overlay, catalog, payload = _xray_fixture(tmp_path, overlay_text="")
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", compose_dir=tmp_path,
+                         compose_files=("compose.yaml",), router_enabled=False, xray_bin_dir=bin_dir, xray_overlay=overlay,
+                         downloader=lambda url: payload, runner=lambda *a, **k: "")
+    assert "xray" not in agent.list_versions()["components"]
+    with pytest.raises(CatalogError, match="unsupported component"):
+        agent.update("xray", "26.4.1", expected_current=None)
+    agent = VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", compose_dir=tmp_path,
+                         compose_files=("compose.yaml",), router_enabled=True, xray_bin_dir=bin_dir, xray_overlay=overlay,
+                         downloader=lambda url: payload + b"x", runner=lambda *a, **k: "")
+    with pytest.raises(UpdateError, match="SHA-256 mismatch"):
+        agent.update("xray", "26.4.1", expected_current=None)
+    assert (bin_dir / "xray").read_bytes() == b"old-xray" and overlay.read_text() == ""
+
+
 def test_catalog_rejects_non_https_binary_sources(tmp_path: Path):
     catalog = tmp_path / "catalog.json"
     catalog.write_text(
