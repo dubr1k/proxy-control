@@ -61,3 +61,16 @@ def test_the_window_is_reachable_by_viewers_but_only_writers_get_the_buttons():
 def test_the_audit_screen_names_the_reveal():
     audit = (ROOT / "static/js/audit.js").read_text()
     assert '"subscription.reveal": "Ссылка подписки показана"' in audit
+
+
+def test_new_client_places_grants_by_matrix_and_hands_the_subscription_over():
+    clients = (ROOT / "static/js/clients.js").read_text()
+    access = (ROOT / "static/js/access.js").read_text()
+    html = (ROOT / "static/index.html").read_text()
+    dialog = html[html.index('id="client-modal"'):html.index('id="bundle-modal"')]
+    assert 'id="client-placement"' in dialog and 'id="client-node"' not in dialog
+    assert 'id="grant-modal"' not in html
+    assert 'from "./placement.js"' in clients and "placementDiff(" in clients
+    assert "subscription_reveal_token" in clients and "openOperationBundle(" in clients
+    # The bundle dialog carries the subscription block when a reveal came with the client.
+    assert 'id="bundle-subscription"' in html and "bundle-subscription" in access and "subscription.qr" in access

@@ -471,11 +471,24 @@ export function createAccessDialogs(context) {
       query("#open-telegram", root).removeAttribute("href");
       query("#download-qr", root).removeAttribute("href");
     });
+    // Nothing of a bundle survives its window: the artifacts and the subscription block
+    // both go, so the next operation never shows the previous one's secrets for a frame.
+    query("#bundle-modal", root)?.addEventListener("close", () => {
+      query("#bundle-body", root).innerHTML = "";
+      clearBundleSubscription();
+    });
     bindClientDialog("mieru");
     bindClientDialog("naive");
   }
 
-  async function openOperationBundle(operationId) {
+  function clearBundleSubscription() {
+    query("#bundle-subscription", root).hidden = true;
+    query("#bundle-subscription-url", root).value = "";
+    query("#bundle-subscription-qr", root).removeAttribute("src");
+    query("#bundle-subscription button.copy", root).dataset.copy = "";
+  }
+
+  async function openOperationBundle(operationId, { subscription = null } = {}) {
     // One reveal for the whole operation: the token is consumed on first read, so the
     // dialog renders everything it received and never re-fetches.
     const { reveal_token: token } = await api(
@@ -489,6 +502,17 @@ export function createAccessDialogs(context) {
         <span class="copy-field"><input readonly value="${esc(artifact.value)}"><button type="button" class="copy" data-copy="${esc(artifact.value)}">Копировать</button></span>
       </label>`).join("")}
     </section>`).join("") || "<p class=\"form-hint\">Артефактов нет.</p>";
+    // The client's subscription, when one came with it: the same reveal payload the client
+    // window renders, shown here once so the operator copies link and artifacts together.
+    if (subscription) {
+      const variant = subscription.variants?.singbox || { url: subscription.url, qr: subscription.qr };
+      query("#bundle-subscription-url", root).value = variant.url;
+      query("#bundle-subscription-qr", root).src = variant.qr;
+      query("#bundle-subscription button.copy", root).dataset.copy = variant.url;
+      query("#bundle-subscription", root).hidden = false;
+    } else {
+      clearBundleSubscription();
+    }
     ui.openModal("#bundle-modal");
   }
 

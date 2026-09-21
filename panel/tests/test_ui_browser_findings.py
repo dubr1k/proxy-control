@@ -67,9 +67,13 @@ def test_the_grant_dialog_reads_only_its_own_protocol_boxes():
     """The link dialog (v0.3) reuses `.grant-protocol` for its TLS radios; a document-wide
     `:checked` query handed «verify» to the API as a protocol, so issuing grants from the
     Clients screen answered 422 every time. The collection stays scoped to the form that
-    owns the boxes — since v0.10 «Выдать доступ» is gone and «Новый клиент» is that form."""
+    owns the boxes. Since v0.10 «Новый клиент» has no protocol checkboxes at all: it reads
+    the node × protocol matrix, so the scope moved to `#client-placement` — the point of the
+    finding is unchanged, no document-wide `.grant-protocol` collection may come back."""
     clients = (STATIC / "js/clients.js").read_text(encoding="utf-8")
-    assert '"#client-form .grant-protocol input:checked"' in clients
+    assert '"#client-placement input[type=checkbox]"' in clients
+    assert 'readPlacement(query("#client-placement", root))' in clients
+    assert ".grant-protocol" not in clients
     assert re.search(r'queryAll\("\.grant-protocol input', clients) is None
     index = (STATIC / "index.html").read_text(encoding="utf-8")
     assert index.count('class="grant-protocol"') >= 5  # the class is shared on purpose; the scope is not
