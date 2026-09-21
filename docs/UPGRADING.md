@@ -361,7 +361,9 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.
 
-Before enabling it:
+Since v0.11 a fresh install sets the agent up itself: the `version_agent` adapter runs last, copies the agent's code to `/opt/proxy-control`, installs the unit and the tmpfiles fragment, writes `version-agent.env` with the profile's complete Compose overlay list and the Xray-router flag, seeds an empty `versions.json` and a `state.json` that records the versions it just installed, and waits for `/v1/health`. `repair` rewrites the owned files and never touches the catalog or the state. The manual steps below remain for hosts installed before v0.11.
+
+Before enabling it by hand:
 
 ```bash
 sudo install -d -m 0750 /etc/proxy-control

@@ -412,8 +412,9 @@ previous state.
 
 It owns: the Ubuntu packages from its list, certificates and their renewal,
 Nginx and the panel's TLS vhost, containers and volumes, NaiveProxy and Mieru
-host services, UFW rules if you allow them, 3x-ui in its selected mode, and its
-own pinned WARP boundary when `warp = true`.
+host services, UFW rules if you allow them, 3x-ui in its selected mode, its
+own pinned WARP boundary when `warp = true` and, since v0.11, the version-agent
+(code, unit, env for the profile, catalog and a state recording the installed versions).
 
 It does not own: DNS, Fleet, your own websites, foreign containers, foreign
 WARP, or foreign Nginx routes. The journal and ownership files live under

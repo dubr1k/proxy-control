@@ -409,8 +409,9 @@ sudo python3 -m installer.cli install --config examples/installer/full-three-xui
 
 Берёт на себя: пакеты Ubuntu из списка, сертификаты и их продление, маршруты
 Nginx и TLS-vhost панели, контейнеры и тома, host-службы NaiveProxy и Mieru,
-правила UFW (если вы это разрешили), 3x-ui в выбранном режиме и собственный
-закреплённый WARP-контур при `warp = true`.
+правила UFW (если вы это разрешили), 3x-ui в выбранном режиме, собственный
+закреплённый WARP-контур при `warp = true` и, с v0.11, агент версий
+(`version-agent`: код, unit, env по профилю, каталог и state с поставленными версиями).
 
 Не берёт: DNS, Fleet, ваши собственные сайты, чужие контейнеры, чужой WARP и
 чужие маршруты Nginx. Журнал и файлы владения лежат в `/var/lib/proxy-control/` —

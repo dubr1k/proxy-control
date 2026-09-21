@@ -15,6 +15,7 @@ Component updates without a hand-written catalog: the panel asks the projects th
 - **NaiveProxy updates by rebuilding Caddy from the panel**: the Caddy builder image by digest, forwardproxy by the `caddy2` branch commit, built on the host, the pin taken from the built binary.
 - **The panel updates itself from the UI**: the «Proxy Control / панель» card on «Версии» lists this project's releases by their `SHA256SUMS`; the agent syncs the release tree into the project directory (never `secrets/`, `.env*`, `version-overrides/`), backs up the tree, the database and the image, rebuilds and recreates `panel`, checks `/app/VERSION` and rolls everything back otherwise; managers it does not rebuild are named in `pending_rebuild`. The request answers `async: true`; the page reloads itself when the panel is back ([UPGRADING](docs/UPGRADING.md)).
 - The «Клиенты» badge in the navigation shows the total number of clients.
+- **The installer sets up the version-agent** (`version_agent` adapter, last in every profile): the agent's code under `/opt/proxy-control`, the unit and tmpfiles fragment, `version-agent.env` with the profile's overlay list and the router flag, an empty `versions.json` and a `state.json` recording what was just installed; verified over the socket. Before, a fresh install had no env, catalog or state and the «Версии» screen was empty; the manual steps in [UPGRADING](docs/UPGRADING.md) remain for older hosts.
 
 ### Changed
 
