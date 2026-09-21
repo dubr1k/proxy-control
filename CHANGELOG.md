@@ -4,6 +4,23 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.10.0-beta.1] - 2026-09-21
+
+Clients the 3x-ui way: create one and get its subscription link and QR at once; open it and see the link again, editing nodes with ticks.
+
+### Added
+
+- **A client on several nodes.** «Новый клиент» and the client window show a node × protocol matrix: this server and linked panels as rows, MTProxy/NaiveProxy/Mieru as columns. Ticks go out as one provisioning operation; an untick disables the grant, the cross deletes it ([PANEL](PANEL.ru.md)).
+- **The subscription at once, and again.** A subscription is issued with the client and its URL and QR appear in the «Доступы выданы» dialog; «Показать» in the client window opens it again. The token is stored encrypted under the panel master key and every reveal is audited (`subscription.reveal`). Without a master key the URL is shown once, as before (OPERATIONS, ADR 004).
+- `POST /api/clients` takes `subscription` (default `true`) and returns `subscription_reveal_token`; `POST /api/clients/{id}/subscription/reveal`; the subscription overview carries `escrowed`, `secret_store` and each grant's `node_id`.
+
+### Changed
+
+- A grant without a stored credential no longer blocks a subscription: it renders as `unsupported`.
+- The «Выдать доступ» dialog is gone; the matrix in the client window takes its place. The card's «Подписка» button is now «Открыть», and the client's name opens the window too.
+- Database migration 20 (`subscription-escrow`) runs at start-up: two columns on `client_subscriptions`.
+- The verification matrix now covers v0.2-v0.10.
+
 ## [0.9.0-beta.1] - 2026-09-19
 
 The seam between the screen and the backend after v0.8 went live: the panel says in words
