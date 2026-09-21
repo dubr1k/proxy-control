@@ -197,7 +197,9 @@ export function createSubscriptionDialog(context) {
   }
 
   // `reveal` may be a payload already in hand (the client was just created): shown at once.
-  async function open(clientId, name, reveal = null) {
+  // `focus: "placement"` (the card's «Узлы и доступы», v0.11) lands the operator on the
+  // node × protocol matrix instead of the subscription block at the top.
+  async function open(clientId, name, reveal = null, { focus = null } = {}) {
     state.generation += 1;
     const generation = state.generation;
     reset();
@@ -212,7 +214,12 @@ export function createSubscriptionDialog(context) {
     } catch (exception) {
       if (generation !== state.generation) return;
       query("#subscription-error", root).textContent = exception.message;
+      return;
     }
+    if (generation !== state.generation || focus !== "placement") return;
+    const box = query(".placement-box", root);
+    box?.scrollIntoView({ block: "start", behavior: "smooth" });
+    query("#placement-body input[type=checkbox]:not(:disabled)", root)?.focus({ preventScroll: true });
   }
 
   async function issue(path, button, busy) {
