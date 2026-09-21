@@ -961,6 +961,7 @@ class CoreAdapter:
             f"proxy-domain={config.domains.mtproxy}",
             f"panel-domain={config.domains.panel}",
             f"subscription-domain={config.domains.subscription or ''}",
+            f"mcp-domain={config.domains.mcp or ''}",
             f"users={','.join(selected_users)}",
             "proxy-backend-port=8445",
             "panel-app-port=8787",
@@ -1010,6 +1011,8 @@ class CoreAdapter:
         owned = {config.domains.mtproxy.lower(), config.domains.panel.lower()}
         if config.domains.subscription is not None:
             owned.add(config.domains.subscription.lower())
+        if config.domains.mcp is not None:
+            owned.add(config.domains.mcp.lower())
         adjacent: list[tuple[str, str]] = []
         for domain, backend in routes.items():
             if not isinstance(domain, str) or not isinstance(backend, str):
@@ -1034,6 +1037,7 @@ class CoreAdapter:
         proxy_backend_port: int = 8445,
         panel_app_port: int = 8787,
         subscription_domain: str | None = None,
+        mcp_domain: str | None = None,
     ) -> Action:
         """Build the same secret-free action for compatibility coordinators."""
         selected_users = tuple(users)
@@ -1048,6 +1052,7 @@ class CoreAdapter:
                 f"proxy-domain={proxy_domain}",
                 f"panel-domain={panel_domain}",
                 f"subscription-domain={subscription_domain or ''}",
+                f"mcp-domain={mcp_domain or ''}",
                 f"users={','.join(selected_users)}",
                 f"proxy-backend-port={proxy_backend_port}",
                 f"panel-app-port={panel_app_port}",
@@ -1075,6 +1080,9 @@ class CoreAdapter:
         if _compose_publishes_telemt_api(compose):
             raise CoreError("Telemt API must not be host-published")
         subscription_domain = selected["subscription_domain"]
+        mcp_domain = selected["mcp_domain"]
+        # PANEL_ALLOWED_HOSTS stays as is: the MCP container calls the panel with the
+        # panel's own Host, the MCP name is only what the laptop connects to.
         allowed_hosts = [str(selected["panel_domain"])]
         if subscription_domain is not None:
             allowed_hosts.append(str(subscription_domain))
@@ -1101,6 +1109,11 @@ class CoreAdapter:
                 subscription_domain=str(subscription_domain),
                 certificate=str(selected["proxy_domain"]),
                 app_port=int(selected["panel_app_port"]),
+            )
+        if mcp_domain is not None:
+            panel_vhost += _mcp_vhost_text(
+                mcp_domain=str(mcp_domain),
+                certificate=str(selected["proxy_domain"]),
             )
         return RenderedCore(
             compose_yaml=compose,
@@ -1438,6 +1451,7 @@ class CoreAdapter:
             "proxy-domain",
             "panel-domain",
             "subscription-domain",
+            "mcp-domain",
             "users",
             "proxy-backend-port",
             "panel-app-port",
@@ -1449,6 +1463,8 @@ class CoreAdapter:
         if set(values) != required:
             raise CoreError("Core action is invalid")
         subscription_domain = values["subscription-domain"].lower() or None
+        mcp_domain = values["mcp-domain"].lower() or None
+        taken = {values["proxy-domain"].lower(), values["panel-domain"].lower()}
         if (
             values["project"] != self.paths.project_dir
             or values["probe"] != self.paths.probe_path
@@ -1461,7 +1477,14 @@ class CoreAdapter:
                 subscription_domain is not None
                 and (
                     _DOMAIN.fullmatch(subscription_domain) is None
-                    or subscription_domain in {values["proxy-domain"].lower(), values["panel-domain"].lower()}
+                    or subscription_domain in taken
+                )
+            )
+            or (
+                mcp_domain is not None
+                and (
+                    _DOMAIN.fullmatch(mcp_domain) is None
+                    or mcp_domain in taken | {subscription_domain}
                 )
             )
         ):
@@ -1480,6 +1503,7 @@ class CoreAdapter:
             "proxy_domain": values["proxy-domain"].lower(),
             "panel_domain": values["panel-domain"].lower(),
             "subscription_domain": subscription_domain,
+            "mcp_domain": mcp_domain,
             "users": selected_users,
             "proxy_backend_port": proxy_port,
             "panel_app_port": panel_port,
@@ -1962,6 +1986,7 @@ class CoreAdapter:
                 f"proxy-domain={selected['proxy_domain']}",
                 f"panel-domain={selected['panel_domain']}",
                 f"subscription-domain={selected.get('subscription_domain') or ''}",
+                f"mcp-domain={selected.get('mcp_domain') or ''}",
                 f"users={','.join(users)}",
                 f"proxy-backend-port={selected['proxy_backend_port']}",
                 f"panel-app-port={selected['panel_app_port']}",
@@ -2651,6 +2676,44 @@ def _subscription_vhost_text(
         f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
         "access_log off; "
         f"location ^~ /s/ {{ {proxy}}} "
+        "location / { return 404; } }\n"
+    )
+
+
+_MCP_APP_PORT = 8793
+
+
+def _mcp_vhost_text(
+    *,
+    mcp_domain: str,
+    certificate: str,
+    mcp_port: int = _MCP_APP_PORT,
+    tls_port: int = _PANEL_TLS_PORT,
+) -> str:
+    """The MCP name (v0.11 §9a) serves `/mcp` and nothing else, without an access log.
+
+    Streamable HTTP is long-lived: HTTP/1.1 without buffering and with an hour of read
+    timeout keeps a session's event stream open. `/healthz` is for the container's own
+    healthcheck on loopback and is not published. The certificate is the panel's: the
+    name is one more SAN on the `proxy-control` lineage.
+    """
+    proxy = (
+        f"proxy_pass http://127.0.0.1:{mcp_port}; "
+        "proxy_http_version 1.1; "
+        'proxy_set_header Connection ""; '
+        "proxy_set_header Host $host; "
+        "proxy_set_header X-Forwarded-Proto https; "
+        "proxy_buffering off; "
+        "proxy_read_timeout 3600s; "
+    )
+    return (
+        f"server {{ listen 127.0.0.1:{tls_port} ssl; "
+        f"server_name {mcp_domain}; "
+        f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
+        f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
+        "access_log off; "
+        "location = /healthz { return 404; } "
+        f"location /mcp {{ {proxy}}} "
         "location / { return 404; } }\n"
     )
 

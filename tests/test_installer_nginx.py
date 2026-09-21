@@ -241,6 +241,33 @@ def test_subscription_domain_routes_to_the_panel_tls_listener(tmp_path: Path) ->
     assert b"sub.example.com 127.0.0.1:8443;" in text
 
 
+def test_mcp_domain_routes_to_the_panel_tls_listener_and_joins_the_core_certificate(tmp_path: Path) -> None:
+    """The MCP name (v0.11 §9a) shares the 8443 listener and the `proxy-control` certificate."""
+    import dataclasses
+
+    from installer.adapters.nginx import _certificate_groups
+
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, _ = runner_for(effective, root=root)
+    adapter = NginxAdapter(root=root, runner=runner)
+    with_mcp = dataclasses.replace(
+        config(),
+        domains=DomainConfig(panel="panel.example.com", mtproxy="mt.example.com", mcp="mcp.example.com"),
+    )
+    action = adapter.plan(with_mcp, facts())[0]
+
+    adapter.apply(action, adapter.prepare(action))
+    text = route.read_bytes()
+    assert b"panel.example.com 127.0.0.1:8443;" in text
+    assert b"mcp.example.com 127.0.0.1:8443;" in text
+    core_group = next(group for group in _certificate_groups(with_mcp) if group[0] == "proxy-control")
+    assert core_group[2] == ("mcp.example.com", "mt.example.com", "panel.example.com")
+    plain_group = next(group for group in _certificate_groups(config()) if group[0] == "proxy-control")
+    assert "mcp.example.com" not in plain_group[2]
+
+
 def test_transaction_engine_allows_adjacent_foreign_route_and_removes_only_owned_block(
     tmp_path: Path,
 ) -> None:

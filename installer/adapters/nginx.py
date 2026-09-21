@@ -541,6 +541,10 @@ class NginxAdapter:
             # Same TLS listener as the panel: Nginx picks the vhost by server_name, and
             # the subscription vhost serves nothing but `/s/`.
             routes += ((config.domains.subscription, "127.0.0.1:8443"),)
+        if config.domains.mcp is not None:
+            # The MCP server (v0.11 §9a) shares the listener the same way: its vhost
+            # answers `/mcp` only and lives in the panel's file.
+            routes += ((config.domains.mcp, "127.0.0.1:8443"),)
         if config.profile.includes_naive:
             if config.domains.naive is None:
                 raise TopologyError("Naive route domain is missing")
@@ -2318,7 +2322,12 @@ def _certificate_groups(
 ) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
     # The subscription name rides on the Core lineage: one certificate, one renewal,
     # and the vhost that serves `/s/` points at the same files as the panel's.
-    core_names = {config.domains.mtproxy, config.domains.panel, config.domains.subscription} - {None}
+    core_names = {
+        config.domains.mtproxy,
+        config.domains.panel,
+        config.domains.subscription,
+        config.domains.mcp,
+    } - {None}
     groups: list[tuple[str, str, tuple[str, ...]]] = [
         (
             "proxy-control",
