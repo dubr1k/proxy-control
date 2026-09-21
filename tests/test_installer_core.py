@@ -884,6 +884,73 @@ def test_subscription_lives_on_its_own_vhost_without_access_log(tmp_path):
     assert "PANEL_SUBSCRIPTION" not in plain.env_text
 
 
+def test_mcp_lives_on_its_own_vhost_serving_only_mcp(tmp_path):
+    """v0.11 §9a: the MCP name answers `/mcp` only, streams without buffering, logs nothing,
+    and never widens PANEL_ALLOWED_HOSTS (the MCP container sends the panel's own Host)."""
+    import dataclasses
+
+    from installer.adapters.core import _PANEL_TLS_PORT
+
+    with_mcp = dataclasses.replace(
+        config(),
+        domains=DomainConfig(
+            panel="panel.example.com", mtproxy="proxy.example.com", mcp="mcp.example.com"
+        ),
+    )
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    action = adapter.plan(with_mcp, AuditFacts())[0]
+    assert "mcp-domain=mcp.example.com" in action.mutations
+    assert adapter._selection(action)["mcp_domain"] == "mcp.example.com"
+
+    rendered = adapter.render(action)
+    panel_vhost, mcp_vhost = rendered.panel_vhost.splitlines()
+    assert "server_name panel.example.com;" in panel_vhost
+    assert "mcp" not in panel_vhost
+    assert "server_name mcp.example.com;" in mcp_vhost
+    assert f"listen 127.0.0.1:{_PANEL_TLS_PORT} ssl" in mcp_vhost
+    assert "/etc/letsencrypt/live/proxy.example.com/fullchain.pem" in mcp_vhost
+    assert "access_log off;" in mcp_vhost
+    assert "location = /healthz { return 404; }" in mcp_vhost
+    assert (
+        "location /mcp { proxy_pass http://127.0.0.1:8793; proxy_http_version 1.1; "
+        'proxy_set_header Connection ""; proxy_set_header Host $host; '
+        "proxy_set_header X-Forwarded-Proto https; proxy_buffering off; "
+        "proxy_read_timeout 3600s; }" in mcp_vhost
+    )
+    assert "location / { return 404; }" in mcp_vhost
+    assert "PANEL_ALLOWED_HOSTS=panel.example.com\n" in rendered.env_text
+    assert "mcp" not in rendered.env_text.lower()
+
+    # Without the name nothing changes but the (empty) mutation.
+    plain = adapter.render(core_action())
+    assert "mcp-domain=" in core_action().mutations
+    assert plain.panel_vhost.count("server {") == 1 and "mcp" not in plain.panel_vhost
+
+    # The MCP name is owned by us: an audited SNI route for it is not «adjacent».
+    facts = AuditFacts(
+        topology={
+            "nginx": {
+                "sni_routes": {
+                    "mcp.example.com": "127.0.0.1:8443",
+                    "other.example.com": "127.0.0.1:9443",
+                }
+            }
+        }
+    )
+    assert adapter._audited_adjacent_routes(with_mcp, facts) == (("other.example.com", "127.0.0.1:9443"),)
+
+
+def test_core_refuses_an_mcp_name_that_clashes_or_is_invalid(tmp_path):
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
+    for clash in ("panel.example.com", "proxy.example.com", "sub.example.com", "not a domain"):
+        action = adapter.action(
+            proxy_domain="proxy.example.com", panel_domain="panel.example.com",
+            users=("owner",), subscription_domain="sub.example.com", mcp_domain=clash,
+        )
+        with pytest.raises(CoreError, match="Core action is invalid"):
+            adapter.render(action)
+
+
 def test_core_refuses_a_subscription_name_that_is_the_panel_or_proxy(tmp_path):
     adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())
     for clash in ("panel.example.com", "proxy.example.com", "not a domain"):
