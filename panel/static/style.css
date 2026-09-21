@@ -102,8 +102,9 @@
 .grant-tools button{min-height:22px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:10px}
 .grant-tools button:hover{border-color:var(--line);color:var(--text)}
 .grant-tools button.danger-text{color:#d97880}
-.placement-box{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:12px 0;display:grid;gap:8px}.placement-box legend{padding:0 6px;color:var(--muted);font-size:11px}
-.placement-scroll{overflow-x:auto;max-width:100%;margin:10px 0;-webkit-overflow-scrolling:touch}
+.placement-box{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:12px 0;display:flex;flex-direction:column;gap:8px;min-width:0}.placement-box legend{padding:0 6px;color:var(--muted);font-size:11px}
+#placement-body{min-width:0}
+.placement-scroll{overflow-x:auto;max-width:100%;min-width:0;margin:10px 0;-webkit-overflow-scrolling:touch}
 .placement{border-collapse:collapse;min-width:100%;font-size:12px}
 .placement th,.placement td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;white-space:nowrap}
 .placement th[scope=row]{font-weight:560}.placement th[scope=row] small{color:var(--muted);font-weight:400;margin-left:4px}

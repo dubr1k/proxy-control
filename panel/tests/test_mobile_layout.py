@@ -342,7 +342,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             <p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку.
               <button class="secondary" disabled>Принять доступ</button></p>
             <div class="client-actions">
-              <button class="secondary">Выдать доступ</button><button class="secondary">Подписка</button>
+              <button class="secondary">Открыть</button>
               <button class="secondary">Приостановить</button><button class="danger ghost">Архивировать</button>
             </div>
           </article>
@@ -596,6 +596,18 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
             <span><b>{name}</b> <small>Karing, sing-box ≥ 1.13</small><small>Попадёт: NaiveProxy и Mieru как outbound'ы. Не попадёт: MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже.</small></span></label>"""
         for name in ("singbox", "clash", "raw")
     )
+    placement = (
+        '<div class="placement-scroll"><table class="placement"><thead><tr><th>Узел</th><th>MTProxy</th><th>NaiveProxy</th><th>Mieru</th></tr></thead><tbody>'
+        '<tr data-placement-node="local"><th scope="row">Этот сервер</th>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="local" data-protocol="mtproxy" checked><small>включён</small></label><button type="button" class="ghost danger-text" data-placement-delete data-grant-id="g1" title="Удалить доступ">×</button></td>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="local" data-protocol="naive"><small></small></label></td>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="local" data-protocol="mieru" checked><small>ожидает узел</small></label><button type="button" class="ghost danger-text" data-placement-delete data-grant-id="g2" title="Удалить доступ">×</button></td></tr>'
+        '<tr data-placement-node="fra" class="placement-row-locked"><th scope="row">Frankfurt panel with a long name <small>панель на паузе</small></th>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="mtproxy" disabled><small></small></label></td>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="naive" checked disabled><small>без секрета</small></label></td>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="mieru" disabled><small></small></label></td></tr>'
+        '</tbody></table></div>'
+    )
     token = "A" * 43
     script = f"""
       addEventListener("load", () => {{
@@ -609,20 +621,24 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
         document.querySelector("#subscription-url").value = "https://eclipse.sky.dubr1kkk.uk/s/{token}?format=singbox";
         document.querySelector("#subscription-qr").src = "data:image/svg+xml;base64," + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>');
         document.querySelector("#subscription-reveal").hidden = false;
-        document.querySelector("#subscription-actions").innerHTML = '<button type="button" class="secondary">Ротировать URL</button><button type="button" class="danger ghost">Отозвать</button>';
+        document.querySelector("#subscription-actions").innerHTML = '<button type="button" class="primary">Показать</button><button type="button" class="secondary">Ротировать URL</button><button type="button" class="danger ghost">Отозвать</button>';
+        document.querySelector("#placement-body").innerHTML = {json.dumps(placement)};
+        document.querySelector("#placement-actions").innerHTML = '<button type="button" class="primary">Применить</button>';
         dialog.showModal();
         const form = dialog.querySelector("form");
         const formBox = form.getBoundingClientRect();
         if (formBox.right > innerWidth + tolerance || formBox.left < -tolerance) errors.push("dialog wider than the viewport");
-        for (const node of dialog.querySelectorAll(".grant-chip, .subscription-variant, .subscription-reveal, .copy-field, .subscription-qr, footer button, #subscription-actions button, .subscription-warning")) {{
+        for (const node of dialog.querySelectorAll(".grant-chip, .subscription-variant, .subscription-reveal, .copy-field, .subscription-qr, footer button, #subscription-actions button, .subscription-warning, .placement-box, .placement-scroll, #placement-actions button")) {{
           const box = node.getBoundingClientRect();
           if (box.left < formBox.left - tolerance || box.right > formBox.right + tolerance) errors.push(`${{node.className || node.tagName}} escapes the dialog`);
-          if (node.scrollWidth > node.clientWidth + tolerance && !node.matches("input")) errors.push(`${{node.className || node.tagName}} overflows horizontally`);
+          if (node.scrollWidth > node.clientWidth + tolerance && !node.matches("input") && !node.matches(".placement-scroll")) errors.push(`${{node.className || node.tagName}} overflows horizontally`);
         }}
         const reveal = document.querySelector("#subscription-reveal").getBoundingClientRect();
         const variantsBox = document.querySelector(".subscription-formats").getBoundingClientRect();
         if (reveal.top + tolerance < variantsBox.bottom) errors.push("reveal overlaps the variants");
         if (form.scrollWidth > form.clientWidth + tolerance) errors.push("dialog scrolls horizontally");
+        const scroll = document.querySelector(".placement-scroll");
+        if (scroll.scrollWidth > scroll.clientWidth && form.scrollWidth > form.clientWidth + tolerance) errors.push("matrix scrolls the dialog instead of itself");
         document.body.dataset.result = errors.length ? "fail" : "pass";
         document.body.dataset.errors = JSON.stringify(errors);
       }});
