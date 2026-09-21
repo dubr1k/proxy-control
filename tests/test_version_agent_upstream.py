@@ -20,7 +20,11 @@ XRAY_RELEASES = [
     {"tag_name": "v26.4.1", "prerelease": False, "draft": False, "published_at": "2026-04-01T00:00:00Z",
      "assets": [{"name": "Xray-linux-64.zip", "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/Xray-linux-64.zip"},
                 {"name": "Xray-linux-64.zip.dgst", "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/Xray-linux-64.zip.dgst"}]},
-    {"tag_name": "v26.5.0-rc1", "prerelease": True, "draft": False, "published_at": "2026-05-01T00:00:00Z", "assets": []},
+    # XTLS marks every release a pre-release: it must count. A draft never does.
+    {"tag_name": "v26.5.3", "prerelease": True, "draft": False, "published_at": "2026-05-03T00:00:00Z",
+     "assets": [{"name": "Xray-linux-64.zip", "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.5.3/Xray-linux-64.zip"},
+                {"name": "Xray-linux-64.zip.dgst", "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.5.3/Xray-linux-64.zip.dgst"}]},
+    {"tag_name": "v26.6.0", "prerelease": True, "draft": True, "published_at": "2026-06-01T00:00:00Z", "assets": []},
 ]
 MIERU_RELEASES = [
     {"tag_name": "v3.37.0", "prerelease": False, "draft": False, "published_at": "2026-03-01T00:00:00Z",
@@ -60,14 +64,16 @@ def test_compare_versions_orders_numerically_and_prereleases_lower():
     assert compare_versions("3.10.0", "3.9.9") > 0
 
 
-def test_xray_candidate_carries_the_dgst_hash_and_skips_prereleases():
+def test_xray_candidate_carries_the_dgst_hash_and_counts_xtls_prereleases_but_no_draft():
     fetch = fetcher_from({
         "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10": (200, {}, json.dumps(XRAY_RELEASES).encode()),
         "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/Xray-linux-64.zip.dgst": (200, {}, b"SHA2-256= " + b"a" * 64 + b"\n"),
+        "https://github.com/XTLS/Xray-core/releases/download/v26.5.3/Xray-linux-64.zip.dgst": (200, {}, b"SHA2-256= " + b"b" * 64 + b"\n"),
     })
     result = check_component("xray", "26.3.27", fetcher=fetch, router_enabled=True)
-    assert result["latest"] == "26.4.1" and result["installable"] is True and result["reason"] is None
-    [candidate] = result["candidates"]
+    assert result["latest"] == "26.5.3" and result["installable"] is True and result["reason"] is None
+    assert [c["version"] for c in result["candidates"]] == ["26.5.3", "26.4.1"]
+    candidate = result["candidates"][1]
     assert candidate["sha256"] == "a" * 64 and candidate["source"] == "upstream"
     assert candidate["archive"] == {"format": "zip", "members": {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}}
     assert candidate["url"].endswith("/v26.4.1/Xray-linux-64.zip")
@@ -130,7 +136,7 @@ def test_naive_candidate_is_a_build_with_the_builder_digest_and_forwardproxy_com
 
 def test_only_newer_than_current_are_candidates_and_xray_is_off_without_the_router():
     fetch = fetcher_from({"https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10": (200, {}, json.dumps(XRAY_RELEASES).encode())})
-    assert check_component("xray", "26.4.1", fetcher=fetch, router_enabled=True)["candidates"] == []
+    assert check_component("xray", "26.5.3", fetcher=fetch, router_enabled=True)["candidates"] == []
     assert check_component("xray", "26.3.27", fetcher=fetch, router_enabled=False) == {
         "latest": None, "installable": False, "reason": "router_not_installed", "candidates": []}
     assert fetch.seen == ["https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10"]

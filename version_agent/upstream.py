@@ -166,13 +166,16 @@ def compare_versions(a: str, b: str) -> int:
     return 1 if sa > sb else -1
 
 
-def _releases(fetcher: Fetcher, repository: str) -> list[dict]:
+def _releases(fetcher: Fetcher, repository: str, *, prereleases: bool = False) -> list[dict]:
+    """The repository's last ten releases, newest first. Drafts never count; a pre-release
+    counts only where the project marks every release so (Xray-core does, and so does
+    this project's own beta line)."""
     items = _json(fetcher, f"https://api.github.com/repos/{repository}/releases?per_page=10")
     if not isinstance(items, list):
         raise UpstreamError("releases answer is not a list")
     result = []
     for item in items:
-        if not isinstance(item, dict) or item.get("prerelease") or item.get("draft"):
+        if not isinstance(item, dict) or item.get("draft") or (item.get("prerelease") and not prereleases):
             continue
         tag = str(item.get("tag_name") or "")
         version = tag[1:] if tag.startswith("v") else tag
@@ -223,8 +226,10 @@ def _github_binary(
     digest_suffix: str,
     parse: Callable[[str], str],
     archive_for: Callable[[str], dict],
+    *,
+    prereleases: bool = False,
 ) -> dict:
-    releases = _releases(fetcher, repository)
+    releases = _releases(fetcher, repository, prereleases=prereleases)
     if not releases:
         return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
     latest = releases[0]["version"]
@@ -368,6 +373,8 @@ def check_component(component: str, current: str | None, *, fetcher: Fetcher, ro
             ".dgst",
             parse_dgst,
             lambda _v: {"format": "zip", "members": dict(XRAY_MEMBERS)},
+            # XTLS marks every Xray-core release a pre-release; the pinned 26.3.27 is one too.
+            prereleases=True,
         )
     if component == "mita":
         return _github_binary(
