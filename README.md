@@ -334,6 +334,8 @@ scripts/install-release.sh --version 0.7.0-beta.1 --sha256 <lab-sha256 из за
 | Домен VLESS Reality XHTTP | там же | инбаунд VLESS Reality по XHTTP |
 | Домен Hysteria2 | там же | инбаунд Hysteria2 |
 | Домен subscription 3x-ui | В мастер не входит; добавьте `subscription_domain` в TOML режима `managed-new` | выдача подписки 3x-ui по HTTPS |
+| Домен подписки клиентов | всегда; пусто — подписки выключены | ссылки `https://<домен>/s/<token>` для клиентов панели |
+| Домен MCP-сервера | всегда; пусто — MCP выключен. Нужен **только на центральной панели**, узлам его не задают | MCP для Claude Code и Claude Desktop (v0.11) |
 
 **WARP.** В режиме `managed-new` мастер спрашивает, включать ли WARP для Xray,
 а при ответе «да» требует непустой список доменных селекторов; NaiveProxy и
@@ -414,7 +416,9 @@ sudo python3 -m installer.cli install --config examples/installer/full-three-xui
 Nginx и TLS-vhost панели, контейнеры и тома, host-службы NaiveProxy и Mieru,
 правила UFW (если вы это разрешили), 3x-ui в выбранном режиме, собственный
 закреплённый WARP-контур при `warp = true` и, с v0.11, агент версий
-(`version-agent`: код, unit, env по профилю, каталог и state с поставленными версиями).
+(`version-agent`: код, unit, env по профилю, каталог и state с поставленными версиями) и
+MCP-сервер при заданном `domains.mcp` (контейнер `proxy-control-mcp`, API-ключ панели для него,
+bearer-токен клиентов, vhost и маршрут SNI, сертификат в линии панели).
 
 Не берёт: DNS, Fleet, ваши собственные сайты, чужие контейнеры, чужой WARP и
 чужие маршруты Nginx. Журнал и файлы владения лежат в `/var/lib/proxy-control/` —
@@ -438,6 +442,11 @@ Nginx и TLS-vhost панели, контейнеры и тома, host-служ
 случайный пароль и положил его в
 `/opt/mtproxy-shared443/secrets/panel-bootstrap-password` с режимом `0600`:
 прочитайте его через защищённую консоль, войдите и сразу смените.
+
+**MCP-сервер (v0.11, если задан `domains.mcp`).** Адрес `https://<домен mcp>/mcp` и
+bearer-токен лежат в root-only файле `credentials/handoff.json` (режим `0600`) рядом с
+отчётом `report`; токен же — в `/opt/mtproxy-shared443/secrets/mcp-token`. Подключение из
+Claude Code одной командой и список инструментов — в [docs/MCP.ru.md](docs/MCP.ru.md).
 
 Не копируйте этот файл в `.env`, Git, тикеты, журналы и общие резервные копии.
 

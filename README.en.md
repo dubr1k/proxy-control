@@ -336,6 +336,8 @@ and the installer only adds its own routes to it.
 | VLESS Reality XHTTP domain | the same | the VLESS Reality XHTTP inbound |
 | Hysteria2 domain | the same | the Hysteria2 inbound |
 | 3x-ui subscription domain | Not asked by the wizard; add `subscription_domain` to the `managed-new` TOML | serving the 3x-ui subscription over HTTPS |
+| Client subscription domain | always; blank keeps subscriptions off | the panel's client links `https://<domain>/s/<token>` |
+| MCP server domain | always; blank keeps MCP off. **Central panel only** — nodes leave it blank | MCP for Claude Code and Claude Desktop (v0.11) |
 
 **WARP.** In `managed-new` mode the wizard asks whether to enable WARP for Xray
 and, on yes, requires a non-empty list of domain selectors; NaiveProxy and Mieru
@@ -417,7 +419,9 @@ It owns: the Ubuntu packages from its list, certificates and their renewal,
 Nginx and the panel's TLS vhost, containers and volumes, NaiveProxy and Mieru
 host services, UFW rules if you allow them, 3x-ui in its selected mode, its
 own pinned WARP boundary when `warp = true` and, since v0.11, the version-agent
-(code, unit, env for the profile, catalog and a state recording the installed versions).
+(code, unit, env for the profile, catalog and a state recording the installed versions) and
+the MCP server when `domains.mcp` is set (the `proxy-control-mcp` container, the panel API key
+it uses, the clients' bearer token, the vhost and SNI route, the certificate on the panel's lineage).
 
 It does not own: DNS, Fleet, your own websites, foreign containers, foreign
 WARP, or foreign Nginx routes. The journal and ownership files live under
@@ -442,6 +446,11 @@ it at `https://panel.example.com/login`. If you left the field blank, the
 installer generated one and put it in
 `/opt/mtproxy-shared443/secrets/panel-bootstrap-password` with mode `0600`: read
 it through a secure console, sign in, and change it immediately.
+
+**The MCP server (v0.11, when `domains.mcp` is set).** The address `https://<mcp domain>/mcp`
+and the bearer token are in the root-only `credentials/handoff.json` (mode `0600`) next to the
+`report` output; the token also lives in `/opt/mtproxy-shared443/secrets/mcp-token`. Connecting
+from Claude Code in one command and the tool list: [docs/MCP.en.md](docs/MCP.en.md).
 
 Never copy that file into `.env`, Git, tickets, logs, or shared backups.
 
