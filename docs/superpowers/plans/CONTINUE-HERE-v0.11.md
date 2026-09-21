@@ -77,7 +77,12 @@ LAB_RESET остался `/etc/nginx/stream.d/proxy-control.conf` настоящ
 Спек §9a. Два агента в работе: `mcp_server/` + панель (OpenAPI-маршрут, CLI ключей) и установщик
 (`domains.mcp` — одиннадцатый домен, nginx/core, адаптер `mcp`, version-agent, lab, docs). После
 слияния: гейт full, `lab-host` с `mcp.lab.test`, живая проверка с ноутбука на ams-server — для
-неё владелец должен завести DNS-запись домена MCP на ams-server (домен пока не назван).
+неё домен владельца на ams-server: **`mcp.panel-tga.unicorndubr1k.org`** (A/AAAA → 72.56.110.195,
+проверено). ams-server ставился не установщиком: там свой nginx (`sites-available/sub-panel-tga.conf`,
+SNI-карта `stream-conf.d/unicorndubr1k-sni.conf`, LE-сертификаты по доменам через webroot), поэтому
+MCP на нём поднимается руками по образцу домена подписки: сертификат `certbot --webroot` для нового
+имени, `server` на `127.0.0.1:8443` с `location /mcp → 127.0.0.1:8793`, строка в SNI-карте, `.env.mcp`,
+секреты (`api-key-create` через панель, токен), `compose.mcp.yaml` в `COMPOSE_FILE`.
 
 ## Открытые мелочи
 
