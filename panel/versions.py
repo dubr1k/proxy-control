@@ -43,7 +43,15 @@ class VersionClient:
         # or wedged agent has to cost the dashboard a card, not the whole page.
         return await self._request("GET", "/v1/host", timeout=3.0)
 
+    async def check(self):
+        # v0.11: the agent polls upstream (GitHub Releases, registries) and answers with
+        # the same shape as `/v1/versions`; several sources in a row need more than the
+        # default 20 s.
+        return await self._request("POST", "/v1/upstream/check", timeout=90.0)
+
     async def update(self, component: str, version: str, expected_current: str | None):
+        # A `naive` update rebuilds Caddy on the host (up to 15 min): the panel waits for
+        # the agent's verdict instead of guessing.
         return await self._request(
             "POST",
             "/v1/update",
@@ -52,11 +60,14 @@ class VersionClient:
                 "version": version,
                 "expected_current": expected_current,
             },
+            timeout=1200.0,
         )
 
 
 class MemoryVersions:
-    def __init__(self):
+    def __init__(self, router: bool = False):
+        self.checks = 0
+        self.checked_at = None
         self.components = {
             "telemt": {
                 "current": "3.4.24",
@@ -81,6 +92,15 @@ class MemoryVersions:
                 ],
             },
         }
+        if router:
+            # The agent reports `xray` only on a host that runs the Xray-router.
+            self.components["xray"] = {
+                "current": "26.3.27",
+                "available": [
+                    {"version": "26.3.27", "kind": "binary"},
+                    {"version": "26.4.1", "kind": "binary", "source": "upstream"},
+                ],
+            }
         self.calls = []
         self.host_metrics = {
             "cpu": {"used_percent": 12.5, "cores": 4, "load_average": [0.5, 0.4, 0.3]},
@@ -99,13 +119,30 @@ class MemoryVersions:
         }
 
     async def list_versions(self):
-        return {"enabled": True, "components": self.components}
+        return {
+            "enabled": True,
+            "upstream_enabled": True,
+            "checked_at": self.checked_at,
+            "components": self.components,
+        }
+
+    async def check(self):
+        self.checks += 1
+        self.checked_at = self.checks
+        candidate = {"version": "3.37.0", "kind": "binary", "source": "upstream"}
+        if candidate not in self.components["mita"]["available"]:
+            self.components["mita"]["available"].append(candidate)
+        return await self.list_versions()
 
     async def host(self):
         return self.host_metrics
 
     async def update(self, component, version, expected_current):
         self.calls.append((component, version, expected_current))
+        if component not in self.components:
+            # The real agent refuses a component this host does not run (`xray` without
+            # the router) with a validation error, not a crash.
+            raise VersionAgentError("unknown component", 422)
         current = self.components[component]["current"]
         if expected_current != current:
             raise VersionAgentError("version changed", 409)

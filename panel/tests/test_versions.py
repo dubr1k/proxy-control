@@ -143,3 +143,61 @@ async def test_overview_degrades_to_a_reason_when_the_host_agent_is_silent(
     }
     # The protocol cards are unaffected.
     assert body["protocols"]["mtproxy"]["ready"] is True
+
+
+@pytest.mark.anyio
+async def test_owner_checks_upstream_and_sees_the_candidate(
+    tmp_path, telemt, naive, mieru, login_user
+):
+    """`POST /api/versions/check` (v0.11): the owner asks the agent to poll upstream; the
+    reply is the same shape as `GET /api/versions`, now with upstream candidates and, on a
+    host with the Xray-router, the `xray` component that the update route accepts."""
+    from httpx import ASGITransport, AsyncClient
+    from panel.app import Settings, create_app
+
+    versions = MemoryVersions(router=True)
+    settings = Settings(
+        database_path=tmp_path / "panel.sqlite3",
+        session_cookie_secure=False,
+        allowed_hosts=("testserver",),
+        naive_public_host="naive.example.com",
+        naive_enabled=True,
+        mieru_enabled=True,
+    )
+    app = create_app(
+        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
+    )
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        await login_user(client)
+        csrf = client.cookies["panel_csrf"]
+        checked = await client.post("/api/versions/check", headers={"X-CSRF-Token": csrf})
+        assert checked.status_code == 200 and versions.checks == 1
+        body = checked.json()
+        assert body["enabled"] is True and body["checked_at"] == 1
+        assert {"version": "3.37.0", "kind": "binary", "source": "upstream"} in body["components"]["mita"]["available"]
+        assert body["components"]["xray"]["current"] == "26.3.27"
+        updated = await client.post(
+            "/api/versions/xray/update",
+            json={"version": "26.4.1", "expected_current": "26.3.27"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert updated.status_code == 200 and versions.calls[-1] == ("xray", "26.4.1", "26.3.27")
+        with app.state.database.connect() as db:
+            actions = [row["action"] for row in db.execute("SELECT action FROM audit_log WHERE action LIKE 'runtime.version.%' ORDER BY id")]
+        assert actions == ["runtime.version.check", "runtime.version.update"]
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        await login_user(client, username="viewer")
+        refused = await client.post("/api/versions/check", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
+        assert refused.status_code == 403 and versions.checks == 1
+
+
+def test_memory_versions_offer_xray_only_with_a_router():
+    assert "xray" not in MemoryVersions().components
+    assert MemoryVersions(router=True).components["xray"]["current"] == "26.3.27"

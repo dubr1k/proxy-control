@@ -203,6 +203,10 @@ class NodeClient:
                                  json={"component": component, "version": version,
                                        "expected_current": expected_current}))[1]
 
+    async def check_versions(self) -> dict:
+        """v0.11: the node's agent polls upstream; the reply has the `/api/versions` shape."""
+        return (await self._call("POST", "/api/fleet/v2/versions/check"))[1]
+
     async def unlink(self) -> dict:
         return (await self._call("POST", "/api/fleet/v2/unlink"))[1]
 

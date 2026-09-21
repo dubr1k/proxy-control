@@ -21,9 +21,23 @@ def register_version_routes(app, context: RequestContext) -> None:
                 "reason": "version_agent_unavailable",
             }
 
+    @app.post("/api/versions/check")
+    async def check_versions(request: Request, user=Depends(context.roles("owner"))):
+        """v0.11: ask the agent to poll upstream; an agent error travels as it does for
+        an update (the global `VersionAgentError` handler)."""
+        result = await app.state.versions.check()
+        await context.audit(
+            user,
+            "runtime.version.check",
+            "upstream",
+            request,
+            {"checked_at": result.get("checked_at")},
+        )
+        return result
+
     @app.post("/api/versions/{component}/update")
     async def update_version(
-        component: Literal["telemt", "naive", "mita"],
+        component: Literal["telemt", "naive", "mita", "xray"],
         body: VersionUpdate,
         request: Request,
         user=Depends(context.roles("owner")),
