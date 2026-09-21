@@ -1215,6 +1215,10 @@ host_setup() {
     groupdel xray-router >/dev/null 2>&1 || true
     systemctl daemon-reload
     rm -f /etc/nginx/conf.d/proxy-control-*.conf
+    # The stream router of a real install on this host (the uninstall above is best-effort
+    # and leaves it when the transaction is already torn down): with the lab's
+    # `routes.conf` beside it nginx sees two `listen 443` and the preflight fails.
+    rm -f /etc/nginx/stream.d/proxy-control.conf
     # The adjacent-site fixture of the previous run names a certificate the reset above
     # removed with /etc/letsencrypt; left in place it fails `nginx -t`, and with it every
     # dpkg configure of nginx the preflight's apt-get triggers.
