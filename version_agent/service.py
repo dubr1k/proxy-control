@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -164,6 +165,8 @@ class VersionAgent:
         xray_bin_dir: Path = Path("/usr/local/lib/proxy-control/xray-router"),
         xray_overlay: Path = Path("/opt/mtproxy-shared443/.env.xray-router"),
         xray_container: str = "proxy-control-xray-router",
+        caddy_build_dir: Path = Path("/var/lib/proxy-control/version-agent/caddy-build"),
+        caddy_image: str = "proxy-control/caddy-naive:agent",
     ):
         self.catalog_path = catalog_path
         self.state_path = state_path
@@ -187,6 +190,8 @@ class VersionAgent:
         self.xray_bin_dir = xray_bin_dir
         self.xray_overlay = xray_overlay
         self.xray_container = xray_container
+        self.caddy_build_dir = caddy_build_dir
+        self.caddy_image = caddy_image
         self.check_all = _check_all
         self.lock_path = state_path.with_suffix(state_path.suffix + ".lock")
 
@@ -323,12 +328,20 @@ class VersionAgent:
             if current == version:
                 return {"component": component, "version": version, "changed": False}
             installed_sha256 = entry.sha256
+            runtime_version = entry.runtime_version
             members: dict[str, str] | None = None
             try:
                 if component == "telemt":
                     self._update_telemt(entry)
                 elif component == "xray":
                     members = self._update_xray(entry, current)
+                elif entry.kind == "build":
+                    # Built on the host: the pin is whatever the fresh build reports,
+                    # not something the catalog could know in advance.
+                    payload, runtime_version = self._build_caddy(entry)
+                    installed_sha256 = self._update_binary(
+                        component, entry, payload=payload, runtime_version=runtime_version
+                    )
                 else:
                     installed_sha256 = self._update_binary(component, entry)
             except RollbackFailedError:
@@ -355,11 +368,13 @@ class VersionAgent:
                 "url": entry.url,
                 "sha256": installed_sha256,
                 "archive": entry.archive,
-                "runtime_version": entry.runtime_version,
+                "runtime_version": runtime_version,
                 "updated_at": int(time.time()),
             }
             if members is not None:
                 state["components"][component]["members"] = members
+            if entry.build is not None:
+                state["components"][component]["build"] = dict(entry.build)
             self._save_state(state)
             return {"component": component, "version": version, "changed": True}
 
@@ -476,8 +491,19 @@ class VersionAgent:
                 raise UpdateError(f"{component} archive: {exc}") from exc
         return payload
 
-    def _update_binary(self, component: str, entry: CatalogEntry) -> str:
-        if entry.kind != "binary" or not entry.url or not entry.sha256:
+    def _update_binary(
+        self,
+        component: str,
+        entry: CatalogEntry,
+        *,
+        payload: bytes | None = None,
+        runtime_version: str | None = None,
+    ) -> str:
+        """Install `payload` (or the downloaded catalog artifact) as the component's binary; returns its SHA-256."""
+        runtime_version = runtime_version or entry.runtime_version
+        if payload is None and (entry.kind != "binary" or not entry.url or not entry.sha256):
+            raise UpdateError("binary catalog entry is incomplete")
+        if payload is not None and entry.kind not in ("binary", "build"):
             raise UpdateError("binary catalog entry is incomplete")
         target = self.binary_paths.get(component)
         service = self.service_names.get(component)
@@ -485,12 +511,13 @@ class VersionAgent:
             raise UpdateError(f"{component} runtime is not configured")
         if target.is_symlink():
             raise UpdateError(f"refusing to replace symlink {target}")
-        if component in self.version_pins and not entry.runtime_version:
+        if component in self.version_pins and not runtime_version:
             raise UpdateError(
                 f"{component} catalog entry must set runtime_version to keep the startup check in sync"
             )
         consumer = self.consumer_overlays.get(component)
-        payload = self._fetch_binary(component, entry)
+        if payload is None:
+            payload = self._fetch_binary(component, entry)
         installed_sha256 = sha256_bytes(payload)
         target.parent.mkdir(parents=True, exist_ok=True)
         backup_dir = self.state_path.parent / "backups"
@@ -508,15 +535,15 @@ class VersionAgent:
         overlay_touched = False
         try:
             _atomic_write(stage, payload, 0o755)
-            self._run_binary_config_checks(component, stage, entry.runtime_version)
+            self._run_binary_config_checks(component, stage, runtime_version)
             os.replace(stage, target)
             self._fsync_directory(target.parent)
             self._assert_binary_generation(target, installed_sha256)
             # Replacing the binary needs a restart: a reload re-reads the config
             # but keeps the running process, so the old build would stay live
             # while state.json already claimed the new version.
-            self._write_pin(component, entry.runtime_version)
-            self._assert_pin(component, entry.runtime_version)
+            self._write_pin(component, runtime_version)
+            self._assert_pin(component, runtime_version)
             if consumer:
                 # The consumer container pins the binary by digest through its env
                 # overlay; it follows the new build before anything restarts.
@@ -553,6 +580,59 @@ class VersionAgent:
         finally:
             stage.unlink(missing_ok=True)
         return installed_sha256
+
+    def _build_caddy(self, entry: CatalogEntry) -> tuple[bytes, str]:
+        """Build Caddy with the pinned forward-proxy commit from a digest-pinned builder image.
+
+        Mirrors `docker/Dockerfile.caddy-naive` and the installer's extraction, so a build
+        through the agent and a clean install produce the same kind of binary. Nothing on
+        the host changes until the build succeeded and reported the expected version.
+        """
+        build = entry.build
+        if not build:
+            raise UpdateError("naive build entry is incomplete")
+        self.caddy_build_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.caddy_build_dir, 0o700)
+        dockerfile = self.caddy_build_dir / "Dockerfile"
+        _atomic_write(
+            dockerfile,
+            (
+                f"# Generated by proxy-control version-agent; do not edit manually.\n"
+                f"FROM {build['builder_image']} AS builder\n"
+                f"RUN xcaddy build v{build['caddy_version']} \\\n"
+                f"    --with github.com/caddyserver/forwardproxy@caddy2="
+                f"github.com/klzgrad/forwardproxy@{build['forwardproxy_commit']}\n"
+                "FROM scratch\n"
+                "COPY --from=builder /usr/bin/caddy /caddy\n"
+            ).encode(),
+            0o600,
+        )
+        self.runner(
+            ["docker", "build", "-f", str(dockerfile), "-t", self.caddy_image, str(self.caddy_build_dir)],
+            timeout=900,
+        )
+        container = self.runner(
+            ["docker", "create", "--entrypoint", "/caddy", self.caddy_image, "version"], timeout=60
+        ).strip()
+        if not re.fullmatch(r"[0-9a-f]{12,64}", container):
+            raise UpdateError("caddy build produced no container")
+        extracted = self.caddy_build_dir / "caddy"
+        try:
+            self.runner(["docker", "cp", f"{container}:/caddy", str(extracted)], timeout=120)
+        finally:
+            self.runner(["docker", "rm", container], timeout=60)
+        try:
+            payload = extracted.read_bytes()
+            os.chmod(extracted, 0o755)
+            lines = self.runner([str(extracted), "version"], timeout=30).strip().splitlines()
+        finally:
+            extracted.unlink(missing_ok=True)
+        runtime_version = lines[0].strip() if lines else ""
+        if not runtime_version.startswith(f"v{build['caddy_version']} "):
+            raise UpdateError(
+                f"built Caddy reports {runtime_version or 'nothing'}, expected v{build['caddy_version']}"
+            )
+        return payload, runtime_version
 
     def _run_binary_config_checks(
         self, component: str, binary: Path, runtime_version: str | None
@@ -833,4 +913,7 @@ def agent_from_env() -> VersionAgent:
         xray_bin_dir=Path(os.getenv("PROXY_CONTROL_XRAY_BIN_DIR", "/usr/local/lib/proxy-control/xray-router")),
         xray_overlay=Path(os.getenv("PROXY_CONTROL_XRAY_OVERLAY", "/opt/mtproxy-shared443/.env.xray-router")),
         xray_container=os.getenv("PROXY_CONTROL_XRAY_CONTAINER", "proxy-control-xray-router"),
+        caddy_build_dir=Path(
+            os.getenv("PROXY_CONTROL_CADDY_BUILD_DIR", "/var/lib/proxy-control/version-agent/caddy-build")
+        ),
     )
