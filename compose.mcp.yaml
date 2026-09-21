@@ -1,0 +1,52 @@
+name: mtproxy
+
+# The MCP server (v0.11, spec §9a): the panel's API as Model Context Protocol tools for
+# Claude Code / Claude Desktop, on the central panel only. Streamable HTTP on the host
+# loopback (127.0.0.1:8793); the SNI router publishes it as https://<MCP_DOMAIN>/mcp.
+# Clients present the token from secrets/mcp-token; the server reaches the panel inside
+# the Compose network with the admin API key the installer issued (secrets/mcp-panel-key),
+# so every action lands in the panel's audit log as `via: api-key`, key `mcp`.
+services:
+  mcp:
+    container_name: proxy-control-mcp
+    build:
+      context: .
+      dockerfile: mcp_server/Dockerfile
+    restart: unless-stopped
+    user: "10007:10007"
+    depends_on:
+      panel:
+        condition: service_healthy
+    environment:
+      MCP_PANEL_URL: http://panel:8787
+      # The panel's own host name: TrustedHostMiddleware refuses anything else.
+      MCP_PANEL_HOST: ${MCP_PANEL_HOST:?set the panel domain the MCP server presents as Host}
+      MCP_PANEL_KEY_FILE: /run/secrets/mcp-panel-key
+      MCP_TOKEN_FILE: /run/secrets/mcp-token
+      MCP_BIND: 0.0.0.0:8793
+      # DNS-rebinding protection: the public MCP domain and the loopback health check.
+      MCP_ALLOWED_HOSTS: ${MCP_DOMAIN:?set the MCP domain},127.0.0.1:8793
+      MCP_PUBLIC_URL: https://${MCP_DOMAIN}/mcp
+    secrets: [mcp-panel-key, mcp-token]
+    ports:
+      - "127.0.0.1:8793:8793/tcp"
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777,uid=10007,gid=10007
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-m", "mcp_server.healthcheck"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+secrets:
+  # The admin API key of the panel (`python -m panel.cli api-key-create --name mcp --scope admin`).
+  mcp-panel-key:
+    file: ./secrets/mcp-panel-key
+  # The bearer token MCP clients present; regenerate it and `docker compose up -d mcp` to rotate.
+  mcp-token:
+    file: ./secrets/mcp-token
