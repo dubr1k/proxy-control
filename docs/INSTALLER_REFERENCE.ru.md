@@ -212,6 +212,7 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
 | `naive` | Зафиксированной сборкой Caddy, разделёнными identity, состоянием и токеном manager, границей лога учёта и маршрутом Naive |
 | `mieru` | Зафиксированным исполняемым mita, identity mita и стабильным UDS, токеном и состоянием manager, выбранными слушателями |
 | `three_xui` | В режиме `existing` — ничем, кроме владеемого маршрута; в `managed-new` — одним staged-поколением, его панелью и созданными им инбаундами |
+| `version_agent` | Кодом агента в `/opt/proxy-control/version_agent`, `version-agent.service`, его tmpfiles-фрагментом, `/etc/proxy-control/version-agent.env` и маркером владения; каталог `versions.json` и state в `/var/lib/proxy-control/version-agent` создаются только при отсутствии и сохраняются без явного purge (v0.11) |
 
 Каждое действие применяется через durable-журнал: prepare, apply, verify.
 Прерванный шаг возобновляем, а инверсия каждого адаптера восстанавливает то, что

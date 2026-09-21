@@ -222,6 +222,7 @@ boundary:
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
+| `version_agent` | The agent's code under `/opt/proxy-control/version_agent`, `version-agent.service`, its tmpfiles fragment, `/etc/proxy-control/version-agent.env` and the ownership marker; the catalog `versions.json` and the state under `/var/lib/proxy-control/version-agent` are seeded only when absent and kept unless the purge is explicit (v0.11) |
 
 Each action is applied through a durable journal: prepare, apply, verify. An
 interrupted step is resumable, and every adapter's inverse restores what it
