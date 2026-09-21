@@ -14,17 +14,41 @@ export async function renderVersions(context, generation) {
     context.ui.view.innerHTML = '<div class="empty-state"><span>!</span><h3>Агент обновлений недоступен</h3><p>Установите и запустите host version-agent. Панель не скачивает runtime-файлы и не получает Docker socket.</p></div>';
     return;
   }
-  const names = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita" };
+  // The agent lists `xray` only on a host that runs the Xray-router, so there is no
+  // "router not installed" branch here.
+  const names = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core" };
+  const RISK = "Версия из upstream: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась";
+  const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Upstream ещё не проверялся";
+  const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
   const cards = Object.entries(context.state.versions.components || {}).map(([component, item]) => {
     const available = Array.isArray(item.available) ? item.available : [];
     const current = item.current || "не определена";
     const offered = available.filter((entry) => entry.version !== current);
+    const upstream = item.upstream || {};
+    const risk = offered.some((entry) => entry.source === "upstream") ? `<small class="version-risk">${RISK}</small>` : "";
+    const notInstallable = !offered.length && upstream.latest && upstream.reason === "no_published_digest"
+      ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но релиз без опубликованного хэша — установка невозможна</p>`
+      : "";
     const control = offered.length
-      ? `<label>Установить проверенную версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}">${esc(entry.version)} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label><button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
-      : `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий для этого компонента"}</p><button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
-    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}<small class="version-note">Версии добавляет оператор в каталог <code>versions.json</code> на хосте. Источник и SHA-256 проверяются host-agent; произвольные URL из браузера запрещены.</small></article>`;
+      ? `<label>Установить версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
+      : `${notInstallable || `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий для этого компонента"}</p>`}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
+    const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
+    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${failure}<small class="version-note">«Каталог» — версии, проверенные оператором в <code>versions.json</code> на хосте; «upstream» — релизы GitHub и реестров образов. Источник и SHA-256 проверяет host-agent; произвольные URL из браузера запрещены.</small></article>`;
   }).join("");
-  context.ui.view.innerHTML = `<div class="security-note">Обновления выполняются только owner-ролью через отдельный host version-agent. Перед каждой заменой он проверяет allowlist-каталог, immutable digest или SHA-256, сохраняет rollback-копию и проверяет health.</div><section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
+  context.ui.view.innerHTML = `<div class="security-note">Обновления выполняются только owner-ролью через отдельный host version-agent. Перед каждой заменой он проверяет allowlist-каталог, immutable digest или SHA-256, сохраняет rollback-копию и проверяет health.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
+}
+
+async function checkVersions(context, button) {
+  try {
+    context.ui.setBusy(button, true, "Проверяем…");
+    await context.api("/api/versions/check", { method: "POST" });
+    context.ui.toast("Upstream проверен");
+    await context.navigate("versions");
+  } catch (error) {
+    context.ui.toast(`Не удалось проверить: ${error.message}`, "error");
+  } finally {
+    context.ui.setBusy(button, false);
+  }
 }
 
 async function versionAction(context, component, button) {
@@ -32,9 +56,12 @@ async function versionAction(context, component, button) {
   const version = select?.value;
   const current = button.dataset.current;
   if (!version) return;
-  if (!await context.ui.confirmed("Обновить runtime?", `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.`, "Обновить")) return;
+  // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min).
+  const building = component === "naive" && select.selectedOptions[0]?.dataset.kind === "build";
+  const warning = building ? " Caddy будет пересобран на хосте, это занимает до 15 минут." : "";
+  if (!await context.ui.confirmed("Обновить runtime?", `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`, "Обновить")) return;
   try {
-    context.ui.setBusy(button, true, "Обновляем…");
+    context.ui.setBusy(button, true, building ? "Собираем…" : "Обновляем…");
     await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }) });
     context.ui.toast(`${component} обновлён до ${version}`);
     await context.navigate("versions");
@@ -133,6 +160,10 @@ export function handleManagementChange(context, target) {
 }
 
 export function handleManagementClick(context, button) {
+  if (button.dataset.versionCheck) {
+    void checkVersions(context, button);
+    return true;
+  }
   if (button.dataset.versionUpdate) {
     void versionAction(context, button.dataset.versionUpdate, button);
     return true;
