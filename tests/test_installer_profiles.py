@@ -66,31 +66,31 @@ def config_for(
 
 
 PROFILE_MATRIX = (
-    (Profile.CORE, ThreeXuiMode.NONE, BASE + ("firewall", "certificates", "core")),
+    (Profile.CORE, ThreeXuiMode.NONE, BASE + ("firewall", "certificates", "core", "version_agent")),
     (
         Profile.CORE_NAIVE,
         ThreeXuiMode.NONE,
-        BASE + ("firewall", "certificates", "core", "naive"),
+        BASE + ("firewall", "certificates", "core", "naive", "version_agent"),
     ),
     (
         Profile.CORE_MIERU,
         ThreeXuiMode.NONE,
-        BASE + ("firewall", "certificates", "core", "mieru"),
+        BASE + ("firewall", "certificates", "core", "mieru", "version_agent"),
     ),
     (
         Profile.FULL,
         ThreeXuiMode.NONE,
-        BASE + ("firewall", "certificates", "core", "naive", "mieru"),
+        BASE + ("firewall", "certificates", "core", "naive", "mieru", "version_agent"),
     ),
     (
         Profile.CORE,
         ThreeXuiMode.EXISTING,
-        BASE + ("firewall", "certificates", "core", "three_xui"),
+        BASE + ("firewall", "certificates", "core", "three_xui", "version_agent"),
     ),
     (
         Profile.FULL,
         ThreeXuiMode.EXISTING,
-        BASE + ("firewall", "certificates", "core", "naive", "mieru", "three_xui"),
+        BASE + ("firewall", "certificates", "core", "naive", "mieru", "three_xui", "version_agent"),
     ),
 )
 
@@ -128,6 +128,8 @@ def test_profile_order_is_the_documented_installation_order():
         "naive",
         "mieru",
         "three_xui",
+        # The version-agent (v0.11) records what every adapter before it installed.
+        "version_agent",
     )
 
 
@@ -197,10 +199,10 @@ def test_adapters_for_includes_xray_router_after_warp():
     base = config_for(profile=Profile.FULL)
     routed = replace(base, egress=EgressConfig(warp=True, router=True, naive=EgressChoice.ROUTER, mieru=EgressChoice.WARP))
     names = tuple(adapter.name for adapter in adapters_for(routed))
-    assert names == ("packages", "nginx", "firewall", "certificates", "core", "warp", "xray_router", "naive", "mieru")
+    assert names == ("packages", "nginx", "firewall", "certificates", "core", "warp", "xray_router", "naive", "mieru", "version_agent")
     only_router = replace(base, egress=EgressConfig(router=True, naive=EgressChoice.ROUTER))
     names = tuple(adapter.name for adapter in adapters_for(only_router))
-    assert names == ("packages", "nginx", "firewall", "certificates", "core", "xray_router", "naive", "mieru")
+    assert names == ("packages", "nginx", "firewall", "certificates", "core", "xray_router", "naive", "mieru", "version_agent")
     assert "xray_router" not in {adapter.name for adapter in adapters_for(base)}
 
 
