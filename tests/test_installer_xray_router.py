@@ -527,3 +527,36 @@ def test_the_real_runner_sees_only_the_router_compose_service(monkeypatch):
     assert "label=com.docker.compose.project=mtproxy" in seen[0]
     monkeypatch.setattr(runner, "capture", lambda argv, *, max_chars: "diagnostic unavailable")
     assert runner.compose_service_present("xray-router") is False
+
+
+# -- version-agent env (v0.11) -------------------------------------------------
+
+
+def test_apply_turns_the_agent_xray_component_on_and_rollback_turns_it_off(tmp_path):
+    agent_env = host(tmp_path, PATHS.agent_env)
+    agent_env.parent.mkdir(parents=True)
+    agent_env.write_text("PROXY_CONTROL_UPSTREAM_CHECK=on\nPROXY_CONTROL_XRAY_ROUTER=off\n")
+    runner = FakeRunner()
+    stage_archive(tmp_path)
+    instance = adapter(tmp_path, runner)
+    action = action_for(tmp_path)
+    checkpoint = instance.apply(action, instance.prepare(action))
+    assert agent_env.read_text() == "PROXY_CONTROL_UPSTREAM_CHECK=on\nPROXY_CONTROL_XRAY_ROUTER=on\n"
+    assert stat.S_IMODE(agent_env.stat().st_mode) == 0o600
+    assert ("systemctl", "is-active", "--quiet", "version-agent") in runner.calls
+    assert ("systemctl", "restart", "version-agent") in runner.calls
+
+    instance.rollback(action, checkpoint)
+    assert agent_env.read_text() == "PROXY_CONTROL_UPSTREAM_CHECK=on\nPROXY_CONTROL_XRAY_ROUTER=off\n"
+
+
+def test_apply_creates_the_agent_env_and_skips_the_restart_of_an_inactive_agent(tmp_path):
+    runner = FakeRunner(fail_on=("systemctl", "is-active"))
+    stage_archive(tmp_path)
+    instance = adapter(tmp_path, runner)
+    action = action_for(tmp_path)
+    instance.apply(action, instance.prepare(action))
+    agent_env = host(tmp_path, PATHS.agent_env)
+    assert agent_env.read_text() == "PROXY_CONTROL_XRAY_ROUTER=on\n"
+    assert stat.S_IMODE(agent_env.stat().st_mode) == 0o600
+    assert ("systemctl", "restart", "version-agent") not in runner.calls
