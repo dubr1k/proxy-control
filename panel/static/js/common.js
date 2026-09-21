@@ -34,6 +34,13 @@ export function initials(name) {
   return String(name || "?").slice(0, 2).toUpperCase();
 }
 
+// The sidebar's «Клиенты» badge: the overview paints it from the list, the clients screen
+// after every change to the list; `null` (the list did not load) shows the dash.
+export function paintClientsCount(context, total) {
+  const badge = query("#clients-count", context.root);
+  if (badge) badge.textContent = typeof total === "number" ? String(total) : "—";
+}
+
 export function number(value) {
   return new Intl.NumberFormat("ru-RU").format(Number(value) || 0);
 }

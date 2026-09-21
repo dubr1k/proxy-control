@@ -1,10 +1,18 @@
-import { bytes, esc, icon, number, query } from "./common.js";
+import { bytes, esc, icon, number, paintClientsCount, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { refreshUsers } from "./users.js";
 
 async function fleetCount(context) {
   try {
     return ((await context.api("/api/fleet/nodes")).items || []).length;
+  } catch {
+    return null;
+  }
+}
+
+async function clientsCount(context) {
+  try {
+    return ((await context.api("/api/clients")).items || []).length;
   } catch {
     return null;
   }
@@ -47,7 +55,7 @@ function hostCard(host) {
     const reason = host?.reason === "version_agent_unavailable"
       ? "Host-agent не отвечает. Метрики хоста читает только он: панель работает read-only и не монтирует ни /proc, ни файловую систему хоста."
       : "Агент вернул метрики в неизвестном формате.";
-    return `<article class="protocol-card host-card degraded">
+    return `<article class="protocol-card host-card host-row degraded">
       <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill blocked"><i></i>Недоступны</span></div>
       <p class="protocol-note">${esc(reason)}</p>
     </article>`;
@@ -63,7 +71,7 @@ function hostCard(host) {
     ? `load ${cpu.load_average.map((value) => value.toFixed(2)).join(" · ")}`
     : "load average недоступен";
   const cores = typeof cpu?.cores === "number" ? `${number(cpu.cores)} ядер · ${load}` : load;
-  return `<article class="protocol-card host-card ${strained ? "degraded" : ""}">
+  return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}">
     <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}"><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
     <p class="protocol-note">${esc(cores)}</p>
     <div class="protocol-metrics host-metrics">
@@ -76,12 +84,14 @@ function hostCard(host) {
 
 export async function renderDashboard(context, generation) {
   const { api, root, state, ui } = context;
-  const [data, users, nodes] = await Promise.all([
+  const [data, users, nodes, clients] = await Promise.all([
     api("/api/dashboard"),
     refreshUsers(context, generation),
     fleetCount(context),
+    clientsCount(context),
   ]);
   paintNavCounts(context, data, nodes);
+  paintClientsCount(context, clients);
   if (!isCurrent(state, generation, "dashboard") || users === null) return;
 
   const mt = data.protocols?.mtproxy || {};
@@ -117,7 +127,6 @@ export async function renderDashboard(context, generation) {
     <article class="protocol-card ${mieruReady ? "" : "degraded"}">
       <div class="protocol-head"><span><small>Native AEAD · TCP/UDP</small><h2>Mieru</h2></span><span class="status-pill ${mieruReady ? "active" : "blocked"}"><i></i>${!mieruAvailable ? "Отключён" : mieruReady ? "Работает" : "Недоступен"}</span></div>
       <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(mieru.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(mieru.credentials?.disabled)}</strong></span></div>
-      <div class="protocol-metrics"><span><small>Application bytes</small><b>${mieru.traffic?.available ? bytes(mieru.traffic?.bytes) : "—"}</b><em>rolling admission quota (approximate), не hard cap</em></span></div>
     </article>
     <article class="protocol-card naive-card ${naiveReady ? "" : "degraded"}">
       <div class="protocol-head"><span><small>HTTPS · HTTP/2 CONNECT</small><h2>NaiveProxy</h2></span><span class="status-pill ${naiveReady ? "active" : "blocked"}"><i></i>${naiveStatus}</span></div>
