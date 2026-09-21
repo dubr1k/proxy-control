@@ -53,7 +53,9 @@ class DeployCliTests(unittest.TestCase):
         # otherwise render a picker with nothing in it.
         self.assertIn("entry.version !== current", javascript)
         self.assertIn("Обновлений не обнаружено", javascript)
-        self.assertIn("в каталоге нет версий для этого компонента", javascript)
+        self.assertIn("в каталоге нет версий; нажмите «Проверить обновления»", javascript)
+        # v0.11: once upstream answered, «nothing newer» is good news, not an empty catalog.
+        self.assertIn("Установлена актуальная версия", javascript)
 
     def test_ci_installs_caddy_adapter_before_systemd_unit_verification(self):
         workflow = (ROOT / ".github/workflows/test.yml").read_text()
