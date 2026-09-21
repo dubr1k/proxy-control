@@ -342,7 +342,7 @@ def test_xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_
     assert f"XRAY_ROUTER_GEOSITE_SHA256={hashlib.sha256(b'geosite').hexdigest()}" in text
     assert "XRAY_ROUTER_EGRESS_WARP=" in text and "XRAY_ROUTER_BIN_DIR=" in text and "0" * 64 not in text
     [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
-    assert up[-4:] == ["up", "-d", "--wait", "xray-router"]
+    assert up[-5:] == ["up", "-d", "--no-deps", "--wait", "xray-router"]
     assert [up[i + 1] for i, part in enumerate(up) if part == "--env-file"] == [str(tmp_path / ".env"), str(overlay)]
     assert commands.index(up) < commands.index(XRAY_STATUS)
     state = json.loads((tmp_path / "state.json").read_text())["components"]["xray"]
@@ -363,7 +363,7 @@ def test_xray_update_rolls_back_all_three_members_when_the_router_reports_anothe
 
     def run(command, *, env=None, cwd=None, timeout=None):
         nonlocal ups
-        if command[-4:] == ["up", "-d", "--wait", "xray-router"]:
+        if command[-5:] == ["up", "-d", "--no-deps", "--wait", "xray-router"]:
             ups += 1
         if command == XRAY_STATUS:
             # The container keeps reporting the old build: the new one never came up.
@@ -700,7 +700,7 @@ def test_mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_
     assert ["systemctl", "restart", "mita"] in commands and ["systemctl", "restart", "mita@1"] in commands
     assert ["systemctl", "is-active", "mita@1"] in commands
     [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
-    assert up[-4:] == ["up", "-d", "--wait", "mieru-manager"]
+    assert up[-5:] == ["up", "-d", "--no-deps", "--wait", "mieru-manager"]
     env_files = [up[i + 1] for i, part in enumerate(up) if part == "--env-file"]
     # `.optional.env` (a host keeps its WARP egress there) rides right after `.env`.
     assert env_files == [str(tmp_path / ".env"), str(tmp_path / ".optional.env"), str(tmp_path / ".env.naive"), str(overlay)]
@@ -738,7 +738,7 @@ def test_mita_update_restores_the_consumer_pin_when_the_manager_does_not_come_ba
     ups = []
 
     def run(command, *, env=None, cwd=None, timeout=None):
-        if command[-4:-1] == ["up", "-d", "--wait"]:
+        if command[-5:-1] == ["up", "-d", "--no-deps", "--wait"]:
             ups.append(overlay.read_text())
             if len(ups) == 1:
                 raise RuntimeError("unhealthy")
