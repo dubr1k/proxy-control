@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_version_agent_artifacts import _targz, _zip
 from version_agent.catalog import CatalogError, load_catalog
 from version_agent.service import (
     ConflictError,
@@ -133,6 +134,129 @@ def test_catalog_accepts_a_caddy_build_entry(tmp_path: Path):
                   "forwardproxy_commit": "d" * 40}}]}}))
     with pytest.raises(CatalogError, match="unsupported artifact kind"):
         load_catalog(catalog)
+
+
+def _agent(tmp_path, **extra):
+    catalog = tmp_path / "catalog.json"
+    write_catalog(catalog)
+    extra.setdefault("runner", lambda command, *, env=None, cwd=None, timeout=None: "active\n")
+    return VersionAgent(catalog_path=catalog, state_path=tmp_path / "state.json", **extra)
+
+
+MITA_CANDIDATE = {
+    "version": "3.37.0", "tag": "v3.37.0", "kind": "binary", "source": "upstream",
+    "url": "https://github.com/enfein/mieru/releases/download/v3.37.0/mita_3.37.0_linux_amd64.tar.gz",
+    "sha256": "b" * 64, "archive": {"format": "tar.gz", "member": "mita"}, "published_at": None,
+}
+
+
+def test_check_upstream_caches_candidates_and_lists_them_after_the_catalog(tmp_path: Path):
+    calls = []
+
+    def fake_check_all(current, *, fetcher, router_enabled):
+        calls.append(dict(current))
+        return {
+            "mita": {"latest": "3.37.0", "installable": True, "reason": None, "candidates": [dict(MITA_CANDIDATE)]},
+            "telemt": {"latest": None, "installable": False, "reason": "no_releases", "candidates": []},
+            "naive": {"latest": None, "installable": False, "reason": None, "candidates": [], "last_error": "upstream unreachable"},
+            "xray": {"latest": None, "installable": False, "reason": "router_not_installed", "candidates": []},
+        }
+
+    now = [1_000_000]
+    agent = _agent(tmp_path, clock=lambda: now[0])
+    agent.check_all = fake_check_all
+    listed = agent.check_upstream()
+    assert calls == [{"telemt": None, "naive": None, "mita": None}]
+    mita = listed["components"]["mita"]
+    assert [e["version"] for e in mita["available"]] == ["3.35.0", "3.37.0"]
+    assert mita["available"][0]["source"] == "catalog" and mita["available"][1]["source"] == "upstream"
+    assert mita["upstream"] == {"checked_at": 1_000_000, "latest": "3.37.0", "installable": True, "reason": None, "last_error": None}
+    assert listed["checked_at"] == 1_000_000 and listed["upstream_enabled"] is True
+    assert listed["components"]["naive"]["upstream"]["last_error"] == "upstream unreachable"
+    assert "xray" not in listed["components"]  # router off → the component is not shown
+    assert json.loads((tmp_path / "state.json").read_text())["schema"] == 2
+    assert agent.list_versions() == listed
+    now[0] += 30
+    agent.check_upstream()
+    assert len(calls) == 1  # inside the 60 s window the cache answers
+    now[0] += 31
+    agent.check_upstream()
+    assert len(calls) == 2
+
+
+def test_a_failed_source_keeps_its_previous_candidates_next_to_the_error(tmp_path: Path):
+    answers = [
+        {"mita": {"latest": "3.37.0", "installable": True, "reason": None, "candidates": [dict(MITA_CANDIDATE)]}},
+        {"mita": {"latest": None, "installable": False, "reason": None, "candidates": [], "last_error": "upstream answered 403"}},
+    ]
+    now = [1_000]
+    agent = _agent(tmp_path, clock=lambda: now[0])
+    agent.check_all = lambda current, *, fetcher, router_enabled: answers.pop(0)
+    agent.check_upstream()
+    now[0] += 100
+    listed = agent.check_upstream()
+    mita = listed["components"]["mita"]
+    assert [e["version"] for e in mita["available"]] == ["3.35.0", "3.37.0"]
+    assert mita["upstream"]["last_error"] == "upstream answered 403" and mita["upstream"]["latest"] == "3.37.0"
+
+
+def test_update_installs_a_cached_upstream_candidate_by_version(tmp_path: Path):
+    target = tmp_path / "mita"
+    target.write_bytes(b"old")
+    target.chmod(0o755)
+    payload = _targz({"mita": BINARY})
+    digest = hashlib.sha256(payload).hexdigest()
+    commands = []
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        commands.append(command)
+        return "active\n"
+
+    agent = _agent(tmp_path, binary_paths={"mita": target}, service_names={"mita": "mita"},
+                   downloader=lambda url: payload, runner=run)
+    agent.check_all = lambda current, *, fetcher, router_enabled: {
+        "mita": {"latest": "3.37.0", "installable": True, "reason": None,
+                 "candidates": [{**MITA_CANDIDATE, "sha256": digest}]}}
+    agent.check_upstream()
+    result = agent.update("mita", "3.37.0", expected_current=None)
+    assert result["changed"] is True and target.read_bytes() == BINARY
+    state = json.loads((tmp_path / "state.json").read_text())["components"]["mita"]
+    assert state["version"] == "3.37.0" and state["source"] == "upstream"
+    assert state["sha256"] == hashlib.sha256(BINARY).hexdigest()
+    assert state["archive"] == {"format": "tar.gz", "member": "mita"}
+    assert ["systemctl", "restart", "mita"] in commands
+
+
+def test_update_refuses_a_version_that_is_neither_in_the_catalog_nor_cached(tmp_path: Path):
+    agent = _agent(tmp_path, binary_paths={"mita": tmp_path / "mita"}, service_names={"mita": "mita"})
+    with pytest.raises(CatalogError, match="not approved"):
+        agent.update("mita", "9.9.9", expected_current=None)
+    with pytest.raises(CatalogError, match="unsupported component"):
+        agent.update("xray", "26.4.1", expected_current=None)
+
+
+def test_archive_member_hash_is_checked_against_the_archive_not_the_file(tmp_path: Path):
+    target = tmp_path / "mita"
+    target.write_bytes(b"old")
+    payload = _targz({"mita": BINARY})
+    agent = _agent(tmp_path, binary_paths={"mita": target}, service_names={"mita": "mita"},
+                   downloader=lambda url: payload)
+    agent.check_all = lambda current, *, fetcher, router_enabled: {
+        "mita": {"latest": "3.37.0", "installable": True, "reason": None,
+                 "candidates": [{**MITA_CANDIDATE, "sha256": BINARY_SHA256}]}}
+    agent.check_upstream()
+    with pytest.raises(UpdateError, match="SHA-256 mismatch"):
+        agent.update("mita", "3.37.0", expected_current=None)
+    assert target.read_bytes() == b"old"
+
+
+def test_upstream_disabled_lists_only_the_catalog_and_refuses_to_check(tmp_path: Path):
+    agent = _agent(tmp_path, upstream_enabled=False)
+    listed = agent.list_versions()
+    assert listed["upstream_enabled"] is False
+    assert [e["version"] for e in listed["components"]["mita"]["available"]] == ["3.35.0"]
+    with pytest.raises(UpdateError, match="disabled"):
+        agent.check_upstream()
 
 
 def test_catalog_rejects_non_https_binary_sources(tmp_path: Path):
