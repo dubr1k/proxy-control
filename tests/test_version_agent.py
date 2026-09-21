@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -393,93 +392,86 @@ def test_binary_update_restores_the_previous_pin_when_the_service_fails(tmp_path
     )
 
 
-def test_update_is_refused_while_a_container_pins_the_binary(tmp_path: Path):
-    """A digest-pinned consumer would keep the old inode and a stale hash."""
+def test_mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_manager(tmp_path: Path):
+    """The manager pins the host binary by digest: its overlay follows the new build."""
     catalog = tmp_path / "catalog.json"
     write_catalog(catalog)
     target = tmp_path / "mita"
     target.write_bytes(b"old")
     target.chmod(0o755)
-    downloads: list[str] = []
-
-    agent = VersionAgent(
-        catalog_path=catalog,
-        state_path=tmp_path / "state.json",
-        binary_paths={"mita": target},
-        service_names={"mita": "mita"},
-        pinned_consumers={"mita": "proxy-control-mieru-manager"},
-        downloader=lambda url: downloads.append(url) or BINARY,
-        runner=lambda command, *, env=None, cwd=None, timeout=None: "container-id\n",
+    (tmp_path / "compose.yaml").write_text("services: {}\n")
+    (tmp_path / ".env").write_text("PANEL_DOMAIN=p.example.com\n")
+    (tmp_path / ".env.naive").write_text("NAIVE_PUBLIC_HOST=n.example.com\n")
+    overlay = tmp_path / ".env.mieru"
+    overlay.write_text(
+        "MIERU_PUBLIC_HOST=m.example.com\nMIERU_MITA_SHA256=" + "0" * 64
+        + "\nMIERU_LANE_SLOTS=1:46101:/run/mita1/s:/var/lib/mita1\n"
     )
-
-    with pytest.raises(UpdateError, match="proxy-control-mieru-manager"):
-        agent.update("mita", "3.35.0", expected_current=None)
-
-    assert target.read_bytes() == b"old"
-    assert downloads == []
-
-
-def test_update_is_blocked_when_pinned_consumer_inspect_has_daemon_failure(tmp_path: Path):
-    catalog = tmp_path / "catalog.json"
-    write_catalog(catalog)
-    target = tmp_path / "mita"
-    target.write_bytes(b"old")
-    downloads: list[str] = []
+    commands = []
 
     def run(command, *, env=None, cwd=None, timeout=None):
-        raise subprocess.CalledProcessError(
-            1,
-            command,
-            stderr="Cannot connect to the Docker daemon at unix:///var/run/docker.sock\n",
-        )
-
-    agent = VersionAgent(
-        catalog_path=catalog,
-        state_path=tmp_path / "state.json",
-        binary_paths={"mita": target},
-        service_names={"mita": "mita"},
-        pinned_consumers={"mita": "proxy-control-mieru-manager"},
-        downloader=lambda url: downloads.append(url) or BINARY,
-        runner=run,
-    )
-
-    with pytest.raises(UpdateError, match="cannot determine"):
-        agent.update("mita", "3.35.0", expected_current=None)
-
-    assert target.read_bytes() == b"old"
-    assert downloads == []
-
-
-def test_update_allows_exact_absent_pinned_consumer(tmp_path: Path):
-    catalog = tmp_path / "catalog.json"
-    write_catalog(catalog)
-    target = tmp_path / "mita"
-    target.write_bytes(b"old")
-    container = "proxy-control-mieru-manager"
-
-    def run(command, *, env=None, cwd=None, timeout=None):
-        if command[:2] == ["docker", "inspect"]:
-            raise subprocess.CalledProcessError(
-                1,
-                command,
-                stderr=f"Error: No such object: {container}\n",
-            )
+        commands.append(command)
+        if command[:3] == ["systemctl", "list-units", "--plain"]:
+            return "mita@1.service loaded active running\n"
         return "active\n"
 
     agent = VersionAgent(
-        catalog_path=catalog,
-        state_path=tmp_path / "state.json",
-        binary_paths={"mita": target},
-        service_names={"mita": "mita"},
-        pinned_consumers={"mita": container},
-        downloader=lambda url: BINARY,
-        runner=run,
+        catalog_path=catalog, state_path=tmp_path / "state.json", compose_dir=tmp_path,
+        compose_files=("compose.yaml", "compose.mieru.yaml"),
+        binary_paths={"mita": target}, service_names={"mita": "mita"},
+        consumer_overlays={"mita": (overlay, "MIERU_MITA_SHA256", "mieru-manager")},
+        downloader=lambda url: BINARY, runner=run,
     )
 
-    result = agent.update("mita", "3.35.0", expected_current=None)
+    agent.update("mita", "3.35.0", expected_current=None)
 
-    assert result["changed"] is True
-    assert target.read_bytes() == BINARY
+    text = overlay.read_text()
+    assert f"MIERU_MITA_SHA256={BINARY_SHA256}" in text and "MIERU_PUBLIC_HOST=m.example.com" in text
+    assert text.index("MIERU_PUBLIC_HOST") < text.index("MIERU_MITA_SHA256") < text.index("MIERU_LANE_SLOTS")
+    assert "0" * 64 not in text
+    assert ["systemctl", "restart", "mita"] in commands and ["systemctl", "restart", "mita@1"] in commands
+    assert ["systemctl", "is-active", "mita@1"] in commands
+    [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
+    assert up[-4:] == ["up", "-d", "--wait", "mieru-manager"]
+    env_files = [up[i + 1] for i, part in enumerate(up) if part == "--env-file"]
+    assert env_files == [str(tmp_path / ".env"), str(tmp_path / ".env.naive"), str(overlay)]
+    assert "-f" in up and str(tmp_path / "compose.mieru.yaml") in up
+    assert "version-overrides" not in " ".join(up)
+    assert commands.index(["systemctl", "restart", "mita"]) < commands.index(up)
+
+
+def test_mita_update_restores_the_consumer_pin_when_the_manager_does_not_come_back(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    write_catalog(catalog)
+    target = tmp_path / "mita"
+    target.write_bytes(b"old")
+    target.chmod(0o755)
+    overlay = tmp_path / ".env.mieru"
+    overlay.write_text("MIERU_MITA_SHA256=" + "0" * 64 + "\n")
+    ups = []
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        if command[-4:-1] == ["up", "-d", "--wait"]:
+            ups.append(overlay.read_text())
+            if len(ups) == 1:
+                raise RuntimeError("unhealthy")
+        return "" if command[:3] == ["systemctl", "list-units", "--plain"] else "active\n"
+
+    agent = VersionAgent(
+        catalog_path=catalog, state_path=tmp_path / "state.json", compose_dir=tmp_path,
+        compose_files=("compose.yaml",),
+        binary_paths={"mita": target}, service_names={"mita": "mita"},
+        consumer_overlays={"mita": (overlay, "MIERU_MITA_SHA256", "mieru-manager")},
+        downloader=lambda url: BINARY, runner=run,
+    )
+
+    with pytest.raises(RolledBackError):
+        agent.update("mita", "3.35.0", expected_current=None)
+
+    assert target.read_bytes() == b"old"
+    assert overlay.read_text() == "MIERU_MITA_SHA256=" + "0" * 64 + "\n"
+    assert ups == [f"MIERU_MITA_SHA256={BINARY_SHA256}\n", "MIERU_MITA_SHA256=" + "0" * 64 + "\n"]
+    assert agent.list_versions()["components"]["mita"]["current"] is None
 
 
 def test_binary_update_rolls_back_when_service_restart_fails(tmp_path: Path):

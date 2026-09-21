@@ -152,7 +152,7 @@ class VersionAgent:
         checkers: dict[str, Path | str] | None = None,
         caddyfiles: dict[str, Path] | None = None,
         version_pins: dict[str, Path] | None = None,
-        pinned_consumers: dict[str, str] | None = None,
+        consumer_overlays: dict[str, tuple[Path, str, str]] | None = None,
         telemt_container: str = "proxy-control-mtproxy",
         downloader: Downloader | None = None,
         runner: Runner | None = None,
@@ -171,7 +171,8 @@ class VersionAgent:
         self.checkers = checkers or {}
         self.caddyfiles = caddyfiles or {}
         self.version_pins = version_pins or {}
-        self.pinned_consumers = pinned_consumers or {}
+        # component → (env overlay, key that pins the host binary by digest, Compose service)
+        self.consumer_overlays = consumer_overlays or {}
         self.telemt_container = telemt_container
         self.downloader = downloader or _download
         self.runner = runner or _run
@@ -379,7 +380,7 @@ class VersionAgent:
             raise UpdateError(
                 f"{component} catalog entry must set runtime_version to keep the startup check in sync"
             )
-        self._assert_no_pinned_consumer(component)
+        consumer = self.consumer_overlays.get(component)
         payload = self._fetch_binary(component, entry)
         installed_sha256 = sha256_bytes(payload)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -394,6 +395,8 @@ class VersionAgent:
         stage = target.with_name(f".{target.name}.proxy-control-new")
         pin = self.version_pins.get(component)
         previous_pin = pin.read_text().strip() if pin and pin.exists() else None
+        previous_overlay: bytes | None = None
+        overlay_touched = False
         try:
             _atomic_write(stage, payload, 0o755)
             self._run_binary_config_checks(component, stage, entry.runtime_version)
@@ -405,8 +408,15 @@ class VersionAgent:
             # while state.json already claimed the new version.
             self._write_pin(component, entry.runtime_version)
             self._assert_pin(component, entry.runtime_version)
-            self.runner(["systemctl", "restart", service], timeout=120)
-            self.runner(["systemctl", "is-active", service], timeout=30)
+            if consumer:
+                # The consumer container pins the binary by digest through its env
+                # overlay; it follows the new build before anything restarts.
+                overlay_path, key, _service = consumer
+                previous_overlay = self._rewrite_env_line(overlay_path, key, installed_sha256)
+                overlay_touched = True
+            self._restart_service_and_slots(service)
+            if consumer:
+                self._compose_up(consumer[2])
         except Exception as exc:
             try:
                 if existed:
@@ -419,8 +429,11 @@ class VersionAgent:
                 if existed:
                     self._assert_binary_generation(target, previous_sha256)
                     self._run_binary_config_checks(component, target, previous_pin)
-                self.runner(["systemctl", "restart", service], timeout=120)
-                self.runner(["systemctl", "is-active", service], timeout=30)
+                if consumer and overlay_touched:
+                    self._restore_file(consumer[0], previous_overlay, 0o600)
+                self._restart_service_and_slots(service)
+                if consumer:
+                    self._compose_up(consumer[2])
             except Exception as rollback_exc:
                 raise RollbackFailedError(
                     f"{component} update failed; restored generation could not be verified"
@@ -498,29 +511,82 @@ class VersionAgent:
         if actual != expected:
             raise UpdateError(f"{component} runtime pin readback did not match")
 
-    def _assert_no_pinned_consumer(self, component: str) -> None:
-        """Refuse an update that would leave a container pinned to the old build."""
-        container = self.pinned_consumers.get(component)
-        if not container:
-            return
-        try:
-            self.runner(["docker", "inspect", "--format", "{{.Id}}", container], timeout=30)
-        except subprocess.CalledProcessError as exc:
-            stderr = exc.stderr.strip() if isinstance(exc.stderr, str) else ""
-            if stderr == f"Error: No such object: {container}":
-                return
-            raise UpdateError(f"cannot determine whether {container} pins {component}") from exc
-        except Exception as exc:
-            raise UpdateError(f"cannot determine whether {container} pins {component}") from exc
-        raise UpdateError(
-            f"{container} pins this binary by digest; update its pin and recreate it "
-            f"before updating {component}"
-        )
+    @staticmethod
+    def _rewrite_env_line(path: Path, key: str, value: str) -> bytes | None:
+        """Set `key=value` in an env overlay in place, keeping the other lines; returns the previous bytes."""
+        previous = path.read_bytes() if path.exists() else None
+        lines = (previous or b"").decode("utf-8").splitlines()
+        replaced = False
+        result = []
+        for line in lines:
+            if line.startswith(key + "="):
+                if not replaced:
+                    result.append(f"{key}={value}")
+                    replaced = True
+                continue
+            result.append(line)
+        if not replaced:
+            result.append(f"{key}={value}")
+        mode = (path.stat().st_mode & 0o777) if previous is not None else 0o600
+        _atomic_write(path, ("\n".join(result) + "\n").encode("utf-8"), mode)
+        return previous
 
-    def _compose_command(self, *args: str, include_override: bool = True) -> list[str]:
+    @staticmethod
+    def _restore_file(path: Path, previous: bytes | None, mode: int) -> None:
+        if previous is None:
+            path.unlink(missing_ok=True)
+        else:
+            _atomic_write(path, previous, mode)
+
+    def _slot_units(self, service: str) -> list[str]:
+        """Instances `<service>@<n>` that are loaded (Mieru lanes), so they restart with the binary."""
+        listed = self.runner(
+            ["systemctl", "list-units", "--plain", "--no-legend", f"{service}@*.service"], timeout=30
+        )
+        units = []
+        for line in listed.splitlines():
+            name = line.split()[0] if line.split() else ""
+            if name.startswith(f"{service}@") and name.endswith(".service"):
+                units.append(name.removesuffix(".service"))
+        return units
+
+    def _restart_service_and_slots(self, service: str) -> None:
+        self.runner(["systemctl", "restart", service], timeout=120)
+        self.runner(["systemctl", "is-active", service], timeout=30)
+        for unit in self._slot_units(service):
+            self.runner(["systemctl", "restart", unit], timeout=120)
+            self.runner(["systemctl", "is-active", unit], timeout=30)
+
+    def _env_files(self) -> list[Path]:
+        """The project env plus every protocol overlay present, in the installer's order."""
+        if self.compose_dir is None:
+            return []
+        files = [self.compose_dir / ".env"]
+        for sibling in ("naive", "mieru", "xray-router"):
+            overlay = self.compose_dir / f".env.{sibling}"
+            if overlay.is_file():
+                files.append(overlay)
+        return files
+
+    def _compose_up(self, service: str) -> None:
+        """Recreate one Compose service with the overlays it was installed with and wait for health."""
+        override = self.compose_dir / "version-overrides" / "compose.versions.yaml" if self.compose_dir else None
+        command = self._compose_command(
+            "up", "-d", "--wait", service,
+            include_override=bool(override and override.exists()),
+            env_files=True,
+        )
+        self.runner(command, cwd=self.compose_dir, timeout=300)
+
+    def _compose_command(
+        self, *args: str, include_override: bool = True, env_files: bool = False
+    ) -> list[str]:
         if self.compose_dir is None or not self.compose_files:
-            raise UpdateError("Telemt Compose deployment is not configured")
+            raise UpdateError("Compose deployment is not configured")
         command = ["docker", "compose", "--project-name", "mtproxy"]
+        if env_files:
+            for env_file in self._env_files():
+                command.extend(["--env-file", str(env_file)])
         for compose_file in self.compose_files:
             path = Path(compose_file)
             if path.is_absolute() or ".." in path.parts:
@@ -611,6 +677,20 @@ class VersionAgent:
             os.close(descriptor)
 
 
+def _consumer_overlays(value: str) -> dict[str, tuple[Path, str, str]]:
+    """Parse `component=<overlay path>:<env key>:<compose service>[,…]`."""
+    result: dict[str, tuple[Path, str, str]] = {}
+    for part in value.split(","):
+        if "=" not in part:
+            continue
+        component, spec = part.split("=", 1)
+        pieces = spec.rsplit(":", 2)
+        if len(pieces) != 3 or not all(pieces):
+            raise ValueError(f"invalid consumer overlay for {component}: expected path:key:service")
+        result[component.strip()] = (Path(pieces[0]), pieces[1], pieces[2])
+    return result
+
+
 def _flag(name: str, default: str) -> bool:
     return os.getenv(name, default).strip().lower() in ("on", "1", "true", "yes")
 
@@ -631,16 +711,12 @@ def agent_from_env() -> VersionAgent:
         checkers=paths("PROXY_CONTROL_CHECKERS", "naive=/usr/local/libexec/check-naive-caddy-build"),
         caddyfiles=paths("PROXY_CONTROL_CADDYFILES", "naive=/var/lib/naive-manager/Caddyfile"),
         version_pins=paths("PROXY_CONTROL_VERSION_PINS", "naive=/etc/proxy-control/caddy-naive.pin"),
-        pinned_consumers={
-            key: value
-            for key, value in (
-                part.split("=", 1)
-                for part in os.getenv(
-                    "PROXY_CONTROL_PINNED_CONSUMERS", "mita=proxy-control-mieru-manager"
-                ).split(",")
-                if "=" in part
+        consumer_overlays=_consumer_overlays(
+            os.getenv(
+                "PROXY_CONTROL_CONSUMER_OVERLAYS",
+                "mita=/opt/mtproxy-shared443/.env.mieru:MIERU_MITA_SHA256:mieru-manager",
             )
-        },
+        ),
         telemt_container=os.getenv("PROXY_CONTROL_TELEMT_CONTAINER", "proxy-control-mtproxy"),
         health_timeout=float(os.getenv("PROXY_CONTROL_VERSION_HEALTH_TIMEOUT", "60")),
         upstream_enabled=os.getenv("PROXY_CONTROL_UPSTREAM_CHECK", "on").strip().lower() != "off",
