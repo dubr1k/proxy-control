@@ -135,6 +135,31 @@ def test_catalog_accepts_a_caddy_build_entry(tmp_path: Path):
         load_catalog(catalog)
 
 
+PANEL_URL = "https://github.com/dubr1k/proxy-control/releases/download/v0.11.0-beta.1/proxy-control-v0.11.0-beta.1.tar.gz"
+
+
+def test_catalog_accepts_a_panel_release_entry_and_refuses_it_elsewhere(tmp_path: Path):
+    from version_agent.catalog import entry_from_dict
+
+    release = {"version": "0.11.0-beta.1", "kind": "release", "url": PANEL_URL, "sha256": "1" * 64, "source": "upstream"}
+    entry = entry_from_dict("panel", release)
+    assert entry.kind == "release" and entry.url == PANEL_URL and entry.sha256 == "1" * 64 and entry.source == "upstream"
+    assert entry.public() == {"version": "0.11.0-beta.1", "kind": "release", "source": "upstream", "url": PANEL_URL, "sha256": "1" * 64}
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"schema": 1, "components": {"panel": [{**release, "source": "catalog"}]}}))
+    assert load_catalog(catalog).entry("panel", "0.11.0-beta.1").source == "catalog"
+    with pytest.raises(CatalogError, match="HTTPS"):
+        entry_from_dict("panel", {**release, "url": "http://github.com/x.tar.gz"})
+    with pytest.raises(CatalogError, match="SHA-256"):
+        entry_from_dict("panel", {**release, "sha256": "nope"})
+    with pytest.raises(CatalogError, match="unknown release field"):
+        entry_from_dict("panel", {**release, "archive": {"format": "tar.gz", "member": "VERSION"}})
+    with pytest.raises(CatalogError, match="unsupported artifact kind"):
+        entry_from_dict("mita", release)
+    with pytest.raises(CatalogError, match="unsupported artifact kind"):
+        entry_from_dict("panel", {"version": "0.11.0-beta.1", "kind": "binary", "url": PANEL_URL, "sha256": "1" * 64})
+
+
 def _agent(tmp_path, **extra):
     catalog = tmp_path / "catalog.json"
     write_catalog(catalog)
