@@ -19,7 +19,7 @@ that either finishes the job or puts the server back the way it was.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!WARNING]
-> **The current release is [v0.9.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.9.0-beta.1)** (the panel says what the node already does; API refusals in the screen's words; routing-screen fixes; panel only, no migrations; [release note](docs/releases/v0.9.0-beta.1.md)). Before it: [v0.8.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.8.0-beta.1) — custom VPN/proxy exits, a rule table with quick settings, refreshable geodata, auto-import of node users ([note](docs/releases/v0.8.0-beta.1.md)); [v0.7.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1) — chains and lanes ([note](docs/releases/v0.7.0-beta.1.md)); [v0.6.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1) — the verification of everything promised in v0.2–v0.5 (the matrix, the `ui` and `managed-xui` tiers); v0.5 — the Xray-router ([note](docs/releases/v0.5.0-beta.1.md); never published on its own, shipped inside v0.6); [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1) — routing (egress policies with a preview); [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — linked panels; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All of them are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
+> **The current release is v0.11.0-beta.1** (component updates from upstream behind «Проверить обновления»: the Xray-router, Mieru, Telemt and a Caddy rebuild for NaiveProxy, with rollback; a one-row overview, a clients counter; [release note](docs/releases/v0.11.0-beta.1.md)). Before it: v0.10.0-beta.1 — a client on several nodes through a node × protocol matrix, the subscription at once and again ([CHANGELOG](CHANGELOG.md#0100-beta1---2026-09-21)); [v0.9.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.9.0-beta.1) — the panel says what the node already does; API refusals in the screen's words ([note](docs/releases/v0.9.0-beta.1.md)); [v0.8.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.8.0-beta.1) — custom VPN/proxy exits, a rule table with quick settings, refreshable geodata, auto-import of node users ([note](docs/releases/v0.8.0-beta.1.md)); [v0.7.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1) — chains and lanes ([note](docs/releases/v0.7.0-beta.1.md)); [v0.6.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1) — the verification of everything promised in v0.2–v0.5 (the matrix, the `ui` and `managed-xui` tiers); v0.5 — the Xray-router ([note](docs/releases/v0.5.0-beta.1.md); never published on its own, shipped inside v0.6); [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1) — routing (egress policies with a preview); [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — linked panels; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All of them are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
@@ -40,10 +40,10 @@ What you get:
 | Boundary | What it is for |
 |---|---|
 | **MTProxy / Telemt** | A proxy for Telegram. The panel hands out `tg://` links and QR codes, sets limits and expiry, and reports service state. |
-| **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. One access works as both HTTPS and HTTP/2. Per-user quota and traffic accounting included. |
-| **Mieru** | An obfuscated proxy with its own protocol over TCP and UDP. The panel issues a one-time `mierus://` link and QR. |
+| **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. Protocols: HTTPS (HTTP/1.1 CONNECT) and HTTP/2 CONNECT over TLS/TCP, one access for both; TCP only — UDP and HTTP/3 are not proxied. Per-user quota and traffic accounting included. |
+| **Mieru** | An obfuscated proxy with its own protocol over TCP. UDP transport does not work for clients on real networks and is not claimed. The panel issues a one-time `mierus://` link and QR. |
 | **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.7.0` and creates those inbounds. |
-| **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. |
+| **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. Since v0.11 — «Проверить обновления»: the panel asks the host agent to poll upstream and updates the Xray-router, Mieru, Telemt and NaiveProxy (by rebuilding Caddy) with rollback. |
 | **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
 | **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
 | **Routing** | Since v0.4 — an egress policy per node and service: NaiveProxy and Mieru direct or through WARP, block by domain and CIDR, selective rules on Mieru; the preview tells exactly what the node's backend will enforce, and apply is transactional with a rollback — locally and on linked panels ([docs/ROUTING.en.md](docs/ROUTING.en.md)). Since v0.5 — an optional **Xray-router** on the node: a service attached to it gets geosite, geoip, ports and blocks beside WARP through a dedicated, pinned Xray with an authenticated ingress ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)). |
@@ -82,7 +82,7 @@ Where everything listens:
 | Panel | `127.0.0.1:8787` (HTTP) | Locally; published through a TLS vhost on `127.0.0.1:8443` |
 | NaiveProxy (Caddy) | `127.0.0.1:4443` | Only Nginx |
 | Telemt API | `mtproxy:9091` | Only inside the Compose network, never published |
-| Mieru | Your chosen TCP and UDP ports | Public; port 443 is not used |
+| Mieru | Your chosen TCP ports (the server listens on UDP there too, but it is not claimed) | Public; port 443 is not used |
 | Mieru management | `/run/mita/mita.sock` | Local Unix socket only |
 | Fleet ingress | TCP/8790 | HTTPS with mTLS only, when the boundary is enabled |
 
@@ -495,7 +495,7 @@ before.
 - **Subscription.** Each client gets one link
   `https://<subscription domain>/s/<token>` for all of their accesses: `raw`
   (plain text, no base64), `singbox` (Karing; `&client=singbox` for the
-  official sing-box), `clash` (mihomo, TCP and UDP), `manifest`, `html`. The
+  official sing-box), `clash` (mihomo, Mieru over TCP only), `manifest`, `html`. The
   token is stored as a hash and shown once; the `ETag` changes with the set of
   accesses, `304` on `If-None-Match`, `Profile-Update-Interval`, a per-address
   rate limit; no access log anywhere on the path — uvicorn or Nginx. The
@@ -551,6 +551,16 @@ HTTP/3 is not published: the Nginx `stream` router routes TCP by SNI and does
 not parse QUIC, and no public UDP port is allocated to the project. Caddy's
 private listener keeps HTTP/3 enabled, but nothing outside can reach it.
 
+**Which protocols and clients NaiveProxy works with.** The transport is TLS over
+TCP on 443; inside it, HTTP/1.1 CONNECT ("HTTPS") or HTTP/2 CONNECT ("HTTP2").
+Only application TCP traffic goes through the proxy; UDP (QUIC, games, VoIP) is
+not proxied by NaiveProxy. Clients the project verifies: the official `naive`,
+Karing and sing-box (a `naive` outbound from the `singbox` subscription).
+mihomo/Clash cannot speak NaiveProxy — the `clash` subscription does not offer
+it to them. The NekoBox family, v2rayN, Hiddify and Shadowrocket import a
+`naive+https://` link but are unverified against our subscription
+([compatibility matrix](docs/VNEXT_ARCHITECTURE.md#subscription-client-compatibility)).
+
 Accounting counts payload bytes of completed tunnels, without TLS and IP
 overhead. A per-user quota disables the access once the observed limit is
 reached, but it is not a byte-exact hard cap: an active tunnel can overshoot.
@@ -559,9 +569,16 @@ More: [PANEL.en.md](PANEL.en.md).
 
 ### Mieru
 
-An obfuscated proxy with its own protocol over TCP and UDP. It does not take
+An obfuscated proxy with its own protocol over TCP. It does not take
 port 443 — you choose the ports explicitly and open them in both the cloud and
 the local firewall.
+
+**UDP is not claimed.** The mita server listens on the chosen port over UDP as
+well, but UDP profiles do not work for clients on real networks: mobile carriers
+and some Wi-Fi networks drop or throttle non-QUIC UDP, and forked clients expand
+one `mierus://` link into two entries and stall on the second. The project
+verifies and promises TCP only; if a client shows a TCP and a UDP variant, use
+TCP.
 
 Creating a user produces a one-time `mierus://` link, a QR code, and an import
 command. Rotation, disabling, and deletion require a controlled restart so the
@@ -774,16 +791,28 @@ More: [backup and restore](docs/BACKUP_RESTORE.en.md).
 
 ### Upgrading versions from the panel
 
-The panel can safely upgrade three boundaries — **Telemt**, **NaiveProxy/Caddy**
-and **Mieru/mita** — through a separate root-owned `version-agent`. The panel
-itself never gets a Docker socket, never downloads binaries, and never accepts a
-URL from the browser.
+The panel can safely upgrade four boundaries — **Telemt**, **NaiveProxy/Caddy**,
+**Mieru/mita** and, when installed, **Xray-router/Xray-core** — through a
+separate root-owned `version-agent`. The panel itself never gets a Docker
+socket, never downloads binaries, and never accepts a URL from the browser.
 
-Only versions from a root-owned catalogue that you populate can be installed.
-The agent verifies the SHA-256, replaces the binary atomically, restarts only
-the service concerned, and restores the previous version on failure. The
-operation is available to the `owner` role only and requires naming the current
-version.
+Since v0.11, «Проверить обновления» on the Versions screen asks the agent to
+poll the projects themselves: GitHub Releases for Xray-core, mieru and Caddy,
+the image registry for Telemt — over a host list fixed in the agent. Versions
+newer than the installed one appear marked "upstream" with the release's digest
+(`.dgst`, `.sha256.txt`, the manifest digest); a release without a published
+digest is visible but not installable. The digest proves the download is intact
+and authored by the project, not that this project verified the version — the
+UI says so. The root-owned `versions.json` catalogue stays and wins
+("catalog"); the poll is switched off with one variable.
+
+Installing: the agent verifies the digest, replaces files atomically, rewrites
+the pins in the Compose environment (the manager's pin for Mieru, the three
+files and their digests for the router), restarts only the service concerned
+and restores the previous version on failure. NaiveProxy is updated by
+rebuilding Caddy with forwardproxy on the host (builder image by digest, up to
+15 minutes). The operation is available to the `owner` role only and requires
+naming the current version; the installer accepts such an update as its own.
 
 Full protocol and rollback: [docs/UPGRADING.md](docs/UPGRADING.md).
 
@@ -976,7 +1005,7 @@ TCP, VLESS Reality XHTTP, and Hysteria2, and issues SSL certificates for the
 
 Since v0.2 the lab host also runs the live subscription acceptance — the
 official sing-box carries traffic through NaiveProxy and mihomo through Mieru
-over TCP and UDP, a canary scan of the logs and of a database dump finds no
+over TCP, a canary scan of the logs and of a database dump finds no
 token and no password — and a restore drill of the "database + master key"
 pair. Since v0.3 — the `fleet` tier: the installed node is linked to a central,
 users imported, accesses on all three protocols, disable, rotation, deletion,
@@ -990,9 +1019,13 @@ route audit, every screen in a real browser (`remote-gate.sh ui`), the managed 3
 real 3x-ui, a backup/restore drill — and the fixes for what that found (see the release note).
 v0.7 — [chains and lanes](docs/releases/v0.7.0-beta.1.md): a policy's exit through the relays of
 other nodes of the fleet (a chain of up to three hops), a grant's own lane and policy, the `chains`
-tier on the stand and a live «central → exit node» check. Not claimed as completed: a 3x-ui
-bridge, canary rollouts of policies, UDP through the router, metric history and updating a node's
-own panel from the central, and billing-grade traffic accounting.
+tier on the stand and a live «central → exit node» check. v0.8 — custom exits and the rule
+table, v0.9 — the seam between screen and backend, v0.10 — a client on several nodes and the
+subscription at hand, v0.11 — [updates from upstream](docs/releases/v0.11.0-beta.1.md): release
+and registry polling with digests, the Xray-router component, a Caddy rebuild from the panel.
+Not claimed as completed: a 3x-ui bridge, canary rollouts of policies, UDP through the router
+and through Mieru for clients, metric history and updating a node's own panel from the
+central, and billing-grade traffic accounting.
 
 ## Acknowledgements
 
