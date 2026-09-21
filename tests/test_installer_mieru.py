@@ -1148,3 +1148,16 @@ def test_seed_router_refuses_without_the_router_secret(tmp_path):
     with pytest.raises(MieruError, match="install the router first"):
         applied(instance, action)
 
+
+
+def test_mieru_apply_keeps_the_preexisting_binary_the_version_agent_installed(tmp_path):
+    binary = host(tmp_path, PATHS.binary)
+    binary.parent.mkdir(parents=True)
+    binary.write_bytes(b"agent-mita\n")
+    state = host(tmp_path, "/var/lib/proxy-control/version-agent/state.json")
+    state.parent.mkdir(parents=True)
+    state.write_text(json.dumps({"schema": 2, "components": {
+        "mita": {"version": "3.37.0", "sha256": hashlib.sha256(b"agent-mita\n").hexdigest()}}}))
+
+    applied(adapter(tmp_path), staged_action(tmp_path))
+    assert binary.read_bytes() == b"agent-mita\n"

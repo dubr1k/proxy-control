@@ -29,6 +29,7 @@ from installer.adapters.core import (
 )
 from installer.model import ROUTER_PORTS, EgressChoice, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
+from installer.runtime_state import accepted_caddy_pins
 from installer.transaction import (
     atomic_write,
     durable_copy2,
@@ -1644,7 +1645,8 @@ class NaiveAdapter:
         if not callable(identity):
             raise NaiveError("pinned Caddy verification is unavailable")
         version, forward_proxy = identity(str(self._host(self.paths.caddy_binary)))
-        if version.strip() != _CADDY_VERSION or not forward_proxy:
+        # The installer's pin, or the Caddy the version-agent rebuilt after it (v0.11).
+        if version.strip() not in accepted_caddy_pins(self.root, _CADDY_VERSION) or not forward_proxy:
             raise NaiveError("refusing an unpinned Caddy build")
 
     def _ensure_identities(self) -> dict[str, bool]:

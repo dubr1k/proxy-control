@@ -26,6 +26,7 @@ from installer.adapters.core import _DOMAIN, _DefaultCoreRunner, _file_sha256
 from installer.model import ROUTER_PORTS, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, MemberPin, ReleaseError, safe_extract_zip, verify_artifact
+from installer.runtime_state import accepted_sha256
 from installer.transaction import atomic_write, durable_mkdir, durable_remove, fsync_directory
 
 if TYPE_CHECKING:
@@ -598,7 +599,10 @@ class XrayRouterAdapter:
         bin_dir = self._host(self.paths.bin_dir)
         for member in _MEMBERS:
             path = bin_dir / member
-            if path.is_symlink() or not path.is_file() or _file_sha256(path) != members[member].sha256:
+            # The installer's pin, or the member the version-agent installed after it (v0.11).
+            if path.is_symlink() or not path.is_file() or _file_sha256(path) not in accepted_sha256(
+                self.root, "xray", member, members[member].sha256
+            ):
                 raise ArtifactError(f"installed Xray member does not match its pin: {member}")
         status = self._status()
         artifacts = status.get("artifacts")
