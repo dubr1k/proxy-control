@@ -77,9 +77,11 @@ function createNavigator(context) {
       || (name === "admins" && context.state.me?.role === "owner");
     const add = query("#add", context.root);
     add.hidden = !canCreate;
+    // The button shows a plus and the noun only («+ Клиент»), so the noun is in the
+    // nominative — the hidden «Добавить» must not bend it into the genitive.
     query("#add-label", context.root).textContent = {
-      admins: "Администратора",
-      clients: "Клиента",
+      admins: "Администратор",
+      clients: "Клиент",
       fleet: "Панель",
       naive: "Naive доступ",
       mieru: "Mieru доступ",
