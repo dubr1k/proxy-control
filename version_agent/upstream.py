@@ -33,9 +33,14 @@ USER_AGENT = "proxy-control-version-agent/1"
 # shown but not offered (reason `manager_unsupported`) until the manager is verified
 # against it and both patterns move together (a test keeps them equal).
 MITA_SUPPORTED = re.compile(r"3\.(?:35|36|37)\.\d+")
-COMPONENTS = ("telemt", "naive", "mita", "xray")
+COMPONENTS = ("telemt", "naive", "mita", "xray", "panel")
 XRAY_MEMBERS = {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}
 TELEMT_REPOSITORY = "samnet-dev/mtproxymax-telemt"
+# The panel itself (v0.11): this project's releases; every one of them is a pre-release.
+PANEL_REPOSITORY = "dubr1k/proxy-control"
+PANEL_SUMS_ASSET = "SHA256SUMS"
+# `SHA256SUMS` lists four files, but a future release may list more.
+MAX_SUMS_FILE = 16 * 1024
 _HEX64 = re.compile(r"\b([0-9a-f]{64})\b")
 _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -146,6 +151,21 @@ def parse_sha256_txt(text: str) -> str:
     if not match:
         raise UpstreamError("no SHA-256 in .sha256.txt")
     return match.group(1)
+
+
+def parse_sha256sums(text: str, filename: str) -> str:
+    """The digest of `filename` from a `sha256sum` listing (`<hex>  <name>`, `<hex> *<name>`)."""
+    for line in text.splitlines():
+        digest, _, name = line.strip().partition(" ")
+        name = name.strip()
+        if name.startswith("*"):
+            name = name[1:]
+        if name == filename:
+            digest = digest.strip().lower()
+            if _HEX64.fullmatch(digest):
+                return digest
+            raise UpstreamError(f"SHA256SUMS line for {filename} is not a SHA-256")
+    raise UpstreamError(f"no SHA256SUMS line for {filename}")
 
 
 def _parts(version: str) -> tuple[tuple[int, ...], str]:
@@ -369,7 +389,53 @@ def _naive(fetcher: Fetcher, current: str | None) -> dict:
     return {"latest": latest["version"], "installable": True, "reason": None, "candidates": [candidate]}
 
 
+def _panel(fetcher: Fetcher, current: str | None) -> dict:
+    """This project's own releases: the archive plus its line of the `SHA256SUMS` asset."""
+    releases = _releases(fetcher, PANEL_REPOSITORY, prereleases=True)
+    if not releases:
+        return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
+    candidates: list[dict] = []
+    reason = None
+    for release in releases:
+        if current is not None and compare_versions(release["version"], current) <= 0:
+            continue
+        name = f"proxy-control-v{release['version']}.tar.gz"
+        url = _asset_url(release["assets"], name, PANEL_REPOSITORY)
+        sums_url = _asset_url(release["assets"], PANEL_SUMS_ASSET, PANEL_REPOSITORY)
+        if not url or not sums_url:
+            reason = reason or "no_published_digest"
+            continue
+        status, _, body = fetcher(sums_url, None, MAX_SUMS_FILE)
+        if status != 200:
+            reason = reason or "no_published_digest"
+            continue
+        try:
+            digest = parse_sha256sums(body.decode("utf-8", "replace"), name)
+        except UpstreamError:
+            reason = reason or "no_published_digest"
+            continue
+        candidates.append(
+            {
+                "version": release["version"],
+                "tag": release["tag"],
+                "kind": "release",
+                "source": "upstream",
+                "url": url,
+                "sha256": digest,
+                "published_at": release["published_at"],
+            }
+        )
+    return {
+        "latest": releases[0]["version"],
+        "installable": bool(candidates),
+        "reason": None if candidates else reason,
+        "candidates": candidates,
+    }
+
+
 def check_component(component: str, current: str | None, *, fetcher: Fetcher, router_enabled: bool) -> dict:
+    if component == "panel":
+        return _panel(fetcher, current)
     if component == "xray":
         if not router_enabled:
             return {"latest": None, "installable": False, "reason": "router_not_installed", "candidates": []}
