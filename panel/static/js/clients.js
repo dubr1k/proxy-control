@@ -1,4 +1,4 @@
-import { OPERATION_MESSAGE, esc, initials, query, queryAll } from "./common.js";
+import { OPERATION_MESSAGE, esc, initials, paintClientsCount, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { isCurrent } from "./state.js";
 
@@ -133,6 +133,7 @@ export async function renderClients(context, generation) {
   if (!isCurrent(context.state, generation, "clients")) return;
   context.state.clients = data.items || [];
   context.state.nodes = nodes.items || [];
+  paintClientsCount(context, context.state.clients.length);
   const canImport = context.state.me?.role !== "viewer";
   context.ui.view.innerHTML = `<div class="toolbar">
       ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
