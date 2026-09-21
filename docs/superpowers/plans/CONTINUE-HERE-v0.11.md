@@ -65,7 +65,7 @@ LAB_RESET остался `/etc/nginx/stream.d/proxy-control.conf` настоящ
 
 ## Стенд после раскатки
 
-`lab-host` (LAB_RESET=1, LAB_KEEP_INSTALL=1) зелёный целиком (`REMOTE_GATE_LAB_HOST_OK`) после двух
+`lab-host` (LAB_RESET=1, LAB_KEEP_INSTALL=1) был зелёный целиком до MCP (см. ниже про прогон с MCP) (`REMOTE_GATE_LAB_HOST_OK`) после двух
 правок LAB_RESET (stream-роутер и настоящий 3x-ui) и правки учения backup/restore под v0.10:
 установщик с нуля поднял version-agent (env с четырьмя compose, роутер on, state со всеми
 компонентами; Telemt записан как `sha256:ab27edbceb9f`). На ams-test теперь **лабораторный узел**
@@ -83,6 +83,29 @@ SNI-карта `stream-conf.d/unicorndubr1k-sni.conf`, LE-сертификаты
 MCP на нём поднимается руками по образцу домена подписки: сертификат `certbot --webroot` для нового
 имени, `server` на `127.0.0.1:8443` с `location /mcp → 127.0.0.1:8793`, строка в SNI-карте, `.env.mcp`,
 секреты (`api-key-create` через панель, токен), `compose.mcp.yaml` в `COMPOSE_FILE`.
+
+## MCP — СДЕЛАНО (2026-09-21, вечер)
+
+Код влит в `main`. По дороге `lab-host` нашёл четыре падения установщика с MCP, все исправлены:
+core не копировал `compose.mcp.yaml`/`mcp_server/` (dd74bc4); секреты MCP были root 0600, а контейнер
+работает от uid 10007 → теперь root:10007 0440 (064fa79); `repair` не знал секреты MCP как «соседние»
+и отказывал каталогу `secrets` (dbc6a4d); `repair` не знал сервис `mcp` в перекличке health и падал с
+«Compose health checks» (8138422^). Кнопки `.ghost` («Проверить обновления», «Включить», «Ротировать»…)
+выглядели как браузерные по умолчанию — класс задавал только прозрачный фон; дописан полный стиль
+(8138422), после гейта — скриншот и раскатка панели на парк.
+
+**ams-server: MCP поднят руками** (`/root/ams-server-mcp.sh`, точка отката `/root/v11-rollout/mcp-20260921T165734Z`):
+LE-сертификат для `mcp.panel-tga.unicorndubr1k.org`, nginx-сайт `sites-available/mcp-panel-tga.conf`
+(порт 80 ACME + редирект; `127.0.0.1:8443` TLS, только `/mcp → 127.0.0.1:8793`, остальное 404,
+`access_log off`), строка в SNI-карте, `.env.mcp`, `secrets/mcp-token` + `secrets/mcp-panel-key`
+(root:10007 0440, ключ панели `mcp` со scope admin), `compose.mcp.yaml` в `COMPOSE_FILE`. Проверено
+снаружи: аноним 401, `initialize` 200, `tools/list` — 109 инструментов, `overview` отдаёт живые данные.
+Токен — только в `secrets/mcp-token` на ams-server, в отчётах не печатать. На узлах MCP нет (решение владельца).
+
+**Раскатка финального дерева на парк — СДЕЛАНА** (`fleet-v11-refresh.sh`, копия в `/root/` на каждом
+хосте): agent-код и unit обновлены, панель пересобрана `--no-deps` (маршрут OpenAPI, CLI ключей, стили
+чипов, текст «актуальная версия»); остальные контейнеры не трогались. Точки отката `/root/v11-rollout/20260921T1656*Z`
+(образ `mtproxy-panel:rollback-final-<ts>`, копия `version_agent`). Тег — только по слову владельца.
 
 ## Открытые мелочи
 
