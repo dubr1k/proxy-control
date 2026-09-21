@@ -41,7 +41,7 @@ const DAEMON_STATE = {
   off: ["muted", "выключен"],
 };
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
-const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita" };
+const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core" };
 const TABS = [["overview", "Обзор"], ["users", "Пользователи"], ["updates", "Обновления"]];
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -240,8 +240,15 @@ function updatesTab(context, node) {
       : `<small>${offered.length ? "" : "обновлений в каталоге узла нет"}</small>`;
     return `<li class="node-component"><span><b>${esc(COMPONENT_NAMES[component] || component)}</b><small>текущая версия: ${esc(current)}</small></span>${control}</li>`;
   }).join("");
-  return `<ul class="node-components">${items || '<li class="node-component"><span><b>Каталог версий узла пуст</b></span></li>'}</ul>
-    <p class="form-hint">Обновляет version-agent самого узла по своему allowlist-каталогу; панель передаёт только имя версии и ту, что показана как текущая.</p>`;
+  // v0.11: a node that reports `versions.check` can be asked to poll upstream; the result
+  // lands in its next heartbeat. An older node without it keeps the catalog-only tab.
+  const canCheck = canUpdate && (node.link.identity?.capabilities || []).includes("versions.check") && versions.upstream_enabled !== false;
+  const checked = versions.checked_at ? `проверено ${date(versions.checked_at)}` : "upstream ещё не проверялся";
+  const checkBar = canCheck
+    ? `<div class="node-link-actions"><small>${esc(checked)}</small><button class="secondary" data-node-action="check-versions">Проверить обновления</button></div>`
+    : "";
+  return `${checkBar}<ul class="node-components">${items || '<li class="node-component"><span><b>Каталог версий узла пуст</b></span></li>'}</ul>
+    <p class="form-hint">Обновляет version-agent самого узла по своему каталогу и кэшу upstream; панель передаёт только имя версии и ту, что показана как текущая.</p>`;
 }
 
 function linkedActions(context, node) {
@@ -711,6 +718,10 @@ async function linkLifecycle(context, node, action, button) {
         body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }),
       });
       context.ui.toast(`${component} на узле обновляется до ${version}; версии обновятся после следующего heartbeat`);
+    } else if (action === "check-versions") {
+      context.ui.setBusy(button, true, "Проверяем…");
+      await context.api(path("/versions/check"), { method: "POST" });
+      context.ui.toast("Узел опросил upstream; список версий обновится после следующего heartbeat");
     } else {
       const [route, message] = LINK_ROUTES[action];
       context.ui.setBusy(button, true);
