@@ -772,6 +772,12 @@ class VersionAgent:
         if self.compose_dir is None:
             return []
         files = [self.compose_dir / ".env"]
+        # A host may keep optional variables (WARP egress, extra hosts) in `.optional.env`
+        # next to `.env` — a Compose call without it would recreate a manager with those
+        # settings dropped.
+        optional = self.compose_dir / ".optional.env"
+        if optional.is_file():
+            files.append(optional)
         for sibling in ("naive", "mieru", "xray-router"):
             overlay = self.compose_dir / f".env.{sibling}"
             if overlay.is_file():
