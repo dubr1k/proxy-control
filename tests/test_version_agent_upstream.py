@@ -14,6 +14,7 @@ from version_agent.upstream import (
     fetch_https,
     parse_dgst,
     parse_sha256_txt,
+    parse_sha256sums,
 )
 
 XRAY_RELEASES = [
@@ -31,6 +32,25 @@ MIERU_RELEASES = [
      "assets": [{"name": "mita_3.37.0_linux_amd64.tar.gz", "browser_download_url": "https://github.com/enfein/mieru/releases/download/v3.37.0/mita_3.37.0_linux_amd64.tar.gz"},
                 {"name": "mita_3.37.0_linux_amd64.tar.gz.sha256.txt", "browser_download_url": "https://github.com/enfein/mieru/releases/download/v3.37.0/mita_3.37.0_linux_amd64.tar.gz.sha256.txt"}]},
 ]
+
+
+PANEL_DOWNLOAD = "https://github.com/dubr1k/proxy-control/releases/download"
+PANEL_RELEASES = [
+    # Every release of this project is a pre-release: they must count.
+    {"tag_name": "v0.11.0-beta.1", "prerelease": True, "draft": False, "published_at": "2026-09-21T00:00:00Z",
+     "assets": [{"name": "proxy-control-v0.11.0-beta.1.tar.gz", "browser_download_url": f"{PANEL_DOWNLOAD}/v0.11.0-beta.1/proxy-control-v0.11.0-beta.1.tar.gz"},
+                {"name": "SHA256SUMS", "browser_download_url": f"{PANEL_DOWNLOAD}/v0.11.0-beta.1/SHA256SUMS"},
+                {"name": "release-manifest.json", "browser_download_url": f"{PANEL_DOWNLOAD}/v0.11.0-beta.1/release-manifest.json"}]},
+    {"tag_name": "v0.10.0-beta.1", "prerelease": True, "draft": False, "published_at": "2026-09-20T00:00:00Z",
+     "assets": [{"name": "proxy-control-v0.10.0-beta.1.tar.gz", "browser_download_url": f"{PANEL_DOWNLOAD}/v0.10.0-beta.1/proxy-control-v0.10.0-beta.1.tar.gz"},
+                {"name": "SHA256SUMS", "browser_download_url": f"{PANEL_DOWNLOAD}/v0.10.0-beta.1/SHA256SUMS"}]},
+    {"tag_name": "v0.12.0-beta.1", "prerelease": True, "draft": True, "published_at": None, "assets": []},
+]
+PANEL_SUMS = (
+    "1" * 64 + "  proxy-control-v0.11.0-beta.1.tar.gz\n"
+    "2" * 64 + "  release-manifest.json\n"
+    "3" * 64 + "  sbom.spdx.json\n"
+)
 
 
 def fetcher_from(table: dict[str, tuple[int, dict, bytes]]):
@@ -54,6 +74,40 @@ def test_parsers_read_the_published_digests():
         parse_dgst("nothing here")
     with pytest.raises(UpstreamError):
         parse_sha256_txt("nothing here")
+
+
+def test_parse_sha256sums_picks_the_line_of_the_named_file():
+    assert parse_sha256sums(PANEL_SUMS, "proxy-control-v0.11.0-beta.1.tar.gz") == "1" * 64
+    assert parse_sha256sums("A" * 64 + " *archive.tar.gz\n", "archive.tar.gz") == "a" * 64
+    with pytest.raises(UpstreamError, match="SHA256SUMS"):
+        parse_sha256sums(PANEL_SUMS, "proxy-control-v0.12.0-beta.1.tar.gz")
+    with pytest.raises(UpstreamError, match="SHA256SUMS"):
+        parse_sha256sums("xyz  proxy-control-v0.11.0-beta.1.tar.gz\n", "proxy-control-v0.11.0-beta.1.tar.gz")
+
+
+def test_panel_candidate_is_the_release_archive_with_its_sha256sums_line():
+    fetch = fetcher_from({
+        "https://api.github.com/repos/dubr1k/proxy-control/releases?per_page=10": (200, {}, json.dumps(PANEL_RELEASES).encode()),
+        f"{PANEL_DOWNLOAD}/v0.11.0-beta.1/SHA256SUMS": (200, {}, PANEL_SUMS.encode()),
+    })
+    result = check_component("panel", "0.10.0-beta.1", fetcher=fetch, router_enabled=False)
+    assert result["latest"] == "0.11.0-beta.1" and result["installable"] is True and result["reason"] is None
+    [candidate] = result["candidates"]
+    assert candidate == {
+        "version": "0.11.0-beta.1", "tag": "v0.11.0-beta.1", "kind": "release", "source": "upstream",
+        "url": f"{PANEL_DOWNLOAD}/v0.11.0-beta.1/proxy-control-v0.11.0-beta.1.tar.gz",
+        "sha256": "1" * 64, "published_at": "2026-09-21T00:00:00Z",
+    }
+    # The SHA256SUMS of the installed release is never fetched: only newer releases are candidates.
+    assert f"{PANEL_DOWNLOAD}/v0.10.0-beta.1/SHA256SUMS" not in fetch.seen
+    assert check_component("panel", "0.11.0-beta.1", fetcher=fetch, router_enabled=False)["candidates"] == []
+
+
+def test_panel_release_without_sha256sums_is_visible_but_not_installable():
+    releases = [{**PANEL_RELEASES[0], "assets": PANEL_RELEASES[0]["assets"][:1]}]
+    fetch = fetcher_from({"https://api.github.com/repos/dubr1k/proxy-control/releases?per_page=10": (200, {}, json.dumps(releases).encode())})
+    result = check_component("panel", "0.10.0-beta.1", fetcher=fetch, router_enabled=False)
+    assert result == {"latest": "0.11.0-beta.1", "installable": False, "reason": "no_published_digest", "candidates": []}
 
 
 def test_compare_versions_orders_numerically_and_prereleases_lower():
@@ -166,7 +220,7 @@ def test_rate_limited_github_becomes_an_error_and_check_all_keeps_going():
         "https://github.com/enfein/mieru/releases/download/v3.37.0/mita_3.37.0_linux_amd64.tar.gz.sha256.txt": (200, {}, b"b" * 64 + b"\n"),
     })
     result = check_all({"xray": "26.3.27", "mita": "3.36.0", "telemt": None, "naive": None}, fetcher=fetch, router_enabled=True)
-    assert set(result) == {"telemt", "naive", "mita", "xray"}
+    assert set(result) == {"telemt", "naive", "mita", "xray", "panel"}
     assert "403" in result["xray"]["last_error"] and result["xray"]["candidates"] == []
     assert result["mita"]["candidates"][0]["version"] == "3.37.0" and "last_error" not in result["mita"]
     assert "unexpected url" in result["telemt"]["last_error"]
