@@ -229,6 +229,9 @@ async def test_capture_unlink_and_versions_update(client, login_user, naive):
     update = await client.post("/api/fleet/v2/versions/update", headers=headers,
                                json={"component": "telemt", "version": "1.0", "expected_current": None})
     assert update.status_code in (502, 503)  # no version agent in tests, but the route exists
+    # v0.11: the central may ask the node to poll upstream; same agent, same absence here.
+    checked = await client.post("/api/fleet/v2/versions/check", headers=headers)
+    assert checked.status_code in (502, 503)
 
 
 async def test_capture_answers_null_not_500_while_telemt_is_down(client, login_user, telemt, monkeypatch):
