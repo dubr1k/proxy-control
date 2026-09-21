@@ -7,11 +7,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-_COMPONENTS = ("telemt", "naive", "mita")
+_COMPONENTS = ("telemt", "naive", "mita", "xray")
 _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _RUNTIME_VERSION = re.compile(r"^[^\r\n]{1,160}$")
 _IMAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@:-]*@sha256:[0-9a-f]{64}$")
+_ARCHIVE_FORMATS = ("zip", "tar.gz")
+_MEMBER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$")
+_HEX40 = re.compile(r"^[0-9a-f]{40}$")
+_SOURCES = ("catalog", "upstream")
+XRAY_MEMBERS = ("xray", "geoip.dat", "geosite.dat")
 
 
 class CatalogError(ValueError):
@@ -27,8 +32,12 @@ class CatalogEntry:
     url: str | None = None
     sha256: str | None = None
     runtime_version: str | None = None
-    def public(self) -> dict[str, str]:
-        result = {"version": self.version, "kind": self.kind}
+    archive: dict | None = None
+    source: str = "catalog"
+    build: dict | None = None
+
+    def public(self) -> dict:
+        result = {"version": self.version, "kind": self.kind, "source": self.source}
         if self.image:
             result["image"] = self.image
         if self.url:
@@ -37,6 +46,10 @@ class CatalogEntry:
             result["url"] = self.url
         if self.sha256:
             result["sha256"] = self.sha256
+        if self.archive:
+            result["archive"] = dict(self.archive)
+        if self.build:
+            result["build"] = dict(self.build)
         return result
 
 
@@ -57,10 +70,64 @@ def _reject_unknown(mapping: dict, allowed: set[str], label: str) -> None:
         raise CatalogError(f"unknown {label} field: {sorted(unknown)[0]}")
 
 
+def _archive(component: str, raw: object) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or raw.get("format") not in _ARCHIVE_FORMATS:
+        raise CatalogError("unsupported archive format")
+    _reject_unknown(raw, {"format", "member", "members"}, "archive")
+    member = raw.get("member")
+    members = raw.get("members")
+    if (member is None) == (members is None):
+        raise CatalogError("archive needs member or members")
+    if component == "xray" and members is None:
+        raise CatalogError("xray archive must name its members")
+    if component != "xray" and members is not None:
+        raise CatalogError(f"{component} archive must name a single member")
+    if members is not None:
+        if not isinstance(members, dict) or set(members) != set(XRAY_MEMBERS):
+            raise CatalogError("invalid archive member set")
+        names = list(members.values())
+    else:
+        names = [member]
+    for name in names:
+        if type(name) is not str or not _MEMBER.fullmatch(name) or ".." in name.split("/"):
+            raise CatalogError("invalid archive member")
+    if member is not None:
+        return {"format": raw["format"], "member": member}
+    return {"format": raw["format"], "members": dict(members)}
+
+
+def _build(raw: object) -> dict:
+    if not isinstance(raw, dict):
+        raise CatalogError("build entry must be an object")
+    _reject_unknown(raw, {"caddy_version", "builder_image", "forwardproxy_commit"}, "build")
+    version = raw.get("caddy_version")
+    image = raw.get("builder_image")
+    commit = raw.get("forwardproxy_commit")
+    if (
+        type(version) is not str
+        or not _VERSION.fullmatch(version)
+        or type(image) is not str
+        or not _IMAGE.fullmatch(image)
+        or not image.startswith("caddy:")
+        or type(commit) is not str
+        or not _HEX40.fullmatch(commit)
+    ):
+        raise CatalogError(
+            "build entry must pin caddy_version, a caddy builder image digest and a forwardproxy commit"
+        )
+    return {"caddy_version": version, "builder_image": image, "forwardproxy_commit": commit}
+
+
 def _entry(component: str, raw: object) -> CatalogEntry:
     if not isinstance(raw, dict):
         raise CatalogError(f"{component} catalog entry must be an object")
-    _reject_unknown(raw, {"version", "kind", "image", "url", "sha256", "runtime_version"}, "catalog")
+    _reject_unknown(
+        raw,
+        {"version", "kind", "image", "url", "sha256", "runtime_version", "archive", "source", "build"},
+        "catalog",
+    )
     version = raw.get("version")
     kind = raw.get("kind")
     if type(version) is not str or not _VERSION.fullmatch(version):
@@ -70,14 +137,21 @@ def _entry(component: str, raw: object) -> CatalogEntry:
         type(runtime_version) is not str or not _RUNTIME_VERSION.fullmatch(runtime_version)
     ):
         raise CatalogError(f"invalid runtime_version for {component}")
+    source = raw.get("source", "catalog")
+    if source not in _SOURCES:
+        raise CatalogError(f"invalid source for {component}")
     if kind == "image":
-        _reject_unknown(raw, {"version", "kind", "image", "runtime_version"}, "image")
+        _reject_unknown(raw, {"version", "kind", "image", "runtime_version", "source"}, "image")
         image = raw.get("image")
         if type(image) is not str or not _IMAGE.fullmatch(image):
             raise CatalogError("telemt image must use an immutable image digest")
-        return CatalogEntry(component, version, kind, image=image, runtime_version=runtime_version)
+        return CatalogEntry(
+            component, version, kind, image=image, runtime_version=runtime_version, source=source
+        )
     if kind == "binary":
-        _reject_unknown(raw, {"version", "kind", "url", "sha256", "runtime_version"}, "binary")
+        _reject_unknown(
+            raw, {"version", "kind", "url", "sha256", "runtime_version", "archive", "source"}, "binary"
+        )
         url = raw.get("url")
         digest = raw.get("sha256")
         parsed = urlsplit(url) if isinstance(url, str) else None
@@ -94,9 +168,33 @@ def _entry(component: str, raw: object) -> CatalogEntry:
         if type(digest) is not str or not _SHA256.fullmatch(digest):
             raise CatalogError("binary artifact must have a lowercase SHA-256")
         return CatalogEntry(
-            component, version, kind, url=url, sha256=digest, runtime_version=runtime_version
+            component,
+            version,
+            kind,
+            url=url,
+            sha256=digest,
+            runtime_version=runtime_version,
+            archive=_archive(component, raw.get("archive")),
+            source=source,
+        )
+    if kind == "build" and component == "naive":
+        _reject_unknown(raw, {"version", "kind", "build", "runtime_version", "source"}, "build")
+        return CatalogEntry(
+            component,
+            version,
+            kind,
+            runtime_version=runtime_version,
+            source=source,
+            build=_build(raw.get("build")),
         )
     raise CatalogError(f"unsupported artifact kind for {component}")
+
+
+def entry_from_dict(component: str, raw: object) -> CatalogEntry:
+    """Validate one entry the way the catalog does (used for cached upstream candidates)."""
+    if component not in _COMPONENTS:
+        raise CatalogError("unknown version catalog component")
+    return _entry(component, raw)
 
 
 def load_catalog(path: Path) -> Catalog:
