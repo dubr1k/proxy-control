@@ -594,7 +594,7 @@ def test_default_runner_accepts_the_adjacent_protocol_services(monkeypatch):
     runner = _DefaultCoreRunner()
     healthy = [
         {"Service": name, "State": "running", "Health": "healthy"}
-        for name in ("mask", "mtproxy", "panel", "naive-manager", "mieru-manager")
+        for name in ("mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "mcp")
     ]
     monkeypatch.setattr(runner, "_capture_checked", lambda _argv: json.dumps(healthy))
     assert runner._healthy_compose_services(("docker", "compose")) == 3
