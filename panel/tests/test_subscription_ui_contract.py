@@ -60,6 +60,13 @@ def test_the_client_card_opens_the_window_and_main_wires_it():
     assert 'data-client-action="open"' in clients and "context.subscriptions.open(" in clients
     assert 'data-client-action="grant"' not in clients and "openGrantModal" not in clients
     assert "createSubscriptionDialog" in main and "context.subscriptions.bind()" in main
+    # v0.11: «Узлы и доступы» on the card opens the same window on its matrix, for writers
+    # of a live client only (it sits after the viewer/archived early return).
+    assert 'data-client-action="placement"' in clients and "Узлы и доступы" in clients
+    assert clients.index('data-client-action="placement"') > clients.index('role === "viewer" || client.state === "archived"')
+    assert '{ focus: action === "placement" ? "placement" : null }' in clients
+    subscriptions = (ROOT / "static/js/subscriptions.js").read_text()
+    assert 'focus !== "placement"' in subscriptions and ".placement-box" in subscriptions and "scrollIntoView" in subscriptions
 
 
 def test_the_window_is_reachable_by_viewers_but_only_writers_get_the_buttons():

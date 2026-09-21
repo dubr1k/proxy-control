@@ -101,8 +101,12 @@ function actions(context, client) {
   const toggle = client.state === "suspended"
     ? '<button class="secondary" data-client-action="resume">Возобновить</button>'
     : '<button class="secondary" data-client-action="suspend">Приостановить</button>';
+  // The same window, opened on its node × protocol matrix: add a node with a tick, take one
+  // away with the cross — without hunting for it below the subscription block (v0.11).
+  const placement = '<button class="secondary" data-client-action="placement">Узлы и доступы</button>';
   return `<div class="client-actions">
     ${open}
+    ${placement}
     ${toggle}
     <button class="danger ghost" data-client-action="archive">Архивировать</button>
   </div>`;
@@ -530,10 +534,10 @@ export function handleClientsClick(context, button) {
     void grantAction(context, button);
     return true;
   }
-  if (action === "open") {
+  if (action === "open" || action === "placement") {
     const card = button.closest("[data-client-id]");
     const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
-    if (entry) void context.subscriptions.open(entry.client.id, entry.client.display_name);
+    if (entry) void context.subscriptions.open(entry.client.id, entry.client.display_name, null, { focus: action === "placement" ? "placement" : null });
     return true;
   }
   const card = button.closest("[data-client-id]");
