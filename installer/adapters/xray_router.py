@@ -39,6 +39,9 @@ _ARTIFACT_DIR = "/var/lib/proxy-control"
 _STATE_PREPARER = "/usr/local/libexec/prepare-xray-router-state"
 _ROTATOR = "/usr/local/libexec/rotate-xray-router-ingress"
 _MARKER = "/etc/proxy-control/xray-router-owned"
+_AGENT_ENV = "/etc/proxy-control/version-agent.env"
+_AGENT_UNIT = "version-agent"
+_AGENT_ROUTER_KEY = "PROXY_CONTROL_XRAY_ROUTER"
 _ROUTER_USER = "xray-router"
 _ROUTER_GROUP = "xray-router"
 _ROUTER_UID = 10006
@@ -213,10 +216,11 @@ class XrayRouterPaths:
     state_preparer: str = _STATE_PREPARER
     rotator: str = _ROTATOR
     marker: str = _MARKER
+    agent_env: str = _AGENT_ENV
 
     def __post_init__(self) -> None:
         for value in (self.project_dir, self.bin_dir, self.state_dir, self.artifact_dir,
-                      self.state_preparer, self.rotator, self.marker):
+                      self.state_preparer, self.rotator, self.marker, self.agent_env):
             if not value.startswith("/") or ".." in Path(value).parts:
                 raise ValueError("Xray-router path must be a normalized absolute path")
 
@@ -510,6 +514,8 @@ class XrayRouterAdapter:
         self._compose("up", "-d", "--build", "--wait", _SERVICE)
         # 4. The relay inbound (v0.7): the manager mints its keypair once and keeps it.
         self._enable_relay(selected)
+        # 5. The version-agent (v0.11) offers the `xray` component only while the router is installed.
+        self._set_agent_router(True)
         return {**prepared, "identities_created": identities, "ownership": self._ownership()}
 
     def _enable_relay(self, selected: Mapping[str, object]) -> Mapping[str, object] | None:
@@ -556,6 +562,34 @@ class XrayRouterAdapter:
             # without WARP, and the routing preview then says so.
             f"XRAY_ROUTER_EGRESS_WARP={selected['warp_provider']}\n"
         )
+
+    def _set_env_line(self, path: Path, key: str, value: str) -> None:
+        """Rewrite `key=value` in an env file, keeping every other line; create the file 0600."""
+        if path.is_symlink():
+            raise XrayRouterError("version-agent env file is a symlink")
+        lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+        kept: list[str] = []
+        replaced = False
+        for line in lines:
+            if line.split("=", 1)[0].strip() != key:
+                kept.append(line)
+            elif not replaced:
+                kept.append(f"{key}={value}")
+                replaced = True
+        if not replaced:
+            kept.append(f"{key}={value}")
+        self._atomic(path, "".join(f"{line}\n" for line in kept).encode(), 0o600)
+
+    def _set_agent_router(self, enabled: bool, *, create: bool = True) -> None:
+        path = self._host(self.paths.agent_env)
+        if not create and not path.is_file():
+            return
+        self._set_env_line(path, _AGENT_ROUTER_KEY, "on" if enabled else "off")
+        try:
+            self._run("systemctl", "is-active", "--quiet", _AGENT_UNIT)
+        except XrayRouterError:
+            return  # not installed or not running: it reads the file when it starts
+        self._run_best_effort("systemctl", "restart", _AGENT_UNIT)
 
     def verify(self, action: Action) -> Evidence:
         selected = self._selection(action)
@@ -632,6 +666,7 @@ class XrayRouterAdapter:
         destructive_purge = rollback_target == "uninstalled" and purge_data
         if self._compose_service_present():
             self._compose("rm", "--stop", "--force", _SERVICE)
+        self._set_agent_router(False, create=False)
         for relative in (self.paths.env_overlay, self.paths.marker, *(host for _source, host, _mode in _HELPERS)):
             durable_remove(self._host(relative), missing_ok=True)
         bin_dir = self._host(self.paths.bin_dir)
