@@ -47,6 +47,7 @@ Proxy Control — самостоятельная панель-компаньон
 | **Клиенты и подписки** | С v0.2 панель владеет учётными записями всех трёх протоколов: импорт существующих, «Принять доступ», выдача новых одной журналируемой операцией с честным исходом. Учётные данные лежат под мастер-ключом (AES-256-GCM). Каждому клиенту — одна отзываемая ссылка `https://<домен подписки>/s/<token>` на все его доступы: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; без логов на всём пути. |
 | **Fleet** *(опционально)* | С v0.3 — связанные панели: центральная панель управляет другими панелями по HTTPS с API-ключом `node-sync` (выдача, ротация и отзыв доступов, импорт пользователей), три действия в UI. Legacy v1 — инвентаризация и лимиты Telemt по mTLS, ставится вручную. |
 | **Маршрутизация** | С v0.4 — egress-политика на каждый узел и сервис: NaiveProxy и Mieru напрямую или через WARP, блокировки по домену и CIDR, у Mieru — выборочные правила; предпросмотр честно показывает, что применит backend узла, применение транзакционно с откатом — локально и на связанных панелях ([docs/ROUTING.ru.md](docs/ROUTING.ru.md)). С v0.5 — необязательный **Xray-router** на узле: подключённый к нему сервис получает geosite, geoip, порты и блокировки рядом с WARP через выделенный закреплённый Xray с аутентифицированным ingress ([docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md)). |
+| **MCP** *(опционально, центр)* | С v0.11 — контейнер `proxy-control-mcp` на центральной панели: API панели как инструменты Model Context Protocol для Claude Code и Claude Desktop по `https://<домен mcp>/mcp` с bearer-токеном; необратимые действия требуют `confirm`, каждый вызов проходит через API-ключ `mcp` и виден в аудите ([docs/MCP.ru.md](docs/MCP.ru.md)). |
 
 Учёт трафика у протоколов разный, и панель этого не скрывает: Telemt разделяет
 счётчик процесса и расход квоты, Naive считает полезные байты только после
@@ -899,6 +900,7 @@ Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` не скачи�
 | `naive_manager/Dockerfile` | Менеджер доступов и учёта NaiveProxy | `python:3.13.5-slim` |
 | `mieru_manager/Dockerfile` | Менеджер доступов и квот Mieru | `python:3.13.5-slim` |
 | `xray_router_manager/Dockerfile` | Xray egress-router и его менеджер (v0.5) | `python:3.13.5-slim` |
+| `mcp_server/Dockerfile` | MCP-сервер для Claude Code и Claude Desktop (v0.11, только центр) | `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | Агент узла Fleet | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | mTLS-ingress Fleet | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Официальный клиент Mieru для приёмки | `python:3.13.5-slim` |
@@ -915,6 +917,13 @@ Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` не скачи�
 `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
 `argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
 `qrcode`.
+
+MCP-сервер (`mcp_server/requirements.txt`, отдельный образ): `mcp`, `mcp-types`,
+`starlette`, `sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`,
+`anyio`, `pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`,
+`typing_extensions`, `jsonschema`, `jsonschema-specifications`, `referencing`, `rpds-py`,
+`attrs`, `PyJWT`, `cryptography`, `cffi`, `pycparser`, `python-multipart`,
+`opentelemetry-api`, `truststore`, `certifi`, `idna`, `click`.
 
 Только для разработки (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`,
 `iniconfig`, `packaging`, `pluggy`, `Pygments`, `ruff`.

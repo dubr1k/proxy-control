@@ -22,6 +22,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Выдача Mieru URL, QR и client config](MIERU_SHARING.ru.md)
 - [Связанные панели (Fleet v2) и legacy mTLS-транспорт v1](../FLEET.ru.md)
 - [Маршрутизация: egress-политики NaiveProxy и Mieru (v0.4), Xray-router (v0.5), цепи и полосы (v0.7)](ROUTING.ru.md)
+- [MCP-сервер: панель как инструменты Claude Code и Claude Desktop (v0.11)](MCP.ru.md)
 
 ### Эксплуатация
 
@@ -82,6 +83,7 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [Mieru URL, QR, and client config sharing](MIERU_SHARING.en.md)
 - [Linked panels (Fleet v2) and the legacy mTLS transport v1](../FLEET.en.md)
 - [Routing: egress policies of NaiveProxy and Mieru (v0.4), the Xray-router (v0.5), chains and lanes (v0.7)](ROUTING.en.md)
+- [The MCP server: the panel as tools for Claude Code and Claude Desktop (v0.11)](MCP.en.md)
 
 ### Operations
 
