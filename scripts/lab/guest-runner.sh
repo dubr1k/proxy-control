@@ -1189,7 +1189,11 @@ host_setup() {
     docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
     docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
     docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
-    systemctl disable --now caddy-naive mita version-agent >/dev/null 2>&1 || true
+    # A managed 3x-ui of a real install keeps `/usr/local/x-ui/x-ui` busy, and the
+    # existing-mode fixture cannot overwrite a running binary (found live).
+    systemctl disable --now caddy-naive mita version-agent x-ui >/dev/null 2>&1 || true
+    rm -rf /usr/local/x-ui /etc/x-ui
+    rm -f /etc/systemd/system/x-ui.service
     rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt \
       /etc/proxy-control /var/lib/naive-manager /var/log/naive-proxy \
       /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita \
