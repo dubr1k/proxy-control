@@ -191,6 +191,9 @@ class Browser:
     def desktop(self) -> None:
         self.cdp.call("Emulation.setDeviceMetricsOverride", {"width": 1440, "height": 1000, "deviceScaleFactor": 1, "mobile": False})
 
+    def phone(self) -> None:
+        self.cdp.call("Emulation.setDeviceMetricsOverride", {"width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": True})
+
     def goto(self, url: str) -> None:
         self.cdp.call("Page.navigate", {"url": url})
 
@@ -488,8 +491,27 @@ class Acceptance:
         api = {"users": len(self.api.json("/api/users")["items"]), "naive": len(self.api.json("/api/naive/users")["items"]),
                "mieru": len(self.api.json("/api/mieru/users")["items"])}
         self.check("dashboard.sidebar_counters_match_api", all(counts[k] == str(api[k]) for k in counts), f"{counts} vs {api}")
+        clients_badge = b.text("#clients-count").strip()
+        self.check("dashboard.clients_badge_matches_api", clients_badge == str(len(self.api.json("/api/clients")["items"])), clients_badge)
+        self.check("dashboard.no_application_bytes", "Application bytes" not in text)
         self.frame_is_secret_free("dashboard")
         b.shot("dashboard.png")
+        # v0.11: the overview on a phone — one column, the host row first, no horizontal scroll.
+        b.phone()
+        try:
+            time.sleep(0.3)
+            self.check("dashboard.phone.no_horizontal_scroll",
+                       b.js("document.documentElement.scrollWidth <= window.innerWidth + 1"),
+                       b.js("JSON.stringify([document.documentElement.scrollWidth, window.innerWidth])"))
+            self.check("dashboard.phone.host_row_first",
+                       b.js("document.querySelector('.protocol-overview > article')?.classList.contains('host-row') === true"))
+            self.check("dashboard.phone.one_column",
+                       b.js("(() => { const a = [...document.querySelectorAll('.protocol-overview > article')]; "
+                            "return a.length >= 4 && a.every(e => Math.abs(e.getBoundingClientRect().left - a[0].getBoundingClientRect().left) < 2); })()"))
+            self.cells_do_not_overlap("dashboard.phone.no_overlap", ".protocol-card", ".protocol-access > span, .protocol-metrics > span")
+            b.shot("dashboard-phone.png", 390)
+        finally:
+            b.desktop()
 
     def view_users(self) -> None:
         b = self.browser
