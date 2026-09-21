@@ -44,6 +44,15 @@ function formatDate(seconds) {
   return new Date(seconds * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 }
 
+// A managed node refuses grant changes from the central panel with a raw invariant message;
+// the operator cannot act on that wording, so it is replaced with where the change belongs.
+function explain(exception) {
+  if (String(exception.message).includes("managed by central")) {
+    return "Этот узел управляется центральной панелью — доступы клиента меняйте оттуда.";
+  }
+  return exception.message;
+}
+
 function grantRow(grant, matrix) {
   const marks = ["karing", "singbox", "mihomo"].map((client) => {
     const status = matrix[grant.protocol]?.[client] || "unsupported";
@@ -171,10 +180,27 @@ export function createSubscriptionDialog(context) {
     render(overview);
   }
 
+  // Clears everything a previous client left on screen: the URL, the matrix, the status
+  // line. Shared by close (nothing survives after the window shuts) and open (nothing of
+  // the previous client survives a reopen whose load() fails before render() runs).
+  function reset() {
+    state.reveal = null;
+    showReveal();
+    state.client = null;
+    state.grants = [];
+    state.rows = [];
+    queryAll("#subscription-grants li", root).forEach((node) => node.remove());
+    query("#placement-body", root).innerHTML = "";
+    query("#placement-actions", root).innerHTML = "";
+    query("#subscription-status", root).textContent = "";
+    query("#subscription-actions", root).innerHTML = "";
+  }
+
   // `reveal` may be a payload already in hand (the client was just created): shown at once.
   async function open(clientId, name, reveal = null) {
     state.generation += 1;
     const generation = state.generation;
+    reset();
     state.clientId = clientId;
     state.name = name;
     state.reveal = reveal;
@@ -276,7 +302,7 @@ export function createSubscriptionDialog(context) {
       await load();
       if (result?.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
     } catch (exception) {
-      error.textContent = exception.message;
+      error.textContent = explain(exception);
       await load().catch(() => {});
     } finally {
       ui.setBusy(button, false);
@@ -295,7 +321,7 @@ export function createSubscriptionDialog(context) {
       ui.toast("Доступ удалён");
       await load();
     } catch (exception) {
-      query("#subscription-error", root).textContent = exception.message;
+      query("#subscription-error", root).textContent = explain(exception);
     } finally {
       ui.setBusy(button, false);
     }
@@ -339,18 +365,7 @@ export function createSubscriptionDialog(context) {
       if (dialog.open) return;
       // Nothing of the URL survives the window; the list behind it shows what changed.
       state.generation += 1;
-      state.reveal = null;
-      showReveal();
-      state.client = null;
-      state.grants = [];
-      state.rows = [];
-      queryAll("#subscription-grants li", root).forEach((node) => node.remove());
-      query("#placement-body", root).innerHTML = "";
-      query("#placement-actions", root).innerHTML = "";
-      // Nothing of the previous client either: a next opening whose load fails would
-      // otherwise offer its «Ротировать»/«Отозвать» against the client now on screen.
-      query("#subscription-status", root).textContent = "";
-      query("#subscription-actions", root).innerHTML = "";
+      reset();
       if (context.state.view === "clients") await context.navigate("clients");
     });
   }

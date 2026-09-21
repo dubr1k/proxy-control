@@ -281,7 +281,7 @@ export async function loadNodeOptions(context, dialogSelector, select) {
 // name, one grant on the node, the bundle revealed as on «Клиенты».
 export async function issueOnNode(context, { protocol, username, nodeId, options = {} }) {
   const { api, ui } = context;
-  const client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: username }) });
+  const client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: username, subscription: false }) });
   const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
     method: "POST",
     body: JSON.stringify({ grants: [{ protocol, node_id: nodeId, runtime_username: username, options }] }),
@@ -311,6 +311,15 @@ export function bindClients(context) {
   query("#client-username", root)?.addEventListener("input", ({ currentTarget: input }) => {
     input.dataset.typed = input.value ? "1" : "";
   });
+  // Enter in a dialog form submits it — here the first submit button is the head ×, so the
+  // window would simply close. Enter means «Создать», and nothing else.
+  const submitClientOnEnter = (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    query("#create-client", root)?.click();
+  };
+  query("#client-name", root)?.addEventListener("keydown", submitClientOnEnter);
+  query("#client-username", root)?.addEventListener("keydown", submitClientOnEnter);
   query("#create-client", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#client-form", root);
     const error = query("#client-error", root);
