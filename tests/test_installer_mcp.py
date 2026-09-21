@@ -210,10 +210,10 @@ def test_apply_writes_env_token_key_starts_the_service_and_marks_ownership(tmp_p
     token = host(tmp_path, PATHS.token)
     value = token.read_text().strip()
     assert len(value) >= 40 and value.replace("-", "").replace("_", "").isalnum()
-    assert stat.S_IMODE(token.stat().st_mode) == 0o600
+    assert stat.S_IMODE(token.stat().st_mode) == 0o440
 
     key = host(tmp_path, PATHS.panel_key)
-    assert key.read_text() == PLAINTEXT + "\n" and stat.S_IMODE(key.stat().st_mode) == 0o600
+    assert key.read_text() == PLAINTEXT + "\n" and stat.S_IMODE(key.stat().st_mode) == 0o440
     assert runner.keys_created == 1
 
     create = next(call for call in runner.calls if "api-key-create" in call)

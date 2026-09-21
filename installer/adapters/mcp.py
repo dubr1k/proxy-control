@@ -14,6 +14,7 @@ never selected there.
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
 import subprocess
@@ -41,6 +42,10 @@ _PORT = 8793
 _TLS_PORT = 8443
 _KEY_NAME = "mcp"
 _KEY_SCOPE = "admin"
+# The container's identity (compose.mcp.yaml `user: "10007:10007"`); its two secret files
+# are root-owned with this group and mode 0440 so the mounted copies are readable.
+_MCP_GID = 10007
+_SECRET_MODE = 0o440
 # The protocol overlays extend the same project; their env files ride along whenever
 # they exist on the host, in the installer's order (version_agent/service.py agrees).
 _ENV_SIBLINGS = ("naive", "mieru", "xray-router", "mcp")
@@ -350,10 +355,21 @@ class McpAdapter:
         path = self._host(self.paths.token)
         if path.is_symlink():
             raise McpError("MCP token file is a symlink")
-        if path.is_file() and _TOKEN.fullmatch(path.read_text(encoding="utf-8").strip()):
-            path.chmod(0o600)
-            return
-        self._atomic(path, (secrets.token_urlsafe(32) + "\n").encode(), 0o600)
+        if not (path.is_file() and _TOKEN.fullmatch(path.read_text(encoding="utf-8").strip())):
+            self._atomic(path, (secrets.token_urlsafe(32) + "\n").encode(), _SECRET_MODE)
+        self._own_secret(path)
+
+    def _own_secret(self, path: Path) -> None:
+        """Docker mounts a file secret with the file's own owner and mode and the container
+        runs as 10007: root:10007 0440, the shape the Xray-router's secrets have (a 0600
+        root file left the container crash-looping on «Permission denied», found live)."""
+        if path.is_symlink() or not path.is_file():
+            raise McpError("MCP secret file is unsafe")
+        if path.stat().st_mode & 0o007:
+            raise McpError("MCP secret file is world-readable")
+        os.chmod(path, _SECRET_MODE)
+        if self.root == Path("/") and os.geteuid() == 0:
+            os.chown(path, 0, _MCP_GID)
 
     def _issue_panel_key(self, selected: Mapping[str, object]) -> None:
         """Ask the panel for an `admin` API key named `mcp` once; the plaintext lands in
@@ -362,7 +378,7 @@ class McpAdapter:
         if path.is_symlink():
             raise McpError("MCP panel key file is a symlink")
         if path.is_file():
-            path.chmod(0o600)
+            self._own_secret(path)
             return
         output = self._capture(
             *self._compose_argv(
@@ -376,7 +392,8 @@ class McpAdapter:
         plaintext = _plaintext_of(output)
         if plaintext is None:
             raise McpError("the panel's answer to api-key-create carries no key")
-        self._atomic(path, (plaintext + "\n").encode(), 0o600)
+        self._atomic(path, (plaintext + "\n").encode(), _SECRET_MODE)
+        self._own_secret(path)
 
     def _read_token(self) -> str:
         path = self._host(self.paths.token)
