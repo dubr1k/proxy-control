@@ -516,6 +516,15 @@ docker_build_check() {
   docker image inspect mtproxy-panel >/dev/null 2>&1 || docker image ls --format '{{.Repository}}' | grep -qx mtproxy-panel
 }
 
+# The version-agent (v0.11) is installed by the installer: the unit runs and the panel's
+# «Версии» screen has something to show — `/v1/versions` over the socket says `enabled`.
+version_agent_check() {
+  systemctl is-active version-agent >/dev/null
+  curl --fail --silent --show-error --max-time 10 --unix-socket /run/proxy-control/version-agent.sock \
+    http://version-agent/v1/versions >/tmp/version-agent-versions.json
+  grep -q '"enabled":true' /tmp/version-agent-versions.json
+}
+
 full_coexist() {
   sha256sum -c "$BASELINE" >/dev/null
   systemctl is-active nginx lab-xray lab-warp lab-3x-ui >/dev/null
@@ -701,7 +710,8 @@ import json
 plan = json.load(open('/tmp/plan.json'))
 order = plan['adapter_order']
 assert order[:3] == ['packages', 'nginx', 'certificates'], order
-assert order[-1] == 'three_xui', order
+# The version-agent (v0.11) is planned last, after 3x-ui: its state records what was installed.
+assert order[-2:] == ['three_xui', 'version_agent'], order
 PLANPY
 }
 
@@ -724,6 +734,7 @@ release_install_full_xui() {
   test -d /opt/mtproxy-shared443
   test "$(stat -c %a /opt/mtproxy-shared443/secrets)" = 700
   ss -lnt | grep -q ':443 '
+  version_agent_check
 }
 
 release_coexist_existing_xui() {
@@ -851,6 +862,9 @@ release_uninstall() {
   installer_cmd uninstall --json >/tmp/uninstall.json
   installer_cmd uninstall --json >/tmp/uninstall-again.json
   test ! -e /opt/mtproxy-shared443/compose.yaml
+  test ! -e /etc/systemd/system/version-agent.service
+  # `! cmd` is exempt from errexit; a still-running agent must fail the scenario itself.
+  if systemctl is-active version-agent >/dev/null 2>&1; then return 1; fi
   sha256sum -c "$BASELINE" >/dev/null
   dpkg-query -W nginx-full docker.io docker-compose-v2 certbot >/dev/null
 }
@@ -1065,7 +1079,7 @@ import json
 plan = json.load(open('/tmp/plan.json'))
 order = plan['adapter_order']
 assert order[:3] == ['packages', 'nginx', 'certificates'], order
-assert order[-1] == 'three_xui', order
+assert order[-2:] == ['three_xui', 'version_agent'], order
 assert 'naive' in order and 'mieru' in order, order
 # The Xray-router (v0.5) is planned between Core and the services it feeds.
 assert order.index('core') < order.index('xray_router') < order.index('naive'), order
@@ -1175,12 +1189,14 @@ host_setup() {
     docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
     docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
     docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
-    systemctl disable --now caddy-naive mita >/dev/null 2>&1 || true
+    systemctl disable --now caddy-naive mita version-agent >/dev/null 2>&1 || true
     rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt \
       /etc/proxy-control /var/lib/naive-manager /var/log/naive-proxy \
       /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita \
-      /var/lib/xray-router /usr/local/lib/proxy-control/xray-router
+      /var/lib/xray-router /usr/local/lib/proxy-control/xray-router \
+      /opt/proxy-control /run/proxy-control
     rm -f /etc/systemd/system/caddy-naive.service /etc/systemd/system/mita.service \
+      /etc/systemd/system/version-agent.service /etc/tmpfiles.d/proxy-control-version-agent.conf \
       /etc/tmpfiles.d/mita.conf /usr/local/bin/caddy /usr/bin/mita \
       /usr/local/libexec/check-naive-caddy-build /usr/local/libexec/caddy-naive-adapt \
       /usr/local/libexec/prepare-naive-state /usr/local/libexec/prepare-mieru-state \
@@ -1258,6 +1274,7 @@ host_install() {
   python3 -c "import json;assert json.load(open('/tmp/status.json'))['status']=='active'"
   test -d /opt/mtproxy-shared443
   test "$(stat -c %a /opt/mtproxy-shared443/secrets)" = 700
+  version_agent_check
 }
 
 host_docker_build() {
@@ -1366,6 +1383,9 @@ host_uninstall() {
   container_cmd uninstall --json >/tmp/uninstall.json
   container_cmd uninstall --json >/tmp/uninstall-again.json
   test ! -e /opt/mtproxy-shared443/compose.yaml
+  test ! -e /etc/systemd/system/version-agent.service
+  # `! cmd` is exempt from errexit; a still-running agent must fail the scenario itself.
+  if systemctl is-active version-agent >/dev/null 2>&1; then return 1; fi
   # The foreign topology and the foreign 3x-ui are byte-identical afterwards.
   sha256sum -c "$BASELINE" >/dev/null
   sha256sum -c "$FOREIGN_BASELINE" >/dev/null
