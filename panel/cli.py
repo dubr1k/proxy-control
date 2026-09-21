@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from dataclasses import asdict
 from pathlib import Path
 
 from .agent_transport import CertificateAuthority
+from .api_keys import SCOPES, ApiKeyService
 from .database import Database
 from .keyring import Keyring
 from .migrations import apply_migrations, migration_status
@@ -63,6 +65,13 @@ def main():
     node_disable.add_argument("node_id")
     node_enable = sub.add_parser("node-enable", help="allow this node's transport again")
     node_enable.add_argument("node_id")
+    # v0.11 (spec §9a): the installer issues the MCP server's panel key without a session.
+    key_create = sub.add_parser("api-key-create", help="issue a scoped API key; prints one JSON line with the plaintext, once")
+    key_create.add_argument("--name", required=True)
+    key_create.add_argument("--scope", choices=SCOPES, required=True)
+    key_create.add_argument("--expires-days", type=int, default=None)
+    key_revoke = sub.add_parser("api-key-revoke", help="delete every API key of that name")
+    key_revoke.add_argument("--name", required=True)
 
     args = parser.parse_args()
     database = args.database or Settings().database_path
@@ -153,6 +162,27 @@ def main():
         except KeyError:
             parser.error(f"unknown operation {args.operation_id}")
         print(json.dumps({"operation_id": result.operation_id, "status": result.status}, sort_keys=True))
+    elif args.command in {"api-key-create", "api-key-revoke"}:
+        service = ApiKeyService(Database(database))
+        context = {"actor": {"username": "installer"}, "ip": "127.0.0.1"}
+        if args.command == "api-key-create":
+            if args.expires_days is not None and args.expires_days < 1:
+                parser.error("--expires-days must be positive")
+            if any(key["name"] == args.name and key["enabled"] for key in service.list()):
+                parser.error(f"an enabled API key named {args.name!r} already exists; revoke it first")
+            expires_at = int(time.time()) + args.expires_days * 86400 if args.expires_days else None
+            try:
+                row, plaintext = service.create(args.name, args.scope, expires_at, **context)
+            except ValueError as exc:
+                parser.error(str(exc))
+            print(json.dumps({"id": row["id"], "name": row["name"], "scope": row["scope"], "plaintext": plaintext}))
+        else:
+            revoked = 0
+            for key in service.list():
+                if key["name"] == args.name:
+                    service.delete(key["id"], **context)
+                    revoked += 1
+            print(json.dumps({"revoked": revoked}))
     elif args.command in {"node-list", "node-disable", "node-enable"}:
         service = NodeLifecycleService(Database(database), FleetStore(database))
         context = {"actor": {"username": "cli"}, "ip": "cli"}

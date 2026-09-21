@@ -35,6 +35,7 @@ from .mieru_routes import register_mieru_routes
 from .naive import NaiveClient, NaiveError
 from .naive_routes import register_naive_routes
 from .node_routes import register_node_routes
+from .openapi_routes import register_openapi_routes
 from .protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
 from .protocols.xray_router import RouterAdapter
 from .nodes.service import NodeLifecycleService
@@ -257,6 +258,7 @@ def create_app(
     register_fleet_v2_node_routes(app, context)
     register_fleet_v2_central_routes(app, context)
     register_version_routes(app, context)
+    register_openapi_routes(app, context)
     register_telemt_dashboard_routes(app, context)
     register_naive_routes(app, context)
     register_mieru_routes(app, context)
