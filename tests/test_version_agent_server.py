@@ -26,6 +26,9 @@ class FakeAgent:
         self.calls.append((component, version, expected_current))
         if self.failure is not None:
             raise self.failure
+        if component == "panel":
+            # v0.11: the panel's own update runs in the agent's background thread.
+            return {"component": component, "version": version, "changed": True, "async": True}
         return {"component": component, "version": version, "changed": True}
 
 
@@ -57,6 +60,29 @@ def test_unix_socket_server_preserves_update_contract(tmp_path: Path):
             )
             assert response.status_code == 200
             assert agent.calls == [("telemt", "new", "old")]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_unix_socket_server_answers_a_panel_update_as_accepted_and_async(tmp_path: Path):
+    socket_path = tmp_path / "version-agent.sock"
+    server = UnixHTTPServer(str(socket_path), Handler, gid=os.getgid())
+    agent = FakeAgent()
+    server.agent = agent
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(base_url="http://version-agent", transport=transport) as client:
+            response = client.post(
+                "/v1/update",
+                json={"component": "panel", "version": "0.11.0-beta.1", "expected_current": "0.10.0-beta.1"},
+            )
+            assert response.status_code == 200
+            assert response.json() == {"component": "panel", "version": "0.11.0-beta.1", "changed": True, "async": True}
+            assert agent.calls == [("panel", "0.11.0-beta.1", "0.10.0-beta.1")]
     finally:
         server.shutdown()
         server.server_close()
