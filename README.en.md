@@ -133,7 +133,7 @@ This is where installation stops most often, so here it is in detail.
 
 ### How many domains you need
 
-**The complete beta package** — the `full` profile, `managed-new` 3x-ui mode, and a separate subscription domain — requires **9 distinct domains**: the Proxy Control panel, MTProxy Fake-TLS, NaiveProxy, Mieru, the 3x-ui panel, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2, and the 3x-ui subscription. All must resolve correctly to the VPS; not all require certificates.
+**The complete beta package** — the `full` profile, `managed-new` 3x-ui mode, a separate client subscription domain and the MCP server domain — requires **11 distinct domains**: the Proxy Control panel, MTProxy Fake-TLS, NaiveProxy, Mieru, the 3x-ui panel, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2, the 3x-ui subscription, the Proxy Control client subscription (the tenth) and the MCP server (the eleventh, on the central panel only — nodes do not need it). All must resolve correctly to the VPS; not all require certificates.
 
 It depends on the profile. Not every protocol needs one:
 
@@ -148,6 +148,8 @@ It depends on the profile. Not every protocol needs one:
 | `three_xui.vless_tcp_domain` | In a 3x-ui mode | **No** |
 | `three_xui.vless_xhttp_domain` | In a 3x-ui mode | **No** |
 | `three_xui.subscription_domain` | `managed-new`, when a separate subscription is wanted | Yes |
+| `subscription` — client subscriptions | When subscription links `https://<subscription>/s/<token>` are wanted | Yes |
+| `mcp` — the MCP server | On the central panel only, when wanted | Yes |
 
 Mieru and VLESS Reality need no Let's Encrypt certificate: Mieru speaks its own
 protocol, and Reality borrows the certificate of the site it imitates. They
