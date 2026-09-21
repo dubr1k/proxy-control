@@ -604,7 +604,7 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
         '<td class="placement-cell"><label><input type="checkbox" data-node="local" data-protocol="mieru" checked><small>ожидает узел</small></label><button type="button" class="ghost danger-text" data-placement-delete data-grant-id="g2" title="Удалить доступ">×</button></td></tr>'
         '<tr data-placement-node="fra" class="placement-row-locked"><th scope="row">Frankfurt panel with a long name <small>панель на паузе</small></th>'
         '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="mtproxy" disabled><small></small></label></td>'
-        '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="naive" checked disabled><small>без секрета</small></label></td>'
+        '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="naive" checked disabled><small>без секрета</small></label><button type="button" class="ghost danger-text" data-placement-delete data-grant-id="g3" title="Удалить доступ">×</button></td>'
         '<td class="placement-cell"><label><input type="checkbox" data-node="fra" data-protocol="mieru" disabled><small></small></label></td></tr>'
         '</tbody></table></div>'
     )
