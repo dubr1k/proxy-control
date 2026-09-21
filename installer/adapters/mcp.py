@@ -471,6 +471,18 @@ def mcp_url(domain: str) -> str:
     return f"https://{domain}/mcp"
 
 
+def mcp_handoff(root: Path, config: InstallerConfig, *, paths: McpPaths | None = None) -> dict[str, str]:
+    """What the root-only handoff carries for MCP: the address and the bearer token.
+
+    Empty when MCP is off. The token is read from the secret the adapter wrote; the
+    public report never sees either entry (installer/report.py keeps the schemas apart).
+    """
+    if config.domains.mcp is None:
+        return {}
+    adapter = McpAdapter(root=root, paths=paths)
+    return {"mcp_url": mcp_url(config.domains.mcp), "mcp_token": adapter._read_token()}
+
+
 def _plaintext_of(output: str) -> str | None:
     """The `plaintext` of the one JSON line `api-key-create` prints, or None."""
     for line in reversed(output.splitlines()):
