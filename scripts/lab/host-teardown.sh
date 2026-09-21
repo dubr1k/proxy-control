@@ -26,19 +26,21 @@ docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 
 
 # 2. Lab-only services and units — the Mieru lane slots (v0.7, `mita@<n>`) included: an
 # uninstall that did not run to its end leaves them restarting forever without the binary.
-systemctl disable --now caddy-naive mita lab-xray x-ui >/dev/null 2>&1 || true
+systemctl disable --now caddy-naive mita version-agent lab-xray x-ui >/dev/null 2>&1 || true
 for slot in $(systemctl list-units --all --plain --no-legend 'mita@*' | awk '{print $1}'); do
   systemctl disable --now "$slot" >/dev/null 2>&1 || true
 done
 rm -f /etc/systemd/system/lab-xray.service /etc/systemd/system/x-ui.service \
   /etc/systemd/system/caddy-naive.service /etc/systemd/system/mita.service \
-  /etc/systemd/system/mita@.service /etc/tmpfiles.d/mita.conf
+  /etc/systemd/system/mita@.service /etc/tmpfiles.d/mita.conf \
+  /etc/systemd/system/version-agent.service /etc/tmpfiles.d/proxy-control-version-agent.conf
 systemctl daemon-reload
 systemctl reset-failed >/dev/null 2>&1 || true
 
 # 3. Files the runner and the installer wrote.
 rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt /etc/proxy-control \
   /var/lib/naive-manager /var/log/naive-proxy /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita \
+  /opt/proxy-control /run/proxy-control \
   /usr/local/x-ui /etc/x-ui /var/lib/lab-status /tmp/proxyctl-host /tmp/lab-credentials /tmp/lab-client-results
 # The fake certbot shadows the packaged one on PATH; a real install must never see it.
 rm -f /usr/local/bin/certbot /usr/local/bin/caddy /usr/bin/mita \
