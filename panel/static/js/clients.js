@@ -1,4 +1,4 @@
-import { OPERATION_MESSAGE, esc, initials, paintClientsCount, query, queryAll } from "./common.js";
+import { OPERATION_MESSAGE, OPERATION_OK, esc, initials, paintClientsCount, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { isCurrent } from "./state.js";
 
@@ -293,7 +293,7 @@ export async function issueOnNode(context, { protocol, username, nodeId, options
   });
   const node = context.state.nodes.find((item) => item.node_id === nodeId);
   const where = node?.display_name || nodeId;
-  ui.toast(result.status === "succeeded" ? `Доступ выдан на узле ${where}: карточка — в «Клиентах»` : OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
+  ui.toast(result.status === "succeeded" ? `Доступ выдан на узле ${where}: карточка — в «Клиентах»` : OPERATION_MESSAGE[result.status] || result.status, OPERATION_OK.has(result.status) ? "" : "error");
   if (result.status === "manual_intervention_required") {
     ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
   }
@@ -361,7 +361,7 @@ export function bindClients(context) {
         body: JSON.stringify({ grants: diff.create }),
       });
       query("#client-modal", root).close();
-      ui.toast(result.status === "succeeded" ? "Клиент создан, доступы выданы" : OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
+      ui.toast(result.status === "succeeded" ? "Клиент создан, доступы выданы" : OPERATION_MESSAGE[result.status] || result.status, OPERATION_OK.has(result.status) ? "" : "error");
       if (result.status === "manual_intervention_required") {
         ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
       }

@@ -1,4 +1,4 @@
-import { OPERATION_MESSAGE, esc, query, queryAll } from "./common.js";
+import { OPERATION_MESSAGE, OPERATION_OK, esc, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { proposeUsername } from "./clients.js";
 
@@ -299,7 +299,7 @@ export function createSubscriptionDialog(context) {
       let result = null;
       if (diff.create.length) {
         result = await api(`${base}/grants`, { method: "POST", body: JSON.stringify({ grants: diff.create }) });
-        ui.toast(OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
+        ui.toast(OPERATION_MESSAGE[result.status] || result.status, OPERATION_OK.has(result.status) ? "" : "error");
         if (result.status === "manual_intervention_required") {
           ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
         }
