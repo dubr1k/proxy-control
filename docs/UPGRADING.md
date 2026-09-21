@@ -354,7 +354,7 @@ Verification after the upgrade:
 
 ```bash
 docker compose exec -T panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 20
-docker exec proxy-control-panel cat /app/VERSION   # 0.10.0-beta.1
+docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 ```
 
 ## Panel version-agent
@@ -399,6 +399,28 @@ The agent reads back the current container image, pulls the selected immutable i
 The agent downloads at most 256 MiB from the HTTPS host recorded in the catalog, verifies SHA-256, stages the executable with mode `0755`, runs the configured checker, and atomically replaces the target. Caddy is additionally validated against its Caddyfile and module checker. The version pin is read back, the service is restarted, and `systemctl is-active` is required after the operation.
 
 Any failure restores the previous binary and pin, verifies the restored binary hash and pin readback, repeats the configured checker and Caddyfile validation, restarts the service, and requires `systemctl is-active`. State is written as the new version only after success. A rollback that fails any restore, config/readback, restart, or health gate is persisted and returned as `rollback_failed`; do not retry the update endpoint until an operator has restored and verified the complete previous generation.
+
+### Updates from upstream (v0.11)
+
+«Проверить обновления» on the «Версии» screen asks the agent to poll the projects' own sources. The `versions.json` catalog stays and wins («каталог» in the list); versions from upstream appear beside it («upstream»). The hosts are fixed in the agent: `api.github.com`, `github.com`, `objects.githubusercontent.com`, `ghcr.io`, `registry-1.docker.io`, `auth.docker.io`; an arbitrary URL is still impossible from the browser and from the configuration alike.
+
+| Component | Source | What is installed | Digest |
+|---|---|---|---|
+| Xray-router (`xray`) | GitHub Releases `XTLS/Xray-core` | `xray`, `geoip.dat`, `geosite.dat` from `Xray-linux-64.zip` | the release's `.dgst` |
+| Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` from `mita_<v>_linux_amd64.tar.gz` | the release's `.sha256.txt` |
+| Telemt | registry `ghcr.io/samnet-dev/mtproxymax-telemt` | the image by manifest digest | registry digest |
+| NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + branch `caddy2` of `klzgrad/forwardproxy` | Caddy is built on the host (`docker build`, builder image by digest, up to 15 minutes) | the pin of the built binary |
+
+**What a release digest proves and what it does not.** A match against `.dgst`/`.sha256.txt`/the registry digest means the download is intact and identical to what the project's author published. It does not mean this project verified that version on its lab host: the UI marks such versions «из upstream, проектом не проверялась». A release without a published digest is listed but cannot be installed.
+
+The check result is cached in `state.json` (`upstream`); polling more often than once a minute answers from the cache, and an unreachable source keeps the previous list with a `last_error` line. Variables in `version-agent.env`:
+
+- `PROXY_CONTROL_UPSTREAM_CHECK=off` turns the poll off; only the catalog remains;
+- `PROXY_CONTROL_XRAY_ROUTER=on` enables the `xray` component (the Xray-router installer writes `on` itself); `PROXY_CONTROL_XRAY_BIN_DIR` and `PROXY_CONTROL_XRAY_OVERLAY` name the binary directory and `.env.xray-router`;
+- `PROXY_CONTROL_CONSUMER_OVERLAYS=mita=/opt/mtproxy-shared443/.env.mieru:MIERU_MITA_SHA256:mieru-manager` replaces `PROXY_CONTROL_PINNED_CONSUMERS`: a `mita` update no longer refuses because of the `mieru-manager` container; it rewrites the pin in `.env.mieru`, restarts `mita` and the `mita@<n>` slots and recreates the manager. Remove the old variable from the env file when upgrading the agent;
+- the unit's `ReadWritePaths` gained `/usr/local/lib/proxy-control`: reinstall `deploy/version-agent.service` and run `systemctl daemon-reload`.
+
+An `xray` update replaces the three files in the router's directory, rewrites `XRAY_ROUTER_*_SHA256` in `.env.xray-router`, recreates the `xray-router` container and checks `xray version` inside it; any failure restores the files, the overlay and the container. The installer learns the new version from `state.json`: `verify`/`repair` accept either their own pin or the version the agent recorded.
 
 ## Verification after any update
 
