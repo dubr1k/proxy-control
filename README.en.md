@@ -814,6 +814,12 @@ rebuilding Caddy with forwardproxy on the host (builder image by digest, up to
 15 minutes). The operation is available to the `owner` role only and requires
 naming the current version; the installer accepts such an update as its own.
 
+The panel itself updates from the same screen: the «Proxy Control / панель»
+card lists the project's releases, the agent copies the release's files,
+rebuilds and restarts the panel with a rollback copy of the files, the database
+and the image, and the page reloads by itself once the panel answers with the
+new version.
+
 Full protocol and rollback: [docs/UPGRADING.md](docs/UPGRADING.md).
 
 ### If an installation was interrupted
