@@ -413,6 +413,37 @@ class Acceptance:
         self.browser.click("#add")
         return self.browser.wait(f"document.querySelector('{dialog}')?.open === true")
 
+    def open_client_window(self, card: str, timeout: float = 20) -> bool:
+        """The window's close handler awaits a navigate that re-renders the card list; the
+        card the caller clicks can be a detached node an instant later and the delegated
+        click is lost. Retry the click until the window is actually open."""
+        b = self.browser
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            b.click(f"{card} [data-client-action=open]")
+            if b.wait("document.querySelector('#subscription-modal')?.open === true", 2):
+                return True
+        return False
+
+    def poll_matrix_cell(self, card: str, node: str, protocol: str, keyword: str, timeout: float = 30) -> bool:
+        """`#placement-body` is rendered once when the window opens; the cell status can lag
+        behind the just-applied change. Reopen the window (close, then `open_client_window`)
+        between reads instead of waiting on static text that will not settle on its own."""
+        b = self.browser
+        selector = (f"[...document.querySelectorAll('#placement-body td.placement-cell')]"
+                    f".find(td => td.querySelector('input[data-protocol={protocol}][data-node={node}]'))"
+                    f"?.querySelector('small')?.textContent || ''")
+        deadline = time.monotonic() + timeout
+        while True:
+            status = b.js(selector) or ""
+            if keyword in status:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            b.close_dialog("#subscription-modal")
+            self.open_client_window(card)
+            time.sleep(0.5)
+
     def row_action(self, attribute: str, action: str, username: str) -> bool:
         return self.browser.click(f"[{attribute}={json.dumps(action)}][data-user={json.dumps(username)}]")
 
@@ -631,8 +662,7 @@ class Acceptance:
         if b.wait("document.querySelector('#subscription-modal')?.open === true", 10):
             b.close_dialog("#subscription-modal")
         # Grants from the client window: tick three cells on this server, apply, get the bundle.
-        b.click(f"{card} [data-client-action=open]")
-        self.check("clients.window_opens_from_card", b.wait("document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#placement-body input[data-node=local]')", 20))
+        self.check("clients.window_opens_from_card", self.open_client_window(card) and b.wait("!!document.querySelector('#placement-body input[data-node=local]')", 20))
         b.type("#placement-username", grant_user)
         b.js("[...document.querySelectorAll('#placement-body input[data-node=local]')].forEach(i => { i.checked = true; }); true")
         b.click("#placement-actions button[data-placement-action=apply]")
@@ -653,8 +683,7 @@ class Acceptance:
         b.click(f"{chip} [data-client-action=grant-rotate]")
         self.check("clients.grant_rotate_asks", b.confirm() and b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-rotate]')", 30))
         # The subscription: issued with the client, shown again on request, rotated, revoked.
-        b.click(f"{card} [data-client-action=open]")
-        self.check("clients.subscription_window_opens", b.wait("document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#subscription-actions button')", 20))
+        self.check("clients.subscription_window_opens", self.open_client_window(card) and b.wait("!!document.querySelector('#subscription-actions button')", 20))
         configured = "не настроен" not in b.text("#subscription-status")
         self.check("clients.subscription_domain_configured", configured, b.text("#subscription-status")[:120])
         if configured:
@@ -662,20 +691,24 @@ class Acceptance:
                 b.click("[data-subscription-action=create]")
                 b.wait("document.querySelector('#subscription-reveal')?.hidden === false", 20)
                 b.close_dialog("#subscription-modal")
-                b.click(f"{card} [data-client-action=open]")
+                self.open_client_window(card)
                 b.wait("!!document.querySelector('#subscription-actions button')", 20)
-            b.click("[data-subscription-action=show]")
-            self.check("clients.window_show_reveals_url_again", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20), b.text("#subscription-error"))
+            if b.exists("[data-subscription-action=show]"):
+                b.click("[data-subscription-action=show]")
+                self.check("clients.window_show_reveals_url_again", b.wait("document.querySelector('#subscription-reveal')?.hidden === false && (document.querySelector('#subscription-url')?.value || '').startsWith('https://')", 20), b.text("#subscription-error"))
+            else:
+                self.check("clients.window_show_reveals_url_again", False, f"subscription-actions: {b.text('#subscription-actions')!r}")
             first_url = b.value("#subscription-url")
             self.report["facts"]["subscription_host"] = urllib.parse.urlsplit(first_url).hostname
             self.check("clients.subscription_url_serves", self.fetch(first_url) == 200)
-            # Untick one cell: the grant is disabled and leaves the subscription.
+            # Untick one cell: the grant is disabled and leaves the subscription. `#placement-body`
+            # is rendered once at open, so poll by reopening the window until the cell reflects it.
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = false; return true; })()")
             b.click("#placement-actions button[data-placement-action=apply]")
-            self.check("clients.matrix_untick_disables", b.wait("(document.querySelector('#placement-body input[data-node=local][data-protocol=naive]')?.checked === false) && (document.querySelector('#placement-body td.placement-cell:has(input[data-protocol=naive][data-node=local]) small')?.textContent || '').includes('выключен')", 30), b.text("#subscription-error"))
+            self.check("clients.matrix_untick_disables", self.poll_matrix_cell(card, "local", "naive", "выключен", 30), b.text("#subscription-error"))
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = true; return true; })()")
             b.click("#placement-actions button[data-placement-action=apply]")
-            self.check("clients.matrix_tick_enables", b.wait("(document.querySelector('#placement-body td.placement-cell:has(input[data-protocol=naive][data-node=local]) small')?.textContent || '').includes('включён')", 30), b.text("#subscription-error"))
+            self.check("clients.matrix_tick_enables", self.poll_matrix_cell(card, "local", "naive", "включён", 30), b.text("#subscription-error"))
             b.click("[data-subscription-action=rotate]")
             self.check("clients.subscription_rotate_moves_url", b.confirm() and b.wait(f"(document.querySelector('#subscription-url')?.value || '').startsWith('https://') && document.querySelector('#subscription-url').value !== {json.dumps(first_url)}", 20))
             second_url = b.value("#subscription-url")
@@ -1159,8 +1192,7 @@ class Acceptance:
                 b.close_dialog("#subscription-modal")
             client = next(e for e in central.json("/api/clients")["items"] if e["client"]["display_name"] == remote_user)
             ccard = f"[data-client-id={json.dumps(client['client']['id'])}]"
-            b.click(f"{ccard} [data-client-action=open]")
-            self.check("central.matrix_offers_the_node", b.wait(f"document.querySelector('#subscription-modal')?.open === true && !!document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]')", 20))
+            self.check("central.matrix_offers_the_node", self.open_client_window(ccard) and b.wait(f"!!document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]')", 20))
             b.type("#placement-username", remote_user)
             b.js(f"(() => {{ const i = document.querySelector('#placement-body input[data-node={json.dumps(node_id)}][data-protocol=naive]'); i.checked = true; return true; }})()")
             b.click("#placement-actions button[data-placement-action=apply]")
