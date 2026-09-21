@@ -10,6 +10,7 @@ ruff==0.12.8
 # set in `mcp_server/requirements.txt`. These versions sit on the panel's starlette 0.47.3.
 mcp==2.2.0
 mcp-types==2.2.0
+sse-starlette==3.0.3
 httpx2==2.13.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
