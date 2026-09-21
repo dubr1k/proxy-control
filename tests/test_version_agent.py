@@ -330,7 +330,7 @@ def test_xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_
     assert listed["current"] == "26.4.1"
 
 
-def test_xray_update_rolls_back_all_three_members_when_the_router_reports_another_version(tmp_path: Path):
+def test_xray_update_rolls_back_all_three_members_when_the_router_reports_another_version(tmp_path: Path, exdev_between_directories):
     bin_dir, overlay, catalog, payload = _xray_fixture(tmp_path, overlay_text="XRAY_ROUTER_XRAY_SHA256=" + "0" * 64 + "\n")
     state = tmp_path / "state.json"
     state.write_text(json.dumps({"schema": 2, "components": {"xray": {"version": "26.3.27"}}}))
@@ -682,10 +682,28 @@ def test_mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_
     assert commands.index(["systemctl", "restart", "mita"]) < commands.index(up)
 
 
-def test_mita_update_restores_the_consumer_pin_when_the_manager_does_not_come_back(tmp_path: Path):
+@pytest.fixture
+def exdev_between_directories(monkeypatch):
+    """Under the unit's `ProtectSystem=strict` every `ReadWritePaths` entry is its own bind
+    mount: a rename from the state directory into `/usr/…` fails with EXDEV. Simulate it
+    for every rename that crosses directories."""
+    import errno
+    import os as os_module
+    real = os_module.replace
+
+    def replace(src, dst, *args, **kwargs):
+        if Path(src).parent != Path(dst).parent:
+            raise OSError(errno.EXDEV, "Invalid cross-device link", str(src), 0, str(dst))
+        return real(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr("version_agent.service.os.replace", replace)
+
+
+def test_mita_update_restores_the_consumer_pin_when_the_manager_does_not_come_back(tmp_path: Path, exdev_between_directories):
     catalog = tmp_path / "catalog.json"
     write_catalog(catalog)
-    target = tmp_path / "mita"
+    target = tmp_path / "bin" / "mita"
+    target.parent.mkdir()
     target.write_bytes(b"old")
     target.chmod(0o755)
     overlay = tmp_path / ".env.mieru"
@@ -710,7 +728,8 @@ def test_mita_update_restores_the_consumer_pin_when_the_manager_does_not_come_ba
     with pytest.raises(RolledBackError):
         agent.update("mita", "3.35.0", expected_current=None)
 
-    assert target.read_bytes() == b"old"
+    assert target.read_bytes() == b"old" and target.stat().st_mode & 0o777 == 0o755
+    assert not (target.parent / ".mita.proxy-control-restore").exists()
     assert overlay.read_text() == "MIERU_MITA_SHA256=" + "0" * 64 + "\n"
     assert ups == [f"MIERU_MITA_SHA256={BINARY_SHA256}\n", "MIERU_MITA_SHA256=" + "0" * 64 + "\n"]
     assert agent.list_versions()["components"]["mita"]["current"] is None
