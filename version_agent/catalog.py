@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-_COMPONENTS = ("telemt", "naive", "mita", "xray")
+_COMPONENTS = ("telemt", "naive", "mita", "xray", "panel")
 _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _RUNTIME_VERSION = re.compile(r"^[^\r\n]{1,160}$")
@@ -120,6 +120,26 @@ def _build(raw: object) -> dict:
     return {"caddy_version": version, "builder_image": image, "forwardproxy_commit": commit}
 
 
+def _https_artifact(raw: dict, label: str) -> tuple[str, str]:
+    """`url` (HTTPS, no credentials, no query) and a lowercase `sha256` of a downloaded artifact."""
+    url = raw.get("url")
+    digest = raw.get("sha256")
+    parsed = urlsplit(url) if isinstance(url, str) else None
+    if (
+        parsed is None
+        or parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise CatalogError(f"{label} artifact URL must be HTTPS without credentials or query")
+    if type(digest) is not str or not _SHA256.fullmatch(digest):
+        raise CatalogError(f"{label} artifact must have a lowercase SHA-256")
+    return url, digest
+
+
 def _entry(component: str, raw: object) -> CatalogEntry:
     if not isinstance(raw, dict):
         raise CatalogError(f"{component} catalog entry must be an object")
@@ -148,25 +168,16 @@ def _entry(component: str, raw: object) -> CatalogEntry:
         return CatalogEntry(
             component, version, kind, image=image, runtime_version=runtime_version, source=source
         )
-    if kind == "binary":
+    if kind == "release" and component == "panel":
+        # The panel's own release archive (v0.11): the whole tree, synced by the agent.
+        _reject_unknown(raw, {"version", "kind", "url", "sha256", "source"}, "release")
+        url, digest = _https_artifact(raw, "release")
+        return CatalogEntry(component, version, kind, url=url, sha256=digest, source=source)
+    if kind == "binary" and component != "panel":
         _reject_unknown(
             raw, {"version", "kind", "url", "sha256", "runtime_version", "archive", "source"}, "binary"
         )
-        url = raw.get("url")
-        digest = raw.get("sha256")
-        parsed = urlsplit(url) if isinstance(url, str) else None
-        if (
-            parsed is None
-            or parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username
-            or parsed.password
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise CatalogError("binary artifact URL must be HTTPS without credentials or query")
-        if type(digest) is not str or not _SHA256.fullmatch(digest):
-            raise CatalogError("binary artifact must have a lowercase SHA-256")
+        url, digest = _https_artifact(raw, "binary")
         return CatalogEntry(
             component,
             version,
