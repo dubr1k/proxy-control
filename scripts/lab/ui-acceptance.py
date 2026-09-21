@@ -416,13 +416,19 @@ class Acceptance:
     def open_client_window(self, card: str, timeout: float = 20) -> bool:
         """The window's close handler awaits a navigate that re-renders the card list; the
         card the caller clicks can be a detached node an instant later and the delegated
-        click is lost. Retry the click until the window is actually open."""
+        click is lost. The same handler bumps the window's generation a beat after
+        `close()` returns, so an open issued in the same tick has its own load discarded
+        and the window stays on its empty markup — open is not «opened». Retry until the
+        window's own rows are on screen, closing the blank one between attempts."""
         b = self.browser
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             b.click(f"{card} [data-client-action=open]")
-            if b.wait("document.querySelector('#subscription-modal')?.open === true", 2):
+            if (b.wait("document.querySelector('#subscription-modal')?.open === true", 2)
+                    and b.wait("!!document.querySelector('#placement-body input[data-node]')", 5)):
                 return True
+            b.close_dialog("#subscription-modal")
+            time.sleep(0.5)
         return False
 
     def poll_matrix_cell(self, card: str, node: str, protocol: str, keyword: str, timeout: float = 30) -> bool:
