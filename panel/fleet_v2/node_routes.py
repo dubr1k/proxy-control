@@ -35,7 +35,9 @@ APPLY_DEADLINE = 25.0
 # its egress targets in `identity.protocols[*].egress`. `egress.router.v1` (v0.5) joins when
 # the node runs an Xray-router: it applies `xray_router` sections (with their `companion`)
 # and reports the router in `identity.router`.
-CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "unlink", "egress.v1")
+# `versions.check` (v0.11): this node's agent polls upstream on request; a central hides
+# the button for a node without it.
+CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1")
 ROUTER_CAPABILITY = "egress.router.v1"
 # v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
 # and applies the `relay` section, reporting both in `identity.router`.
@@ -85,7 +87,7 @@ class GeodataSettings(BaseModel):
 
 class VersionUpdateRequest(VersionUpdate):
     model_config = ConfigDict(extra="forbid")
-    component: Literal["telemt", "naive", "mita"]
+    component: Literal["telemt", "naive", "mita", "xray"]
 
 
 def _conflict(code: str, detail: str = "") -> JSONResponse:
@@ -394,6 +396,13 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
     async def update_version(body: VersionUpdateRequest, request: Request, key=Depends(context.fleet_key)):
         result = await app.state.versions.update(body.component, body.version, body.expected_current)
         await context.audit(key, "runtime.version.update", body.component, request, {"version": body.version})
+        return result
+
+    @app.post("/api/fleet/v2/versions/check")
+    async def check_versions(request: Request, key=Depends(context.fleet_key)):
+        """v0.11: the central asks this node's agent to poll upstream."""
+        result = await app.state.versions.check()
+        await context.audit(key, "runtime.version.check", "upstream", request, {"checked_at": result.get("checked_at")})
         return result
 
     @app.post("/api/fleet/v2/unlink")

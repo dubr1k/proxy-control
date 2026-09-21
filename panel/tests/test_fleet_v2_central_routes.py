@@ -82,13 +82,20 @@ async def test_node_version_update_is_relayed_to_the_node_and_audited_on_both_si
     done = await http.post(f"/api/nodes/{node_id}/versions/telemt", json={"version": "3.4.25", "expected_current": "3.4.24"})
     assert done.status_code == 200 and done.json() == {"component": "telemt", "version": "3.4.25", "changed": True}
     assert node.state.versions.components["telemt"]["current"] == "3.4.25"
-    unknown = await http.post(f"/api/nodes/{node_id}/versions/xray", json={"version": "1", "expected_current": None})
+    unknown = await http.post(f"/api/nodes/{node_id}/versions/panel", json={"version": "1", "expected_current": None})
     assert unknown.status_code == 422  # the component list is closed
+    # v0.11: the central asks the node to poll upstream, and `xray` is a component now.
+    checked = await http.post(f"/api/nodes/{node_id}/versions/check")
+    assert checked.status_code == 200 and node.state.versions.checks == 1, checked.text
+    assert {"version": "3.37.0", "kind": "binary", "source": "upstream"} in checked.json()["components"]["mita"]["available"]
+    xray = await http.post(f"/api/nodes/{node_id}/versions/xray", json={"version": "26.4.1", "expected_current": None})
+    assert xray.status_code in (200, 502)  # accepted by the Literal; the memory node decides
     with central.state.database.connect() as db:
-        actions = [row["action"] for row in db.execute("SELECT action FROM audit_log WHERE action='node.version.update'")]
-    assert actions == ["node.version.update"]
+        actions = [row["action"] for row in db.execute("SELECT action FROM audit_log WHERE action LIKE 'node.version.%' ORDER BY id")]
+    assert actions == ["node.version.update", "node.version.check"]
     with node.state.database.connect() as db:
         assert db.execute("SELECT count(*) FROM audit_log WHERE action='runtime.version.update'").fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM audit_log WHERE action='runtime.version.check'").fetchone()[0] == 1
     central.state.store.create_admin("second", "correct horse battery staple", "admin")
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=central), base_url="http://testserver") as admin:
         page = await admin.get("/login")

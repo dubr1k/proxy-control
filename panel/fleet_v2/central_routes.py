@@ -206,8 +206,17 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
             # Without a master key a captured credential has nowhere to go (ADR 005).
             raise HTTPException(409, str(exc)) from exc
 
+    # Registered before `/versions/{component}`: the literal path must win the match.
+    @app.post("/api/nodes/{node_id}/versions/check")
+    async def node_version_check(node_id: str, request: Request, user=Depends(owner)):
+        """v0.11: the central asks the node's agent to poll upstream (`versions.check`)."""
+        _linked(node_id)
+        result = await app.state.links.client_for(node_id).check_versions()
+        await context.audit(user, "node.version.check", node_id, request, {"checked_at": result.get("checked_at")})
+        return result
+
     @app.post("/api/nodes/{node_id}/versions/{component}")
-    async def node_version_update(node_id: str, component: Literal["telemt", "naive", "mita"], body: NodeVersionUpdate,
+    async def node_version_update(node_id: str, component: Literal["telemt", "naive", "mita", "xray"], body: NodeVersionUpdate,
                                   request: Request, user=Depends(owner)):
         _linked(node_id)
         result = await app.state.links.client_for(node_id).update_version(component, body.version, body.expected_current)
