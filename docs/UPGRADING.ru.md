@@ -336,6 +336,14 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.9.0-beta.1
 docker compose exec panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 19, как в v0.8
 ```
 
+## Обновление до v0.10: подписка под рукой
+
+Только панель, миграция БД 20 (`subscription-escrow`) применяется при старте. Подписка, выданная до
+v0.10, показать себя не может (у неё нет зашифрованной копии) — кнопки «Показать» у неё не будет,
+ротируйте её из окна клиента. Мастер-ключ панели (`secrets/panel-master-key`) обязателен для
+показа: без него панель ведёт себя как раньше. Откат — образ панели предыдущей версии; колонки
+миграции 20 старому коду не мешают.
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.
