@@ -332,6 +332,11 @@ export function createSubscriptionDialog(context) {
       ui.toast("Ссылка подписки скопирована");
     });
     dialog.addEventListener("close", async () => {
+      // `close` fires one task after dialog.close() returns. If open() already reopened the
+      // dialog in that gap (a script, or a fast click on another card), it has already bumped
+      // the generation and started its own load(); this delayed handler must not wipe that
+      // fresh state out from under it.
+      if (dialog.open) return;
       // Nothing of the URL survives the window; the list behind it shows what changed.
       state.generation += 1;
       state.reveal = null;

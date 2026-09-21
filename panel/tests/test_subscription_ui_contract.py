@@ -38,6 +38,10 @@ def test_the_client_window_shows_the_url_on_request_and_never_keeps_it():
     assert 'name="subscription-format"' in javascript
     # Every grant carries its auto-refresh marks from the compatibility matrix.
     assert "/api/subscriptions/compatibility" in javascript and "data-auto-refresh" in javascript
+    # The delayed `close` (one task after dialog.close()) must not wipe a window that open()
+    # already reopened in that gap — the guard sits right after the listener is registered.
+    close_listener = javascript.index('dialog.addEventListener("close"')
+    assert 'if (dialog.open) return;' in javascript[close_listener : close_listener + 500]
 
 
 def test_the_client_card_opens_the_window_and_main_wires_it():
