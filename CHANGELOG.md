@@ -11,7 +11,7 @@ Clients the 3x-ui way: create one and get its subscription link and QR at once; 
 ### Added
 
 - **A client on several nodes.** «Новый клиент» and the client window show a node × protocol matrix: this server and linked panels as rows, MTProxy/NaiveProxy/Mieru as columns. Ticks go out as one provisioning operation; an untick disables the grant, the cross deletes it ([PANEL](PANEL.ru.md)).
-- **The subscription at once, and again.** A subscription is issued with the client and its URL and QR appear in the «Доступы выданы» dialog; «Показать» in the client window opens it again. The token is stored encrypted under the panel master key and every reveal is audited (`subscription.reveal`). Without a master key the URL is shown once, as before (OPERATIONS, ADR 004).
+- **The subscription at once, and again.** A subscription is issued with the client and its URL and QR appear in the «Доступы выданы» dialog; «Показать» in the client window opens it again. The token is stored encrypted under the panel master key and every reveal is audited (`subscription.reveal`). Without a master key the URL is shown once, as before ([OPERATIONS](docs/OPERATIONS.en.md), ADR 004).
 - `POST /api/clients` takes `subscription` (default `true`) and returns `subscription_reveal_token`; `POST /api/clients/{id}/subscription/reveal`; the subscription overview carries `escrowed`, `secret_store` and each grant's `node_id`.
 
 ### Changed
