@@ -158,10 +158,15 @@ class Drill:
                                 {"grants": [{"protocol": "naive", "node_id": "local", "runtime_username": f"{self.prefix}-cl", "options": {}}]})
         self.check("fixture.grant_issued", started["status"] == "succeeded", json.dumps(started))
         url = None
-        status, body = self.api.request(f"/api/clients/{self.client_id}/subscription")
-        if status == 200 and body.get("configured"):
-            reveal = self.api.json(f"/api/clients/{self.client_id}/subscription", "POST")
-            url = self.api.json(f"/api/reveal/{reveal['reveal_token']}").get("url")
+        # v0.10: the subscription is issued with the client and its reveal token comes back
+        # from the create; a second POST would be refused («already has an active subscription»).
+        token = client.get("subscription_reveal_token")
+        if not token:
+            status, body = self.api.request(f"/api/clients/{self.client_id}/subscription")
+            if status == 200 and body.get("configured"):
+                token = self.api.json(f"/api/clients/{self.client_id}/subscription", "POST")["reveal_token"]
+        if token:
+            url = self.api.json(f"/api/reveal/{token}").get("url")
         self.report["facts"]["subscription_configured"] = bool(url)
         policy = self.api.json("/api/routing/policies/local/naive", "PUT",
                                {"default_action": "direct", "default_egress": None, "fallback": "fail_closed",
