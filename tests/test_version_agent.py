@@ -643,6 +643,7 @@ def test_mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_
     target.chmod(0o755)
     (tmp_path / "compose.yaml").write_text("services: {}\n")
     (tmp_path / ".env").write_text("PANEL_DOMAIN=p.example.com\n")
+    (tmp_path / ".optional.env").write_text("NAIVE_EGRESS_WARP=socks5://127.0.0.1:45000\n")
     (tmp_path / ".env.naive").write_text("NAIVE_PUBLIC_HOST=n.example.com\n")
     overlay = tmp_path / ".env.mieru"
     overlay.write_text(
@@ -676,7 +677,8 @@ def test_mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_
     [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
     assert up[-4:] == ["up", "-d", "--wait", "mieru-manager"]
     env_files = [up[i + 1] for i, part in enumerate(up) if part == "--env-file"]
-    assert env_files == [str(tmp_path / ".env"), str(tmp_path / ".env.naive"), str(overlay)]
+    # `.optional.env` (a host keeps its WARP egress there) rides right after `.env`.
+    assert env_files == [str(tmp_path / ".env"), str(tmp_path / ".optional.env"), str(tmp_path / ".env.naive"), str(overlay)]
     assert "-f" in up and str(tmp_path / "compose.mieru.yaml") in up
     assert "version-overrides" not in " ".join(up)
     assert commands.index(["systemctl", "restart", "mita"]) < commands.index(up)
