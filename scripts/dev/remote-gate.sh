@@ -68,6 +68,11 @@ case $LEVEL in
       && NAIVE_PUBLIC_HOST=naive.example.com XRAY_ROUTER_XRAY_SHA256=8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed XRAY_ROUTER_GEOIP_SHA256=744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354 XRAY_ROUTER_GEOSITE_SHA256=adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9 docker compose -f compose.yaml -f compose.naive.yaml -f compose.xray-router.yaml config -q \
       && docker build -q -f xray_router_manager/Dockerfile -t proxy-control-xray-router:test . >/dev/null \
       && test \"\$(docker run --rm --entrypoint id proxy-control-xray-router:test -u)\" = 10006 \
+      && printf 'ci-mcp-panel-key-0123456789abcdef0123456789abcdef\n' > secrets/mcp-panel-key \
+      && printf 'ci-mcp-token-0123456789abcdef0123456789abcdef\n' > secrets/mcp-token \
+      && MCP_DOMAIN=mcp.example.com MCP_PANEL_HOST=panel.example.com docker compose -f compose.yaml -f compose.mcp.yaml config -q \
+      && docker build -q -f mcp_server/Dockerfile -t proxy-control-mcp:test . >/dev/null \
+      && test \"\$(docker run --rm --entrypoint id proxy-control-mcp:test -u)\" = 10007 \
       && FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key docker compose -f compose.yaml -f compose.agent.yaml config -q \
       && FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key FLEET_CLIENT_CA=/tmp/client-ca.crt docker compose -f compose.yaml -f compose.fleet-central.yaml config -q \
       && docker build -q -f deploy/Dockerfile.agent -t proxy-control-agent:test . >/dev/null \

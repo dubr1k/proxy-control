@@ -728,6 +728,7 @@ class DeployCliTests(unittest.TestCase):
             "compose.xray-router.yaml",
             "compose.agent.yaml",
             "compose.fleet-central.yaml",
+            "compose.mcp.yaml",
         )
         for compose_file in compose_files:
             self.assertEqual(
@@ -769,6 +770,8 @@ class DeployCliTests(unittest.TestCase):
                 "XRAY_ROUTER_XRAY_SHA256": "8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed",
                 "XRAY_ROUTER_GEOIP_SHA256": "744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354",
                 "XRAY_ROUTER_GEOSITE_SHA256": "adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9",
+                "MCP_DOMAIN": "mcp.example.com",
+                "MCP_PANEL_HOST": "panel.example.com",
             }
             (temp / "xray").mkdir()
             command = ["docker", "compose"]
@@ -784,7 +787,7 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(model["name"], "mtproxy")
             self.assertEqual(
                 set(model["services"]),
-                {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "fleet-agent", "fleet-ingress"},
+                {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "fleet-agent", "fleet-ingress", "mcp"},
             )
             expected_container_names = {
                 "mask": "proxy-control-mask",
@@ -795,6 +798,7 @@ class DeployCliTests(unittest.TestCase):
                 "xray-router": "proxy-control-xray-router",
                 "fleet-agent": "proxy-control-fleet-agent",
                 "fleet-ingress": "proxy-control-fleet-ingress",
+                "mcp": "proxy-control-mcp",
             }
             for service, container_name in expected_container_names.items():
                 self.assertEqual(model["services"][service]["container_name"], container_name)
@@ -803,6 +807,12 @@ class DeployCliTests(unittest.TestCase):
             self.assertNotIn("network_mode", agent)
             self.assertIn("mtproxy", agent["depends_on"])
             self.assertFalse(model["volumes"]["panel-data"].get("external", False))
+            mcp = model["services"]["mcp"]
+            self.assertEqual(mcp["environment"]["MCP_ALLOWED_HOSTS"], "mcp.example.com,127.0.0.1:8793")
+            self.assertEqual(mcp["environment"]["MCP_PANEL_HOST"], "panel.example.com")
+            self.assertEqual(mcp["environment"]["MCP_PUBLIC_URL"], "https://mcp.example.com/mcp")
+            self.assertEqual(mcp["ports"][0]["host_ip"], "127.0.0.1")
+            self.assertEqual(mcp["depends_on"]["panel"]["condition"], "service_healthy")
 
     def test_host_fleet_ingress_root_stages_certbot_key_for_panel(self):
         env_file = ROOT / "deploy/fleet-ingress.env.example"
@@ -878,6 +888,40 @@ class DeployCliTests(unittest.TestCase):
         preparer = (ROOT / "scripts/prepare-xray-router-state.sh").read_text()
         self.assertIn("ROUTER_UID=10006", preparer)
         self.assertIn("ROUTER_MODE=0700", preparer)
+
+    # --- the MCP server (v0.11, spec §9a): frozen identifiers ---
+
+    def test_mcp_frozen_identifiers(self):
+        """Service `mcp`, container `proxy-control-mcp`, uid 10007, loopback port 8793, the two
+        secrets and the health check: the installer adapter, the docs and the lab spell them
+        the same, and the image runs unprivileged from a digest-pinned base."""
+        compose = (ROOT / "compose.mcp.yaml").read_text()
+        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertIn("container_name: proxy-control-mcp", compose)
+        self.assertIn('user: "10007:10007"', compose)
+        self.assertIn('"127.0.0.1:8793:8793/tcp"', compose)
+        self.assertIn("read_only: true", compose)
+        self.assertIn("cap_drop: [ALL]", compose)
+        self.assertIn("no-new-privileges:true", compose)
+        self.assertIn("pids_limit: 64", compose)
+        self.assertIn("dockerfile: mcp_server/Dockerfile", compose)
+        self.assertIn("condition: service_healthy", compose)
+        self.assertIn('"python", "-m", "mcp_server.healthcheck"', compose)
+        for secret in ("mcp-panel-key", "mcp-token"):
+            self.assertIn(f"    file: ./secrets/{secret}", compose, secret)
+        for variable in ("MCP_PANEL_HOST", "MCP_ALLOWED_HOSTS", "MCP_PUBLIC_URL", "MCP_PANEL_KEY_FILE", "MCP_TOKEN_FILE"):
+            self.assertIn(f"{variable}:", compose, variable)
+        dockerfile = (ROOT / "mcp_server/Dockerfile").read_text()
+        panel_base = (ROOT / "panel/Dockerfile").read_text().splitlines()[0]
+        self.assertEqual(dockerfile.splitlines()[0], panel_base, "the MCP image pins the same base by digest as the panel")
+        self.assertIn("--uid 10007", dockerfile)
+        self.assertIn("USER 10007:10007", dockerfile)
+        self.assertIn("EXPOSE 8793", dockerfile)
+        self.assertIn("mcp_server.healthcheck", dockerfile)
+        requirements = (ROOT / "mcp_server/requirements.txt").read_text().splitlines()
+        self.assertIn("mcp==2.2.0", requirements)
+        self.assertTrue(all("==" in line for line in requirements if line.strip()), "every dependency is pinned exactly")
+        self.assertNotIn("mcp_server", (ROOT / ".dockerignore").read_text())
 
     def test_no_reference_to_three_xui_paths_in_router(self):
         """The router is its own runtime (spec §15): nothing of it reads or writes 3x-ui's."""
