@@ -4,6 +4,23 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.11.0-beta.1] - 2026-09-21
+
+Component updates without a hand-written catalog: the panel asks the projects themselves what they published and installs it through the same agent, with rollback. Release note: [docs/releases/v0.11.0-beta.1.md](docs/releases/v0.11.0-beta.1.md).
+
+### Added
+
+- **«Проверить обновления»** on the «Версии» screen: the version-agent polls GitHub Releases (Xray-core, mieru, Caddy) and the image registries (ghcr.io, Docker Hub) over a fixed host list, lists versions newer than the installed one marked «upstream» with the release's digest; a release without a published digest is visible but not installable. The `versions.json` catalog stays and wins ([UPGRADING](docs/UPGRADING.md)). `POST /api/versions/check`, audit `runtime.version.check`; for managed nodes `POST /api/nodes/{id}/versions/check`.
+- **The Xray-router updates from the panel**: the `xray` component — three files from `Xray-linux-64.zip` by its `.dgst`, pins in `.env.xray-router`, container recreation, an `xray version` check, rollback. The installer accepts the version the agent installed (`verify`/`repair` read its `state.json`).
+- **NaiveProxy updates by rebuilding Caddy from the panel**: the Caddy builder image by digest, forwardproxy by the `caddy2` branch commit, built on the host, the pin taken from the built binary.
+- The «Клиенты» badge in the navigation shows the total number of clients.
+
+### Changed
+
+- Overview: «Ресурсы сервера» as one full-width row, MTProxy, Mieru and NaiveProxy as three cards under it; the Mieru «Application bytes» tile is gone; on a phone everything is one column without horizontal scroll.
+- A `mita` update no longer refuses because of the `mieru-manager` container: the agent rewrites its pin in `.env.mieru`, restarts `mita` and the slots and recreates the manager (`PROXY_CONTROL_CONSUMER_OVERLAYS` replaces `PROXY_CONTROL_PINNED_CONSUMERS`).
+- Catalog entries may name a file inside an archive (`archive`); the agent's `state.json` is schema 2.
+
 ## [0.10.0-beta.1] - 2026-09-21
 
 Clients the 3x-ui way: create one and get its subscription link and QR at once; open it and see the link again, editing nodes with ticks.

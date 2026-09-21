@@ -352,7 +352,7 @@ v0.10, показать себя не может (у неё нет зашифр�
 
 ```bash
 docker compose exec -T panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 20
-docker exec proxy-control-panel cat /app/VERSION   # 0.10.0-beta.1
+docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 ```
 
 ## Обновление из панели через version-agent
@@ -397,6 +397,28 @@ Panel Compose должен монтировать `/run/proxy-control` и зад
 Агент скачивает не более 256 MiB с HTTPS-host из каталога, проверяет SHA-256, размещает executable с mode `0755`, запускает checker и атомарно заменяет target. Для Caddy дополнительно проверяются Caddyfile и обязательный module checker. Version pin считывается обратно, служба перезапускается, после чего обязателен `systemctl is-active`.
 
 При любой ошибке агент восстанавливает предыдущие binary и pin, проверяет hash восстановленного binary и readback pin, повторяет checker и Caddyfile validation, перезапускает службу и требует успешный `systemctl is-active`. Новая версия записывается в state только после успеха. Если любой restore, config/readback, restart или health gate отката не прошёл, состояние сохраняется и возвращается как `rollback_failed`; не повторяйте update endpoint, пока оператор не восстановит и не проверит полную предыдущую generation.
+
+### Обновления из upstream (v0.11)
+
+Кнопка «Проверить обновления» на экране «Версии» просит агента опросить источники самих проектов. Каталог `versions.json` остаётся и имеет приоритет («каталог» в списке), а рядом появляются версии из upstream («upstream»). Хосты опроса зашиты в агент: `api.github.com`, `github.com`, `objects.githubusercontent.com`, `ghcr.io`, `registry-1.docker.io`, `auth.docker.io`; произвольный URL по-прежнему невозможен ни из браузера, ни из конфигурации.
+
+| Компонент | Источник | Что ставится | Хэш |
+|---|---|---|---|
+| Xray-router (`xray`) | GitHub Releases `XTLS/Xray-core` | `xray`, `geoip.dat`, `geosite.dat` из `Xray-linux-64.zip` | `.dgst` релиза |
+| Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` из `mita_<v>_linux_amd64.tar.gz` | `.sha256.txt` релиза |
+| Telemt | реестр `ghcr.io/samnet-dev/mtproxymax-telemt` | образ по digest манифеста | digest реестра |
+| NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + ветка `caddy2` `klzgrad/forwardproxy` | Caddy собирается на хосте (`docker build`, builder-образ по digest, до 15 минут) | пин собранного бинарника |
+
+**Что подтверждает хэш из релиза и чего не подтверждает.** Совпадение с `.dgst`/`.sha256.txt`/digest'ом реестра означает, что файл скачан без искажений и совпадает с тем, что выложил автор проекта. Оно не означает, что версия проверена этим проектом на стенде: в интерфейсе такие версии помечены «из upstream, проектом не проверялась». Релиз без опубликованного хэша показывается, но не устанавливается.
+
+Результат проверки кэшируется в `state.json` (`upstream`), повторный опрос чаще раза в минуту отдаёт кэш; при недоступном источнике остаётся прежний список и строка `last_error`. Переменные в `version-agent.env`:
+
+- `PROXY_CONTROL_UPSTREAM_CHECK=off` — выключить опрос, остаётся только каталог;
+- `PROXY_CONTROL_XRAY_ROUTER=on` — компонент `xray` (установщик Xray-router пишет `on` сам); `PROXY_CONTROL_XRAY_BIN_DIR`, `PROXY_CONTROL_XRAY_OVERLAY` — каталог бинарников и `.env.xray-router`;
+- `PROXY_CONTROL_CONSUMER_OVERLAYS=mita=/opt/mtproxy-shared443/.env.mieru:MIERU_MITA_SHA256:mieru-manager` заменяет `PROXY_CONTROL_PINNED_CONSUMERS`: обновление `mita` больше не отказывает из-за контейнера `mieru-manager`, а переписывает его пин в `.env.mieru`, перезапускает `mita` и слоты `mita@<n>` и пересоздаёт менеджер; при обновлении агента удалите старую переменную из env-файла;
+- `ReadWritePaths` unit'а дополнен `/usr/local/lib/proxy-control` — переустановите `deploy/version-agent.service` и выполните `systemctl daemon-reload`.
+
+Обновление `xray` заменяет три файла в каталоге роутера, переписывает `XRAY_ROUTER_*_SHA256` в `.env.xray-router`, пересоздаёт контейнер `xray-router` и сверяет `xray version` внутри него; любая ошибка возвращает файлы, overlay и контейнер. Установщик после такого обновления знает о новой версии из `state.json`: `verify`/`repair` принимают либо свой пин, либо версию, записанную агентом.
 
 ## Проверка после обновления
 
