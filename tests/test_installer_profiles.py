@@ -206,6 +206,25 @@ def test_adapters_for_includes_xray_router_after_warp():
     assert "xray_router" not in {adapter.name for adapter in adapters_for(base)}
 
 
+def test_the_mcp_adapter_is_selected_only_with_its_domain_and_sits_before_the_agent():
+    """v0.11 §9a: `domains.mcp` selects the adapter (central panel only) and adds its overlay."""
+    from dataclasses import replace
+
+    from installer.model import DomainConfig
+    from installer.planner import compose_file_list
+
+    base = config_for(profile=Profile.FULL)
+    assert "mcp" not in {adapter.name for adapter in adapters_for(base)}
+    assert "compose.mcp.yaml" not in compose_file_list(base)
+    central = replace(base, domains=replace(base.domains, mcp="mcp.example.com"))
+    names = tuple(adapter.name for adapter in adapters_for(central))
+    assert names == ("packages", "nginx", "firewall", "certificates", "core", "naive", "mieru", "mcp", "version_agent")
+    assert compose_file_list(central) == ("compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.mcp.yaml")
+    core = replace(config_for(), domains=DomainConfig(panel="panel.example.com", mtproxy="relay.example.com", mcp="mcp.example.com"))
+    assert tuple(adapter.name for adapter in adapters_for(core))[-2:] == ("mcp", "version_agent")
+    assert compose_file_list(core) == ("compose.yaml", "compose.mcp.yaml")
+
+
 def test_compose_file_list_with_router():
     from dataclasses import replace
 

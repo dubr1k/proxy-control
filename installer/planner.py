@@ -327,6 +327,9 @@ _PROFILE_ORDER = (
     "naive",
     "mieru",
     "three_xui",
+    # The MCP server (v0.11 §9a) needs the panel it talks to and the overlays it rides
+    # with; it comes after every service and before the agent that records them all.
+    "mcp",
     # The version-agent (v0.11) comes last: its state records what every adapter before
     # it installed, and its env names the overlays the profile runs with.
     "version_agent",
@@ -340,6 +343,7 @@ def adapter_factories() -> dict[str, type]:
     """
     from installer.adapters.core import CoreAdapter
     from installer.adapters.firewall import FirewallAdapter
+    from installer.adapters.mcp import McpAdapter
     from installer.adapters.mieru import MieruAdapter
     from installer.adapters.naive import NaiveAdapter
     from installer.adapters.nginx import CertificatePlan, NginxAdapter
@@ -360,6 +364,7 @@ def adapter_factories() -> dict[str, type]:
         "three_xui": ThreeXuiAdapter,
         "warp": WarpAdapter,
         "xray_router": XrayRouterAdapter,
+        "mcp": McpAdapter,
         "version_agent": VersionAgentAdapter,
     }
 
@@ -399,6 +404,9 @@ def adapters_for(
         selected.append("mieru")
     if config.three_xui.mode.value != "none":
         selected.append("three_xui")
+    # The MCP server (v0.11 §9a) runs only where its name is given: the central panel.
+    if config.domains.mcp is not None:
+        selected.append("mcp")
     # Every profile gets the version-agent: without it the «Версии» screen is empty.
     selected.append("version_agent")
     ordered = [name for name in _PROFILE_ORDER if name in set(selected)]
@@ -417,6 +425,8 @@ def compose_file_list(config: InstallerConfig) -> tuple[str, ...]:
         files.append("compose.mieru.yaml")
     if config.effective_egress.router:
         files.append("compose.xray-router.yaml")
+    if config.domains.mcp is not None:
+        files.append("compose.mcp.yaml")
     return tuple(files)
 
 
