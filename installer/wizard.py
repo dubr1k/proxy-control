@@ -313,6 +313,7 @@ class EditField(StrEnum):
     PANEL = "domains.panel"
     MTPROXY = "domains.mtproxy"
     SUBSCRIPTION = "domains.subscription"
+    MCP = "domains.mcp"
     NAIVE = "domains.naive"
     MIERU = "domains.mieru"
     ACME_EMAIL = "acme_email"
@@ -408,6 +409,10 @@ class TerminalWizard:
             # from the panel's on purpose, so a subscriber never learns where it is.
             "subscription": self.io.validated(
                 text(self.locale, "subscription_domain"), _domain, allow_empty=True
+            ),
+            # Blank keeps the MCP server off (v0.11 §9a); only the central panel needs it.
+            "mcp": self.io.validated(
+                text(self.locale, "mcp_domain"), _domain, allow_empty=True
             ),
         }
         if profile.includes_naive:
@@ -588,6 +593,7 @@ class TerminalWizard:
                 naive=str(values["naive"]) if profile.includes_naive else None,
                 mieru=str(values["mieru"]) if profile.includes_mieru else None,
                 subscription=_optional(values.get("subscription")),
+                mcp=_optional(values.get("mcp")),
             ),
             mieru=(
                 MieruConfig(
@@ -636,6 +642,7 @@ class TerminalWizard:
             EditField.PANEL,
             EditField.MTPROXY,
             EditField.SUBSCRIPTION,
+            EditField.MCP,
             EditField.ACME_EMAIL,
             EditField.INITIAL_USER,
         ]
@@ -677,6 +684,7 @@ class TerminalWizard:
             EditField.PANEL: ("panel", "panel_domain"),
             EditField.MTPROXY: ("mtproxy", "mtproxy_domain"),
             EditField.SUBSCRIPTION: ("subscription", "subscription_domain"),
+            EditField.MCP: ("mcp", "mcp_domain"),
             EditField.NAIVE: ("naive", "naive_domain"),
             EditField.MIERU: ("mieru", "mieru_domain"),
             EditField.XUI_PANEL: ("xui_panel", "xui_panel_domain"),
@@ -686,7 +694,7 @@ class TerminalWizard:
         }
         if field in domains:
             key, message = domains[field]
-            optional = field is EditField.SUBSCRIPTION or (
+            optional = field in {EditField.SUBSCRIPTION, EditField.MCP} or (
                 values["xui_mode"] is ThreeXuiMode.EXISTING
                 and field
                 in {

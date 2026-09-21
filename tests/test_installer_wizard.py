@@ -114,6 +114,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "panel.example.com",
             "relay.example.com",
             "",  # subscription domain: blank keeps subscriptions off
+            "",  # MCP domain: blank keeps MCP off
             "edge.example.com",
             "mieru.example.com",
             "46001",
@@ -147,6 +148,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
         "naive": "edge.example.com",
         "mieru": "mieru.example.com",
         "subscription": None,
+        "mcp": None,
     }
 
 
@@ -165,6 +167,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "panel.example.com",
             "relay.example.com",
             "",  # subscription domain: blank keeps subscriptions off
+            "",  # MCP domain: blank keeps MCP off
             "mieru.example.com",
             "abc",
             "46001",
@@ -228,6 +231,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
+        "",  # MCP domain: blank keeps MCP off
         "edge.example.com",
         "mieru.example.com",
         "46001",
@@ -266,6 +270,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
             "panel.example.com",
             "relay.example.com",
             "",  # subscription domain: blank keeps subscriptions off
+            "",  # MCP domain: blank keeps MCP off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -294,6 +299,7 @@ def test_wizard_writes_the_subscription_domain_when_one_is_given(tmp_path: Path)
             "panel.example.com",
             "relay.example.com",
             "sub.example.com",
+            "",  # MCP domain: blank keeps MCP off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -309,6 +315,39 @@ def test_wizard_writes_the_subscription_domain_when_one_is_given(tmp_path: Path)
     assert 'subscription = "sub.example.com"' in output.read_text()
 
 
+def test_wizard_writes_the_mcp_domain_when_one_is_given(tmp_path: Path):
+    """The MCP prompt (v0.11 §9a) follows the subscription one and says it is for the
+    central panel only; a name lands in the configuration, blank keeps MCP off."""
+    output = tmp_path / "with-mcp.toml"
+    completed, transcript = _run_cli_in_pty(
+        tmp_path,
+        locale="C.UTF-8",
+        answers=[
+            "en",
+            "fresh",
+            "core",
+            "none",
+            "panel.example.com",
+            "relay.example.com",
+            "",  # subscription domain
+            "mcp.example.com",
+            "admin@example.com",
+            "owner",
+            "",  # panel password: blank keeps it generated
+            "yes",
+            "save-config",
+        ],
+        output=output,
+    )
+
+    assert completed.returncode == 0, transcript
+    assert "MCP server domain" in transcript
+    assert "central panel only" in transcript
+    assert transcript.index("Client subscription domain") < transcript.index("MCP server domain")
+    assert load_config(output).domains.mcp == "mcp.example.com"
+    assert 'mcp = "mcp.example.com"' in output.read_text()
+
+
 def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
     """[egress] (v0.4): with WARP on, each proxy service is asked; the answers land in
     the configuration as their own section, and the old keys mirror `warp`."""
@@ -321,6 +360,7 @@ def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain
+        "",  # MCP domain: blank keeps MCP off
         "edge.example.com",
         "mieru.example.com",
         "46001",
@@ -362,6 +402,7 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
             "panel.example.com",
             "relay.example.com",
             "",  # subscription domain: blank keeps subscriptions off
+            "",  # MCP domain: blank keeps MCP off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -396,6 +437,7 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
+        "",  # MCP domain: blank keeps MCP off
         "xui.example.com",
         "",
         "",
@@ -500,6 +542,7 @@ def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_p
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
+        "",  # MCP domain: blank keeps MCP off
         "admin@example.com",
         "owner",
         "correct-horse-battery",
@@ -532,6 +575,7 @@ def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
+        "",  # MCP domain: blank keeps MCP off
         "admin@example.com",
         "owner",
         "",
@@ -559,6 +603,7 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
+        "",  # MCP domain: blank keeps MCP off
         "admin@example.com",
         "owner",
         "first-attempt-password",
@@ -593,6 +638,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
         "panel.example.com",
         "relay.example.com",
         "",  # subscription domain
+        "",  # MCP domain: blank keeps MCP off
         "edge.example.com",
         "mieru.example.com",
         "46001",
@@ -622,7 +668,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
     assert (config.egress.naive.value, config.egress.mieru.value) == ("router", "warp")
 
     # Declined, the v0.4 dialogue follows unchanged and no router key is written.
-    answers_without = answers[:12] + ["no", "yes", "yes"] + answers[16:]
+    answers_without = answers[:13] + ["no", "yes", "yes"] + answers[17:]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers_without) + "\n"), transcript)
     wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
@@ -633,7 +679,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
 
     # A core-only profile has nothing to feed a router: the question is not asked.
     core = tmp_path / "core.toml"
-    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "admin@example.com",
+    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "admin@example.com",
                     "owner", "", "yes", "save"]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers_core) + "\n"), transcript)

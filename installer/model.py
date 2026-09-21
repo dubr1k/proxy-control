@@ -40,6 +40,9 @@ class DomainConfig:
     # The client subscription URL lives on its own name so that a subscriber never
     # learns the panel's; absent means the public `/s/` endpoint stays switched off.
     subscription: str | None = None
+    # The MCP server (v0.11 §9a) rides on its own name too, and only on the central
+    # panel: nodes leave it empty and the MCP container never starts there.
+    mcp: str | None = None
 
 
 # Lane slots (v0.7): extra mita daemons for clients' own lanes, one TCP port each from
@@ -158,6 +161,7 @@ class InstallerConfig:
             self.domains.naive,
             self.domains.mieru,
             self.domains.subscription,
+            self.domains.mcp,
             self.three_xui.panel_domain,
             self.three_xui.vless_tcp_domain,
             self.three_xui.vless_xhttp_domain,

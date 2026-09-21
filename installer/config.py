@@ -131,6 +131,8 @@ def render_config(config: InstallerConfig) -> str:
         lines.append(f"mieru = {_toml_string(config.domains.mieru)}")
     if config.domains.subscription is not None:
         lines.append(f"subscription = {_toml_string(config.domains.subscription)}")
+    if config.domains.mcp is not None:
+        lines.append(f"mcp = {_toml_string(config.domains.mcp)}")
 
     if config.mieru is not None:
         lines.extend(
@@ -195,7 +197,7 @@ def _parse_domains(value: object, profile: Profile) -> DomainConfig:
     if profile.includes_mieru and "mieru" not in raw:
         raise ConfigError(f"domains.mieru is required for profile {profile.value}")
     required = {"panel", "mtproxy"}
-    optional: set[str] = {"subscription"}
+    optional: set[str] = {"subscription", "mcp"}
     if profile.includes_naive:
         required.add("naive")
     if profile.includes_mieru:
@@ -209,6 +211,7 @@ def _parse_domains(value: object, profile: Profile) -> DomainConfig:
         subscription=(
             _domain(raw["subscription"], "domains.subscription") if "subscription" in raw else None
         ),
+        mcp=_domain(raw["mcp"], "domains.mcp") if "mcp" in raw else None,
     )
 
 
@@ -375,6 +378,7 @@ def _reject_duplicate_tcp_sni_domains(config: InstallerConfig) -> None:
         config.domains.mtproxy,
         config.domains.naive,
         config.domains.subscription,
+        config.domains.mcp,
         config.three_xui.panel_domain,
         config.three_xui.vless_tcp_domain,
         config.three_xui.vless_xhttp_domain,

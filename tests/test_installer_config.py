@@ -117,6 +117,22 @@ def test_subscription_domain_is_optional_distinct_and_round_trips():
         parse_config(with_subscription.replace('subscription = "sub.example.com"', 'subscription = "panel.example.com"'))
 
 
+def test_mcp_domain_is_optional_distinct_and_round_trips():
+    """The MCP server (v0.11 §9a) lives on its own eleventh name; blank keeps it off."""
+    with_mcp = CORE_TOML.replace(
+        'mtproxy = "relay.example.com"', 'mtproxy = "relay.example.com"\nmcp = "mcp.example.com"'
+    )
+    config = parse_config(with_mcp)
+    assert config.domains.mcp == "mcp.example.com"
+    assert "mcp.example.com" in config.required_domains()
+    assert parse_config(render_config(config)) == config
+    assert 'mcp = "mcp.example.com"' in render_config(config)
+    assert parse_config(CORE_TOML).domains.mcp is None
+    assert "mcp" not in render_config(parse_config(CORE_TOML))
+    with pytest.raises(ConfigError, match="duplicate TCP SNI domain: panel.example.com"):
+        parse_config(with_mcp.replace('mcp = "mcp.example.com"', 'mcp = "panel.example.com"'))
+
+
 def test_coexist_rejects_ufw_mutation():
     with pytest.raises(ConfigError, match="UFW can be managed only in fresh mode"):
         parse_config(COEXIST_WITH_UFW_TOML)
