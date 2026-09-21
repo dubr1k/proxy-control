@@ -456,3 +456,20 @@ def test_the_verify_tool_runs_as_a_script_from_the_repository_root():
     )
     assert completed.returncode == 0, completed.stderr
     assert "ok" in completed.stdout
+
+
+def test_the_release_carries_the_version_agent_and_its_deploy_files():
+    """The installer (v0.11) installs the version-agent out of the release tree: the
+    agent's package and the unit, tmpfiles, env example and catalog example it copies
+    must travel in the archive, or a real install has nothing to install."""
+    names = set(tracked_files(ROOT))
+    modules = {path.relative_to(ROOT).as_posix() for path in (ROOT / "version_agent").glob("*.py")}
+    assert {"version_agent/server.py", "version_agent/service.py", "version_agent/catalog.py"} <= modules
+    assert modules <= names, sorted(modules - names)
+    assert {
+        "deploy/version-agent.service",
+        "deploy/version-agent.env.example",
+        "deploy/proxy-control-version-agent.tmpfiles.conf",
+        "deploy/version-catalog.example.json",
+        "compose.yaml",
+    } <= names
