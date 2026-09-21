@@ -91,6 +91,16 @@ class MemoryVersions:
                     {"version": "3.36.0", "kind": "binary"},
                 ],
             },
+            # v0.11: the panel itself; the agent reports its `status` (ready | updating |
+            # update_failed | rollback_failed) because the update runs in the background.
+            "panel": {
+                "current": "0.10.0-beta.1",
+                "status": "ready",
+                "available": [
+                    {"version": "0.10.0-beta.1", "kind": "release", "source": "upstream"},
+                    {"version": "0.11.0-beta.1", "kind": "release", "source": "upstream"},
+                ],
+            },
         }
         if router:
             # The agent reports `xray` only on a host that runs the Xray-router.
@@ -147,4 +157,9 @@ class MemoryVersions:
         if expected_current != current:
             raise VersionAgentError("version changed", 409)
         self.components[component]["current"] = version
+        if component == "panel":
+            # The real agent answers before the panel restarts and reports the outcome
+            # through `status`; the memory double finishes at once.
+            self.components[component]["status"] = "ready"
+            return {"component": component, "version": version, "changed": True, "async": True}
         return {"component": component, "version": version, "changed": True}

@@ -198,6 +198,51 @@ async def test_owner_checks_upstream_and_sees_the_candidate(
         assert refused.status_code == 403 and versions.checks == 1
 
 
+@pytest.mark.anyio
+async def test_owner_updates_the_panel_itself_and_the_answer_is_async(
+    tmp_path, telemt, naive, mieru, login_user
+):
+    """`POST /api/versions/panel/update` (v0.11): the agent accepts the panel's own update
+    and answers before the panel restarts; the browser then polls `GET /api/versions`."""
+    from httpx import ASGITransport, AsyncClient
+    from panel.app import Settings, create_app
+
+    versions = MemoryVersions()
+    settings = Settings(
+        database_path=tmp_path / "panel.sqlite3",
+        session_cookie_secure=False,
+        allowed_hosts=("testserver",),
+        naive_public_host="naive.example.com",
+        naive_enabled=True,
+        mieru_enabled=True,
+    )
+    app = create_app(
+        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
+    )
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        await login_user(client)
+        listed = await client.get("/api/versions")
+        panel = listed.json()["components"]["panel"]
+        assert panel["current"] == "0.10.0-beta.1" and panel["status"] == "ready"
+        csrf = client.cookies["panel_csrf"]
+        response = await client.post(
+            "/api/versions/panel/update",
+            json={"version": "0.11.0-beta.1", "expected_current": "0.10.0-beta.1"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"component": "panel", "version": "0.11.0-beta.1", "changed": True, "async": True}
+        assert versions.calls == [("panel", "0.11.0-beta.1", "0.10.0-beta.1")]
+        after = (await client.get("/api/versions")).json()["components"]["panel"]
+        assert after["current"] == "0.11.0-beta.1" and after["status"] == "ready"
+        with app.state.database.connect() as db:
+            actions = [row["action"] for row in db.execute("SELECT action, target FROM audit_log WHERE action = 'runtime.version.update'")]
+        assert actions == ["runtime.version.update"]
+
+
 def test_memory_versions_offer_xray_only_with_a_router():
     assert "xray" not in MemoryVersions().components
     assert MemoryVersions(router=True).components["xray"]["current"] == "26.3.27"
