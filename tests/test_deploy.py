@@ -539,9 +539,13 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("/adopt", javascript)
         self.assertIn("allow_rotation: rotation", javascript)
         self.assertIn("Старая ссылка перестанет работать", javascript)
-        # A compensated operation is reported as itself, never as a success.
-        self.assertIn("compensated:", javascript)
-        self.assertIn("manual_intervention_required:", javascript)
+        # A compensated operation is reported as itself, never as a success. Since v0.10 the
+        # wording is shared with the client window, so it lives in common.js.
+        common = (ROOT / "panel/static/js/common.js").read_text()
+        self.assertIn("export const OPERATION_MESSAGE", common)
+        self.assertIn("compensated:", common)
+        self.assertIn("manual_intervention_required:", common)
+        self.assertIn("OPERATION_MESSAGE[result.status]", javascript)
         self.assertIn("operations-resume", javascript)
         # Since v0.10 a grant is issued from the client window's node × protocol matrix,
         # not from a separate «Выдать доступ» dialog.

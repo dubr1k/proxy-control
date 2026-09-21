@@ -96,6 +96,14 @@ export function serialise(value) {
   }
 }
 
+// How a grant saga ended, in the operator's words. Shared: «Новый клиент» and the client
+// window both start sagas and must say the same thing about the same status.
+export const OPERATION_MESSAGE = {
+  succeeded: "Доступы выданы",
+  compensated: "Операция отменена: созданное удалено, ничего лишнего не тронуто",
+  manual_intervention_required: "Требуется вмешательство: часть изменений не удалось откатить",
+};
+
 export function cssEscape(value) {
   if (globalThis.CSS?.escape) return globalThis.CSS.escape(value);
   return String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&");

@@ -1,4 +1,5 @@
-import { esc, initials, query, queryAll } from "./common.js";
+import { OPERATION_MESSAGE, esc, initials, query, queryAll } from "./common.js";
+import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { isCurrent } from "./state.js";
 
 const CLIENT_STATE = {
@@ -154,15 +155,26 @@ function safeCard(context, entry) {
   }
 }
 
-// One dialog creates the client and, when protocols are ticked, its first grants on the
-// chosen node — the two-step «create, then grant» stays available from the card.
+// One dialog creates the client and, when cells of the node × protocol matrix are ticked,
+// its first grants — the two-step «create, then grant» stays available from the window.
 export async function openClientModal(context) {
   const form = query("#client-form", context.root);
   form.reset();
   query("#client-error", context.root).textContent = "";
   query("#client-username-row", context.root).hidden = true;
+  query("#client-username", context.root).dataset.typed = "";
+  query("#client-placement", context.root).innerHTML = '<p class="form-hint">Читаем узлы…</p>';
   context.ui.openModal("#client-modal", "#client-name");
-  await loadNodeOptions(context, "#client-modal", query("#client-node", context.root));
+  try {
+    const nodes = await context.api("/api/nodes");
+    context.state.nodes = nodes.items || [];
+  } catch (exception) {
+    context.ui.toast(`Список узлов не загружен: ${exception.message}`, "error");
+    context.state.nodes = context.state.nodes || [];
+  }
+  // The operator may have closed the dialog (or reopened it) while the list was in flight.
+  if (!query("#client-modal", context.root).open) return;
+  query("#client-placement", context.root).innerHTML = renderPlacement(placementRows(context.state.nodes, []), { canWrite: true });
 }
 
 // A runtime account name proposed from the display name: Latin letters, digits, `.`, `-`,
@@ -284,21 +296,15 @@ export async function issueOnNode(context, { protocol, username, nodeId, options
   return result;
 }
 
-const OPERATION_MESSAGE = {
-  succeeded: "Доступы выданы",
-  compensated: "Операция отменена: созданное удалено, ничего лишнего не тронуто",
-  manual_intervention_required: "Требуется вмешательство: часть изменений не удалось откатить",
-};
-
 export function bindClients(context) {
   const { api, root, ui } = context;
-  // Ticking a protocol reveals the account name, proposed from the display name until the
-  // operator types their own; unticking every protocol hides it again.
+  // Ticking a cell reveals the account name, proposed from the display name until the
+  // operator types their own; unticking every cell hides it again.
   query("#client-form", root)?.addEventListener("change", (event) => {
-    if (!event.target.matches?.(".grant-protocol input")) return;
+    if (!event.target.matches?.("#client-placement input[type=checkbox]")) return;
     const row = query("#client-username-row", root);
     const input = query("#client-username", root);
-    const any = queryAll("#client-form .grant-protocol input:checked", root).length > 0;
+    const any = readPlacement(query("#client-placement", root)).size > 0;
     row.hidden = !any;
     if (any && !input.dataset.typed) input.value = proposeUsername(query("#client-name", root).value);
   });
@@ -308,41 +314,52 @@ export function bindClients(context) {
   query("#create-client", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#client-form", root);
     const error = query("#client-error", root);
-    const protocols = [...queryAll("#client-form .grant-protocol input:checked", root)].map((box) => box.value);
     const usernameInput = query("#client-username", root);
-    usernameInput.required = protocols.length > 0;
+    const rows = placementRows(context.state.nodes || [], []);
+    const diff = placementDiff(rows, readPlacement(query("#client-placement", root)), usernameInput.value.trim());
+    // A hidden `required` input fails `reportValidity()` silently, so the row is made
+    // visible in the same breath as the flag: both follow the ticks, never diverge.
+    const needsUsername = diff.create.length > 0;
+    query("#client-username-row", root).hidden = !needsUsername;
+    usernameInput.required = needsUsername;
     if (!form.reportValidity()) return;
     error.textContent = "";
     const displayName = query("#client-name", root).value.trim();
-    const nodeId = query("#client-node", root).value || "local";
     let client = null;
+    let subscription = null;
     try {
       ui.setBusy(button, true, "Создаём…");
       client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: displayName }) });
-      if (!protocols.length) {
+      // The subscription is issued with the client; its reveal is consumed once, here.
+      if (client.subscription_reveal_token) {
+        subscription = await api(`/api/reveal/${encodeURIComponent(client.subscription_reveal_token)}`);
+      }
+      if (!diff.create.length) {
         query("#client-modal", root).close();
         ui.toast("Клиент создан");
         await context.navigate("clients");
+        if (subscription) await context.subscriptions.open(client.id, displayName, subscription);
         return;
       }
       ui.setBusy(button, true, "Выдаём доступы…");
       const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
         method: "POST",
-        body: JSON.stringify({
-          grants: protocols.map((protocol) => ({ protocol, node_id: nodeId, runtime_username: usernameInput.value.trim(), options: {} })),
-        }),
+        body: JSON.stringify({ grants: diff.create }),
       });
       query("#client-modal", root).close();
       ui.toast(result.status === "succeeded" ? "Клиент создан, доступы выданы" : OPERATION_MESSAGE[result.status] || result.status, result.status === "succeeded" ? "" : "error");
       if (result.status === "manual_intervention_required") {
         ui.toast(`Операция ${result.operation_id}: продолжить можно командой operations-resume`, "error");
       }
-      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
+      // The bundle carries the subscription on top; when there is no bundle to show, the
+      // client window does — the link must not be lost on the way either way.
+      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id, { subscription });
+      else if (subscription) await context.subscriptions.open(client.id, displayName, subscription);
       await context.navigate("clients");
     } catch (exception) {
       // The client may already exist when the grants are refused: say so, and let the list
       // behind the dialog show the card, so nothing is created twice on a retry.
-      error.textContent = client ? `Клиент «${displayName}» создан, но доступы не выданы: ${exception.message}. Выдайте их с карточки клиента.` : exception.message;
+      error.textContent = client ? `Клиент «${displayName}» создан, но доступы не выданы: ${exception.message}. Выдайте их из окна клиента.` : exception.message;
       if (client) await context.navigate("clients");
     } finally {
       ui.setBusy(button, false);

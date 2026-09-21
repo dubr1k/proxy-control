@@ -1,4 +1,4 @@
-import { esc, query, queryAll } from "./common.js";
+import { OPERATION_MESSAGE, esc, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { proposeUsername } from "./clients.js";
 
@@ -67,12 +67,6 @@ function variantOption(variant, selected) {
       <small>Попадёт: ${esc(variant.carries)}. Не попадёт: ${esc(variant.leaves)}.</small></span>
   </label>`;
 }
-
-const OPERATION_MESSAGE = {
-  succeeded: "Доступы выданы",
-  compensated: "Операция отменена: созданное удалено, ничего лишнего не тронуто",
-  manual_intervention_required: "Требуется вмешательство: часть изменений не удалось откатить",
-};
 
 // The client window: the subscription link on top (shown on request, never kept), the
 // node × protocol matrix below. Both read the same client, so one load feeds both.
