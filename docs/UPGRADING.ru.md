@@ -344,6 +344,17 @@ v0.10, показать себя не может (у неё нет зашифр�
 показа: без него панель ведёт себя как раньше. Откат — образ панели предыдущей версии; колонки
 миграции 20 старому коду не мешают.
 
+На хостах, установленных через инсталлятор, `/app/VERSION` смонтирован из файла `VERSION` в каталоге
+проекта: обновляйте `VERSION` именно в каталоге проекта, а не только в образе, иначе контейнер
+продолжит сообщать предыдущий релиз.
+
+Проверка после обновления:
+
+```bash
+docker compose exec -T panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 20
+docker exec proxy-control-panel cat /app/VERSION   # 0.10.0-beta.1
+```
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.
