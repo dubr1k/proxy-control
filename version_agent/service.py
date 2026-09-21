@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
+import tarfile
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Callable
@@ -45,8 +49,30 @@ class ConflictError(UpdateError):
 Runner = Callable[..., str]
 Downloader = Callable[[str], bytes]
 
-_ALL_COMPONENTS = ("telemt", "naive", "mita", "xray")
-_BASE_COMPONENTS = ("telemt", "naive", "mita")
+_ALL_COMPONENTS = ("telemt", "naive", "mita", "xray", "panel")
+_BASE_COMPONENTS = ("telemt", "naive", "mita", "panel")
+
+# The panel's self-update (v0.11): what of the release tree lands in the project directory.
+# Everything else there (`secrets/`, `.env*`, `version-overrides/`, certificates) is never
+# touched; entries absent from the archive are left as they are.
+PANEL_ARCHIVE_PREFIX = "proxy-control"
+PANEL_SYNC = (
+    "panel", "installer", "scripts", "docker", "mieru_manager", "naive_manager", "xray_router_manager",
+    "release", "docs",
+    "compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml",
+    "compose.agent.yaml", "compose.fleet-central.yaml",
+    "VERSION", "uninstall.sh", "install.sh", "install-bootstrap",
+    "CHANGELOG.md", "CHANGELOG.ru.md", "README.md", "README.en.md", "THIRD_PARTY_NOTICES.md", "LICENSE",
+)
+# Images the agent does not rebuild: a change here is reported as `pending_rebuild`.
+PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "docker")
+PANEL_AGENT_DIR = "version_agent"
+PANEL_DB_FILES = ("panel.sqlite3", "panel.sqlite3-wal", "panel.sqlite3-shm")
+MAX_PANEL_TREE = 512 * 1024 * 1024
+AGENT_RESTART = [
+    "systemd-run", "--on-active=5", "--unit=proxy-control-version-agent-restart",
+    "systemctl", "restart", "version-agent",
+]
 
 
 def _run(command: list[str], *, env=None, cwd=None, timeout=None) -> str:
@@ -189,6 +215,11 @@ class VersionAgent:
         xray_container: str = "proxy-control-xray-router",
         caddy_build_dir: Path = Path("/var/lib/proxy-control/version-agent/caddy-build"),
         caddy_image: str = "proxy-control/caddy-naive:agent",
+        agent_dir: Path = Path("/opt/proxy-control"),
+        panel_image: str = "mtproxy-panel",
+        panel_container: str = "proxy-control-panel",
+        panel_volume: str = "mtproxy_panel-data",
+        synchronous: bool = False,
     ):
         self.catalog_path = catalog_path
         self.state_path = state_path
@@ -214,6 +245,14 @@ class VersionAgent:
         self.xray_container = xray_container
         self.caddy_build_dir = caddy_build_dir
         self.caddy_image = caddy_image
+        self.agent_dir = agent_dir
+        self.panel_image = panel_image
+        self.panel_container = panel_container
+        self.panel_volume = panel_volume
+        # The panel update restarts the panel, which drops the request that asked for it:
+        # it runs in a thread and the request returns first. Tests run it inline.
+        self.synchronous = synchronous
+        self.panel_thread: threading.Thread | None = None
         self.check_all = _check_all
         self.lock_path = state_path.with_suffix(state_path.suffix + ".lock")
 
@@ -242,8 +281,23 @@ class VersionAgent:
         current = state.get("components", {}).get(component, {})
         return current if isinstance(current, dict) else {}
 
+    def _panel_current(self, data: dict) -> str | None:
+        """The panel's version is the `VERSION` file the container mounts, not the state."""
+        if self.compose_dir is not None:
+            try:
+                value = (self.compose_dir / "VERSION").read_text(encoding="utf-8").strip()
+            except OSError:
+                value = ""
+            if value:
+                return value
+        version = data.get("version")
+        return version if isinstance(version, str) else None
+
     def _current_versions(self, state: dict) -> dict[str, str | None]:
-        return {c: self._component_state(state, c).get("version") for c in self._components()}
+        result = {c: self._component_state(state, c).get("version") for c in self._components()}
+        if "panel" in result:
+            result["panel"] = self._panel_current(self._component_state(state, "panel"))
+        return result
 
     @staticmethod
     def _cached_probe(state: dict, component: str) -> dict:
@@ -277,6 +331,11 @@ class VersionAgent:
                     "last_error": probe.get("last_error"),
                 },
             }
+            if component == "panel":
+                components[component]["current"] = self._panel_current(current)
+                for key in ("last_error", "pending_rebuild", "previous_version"):
+                    if key in current:
+                        components[component][key] = current[key]
         return {
             "enabled": True,
             "upstream_enabled": self.upstream_enabled,
@@ -335,6 +394,8 @@ class VersionAgent:
     def update(self, component: str, version: str, expected_current: str | None = None) -> dict:
         if component not in self._components():
             raise CatalogError("unsupported component")
+        if component == "panel":
+            return self._update_panel_async(version, expected_current)
         with self._locked():
             state = self._state()
             entry = self._resolve(component, version, state)
@@ -399,6 +460,305 @@ class VersionAgent:
                 state["components"][component]["build"] = dict(entry.build)
             self._save_state(state)
             return {"component": component, "version": version, "changed": True}
+
+    # ------------------------------------------------------------------
+    # panel (v0.11): the release tree into the project dir, rebuild, verify
+    # ------------------------------------------------------------------
+
+    def _update_panel_async(self, version: str, expected_current: str | None) -> dict:
+        with self._locked():
+            state = self._state()
+            entry = self._resolve("panel", version, state)
+            if entry.kind != "release" or not entry.url or not entry.sha256:
+                raise UpdateError("panel entry must be a release archive with a SHA-256")
+            data = self._component_state(state, "panel")
+            current = self._panel_current(data)
+            if data.get("status") == "updating":
+                raise ConflictError("panel update is already running")
+            if data.get("status") == "rollback_failed":
+                raise RollbackFailedError("panel has an unverified rollback; operator recovery is required")
+            if expected_current is not None and current != expected_current:
+                raise ConflictError("runtime version changed; reload the versions page")
+            if current == version:
+                return {"component": "panel", "version": version, "changed": False}
+            marker = {k: v for k, v in data.items() if k not in ("status", "last_error", "pending_rebuild")}
+            marker.update({"version": current, "status": "updating", "started_at": int(time.time())})
+            state.setdefault("components", {})["panel"] = marker
+            self._save_state(state)
+        if self.synchronous:
+            self._panel_worker(entry, current)
+        else:
+            self.panel_thread = threading.Thread(
+                target=self._panel_worker, args=(entry, current), name="panel-update"
+            )
+            self.panel_thread.start()
+        return {"component": "panel", "version": version, "changed": True, "async": True}
+
+    def _panel_worker(self, entry: CatalogEntry, previous: str | None) -> None:
+        """Runs the update, persists the verdict, and never lets an exception escape the thread."""
+        error: UpdateError | None = None
+        restart_agent = False
+        try:
+            pending, restart_agent = self._update_panel(entry, previous)
+        except UpdateError as exc:
+            error = exc
+        except Exception as exc:  # noqa: BLE001 - the thread must persist whatever happened
+            error = UpdateError(f"panel update failed: {exc}")
+        if error is None:
+            final = {
+                "version": entry.version,
+                "kind": entry.kind,
+                "source": entry.source,
+                "url": entry.url,
+                "sha256": entry.sha256,
+                "updated_at": int(time.time()),
+                "previous_version": previous,
+                "status": "ready",
+                "pending_rebuild": pending,
+            }
+        else:
+            status = {"rolled_back": "ready", "rollback_failed": "rollback_failed"}.get(error.state, "update_failed")
+            final = {
+                "version": previous,
+                "kind": "release",
+                "status": status,
+                "last_error": str(error),
+                "failed_at": int(time.time()),
+            }
+        try:
+            with self._locked():
+                state = self._state()
+                state.setdefault("components", {})["panel"] = final
+                self._save_state(state)
+        except Exception as exc:  # noqa: BLE001
+            print(f"version-agent: panel state could not be persisted: {exc}", file=sys.stderr)
+            if self.synchronous:
+                raise
+        if restart_agent:
+            # The very last step: the agent's own code changed with the release.
+            try:
+                self.runner(AGENT_RESTART, timeout=30)
+            except Exception as exc:  # noqa: BLE001
+                print(f"version-agent: restart could not be scheduled: {exc}", file=sys.stderr)
+        if error is not None and self.synchronous:
+            raise error
+
+    @staticmethod
+    def _preflight_panel_archive(archive: tarfile.TarFile) -> list[tarfile.TarInfo]:
+        """Every member under `proxy-control/`, a regular file or a directory, nothing else."""
+        members = []
+        total = 0
+        for member in archive.getmembers():
+            parts = member.name.split("/")
+            if (
+                member.name.startswith("/")
+                or parts[0] != PANEL_ARCHIVE_PREFIX
+                or any(part in ("", ".", "..") for part in parts)
+            ):
+                raise UpdateError(f"panel archive: refusing member {member.name!r}")
+            if not (member.isreg() or member.isdir()):
+                raise UpdateError(f"panel archive: refusing non-regular member {member.name!r}")
+            total += member.size
+            if total > MAX_PANEL_TREE:
+                raise UpdateError("panel archive: tree is too large")
+            if len(parts) > 1:
+                members.append(member)
+        if not any(m.name == f"{PANEL_ARCHIVE_PREFIX}/VERSION" for m in members):
+            raise UpdateError("panel archive: no VERSION file")
+        return members
+
+    def _extract_panel_archive(self, payload: bytes, staging: Path) -> None:
+        try:
+            with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+                members = self._preflight_panel_archive(archive)
+                staging.mkdir(parents=True)
+                for member in members:
+                    target = staging.joinpath(*member.name.split("/")[1:])
+                    if member.isdir():
+                        target.mkdir(parents=True, exist_ok=True)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    source = archive.extractfile(member)
+                    if source is None:
+                        raise UpdateError(f"panel archive: unreadable member {member.name!r}")
+                    with source, target.open("wb") as handle:
+                        shutil.copyfileobj(source, handle)
+                    os.chmod(target, (member.mode & 0o777) or 0o644)
+        except tarfile.TarError as exc:
+            raise UpdateError(f"panel archive is not a tar.gz: {exc}") from exc
+
+    @staticmethod
+    def _tree_hash(path: Path) -> str | None:
+        """Content hash of a file or a directory tree (`__pycache__` ignored); None when absent."""
+        if not path.exists() or path.is_symlink():
+            return None
+        digest = hashlib.sha256()
+        if path.is_file():
+            digest.update(path.read_bytes())
+            return digest.hexdigest()
+        for root, dirs, files in os.walk(path):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            for name in sorted(files):
+                file = Path(root) / name
+                if file.is_symlink():
+                    continue
+                digest.update(str(file.relative_to(path)).encode())
+                digest.update(b"\0")
+                digest.update(file.read_bytes())
+                digest.update(b"\0")
+        return digest.hexdigest()
+
+    @staticmethod
+    def _remove_entry(path: Path) -> None:
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        elif path.is_dir():
+            shutil.rmtree(path)
+
+    @staticmethod
+    def _copy_entry(source: Path, target: Path) -> None:
+        if source.is_dir():
+            shutil.copytree(source, target, symlinks=False)
+        else:
+            shutil.copy2(source, target)
+
+    def _panel_targets(self) -> dict[str, Path]:
+        """Sync entry → where it lives on the host."""
+        targets = {name: self.compose_dir / name for name in PANEL_SYNC}
+        targets[PANEL_AGENT_DIR] = self.agent_dir / PANEL_AGENT_DIR
+        return targets
+
+    def _panel_container_version(self) -> str:
+        return self.runner(
+            ["docker", "exec", self.panel_container, "cat", "/app/VERSION"], timeout=30
+        ).strip()
+
+    def _panel_volume_dir(self) -> Path:
+        mountpoint = self.runner(
+            ["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", self.panel_volume], timeout=30
+        ).strip()
+        path = Path(mountpoint)
+        if not path.is_absolute() or not path.is_dir():
+            raise UpdateError("panel volume mountpoint is missing")
+        return path
+
+    @staticmethod
+    def _copy_db_file(source: Path, target: Path) -> None:
+        shutil.copy2(source, target)
+        stat = source.stat()
+        try:
+            os.chown(target, stat.st_uid, stat.st_gid)
+        except PermissionError as exc:
+            raise UpdateError("panel database copy could not keep its owner") from exc
+
+    def _update_panel(self, entry: CatalogEntry, previous: str | None) -> tuple[list[str], bool]:
+        """Returns (managers whose sources changed, whether the agent's own code changed)."""
+        if self.compose_dir is None:
+            raise UpdateError("Compose deployment is not configured")
+        payload = self.downloader(entry.url)
+        if sha256_bytes(payload) != entry.sha256:
+            raise UpdateError("panel artifact SHA-256 mismatch")
+        staging = self.state_path.parent / "staging"
+        shutil.rmtree(staging, ignore_errors=True)
+        try:
+            self._extract_panel_archive(payload, staging)
+            return self._sync_and_restart_panel(entry, previous, staging)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def _sync_and_restart_panel(
+        self, entry: CatalogEntry, previous: str | None, staging: Path
+    ) -> tuple[list[str], bool]:
+        targets = self._panel_targets()
+        present = [name for name in targets if (staging / name).exists()]
+        for name in present:
+            if targets[name].is_symlink():
+                raise UpdateError(f"refusing to replace symlink {targets[name]}")
+        before = {name: self._tree_hash(targets[name]) for name in present}
+        after = {name: self._tree_hash(staging / name) for name in present}
+        pending = [name for name in PANEL_MANAGERS if name in present and before[name] != after[name]]
+        agent_changed = PANEL_AGENT_DIR in present and before[PANEL_AGENT_DIR] != after[PANEL_AGENT_DIR]
+        backup_dir = self.state_path.parent / "backups" / "panel.previous"
+        db_backup = self.state_path.parent / "backups" / "panel-db.previous"
+        shutil.rmtree(backup_dir, ignore_errors=True)
+        backup_dir.mkdir(parents=True)
+        synced: list[str] = []
+        db_saved: dict[str, tuple[int, int]] | None = None
+        volume_dir: Path | None = None
+        rollback_tag: str | None = None
+        try:
+            for name in present:
+                target = targets[name]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists():
+                    shutil.move(str(target), str(backup_dir / name))
+                synced.append(name)
+                self._copy_entry(staging / name, target)
+            self._fsync_directory(self.compose_dir)
+            rollback_tag = f"{self.panel_image}:rollback-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}"
+            self.runner(["docker", "tag", f"{self.panel_image}:latest", rollback_tag], timeout=60)
+            self.runner(self._compose_command("build", "panel", **self._override_kwargs()), cwd=self.compose_dir, timeout=900)
+            self.runner(self._compose_command("stop", "panel", **self._override_kwargs()), cwd=self.compose_dir, timeout=180)
+            volume_dir = self._panel_volume_dir()
+            shutil.rmtree(db_backup, ignore_errors=True)
+            db_backup.mkdir(parents=True)
+            db_saved = {}
+            for name in PANEL_DB_FILES:
+                source = volume_dir / name
+                if source.is_file():
+                    self._copy_db_file(source, db_backup / name)
+                    stat = source.stat()
+                    db_saved[name] = (stat.st_uid, stat.st_gid)
+            self._compose_up("panel")
+            running = self._panel_container_version()
+            if running != entry.version:
+                raise UpdateError(f"panel container reports {running or 'nothing'}, expected {entry.version}")
+        except Exception as exc:
+            try:
+                self._restore_panel(targets, synced, backup_dir, db_backup, db_saved, volume_dir, rollback_tag)
+                running = self._panel_container_version()
+                if previous is not None and running != previous:
+                    raise UpdateError(f"restored panel reports {running or 'nothing'}, expected {previous}")
+            except Exception as rollback_exc:
+                raise RollbackFailedError(
+                    f"panel update failed ({exc}); restored generation could not be verified"
+                ) from rollback_exc
+            raise RolledBackError(
+                f"panel update failed ({exc}); previous generation was restored and verified"
+            ) from exc
+        return pending, agent_changed
+
+    def _override_kwargs(self) -> dict:
+        override = self.compose_dir / "version-overrides" / "compose.versions.yaml"
+        return {"include_override": override.exists(), "env_files": True}
+
+    def _restore_panel(
+        self,
+        targets: dict[str, Path],
+        synced: list[str],
+        backup_dir: Path,
+        db_backup: Path,
+        db_saved: dict[str, tuple[int, int]] | None,
+        volume_dir: Path | None,
+        rollback_tag: str | None,
+    ) -> None:
+        for name in synced:
+            self._remove_entry(targets[name])
+            if (backup_dir / name).exists():
+                shutil.move(str(backup_dir / name), str(targets[name]))
+        self._fsync_directory(self.compose_dir)
+        if db_saved is not None and volume_dir is not None:
+            # The new generation may have migrated the database and left a WAL of its own:
+            # the previous files come back and anything else of the set goes.
+            for name in PANEL_DB_FILES:
+                if name in db_saved:
+                    self._copy_db_file(db_backup / name, volume_dir / name)
+                    os.chown(volume_dir / name, *db_saved[name])
+                else:
+                    (volume_dir / name).unlink(missing_ok=True)
+        if rollback_tag is not None:
+            self.runner(["docker", "tag", rollback_tag, f"{self.panel_image}:latest"], timeout=60)
+        self._compose_up("panel")
 
     # ------------------------------------------------------------------
     # xray (the router's pinned bin-dir: xray, geoip.dat, geosite.dat)
@@ -953,4 +1313,8 @@ def agent_from_env() -> VersionAgent:
         caddy_build_dir=Path(
             os.getenv("PROXY_CONTROL_CADDY_BUILD_DIR", "/var/lib/proxy-control/version-agent/caddy-build")
         ),
+        agent_dir=Path(os.getenv("PROXY_CONTROL_AGENT_DIR", "/opt/proxy-control")),
+        panel_image=os.getenv("PROXY_CONTROL_PANEL_IMAGE", "mtproxy-panel"),
+        panel_container=os.getenv("PROXY_CONTROL_PANEL_CONTAINER", "proxy-control-panel"),
+        panel_volume=os.getenv("PROXY_CONTROL_PANEL_VOLUME", "mtproxy_panel-data"),
     )
