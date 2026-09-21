@@ -1083,3 +1083,17 @@ def test_seed_router_refuses_without_the_router_secret(tmp_path):
     with pytest.raises(NaiveError, match="install the router first"):
         applied(instance, action)
 
+
+
+def test_naive_accepts_the_caddy_the_version_agent_built(tmp_path):
+    import json
+
+    state = host(tmp_path, "/var/lib/proxy-control/version-agent/state.json")
+    state.parent.mkdir(parents=True)
+    state.write_text(json.dumps({"schema": 2, "components": {"naive": {"version": "2.12.0", "runtime_version": "v2.12.0 h1:agent="}}}))
+    applied(adapter(tmp_path, FakeNaiveRunner(caddy_version="v2.12.0 h1:agent=")), naive_action())
+
+    state.write_text(json.dumps({"schema": 2, "components": {"naive": {"version": "2.12.0", "runtime_version": "v2.12.0 h1:agent=",
+                                                                        "status": "rollback_failed"}}}))
+    with pytest.raises(NaiveError, match="unpinned Caddy"):
+        applied(adapter(tmp_path, FakeNaiveRunner(caddy_version="v2.12.0 h1:agent=")), naive_action())

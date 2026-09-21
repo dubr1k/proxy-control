@@ -560,3 +560,23 @@ def test_apply_creates_the_agent_env_and_skips_the_restart_of_an_inactive_agent(
     assert agent_env.read_text() == "PROXY_CONTROL_XRAY_ROUTER=on\n"
     assert stat.S_IMODE(agent_env.stat().st_mode) == 0o600
     assert ("systemctl", "restart", "version-agent") not in runner.calls
+
+
+def _agent_state(tmp_path: Path, components: dict) -> None:
+    state = host(tmp_path, "/var/lib/proxy-control/version-agent/state.json")
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(json.dumps({"schema": 2, "components": components}))
+
+
+def test_verify_accepts_the_member_the_version_agent_installed(tmp_path):
+    instance, action = _applied(tmp_path, FakeRunner())
+    updated = host(tmp_path, PATHS.bin_dir) / "xray"
+    updated.write_bytes(b"#!/bin/sh\nexit 1\n")
+    with pytest.raises(ArtifactError, match="does not match its pin: xray"):
+        instance.verify(action)
+    _agent_state(tmp_path, {"xray": {"version": "26.4.1", "members": {"xray": _sha(updated.read_bytes())}}})
+    assert instance.verify(action).success
+    _agent_state(tmp_path, {"xray": {"version": "26.4.1", "status": "rollback_failed",
+                                     "members": {"xray": _sha(updated.read_bytes())}}})
+    with pytest.raises(ArtifactError, match="does not match its pin: xray"):
+        instance.verify(action)

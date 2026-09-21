@@ -26,6 +26,7 @@ from installer.adapters.naive import _identity_from_entry
 from installer.model import MAX_LANE_SLOTS, ROUTER_PORTS, EgressChoice, InstallerConfig, lane_slot_port
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, verify_artifact
+from installer.runtime_state import accepted_sha256
 from installer.transaction import (
     atomic_write,
     durable_mkdir,
@@ -1754,7 +1755,8 @@ class MieruAdapter:
     ) -> None:
         binary = self._host(self.paths.binary)
         if checkpoint["binary_preexisting"] is True:
-            if _file_sha256(binary) != staged.executable_sha256:
+            # The installer's pin, or the mita the version-agent installed after it (v0.11).
+            if _file_sha256(binary) not in accepted_sha256(self.root, "mita", None, staged.executable_sha256):
                 raise ArtifactError(
                     "a pre-existing mita binary does not match the pinned digest"
                 )
