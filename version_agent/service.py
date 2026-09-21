@@ -896,9 +896,13 @@ def agent_from_env() -> VersionAgent:
         return {key: Path(item) for key, item in (part.split("=", 1) for part in value.split(",") if "=" in part)}
 
     compose_files = tuple(filter(None, os.getenv("PROXY_CONTROL_COMPOSE_FILES", "compose.yaml").split(":")))
+    state_path = Path(os.getenv("PROXY_CONTROL_VERSION_STATE", "/var/lib/proxy-control/version-agent/state.json"))
+    # buildx keeps its state under $DOCKER_CONFIG; the unit's ProtectHome leaves /root
+    # read-only, so a build from the agent needs a writable config dir of its own.
+    os.environ.setdefault("DOCKER_CONFIG", str(state_path.parent / "docker"))
     return VersionAgent(
         catalog_path=Path(os.getenv("PROXY_CONTROL_VERSION_CATALOG", "/etc/proxy-control/versions.json")),
-        state_path=Path(os.getenv("PROXY_CONTROL_VERSION_STATE", "/var/lib/proxy-control/version-agent/state.json")),
+        state_path=state_path,
         compose_dir=Path(os.getenv("PROXY_CONTROL_COMPOSE_DIR", "/opt/mtproxy-shared443")),
         compose_files=compose_files,
         binary_paths=paths("PROXY_CONTROL_BINARY_PATHS", "naive=/usr/local/bin/caddy,mita=/usr/bin/mita"),

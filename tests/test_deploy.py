@@ -317,6 +317,9 @@ class DeployCliTests(unittest.TestCase):
             "/etc/proxy-control /opt/mtproxy-shared443 ",
             unit,
         )
+        # v0.11: the Caddy rebuild runs `docker build` under ProtectHome; buildx state
+        # must land in the agent's state directory, not in a read-only /root.
+        self.assertIn("Environment=DOCKER_CONFIG=/var/lib/proxy-control/version-agent/docker", unit)
 
     @unittest.skipUnless(os.geteuid() == 0, "numeric permission behavior requires root")
     def test_naive_log_permissions_allow_caddy_write_and_manager_read_only(self):
