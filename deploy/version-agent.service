@@ -37,7 +37,9 @@ MemoryDenyWriteExecute=true
 # the new build is swapped in; a read-only log directory fails that check (found live).
 # The panel's self-update (v0.11) syncs the agent's own code into /opt/proxy-control and
 # restores the panel database inside the Docker volume on rollback.
-ReadWritePaths=/run/proxy-control /var/lib/proxy-control /etc/proxy-control /opt/mtproxy-shared443 /usr/local/bin /usr/bin /usr/local/lib/proxy-control /var/log/naive-proxy /opt/proxy-control /var/lib/docker/volumes
+# `-` marks a path a host may not have (no router, no NaiveProxy): systemd otherwise refuses
+# to start the unit at all («Failed to set up mount namespacing», seen on a node without the router).
+ReadWritePaths=/run/proxy-control /var/lib/proxy-control /etc/proxy-control /opt/mtproxy-shared443 /usr/local/bin /usr/bin -/usr/local/lib/proxy-control -/var/log/naive-proxy -/opt/proxy-control -/var/lib/docker/volumes
 
 [Install]
 WantedBy=multi-user.target
