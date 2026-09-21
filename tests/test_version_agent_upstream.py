@@ -103,12 +103,13 @@ def test_asset_hosted_outside_the_repository_download_path_is_refused():
 def test_telemt_candidate_is_the_registry_manifest_digest():
     fetch = fetcher_from({
         "https://ghcr.io/token?scope=repository:samnet-dev/mtproxymax-telemt:pull": (200, {}, b'{"token": "t"}'),
-        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/tags/list?n=100": (200, {}, b'{"tags": ["3.4.24", "3.4.25", "latest"]}'),
-        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/manifests/3.4.25": (200, {"Docker-Content-Digest": "sha256:" + "c" * 64}, b"{}"),
+        # The registry tags `<version>-<short commit>`; a bare version tag is accepted too.
+        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/tags/list?n=100": (200, {}, b'{"tags": ["3.4.24", "3.4.25-51e58b5", "latest"]}'),
+        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/manifests/3.4.25-51e58b5": (200, {"Docker-Content-Digest": "sha256:" + "c" * 64}, b"{}"),
     })
     result = check_component("telemt", "3.4.24", fetcher=fetch, router_enabled=False)
     [candidate] = result["candidates"]
-    assert candidate == {"version": "3.4.25", "kind": "image", "source": "upstream", "tag": "3.4.25",
+    assert candidate == {"version": "3.4.25", "kind": "image", "source": "upstream", "tag": "3.4.25-51e58b5",
                          "image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:" + "c" * 64, "published_at": None}
     assert result["latest"] == "3.4.25" and result["installable"] is True
 

@@ -16,13 +16,15 @@ ALLOWED_HOSTS = frozenset(
         "api.github.com",
         "github.com",
         "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
         "ghcr.io",
         "registry-1.docker.io",
         "auth.docker.io",
         "index.docker.io",
     }
 )
-MAX_JSON = 1024 * 1024
+# Ten releases of Caddy come to ~3 MB of JSON (every asset of every platform is listed).
+MAX_JSON = 16 * 1024 * 1024
 MAX_DIGEST_FILE = 4096
 MAX_MANIFEST = 64 * 1024
 MAX_TOKEN = 16 * 1024
@@ -33,7 +35,9 @@ TELEMT_REPOSITORY = "samnet-dev/mtproxymax-telemt"
 _HEX64 = re.compile(r"\b([0-9a-f]{64})\b")
 _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-_IMAGE_TAG = re.compile(r"^\d+(\.\d+){1,3}$")
+# The Telemt registry tags `<version>-<short commit>` (`3.5.2-b6b9a1f`); the version is
+# the numeric part, the digest is looked up by the whole tag.
+_IMAGE_TAG = re.compile(r"^(\d+(?:\.\d+){1,3})(?:-[0-9a-f]{6,12})?$")
 _MANIFEST_ACCEPT = ", ".join(
     (
         "application/vnd.oci.image.index.v1+json",
@@ -292,22 +296,24 @@ def _telemt(fetcher: Fetcher, current: str | None) -> dict:
         headers={"Authorization": f"Bearer {token}"},
     )
     tags = listed.get("tags") if isinstance(listed, dict) else None
-    versions = sorted(
-        (tag for tag in (tags or []) if isinstance(tag, str) and _IMAGE_TAG.fullmatch(tag)),
-        key=lambda value: _parts(value)[0],
-        reverse=True,
-    )
+    by_version: dict[str, str] = {}
+    for tag in tags or []:
+        match = _IMAGE_TAG.fullmatch(tag) if isinstance(tag, str) else None
+        if match:
+            # Two tags of one version (a rebuild) — the registry lists the newer one last.
+            by_version[match.group(1)] = tag
+    versions = sorted(by_version, key=lambda value: _parts(value)[0], reverse=True)
     if not versions:
         return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
     candidates = []
     for version in versions[:5]:
         if current is not None and compare_versions(version, current) <= 0:
             continue
-        digest = _registry_digest(fetcher, "ghcr.io", repository, version, token)
+        digest = _registry_digest(fetcher, "ghcr.io", repository, by_version[version], token)
         candidates.append(
             {
                 "version": version,
-                "tag": version,
+                "tag": by_version[version],
                 "kind": "image",
                 "source": "upstream",
                 "image": f"ghcr.io/{repository}@{digest}",
