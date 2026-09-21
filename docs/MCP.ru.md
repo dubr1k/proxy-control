@@ -1,4 +1,4 @@
-# MCP-сервер (v0.11): панель как инструменты Claude Code и Claude Desktop
+# MCP-сервер (v0.11): панель как инструменты Claude Code, Claude Desktop, Codex и OMP
 
 [English](MCP.en.md) · **Русский**
 
@@ -64,6 +64,40 @@ claude mcp add --transport http proxy-control https://mcp.example.com/mcp \
 **Claude Desktop** — в настройках коннекторов добавьте удалённый сервер с адресом
 `https://mcp.example.com/mcp` и заголовком `Authorization: Bearer <токен>` (или через
 `mcp-remote` в `claude_desktop_config.json`, если версия клиента не умеет заголовки сама).
+
+**Codex CLI** — в `~/.codex/config.toml` (файл с правами `0600`):
+
+```toml
+[mcp_servers.proxy-control]
+url = "https://mcp.example.com/mcp"
+http_headers = { Authorization = "Bearer <содержимое secrets/mcp-token>" }
+startup_timeout_sec = 60
+tool_timeout_sec = 120
+
+# Читающие инструменты — без подтверждения; всё, что меняет состояние, Codex спрашивает.
+[mcp_servers.proxy-control.tools.overview]
+approval_mode = "approve"
+[mcp_servers.proxy-control.tools.get_clients]
+approval_mode = "approve"
+```
+
+Проверка: `codex mcp get proxy-control` показывает `enabled: true`, а `codex exec` с просьбой
+вызвать `overview` отвечает статусом панели.
+
+**OMP (oh-my-pi)** — в `~/.omp/agent/mcp.json` (права `0600`):
+
+```json
+{
+  "mcpServers": {
+    "proxy-control": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "Bearer <содержимое secrets/mcp-token>" },
+      "timeout": 120000
+    }
+  }
+}
+```
 
 Проверка без клиента: `curl -sS https://mcp.example.com/mcp` без токена отвечает `401`;
 с токеном и телом `initialize` — `200`.
