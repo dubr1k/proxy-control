@@ -125,6 +125,15 @@ LE-сертификат для `mcp.panel-tga.unicorndubr1k.org`, nginx-сайт
   (`/root/panel-backup-<ts>`, образ `mtproxy-panel:rollback-radio-<ts>`); тестовый клиент
   `radio-check` заархивирован; скрипт скриншота — `/root/radio-shot.py`.
 
+## ВЫПУЩЕНО 2026-09-22 (по слову владельца)
+
+Тег `v0.11.0-beta.1` на e1c9dd8 (docs-коммит: заметка с полной инструкцией по установке и обновлению,
+CHANGELOG, README, UPGRADING). Архив собран дважды из чистого клона на стенде (`/root/release-check-v11.sh`),
+sha256 `8b42992fe5c7…`, workflow Release 35702763949 — все пять job'ов success, pre-release
+опубликован, опубликованные суммы = стендовые; тело релиза на GitHub — заметка с абсолютными ссылками.
+v0.10.0-beta.1 отдельно не публиковался и вошёл в этот архив. Парк уже на дереве e1923c5 (код тот же,
+отличие тега — только документы).
+
 ## Открытые мелочи
 
 - На AMS_Z проверка `naive` ответила `upstream answered 422 for /repos/klzgrad/forwardproxy/commits/caddy2`
