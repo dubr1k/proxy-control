@@ -159,6 +159,20 @@ updating-components, diagnosing-access, changing-routing. Каждый пров�
 - `restart_required: true` у Mieru на узлах не снялось обновлением mita (демон перезапущен) — флаг
   менеджера, а не демона; разобраться отдельно.
 
+## WARP на парке единообразно (2026-09-22, по слову владельца)
+
+Стандарт — установщика: SOCKS5 `127.0.0.1:40000` (`warp_port`, по умолчанию 40000; так во всей документации).
+Узлы AMS_P/AMS_R/AMS_Z переведены с ручного 45000 на 40000 без простоя (`warp-cli proxy port 40000`,
+на время переключения loopback-NAT 45000→40000, затем `.env*`, privoxy, `server_config.json` mita с
+переписанным `config_hash` в state менеджера, пересозданные менеджеры и роутер, шаблон 3x-ui; резервные
+копии `/root/warp-port-<ts>/`). 3x-ui на AMS_P/AMS_R получил outbound `WARP` и правило доменов как на
+центре (`/root/x-ui.db.bak-<ts>`); на AMS_Z свой список из 20 доменов сохранён. На AMS_P снесены
+`naive-warp-bridge`/`naive-warp-redirect` (копии в `/root/naive-warp-bridge-removed-<ts>`); при этом
+drop-in `caddy-naive.service.d/warp-redirect.conf` с `Requires=` уронил NaiveProxy на ~2 мин 15 с
+(12:10–12:12 UTC) — drop-in убран. Файл `.env.xray-router` больше не в git (`.env.*` в .gitignore),
+пример в ROUTING поправлен на 40000. Открыто: у Mieru на узлах `restart_required: true` — флаг менеджера,
+не снимается перезапуском mita; privoxy на AMS_Z никем не используется.
+
 ## Открытые мелочи
 
 - На AMS_Z проверка `naive` ответила `upstream answered 422 for /repos/klzgrad/forwardproxy/commits/caddy2`
