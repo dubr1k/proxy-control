@@ -142,6 +142,23 @@ updating-components, diagnosing-access, changing-routing. Каждый пров�
 не выполнены); замечания прогонов внесены. В архив релиза не входят (ставятся на машину клиента);
 разделы «Скиллы»/«Skills» в docs/MCP, строка в README, запись в CHANGELOG [Unreleased].
 
+## Обновление компонентов на парке (2026-09-22, по слову владельца «обнови»)
+
+Через панель/MCP по скиллу `proxy-control-updating-components`: telemt 3.5.5→3.5.7 и mita 3.36.0→3.37.0
+на всех хостах, Xray-router 26.3.27→26.9.9 на центре и AMS_Z. Найдено по дороге:
+
+- **Гонка в `mita.service`**: `ExecStartPost` делал одну попытку `mita start`, как только появлялся файл
+  сокета, а RPC ещё не отвечал → unit падал, агент откатывал mita (первая попытка на AMS_Z). Правка
+  c3f29a0: `mita start` повторяется до успеха. Unit раскатан на все четыре хоста (`daemon-reload`, без
+  перезапуска; резервные копии `/root/mita.service.bak-<ts>`), проверен тремя перезапусками на стенде.
+- **Дрейф `.env.xray-router` на узлах**: `XRAY_ROUTER_EGRESS_WARP=socks5://127.0.0.1:40000` (порт центра)
+  вместо `45000` на AMS_Z, AMS_P, AMS_R; контейнер роутера AMS_Z жил со старым env (45000), а обновление
+  Xray пересоздало его из файла — `providers.warp.reachable: false`. Исправлено на всех трёх (резервные
+  копии `/root/env.xray-router.bak-<ts>`), роутер AMS_Z пересоздан, WARP снова reachable. Откуда взялся
+  40000 — не установлено (в снимках v0.9/v0.10 у контейнера было 45000).
+- `restart_required: true` у Mieru на узлах не снялось обновлением mita (демон перезапущен) — флаг
+  менеджера, а не демона; разобраться отдельно.
+
 ## Открытые мелочи
 
 - На AMS_Z проверка `naive` ответила `upstream answered 422 for /repos/klzgrad/forwardproxy/commits/caddy2`
