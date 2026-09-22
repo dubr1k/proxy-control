@@ -79,6 +79,27 @@ def test_the_window_is_reachable_by_viewers_but_only_writers_get_the_buttons():
     assert "renderPlacement(rows, { canWrite" in javascript
 
 
+def test_mtproxy_is_handed_out_as_links_and_a_qr_never_as_a_subscription():
+    """Telegram открывает `tg://proxy` и не опрашивает URL подписки. Поэтому у клиента с
+    одним MTProxy блок подписки не рисуется вовсе, а ссылки показываются по кнопке — по
+    одной на узел, с QR к каждой."""
+    javascript = (ROOT / "static/js/subscriptions.js").read_text()
+    html = (ROOT / "static/index.html").read_text()
+    assert 'id="links-box"' in html and 'id="links-body"' in html and 'id="subscription-box"' in html
+    assert 'id="subscription-unavailable"' in html
+    # Подписка умеет отдавать не всё: MTProxy в этом множестве нет.
+    assert 'const SUBSCRIBABLE = new Set(["naive", "mieru"])' in javascript
+    assert "SUBSCRIBABLE.has(grant.protocol)" in javascript
+    assert 'query("#subscription-box", root).hidden = hide' in javascript
+    # Ссылки берутся одноразовым reveal'ом ровно по mtproxy и проверяются как в окне доступа.
+    assert "/links?protocol=mtproxy" in javascript
+    assert "proxyLink(artifact.value)" in javascript and "qrSource(artifact.qr)" in javascript
+    assert 'data-links-action="show"' in javascript and "state.links = null" in javascript
+    # За окном ссылки не живут — reset() чистит их вместе с URL подписки.
+    reset = javascript[javascript.index("function reset()") : javascript.index("async function open(clientId")]
+    assert "state.links = null" in reset and 'query("#links-body", root).innerHTML = ""' in reset
+
+
 def test_the_audit_screen_names_the_reveal():
     audit = (ROOT / "static/js/audit.js").read_text()
     assert '"subscription.reveal": "Ссылка подписки показана"' in audit

@@ -639,6 +639,37 @@ class ProvisioningService:
             return None
         return None if grant.desired_state == "deleted" else grant
 
+    def _rendered(self, db, grant: AccessGrant, hosts) -> dict:
+        """One grant as an operator may hand it out: its artifacts rebuilt from escrow, with
+        the public hosts of the node the grant lives on. No manager is called."""
+        plaintext = self.secrets.reveal(
+            db,
+            grant.secret_ref,
+            purpose=CREDENTIAL_PURPOSE,
+            grant_id=grant.id,
+            permitted_node_id=grant.node_id,
+        )
+        adapter = self._adapter(grant.protocol)
+        artifacts = adapter.render_artifacts(
+            grant, plaintext, public_host=hosts(grant.node_id).get(grant.protocol, "")
+        )
+        return {
+            "grant_id": grant.id,
+            "protocol": grant.protocol,
+            "node_id": grant.node_id,
+            "runtime_username": grant.runtime_username,
+            "artifacts": [
+                {
+                    "kind": item.kind,
+                    "label": item.label,
+                    "media_type": item.media_type,
+                    "value": item.value,
+                    "auto_refresh": item.auto_refresh,
+                }
+                for item in artifacts
+            ],
+        }
+
     def bundle(self, operation_id: str, *, public_hosts) -> dict:
         """Every artifact of one operation, rendered from escrow — no manager call.
         `public_hosts`: a table per protocol, or a callable giving one per `node_id`."""
@@ -652,31 +683,38 @@ class ProvisioningService:
                 grant = self._live_grant(db, step)
                 if grant is None or grant.secret_ref is None:
                     continue
-                plaintext = self.secrets.reveal(
-                    db,
-                    grant.secret_ref,
-                    purpose=CREDENTIAL_PURPOSE,
-                    grant_id=grant.id,
-                    permitted_node_id=grant.node_id,
-                )
-                adapter = self._adapter(grant.protocol)
-                artifacts = adapter.render_artifacts(
-                    grant, plaintext, public_host=hosts(grant.node_id).get(grant.protocol, "")
-                )
-                grants.append(
-                    {
-                        "protocol": grant.protocol,
-                        "runtime_username": grant.runtime_username,
-                        "artifacts": [
-                            {
-                                "kind": item.kind,
-                                "label": item.label,
-                                "media_type": item.media_type,
-                                "value": item.value,
-                                "auto_refresh": item.auto_refresh,
-                            }
-                            for item in artifacts
-                        ],
-                    }
-                )
+                grants.append(self._rendered(db, grant, hosts))
         return {"operation_id": operation_id, "grants": grants}
+
+    def client_links(
+        self, client_id: str, *, public_hosts, protocol: str | None = None,
+        actor: dict, ip: str, request_id: str | None = None,
+    ) -> dict:
+        """Everything the client can be handed right now, not only what one operation made.
+
+        MTProxy has no subscription to point a client at — Telegram reads a `tg://proxy`
+        link and nothing else — so the links have to be showable long after the grant was
+        issued. A grant whose secret the panel does not hold cannot be rebuilt and is left
+        out; the card offers «Принять» for exactly those.
+
+        `protocol` narrows the answer: a screen that shows only Telegram links asks only for
+        them, so no other credential is decrypted to be dropped on the way to the browser.
+        """
+        hosts = public_hosts if callable(public_hosts) else (lambda _node_id: public_hosts)
+        with self.database.connect() as db:
+            self.clients.store.client(db, client_id)
+            grants = [
+                grant
+                for grant in self.clients.store.grants(db, client_id=client_id)
+                if grant.desired_state != "deleted"
+                and grant.secret_ref is not None
+                and (protocol is None or grant.protocol == protocol)
+            ]
+            rendered = [self._rendered(db, grant, hosts) for grant in grants]
+            # Показ ссылки — выдача живого секрета, как и показ подписки: он попадает в журнал.
+            record(
+                db, actor=actor, action="client.links.reveal", target=client_id, ip=ip,
+                request_id=request_id,
+                detail={"protocol": protocol, "grants": [item["grant_id"] for item in rendered]},
+            )
+            return {"client_id": client_id, "grants": rendered}

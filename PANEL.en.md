@@ -205,6 +205,14 @@ answers **only** on that host: on the panel's own domain `/s/` is a 404, the sam
 an unknown or revoked token, so a subscription reveals nothing about where the panel
 lives. With the variable empty the endpoint is switched off.
 
+Since v0.12 the client window renders the subscription block only when the subscription
+has something to serve: MTProxy never takes part in it — Telegram opens a `tg://proxy`
+link and polls no subscription URL. A client holding MTProxy alone gets a line pointing at
+the links instead, while a subscription issued earlier stays on screen so it can be
+revoked. The links themselves live in the same window's «Ссылки MTProxy» block:
+`POST /api/clients/{id}/links` (owner/admin, optional `protocol`) rebuilds them from the
+panel's escrow, one per node, and hands them over through a one-time reveal with their QR codes.
+
 Formats are chosen with `?format=` or by `Accept`: `raw` (plain text, one link per
 line, no base64), `singbox` (`application/json`, naive + mieru outbounds for Karing;
 `&client=singbox` cuts it to naive only, because an official sing-box ≥ 1.13 refuses a

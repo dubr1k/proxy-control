@@ -1,8 +1,13 @@
 import { OPERATION_MESSAGE, OPERATION_OK, esc, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { proposeUsername } from "./clients.js";
+import { proxyLink, qrSource } from "./access.js";
 
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
+
+// Что подписка действительно умеет отдавать. MTProxy сюда не входит и не может войти:
+// Telegram открывает ссылку `tg://proxy` и никогда не опрашивает URL подписки.
+const SUBSCRIBABLE = new Set(["naive", "mieru"]);
 
 // One link variant per client family (owner decision 2): what each carries and what it
 // leaves out is stated next to it, so nobody hands a Telegram user a sing-box feed.
@@ -83,7 +88,11 @@ export function createSubscriptionDialog(context) {
   const { api, root, ui } = context;
   // `generation` counts the openings: an answer that comes back after the window was
   // reopened for another client belongs to nobody and is dropped.
-  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, format: "singbox", matrix: {}, generation: 0 };
+  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, links: null, format: "singbox", matrix: {}, generation: 0 };
+
+  function liveGrants() {
+    return state.grants.filter((grant) => grant.desired_state !== "deleted");
+  }
 
   function canWrite() {
     return context.state.me?.role !== "viewer" && state.client?.state !== "archived";
@@ -93,6 +102,20 @@ export function createSubscriptionDialog(context) {
     const current = overview.subscription;
     const status = query("#subscription-status", root);
     const actions = query("#subscription-actions", root);
+    // Подписка показывается, только если клиенту есть что по ней отдавать. У клиента с
+    // одним MTProxy её нечем наполнить — вместо блока объяснение и ссылки ниже.
+    // Уже выданная подписка остаётся на экране в любом случае: её нужно уметь отозвать.
+    const serves = liveGrants().filter((grant) => SUBSCRIBABLE.has(grant.protocol));
+    const unavailable = query("#subscription-unavailable", root);
+    const hide = serves.length === 0 && current === null;
+    query("#subscription-box", root).hidden = hide;
+    unavailable.hidden = serves.length > 0;
+    if (!serves.length) {
+      unavailable.textContent = liveGrants().length
+        ? "Подписка этому клиенту не нужна: Telegram её не читает. Раздайте ссылки MTProxy ниже."
+        : "Подписке пока нечего отдавать — у клиента нет доступов.";
+      if (hide) return;
+    }
     if (!overview.configured) {
       status.innerHTML = "<b>Домен подписки не настроен.</b> Задайте <code>domains.subscription</code> в install.toml (переменная <code>PANEL_SUBSCRIPTION_URL</code>) — без него URL выдать нечего.";
       actions.innerHTML = "";
@@ -138,10 +161,39 @@ export function createSubscriptionDialog(context) {
       : "";
   }
 
+  // Одна карточка на узел: где выдан доступ, ссылка, кнопка в Telegram и QR к той же ссылке.
+  function linkCard(entry) {
+    return `<article class="link-card">
+      <h4>${esc(entry.node)}<small>${esc(entry.username)}</small></h4>
+      <span class="copy-field"><input readonly value="${esc(entry.link)}"><button type="button" class="copy" data-copy="${esc(entry.link)}">Копировать</button></span>
+      <img class="link-qr" src="${esc(entry.qr)}" alt="QR-код: ${esc(entry.username)}">
+      <span class="link-card-actions">
+        <a class="primary button" href="${esc(entry.link)}">Открыть в Telegram</a>
+        <a class="secondary button" href="${esc(entry.qr)}" download="mtproxy-${esc(entry.username)}.svg">Скачать QR</a>
+      </span>
+    </article>`;
+  }
+
+  function renderLinks() {
+    const box = query("#links-box", root);
+    const grants = liveGrants().filter((grant) => grant.protocol === "mtproxy");
+    box.hidden = grants.length === 0;
+    if (box.hidden) return;
+    const orphans = grants.filter((grant) => grant.secret_ref === null).length;
+    query("#links-hint", root).textContent = orphans
+      ? `Без сохранённого секрета: ${orphans}. Такую ссылку панель собрать не может — примите доступ в карточке клиента.`
+      : "";
+    query("#links-actions", root).innerHTML = grants.length > orphans
+      ? `<button type="button" class="primary" data-links-action="show">${state.links ? "Показать заново" : "Показать ссылки"}</button>`
+      : "";
+    query("#links-body", root).innerHTML = (state.links || []).map(linkCard).join("");
+  }
+
   function render(overview) {
     query("#subscription-title", root).textContent = `${state.name}${state.client?.state === "archived" ? " · в архиве" : ""}`;
     query("#subscription-variants", root).innerHTML = VARIANTS.map((variant) => variantOption(variant, state.format)).join("");
     renderSubscription(overview);
+    renderLinks();
     renderPlacementBox(overview);
     showReveal();
   }
@@ -186,6 +238,16 @@ export function createSubscriptionDialog(context) {
   function reset() {
     state.reveal = null;
     showReveal();
+    // Ссылки клиента — такой же одноразовый показ: за окном они не живут.
+    state.links = null;
+    query("#links-body", root).innerHTML = "";
+    query("#links-actions", root).innerHTML = "";
+    query("#links-hint", root).textContent = "";
+    query("#links-box", root).hidden = true;
+    // Какие блоки видны, решает render() по составу доступов этого клиента, а не
+    // остатки от предыдущего: до успешной загрузки не показывается ни один.
+    query("#subscription-box", root).hidden = true;
+    query("#subscription-unavailable", root).hidden = true;
     state.client = null;
     state.grants = [];
     state.rows = [];
@@ -237,6 +299,41 @@ export function createSubscriptionDialog(context) {
     } finally {
       ui.setBusy(button, false);
     }
+  }
+
+  // Ссылки MTProxy: панель собирает их из своего хранилища по запросу, поэтому показать их
+  // можно и через неделю после выдачи. Ответ разбирается теми же проверками, что и окно
+  // одиночного доступа, — кривая ссылка не доедет до `href` и до QR.
+  async function showLinks(button) {
+    const error = query("#subscription-error", root);
+    error.textContent = "";
+    const generation = state.generation;
+    try {
+      ui.setBusy(button, true, "Показываем…");
+      const { reveal_token: token } = await api(
+        `/api/clients/${encodeURIComponent(state.clientId)}/links?protocol=mtproxy`, { method: "POST" },
+      );
+      const payload = await api(`/api/reveal/${encodeURIComponent(token)}`);
+      if (generation !== state.generation) return;
+      state.links = (payload.grants || []).map((grant) => {
+        const artifact = (grant.artifacts || []).find((item) => item.kind === "link");
+        if (!artifact) throw new Error("Панель вернула доступ без ссылки");
+        const node = context.state.nodes.find((item) => item.node_id === grant.node_id);
+        return {
+          node: grant.node_id === "local" ? "Этот сервер" : (node?.display_name || grant.node_id),
+          username: grant.runtime_username,
+          link: proxyLink(artifact.value),
+          qr: qrSource(artifact.qr),
+        };
+      });
+    } catch (exception) {
+      if (generation !== state.generation) return;
+      state.links = null;
+      error.textContent = exception.message;
+    } finally {
+      ui.setBusy(button, false);
+    }
+    if (generation === state.generation) renderLinks();
   }
 
   async function act(button) {
@@ -340,6 +437,8 @@ export function createSubscriptionDialog(context) {
     dialog.addEventListener("click", (event) => {
       const subscription = event.target.closest("button[data-subscription-action]");
       if (subscription) return void act(subscription);
+      const links = event.target.closest("button[data-links-action]");
+      if (links) return void showLinks(links);
       const placement = event.target.closest("button[data-placement-action]");
       if (placement) return void apply(placement);
       const remove = event.target.closest("button[data-placement-delete]");

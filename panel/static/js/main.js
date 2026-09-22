@@ -57,12 +57,38 @@ const RENDERERS = {
   audit: renderAudit,
 };
 
+const FALLBACK_VIEW = "dashboard";
+
+// The section lives in the address: `/#clients`. The hash keeps the whole thing inside the
+// browser — the backend still serves index.html on `/` alone, and Nginx needs no catch-all.
+function viewFromHash(hash) {
+  const name = String(hash || "").replace(/^#\/?/, "");
+  return Object.hasOwn(RENDERERS, name) ? name : "";
+}
+
+// A section is open to this operator when its own menu button is on screen: the role and the
+// feature flags already hide the rest, so there is no second table to keep in step with them.
+function allowedView(context, name) {
+  if (!viewFromHash(`#${name}`)) return false;
+  return queryAll(`[data-view="${name}"]`, context.root).some((button) => !button.hidden);
+}
+
+// `replace` is for the entry the panel is already standing on — the first paint, or a
+// fallback from a hash that leads nowhere — so «назад» never walks through it.
+function syncAddress(name, mode) {
+  const target = `#${name}`;
+  if (window.location.hash === target) return;
+  if (mode === "replace") window.history.replaceState(null, "", target);
+  else window.history.pushState(null, "", target);
+}
+
 function createNavigator(context) {
-  return async function navigate(name) {
+  return async function navigate(name, { address = "push" } = {}) {
     const renderer = RENDERERS[name];
     if (!renderer) return;
     const generation = ++context.state.navigationGeneration;
     context.state.view = name;
+    syncAddress(name, address);
     const [title, subtitle] = TITLES[name];
     query("#title", context.root).textContent = title;
     query("#subtitle", context.root).textContent = subtitle;
@@ -139,6 +165,15 @@ function bindPanel(context) {
   const { root, ui } = context;
   queryAll("[data-view]", root).forEach((button) => button.addEventListener("click", () => context.navigate(button.dataset.view)));
   query(".mobile-nav", root)?.addEventListener("scroll", () => markMobileNavEdges(root), { passive: true });
+  // «Назад»/«вперёд» браузера: адрес уже сменился, экран догоняет его.
+  window.addEventListener("hashchange", () => {
+    const name = viewFromHash(window.location.hash);
+    if (!name || !allowedView(context, name)) {
+      syncAddress(context.state.view, "replace");
+      return;
+    }
+    if (name !== context.state.view) void context.navigate(name, { address: "replace" });
+  });
   window.addEventListener("resize", () => markMobileNavEdges(root));
   markMobileNavEdges(root);
   query("#add", root).addEventListener("click", () => {
@@ -239,7 +274,11 @@ async function initialise(context) {
     queryAll('[data-view="mieru"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.mieru !== true; });
     queryAll(".owner-only", context.root).forEach((item) => { item.hidden = context.state.me.role !== "owner"; });
     queryAll(".audit-nav", context.root).forEach((item) => { item.hidden = false; });
-    await context.navigate("dashboard");
+    // Открытый адрес решает, какой экран показать; чужая или закрытая ролью закладка
+    // не оставляет оператора ни с чем — он попадает на «Обзор», адрес выправляется.
+    const requested = viewFromHash(window.location.hash);
+    const start = requested && allowedView(context, requested) ? requested : FALLBACK_VIEW;
+    await context.navigate(start, { address: "replace" });
   } catch (error) {
     context.ui.renderError(error);
   }
