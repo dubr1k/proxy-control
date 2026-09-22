@@ -35,6 +35,9 @@ graphify-out/
 secrets/*
 !secrets/.gitkeep
 .env
+# протокольные overlay установки (.env.naive, .env.mieru, .env.xray-router, .env.mcp) — конфигурация хоста, не репозитория
+.env.*
+!.env.*.example
 *.log
 __pycache__/
 *.py[cod]
