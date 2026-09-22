@@ -19,7 +19,7 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!WARNING]
-> **Текущий выпуск — v0.11.0-beta.1** (обновления компонентов из upstream по кнопке «Проверить обновления»: Xray-router, Mieru, Telemt и пересборка Caddy для NaiveProxy с откатом; обзор одной строкой, счётчик клиентов; [заметка о выпуске](docs/releases/v0.11.0-beta.1.md)). До него: v0.10.0-beta.1 — клиент на нескольких узлах матрицей «узел × протокол», подписка сразу и снова ([CHANGELOG](CHANGELOG.ru.md#0100-beta1---2026-09-21)); [v0.9.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.9.0-beta.1) — панель говорит, что узел уже делает; отказы API словами экрана ([заметка](docs/releases/v0.9.0-beta.1.md)); [v0.8.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.8.0-beta.1) — свои выходы VPN/прокси, таблица правил с быстрыми настройками, обновляемые geodata, автоимпорт пользователей узлов ([заметка](docs/releases/v0.8.0-beta.1.md)); [v0.7.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1) — цепи и полосы ([заметка](docs/releases/v0.7.0-beta.1.md)); [v0.6.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1) — сверка всего обещанного в v0.2–v0.5 (матрица, tier'ы `ui` и `managed-xui`); v0.5 — Xray-router ([заметка](docs/releases/v0.5.0-beta.1.md); отдельно не публиковался, вошёл в v0.6); [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1) — маршрутизация (egress-политики с предпросмотром); [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — связанные панели; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — клиенты, зашифрованные учётные данные и подписки; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — транзакционный установщик, единственный выпуск без prerelease-суффикса, который принимает `install-bootstrap`. Всё это бета: ставьте на новые или изолированные серверы либо только после резервной копии конфигурации и мастер-ключа панели. Что изменилось — [CHANGELOG.ru.md](CHANGELOG.ru.md) (английский [CHANGELOG.md](CHANGELOG.md) — основной, с историей всех выпусков); порядок обновления — [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md).
+> **Текущий выпуск — [v0.11.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.11.0-beta.1)** (обновления компонентов из upstream по кнопке «Проверить обновления»: Xray-router, Mieru, Telemt и пересборка Caddy для NaiveProxy с откатом; панель обновляет сама себя; установщик ставит version-agent; MCP-сервер для Claude Code; обзор одной строкой, счётчик клиентов; [заметка о выпуске](docs/releases/v0.11.0-beta.1.md) с полной инструкцией по установке и обновлению). В него вошёл и v0.10.0-beta.1 — клиент на нескольких узлах матрицей «узел × протокол», подписка сразу и снова ([CHANGELOG](CHANGELOG.ru.md#0100-beta1---2026-09-21)); до них: [v0.9.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.9.0-beta.1) — панель говорит, что узел уже делает; отказы API словами экрана ([заметка](docs/releases/v0.9.0-beta.1.md)); [v0.8.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.8.0-beta.1) — свои выходы VPN/прокси, таблица правил с быстрыми настройками, обновляемые geodata, автоимпорт пользователей узлов ([заметка](docs/releases/v0.8.0-beta.1.md)); [v0.7.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1) — цепи и полосы ([заметка](docs/releases/v0.7.0-beta.1.md)); [v0.6.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1) — сверка всего обещанного в v0.2–v0.5 (матрица, tier'ы `ui` и `managed-xui`); v0.5 — Xray-router ([заметка](docs/releases/v0.5.0-beta.1.md); отдельно не публиковался, вошёл в v0.6); [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1) — маршрутизация (egress-политики с предпросмотром); [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — связанные панели; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — клиенты, зашифрованные учётные данные и подписки; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — транзакционный установщик, единственный выпуск без prerelease-суффикса, который принимает `install-bootstrap`. Всё это бета: ставьте на новые или изолированные серверы либо только после резервной копии конфигурации и мастер-ключа панели. Что изменилось — [CHANGELOG.ru.md](CHANGELOG.ru.md) (английский [CHANGELOG.md](CHANGELOG.md) — основной, с историей всех выпусков); порядок обновления — [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md).
 
 > [!IMPORTANT]
 > Проект рассчитан на людей, которые понимают, что такое DNS, TLS, Nginx и
@@ -254,17 +254,17 @@ prerelease-суффикса и что внутри архива нет путе�
 
 Проект принципиально не предлагает «скачать и сразу выполнить одной командой».
 
-**Бета-выпуски (v0.2.0-beta.1 … v0.7.0-beta.1).** `install-bootstrap` отклоняет
+**Бета-выпуски (v0.2.0-beta.1 … v0.11.0-beta.1).** `install-bootstrap` отклоняет
 версию с prerelease-суффиксом, поэтому бета ставится без него: те же четыре
 файла со страницы релиза, та же сверка `SHA256SUMS`, затем распаковка архива и
 мастер из распакованного каталога — он пишет конфигурацию, показывает план и
 ничего не применяет до подтверждения digest плана. Именно этот путь проходит
 релизный гейт на стенде (`scripts/lab/guest-runner.sh host` ставит бету из
-распакованного архива), и именно так поставлены v0.2, v0.3, v0.4, v0.5, v0.6 и v0.7:
+распакованного архива), и именно так поставлена каждая бета от v0.2 до v0.11:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.7.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.11.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
@@ -279,7 +279,7 @@ digest архива (`lab-sha256` из аннотации тега), при на
 
 ```bash
 scripts/install-release.sh --requirements
-scripts/install-release.sh --version 0.7.0-beta.1 --sha256 <lab-sha256 из заметки о выпуске>
+scripts/install-release.sh --version 0.11.0-beta.1 --sha256 <lab-sha256 из заметки о выпуске>
 ```
 
 Из клона Git установщик не работает: там нет `release/release.json`.

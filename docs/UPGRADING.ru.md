@@ -355,6 +355,21 @@ docker compose exec -T panel python -m panel.cli db-status | python3 -m json.too
 docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 ```
 
+## Обновление до v0.11: обновления из upstream
+
+Относительно v0.10 — без миграций базы (с v0.9 миграция 20 применится при старте панели). Порядок:
+`panel/`, `mieru_manager/`, `mcp_server/`, `version_agent/`, `deploy/`, `compose*.yaml`, `VERSION` из
+архива в каталог проекта; `docker compose … up -d --build --no-deps --wait panel mieru-manager` —
+менеджер Mieru с этого выпуска принимает mita 3.35–3.37; затем код, unit и env агента по разделу
+[«Обновления из upstream (v0.11)»](#обновления-из-upstream-v011) ниже. MCP-сервер на уже стоящей
+установке — по [MCP.ru.md](MCP.ru.md). Пошагово с командами — в
+[заметке о выпуске](releases/v0.11.0-beta.1.md#обновление-с-v09-или-v010). Проверка:
+
+```bash
+docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
+sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
+```
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.
