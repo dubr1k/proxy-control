@@ -4,7 +4,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-## [0.11.0-beta.1] - 2026-09-21
+## [0.11.0-beta.1] - 2026-09-22
 
 Component updates without a hand-written catalog: the panel asks the projects themselves what they published and installs it through the same agent, with rollback. Release note: [docs/releases/v0.11.0-beta.1.md](docs/releases/v0.11.0-beta.1.md).
 
@@ -24,6 +24,15 @@ Component updates without a hand-written catalog: the panel asks the projects th
 - Overview: «Ресурсы сервера» as one full-width row, MTProxy, Mieru and NaiveProxy as three cards under it; the Mieru «Application bytes» tile is gone; on a phone everything is one column without horizontal scroll.
 - A `mita` update no longer refuses because of the `mieru-manager` container: the agent rewrites its pin in `.env.mieru`, restarts `mita` and the slots and recreates the manager (`PROXY_CONTROL_CONSUMER_OVERLAYS` replaces `PROXY_CONTROL_PINNED_CONSUMERS`).
 - Catalog entries may name a file inside an archive (`archive`); the agent's `state.json` is schema 2.
+- The client card gained a «Узлы и доступы» button: the client window opens straight on the node × protocol matrix. The add buttons read «+ Клиент» and «+ Администратор».
+- The Mieru overview card says «TCP»; UDP is not claimed.
+- The «Версии» screen says «Установлена актуальная версия» when nothing newer exists instead of showing an empty list.
+
+### Fixed
+
+- A grant on a linked node: until the node has delivered it, the panel shows the toast «Отправлено узлу: доступ появится после доставки» instead of a raw red `pending_remote`.
+- Client window: the «Вариант ссылки под клиента» radios no longer inherit the text-field size — a normal-sized dot at the left edge with the title and description beside it (the global `input{width:100%;min-height:36px}` rule stretched radios and checkboxes).
+- Secondary buttons («Проверить обновления», «Включить», «Ротировать», «своя полоса»…) got a style of their own — border, radius and height like the rest — instead of the browser default.
 
 ## [0.10.0-beta.1] - 2026-09-21
 

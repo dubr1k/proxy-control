@@ -357,6 +357,21 @@ docker compose exec -T panel python -m panel.cli db-status | python3 -m json.too
 docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 ```
 
+## Upgrading to v0.11: updates from upstream
+
+No database migration relative to v0.10 (from v0.9, migration 20 applies at panel start). The order:
+`panel/`, `mieru_manager/`, `mcp_server/`, `version_agent/`, `deploy/`, `compose*.yaml`, `VERSION` from
+the archive into the project directory; `docker compose … up -d --build --no-deps --wait panel
+mieru-manager` — the Mieru manager now accepts mita 3.35–3.37; then the agent's code, unit and env per
+[«Updates from upstream (v0.11)»](#updates-from-upstream-v011) below. The MCP server on an existing
+install — per [MCP.en.md](MCP.en.md). Step by step with commands — in the
+[release note](releases/v0.11.0-beta.1.md#upgrading-from-v09-or-v010). Check:
+
+```bash
+docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
+sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
+```
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

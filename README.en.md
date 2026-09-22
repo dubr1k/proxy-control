@@ -19,7 +19,7 @@ that either finishes the job or puts the server back the way it was.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!WARNING]
-> **The current release is v0.11.0-beta.1** (component updates from upstream behind «Проверить обновления»: the Xray-router, Mieru, Telemt and a Caddy rebuild for NaiveProxy, with rollback; a one-row overview, a clients counter; [release note](docs/releases/v0.11.0-beta.1.md)). Before it: v0.10.0-beta.1 — a client on several nodes through a node × protocol matrix, the subscription at once and again ([CHANGELOG](CHANGELOG.md#0100-beta1---2026-09-21)); [v0.9.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.9.0-beta.1) — the panel says what the node already does; API refusals in the screen's words ([note](docs/releases/v0.9.0-beta.1.md)); [v0.8.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.8.0-beta.1) — custom VPN/proxy exits, a rule table with quick settings, refreshable geodata, auto-import of node users ([note](docs/releases/v0.8.0-beta.1.md)); [v0.7.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1) — chains and lanes ([note](docs/releases/v0.7.0-beta.1.md)); [v0.6.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1) — the verification of everything promised in v0.2–v0.5 (the matrix, the `ui` and `managed-xui` tiers); v0.5 — the Xray-router ([note](docs/releases/v0.5.0-beta.1.md); never published on its own, shipped inside v0.6); [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1) — routing (egress policies with a preview); [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — linked panels; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All of them are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
+> **The current release is [v0.11.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.11.0-beta.1)** (component updates from upstream behind «Проверить обновления»: the Xray-router, Mieru, Telemt and a Caddy rebuild for NaiveProxy, with rollback; the panel updates itself; the installer sets up the version-agent; an MCP server for Claude Code; a one-row overview, a clients counter; [release note](docs/releases/v0.11.0-beta.1.md) with the full install and upgrade instructions). It also ships v0.10.0-beta.1 — a client on several nodes through a node × protocol matrix, the subscription at once and again ([CHANGELOG](CHANGELOG.md#0100-beta1---2026-09-21)); before them: [v0.9.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.9.0-beta.1) — the panel says what the node already does; API refusals in the screen's words ([note](docs/releases/v0.9.0-beta.1.md)); [v0.8.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.8.0-beta.1) — custom VPN/proxy exits, a rule table with quick settings, refreshable geodata, auto-import of node users ([note](docs/releases/v0.8.0-beta.1.md)); [v0.7.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.7.0-beta.1) — chains and lanes ([note](docs/releases/v0.7.0-beta.1.md)); [v0.6.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.6.0-beta.1) — the verification of everything promised in v0.2–v0.5 (the matrix, the `ui` and `managed-xui` tiers); v0.5 — the Xray-router ([note](docs/releases/v0.5.0-beta.1.md); never published on its own, shipped inside v0.6); [v0.4.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.4.0-beta.1) — routing (egress policies with a preview); [v0.3.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.3.0-beta.1) — linked panels; [v0.2.0-beta.1](https://github.com/dubr1k/proxy-control/releases/tag/v0.2.0-beta.1) — clients, encrypted credentials and subscriptions; [v0.1.0 Beta](https://github.com/dubr1k/proxy-control/releases/tag/v0.1.0) — the transactional installer and the only release without a pre-release suffix, which is what `install-bootstrap` accepts. All of them are betas: use them on new or isolated servers, or only after backing up the configuration and the panel's master key. What changed — [CHANGELOG.md](CHANGELOG.md); the upgrade order — [docs/UPGRADING.md](docs/UPGRADING.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
@@ -254,18 +254,18 @@ suffix, and that no member inside the archive escapes it.
 
 This project deliberately never offers "download and run in one command".
 
-**Beta releases (v0.2.0-beta.1 … v0.7.0-beta.1).** `install-bootstrap` refuses a
+**Beta releases (v0.2.0-beta.1 … v0.11.0-beta.1).** `install-bootstrap` refuses a
 version with a pre-release suffix, so a beta is installed without it: the same
 four files from the release page, the same `SHA256SUMS` check, then extract the
 archive and run the wizard from the extracted directory — it writes the
 configuration, shows the plan and applies nothing until you confirm the plan
 digest. This is the path the release gate takes on the lab host
 (`scripts/lab/guest-runner.sh host` installs the beta from the extracted
-archive), and it is how v0.2, v0.3, v0.4, v0.5, v0.6 and v0.7 were installed:
+archive), and it is how every beta from v0.2 to v0.11 was installed:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.7.0-beta.1.tar.gz
+tar -xzf proxy-control-v0.11.0-beta.1.tar.gz
 cd proxy-control
 sudo python3 -m installer.cli wizard
 ```
@@ -280,7 +280,7 @@ what gets installed, `--check-only` downloads and verifies only:
 
 ```bash
 scripts/install-release.sh --requirements
-scripts/install-release.sh --version 0.7.0-beta.1 --sha256 <lab-sha256 from the release note>
+scripts/install-release.sh --version 0.11.0-beta.1 --sha256 <lab-sha256 from the release note>
 ```
 
 The installer does not run from a Git clone: there is no `release/release.json`.
