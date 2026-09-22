@@ -16,7 +16,10 @@ StateDirectoryMode=0700
 # ExecStartPost would then talk to a socket nothing listens on.
 ExecStartPre=-/bin/rm -f /run/mita/mita.sock
 ExecStart=/usr/bin/mita run
-ExecStartPost=/bin/sh -ec 'for i in $(seq 1 50); do test -S /run/mita/mita.sock && exec /usr/bin/mita start; sleep 0.1; done; exit 1'
+# The socket file appears before the RPC server answers on it: one `mita start` right after
+# `test -S` raced the daemon and failed the unit (seen live on a mita 3.37.0 update, the
+# agent rolled back). `mita start` itself is retried until the daemon takes it.
+ExecStartPost=/bin/sh -c 'for i in $(seq 1 50); do if test -S /run/mita/mita.sock && /usr/bin/mita start; then exit 0; fi; sleep 0.2; done; exit 1'
 Restart=on-failure
 RestartSec=2s
 UMask=0007
