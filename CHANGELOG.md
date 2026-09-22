@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- Skills for the MCP server under `skills/`: granting access, the panel and nodes overview, updating components, diagnosing access, changing routing — the order of moves, subscription variant keys, stop rules; installed on the client's machine ([docs/MCP.en.md](docs/MCP.en.md), «Skills»).
+
 ## [0.11.0-beta.1] - 2026-09-22
 
 Component updates without a hand-written catalog: the panel asks the projects themselves what they published and installs it through the same agent, with rollback. Release note: [docs/releases/v0.11.0-beta.1.md](docs/releases/v0.11.0-beta.1.md).

@@ -133,6 +133,33 @@ fields. Not exposed: `/api/openapi.json`, `/healthz`, `/login`, `/api/auth/*`,
 **Resources:** `proxy-control://overview`, `proxy-control://versions`, `proxy-control://nodes` —
 the same data as JSON text, readable without a tool call.
 
+## Skills
+
+Tools give the model hands; skills give it the order of moves for an operator's routine tasks.
+They live in the repository's [`skills/`](../skills/) directory, one `SKILL.md` per task, and are
+installed on the machine running Claude Code, Codex or OMP — not on the server:
+
+```bash
+# Claude Code
+cp -r skills/proxy-control-* ~/.claude/skills/
+# Codex CLI and other clients reading the shared directory
+cp -r skills/proxy-control-* ~/.agents/skills/
+```
+
+| Skill | Triggers on |
+|---|---|
+| `proxy-control-granting-access` | give a person access, hand out or rotate a subscription link, change a client's nodes and protocols |
+| `proxy-control-morning-overview` | «how are the panel and the nodes», a check before a change, what happened in the last day |
+| `proxy-control-updating-components` | check for and install updates of Telemt, mita, NaiveProxy, the Xray-router, the panel |
+| `proxy-control-diagnosing-access` | «the subscription is there but nothing works», a protocol is missing in the app, traffic stopped |
+| `proxy-control-changing-routing` | blocks, «direct», an exit through WARP or a custom proxy: policy, preview, apply, rollback |
+
+The skills carry what tool descriptions do not: the subscription variant keys and which app needs
+which, that a Cyrillic name without `runtime_username` yields the account `client`, that a grant
+on a linked node waits as `pending_remote`, the order and stop rules for updates, which preview
+reasons mean «this needs the router». Verified on a production panel with «without skill / with
+skill» scenarios; changes go through a pull request with the same run.
+
 ## The `confirm` rule
 
 Actions that cannot be undone require `confirm: true`: any `DELETE`, and `POST`/`PUT` on paths
