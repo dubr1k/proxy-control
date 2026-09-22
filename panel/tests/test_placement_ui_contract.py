@@ -93,6 +93,28 @@ def test_render_marks_cells_and_disables_what_cannot_change():
     assert "data-placement-delete" not in ro and ro.count("disabled") >= 9
 
 
+@pytest.mark.skipif(NODE is None, reason="node is not installed")
+def test_settling_is_true_while_a_node_has_not_confirmed_and_ignores_deleted_grants():
+    """The card polls on this predicate: «ожидает узел» must not stay on screen after the
+    node reported the account, and a grant on its way out is nobody's wait."""
+    verdicts = run("""
+      const deleted = GRANTS.filter((g) => g.desired_state === "deleted").map((g) => ({...g, observed_state: "pending"}));
+      console.log(JSON.stringify({
+        pending: p.settling(GRANTS),
+        converged: p.settling(GRANTS.filter((g) => g.observed_state !== "pending")),
+        onlyDeleted: p.settling(deleted),
+        empty: p.settling([]),
+      }));
+    """)
+    assert verdicts == {"pending": True, "converged": False, "onlyDeleted": False, "empty": False}
+
+
+def test_the_client_card_polls_on_that_predicate_instead_of_rendering_once():
+    javascript = (ROOT / "static/js/subscriptions.js").read_text()
+    assert "settling" in javascript and "SETTLE_DELAYS" in javascript
+    assert "void settle();" in javascript
+
+
 def test_status_words_match_the_card():
     javascript = (ROOT / "static/js/placement.js").read_text()
     for word in ("ожидает узел", "выключен", "без секрета", "ошибка", "панель на паузе"):

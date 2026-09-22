@@ -3,10 +3,13 @@ import asyncio
 import sqlite3
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
 from panel.store import Store
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 pytestmark = pytest.mark.anyio
@@ -31,8 +34,11 @@ async def test_login_uses_opaque_server_side_session_and_security_headers(client
     assert "HttpOnly" in response.headers["set-cookie"]
     identity = await client.get("/api/auth/me")
     assert identity.status_code == 200
+    # `panel_version` travels with the identity so every screen can show which panel is
+    # open; its value is the release's VERSION file, "dev" in a checkout without one.
     assert identity.json() == {
         "username": "owner", "role": "owner", "via": "session",
+        "panel_version": (ROOT / "VERSION").read_text().strip() or "dev",
         "features": {"naive": True, "mieru": True},
     }
     dashboard = await client.get("/api/dashboard")

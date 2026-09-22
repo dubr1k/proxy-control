@@ -277,6 +277,8 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
               <div><dt>Транспорт</dt><dd>Транспорт не используется</dd></div>
               <div><dt>Демон</dt><dd>Telemt не определён · агент не определён</dd></div>
               <div><dt>Команды в очереди</dt><dd>0</dd></div>
+              <div><dt>Панель</dt><dd>0.12.0-beta.1 · GUID e15006b0-a3eb-4745-bff3-ddff1f6a092c</dd></div>
+              <div><dt>Компоненты</dt><dd>Telemt 3.5.7 · Caddy 2.11.4-custom.1 · mita 3.37.0 · Xray 26.9.9</dd></div>
             </dl>
             <div class="node-services">
               <ul>
@@ -306,6 +308,7 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
               <dl class="node-facts">
                 <div><dt>Связь</dt><dd>На связи · 42 мс · heartbeat 12.09.2026, 12:00</dd></div>
                 <div><dt>Панель</dt><dd>0.3.0-beta.1 · GUID 0c2d8f1e-6b0a-4c7e-9a41-2f3d5e6a7b8c</dd></div>
+                <div><dt>Компоненты</dt><dd>Telemt 3.5.7 · Caddy 2.11.4-custom.1 · mita 3.37.0 · Xray 26.9.9</dd></div>
                 <div><dt>Поколение</dt><dd>desired 7 · applied 6 · есть недоставленные изменения</dd></div>
                 <div><dt>Пользователи</dt><dd>центр 12 · локальные 3</dd></div>
                 <div><dt>Трафик</dt><dd>1.2 ГБ</dd></div>

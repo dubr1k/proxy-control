@@ -42,6 +42,8 @@ const DAEMON_STATE = {
 };
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
 const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core" };
+// Те же компоненты одним словом: строка «Компоненты» в обзоре узла должна помещаться.
+const COMPONENT_SHORT = { telemt: "Telemt", naive: "Caddy", mita: "mita", xray: "Xray", panel: "панель" };
 const TABS = [["overview", "Обзор"], ["users", "Пользователи"], ["updates", "Обновления"]];
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -114,7 +116,12 @@ function nodeCard(context, node, expanded) {
     ["Транспорт", `${CONNECTIVITY[node.connectivity_state] || node.connectivity_state}${node.last_seen_at ? ` · ${date(node.last_seen_at)}` : ""}`],
     ["Демон", `${inventory.telemt_version ? `Telemt ${inventory.telemt_version}` : "Telemt не определён"} · ${inventory.agent_version ? `агент ${inventory.agent_version}` : "агент не определён"}`],
     ["Команды в очереди", number(node.pending_commands)],
-    ...(node.kind === "local" ? [routingLine(context, node)] : []),
+    // Своя версия — рядом с версиями узлов, одной меркой: «эта панель такая-то, на узлах такие».
+    ...(node.kind === "local"
+      ? [["Панель", `${context.state.me?.panel_version || "версия не определена"} · GUID ${node.identity?.guid || node.node_id}`],
+         componentsLine(context.state.versions),
+         routingLine(context, node)]
+      : []),
   ];
   const certificates = node.certificates?.length
     ? `<ul class="node-certificates">${node.certificates.map(certificateLine).join("")}</ul>`
@@ -178,6 +185,17 @@ function generationNote(link) {
   return applied ? " · применено, ожидает учётные данные" : " · есть недоставленные изменения";
 }
 
+// Что где стоит — прямо в обзоре узла, а не только во вкладке «Обновления»: версии берутся
+// из его же отчёта, панель ничего дополнительно не спрашивает. Своя версия панели узла —
+// отдельной строкой выше, здесь только runtime-компоненты.
+function componentsLine(versions) {
+  if (!versions || versions.enabled !== true) return ["Компоненты", "узел не сообщил версии"];
+  const parts = Object.entries(versions.components || {})
+    .filter(([component]) => component !== "panel")
+    .map(([component, item]) => `${COMPONENT_SHORT[component] || component} ${item?.current || "—"}`);
+  return ["Компоненты", parts.length ? parts.join(" · ") : "каталог версий узла пуст"];
+}
+
 function overviewTab(context, node) {
   const link = node.link;
   const [, status] = LINK_STATUS[link.status] || ["muted", link.status];
@@ -186,6 +204,7 @@ function overviewTab(context, node) {
   const summary = [
     ["Связь", `${status}${latency} · ${heartbeat}`],
     ["Панель", `${link.panel_version || link.identity?.panel_version || "версия не определена"} · GUID ${node.node_id}`],
+    componentsLine(link.status_json?.versions),
     ["Поколение", `desired ${number(link.desired_generation)} · applied ${number(link.acknowledged_generation)}${generationNote(link)}`],
     ["Пользователи", `${usersSummary(link)} · ${link.auto_import === false ? "импорт вручную" : "подхватываются автоматически"}`],
     ["Трафик", trafficTotal(link)],
@@ -296,13 +315,16 @@ async function loadInventories(context) {
 }
 
 export async function renderNodes(context, generation) {
-  const [data, transport, routing] = await Promise.all([
+  const [data, transport, routing, versions] = await Promise.all([
     context.api("/api/nodes"),
     context.api("/api/fleet/nodes"),
     // The routing line is a courtesy: a panel whose routing targets cannot be read still lists its nodes.
     context.api("/api/routing/targets").catch(() => ({ items: [] })),
+    // Свои версии — такая же любезность: без version-agent строка скажет, что версий нет.
+    context.api("/api/versions").catch(() => ({ enabled: false, components: {} })),
   ]);
   if (!isCurrent(context.state, generation, "fleet")) return;
+  context.state.versions = versions || { enabled: false, components: {} };
   context.state.nodes = data.items || [];
   context.state.fleet = transport.items || [];
   context.state.routingTargets = routing.items || [];

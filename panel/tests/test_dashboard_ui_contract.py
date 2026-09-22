@@ -28,6 +28,20 @@ def test_overview_has_phone_breakpoints():
     assert "@media(max-width:560px){.host-metrics,.host-row .host-metrics{grid-template-columns:1fr}" in CSS
 
 
+def test_panel_version_is_on_screen_for_every_role_and_on_a_phone():
+    """v0.13 (owner, 2026-09-22): which panel is open must be visible in the UI. The sidebar
+    is hidden on a phone, so the overview's own row carries it too — and it is read from
+    `/api/auth/me`, not from the owner-only «Версии» screen."""
+    index = (STATIC / "index.html").read_text()
+    main = (STATIC / "js/main.js").read_text()
+    nodes = (STATIC / "js/nodes.js").read_text()
+    assert 'id="profile-menu-version"' in index
+    assert "panel_version" in main and "#profile-menu-version" in main
+    assert "state.me?.panel_version" in DASHBOARD
+    # And the same measure for the nodes: each node's own components, from its report.
+    assert "function componentsLine(versions)" in nodes and "Компоненты" in nodes
+
+
 def test_clients_badge_is_painted_from_the_clients_list():
     common = (STATIC / "js/common.js").read_text()
     clients = (STATIC / "js/clients.js").read_text()
