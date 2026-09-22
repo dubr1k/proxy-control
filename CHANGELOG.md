@@ -20,9 +20,18 @@ understands — a link and a QR code. Release note: [docs/releases/v0.12.0-beta.
   Telegram» button and a QR download. The reveal is one-time and nothing survives the window.
   `POST /api/clients/{id}/links` (owner/admin, optional `protocol`) answers with a one-time reveal token.
 - Skills for the MCP server under `skills/`: granting access, the panel and nodes overview, updating components, diagnosing access, changing routing — the order of moves, subscription variant keys, stop rules; installed on the client's machine ([docs/MCP.en.md](docs/MCP.en.md), «Skills»).
+- **The running panel's version is on screen**: `GET /api/auth/me` carries `panel_version`, the
+  profile menu shows it in the sidebar and the overview's «Proxy Control» row shows it where the
+  sidebar is hidden (a phone). A node card gained a «Компоненты» line — the Telemt, Caddy, mita and
+  Xray versions from the node's own report; the local card shows this panel's version and components.
 
 ### Fixed
 
+- **The client window waits for the node instead of showing a stale «ожидает узел».** The node ×
+  protocol matrix was rendered once per opening, so a grant on a linked panel kept that label after
+  the node had confirmed the account and only settled when the operator reopened the window. The
+  window now re-reads the client while any cell is unconfirmed, with growing pauses and only while it
+  is open; an unapplied tick stops the polling, and «Применить» starts it again.
 - **A client with MTProxy alone is no longer offered a subscription.** Telegram never polls a
   subscription URL — it opens a link; the subscription block is not rendered for such a client, and a
   line says where the links are instead. A subscription already issued stays on screen so it can be revoked.
