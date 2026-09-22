@@ -270,6 +270,9 @@ async function initialise(context) {
     query("#profile-menu-name", context.root).textContent = context.state.me.username;
     query("#profile-menu-role", context.root).textContent = ROLE_NAMES[context.state.me.role] || context.state.me.role;
     query("#avatar", context.root).textContent = context.state.me.username.slice(0, 2).toUpperCase();
+    // Какая версия панели открыта — видно всем и всегда: в меню профиля (боковая панель) и
+    // строкой «Proxy Control» на «Обзоре», который открыт и на телефоне, где боковой нет.
+    query("#profile-menu-version", context.root).textContent = `версия ${context.state.me.panel_version || "не определена"}`;
     queryAll('[data-view="naive"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.naive !== true; });
     queryAll('[data-view="mieru"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.mieru !== true; });
     queryAll(".owner-only", context.root).forEach((item) => { item.hidden = context.state.me.role !== "owner"; });

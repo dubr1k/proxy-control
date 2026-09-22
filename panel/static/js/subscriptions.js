@@ -1,5 +1,5 @@
 import { OPERATION_MESSAGE, OPERATION_OK, esc, query, queryAll } from "./common.js";
-import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
+import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
 
@@ -43,6 +43,11 @@ const VARIANTS = [
 ];
 
 const AUTO_REFRESH = { supported: "обновляется", unsupported: "не обновляется", unproven: "не проверено" };
+
+// Паузы между перечитываниями карточки, пока узел не подтвердил доступ. Первая короче
+// такта pusher'а (15 с) — узел нередко отвечает раньше; дальше реже, и всего около двух
+// минут: столько ждёт оператор, а не окно, открытое на весь день.
+const SETTLE_DELAYS = [3000, 5000, 8000, 12000, 20000, 30000, 45000];
 
 function formatDate(seconds) {
   if (!seconds) return "никогда";
@@ -88,7 +93,7 @@ export function createSubscriptionDialog(context) {
   const { api, root, ui } = context;
   // `generation` counts the openings: an answer that comes back after the window was
   // reopened for another client belongs to nobody and is dropped.
-  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, links: null, format: "singbox", matrix: {}, generation: 0 };
+  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, links: null, format: "singbox", matrix: {}, generation: 0, settling: false };
 
   function liveGrants() {
     return state.grants.filter((grant) => grant.desired_state !== "deleted");
@@ -230,6 +235,44 @@ export function createSubscriptionDialog(context) {
     context.state.nodes = nodes.items || [];
     state.matrix = compatibility.matrix || {};
     render(overview);
+    void settle();
+  }
+
+  // Есть ли на экране неприменённая правка матрицы: галочка, поставленная или снятая
+  // после последней загрузки. Читается из самой матрицы, а не из отдельного флага, —
+  // источник один и тот же и для «Применить».
+  function edited() {
+    const body = query("#placement-body", root);
+    if (!body || !state.rows.length) return false;
+    const diff = placementDiff(state.rows, readPlacement(body), "");
+    return diff.create.length > 0 || diff.enable.length > 0 || diff.disable.length > 0;
+  }
+
+  // Доступ на связанной панели центр записывает сразу, а доставляет узлу pusher — своим
+  // тактом, в пределах пары десятков секунд. Карточка рисуется один раз на загрузку, и без
+  // этого «ожидает узел» оставалось бы на экране после того, как узел уже подтвердил
+  // учётную запись. Пока в матрице есть такие клетки, окно перечитывает клиента само;
+  // опрос идёт с растущими паузами и живёт ровно столько, сколько открыто это окно для
+  // этого клиента (закрытие и переоткрытие двигают `generation`).
+  async function settle() {
+    if (state.settling) return;
+    const generation = state.generation;
+    state.settling = true;
+    try {
+      for (const delay of SETTLE_DELAYS) {
+        if (generation !== state.generation || !settling(state.grants)) return;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        // Перерисовка стирает галочки, которые оператор успел расставить, но ещё не
+        // применил. Его правка важнее свежей подписи: опрос уходит, а «Применить» сам
+        // перечитает карточку и запустит его заново.
+        if (generation !== state.generation || edited()) return;
+        await load();
+      }
+    } catch {
+      // Перечитать не удалось: на экране остаётся последнее, что знала панель.
+    } finally {
+      state.settling = false;
+    }
   }
 
   // Clears everything a previous client left on screen: the URL, the matrix, the status

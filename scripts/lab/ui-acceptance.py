@@ -442,12 +442,14 @@ class Acceptance:
         return False
 
     def poll_matrix_cell(self, card: str, node: str, protocol: str, keyword: str, timeout: float = 30) -> bool:
-        """`#placement-body` is rendered once when the window opens; the cell status can lag
-        behind the just-applied change. Reopen the window (close, then `open_client_window`)
-        between reads instead of waiting on static text that will not settle on its own."""
+        """The open window must reach the status on its own: since v0.13 the card re-reads
+        the client while a cell still says «ожидает узел», so a cell that only settles after
+        a manual reopen is a regression, not a slow node. Nothing is clicked here."""
         b = self.browser
+        # A node id is a GUID, so its attribute value is quoted: an unquoted CSS value that
+        # starts with a digit is not an identifier and the selector would throw.
         selector = (f"[...document.querySelectorAll('#placement-body td.placement-cell')]"
-                    f".find(td => td.querySelector('input[data-protocol={protocol}][data-node={node}]'))"
+                    f".find(td => td.querySelector({json.dumps(f'input[data-protocol={protocol}][data-node=' + json.dumps(node) + ']')}))"
                     f"?.querySelector('small')?.textContent || ''")
         deadline = time.monotonic() + timeout
         while True:
@@ -456,9 +458,7 @@ class Acceptance:
                 return True
             if time.monotonic() >= deadline:
                 return False
-            b.close_dialog("#subscription-modal")
-            self.open_client_window(card)
-            time.sleep(0.5)
+            time.sleep(1)
 
     def row_action(self, attribute: str, action: str, username: str) -> bool:
         return self.browser.click(f"[{attribute}={json.dumps(action)}][data-user={json.dumps(username)}]")
@@ -767,8 +767,8 @@ class Acceptance:
             first_url = b.value("#subscription-url")
             self.report["facts"]["subscription_host"] = urllib.parse.urlsplit(first_url).hostname
             self.check("clients.subscription_url_serves", self.fetch(first_url) == 200)
-            # Untick one cell: the grant is disabled and leaves the subscription. `#placement-body`
-            # is rendered once at open, so poll by reopening the window until the cell reflects it.
+            # Untick one cell: the grant is disabled and leaves the subscription. The open
+            # window must show it by itself — it re-reads the client while a cell is unsettled.
             b.js("(() => { const i = document.querySelector('#placement-body input[data-node=local][data-protocol=naive]'); i.checked = false; return true; })()")
             b.click("#placement-actions button[data-placement-action=apply]")
             self.check("clients.matrix_untick_disables", self.poll_matrix_cell(card, "local", "naive", "выключен", 30), b.text("#subscription-error"))
@@ -1311,6 +1311,11 @@ class Acceptance:
             b.wait("!document.querySelector('#placement-actions button[data-placement-action=apply]')?.disabled", 30)
             if b.exists("#bundle-modal[open]"):
                 b.close_dialog("#bundle-modal")
+            # v0.13: доступ на связанной панели сначала «ожидает узел». Окно, которое никто
+            # не трогал, должно само дойти до «включён», когда узел подтвердит учётную запись.
+            self.check("central.matrix_cell_settles_in_the_open_window",
+                       self.poll_matrix_cell(ccard, node_id, "naive", "включён", 120),
+                       b.js("[...document.querySelectorAll('#placement-body small')].map(s => s.textContent).join(' | ')"))
             b.close_dialog("#subscription-modal")
             deadline = time.monotonic() + 90
             delivered = False

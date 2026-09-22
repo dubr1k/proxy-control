@@ -30,6 +30,14 @@ export function cellStatus(grant) {
   return parts.join(" · ");
 }
 
+// «Ожидает узел» — состояние на полпути: центр записал доступ, узел ещё не подтвердил его.
+// Доставляет pusher, поэтому клетка меняется без участия оператора — по этому признаку
+// карточка решает, нужно ли перечитать клиента, вместо того чтобы оставить на экране
+// подпись, которая уже неверна.
+export function settling(grants) {
+  return grants.some((grant) => grant.desired_state !== "deleted" && grant.observed_state === "pending");
+}
+
 export function placementRows(nodes, grants) {
   const live = grants.filter((grant) => grant.desired_state !== "deleted");
   const known = new Map();

@@ -128,6 +128,9 @@ def register_auth_admin_audit_routes(
             "username": user["username"],
             "role": user["role"],
             "via": user.get("via", "session"),
+            # The panel's own version travels with every "who am I": the UI shows it to
+            # everyone, without the «Версии» screen (owner-only, and it needs the agent).
+            "panel_version": app.state.panel_version,
             "features": {
                 "naive": settings.naive_enabled,
                 "mieru": settings.mieru_enabled,
