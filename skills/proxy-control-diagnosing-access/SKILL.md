@@ -16,7 +16,7 @@ explain the symptom?
 | 1 | `get_clients` (grant details are already there; `get_clients_by_client_id` is not needed) | `client.state: active`; the grant has `desired_state: enabled`, `observed_state: enabled`, `valid_until` not passed |
 | 2 | ask the owner | the app and the link variant; does another protocol from the same subscription work; does this protocol work for neighbours on the same node |
 | 3 | `get_subscriptions_compatibility` | can this app take this protocol from a subscription. Mieru — only Karing (`singbox`) and mihomo (`clash`), everything else `unsupported` |
-| 4 | `get_nodes_by_node_id` | `link.status: online`, fresh `link.last_heartbeat_at`, `observed_state: converged`; `protocols.<x>.daemon: ok`, `egress.restart_required`, `identity.router.available`, `providers.*.reachable` |
+| 4 | `get_nodes_by_node_id` | `link.status: online`, fresh `link.last_heartbeat_at`, `observed_state: converged`; `protocols.<x>.daemon: ok`, `identity.router.available`, `providers.*.reachable` |
 | 5 | `get_nodes_by_node_id_inventory` | the account exists on the node, `enabled`, `linked_grant_id` matches; neighbours on the protocol for comparison |
 | 6 | `get_nodes_by_node_id_generations` | the resource `grant:<id>` — `state: enabled`, `error: null`; `reconcile_state: converged` — the exact answer to «did it reach the node» |
 | 7 | `audit_tail` without `target`, limit 40, read `action` | `subscription.rotate/revoke`, `grant.disable`, `client.state`, `routing.*.apply`; the subscription's state without a reveal is visible only here. An import is written with `target` = the node, so an imported grant's own audit is empty |
@@ -31,7 +31,7 @@ Mieru has no traffic counters (`traffic: null`); that does not mean «nobody con
 |---|---|
 | The protocol is missing from the app's server list | the link variant does not carry it (`singbox`: naive+mieru; `singbox-official`: naive; `clash`: mieru; `raw`: everything, no refresh) or the app does not support it |
 | Mieru «connects» but no data flows | the app uses UDP or a port range; our Mieru is **TCP only**, server-side UDP was verified — the client side is at fault |
-| Nobody on the node works | the node `offline`, not `converged`, WARP `reachable: false`, `restart_required` after an egress change (the daemon runs the old configuration; cleared by a restart on the host or a `mita` update) |
+| Nobody on the node works | the node `offline`, not `converged`, WARP `reachable: false`, a daemon `≠ ok`. (`egress.restart_required: true` on Mieru and the router is a constant — «applying restarts the daemon» — not a pending state) |
 | One person does not work | the grant `disabled`, expiry, `archived`, the subscription revoked or rotated (audit) |
 | Sites open partially | the policy: an exit disabled, a block rule, stale geodata |
 | The subscription does not refresh | `raw` never refreshes, nor does a Telegram proxy — re-send the link |

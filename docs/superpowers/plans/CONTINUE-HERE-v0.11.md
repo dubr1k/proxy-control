@@ -156,8 +156,7 @@ updating-components, diagnosing-access, changing-routing. Каждый пров�
   Xray пересоздало его из файла — `providers.warp.reachable: false`. Исправлено на всех трёх (резервные
   копии `/root/env.xray-router.bak-<ts>`), роутер AMS_Z пересоздан, WARP снова reachable. Откуда взялся
   40000 — не установлено (в снимках v0.9/v0.10 у контейнера было 45000).
-- `restart_required: true` у Mieru на узлах не снялось обновлением mita (демон перезапущен) — флаг
-  менеджера, а не демона; разобраться отдельно.
+- `restart_required: true` у Mieru — константа менеджера (см. ниже), не состояние.
 
 ## WARP на парке единообразно (2026-09-22, по слову владельца)
 
@@ -170,8 +169,9 @@ updating-components, diagnosing-access, changing-routing. Каждый пров�
 `naive-warp-bridge`/`naive-warp-redirect` (копии в `/root/naive-warp-bridge-removed-<ts>`); при этом
 drop-in `caddy-naive.service.d/warp-redirect.conf` с `Requires=` уронил NaiveProxy на ~2 мин 15 с
 (12:10–12:12 UTC) — drop-in убран. Файл `.env.xray-router` больше не в git (`.env.*` в .gitignore),
-пример в ROUTING поправлен на 40000. Открыто: у Mieru на узлах `restart_required: true` — флаг менеджера,
-не снимается перезапуском mita; privoxy на AMS_Z никем не используется.
+пример в ROUTING поправлен на 40000. Разобрано: `restart_required: true` у Mieru и роутера — константа менеджеров («применение перезапускает
+демон»), не состояние; скиллы поправлены. privoxy на AMS_Z (никем не использовался) выключен; устаревшие
+`MIERU_MITA_SHA256` в `.env`/`.optional.env` узлов приведены к бинарнику.
 
 ## Открытые мелочи
 
