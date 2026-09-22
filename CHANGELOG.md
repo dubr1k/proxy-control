@@ -4,9 +4,28 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.12.0-beta.1] - 2026-09-22
+
+The panel's section is in the address now, and MTProxy access is handed out as the thing Telegram
+understands — a link and a QR code. Release note: [docs/releases/v0.12.0-beta.1.md](docs/releases/v0.12.0-beta.1.md).
+
 ### Added
 
+- **Every panel section has its own address**: `/#clients`, `/#routing`, `/#fleet` and so on. A
+  section can be bookmarked and sent as a link, a reload keeps the operator on the same screen, and
+  the browser's back/forward buttons move between sections instead of leaving the panel. An unknown
+  address, or a section closed by the role or a disabled feature, opens «Обзор».
+- **MTProxy links in the client window**: «Показать ссылки» rebuilds, from the panel's own escrow, a
+  `tg://proxy` link for every node the client has access on — each with a QR code, an «Открыть в
+  Telegram» button and a QR download. The reveal is one-time and nothing survives the window.
+  `POST /api/clients/{id}/links` (owner/admin, optional `protocol`) answers with a one-time reveal token.
 - Skills for the MCP server under `skills/`: granting access, the panel and nodes overview, updating components, diagnosing access, changing routing — the order of moves, subscription variant keys, stop rules; installed on the client's machine ([docs/MCP.en.md](docs/MCP.en.md), «Skills»).
+
+### Fixed
+
+- **A client with MTProxy alone is no longer offered a subscription.** Telegram never polls a
+  subscription URL — it opens a link; the subscription block is not rendered for such a client, and a
+  line says where the links are instead. A subscription already issued stays on screen so it can be revoked.
 
 ## [0.11.0-beta.1] - 2026-09-22
 
