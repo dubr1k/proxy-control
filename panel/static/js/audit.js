@@ -59,6 +59,7 @@ const ACTION_NAMES = {
   "subscription.rotate": "Подписка ротирована",
   "subscription.revoke": "Подписка отозвана",
   "subscription.reveal": "Ссылка подписки показана",
+  "client.links.reveal": "Ссылки клиента показаны",
   "subscription.fetched": "Подписка загружена клиентом",
   "subscription.revoked": "Подписка перестала отвечать",
   "subscription.generation.changed": "Состав подписки изменён",

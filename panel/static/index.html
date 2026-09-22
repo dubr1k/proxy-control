@@ -257,20 +257,30 @@
   <dialog id="subscription-modal" class="access-dialog">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2 id="subscription-title">Клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Одна ссылка на все доступы клиента на всех узлах. Панель рендерит её из собственного хранилища; доступ без сохранённого секрета попадает в неё как unsupported.</p>
-      <p class="form-hint" id="subscription-status"></p>
-      <fieldset class="subscription-formats">
-        <legend>Вариант ссылки под клиента</legend>
-        <div id="subscription-variants"></div>
-      </fieldset>
-      <div id="subscription-reveal" class="subscription-reveal" hidden>
-        <label>URL подписки
-          <span class="copy-field"><input id="subscription-url" readonly><button type="button" id="copy-subscription-url">Копировать</button></span>
-        </label>
-        <img id="subscription-qr" alt="QR-код подписки" class="subscription-qr">
+      <div id="subscription-box">
+        <p class="modal-copy">Одна ссылка на все доступы клиента на всех узлах. Панель рендерит её из собственного хранилища; доступ без сохранённого секрета попадает в неё как unsupported.</p>
+        <p class="form-hint" id="subscription-status"></p>
+        <fieldset class="subscription-formats">
+          <legend>Вариант ссылки под клиента</legend>
+          <div id="subscription-variants"></div>
+        </fieldset>
+        <div id="subscription-reveal" class="subscription-reveal" hidden>
+          <label>URL подписки
+            <span class="copy-field"><input id="subscription-url" readonly><button type="button" id="copy-subscription-url">Копировать</button></span>
+          </label>
+          <img id="subscription-qr" alt="QR-код подписки" class="subscription-qr">
+        </div>
+        <p class="form-hint subscription-warning">Telegram и часть native-клиентов не обновляют подписку автоматически — после изменений отправьте клиенту ссылку заново.</p>
+        <div class="client-actions" id="subscription-actions"></div>
       </div>
-      <p class="form-hint subscription-warning">Telegram и часть native-клиентов не обновляют подписку автоматически — после изменений отправьте клиенту ссылку заново.</p>
-      <div class="client-actions" id="subscription-actions"></div>
+      <p class="form-hint" id="subscription-unavailable" hidden></p>
+      <fieldset class="links-box" id="links-box" hidden>
+        <legend>Ссылки MTProxy</legend>
+        <p class="modal-copy">Telegram не читает подписку: он открывает ссылку <code>tg://proxy</code>. По одной на каждый узел, где у клиента есть доступ — отправьте ссылку или дайте отсканировать QR.</p>
+        <p class="form-hint" id="links-hint"></p>
+        <div class="client-actions" id="links-actions"></div>
+        <div id="links-body"></div>
+      </fieldset>
       <fieldset class="placement-box">
         <legend>Узлы и протоколы</legend>
         <label id="placement-username-row" hidden>Имя учётной записи<input id="placement-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop"><small>Одно имя для новых доступов; латиница, цифры, точка, дефис, подчёркивание</small></label>

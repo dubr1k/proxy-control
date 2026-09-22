@@ -48,6 +48,7 @@ checks the fleet and grant names against this file.
 | `grant.credential.adopt` | grant id | «Принять доступ» with rotation (Mieru) |
 | `subscription.create` / `subscription.rotate` / `subscription.revoke` | subscription id | subscriptions |
 | `subscription.reveal` | subscription id | the link was shown again from escrow (owner/admin, «Показать» in the client window) |
+| `client.links.reveal` | client id | the client's own links were rebuilt from escrow and shown (owner/admin, «Показать ссылки» in the client window); the detail names the grants, never a link |
 
 System events (actor `system`, `ip = local`) share the table — `panel/events.py` records them
 so the journal and `GET /api/events` tell one story:

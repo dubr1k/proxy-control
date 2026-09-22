@@ -12,6 +12,7 @@ from .clients.models import PROTOCOL_OPTIONS, GrantIntent
 from .clients.store import ClientConflict
 from .fleet_v2.central_routes import public_hosts_for
 from .protocols.base import AdapterError, ManualInterventionRequired
+from .reveals import qr_data
 from .secrets_store import SecretError
 from .subscription_routes import subscription_reveal_payload
 from .schemas import (
@@ -263,6 +264,39 @@ def register_client_routes(app, context: RequestContext) -> None:
             raise HTTPException(404, "operation not found") from exc
         except ClientConflict as exc:
             raise HTTPException(409, str(exc)) from exc
+        return {"reveal_token": context.create_reveal(payload, user)}
+
+    @app.post("/api/clients/{client_id}/links")
+    async def links(
+        client_id: str,
+        request: Request,
+        protocol: str | None = None,
+        user=Depends(context.roles("owner", "admin")),
+    ):
+        """Every link the client can be handed right now, rebuilt from escrow, with a QR for
+        each of them: MTProxy has no subscription a client could poll, so this is how that
+        access is given out — at issue time and every time after it."""
+        try:
+            payload = await asyncio.to_thread(
+                app.state.provisioning.client_links, client_id,
+                public_hosts=lambda node_id: public_hosts_for(app.state, node_id),
+                protocol=protocol, **_context(request, user),
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "client not found") from exc
+        except SecretError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        payload["grants"] = [
+            {
+                **grant,
+                # QR только для того, что вообще сканируется: конфиг целиком в код не лезет.
+                "artifacts": [
+                    {**artifact, "qr": qr_data(artifact["value"]) if artifact["kind"] == "link" else None}
+                    for artifact in grant["artifacts"]
+                ],
+            }
+            for grant in payload["grants"]
+        ]
         return {"reveal_token": context.create_reveal(payload, user)}
 
     @app.get("/api/clients/{client_id}")

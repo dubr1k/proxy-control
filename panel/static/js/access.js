@@ -11,7 +11,7 @@ function validServer(value) {
   }
 }
 
-function proxyLink(value) {
+export function proxyLink(value) {
   try {
     const url = new URL(value);
     const allowed = (url.protocol === "tg:" && url.hostname === "proxy" && ["", "/"].includes(url.pathname))
@@ -31,7 +31,7 @@ function proxyLink(value) {
   }
 }
 
-function qrSource(value) {
+export function qrSource(value) {
   if (typeof value !== "string" || value.length > 500_000
     || !/^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$/.test(value)) {
     throw new Error("Сервис вернул некорректный QR-код");

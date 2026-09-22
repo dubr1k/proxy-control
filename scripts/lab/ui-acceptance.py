@@ -483,12 +483,43 @@ class Acceptance:
         status, _ = self.api.request("/api/auth/me")
         self.check("login.relogin_works", self.login("owner", self.password))
 
+    def view_addressing(self) -> None:
+        """Каждый раздел адресуем (v0.12): меню пишет хеш, закладка открывает тот же экран,
+        «назад» возвращает к предыдущему, а чужой адрес не оставляет пустой экран."""
+        b = self.browser
+        self.goto_view("routing")
+        self.check("nav.address_carries_the_view", b.wait("location.hash === '#routing'", 10), b.js("location.hash"))
+        # Закладка: тот же адрес с нуля показывает «Маршрутизацию», а не «Обзор».
+        b.goto(f"{self.args.node_url}/#fleet")
+        self.check("nav.address_opens_its_view",
+                   b.wait("location.hash === '#fleet' && document.querySelector('#title')?.textContent === 'Узлы'", 30),
+                   b.text("#title"))
+        self.goto_view("clients")
+        b.js("history.back(); true")
+        self.check("nav.back_returns_to_the_previous_view",
+                   b.wait("location.hash === '#fleet' && document.querySelector('#title')?.textContent === 'Узлы'", 15),
+                   f"{b.js('location.hash')} {b.text('#title')}")
+        # Чужой хеш в уже открытой панели только поправляет адрес — экран не срывается.
+        b.goto(f"{self.args.node_url}/#nosuchscreen")
+        self.check("nav.unknown_address_is_corrected",
+                   b.wait("location.hash === '#fleet' && document.querySelector('#title')?.textContent === 'Узлы'", 15),
+                   f"{b.js('location.hash')} {b.text('#title')}")
+        # А в закладке он не оставляет пустой панели: загрузка с ним открывает «Обзор».
+        # Путь меняется (через /login), иначе браузер сменил бы только хеш, без загрузки.
+        b.goto(f"{self.args.node_url}/login")
+        b.goto(f"{self.args.node_url}/#nosuchscreen")
+        self.check("nav.unknown_address_falls_back_to_the_overview",
+                   b.wait("location.hash === '#dashboard' && !!document.querySelector('.host-card')", 30),
+                   b.js("location.hash"))
+        self.goto_view("dashboard", "!!document.querySelector('.host-card')")
+
     def view_dashboard(self) -> None:
         b = self.browser
         self.check("dashboard.rendered", self.goto_view("dashboard", "!!document.querySelector('.host-card') && document.querySelectorAll('.protocol-card').length >= 3"))
         text = b.page_text()
         self.check("dashboard.host_card_has_resources_or_reason", "Ресурсы сервера" in text and ("CPU" in text or "Недоступны" in text))
         self.check("dashboard.protocol_cards_rendered", all(name in text for name in ("MTProxy", "Mieru", "NaiveProxy")))
+        self.view_addressing()
         # The profile button's chevron opens a real menu (v0.6 finding): the account, its screens, sign-out.
         b.click("#profile-button")
         self.check("dashboard.profile_menu_opens_and_closes",
@@ -753,6 +784,31 @@ class Acceptance:
             self.check("clients.subscription_revoke_offers_create_again", b.confirm() and b.wait("!!document.querySelector('[data-subscription-action=create]')", 20))
             self.check("clients.revoked_subscription_url_is_404", self.fetch(second_url) == 404)
         b.close_dialog("#subscription-modal")
+        # v0.12: клиенту с одним MTProxy подписка не предлагается — Telegram её не читает;
+        # вместо неё блок ссылок `tg://proxy` с QR, по одной на узел.
+        tg_user = f"{self.prefix}-tg"
+        tg_client = self.api.json("/api/clients", "POST", {"display_name": tg_user, "subscription": False})
+        self.created["clients"].append(tg_client["id"])
+        self.api.json(
+            f"/api/clients/{tg_client['id']}/grants", "POST",
+            {"grants": [{"protocol": "mtproxy", "node_id": "local", "runtime_username": tg_user, "options": {}}]},
+        )
+        self.created["users"].append(tg_user)
+        self.goto_view("clients", "!!document.querySelector('.client-list')")
+        tgcard = f"[data-client-id={json.dumps(tg_client['id'])}]"
+        self.check("clients.mtproxy_only_window_opens", self.open_client_window(tgcard))
+        self.check("clients.mtproxy_only_hides_the_subscription",
+                   b.wait("document.querySelector('#subscription-box')?.hidden === true && "
+                          "document.querySelector('#subscription-unavailable')?.hidden === false && "
+                          "document.querySelector('#links-box')?.hidden === false", 20),
+                   b.text("#subscription-unavailable"))
+        b.click("#links-actions button[data-links-action=show]")
+        self.check("clients.mtproxy_links_show_link_and_qr",
+                   b.wait("(() => { const c = document.querySelector('#links-body .link-card'); return !!c && "
+                          "(c.querySelector('input')?.value || '').startsWith('tg://proxy?') && "
+                          "(c.querySelector('img.link-qr')?.getAttribute('src') || '').startsWith('data:image/svg+xml;base64,'); })()", 30),
+                   b.text("#subscription-error"))
+        b.close_dialog("#subscription-modal")
         # Import: a runtime user the panel did not create is adopted without touching the manager.
         self.api.json("/api/naive/users", "POST", {"username": imported_user})
         self.created["naive"].append(imported_user)
@@ -773,8 +829,8 @@ class Acceptance:
         self.check("clients.resume_restores", b.wait(f"!!document.querySelector('{card} [data-client-action=suspend]')", 30))
         b.shot("clients.png")
         self.frame_is_secret_free("clients")
-        # Every grant deleted through its chip, both clients archived: the runtime is as before.
-        for target in (card, icard):
+        # Every grant deleted through its chip, every client archived: the runtime is as before.
+        for target in (card, icard, tgcard):
             for _ in range(4):
                 if not b.exists(f"{target} .grant-chip [data-client-action=grant-delete]"):
                     break
@@ -784,12 +840,12 @@ class Acceptance:
                 time.sleep(1.5)
                 b.wait(f"!!document.querySelector('{target}')", 30)
         self.check("clients.grant_delete_empties_the_card", b.wait(f"document.querySelectorAll('{card} .grant-chip[data-grant-id]').length === 0 && document.querySelectorAll('{icard} .grant-chip[data-grant-id]').length === 0", 60))
-        for target in (card, icard):
+        for target in (card, icard, tgcard):
             b.wait(f"!!document.querySelector('{target} [data-client-action=archive]')", 30)
             b.click(f"{target} [data-client-action=archive]")
             b.confirm()
             b.wait(f"!document.querySelector('{target} [data-client-action=archive]')", 30)
-        wanted = (client_id, imported["client"]["id"])
+        wanted = (client_id, imported["client"]["id"], tg_client["id"])
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             states = {e["client"]["id"]: e["client"]["state"] for e in self.api.json("/api/clients")["items"]}
