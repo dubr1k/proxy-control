@@ -53,9 +53,8 @@ then the same policy with `lane: grant:<id>`.
 | `exit_disabled`, `relay_*`, `chain_loop` | the exit is disabled, the exit node lacks a relay, or the chain loops — fix the exit |
 
 Warnings `adopts_unmanaged_*` — a hand-made setting on the node; the first apply takes it under
-management and keeps it for rollback. `policy_empty` is what «Сбросить» applies. A `restart_required`
-already `true` in `get_routing_targets.router` before any change means the router waits for a
-restart since an earlier change — the apply will restart it anyway; mention it.
+management and keeps it for rollback. `policy_empty` is what «Сбросить» applies. `restart_required: true` on the router and on
+Mieru is a constant («applying restarts the daemon»), not a pending state — do not read it as drift.
 
 ## What to tell the owner
 
