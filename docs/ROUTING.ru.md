@@ -295,7 +295,7 @@ restore`, на узле `fleet.geodata.*`.
 
   ```text
   # BEGIN NAIVE-MANAGER EGRESS
-  upstream socks5://127.0.0.1:45000
+  upstream socks5://127.0.0.1:40000
   acl {
       deny example.com *.example.com 10.0.0.0/8
   }
