@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.14.0-beta.1] - 2026-09-23
+
+- Opt-in coexistence for a foreign shared-443 Nginx frontend that emits PROXY protocol: require an operator-owned loopback TLS/SNI bridge and allow a separate Core panel TLS port. Existing routes and PROXY headers remain unchanged.
+- Explicitly verified local release bundles (`install-release.sh --from-dir`) and a narrowly scoped opt-in to defer only the online ACME renewal simulation for already valid certificate lineages. Verification still checks trust, exact SANs, validity and private-key pairing; missing or invalid lineages still require issuance/renewal.
+- Fix Naive installer acceptance: use authenticated HTTP/2 CONNECT to a public HTTPS origin instead of a Docker-to-host NAT hairpin, require a nonempty payload and closed-tunnel accounting, and handle curl's absent HTTP/2 CONNECT status without weakening inner TLS verification. Diagnose failures using fixed, credential-free messages.
+- Add bridge, panel port, certificate and CONNECT regression tests and bilingual installer guidance. No panel database or fleet wire migration.
+
+See [release notes](docs/releases/v0.14.0-beta.1.md).
+
 ## [0.13.0-beta.1] - 2026-09-23
 
 Mobile panel: client and node cards use recognizable pictograms instead of square initial tiles; multiline grant cards no longer turn into oversized ovals. At screen widths up to 560px, routing quick settings occupy separate full-width rows with aligned checkboxes; the heading no longer shares a row with the first setting. No database, API, installer, or protocol-manager changes. Corrected the stale current-release notice in both READMEs and the published v0.12 release title.
