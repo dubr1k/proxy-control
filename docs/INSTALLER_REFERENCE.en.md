@@ -169,12 +169,13 @@ transient ACME rate limit can set `skip_renewal_dry_run = true`. This defers
 installer still checks certificates locally and must issue/renew invalid or
 missing certificates. Remove the exception when ACME is available again and
 run a renewal dry run while the HTTP-01 vhost is present. Never use this to
-silence a broken challenge route. This opt-in is part of a **locally patched
-build**, not the published v0.13.0-beta.1 tag; its archive needs its own
-verified SHA-256 and release manifest. As of the first home integration
-attempt, the experimental curl HTTP/2 Naive acceptance still fails with exit 35;
-**do not deploy or claim this integration verified** until an actual Naive
-client passes through the running Caddy and all installer checks complete.
+silence a broken challenge route. This opt-in was introduced after
+v0.13.0-beta.1; it is not available in that published tag. Use a verified
+v0.14.0-beta.1 (or later) release archive and its own SHA-256. The home
+integration passed installer verification and external client probes on
+2026-09-23 (Naive, Mieru TCP/UDP and MTProxy), but a pre-provisioned bridge and
+router forwarding remain operator-owned: the installer does not configure or
+persist those external boundaries.
 
 `[egress]` is optional. Without it the installer reads `[three_xui].warp` and
 `warp_port` exactly as before v0.4 (see «WARP and egress»); with it the section is
