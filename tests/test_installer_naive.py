@@ -904,6 +904,26 @@ def test_naive_acceptance_h2_uses_private_config_and_checks_nested_tls(monkeypat
     assert 'url = "https://panel.example.com/healthz"' in observed["config"]
 
 
+def test_h2_curl_failure_exposes_only_allowlisted_tls_reason(monkeypatch):
+    import subprocess
+    from installer.adapters import naive as naive_module
+    from installer.adapters.naive import _DefaultNaiveRunner
+
+    def fail(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 35, "", "curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to panel.example.com:443\nsecret-do-not-print"
+        )
+
+    monkeypatch.setattr(naive_module.subprocess, "run", fail)
+    with pytest.raises(AcceptanceError, match="TLS connection closed during handshake") as error:
+        _DefaultNaiveRunner()._authenticated_connect_h2(
+            "https://alice:secret@naive.example.com",
+            naive_domain="naive.example.com", panel_domain="panel.example.com",
+        )
+    assert "secret" not in str(error.value)
+    assert "panel.example.com" not in str(error.value)
+
+
 def test_naive_acceptance_tunnels_a_real_inner_tls_session(tmp_path, monkeypatch):
     """The inner panel session runs inside the CONNECT tunnel. Wrapping the
     outer SSLSocket again would send the inner ClientHello in the clear and the

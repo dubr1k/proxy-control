@@ -521,6 +521,7 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                 f"proxy = {quoted('https://' + naive_domain + ':443')}",
                 f"proxy-user = {quoted(username + ':' + password)}",
                 "proxy-http2",
+                "verbose",  # captured in memory; never emit raw headers or credentials
                 'noproxy = ""',
                 'output = "/dev/null"',
                 'write-out = "%{http_code} %{size_download} %{http_connect}"',
@@ -538,7 +539,27 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
         # curl may include an error description containing the URL: never surface
         # stderr, stdout beyond our numeric write-out, or the proxy credentials.
         if result.returncode != 0:
-            raise AcceptanceError(f"Naive acceptance failed: HTTP/2 CONNECT (curl exit {result.returncode})")
+            # curl -v includes Proxy-Authorization: never include stderr or a
+            # substring of it in an exception, even when it looks like TLS.
+            # Only fixed vocabulary can cross the diagnostic boundary.
+            stderr = result.stderr.lower()
+            reason = "unclassified"
+            for marker, label in (
+                ("wrong version number", "TLS peer sent non-TLS bytes"),
+                ("ssl_error_syscall", "TLS connection closed during handshake"),
+                ("certificate verify failed", "TLS certificate rejected"),
+                ("could not resolve", "DNS resolution failed"),
+                ("connection refused", "TCP connection refused"),
+                ("http/2 stream", "HTTP/2 tunnel reset"),
+            ):
+                if marker in stderr:
+                    reason = label
+                    break
+            connect_seen = "connect tunnel: http/2 negotiated" in stderr
+            raise AcceptanceError(
+                f"Naive acceptance failed: HTTP/2 CONNECT (curl exit {result.returncode}; "
+                f"{reason}; h2_tunnel={'seen' if connect_seen else 'not_seen'})"
+            )
         match = re.fullmatch(r"(\d{3}) (\d+) (\d{3})", result.stdout.strip())
         if match is None:
             raise AcceptanceError("Naive acceptance failed: HTTP/2 response format")
