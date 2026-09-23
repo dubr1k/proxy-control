@@ -337,8 +337,8 @@ def test_naive_acceptance_requires_closed_connect_accounting(tmp_path):
         ("cover HTTPS", {"cover": False}),
         ("authenticated CONNECT", {"connect_bytes": 0}),
         ("tunnel close", {"tunnel_closed": False}),
-        ("manager and panel health", {"manager_health": False}),
-        ("manager and panel health", {"panel_health": False}),
+        ("manager health", {"manager_health": False}),
+        ("HTTPS probe status", {"panel_health": False}),
         ("adjacent SNI", {"adjacent": False}),
         ("accounting log boundary", {"log_boundary": False}),
     ),
@@ -905,6 +905,22 @@ def test_naive_acceptance_h2_uses_private_config_and_checks_nested_tls(monkeypat
     # split-DNS /etc/hosts entry for the panel domain behind NAT.
     assert 'url = "https://example.com/"' in observed["config"]
     assert 'url = "https://panel.example.com/healthz"' not in observed["config"]
+
+
+def test_h2_curl_omits_http_connect_code_for_successful_h2_tunnel(monkeypatch):
+    import subprocess
+    from installer.adapters import naive as naive_module
+    from installer.adapters.naive import _DefaultNaiveRunner
+
+    def fake_curl(argv, **kwargs):
+        # curl's %{http_connect} is not defined for every HTTP/2 CONNECT path.
+        return subprocess.CompletedProcess(argv, 0, "200 559 000", "")
+
+    monkeypatch.setattr(naive_module.subprocess, "run", fake_curl)
+    assert _DefaultNaiveRunner()._authenticated_connect_h2(
+        "https://alice:secret@naive.example.com",
+        naive_domain="naive.example.com", panel_domain="panel.example.com",
+    ) == (559, True, True)
 
 
 def test_h2_curl_failure_exposes_only_allowlisted_tls_reason(monkeypatch):

@@ -570,7 +570,11 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
         status, downloaded, connect_status = map(int, match.groups())
         if downloaded == 0:
             raise AcceptanceError("Naive acceptance failed: empty CONNECT payload")
-        return downloaded, True, status == 200 and connect_status == 200
+        # libcurl may leave %{http_connect} at 000 for HTTP/2 CONNECT. If the
+        # inner WebPKI TLS session fetched the expected HTTPS response through
+        # the proxy, a CONNECT tunnel necessarily succeeded; reject any
+        # explicit non-200 CONNECT status or unexpected origin status.
+        return downloaded, True, status == 200 and connect_status in (0, 200)
 
     def _authenticated_connect(
         self,
@@ -2174,8 +2178,10 @@ def _require_acceptance(result: NaiveAcceptance) -> None:
         raise AcceptanceError("Naive acceptance failed: tunnel close")
     if result.recorded_bytes < result.connect_bytes:
         raise AcceptanceError("Naive acceptance failed: closed-tunnel accounting")
-    if not result.manager_health_ok or not result.panel_health_ok:
-        raise AcceptanceError("Naive acceptance failed: manager and panel health")
+    if not result.manager_health_ok:
+        raise AcceptanceError("Naive acceptance failed: manager health")
+    if not result.panel_health_ok:
+        raise AcceptanceError("Naive acceptance failed: HTTPS probe status")
     if not result.adjacent_sni_ok:
         raise AcceptanceError("Naive acceptance failed: adjacent SNI")
     if not result.log_boundary_ok:
