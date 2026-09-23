@@ -1,6 +1,32 @@
 import subprocess
 
+import pytest
+
 from installer.adapters.nginx import CertificatePlan
+from installer.planner import Action
+
+
+def test_existing_valid_lineage_can_defer_only_renewal_simulation(tmp_path, monkeypatch):
+    adapter = CertificatePlan(root=tmp_path)
+    action = Action(
+        id="certificate.naive", adapter="certificates",
+        owner="proxy-control:certificate:naive",
+        mutations=(
+            "service=naive", "certificate=edge.example.com", "email=ops@example.com",
+            "skip-renewal-dry-run=true", "name=edge.example.com",
+            "webroot=/var/www/edge.example.com",
+        ),
+        preconditions=("local lineage exists",), verification=("local certificate valid",),
+        inverse=("remove owned vhost",), credentials_required=False,
+    )
+    monkeypatch.setattr(adapter, "_vhost_valid", lambda *_: True)
+    monkeypatch.setattr(adapter, "_assert_vhost_effective", lambda *_: None)
+    monkeypatch.setattr(adapter, "_lineage_state", lambda *_: "complete")
+    monkeypatch.setattr(adapter, "_certificate_valid", lambda *_: True)
+    monkeypatch.setattr(adapter, "_run_renewal", lambda *_: pytest.fail("renewal must be deferred"))
+    assert adapter.verify(action).success is True
+    monkeypatch.setattr(adapter, "_certificate_valid", lambda *_: False)
+    assert adapter.verify(action).success is False
 
 
 def test_renewal_retries_deactivated_authorization_race_without_hiding_errors(tmp_path, monkeypatch):

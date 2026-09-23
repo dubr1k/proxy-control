@@ -976,6 +976,7 @@ class CoreAdapter:
             f"users={','.join(selected_users)}",
             "proxy-backend-port=8445",
             "panel-app-port=8787",
+            f"panel-tls-port={config.panel_tls_port}",
             f"probe={self.paths.probe_path}",
             f"probe-image={_PROBE_IMAGE}",
             f"prebuilt-tdlib={_TDLIB_PIN}",
@@ -1114,17 +1115,20 @@ class CoreAdapter:
             panel_domain=str(selected["panel_domain"]),
             certificate=str(selected["proxy_domain"]),
             app_port=int(selected["panel_app_port"]),
+            tls_port=int(selected["panel_tls_port"]),
         )
         if subscription_domain is not None:
             panel_vhost += _subscription_vhost_text(
                 subscription_domain=str(subscription_domain),
                 certificate=str(selected["proxy_domain"]),
                 app_port=int(selected["panel_app_port"]),
+                tls_port=int(selected["panel_tls_port"]),
             )
         if mcp_domain is not None:
             panel_vhost += _mcp_vhost_text(
                 mcp_domain=str(mcp_domain),
                 certificate=str(selected["proxy_domain"]),
+                tls_port=int(selected["panel_tls_port"]),
             )
         return RenderedCore(
             compose_yaml=compose,
@@ -1466,11 +1470,15 @@ class CoreAdapter:
             "users",
             "proxy-backend-port",
             "panel-app-port",
+            "panel-tls-port",
             "probe",
             "probe-image",
             "prebuilt-tdlib",
             "adjacent-sni",
         }
+        # Actions saved before the optional ingress bridge existed omit this key;
+        # their historical panel listener is the unchanged default 8443.
+        values.setdefault("panel-tls-port", str(_PANEL_TLS_PORT))
         if set(values) != required:
             raise CoreError("Core action is invalid")
         subscription_domain = values["subscription-domain"].lower() or None
@@ -1506,9 +1514,10 @@ class CoreAdapter:
         try:
             proxy_port = int(values["proxy-backend-port"])
             panel_port = int(values["panel-app-port"])
+            panel_tls_port = int(values["panel-tls-port"])
         except ValueError as exc:
             raise CoreError("Core action is invalid") from exc
-        if not (1024 <= proxy_port <= 65535 and 1024 <= panel_port <= 65535):
+        if not (1024 <= proxy_port <= 65535 and 1024 <= panel_port <= 65535 and 1024 <= panel_tls_port <= 65535):
             raise CoreError("Core action is invalid")
         return {
             "proxy_domain": values["proxy-domain"].lower(),
@@ -1518,6 +1527,7 @@ class CoreAdapter:
             "users": selected_users,
             "proxy_backend_port": proxy_port,
             "panel_app_port": panel_port,
+            "panel_tls_port": panel_tls_port,
             "adjacent_sni": adjacent_routes,
         }
 
@@ -2001,6 +2011,7 @@ class CoreAdapter:
                 f"users={','.join(users)}",
                 f"proxy-backend-port={selected['proxy_backend_port']}",
                 f"panel-app-port={selected['panel_app_port']}",
+                f"panel-tls-port={selected['panel_tls_port']}",
                 f"probe={self.paths.probe_path}",
                 f"probe-image={_PROBE_IMAGE}",
                 f"prebuilt-tdlib={_TDLIB_PIN}",

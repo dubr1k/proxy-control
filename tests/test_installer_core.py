@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import dataclasses
 import json
 import stat
 from pathlib import Path
@@ -24,6 +25,7 @@ from installer.model import (
     DomainConfig,
     FirewallConfig,
     HostMode,
+    IngressConfig,
     InstallerConfig,
     Profile,
     ThreeXuiConfig,
@@ -964,6 +966,23 @@ def test_core_refuses_a_subscription_name_that_is_the_panel_or_proxy(tmp_path):
         )
         with pytest.raises(CoreError, match="Core action is invalid"):
             adapter.render(action)
+
+
+def test_core_can_move_its_private_panel_tls_listener_for_a_proxy_bridge(tmp_path):
+    selected = dataclasses.replace(
+        config(),
+        host_mode=HostMode.COEXIST,
+        ingress=IngressConfig(
+            proxy_protocol_bridge="127.0.0.1:10443",
+            panel_tls_port=10446,
+        ),
+    )
+    rendered = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner()).render(
+        CoreAdapter(source_dir=ROOT).plan(selected, AuditFacts())[0]
+    )
+
+    assert "listen 127.0.0.1:10446 ssl" in rendered.panel_vhost
+    assert "listen 127.0.0.1:8443 ssl" not in rendered.panel_vhost
 
 
 def test_core_refuses_an_occupied_panel_vhost_path(tmp_path):

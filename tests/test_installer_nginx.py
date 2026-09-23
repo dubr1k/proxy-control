@@ -26,7 +26,9 @@ from installer.model import (
     DomainConfig,
     FirewallConfig,
     HostMode,
+    IngressConfig,
     InstallerConfig,
+    MieruConfig,
     Profile,
     ThreeXuiConfig,
     ThreeXuiMode,
@@ -219,6 +221,41 @@ def test_coexist_owns_exact_marked_block_is_idempotent_and_preserves_adjacent_ro
     evidence = adapter.rollback(action, applied, rollback_target="uninstalled")
     assert evidence.success is True
     assert route.read_bytes() == original
+
+def test_proxy_protocol_bridge_routes_every_new_sni_to_one_loopback_bridge(tmp_path: Path) -> None:
+    """A PROXY-aware bridge consumes the frontend header before stock backends."""
+    effective = MULTI_MAP.read_text()
+    root = tmp_path / "root"
+    route = materialize_route(root, effective)
+    runner, _ = runner_for(effective, root=root)
+    adapter = NginxAdapter(root=root, runner=runner)
+    selected = dataclasses.replace(
+        config(),
+        profile=Profile.FULL,
+        domains=DomainConfig(
+            panel="panel.example.com",
+            mtproxy="relay.example.com",
+            naive="edge.example.com",
+            mieru="connect.example.com",
+            subscription="profiles.example.com",
+        ),
+        mieru=MieruConfig(tcp_ports=(46001,), udp_ports=(46001,)),
+        ingress=IngressConfig(proxy_protocol_bridge="127.0.0.1:10443"),
+    )
+
+    action = adapter.plan(selected, AuditFacts(
+        topology={"nginx": {"observation": "observed"}},
+        listeners={"tcp": (10443,)},
+    ))[0]
+    adapter.apply(action, adapter.prepare(action))
+
+    assert all(
+        f"{domain} 127.0.0.1:10443;" in route.read_text()
+        for domain in (
+            "panel.example.com", "relay.example.com", "edge.example.com", "profiles.example.com"
+        )
+    )
+
 
 def test_subscription_domain_routes_to_the_panel_tls_listener(tmp_path: Path) -> None:
     """The subscription name shares the 8443 listener; Nginx picks the vhost by server_name."""

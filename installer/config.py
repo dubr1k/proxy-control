@@ -17,6 +17,7 @@ from installer.model import (
     EgressConfig,
     FirewallConfig,
     HostMode,
+    IngressConfig,
     InstallerConfig,
     MieruConfig,
     Profile,
@@ -62,7 +63,7 @@ def parse_config(text: str) -> InstallerConfig:
             "three_xui",
             "firewall",
         },
-        optional={"mieru", "egress"},
+        optional={"mieru", "egress", "ingress"},
     )
 
     schema = _integer(root["schema"], "schema")
@@ -93,9 +94,12 @@ def parse_config(text: str) -> InstallerConfig:
         # The old keys mirror the section: everything that still reads them sees one truth.
         three_xui = ThreeXuiConfig(**{**_as_dict(three_xui), "warp": egress.warp, "warp_port": egress.warp_port})
     firewall = _parse_firewall(root["firewall"])
+    ingress = _parse_ingress(root.get("ingress"))
 
     if host_mode is HostMode.COEXIST and firewall.manage_ufw:
         raise ConfigError("UFW can be managed only in fresh mode")
+    if ingress is not None and host_mode is not HostMode.COEXIST:
+        raise ConfigError("ingress.proxy_protocol_bridge requires coexist mode")
 
     config = InstallerConfig(
         schema=schema,
@@ -108,6 +112,7 @@ def parse_config(text: str) -> InstallerConfig:
         three_xui=three_xui,
         firewall=firewall,
         egress=egress,
+        ingress=ingress,
     )
     _reject_duplicate_tcp_sni_domains(config)
     return config
@@ -157,6 +162,15 @@ def render_config(config: InstallerConfig) -> str:
             lines.append(f"naive = {_toml_string(config.egress.naive.value)}")
         if config.profile.includes_mieru:
             lines.append(f"mieru = {_toml_string(config.egress.mieru.value)}")
+
+    if config.ingress is not None:
+        lines.extend([
+            "",
+            "[ingress]",
+            f"proxy_protocol_bridge = {_toml_string(config.ingress.proxy_protocol_bridge or '')}",
+            f"panel_tls_port = {config.ingress.panel_tls_port}",
+            f"skip_renewal_dry_run = {'true' if config.ingress.skip_renewal_dry_run else 'false'}",
+        ])
 
     lines.extend(["", "[three_xui]", f"mode = {_toml_string(config.three_xui.mode.value)}"])
     for name in (
@@ -364,6 +378,34 @@ def _warp_domains(value: object) -> tuple[str, ...]:
             _domain(domain, "three_xui.warp_domains")
         result.append(item)
     return tuple(sorted(set(result)))
+
+
+def _parse_ingress(value: object) -> IngressConfig | None:
+    if value is None:
+        return None
+    raw = _table(value, "ingress")
+    _keys(
+        raw,
+        path="ingress",
+        required={"proxy_protocol_bridge"},
+        optional={"panel_tls_port", "skip_renewal_dry_run"},
+    )
+    bridge = _string(raw["proxy_protocol_bridge"], "ingress.proxy_protocol_bridge")
+    match = re.fullmatch(r"127\.0\.0\.1:([0-9]{1,5})", bridge)
+    if match is None or not 1024 <= int(match.group(1)) <= 65535:
+        raise ConfigError("ingress.proxy_protocol_bridge must be a loopback TCP endpoint")
+    bridge_port = int(match.group(1))
+    panel_tls_port = _integer(raw.get("panel_tls_port", 8443), "ingress.panel_tls_port")
+    if not 1024 <= panel_tls_port <= 65535 or panel_tls_port == bridge_port:
+        raise ConfigError("ingress.panel_tls_port must be a distinct unprivileged TCP port")
+    return IngressConfig(
+        proxy_protocol_bridge=bridge,
+        panel_tls_port=panel_tls_port,
+        skip_renewal_dry_run=_boolean(
+            raw.get("skip_renewal_dry_run", False),
+            "ingress.skip_renewal_dry_run",
+        ),
+    )
 
 
 def _parse_firewall(value: object) -> FirewallConfig:

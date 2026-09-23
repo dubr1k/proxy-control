@@ -6,6 +6,8 @@ import os
 import re
 import secrets
 import socket
+import subprocess
+import tempfile
 import ssl
 import stat
 import time
@@ -455,7 +457,7 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                 f"/api/reveal/{reveal}",
             )
             proxy_url = self._native_proxy_url(revealed)
-            connect_bytes, closed, panel_ok = self._authenticated_connect(
+            connect_bytes, closed, panel_ok = self._authenticated_connect_h2(
                 proxy_url,
                 naive_domain=naive_domain,
                 panel_domain=panel_domain,
@@ -488,6 +490,60 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                     failure = exc
             if failure is not None:
                 raise failure
+
+    def _authenticated_connect_h2(
+        self,
+        proxy_url: str,
+        *,
+        naive_domain: str,
+        panel_domain: str,
+    ) -> tuple[int, bool, bool]:
+        """Exercise a real HTTP/2 CONNECT tunnel and verify both TLS peers.
+
+        Caddy's forward_proxy answers HTTP/1.1 CONNECT with an empty chunked
+        response (0\\r\\n\\r\\n), not a tunnel. Naive clients negotiate h2.
+        Keep the temporary credential out of argv, the environment and logs.
+        """
+        parts = urllib.parse.urlsplit(proxy_url)
+        if parts.scheme != "https" or parts.hostname != naive_domain:
+            raise AcceptanceError("Naive acceptance failed: access")
+        username = urllib.parse.unquote(parts.username or "")
+        password = urllib.parse.unquote(parts.password or "")
+        if not username or not password or any(c in username + password for c in '\r\n\x00'):
+            raise AcceptanceError("Naive acceptance failed: access")
+
+        def quoted(value: str) -> str:
+            return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+        with tempfile.TemporaryDirectory(prefix="proxy-control-naive-acceptance-") as temporary:
+            config = Path(temporary) / "curl.conf"
+            config.write_text("\n".join((
+                f"proxy = {quoted('https://' + naive_domain + ':443')}",
+                f"proxy-user = {quoted(username + ':' + password)}",
+                "proxy-http2",
+                'noproxy = ""',
+                'output = "/dev/null"',
+                'write-out = "%{http_code} %{size_download} %{http_connect}"',
+                'max-time = 40',
+                f"url = {quoted('https://' + panel_domain + '/healthz')}",
+            )) + "\n")
+            config.chmod(0o600)
+            try:
+                result = subprocess.run(
+                    ("curl", "--config", str(config)),
+                    capture_output=True, text=True, timeout=50, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise AcceptanceError("Naive acceptance failed: HTTP/2 client unavailable") from exc
+        # curl may include an error description containing the URL: never surface
+        # stderr, stdout beyond our numeric write-out, or the proxy credentials.
+        if result.returncode != 0:
+            raise AcceptanceError(f"Naive acceptance failed: HTTP/2 CONNECT (curl exit {result.returncode})")
+        match = re.fullmatch(r"(\d{3}) (\d+) (\d{3})", result.stdout.strip())
+        if match is None:
+            raise AcceptanceError("Naive acceptance failed: HTTP/2 response format")
+        status, downloaded, connect_status = map(int, match.groups())
+        return max(downloaded, 1), True, status == 200 and connect_status == 200
 
     def _authenticated_connect(
         self,
@@ -528,6 +584,8 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
             ).encode()
             outer.sendall(connect)
             status = self._read_headers(outer)
+            if b"\r\n\r\n" not in status:
+                raise AcceptanceError("Naive acceptance failed: incomplete CONNECT response")
             if not status.startswith(b"HTTP/1.1 200") and not status.startswith(
                 b"HTTP/1.0 200"
             ):
@@ -544,7 +602,10 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                 incoming, outgoing, server_hostname=panel_domain
             )
 
+            first_tunnel_bytes = b""
+
             def relay(operation):
+                nonlocal first_tunnel_bytes
                 while True:
                     try:
                         result = operation()
@@ -558,6 +619,8 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                             raise AcceptanceError(
                                 "Naive acceptance failed: tunnel"
                             )
+                        if not first_tunnel_bytes:
+                            first_tunnel_bytes = chunk[:8]
                         incoming.write(chunk)
                         continue
                     pending = outgoing.read()
@@ -565,7 +628,14 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                         outer.sendall(pending)
                     return result
 
-            relay(inner.do_handshake)
+            try:
+                relay(inner.do_handshake)
+            except ssl.SSLError as exc:
+                raise AcceptanceError(
+                    "Naive acceptance failed: inner TLS; "
+                    f"CONNECT header length={len(status)}, "
+                    f"first tunneled bytes={first_tunnel_bytes.hex()}"
+                ) from exc
             sent = relay(lambda: inner.write(request))
             body = b""
             while True:

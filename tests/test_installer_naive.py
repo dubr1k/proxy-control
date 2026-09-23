@@ -876,6 +876,34 @@ def test_naive_acceptance_reads_the_url_from_the_native_client_entry():
             _DefaultNaiveRunner._native_proxy_url(broken)
 
 
+def test_naive_acceptance_h2_uses_private_config_and_checks_nested_tls(monkeypatch):
+    import subprocess
+    import stat
+    from installer.adapters import naive as naive_module
+    from installer.adapters.naive import _DefaultNaiveRunner
+
+    observed = {}
+
+    def fake_curl(argv, **kwargs):
+        assert argv[:2] == ("curl", "--config")
+        assert "secret" not in str(argv)
+        config = Path(argv[2])
+        observed["mode"] = stat.S_IMODE(config.stat().st_mode)
+        observed["config"] = config.read_text()
+        return subprocess.CompletedProcess(argv, 0, "200 17 200", "")
+
+    monkeypatch.setattr(naive_module.subprocess, "run", fake_curl)
+    assert _DefaultNaiveRunner()._authenticated_connect_h2(
+        "https://alice:secret@naive.example.com",
+        naive_domain="naive.example.com",
+        panel_domain="panel.example.com",
+    ) == (17, True, True)
+    assert observed["mode"] == 0o600
+    assert "proxy-http2" in observed["config"]
+    assert 'proxy-user = "alice:secret"' in observed["config"]
+    assert 'url = "https://panel.example.com/healthz"' in observed["config"]
+
+
 def test_naive_acceptance_tunnels_a_real_inner_tls_session(tmp_path, monkeypatch):
     """The inner panel session runs inside the CONNECT tunnel. Wrapping the
     outer SSLSocket again would send the inner ClientHello in the clear and the
