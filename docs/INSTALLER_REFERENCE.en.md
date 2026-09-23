@@ -171,9 +171,9 @@ missing certificates. Remove the exception when ACME is available again and
 run a renewal dry run while the HTTP-01 vhost is present. Never use this to
 silence a broken challenge route. This opt-in was introduced after
 v0.13.0-beta.1; it is not available in that published tag. Use a verified
-v0.14.0-beta.1 (or later) release archive and its own SHA-256. The home
-integration passed installer verification and external client probes on
-2026-09-23 (Naive, Mieru TCP/UDP and MTProxy), but a pre-provisioned bridge and
+v0.14.0-beta.1 (or later) release archive and its own SHA-256. A coexistence
+installation passed installer verification and external client probes
+(Naive, Mieru TCP/UDP and MTProxy), but a pre-provisioned bridge and
 router forwarding remain operator-owned: the installer does not configure or
 persist those external boundaries.
 
