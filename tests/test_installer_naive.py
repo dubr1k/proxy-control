@@ -901,7 +901,10 @@ def test_naive_acceptance_h2_uses_private_config_and_checks_nested_tls(monkeypat
     assert observed["mode"] == 0o600
     assert "proxy-http2" in observed["config"]
     assert 'proxy-user = "alice:secret"' in observed["config"]
-    assert 'url = "https://panel.example.com/healthz"' in observed["config"]
+    # Caddy runs in Docker: its DNS/egress must not depend on the host's
+    # split-DNS /etc/hosts entry for the panel domain behind NAT.
+    assert 'url = "https://example.com/"' in observed["config"]
+    assert 'url = "https://panel.example.com/healthz"' not in observed["config"]
 
 
 def test_h2_curl_failure_exposes_only_allowlisted_tls_reason(monkeypatch):
