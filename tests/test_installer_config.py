@@ -133,6 +133,26 @@ def test_mcp_domain_is_optional_distinct_and_round_trips():
         parse_config(with_mcp.replace('mcp = "mcp.example.com"', 'mcp = "panel.example.com"'))
 
 
+def test_proxy_protocol_bridge_is_opt_in_loopback_only_and_round_trips():
+    document = CORE_TOML.replace('host_mode = "fresh"', 'host_mode = "coexist"').replace(
+        '[three_xui]',
+        '[ingress]\nproxy_protocol_bridge = "127.0.0.1:10443"\npanel_tls_port = 10446\nskip_renewal_dry_run = true\n\n[three_xui]',
+    )
+    config = parse_config(document)
+    assert config.ingress is not None
+    assert config.ingress.proxy_protocol_bridge == "127.0.0.1:10443"
+    assert config.ingress.panel_tls_port == 10446
+    assert config.panel_tls_port == 10446
+    assert config.ingress.skip_renewal_dry_run is True
+    assert parse_config(render_config(config)) == config
+    with pytest.raises(ConfigError, match="loopback TCP endpoint"):
+        parse_config(document.replace("127.0.0.1:10443", "10.0.0.1:10443"))
+    with pytest.raises(ConfigError, match="requires coexist mode"):
+        parse_config(document.replace('host_mode = "coexist"', 'host_mode = "fresh"'))
+    with pytest.raises(ConfigError, match="distinct unprivileged TCP port"):
+        parse_config(document.replace("panel_tls_port = 10446", "panel_tls_port = 10443"))
+
+
 def test_coexist_rejects_ufw_mutation():
     with pytest.raises(ConfigError, match="UFW can be managed only in fresh mode"):
         parse_config(COEXIST_WITH_UFW_TOML)
@@ -186,6 +206,7 @@ def test_generated_model_and_canonical_form_have_no_secret_fields():
         "three_xui",
         "firewall",
         "egress",
+        "ingress",
     }
 
 

@@ -533,18 +533,18 @@ class NginxAdapter:
         routes = (
             (config.domains.mtproxy, "127.0.0.1:8445"),
             # The panel application speaks plain HTTP; the Core adapter owns an
-            # Nginx TLS listener on 8443 that terminates for it, so the raw TLS
-            # this router forwards reaches a TLS server.
-            (config.domains.panel, "127.0.0.1:8443"),
+            # Nginx owns a private TLS listener that terminates for the panel, so
+            # the raw TLS this router forwards reaches a TLS server.
+            (config.domains.panel, f"127.0.0.1:{config.panel_tls_port}"),
         )
         if config.domains.subscription is not None:
             # Same TLS listener as the panel: Nginx picks the vhost by server_name, and
             # the subscription vhost serves nothing but `/s/`.
-            routes += ((config.domains.subscription, "127.0.0.1:8443"),)
+            routes += ((config.domains.subscription, f"127.0.0.1:{config.panel_tls_port}"),)
         if config.domains.mcp is not None:
             # The MCP server (v0.11 §9a) shares the listener the same way: its vhost
             # answers `/mcp` only and lives in the panel's file.
-            routes += ((config.domains.mcp, "127.0.0.1:8443"),)
+            routes += ((config.domains.mcp, f"127.0.0.1:{config.panel_tls_port}"),)
         if config.profile.includes_naive:
             if config.domains.naive is None:
                 raise TopologyError("Naive route domain is missing")
@@ -554,6 +554,17 @@ class NginxAdapter:
         # inbounds) reach the outside through this map too: the 3x-ui adapter proves each
         # one answers on loopback, this adapter is the only owner of the router file.
         routes += self._three_xui_routes(config)
+        bridge = (
+            config.ingress.proxy_protocol_bridge
+            if config.ingress is not None
+            else None
+        )
+        if bridge is not None:
+            self._assert_proxy_protocol_bridge(facts, bridge)
+            # The foreign frontend emits a PROXY header to every selected route. The
+            # bridge consumes it, reclassifies the TLS ClientHello by SNI, and forwards
+            # raw TLS to the unchanged private protocol listeners.
+            routes = tuple((domain, bridge) for domain, _backend in routes)
         known_domains: set[str] = set()
         observed_routes = nginx.get("sni_routes", {})
         if isinstance(observed_routes, Mapping):
@@ -655,6 +666,7 @@ class NginxAdapter:
                 mutations=mutations,
                 preconditions=(
                     "effective Nginx topology is observed and unambiguous",
+                    *(('the configured loopback PROXY-protocol bridge is listening',) if bridge is not None else ()),
                     *(("Nginx has no stream context: one including the router is added first",) if creates else ()),
                 ),
                 verification=(
@@ -665,6 +677,18 @@ class NginxAdapter:
                 credentials_required=False,
             ),
         )
+
+    @staticmethod
+    def _assert_proxy_protocol_bridge(facts: AuditFacts, bridge: str) -> None:
+        _host, _separator, raw_port = bridge.rpartition(":")
+        try:
+            port = int(raw_port)
+        except ValueError as exc:
+            raise TopologyError("configured PROXY-protocol bridge is invalid") from exc
+        listeners = facts.listeners if isinstance(facts.listeners, Mapping) else {}
+        tcp = listeners.get("tcp") if isinstance(listeners, Mapping) else None
+        if not isinstance(tcp, Sequence) or isinstance(tcp, (str, bytes)) or port not in tcp:
+            raise TopologyError("configured PROXY-protocol bridge is not listening")
 
     def _three_xui_routes(self, config: InstallerConfig) -> tuple[tuple[str, str], ...]:
         if config.three_xui.mode.value == "none":
@@ -1693,6 +1717,11 @@ class CertificatePlan:
                     f"service={service}",
                     f"certificate={certificate}",
                     f"email={config.acme_email}",
+                    *(
+                        ("skip-renewal-dry-run=true",)
+                        if config.ingress is not None and config.ingress.skip_renewal_dry_run
+                        else ()
+                    ),
                     *(f"name={name}" for name in names),
                     *(f"webroot=/var/www/{name}" for name in names),
                 ),
@@ -1702,7 +1731,11 @@ class CertificatePlan:
                 verification=(
                     "owned port-80 HTTP-01 vhosts are active",
                     "certificate validity, trust, exact SANs, and key pair pass",
-                    "Certbot renewal dry run succeeds for the exact lineage",
+                    *(
+                        ("existing valid lineage is verified locally; ACME renewal simulation is explicitly deferred",)
+                        if config.ingress is not None and config.ingress.skip_renewal_dry_run
+                        else ("Certbot renewal dry run succeeds for the exact lineage",)
+                    ),
                 ),
                 inverse=(
                     "remove only the exact owned HTTP-01 vhost and preserve ACME data",
@@ -1765,7 +1798,8 @@ class CertificatePlan:
                 raise TopologyError("certificate lineage is incomplete")
             if not self._certificate_valid(specification):
                 raise TopologyError("certificate lineage is invalid")
-            self._run_renewal(specification)
+            if not specification["skip_renewal_dry_run"]:
+                self._run_renewal(specification)
             success = True
         except Exception:
             success = False
@@ -1891,6 +1925,7 @@ class CertificatePlan:
             specification,
             preexisting=bool(saved["lineage_preexisting"]),
             repair_renewal=repair_renewal,
+            skip_renewal_dry_run=bool(specification["skip_renewal_dry_run"]),
         )
         return {
             "certificate": specification["certificate"],
@@ -1926,6 +1961,7 @@ class CertificatePlan:
         *,
         preexisting: bool,
         repair_renewal: bool,
+        skip_renewal_dry_run: bool,
     ) -> None:
         lineage_state = self._lineage_state(specification)
         if preexisting:
@@ -1947,6 +1983,8 @@ class CertificatePlan:
                 raise TopologyError(
                     "certificate validity, trust, SANs, or private key are invalid"
                 )
+        if preexisting and skip_renewal_dry_run:
+            return
         try:
             self._run_renewal(specification)
         except TopologyError:
@@ -2490,7 +2528,8 @@ def _certificate_action(action: Action) -> dict[str, object]:
             raise TopologyError("certificate action is malformed")
         else:
             singular[key] = value
-    if set(singular) != {"certificate", "email", "service"}:
+    allowed_singular = {"certificate", "email", "service", "skip-renewal-dry-run"}
+    if not {"certificate", "email", "service"} <= set(singular) <= allowed_singular:
         raise TopologyError("certificate action is malformed")
     service = singular["service"]
     if (
@@ -2519,11 +2558,15 @@ def _certificate_action(action: Action) -> dict[str, object]:
         )
     ):
         raise TopologyError("certificate action is malformed")
+    skip_renewal_dry_run = singular.get("skip-renewal-dry-run", "false")
+    if skip_renewal_dry_run not in {"true", "false"}:
+        raise TopologyError("certificate action is malformed")
     return {
         "certificate": singular["certificate"],
         "email": singular["email"],
         "names": tuple(names),
         "service": service,
+        "skip_renewal_dry_run": skip_renewal_dry_run == "true",
         "webroots": tuple(webroots),
     }
 

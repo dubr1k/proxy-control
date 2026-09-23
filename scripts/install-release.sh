@@ -26,18 +26,21 @@ DESTINATION=
 LANGUAGE=
 MODE=install   # install | check | unpack | requirements
 REQUIRE_ATTESTATION=0
+SOURCE_DIR=
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 usage() {
     cat >&2 <<'USAGE'
 usage: scripts/install-release.sh [--version X.Y.Z[-beta.N]] [--sha256 DIGEST] [--dir DIR]
-                                  [--lang ru|en] [--requirements | --check-only | --no-wizard]
+                                  [--from-dir VERIFIED_DIST] [--lang ru|en] [--requirements | --check-only | --no-wizard]
                                   [--attest] [-- INSTALLER ARGS...]
 
   --version       release to fetch (default: the VERSION file beside this script's tree)
   --sha256        pin the archive digest — the `lab-sha256` of the tag annotation
                   or the digest in the release note; a different archive is refused
   --dir           where to download and extract (default: ./proxy-control-vX.Y.Z; must be new)
+  --from-dir      use four already-downloaded release files from this directory;
+                  they are copied, then verified exactly like downloaded files
   --lang          language of the messages (default: from $LANG, ru or en)
   --requirements  print what the host needs and what the installer sets up, then exit
   --check-only    download and verify only; extract nothing, install nothing
@@ -64,6 +67,7 @@ while (($#)); do
         --version) VERSION=${2:?}; shift 2 ;;
         --sha256) EXPECTED=${2:?}; shift 2 ;;
         --dir) DESTINATION=${2:?}; shift 2 ;;
+        --from-dir) SOURCE_DIR=${2:?}; shift 2 ;;
         --lang) LANGUAGE=${2:?}; shift 2 ;;
         --requirements) MODE=requirements; shift ;;
         --check-only) MODE=check; shift ;;
@@ -252,6 +256,13 @@ if [[ $MODE == install ]] && ! command -v sudo >/dev/null 2>&1; then
 fi
 
 # --- download the four release files ---------------------------------------------------
+# `--from-dir` is for a locally reconstructed or separately transferred release
+# bundle. It is deliberately not an execution bypass: copied files receive the
+# same checksum, manifest, archive-member and optional attestation checks below.
+if [[ -n $SOURCE_DIR ]]; then
+    [[ -d $SOURCE_DIR ]] || fail "--from-dir не является каталогом" "--from-dir is not a directory"
+    SOURCE_DIR=$(cd -- "$SOURCE_DIR" && pwd)
+fi
 archive_name="proxy-control-v$VERSION.tar.gz"
 base="https://github.com/$REPO/releases/download/v$VERSION"
 if [[ -z $DESTINATION ]]; then
@@ -263,11 +274,23 @@ chmod 0700 -- "$DESTINATION"
 DESTINATION=$(cd -- "$DESTINATION" && pwd)
 cd -- "$DESTINATION"
 
-say "скачиваю v$VERSION из https://github.com/$REPO/releases/tag/v$VERSION" \
-    "downloading v$VERSION from https://github.com/$REPO/releases/tag/v$VERSION"
+if [[ -n $SOURCE_DIR ]]; then
+    say "копирую v$VERSION из проверенного локального каталога" \
+        "copying v$VERSION from the verified local directory"
+else
+    say "скачиваю v$VERSION из https://github.com/$REPO/releases/tag/v$VERSION" \
+        "downloading v$VERSION from https://github.com/$REPO/releases/tag/v$VERSION"
+fi
 for name in "$archive_name" SHA256SUMS release-manifest.json sbom.spdx.json; do
-    curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$name" -- "$base/$name" \
-        || fail "не удалось скачать $name" "could not download $name"
+    if [[ -n $SOURCE_DIR ]]; then
+        [[ -f $SOURCE_DIR/$name && ! -L $SOURCE_DIR/$name ]] \
+            || fail "в --from-dir нет обычного файла $name" "--from-dir lacks a regular $name"
+        cp -- "$SOURCE_DIR/$name" "$name" \
+            || fail "не удалось скопировать $name из --from-dir" "could not copy $name from --from-dir"
+    else
+        curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$name" -- "$base/$name" \
+            || fail "не удалось скачать $name" "could not download $name"
+    fi
     chmod 0600 -- "$name"
 done
 

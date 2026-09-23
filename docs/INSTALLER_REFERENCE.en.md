@@ -109,6 +109,11 @@ tcp_ports = [46001]
 udp_ports = [46001]
 lane_slots = 4                 # v0.7: lane slots mita@1…4 (ports 46101…), only with router = true
 
+[ingress]                      # optional: foreign stream sends PROXY protocol
+proxy_protocol_bridge = "127.0.0.1:10443"  # pre-provisioned, loopback-only Nginx stream bridge
+panel_tls_port = 10446                       # if the foreign Nginx owns 8443
+skip_renewal_dry_run = false                 # exceptional, preverified existing lineage only
+
 [egress]                       # optional (v0.4): WARP as a provider of its own
 warp = true                    # install and verify the pinned Cloudflare client
 warp_port = 40000              # its loopback SOCKS5 port (default 40000)
@@ -138,6 +143,35 @@ domains you want routed, and `managed-new` requires all four domains plus `warp`
 and `warp_domains` and runs on a fresh host only. `warp_domains` without
 `warp = true` is rejected.
 `manage_ufw` only takes effect on a fresh host.
+
+### Shared 443 with a foreign PROXY-protocol frontend
+
+Some existing Nginx stream frontends send a PROXY header to **all** backends.
+Do not switch that off: existing Xray/HTTPS backends may depend on the client
+address. Telemt, Caddy and the Core TLS vhost cannot consume that header.
+Only for `host_mode = "coexist"`, pre-provision a loopback Nginx stream listener
+with `listen 127.0.0.1:10443 proxy_protocol; ssl_preread on;`. Route by
+`$ssl_preread_server_name` to raw TLS listeners: Telemt 8445, Caddy 4443,
+and Core `panel_tls_port` (including the subscription name). The frontend
+routes *only the new names* to this bridge, preserving its PROXY header and
+all existing routes. The bridge must forward TLS bytes **without** sending a
+new PROXY header. Set `[ingress].proxy_protocol_bridge` to the existing bridge
+address; the installer only confirms the listener exists and **does not own,
+create, verify its SNI map or roll back that bridge**. Verify all route
+handshakes independently before and after installation. If 8443 is already
+occupied, set `panel_tls_port` to a separate free loopback port (e.g. 10446).
+Back up and roll back the foreign bridge separately from the installer.
+
+Only when existing certificate lineages have been independently checked for
+chain trust, exact SANs, expiry and private-key pairing, an operator facing a
+transient ACME rate limit can set `skip_renewal_dry_run = true`. This defers
+*only* the online renewal simulation for an already valid lineage; the
+installer still checks certificates locally and must issue/renew invalid or
+missing certificates. Remove the exception when ACME is available again and
+run a renewal dry run while the HTTP-01 vhost is present. Never use this to
+silence a broken challenge route. This opt-in is part of a **locally patched
+build**, not the published v0.13.0-beta.1 tag; its archive needs its own
+verified SHA-256 and release manifest.
 
 `[egress]` is optional. Without it the installer reads `[three_xui].warp` and
 `warp_port` exactly as before v0.4 (see «WARP and egress»); with it the section is

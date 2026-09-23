@@ -137,6 +137,19 @@ class FirewallConfig:
 
 
 @dataclass(frozen=True)
+class IngressConfig:
+    """Optional local bridge for a foreign stream frontend that emits PROXY."""
+
+    proxy_protocol_bridge: str | None = None
+    # The Core TLS vhost normally owns 8443. A foreign vhost already bound there
+    # can reserve another private listener for Core without touching its socket.
+    panel_tls_port: int = 8443
+    # Explicit operator acknowledgement: use locally verified existing certificates
+    # without making a new ACME renewal simulation during this install.
+    skip_renewal_dry_run: bool = False
+
+
+@dataclass(frozen=True)
 class InstallerConfig:
     schema: int
     host_mode: HostMode
@@ -149,10 +162,18 @@ class InstallerConfig:
     firewall: FirewallConfig
     # The written `[egress]` section, or None for a configuration from before it existed.
     egress: EgressConfig | None = None
+    # An opt-in loopback bridge is required only when a foreign shared-443 frontend
+    # emits PROXY protocol but the selected private backends do not consume it.
+    ingress: IngressConfig | None = None
 
     @property
     def effective_egress(self) -> EgressConfig:
         return self.egress if self.egress is not None else EgressConfig.derived(self.three_xui)
+
+    @property
+    def panel_tls_port(self) -> int:
+        """The private Nginx TLS listener that terminates the Core panel."""
+        return self.ingress.panel_tls_port if self.ingress is not None else 8443
 
     def required_domains(self) -> tuple[str, ...]:
         values = (
