@@ -1,4 +1,4 @@
-import { OPERATION_MESSAGE, OPERATION_OK, esc, initials, paintClientsCount, query, queryAll } from "./common.js";
+import { OPERATION_MESSAGE, OPERATION_OK, esc, icon, paintClientsCount, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { isCurrent } from "./state.js";
 
@@ -117,7 +117,7 @@ function clientCard(context, entry) {
   const [tone, label] = CLIENT_STATE[client.state] || ["blocked", client.state];
   const canWrite = context.state.me?.role !== "viewer" && client.state !== "archived";
   return `<article class="data-row client-card" data-client-id="${esc(client.id)}">
-    <span class="user-glyph">${esc(initials(client.display_name))}</span>
+    <span class="user-glyph" aria-hidden="true">${icon("client")}</span>
     <button type="button" class="client-identity" data-client-action="open">
       <b>${esc(client.display_name)}</b>
       <small>Доступов: ${grants.length}</small>

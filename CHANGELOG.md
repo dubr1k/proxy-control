@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.13.0-beta.1] - 2026-09-23
+
+Mobile panel: client and node cards use recognizable pictograms instead of square initial tiles; multiline grant cards no longer turn into oversized ovals. At screen widths up to 560px, routing quick settings occupy separate full-width rows with aligned checkboxes; the heading no longer shares a row with the first setting. No database, API, installer, or protocol-manager changes. Corrected the stale current-release notice in both READMEs and the published v0.12 release title.
+
+See [release notes](docs/releases/v0.13.0-beta.1.md).
+
 ## [0.12.0-beta.1] - 2026-09-22
 
 The panel's section is in the address now, and MTProxy access is handed out as the thing Telegram

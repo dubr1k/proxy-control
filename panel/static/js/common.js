@@ -26,6 +26,8 @@ export function icon(name) {
     plus: '<path d="M12 5v14M5 12h14"/>',
     manage: '<path d="M5 7h14M8 12h8M10 17h4"/>',
     refresh: '<path d="M20 7v5h-5M19 12a7 7 0 1 0-2 5"/>',
+    client: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 2.7-5.5 7-5.5s7 2 7 5.5"/>',
+    server: '<rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/><path d="M7.5 7.5h.01M7.5 16.5h.01"/>',
   };
   return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${shapes[name] || ""}</svg>`;
 }
