@@ -7,7 +7,13 @@ from pathlib import Path
 
 import httpx
 
-from version_agent.server import Handler, UnixHTTPServer
+from version_agent.server import (
+    AUTO_CHECK_MIN_DELAY,
+    Handler,
+    UnixHTTPServer,
+    auto_check_upstream,
+    upstream_due_in,
+)
 from version_agent.service import RollbackFailedError, UpdateError
 
 
@@ -178,3 +184,41 @@ def test_unix_socket_server_returns_distinct_rollback_failed_state(tmp_path: Pat
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+class _Checked:
+    def __init__(self, last=None, failures=0):
+        self.last = last
+        self.failures = failures
+        self.checks = 0
+
+    def upstream_checked_at(self):
+        return self.last
+
+    def check_upstream(self, force=False):
+        self.checks += 1
+        if self.failures:
+            self.failures -= 1
+            raise UpdateError("api.github.com did not answer")
+        return {}
+
+
+def test_the_automatic_upstream_check_waits_for_the_cache_to_age():
+    interval = 6 * 3600
+    assert upstream_due_in(_Checked(), interval, now=1_000_000) == AUTO_CHECK_MIN_DELAY
+    assert upstream_due_in(_Checked(last=1_000_000 - interval - 5), interval, now=1_000_000) == AUTO_CHECK_MIN_DELAY
+    assert upstream_due_in(_Checked(last=1_000_000 - 3600), interval, now=1_000_000) == interval - 3600
+
+
+def test_the_automatic_upstream_check_survives_a_failure_and_stops_on_request():
+    agent = _Checked(failures=1)
+    waits = []
+
+    class Stop:
+        def wait(self, seconds):
+            waits.append(seconds)
+            return len(waits) == 4
+
+    auto_check_upstream(agent, 3600, Stop(), clock=lambda: 0)
+    # first delay → failed check → retry pause → next delay → successful check → stop
+    assert agent.checks == 2 and len(waits) == 4

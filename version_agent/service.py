@@ -282,8 +282,20 @@ class VersionAgent:
         return current if isinstance(current, dict) else {}
 
     def _panel_current(self, data: dict) -> str | None:
-        """The panel's version is the `VERSION` file the container mounts, not the state."""
+        """The panel's version is the one its running container reports, not the state.
+
+        The project's `VERSION` file can run ahead of it: the container keeps the file it was
+        created with (a single-file bind mount holds the inode it saw), and a tree synced from
+        elsewhere carried the next release's files while the old build kept running — the
+        agent then offered nothing to install. The file is the fallback for a stopped panel.
+        """
         if self.compose_dir is not None:
+            try:
+                running = self._panel_container_version()
+            except Exception:  # noqa: BLE001 - the container is down or Docker does not answer
+                running = ""
+            if running:
+                return running
             try:
                 value = (self.compose_dir / "VERSION").read_text(encoding="utf-8").strip()
             except OSError:
@@ -342,6 +354,10 @@ class VersionAgent:
             "checked_at": checked_at if self.upstream_enabled else None,
             "components": components,
         }
+
+    def upstream_checked_at(self) -> int | None:
+        last = self._state().get("upstream", {}).get("checked_at")
+        return last if isinstance(last, int) else None
 
     def check_upstream(self, force: bool = False) -> dict:
         if not self.upstream_enabled:

@@ -42,6 +42,16 @@ def test_panel_version_is_on_screen_for_every_role_and_on_a_phone():
     assert "function componentsLine(versions)" in nodes and "Компоненты" in nodes
 
 
+def test_host_card_follows_the_host_while_the_overview_is_open():
+    """v0.15 (owner: the resources never moved): the card is replaced from `/api/host` every
+    few seconds, only for the render that is on screen and only while the tab is visible."""
+    assert "const HOST_REFRESH_MS = 5000;" in DASHBOARD
+    assert 'api("/api/host")' in DASHBOARD
+    assert "void followHost(context, generation);" in DASHBOARD
+    assert 'isCurrent(state, generation, "dashboard")' in DASHBOARD and "document.hidden" in DASHBOARD
+    assert "data-host-updated=" in DASHBOARD and "обновлено" in DASHBOARD
+
+
 def test_clients_badge_is_painted_from_the_clients_list():
     common = (STATIC / "js/common.js").read_text()
     clients = (STATIC / "js/clients.js").read_text()

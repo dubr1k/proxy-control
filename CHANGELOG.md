@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.15.0-beta.1] - 2026-09-23
+
+- Fix: the version-agent reports the panel version of the running container, not the project directory's `VERSION` file. A file that ran ahead of the build made the Versions screen claim the next release was installed and disabled its Update button.
+- The version-agent polls upstream by itself every 6 hours (`PROXY_CONTROL_UPSTREAM_CHECK_INTERVAL`, `0` = on request only), so node version lists reach the central fresh with the heartbeat.
+- The overview's server-resources card refreshes every 5 seconds from the new read-only `GET /api/host` while the overview is visible. No database migration or Fleet wire change.
+
+See [release notes](docs/releases/v0.15.0-beta.1.md).
+
 ## [0.14.0-beta.1] - 2026-09-23
 
 - Opt-in coexistence for a foreign shared-443 Nginx frontend that emits PROXY protocol: require an operator-owned loopback TLS/SNI bridge and allow a separate Core panel TLS port. Existing routes and PROXY headers remain unchanged.
