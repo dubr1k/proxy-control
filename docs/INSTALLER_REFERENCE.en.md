@@ -171,7 +171,10 @@ missing certificates. Remove the exception when ACME is available again and
 run a renewal dry run while the HTTP-01 vhost is present. Never use this to
 silence a broken challenge route. This opt-in is part of a **locally patched
 build**, not the published v0.13.0-beta.1 tag; its archive needs its own
-verified SHA-256 and release manifest.
+verified SHA-256 and release manifest. As of the first home integration
+attempt, the experimental curl HTTP/2 Naive acceptance still fails with exit 35;
+**do not deploy or claim this integration verified** until an actual Naive
+client passes through the running Caddy and all installer checks complete.
 
 `[egress]` is optional. Without it the installer reads `[three_xui].warp` and
 `warp_port` exactly as before v0.4 (see «WARP and egress»); with it the section is
