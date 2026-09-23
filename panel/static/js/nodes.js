@@ -1,4 +1,4 @@
-import { bytes, cssEscape, date, esc, initials, number, query, queryAll } from "./common.js";
+import { bytes, cssEscape, date, esc, icon, number, query, queryAll } from "./common.js";
 import { nodeDetail, refreshCommands, updateCommandFieldsAfterRender } from "./fleet.js";
 import { routingSummary } from "./routing.js";
 import { isCurrent } from "./state.js";
@@ -127,7 +127,7 @@ function nodeCard(context, node, expanded) {
     ? `<ul class="node-certificates">${node.certificates.map(certificateLine).join("")}</ul>`
     : '<p class="form-hint">Сертификатов нет: узел ещё не прошёл enrollment.</p>';
   return `<article class="data-row node-card${node.kind === "local" ? " local-node" : ""}" data-node-id="${esc(node.node_id)}">
-    <span class="user-glyph">${esc(initials(node.node_id))}</span>
+    <span class="user-glyph" aria-hidden="true">${icon("server")}</span>
     <div class="node-identity">
       <b>${esc(node.display_name)}</b>
       <small>${esc(node.node_id)} · ${node.kind === "local" ? "Этот сервер" : "Удалённый узел"}${node.disabled ? " · отключён" : ""}</small>
@@ -290,7 +290,7 @@ function linkedCard(context, node, tab) {
   const body = tab === "users" ? usersTab(context, node) : tab === "updates" ? updatesTab(context, node) : overviewTab(context, node);
   const tabs = TABS.map(([key, name]) => `<button class="${key === tab ? "active" : ""}" role="tab" aria-selected="${key === tab ? "true" : "false"}" data-node-action="tab-${key}">${name}</button>`).join("");
   return `<article class="data-row node-card linked-node" data-node-id="${esc(node.node_id)}">
-    <span class="user-glyph">${esc(initials(node.display_name))}</span>
+    <span class="user-glyph" aria-hidden="true">${icon("server")}</span>
     <div class="node-identity">
       <b>${esc(node.display_name)}</b>
       <small>${esc(link.panel_url)} · панель ${esc(link.panel_version || "?")}${link.enabled ? "" : " · пауза"}</small>

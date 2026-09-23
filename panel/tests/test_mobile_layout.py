@@ -118,7 +118,7 @@ class DevTools:
                 return response.get("result", {})
 
 
-def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
+def _render_at_phone_viewport(page: Path, profile: Path, screenshot: Path | None = None) -> dict[str, Any]:
     process = subprocess.Popen(
         [
             _browser(),
@@ -209,6 +209,9 @@ def _render_at_phone_viewport(page: Path, profile: Path) -> dict[str, Any]:
                     },
                 )["result"].get("value", {})
                 if result.get("result"):
+                    if screenshot is not None:
+                        image = devtools.call("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True})
+                        screenshot.write_bytes(base64.b64decode(image["data"]))
                     return result
                 time.sleep(0.05)
             raise RuntimeError("Mobile layout assertions did not finish")
