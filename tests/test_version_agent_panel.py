@@ -63,7 +63,9 @@ def _panel_archive(*, naive: bytes = b"changed naive\n", agent: bytes = b"new ag
 
 class _PanelHost:
     """A fake host: the compose dir, the agent dir, the panel volume and a runner that
-    answers `docker` like the real one would (the container reads the bind-mounted VERSION)."""
+    answers `docker` like the real one would. The container reads the VERSION it was created
+    with (a single-file bind mount keeps the inode it saw), so `running` changes on `up` only;
+    `container_version` is what an `up` leaves running (the file by default)."""
 
     def __init__(self, tmp_path: Path, *, container_version: str | None = None, migrate: bool = False):
         self.tmp_path = tmp_path
@@ -86,6 +88,7 @@ class _PanelHost:
         self.volume.mkdir()
         (self.volume / "panel.sqlite3").write_bytes(b"db-old")
         (self.volume / "panel.sqlite3-wal").write_bytes(b"wal-old")
+        self.running = f"{OLD_PANEL}\n"
 
     def run(self, command, *, env=None, cwd=None, timeout=None):
         self.commands.append(list(command))
@@ -96,8 +99,10 @@ class _PanelHost:
             # A newer panel migrates the database at start-up; the restored one does not.
             (self.volume / "panel.sqlite3").write_bytes(b"db-migrated")
             (self.volume / "panel.sqlite3-shm").write_bytes(b"shm-new")
+        if command[:2] == ["docker", "compose"] and "up" in command:
+            self.running = self.container_version or (self.compose / "VERSION").read_text()
         if command == PANEL_EXEC:
-            return self.container_version or (self.compose / "VERSION").read_text()
+            return self.running
         return ""
 
     def agent(self, payload: bytes, **extra) -> VersionAgent:
@@ -110,6 +115,7 @@ class _PanelHost:
             "panel": {"latest": NEW_PANEL, "installable": True, "reason": None,
                       "candidates": [{**PANEL_CANDIDATE, "sha256": digest}]}}
         agent.check_upstream()
+        self.commands.clear()
         return agent
 
 
@@ -127,11 +133,16 @@ def _verbs(commands) -> list[str]:
     return verbs
 
 
+def _mutations(commands) -> list[list[str]]:
+    """Everything but the read-only question «which version is running»."""
+    return [command for command in commands if command != PANEL_EXEC]
+
+
 def _state(tmp_path: Path) -> dict:
     return json.loads((tmp_path / "state.json").read_text())["components"]["panel"]
 
 
-def test_panel_current_is_the_version_file_and_the_state_carries_the_status(tmp_path: Path):
+def test_panel_current_is_the_running_container_and_the_state_carries_the_status(tmp_path: Path):
     host = _PanelHost(tmp_path)
     agent = host.agent(_panel_archive())
     listed = agent.list_versions()["components"]["panel"]
@@ -142,10 +153,43 @@ def test_panel_current_is_the_version_file_and_the_state_carries_the_status(tmp_
         agent.update("panel", NEW_PANEL, expected_current="0.9.0-beta.1")
     with pytest.raises(CatalogError, match="not approved"):
         agent.update("panel", "0.12.0-beta.1", expected_current=OLD_PANEL)
-    (host.compose / "VERSION").write_text(f"{NEW_PANEL}\n")  # already there: nothing to do
+    (host.compose / "VERSION").write_text(f"{NEW_PANEL}\n")
+    host.running = f"{NEW_PANEL}\n"  # already running: nothing to do
     assert agent.update("panel", NEW_PANEL, expected_current=NEW_PANEL) == {
         "component": "panel", "version": NEW_PANEL, "changed": False}
-    assert host.commands == []
+    assert _mutations(host.commands) == []
+
+
+def test_a_version_file_ahead_of_the_running_panel_does_not_hide_the_update(tmp_path: Path):
+    """Seen live: a project dir kept in sync from a working copy got the next release's files
+    (VERSION included) while the container still ran the previous build. The panel showed the
+    old version, the agent the new one, and the update button stayed disabled."""
+    host = _PanelHost(tmp_path)
+    (host.compose / "VERSION").write_text(f"{NEW_PANEL}\n")
+    agent = host.agent(_panel_archive())
+    listed = agent.list_versions()["components"]["panel"]
+    assert listed["current"] == OLD_PANEL
+    assert [e["version"] for e in listed["available"]] == [NEW_PANEL]
+    result = agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert result["changed"] is True
+    assert _state(tmp_path)["previous_version"] == OLD_PANEL
+    assert agent.list_versions()["components"]["panel"]["current"] == NEW_PANEL
+
+
+def test_panel_current_falls_back_to_the_version_file_without_a_container(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    agent = host.agent(_panel_archive())
+
+    def down(command, **kwargs):
+        if command == PANEL_EXEC:
+            raise RuntimeError("No such container: proxy-control-panel")
+        return host.run(command, **kwargs)
+
+    agent.runner = down
+    assert agent.list_versions()["components"]["panel"]["current"] == OLD_PANEL
+    host.running = ""
+    agent.runner = host.run
+    assert agent.list_versions()["components"]["panel"]["current"] == OLD_PANEL
 
 
 def test_panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies(tmp_path: Path):
@@ -172,7 +216,7 @@ def test_panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies(tmp_p
     assert not (backups / "panel-db.previous/panel.sqlite3-shm").exists()
     # The agent's own code follows the release; its restart is the very last command.
     assert (host.agent_dir / "version_agent/service.py").read_text() == "new agent\n"
-    assert _verbs(host.commands) == ["tag", "build", "stop", "up", "exec", "systemd-run"]
+    assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "systemd-run"]
     tag = next(c for c in host.commands if c[:2] == ["docker", "tag"])
     assert tag[2] == "mtproxy-panel:latest" and tag[3].startswith("mtproxy-panel:rollback-")
     build = next(c for c in host.commands if "build" in c)
@@ -210,7 +254,7 @@ def test_panel_update_rolls_back_files_db_and_image_when_the_container_reports_t
     assert (host.volume / "panel.sqlite3").read_bytes() == b"db-old"
     assert (host.volume / "panel.sqlite3-wal").read_bytes() == b"wal-old"
     assert not (host.volume / "panel.sqlite3-shm").exists()  # the migrated generation's leftovers are gone
-    assert _verbs(host.commands) == ["tag", "build", "stop", "up", "exec", "tag", "up", "exec"]
+    assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "tag", "up", "exec"]
     tags = [c for c in host.commands if c[:2] == ["docker", "tag"]]
     assert tags[1][2] == tags[0][3] and tags[1][3] == "mtproxy-panel:latest"
     state = _state(tmp_path)
@@ -244,7 +288,7 @@ def test_panel_preflight_refuses_an_unsafe_archive_before_touching_anything(tmp_
     with pytest.raises(UpdateError, match="archive"):
         agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
     assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
-    assert not (tmp_path / "backups").exists() and host.commands == []
+    assert not (tmp_path / "backups").exists() and _mutations(host.commands) == []
     state = _state(tmp_path)
     assert state["status"] == "update_failed" and state["version"] == OLD_PANEL and "archive" in state["last_error"]
     # A refused archive is not a broken generation: the next attempt is allowed.
@@ -259,7 +303,7 @@ def test_panel_digest_mismatch_touches_nothing(tmp_path: Path):
     agent.downloader = lambda url: _panel_archive(agent=b"tampered\n")
     with pytest.raises(UpdateError, match="SHA-256 mismatch"):
         agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
-    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n" and host.commands == []
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n" and _mutations(host.commands) == []
 
 
 def test_a_second_panel_update_is_refused_while_one_is_running(tmp_path: Path):
@@ -271,7 +315,7 @@ def test_a_second_panel_update_is_refused_while_one_is_running(tmp_path: Path):
     assert agent.list_versions()["components"]["panel"]["status"] == "updating"
     with pytest.raises(ConflictError, match="already"):
         agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
-    assert host.commands == []
+    assert _mutations(host.commands) == []
 
 
 def test_panel_update_runs_in_a_background_thread_and_the_request_returns_first(tmp_path: Path):

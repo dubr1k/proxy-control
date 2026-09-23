@@ -519,6 +519,11 @@ class Acceptance:
         text = b.page_text()
         self.check("dashboard.host_card_has_resources_or_reason", "Ресурсы сервера" in text and ("CPU" in text or "Недоступны" in text))
         self.check("dashboard.protocol_cards_rendered", all(name in text for name in ("MTProxy", "Mieru", "NaiveProxy")))
+        # v0.15: the resource card refreshes itself from /api/host while the overview is open.
+        stamp = b.js("document.querySelector('.host-card')?.dataset.hostUpdated || ''")
+        self.check("dashboard.host_card_refreshes_itself",
+                   b.wait(f"(document.querySelector('.host-card')?.dataset.hostUpdated || '{stamp}') !== '{stamp}'", 15),
+                   stamp)
         self.view_addressing()
         # The profile button's chevron opens a real menu (v0.6 finding): the account, its screens, sign-out.
         b.click("#profile-button")

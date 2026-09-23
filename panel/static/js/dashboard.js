@@ -36,6 +36,9 @@ function paintNavCounts(context, data, nodes) {
 // it a filled bar would cry wolf on a server that is simply being used.
 const HOST_WARN_PERCENT = 75;
 const HOST_CRITICAL_PERCENT = 90;
+// v0.15 (owner: «не вижу, что что-то обновляется»): the resource card follows the host while
+// the overview is open. `/api/host` asks the agent alone, not every protocol runtime.
+const HOST_REFRESH_MS = 5000;
 
 function hostRow(label, usage, detail) {
   const percent = usage?.used_percent;
@@ -50,14 +53,19 @@ function hostRow(label, usage, detail) {
     <em>${esc(detail)}</em></span>`;
 }
 
-function hostCard(host) {
+function updatedAt(when) {
+  return `обновлено ${when.toLocaleTimeString("ru-RU")}`;
+}
+
+function hostCard(host, when = new Date()) {
+  const stamp = `data-host-updated="${when.getTime()}"`;
   if (!host || host.available !== true) {
     const reason = host?.reason === "version_agent_unavailable"
       ? "Host-agent не отвечает. Метрики хоста читает только он: панель работает read-only и не монтирует ни /proc, ни файловую систему хоста."
       : "Агент вернул метрики в неизвестном формате.";
-    return `<article class="protocol-card host-card host-row degraded">
+    return `<article class="protocol-card host-card host-row degraded" ${stamp}>
       <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill blocked"><i></i>Недоступны</span></div>
-      <p class="protocol-note">${esc(reason)}</p>
+      <p class="protocol-note">${esc(reason)} · ${esc(updatedAt(when))}</p>
     </article>`;
   }
   const { cpu, memory, disk } = host;
@@ -71,15 +79,42 @@ function hostCard(host) {
     ? `load ${cpu.load_average.map((value) => value.toFixed(2)).join(" · ")}`
     : "load average недоступен";
   const cores = typeof cpu?.cores === "number" ? `${number(cpu.cores)} ядер · ${load}` : load;
-  return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}">
+  return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}" ${stamp}>
     <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}"><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
-    <p class="protocol-note">${esc(cores)}</p>
+    <p class="protocol-note">${esc(cores)} · ${esc(updatedAt(when))}</p>
     <div class="protocol-metrics host-metrics">
       ${hostRow("Загрузка CPU", cpu, "Мгновенная утилизация, окно 150 мс")}
       ${hostRow("Оперативная память", memory, memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "")}
       ${hostRow("Диск (корень)", disk, disk ? `${bytes(disk.available_bytes)} свободно из ${bytes(disk.total_bytes)}` : "")}
     </div>
   </article>`;
+}
+
+// The bars' widths go through the CSSOM: an inline style attribute is what the CSP
+// (style-src 'self') drops, and a bar that never fills is worse than no bar.
+function fillBars(root) {
+  for (const bar of root.querySelectorAll("[data-usage-percent]")) bar.style.width = `${bar.dataset.usagePercent}%`;
+}
+
+// Replaces the card in place every HOST_REFRESH_MS while this very render of the overview is
+// on screen; a hidden tab skips the call, another screen (or «Обновить») ends the loop.
+async function followHost(context, generation) {
+  const { api, state, ui } = context;
+  for (;;) {
+    await new Promise((resolve) => window.setTimeout(resolve, HOST_REFRESH_MS));
+    if (!isCurrent(state, generation, "dashboard")) return;
+    if (document.hidden) continue;
+    let host;
+    try {
+      host = await api("/api/host");
+    } catch {
+      continue; // a dropped request keeps the last numbers; the next tick tries again
+    }
+    const card = query(".host-card", ui.view);
+    if (!isCurrent(state, generation, "dashboard") || !card) return;
+    card.outerHTML = hostCard(host);
+    fillBars(query(".host-card", ui.view));
+  }
 }
 
 export async function renderDashboard(context, generation) {
@@ -140,7 +175,6 @@ export async function renderDashboard(context, generation) {
     <div class="service-row ${naiveReady || !naiveAvailable ? "" : "degraded"}"><i></i><span><b>NaiveProxy · manager</b><small>${naiveState}</small></span><em>${esc(naive.status)}</em></div>
     <div class="service-row ${location.protocol === "https:" ? "" : "degraded"}"><i></i><span><b>Proxy Control${state.me?.panel_version ? ` · ${esc(state.me.panel_version)}` : ""}</b><small>${location.protocol === "https:" ? "HTTPS · защищённое соединение" : "HTTP · соединение не защищено"}</small></span><em>${location.protocol === "https:" ? "secure" : "insecure"}</em></div>
   </div></section></div>`;
-  // The bars' widths go through the CSSOM: an inline style attribute is what the CSP
-  // (style-src 'self') drops, and a bar that never fills is worse than no bar.
-  for (const bar of ui.view.querySelectorAll("[data-usage-percent]")) bar.style.width = `${bar.dataset.usagePercent}%`;
+  fillBars(ui.view);
+  void followHost(context, generation);
 }

@@ -229,6 +229,21 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         with app.state.database.connect() as db:
             require_unmanaged(db, app.state.managed, "mtproxy", username)
 
+    async def host_resources() -> dict:
+        # Host CPU/RAM/disk can only come from the host agent: the panel runs
+        # read-only with ALL capabilities dropped and mounts nothing from the
+        # host but the agent socket, so it has nothing of its own to measure.
+        try:
+            return safe_host(await app.state.versions.host())
+        except VersionAgentError:
+            return {"available": False, "reason": "version_agent_unavailable"}
+
+    @app.get("/api/host")
+    async def host(_user=Depends(context.current)):
+        """v0.15: the overview's resource card alone, cheap enough to poll every few seconds
+        (`/api/dashboard` asks every protocol runtime as well)."""
+        return await host_resources()
+
     @app.get("/api/dashboard")
     async def dashboard(_user=Depends(context.current)):
         results = await asyncio.gather(
@@ -376,13 +391,7 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
                 }
         else:
             protocols["mieru"] = {"available": False, "status": "disabled"}
-        # Host CPU/RAM/disk can only come from the host agent: the panel runs
-        # read-only with ALL capabilities dropped and mounts nothing from the
-        # host but the agent socket, so it has nothing of its own to measure.
-        try:
-            host = safe_host(await app.state.versions.host())
-        except VersionAgentError:
-            host = {"available": False, "reason": "version_agent_unavailable"}
+        host = await host_resources()
         return {
             "health": health,
             "stats": stats,

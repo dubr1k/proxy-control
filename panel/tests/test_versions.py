@@ -131,6 +131,54 @@ async def test_overview_reports_host_resources_from_the_agent(
 
 
 @pytest.mark.anyio
+async def test_host_resources_are_polled_alone_and_follow_the_agent(
+    tmp_path, telemt, naive, mieru, login_user
+):
+    """v0.15: the overview refreshes its resource card from `GET /api/host` — the same
+    mapped contract as the dashboard's `host`, fresh on every call, read-only for any role."""
+    from httpx import ASGITransport, AsyncClient
+    from panel.app import Settings, create_app
+
+    versions = MemoryVersions()
+    settings = Settings(
+        database_path=tmp_path / "panel.sqlite3",
+        session_cookie_secure=False,
+        allowed_hosts=("testserver",),
+        naive_public_host="naive.example.com",
+        naive_enabled=True,
+        mieru_enabled=True,
+    )
+    app = create_app(
+        settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions
+    )
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        assert (await client.get("/api/host")).status_code == 401
+        await login_user(client)
+        first = (await client.get("/api/host")).json()
+        versions.host_metrics["cpu"]["used_percent"] = 81.25
+        versions.host_metrics["cpu"]["secret_field"] = "never"
+        second = (await client.get("/api/host")).json()
+        dashboard = (await client.get("/api/dashboard")).json()["host"]
+
+    assert first["available"] is True and first["cpu"]["used_percent"] == 12.5
+    assert second["cpu"]["used_percent"] == 81.2
+    assert "secret_field" not in second["cpu"]
+    assert second == dashboard
+
+
+@pytest.mark.anyio
+async def test_host_resources_report_a_reason_when_the_agent_is_silent(client, login_user):
+    await login_user(client)
+    assert (await client.get("/api/host")).json() == {
+        "available": False,
+        "reason": "version_agent_unavailable",
+    }
+
+
+@pytest.mark.anyio
 async def test_overview_degrades_to_a_reason_when_the_host_agent_is_silent(
     client, login_user,
 ):

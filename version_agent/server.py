@@ -6,6 +6,8 @@ import logging
 import os
 import socket
 import socketserver
+import threading
+import time
 from pathlib import Path
 
 from .catalog import CatalogError
@@ -13,6 +15,9 @@ from .host import host_metrics
 from .service import ConflictError, UpdateError, agent_from_env
 
 _MAX_BODY = 16 * 1024
+AUTO_CHECK_INTERVAL = 6 * 3600
+AUTO_CHECK_MIN_DELAY = 60
+AUTO_CHECK_RETRY = 900
 
 
 def _log_failure(component: str, version: str, exc: BaseException) -> None:
@@ -161,16 +166,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(502, {"detail": str(exc), "state": getattr(exc, "state", "update_failed")})
 
 
+def upstream_due_in(agent, interval: int, now: float) -> float:
+    """Seconds until the next automatic upstream check: never sooner than a minute after start."""
+    last = agent.upstream_checked_at()
+    if last is None:
+        return AUTO_CHECK_MIN_DELAY
+    return max(AUTO_CHECK_MIN_DELAY, last + interval - now)
+
+
+def auto_check_upstream(agent, interval: int, stop: threading.Event, clock=time.time) -> None:
+    """v0.15: the agent polls upstream on its own, so a node's versions reach the central fresh
+    with the heartbeat — before, a node reported whatever it saw at its last manual check."""
+    while not stop.wait(upstream_due_in(agent, interval, clock())):
+        try:
+            agent.check_upstream()
+        except Exception as exc:  # noqa: BLE001 - the loop must outlive a failed check
+            logging.getLogger("version_agent").warning("automatic upstream check failed: %s", exc)
+            if stop.wait(AUTO_CHECK_RETRY):
+                return
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
     agent = agent_from_env()
     socket_path = os.getenv("PROXY_CONTROL_VERSION_SOCKET", "/run/proxy-control/version-agent.sock")
     gid = int(os.getenv("PROXY_CONTROL_VERSION_SOCKET_GID", "10001"))
+    interval = int(os.getenv("PROXY_CONTROL_UPSTREAM_CHECK_INTERVAL", str(AUTO_CHECK_INTERVAL)))
     server = UnixHTTPServer(socket_path, Handler, gid=gid)
     server.agent = agent
+    stop = threading.Event()
+    if agent.upstream_enabled and interval > 0:
+        threading.Thread(
+            target=auto_check_upstream, args=(agent, interval, stop), name="upstream-check", daemon=True
+        ).start()
     try:
         server.serve_forever(poll_interval=0.5)
     finally:
+        stop.set()
         server.server_close()
 
 
