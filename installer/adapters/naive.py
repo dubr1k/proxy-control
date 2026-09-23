@@ -498,12 +498,16 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
         naive_domain: str,
         panel_domain: str,
     ) -> tuple[int, bool, bool]:
-        """Exercise a real HTTP/2 CONNECT tunnel and verify both TLS peers.
+        """Exercise HTTP/2 CONNECT to a public HTTPS origin through Caddy.
 
-        Caddy's forward_proxy answers HTTP/1.1 CONNECT with an empty chunked
-        response (0\\r\\n\\r\\n), not a tunnel. Naive clients negotiate h2.
-        Keep the temporary credential out of argv, the environment and logs.
+        Panel health was independently authenticated through the host's local
+        routing in _connect_and_account. Caddy runs in Docker, where the host's
+        split-DNS /etc/hosts mapping for the panel domain is NOT available:
+        connecting back to the public NAT address closes the tunnel. A public
+        origin proves both egress and TLS inside CONNECT without that hairpin.
+        Keep temporary credentials out of argv, environment and logs.
         """
+        del panel_domain  # authenticated panel API was already exercised
         parts = urllib.parse.urlsplit(proxy_url)
         if parts.scheme != "https" or parts.hostname != naive_domain:
             raise AcceptanceError("Naive acceptance failed: access")
@@ -526,7 +530,7 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
                 'output = "/dev/null"',
                 'write-out = "%{http_code} %{size_download} %{http_connect}"',
                 'max-time = 40',
-                f"url = {quoted('https://' + panel_domain + '/healthz')}",
+                'url = "https://example.com/"',
             )) + "\n")
             config.chmod(0o600)
             try:
@@ -564,7 +568,9 @@ class _DefaultNaiveRunner(_DefaultCoreRunner):
         if match is None:
             raise AcceptanceError("Naive acceptance failed: HTTP/2 response format")
         status, downloaded, connect_status = map(int, match.groups())
-        return max(downloaded, 1), True, status == 200 and connect_status == 200
+        if downloaded == 0:
+            raise AcceptanceError("Naive acceptance failed: empty CONNECT payload")
+        return downloaded, True, status == 200 and connect_status == 200
 
     def _authenticated_connect(
         self,
