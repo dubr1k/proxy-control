@@ -4,6 +4,7 @@
 // «Применить» is enabled only for a saved, supported policy.
 import { registerReasons } from "./api.js";
 import { date, esc, number, query, queryAll } from "./common.js";
+import { capabilityList, guideHtml } from "./routing-guide.js";
 import { isCurrent } from "./state.js";
 
 const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy" };
@@ -332,23 +333,47 @@ function editor(context, target, draft, editable) {
   </form>`;
 }
 
-function previewPanel(compiled, policy, dirty) {
+// The draft in one sentence, before any technical detail: what the default does and what
+// the exceptions add up to.
+function draftSummary(target, draft) {
+  // Plain text: the caller passes it through esc() as a whole.
+  if (!draft) return "";
+  const exitName = exitLabel(target, draft.default_egress || "warp") || "WARP";
+  const where = draft.default_action === "egress" ? "через " + exitName : "напрямую";
+  const active = draft.rules.filter((rule) => rule.enabled !== false);
+  const count = (action) => active.filter((rule) => rule.action === action).length;
+  const parts = [["блокируют", count("block")], ["напрямую", count("direct")], ["в другой выход", count("egress")]]
+    .filter(([, total]) => total).map(([label, total]) => label + " — " + total);
+  const rules = active.length ? "исключений: " + active.length + " (" + parts.join(", ") + ")" : "исключений нет";
+  return "По умолчанию трафик идёт " + where + "; " + rules + ".";
+}
+
+function previewPanel(compiled, policy, dirty, summary = "") {
   if (!compiled) return '<div class="routing-preview" id="routing-preview"><p class="form-hint">Предпросмотр появится после изменения политики.</p></div>';
   const supported = compiled.status === "supported";
   const reasons = (compiled.reasons || []).map((reason) => `<li class="routing-reason" data-rule-id="${esc(reason.rule_id || "")}">${esc(reasonText(reason.code))}${reason.rule_id ? ` <small>(правило ${esc(ruleLabel(policy, reason.rule_id))})</small>` : ""}${reason.message ? `<small>${esc(reason.message)}</small>` : ""}</li>`).join("");
   const warnings = (compiled.warnings || []).map((warning) => `<li class="routing-warning">${esc(WARNING_TEXT[warning] || warning)}</li>`).join("");
   const diff = (compiled.diff || []).map((line) => `<span class="${line.startsWith("+") ? "added" : line.startsWith("-") ? "removed" : ""}">${esc(line)}</span>`).join("\n");
   const rollback = compiled.rollback ? `откат к ревизии узла ${esc(String(compiled.rollback.to_revision).slice(0, 12))}` : "отката нет: это первая запись";
+  const verdict = supported
+    ? (diff ? "Узел сможет это применить." : "Узел уже работает так.")
+    : "Так узел не сможет — причины ниже; подсказки в «Как это работает».";
   return `<div class="routing-preview" id="routing-preview">
     <div class="routing-preview-head">
       <span class="status-pill ${supported ? "active" : "blocked"}"><i></i>${supported ? "поддерживается" : "не применимо"}</span>
-      <small>${esc(compiled.backend || "")} · компилятор ${esc(compiled.compiler_version || "")}${dirty ? " · черновик не сохранён" : ""}</small>
+      <small>${dirty ? "черновик не сохранён" : "сохранено"}</small>
     </div>
+    ${summary ? `<p class="routing-summary">${esc(summary)}</p>` : ""}
+    <p class="routing-verdict">${verdict} ${compiled.restart_required ? "При применении сессии сервиса на узле переподключатся." : ""}</p>
     ${reasons ? `<ul class="routing-reasons">${reasons}</ul>` : ""}
     ${warnings ? `<ul class="routing-warnings">${warnings}</ul>` : ""}
-    <p class="form-hint">${compiled.restart_required ? "потребуется перезапуск сервиса на узле" : "перезапуск не требуется"} · ${rollback}${compiled.runtime_version ? ` · ${esc(compiled.runtime_version)}` : ""}</p>
-    ${diff ? `<pre class="routing-diff">${diff}</pre>` : `<p class="form-hint">${supported && policy && !policy.applied_current && !dirty ? "Узел уже работает так, но политика не закреплена: «Применить» возьмёт настройку под управление панели и даст откат." : "Изменений относительно узла нет."}</p>`}
-    ${compiled.document ? `<details class="routing-document"><summary>Документ для менеджера</summary><pre>${esc(JSON.stringify(compiled.document, null, 2))}</pre></details>` : ""}
+    ${!diff && supported && policy && !policy.applied_current && !dirty ? '<p class="form-hint">Узел уже работает так, но политика не закреплена: «Применить» возьмёт настройку под управление панели и даст откат.</p>' : ""}
+    <details class="routing-tech">
+      <summary>Технические детали</summary>
+      <p class="form-hint">${esc(compiled.backend || "")} · компилятор ${esc(compiled.compiler_version || "")} · ${compiled.restart_required ? "потребуется перезапуск сервиса на узле" : "перезапуск не требуется"} · ${rollback}${compiled.runtime_version ? ` · ${esc(compiled.runtime_version)}` : ""}</p>
+      ${diff ? `<pre class="routing-diff">${diff}</pre>` : '<p class="form-hint">Изменений относительно узла нет.</p>'}
+      ${compiled.document ? `<details class="routing-document"><summary>Документ для менеджера</summary><pre>${esc(JSON.stringify(compiled.document, null, 2))}</pre></details>` : ""}
+    </details>
   </div>`;
 }
 
@@ -611,34 +636,59 @@ function targetCard(context) {
       ${reason}
     </article>`;
   }
-  const providers = Object.entries(target.providers || {}).map(([name, value]) => `${name}: ${value.reachable === false ? "не отвечает" : value.reachable ? "доступен" : "не проверялся"}`).join(", ") || "провайдеров нет";
+  const providers = Object.entries(target.providers || {}).map(([name, value]) => `${name === "warp" ? "WARP" : name === "router" ? "Xray-router" : name} ${value.reachable === false ? "не отвечает" : value.reachable ? "доступен" : "не проверялся"}`).join(", ") || "нет";
   const backendName = BACKEND_NAMES[target.backend] || target.backend;
   const laneBadge = lane === LANE_SERVICE ? "" : ` · <span class="routing-lane-badge">полоса ${esc(lane.replace(/^grant:/, "").slice(0, 8))}</span>`;
   const laneItem = (target.lanes || []).find((item) => item.lane === lane);
   const owner = context.state.me?.role === "owner";
   const laneTools = lane === LANE_SERVICE ? "" : `<div class="routing-lane-tools"><small>${laneItem?.grant ? `доступ ${esc(laneItem.grant.runtime_username)} клиента ${esc(laneItem.grant.client_name)}: свой маршрут` : "полоса клиента"}</small><button class="secondary" data-routing-action="lane-remove"${owner && laneItem?.grant ? "" : " disabled"}>Вернуть в полосу сервиса</button></div>`;
+  // v0.17 (owner: «чтобы было удобно, понятно»): the card is four numbered steps in the order an
+  // operator works — for whom, where traffic goes, check, apply — and the node's plumbing
+  // (exits, Xray-router, geodata, relay) below them, folded once the service is on the router.
+  const setupOpen = !target.router || !target.router.attached;
+  const capabilities = capabilityList(target.capabilities).join(", ") || "—";
   return `<article class="panel-card routing-card">
     <div class="routing-head">
       <b>${esc(PROTOCOL_NAMES[target.protocol] || target.protocol)} · <span class="routing-backend">${esc(backendName)}</span>${laneBadge}</b>
       <span class="status-pill ${tone}"><i></i>${esc(statusText)}</span>
     </div>
-    <p class="form-hint">Возможности: ${esc((target.capabilities || []).join(", ") || "—")} · провайдеры — ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress" : ""}</p>
-    ${exitsLine(context, target)}
-    ${customExitsPanel(context, target)}
-    ${routerLine(context, target)}
-    ${geodataLine(context, target)}
-    ${relayLine(context, target)}
+    <p class="routing-can">Этот сервис умеет: ${esc(capabilities)}.</p>
     ${reason}
-    ${laneTabs(context, target)}
-    ${laneTools}
-    <div class="routing-layout">
-      ${editor(context, target, state.draft, editable)}
-      ${previewPanel(state.compiled, policy, state.dirty)}
-    </div>
-    ${explainPanel(context)}
-    ${cardActions(context, policy, state.compiled, state.dirty, editable)}
-    <div id="routing-history" hidden></div>
+    <section class="routing-step">
+      ${stepHead(1, "Для кого", "Весь сервис или отдельный клиент со своей полосой: его трафик живёт по своей политике.")}
+      ${laneTabs(context, target)}
+      ${laneTools}
+    </section>
+    <section class="routing-step">
+      ${stepHead(2, "Куда идёт трафик", "Выход по умолчанию и исключения. Правила читаются сверху вниз, срабатывает первое подходящее. Справа — что именно сделает узел.")}
+      <div class="routing-layout">
+        ${editor(context, target, state.draft, editable)}
+        ${previewPanel(state.compiled, policy, state.dirty, draftSummary(target, state.draft))}
+      </div>
+    </section>
+    <section class="routing-step">
+      ${stepHead(3, "Проверить", "Впишите сайт или IP — и увидите, куда его отправит сохранённая политика.")}
+      ${explainPanel(context)}
+    </section>
+    <section class="routing-step">
+      ${stepHead(4, "Применить на узле", "«Сохранить» в шаге 2 записывает черновик, на узле ничего не меняя. «Применить» отправляет сохранённое на узел; прежняя настройка узла остаётся для «Откатить».")}
+      ${cardActions(context, policy, state.compiled, state.dirty, editable)}
+      <div id="routing-history" hidden></div>
+    </section>
+    <details class="routing-node-setup"${setupOpen ? " open" : ""}>
+      <summary>Возможности узла: выходы, Xray-router, списки geosite/geoip, relay</summary>
+      <p class="form-hint">Провайдеры узла: ${esc(providers)}${target.mode === "custom" ? " · на узле ручная настройка egress: «Применить» заменит её и сохранит для отката" : ""}</p>
+      ${exitsLine(context, target)}
+      ${customExitsPanel(context, target)}
+      ${routerLine(context, target)}
+      ${geodataLine(context, target)}
+      ${relayLine(context, target)}
+    </details>
   </article>`;
+}
+
+function stepHead(number, title, hint) {
+  return `<header class="routing-step-head"><span class="routing-step-number" aria-hidden="true">${number}</span><div><h3>${esc(title)}</h3><p class="form-hint">${esc(hint)}</p></div></header>`;
 }
 
 function ensureState(context) {
@@ -791,7 +841,10 @@ function rerender(context) {
 }
 
 function screen(context) {
-  return `<div class="security-note">Политика описывает, куда сервис выпускает трафик клиентов: напрямую, через WARP, через другой узел парка (цепь) или блокирует. Предпросмотр показывает, что именно применит backend узла — NaiveProxy (Caddy) умеет только «весь сервис» и блокировки, Mieru (mita) — ещё и выборочные правила, а сервис, подключённый к Xray-router узла, — geosite, geoip, порты, цепи и свои полосы для клиентов.</div>
+  return `<div class="routing-intro">
+      <p>Здесь решается, куда сервис выпускает трафик клиентов: напрямую, через WARP, через другой узел, через ваш выход — или блокирует его. Выберите узел и сервис, затем пройдите шаги сверху вниз.</p>
+      <button type="button" class="secondary" data-routing-action="guide">Как это работает</button>
+    </div>
     <div class="toolbar routing-toolbar">
       <label>Узел <select id="routing-node">${nodeOptions(context)}</select></label>
       <div class="node-tabs" role="tablist">${protocolTabs(context)}</div>
@@ -887,12 +940,55 @@ function togglePreset(context, presetId, on) {
 
 // -- the rule modal (v0.8) ---------------------------------------------------------------
 
-function openRuleModal(context, index) {
+// «Как это работает»: the guide for the service on screen, its scenarios ready to start.
+function openGuide(context) {
+  const target = currentTarget(context);
+  const body = query("#routing-guide-body", context.root);
+  if (!body) return;
+  body.innerHTML = guideHtml(target ? { ...target, protocolName: PROTOCOL_NAMES[target.protocol] } : null);
+  context.ui.openModal("#routing-guide");
+}
+
+// A scenario's «Начать» changes the draft (or opens the rule editor on a template) and
+// leaves saving and applying to the operator — the guide never touches a node.
+function startScenario(context, id) {
+  const state = ensureState(context);
+  const target = currentTarget(context);
+  query("#routing-guide", context.root)?.close();
+  if (!target) return;
+  readDraft(context);
+  const presetFor = { "block-ads": "ads", "block-torrent": "torrent", "ru-direct": "ru_direct" };
+  if (id === "warp-all") {
+    state.draft.default_action = "egress";
+    state.draft.default_egress = "warp";
+  } else if (presetFor[id]) {
+    if (!state.draft.rules.some((rule) => rule.preset === presetFor[id])) togglePreset(context, presetFor[id], true);
+    return;
+  } else if (id === "sites-warp") {
+    openRuleModal(context, null, { action: "egress", egress: "warp", note: "сайты через WARP" });
+    return;
+  } else if (id === "lane") {
+    query("[data-routing-action=lane-add]", context.ui.view)?.click();
+    return;
+  } else if (id === "chain" || id === "custom-exit") {
+    const setup = query(".routing-node-setup", context.ui.view);
+    if (setup) setup.open = true;
+    query(id === "chain" ? "#routing-exits" : ".routing-custom-exits", context.ui.view)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    return;
+  } else {
+    return;
+  }
+  markDirty(context);
+  rerender(context);
+  context.ui.toast("Черновик изменён — проверьте справа, затем «Сохранить» и «Применить»");
+}
+
+function openRuleModal(context, index, template = null) {
   const { root } = context;
   const state = ensureState(context);
   const target = currentTarget(context);
   const adding = index === null;
-  const rule = adding ? newRule() : state.draft.rules[index];
+  const rule = adding ? { ...newRule(), ...(template || {}) } : state.draft.rules[index];
   if (!rule || !target) return;
   query("#rule-form", root).reset();
   query("#rule-error", root).textContent = "";
@@ -1289,6 +1385,10 @@ export function handleRoutingClick(context, button) {
   const action = button.dataset.routingAction;
   if (!action) return false;
   const state = ensureState(context);
+  if (action === "guide") {
+    openGuide(context);
+    return true;
+  }
   if (action === "protocol") {
     context.state.routingProtocol = button.dataset.protocol;
     context.state.routingLane = LANE_SERVICE;
@@ -1364,6 +1464,11 @@ export function handleRoutingClick(context, button) {
 // HTML5 drag between rule rows: the dragged row lands before the row it is dropped on.
 export function bindRouting(context) {
   const view = context.ui.view;
+  // The guide is a dialog outside #view: its «Начать» buttons are heard here.
+  query("#routing-guide-body", context.root)?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-routing-action=scenario]");
+    if (button) startScenario(context, button.dataset.scenario);
+  });
   query("#geodata-save", context.root)?.addEventListener("click", ({ currentTarget: button }) => { void saveGeodata(context, button); });
   query("#rule-save", context.root)?.addEventListener("click", () => saveRuleModal(context));
   query("#rule-action", context.root)?.addEventListener("change", ({ currentTarget: select }) => {

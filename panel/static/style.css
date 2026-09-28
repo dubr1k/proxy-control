@@ -272,3 +272,46 @@
 .host-swap>small{display:inline!important;margin-right:6px}
 .host-swap>b{display:inline!important;font-size:13px!important}
 .host-swap .usage-bar{height:4px;margin-top:6px}
+/* Routing (v0.17): an intro with the guide button, four numbered steps, the node's plumbing
+   folded under them, the preview's technical half folded under its verdict. */
+.routing-intro{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.routing-intro p{margin:0;color:var(--text-2);font-size:12px;line-height:1.5}
+.routing-intro button{flex:0 0 auto}
+.routing-can{margin:2px 0 0;color:var(--text-2);font-size:12px;line-height:1.5}
+.routing-step{display:grid;gap:12px;padding-top:16px;border-top:1px solid var(--line)}
+.routing-step-head{display:flex;align-items:flex-start;gap:12px}
+.routing-step-head h3{margin:0 0 2px;font-size:14px;font-weight:600}
+.routing-step-head .form-hint{font-size:11px;line-height:1.45}
+.routing-step-number{display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent-soft);font-size:12px;font-weight:650}
+.routing-node-setup{display:grid;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.015)}
+.routing-node-setup>summary{cursor:pointer;color:var(--text-2);font-size:12px;font-weight:560}
+.routing-node-setup:not([open])>summary{margin:0}
+.routing-node-setup[open]>summary{margin-bottom:6px}
+.routing-summary{margin:4px 0 0;color:var(--text);font-size:12px;line-height:1.5}
+.routing-verdict{margin:4px 0 0;color:var(--text-2);font-size:11px;line-height:1.5}
+.routing-tech{margin-top:8px}
+.routing-tech>summary{cursor:pointer;color:var(--muted);font-size:11px}
+.routing-guide-dialog{width:min(860px,calc(100vw - 28px))}
+.routing-guide{display:grid;gap:18px;max-height:min(70vh,760px);overflow:auto;padding-right:4px}
+.routing-guide h3{margin:0 0 8px;font-size:14px;font-weight:600}
+.routing-guide p,.routing-guide li,.routing-guide dd{color:var(--text-2);font-size:12px;line-height:1.55}
+.routing-guide p{margin:0 0 8px}
+.routing-guide ol,.routing-guide ul{margin:0;padding-left:20px;display:grid;gap:4px}
+.routing-guide code{padding:1px 5px;border-radius:4px;background:var(--surface-3);font-size:11px}
+.routing-guide-terms{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:6px 14px;margin:0}
+.routing-guide-terms dt{font-size:12px;font-weight:600;color:var(--text)}
+.routing-guide-terms dd{margin:0}
+.routing-guide-scenario{display:grid;gap:6px;padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.018)}
+.routing-guide-scenario header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.routing-guide-scenario header b{font-size:13px}
+.routing-guide-scenario p{margin:0}
+.routing-guide-na{color:var(--quiet);font-size:10px;text-align:right;max-width:260px}
+@media(max-width:560px){
+  .routing-intro{flex-direction:column;align-items:stretch}
+  .routing-intro button{width:100%;min-height:40px}
+  .routing-guide-terms{grid-template-columns:1fr;gap:2px}
+  .routing-guide-terms dd{margin-bottom:8px}
+  .routing-guide-scenario header{flex-direction:column;align-items:stretch}
+  .routing-guide-scenario header button{width:100%;min-height:40px}
+  .routing-guide-na{text-align:left;max-width:none}
+}

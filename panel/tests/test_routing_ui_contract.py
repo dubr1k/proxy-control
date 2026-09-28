@@ -182,7 +182,7 @@ def _interpolations(source: str) -> list[str]:
 # helpers, URL-encoded path parts, counters and flags — never a bare API string.
 _ALLOWED = (
     re.compile(r"^(esc|number|encodeURIComponent)\("),
-    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect|geodataLine|codeOptions|whatChips|whereLabel|presetsLine|customExitsPanel|ruleRow)\("),
+    re.compile(r"^(cardActions|editor|previewPanel|nodeOptions|protocolTabs|targetCard|historyTable|routerLine|exitsLine|relayLine|laneTabs|explainPanel|exitSelect|geodataLine|codeOptions|whatChips|whereLabel|presetsLine|customExitsPanel|ruleRow|stepHead)\("),
     re.compile(r"^(policyPath|laneQuery)\("),  # URL builders: encoded path parts and a `?lane=` query
     re.compile(r"^(chips|tabs)\.join\(\"\"\)$"),  # our own escaped pieces
     re.compile(r"^[\w+\- ]+$"),  # a local composed of escaped pieces, or index arithmetic
@@ -232,3 +232,33 @@ def test_routing_card_forgets_the_previous_policy_before_it_paints():
     load = ROUTING[ROUTING.index("async function loadPolicy"):]
     load = load[:load.index("\n}\n")]
     assert "state.loading = false;" in load and load.index("state.loading = false;\n  await previewNow") > 0
+
+
+def test_routing_screen_is_steps_with_a_built_in_guide():
+    """v0.17 (owner: «удобная маршрутизация… прям на сайте детальная инструкция»): four numbered
+    steps, capabilities in words, the node's plumbing and the preview's technical half folded,
+    and «Как это работает» with scenarios that only change the draft."""
+    guide = (STATIC / "js/routing-guide.js").read_text()
+    html = (STATIC / "index.html").read_text()
+    css = (STATIC / "style.css").read_text()
+    for step in ('stepHead(1, "Для кого"', 'stepHead(2, "Куда идёт трафик"', 'stepHead(3, "Проверить"', 'stepHead(4, "Применить на узле"'):
+        assert step in ROUTING, step
+    assert 'data-routing-action="guide"' in ROUTING and "Как это работает" in ROUTING
+    assert 'class="routing-node-setup"' in ROUTING and 'class="routing-tech"' in ROUTING
+    assert "capabilityList(target.capabilities)" in ROUTING and "Этот сервис умеет:" in ROUTING
+    assert "draftSummary(target, state.draft)" in ROUTING and "esc(summary)" in ROUTING
+    # Every capability a backend reports has words; a scenario only edits the draft.
+    for code in ("whole_direct", "whole_warp", "block_domain", "block_cidr", "selective_domain", "selective_cidr",
+                 "block_geosite", "selective_geosite", "block_geoip", "selective_geoip", "block_port", "selective_port",
+                 "block_protocol", "selective_protocol", "chains", "custom_exits", "lanes", "relay", "geodata"):
+        assert code + ":" in guide, code
+    for scenario in ("warp-all", "sites-warp", "block-ads", "block-torrent", "ru-direct", "chain", "custom-exit", "lane"):
+        assert f'id: "{scenario}"' in guide, scenario
+    start = ROUTING[ROUTING.index("function startScenario"):ROUTING.index("function openRuleModal")]
+    assert "method:" not in start and "api(" not in start  # nothing reaches a node from the guide
+    assert 'id="routing-guide"' in html and 'id="routing-guide-body"' in html
+    assert '#routing-guide-body", context.root)?.addEventListener("click"' in ROUTING
+    for selector in (".routing-step{", ".routing-step-number{", ".routing-node-setup{", ".routing-guide{", ".routing-guide-scenario{", ".routing-intro{"):
+        assert selector in css, selector
+    # The guide escapes what it interpolates: node names come from the API.
+    assert "esc(target.node_name || target.node_id)" in guide and "esc(scenario.title)" in guide
