@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+- Routing is step by step: for whom → where traffic goes → check → apply on the node, each step with a short explanation. A service's capabilities are named in words instead of codes; exits, the Xray-router, geosite/geoip lists and the relay sit in a folded «Возможности узла» block; the check's technical details fold under a plain summary of the draft.
+- «Как это работает» (How it works) is a detailed guide inside the panel: the terms, what each service can do, eight step-by-step scenarios with a Start button (all traffic through WARP, some sites through WARP, ads, torrents, Russian sites direct, a chain through another node, your own exit, one client's own route), Save versus Apply, and what to do when the check says it cannot be applied. A scenario only prepares the draft — nothing reaches a node without Save and Apply.
+- English interface: an RU/EN switch in the header and on the sign-in page, remembered per browser. Every screen, dialog and notification is translated; dates and numbers follow the chosen language.
+
 ## [0.16.0-beta.1] - 2026-09-28
 
 - Mieru keys no longer need a rotation to be shown again: the panel keeps every key it issues in its encrypted store, and **Configuration** on the Mieru page shows the current key with no change on the node (`POST /api/mieru/users/{username}/access`). Users issued earlier are marked «Key not kept»; one **New key** keeps it from then on. «New link + QR» is renamed «New key».
