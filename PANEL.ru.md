@@ -229,7 +229,7 @@ One-time dialog разделяет форматы по клиентам:
 из хранилища панели, по одной на каждый узел, и отдаёт разовым reveal'ом вместе с QR.
 
 Формат выбирается через `?format=` или `Accept`: `raw` (простой текст, по ссылке на строку,
-без base64), `singbox` (`application/json`, outbound'ы naive + mieru для Karing; `&client=singbox`
+без base64), `singbox` (`application/json`, outbound'ы naive + mieru для Karing и Throne — Clash YAML Throne не импортирует; `&client=singbox`
 урезает до одного naive, потому что официальный sing-box ≥ 1.13 не загружает конфиг с неизвестным
 типом outbound), `clash` (`text/yaml`, mieru-прокси для mihomo), `manifest`
 (`application/vnd.proxy-control.subscription+json;version=1`) и `html` (страница со ссылками,

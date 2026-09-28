@@ -89,7 +89,7 @@ Every mutation over a session requires CSRF; a Bearer request carries no cookie 
 
 Naive and Mieru create/rotate return credentials only through a one-time reveal with `Cache-Control: no-store`. Closing the dialog clears URL, QR, and config fields from frontend state.
 
-An existing Mieru password cannot be recovered from `hashedPassword`. Use **New link + QR** to rotate; the previous client configuration stops working.
+A Mieru password cannot be recovered from `hashedPassword`, but the panel keeps every key it issues in its encrypted store: press **Configuration** to hand it out again. **New key** rotates, and the previous client configuration stops working; it is needed for users marked «Key not kept».
 
 ## 5. Configuration changes
 

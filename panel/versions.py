@@ -120,6 +120,12 @@ class MemoryVersions:
                 "used_bytes": 1_126_985_728,
                 "used_percent": 27.4,
             },
+            "swap": {
+                "total_bytes": 2_147_483_648,
+                "available_bytes": 2_013_265_920,
+                "used_bytes": 134_217_728,
+                "used_percent": 6.2,
+            },
             "disk": {
                 "total_bytes": 84_825_800_704,
                 "available_bytes": 71_940_702_208,

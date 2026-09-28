@@ -28,7 +28,7 @@ checks the fleet and grant names against this file.
 | --- | --- | --- |
 | `user.create`, `user.enable`, `user.disable`, `user.rotate`, `user.delete`, `user.limits`, `user.reset_quota`, `user.access` | MTProxy username | `/api/users*` |
 | `naive.create`, `naive.enable`, `naive.disable`, `naive.rotate`, `naive.delete`, `naive.quota`, `naive.traffic.reset`, `naive.access` | NaiveProxy username | `/api/naive/users*` |
-| `mieru.create`, `mieru.enable`, `mieru.disable`, `mieru.rotate`, `mieru.delete`, `mieru.quotas`, `mieru.metrics.baseline` | Mieru username | `/api/mieru/users*` |
+| `mieru.create`, `mieru.enable`, `mieru.disable`, `mieru.rotate`, `mieru.delete`, `mieru.quotas`, `mieru.metrics.baseline`, `mieru.access` | Mieru username | `/api/mieru/users*` (`mieru.access`: the kept key shown again, nothing changes on the node; a create or rotation there also records `grant.credential.capture` / `grant.rotate` for the kept key) |
 | `runtime.version.update` | component | version agent (owner from the UI, or a central panel through the node's key) |
 
 ## Clients, grants and subscriptions

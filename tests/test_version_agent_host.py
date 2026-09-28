@@ -63,6 +63,21 @@ def test_memory_counts_reclaimable_cache_as_available(tmp_path, monkeypatch):
     assert memory["used_percent"] == 27.4
 
 
+def test_swap_is_reported_beside_memory_and_a_host_without_swap_says_so(tmp_path, monkeypatch):
+    monkeypatch.setattr(host, "_PROC", _Proc(tmp_path, []))
+    (tmp_path / "meminfo").write_text(_MEMINFO + "SwapTotal:  2097152 kB\nSwapFree:   1966080 kB\n", encoding="utf-8")
+    swap = host._swap()
+    assert swap == {
+        "total_bytes": 2097152 * 1024, "available_bytes": 1966080 * 1024,
+        "used_bytes": 131072 * 1024, "used_percent": 6.2,
+    }
+    (tmp_path / "meminfo").write_text(_MEMINFO + "SwapTotal:  0 kB\nSwapFree:   0 kB\n", encoding="utf-8")
+    # No swap is a fact, not a missing reading: a zero total and no percentage.
+    assert host._swap() == {"total_bytes": 0, "available_bytes": 0, "used_bytes": 0}
+    (tmp_path / "meminfo").write_text(_MEMINFO, encoding="utf-8")
+    assert host._swap() is None
+
+
 def test_missing_proc_files_degrade_each_section_independently(tmp_path, monkeypatch):
     monkeypatch.setattr(host, "_PROC", _Proc(tmp_path, []))
     metrics = host.host_metrics()
@@ -89,7 +104,7 @@ def test_host_endpoint_is_read_only_and_rejects_writes(tmp_path: Path, monkeypat
         with httpx.Client(base_url="http://version-agent", transport=transport) as client:
             body = client.get("/v1/host")
             assert body.status_code == 200
-            assert set(body.json()) == {"cpu", "memory", "disk"}
+            assert set(body.json()) == {"cpu", "memory", "swap", "disk"}
             # The endpoint takes no input, so POST must stay a 404, not a route.
             assert client.post("/v1/host", json={}).status_code == 404
     finally:

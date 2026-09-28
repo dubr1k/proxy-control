@@ -127,7 +127,7 @@ async def test_overview_reports_host_resources_from_the_agent(
     assert host["memory"]["used_percent"] == 27.4
     assert host["disk"]["available_bytes"] == 71_940_702_208
     # Only the mapped contract travels: a future agent field must not reach the UI.
-    assert set(host) == {"available", "cpu", "memory", "disk"}
+    assert set(host) == {"available", "cpu", "memory", "swap", "disk"}
 
 
 @pytest.mark.anyio

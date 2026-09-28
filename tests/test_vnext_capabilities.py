@@ -47,7 +47,7 @@ def test_named_client_matrix_is_explicit_and_matches_the_owner_decision():
     clients = json.loads(FIXTURE.read_text())["clients"]
     assert set(clients) == {
         "karing", "mihomo", "singbox", "mieru_cli", "telegram",
-        "shadowrocket", "nekobox", "v2rayn", "hiddify",
+        "shadowrocket", "nekobox", "v2rayn", "hiddify", "throne",
     }
     for name, cells in clients.items():
         assert set(cells) == {"mtproxy", "naive", "mieru"}, name

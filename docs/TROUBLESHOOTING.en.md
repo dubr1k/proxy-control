@@ -74,7 +74,7 @@ Check stable `/run/mita/mita.sock` ownership/mode, pinned executable digest/vers
 
 ## No QR for an existing Mieru user
 
-This is expected after the one-time reveal closes: only `hashedPassword` remains. Use **New link + QR** to rotate; the old client configuration becomes invalid. List APIs intentionally exclude URL, QR, and password.
+Press **Configuration**: the panel keeps the key it issued and shows it again without a rotation. «Key not kept» marks a user issued before this feature: mita holds only `hashedPassword`, so press **New key** once — the old client configuration is revoked and the new key is kept. List APIs intentionally exclude URL, QR, and password.
 
 ## Mieru mobile view widens the page
 

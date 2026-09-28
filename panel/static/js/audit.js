@@ -25,6 +25,7 @@ const ACTION_NAMES = {
   "mieru.enable": "Mieru-доступ включён",
   "mieru.disable": "Mieru-доступ отключён",
   "mieru.rotate": "Mieru-ссылка обновлена",
+  "mieru.access": "Открыта Mieru-конфигурация",
   "mieru.delete": "Mieru-доступ удалён",
   "mieru.metrics.baseline": "Сброшен Mieru-счётчик",
   "fleet.node.create": "Добавлен Fleet-узел",

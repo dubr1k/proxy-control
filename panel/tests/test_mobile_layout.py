@@ -338,11 +338,13 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             <div class="client-identity"><b>Ноутбук Сергея с очень длинным именем</b><small>Доступов: 3</small></div>
             <span class="status-pill active"><i></i>Активен</span>
             <ul class="client-grants">
-              <li class="grant-chip"><b>MTProxy</b><span>alice</span><small>включён</small>
+              <li class="grant-chip grant-row"><b class="grant-protocol">MTProxy</b><span class="grant-account">alice</span><span class="grant-state"><small>включён</small></span><span class="grant-route"></span>
                 <span class="grant-tools"><button class="ghost">Выключить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
-              <li class="grant-chip"><b>NaiveProxy</b><span>alice</span><small>ожидает узел</small><span class="grant-node">· Frankfurt panel</span><em>· без секрета</em>
+              <li class="grant-chip grant-row"><b class="grant-protocol">NaiveProxy</b><span class="grant-account">alice<span class="grant-node">· Frankfurt panel</span></span><span class="grant-state"><small>ожидает узел</small><em>без секрета</em></span>
+                <span class="grant-route"><span class="grant-lane" data-lane="service"><small>маршрут: как у сервиса</small><button class="ghost">Выделить полосу</button></span></span>
                 <span class="grant-tools"><button class="ghost">Выключить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
-              <li class="grant-chip"><b>Mieru</b><span>alice-with-a-very-long-runtime-name</span><small>выключен</small>
+              <li class="grant-chip grant-row"><b class="grant-protocol">Mieru</b><span class="grant-account">alice-with-a-very-long-runtime-name</span><span class="grant-state"><small>выключен</small></span>
+                <span class="grant-route"><span class="grant-lane" data-lane="own"><small>маршрут: своя полоса</small><button class="ghost">Вернуть общий</button></span></span>
                 <span class="grant-tools"><button class="ghost">Включить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
             </ul>
             <p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку.

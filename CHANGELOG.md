@@ -4,6 +4,17 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.16.0-beta.1] - 2026-09-28
+
+- Mieru keys no longer need a rotation to be shown again: the panel keeps every key it issues in its encrypted store, and **Configuration** on the Mieru page shows the current key with no change on the node (`POST /api/mieru/users/{username}/access`). Users issued earlier are marked «Key not kept»; one **New key** keeps it from then on. «New link + QR» is renamed «New key».
+- Fix: creating and rotating on the Mieru and NaiveProxy pages bypassed the panel's store, so a client's subscription kept serving the replaced password. The new password now reaches the subscription at once.
+- Throne (formerly Nekoray), checked with Throne 1.3.1: it takes NaiveProxy and Mieru from the «sing-box JSON for Karing and Throne» variant and imports nothing from Clash YAML. The client window and the compatibility matrix say so, and grants carry a `throne` mark. Throne 1.3.1 limitation: Mieru over UDP connects only when the server is an IP address.
+- Client card: grants line up as a table (protocol · account · state · route · actions) in one order, MTProxy → Naive → Mieru, with a coloured state dot; tidy stacked cards on a phone. Archived clients go last. The route button names the action.
+- Overview: the loading placeholder has the real layout (server resources and three protocol cards), so the tiles no longer jump between 3 and 4. The RAM row shows swap (needs the host agent from this release).
+- Accent colour: a palette button in the header, seven accents, remembered per browser.
+
+See [release notes](docs/releases/v0.16.0-beta.1.md).
+
 ## [0.15.0-beta.1] - 2026-09-23
 
 - Fix: the version-agent reports the panel version of the running container, not the project directory's `VERSION` file. A file that ran ahead of the build made the Versions screen claim the next release was installed and disabled its Update button.

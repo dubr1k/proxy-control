@@ -52,6 +52,37 @@ def test_host_card_follows_the_host_while_the_overview_is_open():
     assert "data-host-updated=" in DASHBOARD and "обновлено" in DASHBOARD
 
 
+def test_overview_placeholder_has_the_overviews_own_shape():
+    """Owner (2026-09-28): the overview's tiles went 3, then 4, then 1 + 3 while loading.
+    The first paint and every later navigation draw the real grid: the resources row and
+    three protocol cards."""
+    index = (STATIC / "index.html").read_text()
+    ui = (STATIC / "js/ui.js").read_text()
+    main = (STATIC / "js/main.js").read_text()
+    shape = '<div class="protocol-overview skeleton-overview"><i class="host-row"></i><i></i><i></i><i></i></div>'
+    assert shape in index and shape in ui
+    assert '<div class="skeleton-grid"><i></i><i></i><i></i></div>' not in index
+    assert "context.ui.renderSkeleton(name);" in main
+
+
+def test_swap_is_shown_under_ram_and_an_old_agent_costs_nothing():
+    assert "function swapLine(swap)" in DASHBOARD and "swapLine(swap)" in DASHBOARD
+    assert "if (!swap) return \"\";" in DASHBOARD and "выключен на сервере" in DASHBOARD
+    assert ".host-swap{" in CSS
+
+
+def test_accent_is_one_variable_and_a_per_browser_choice():
+    theme = (STATIC / "js/theme.js").read_text()
+    index = (STATIC / "index.html").read_text()
+    main = (STATIC / "js/main.js").read_text()
+    # Every accent tint derives from --accent: no indigo literal is left outside :root.
+    assert "110,107,234" not in CSS
+    for name in ("blue", "cyan", "emerald", "violet", "rose", "orange"):
+        assert f":root[data-accent={name}]" in CSS and f'"{name}"' in theme
+    assert 'id="accent-button"' in index and 'id="accent-menu"' in index
+    assert "localStorage" in theme and "  applyAccent();" in main
+
+
 def test_clients_badge_is_painted_from_the_clients_list():
     common = (STATIC / "js/common.js").read_text()
     clients = (STATIC / "js/clients.js").read_text()

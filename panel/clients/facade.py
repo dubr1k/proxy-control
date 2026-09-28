@@ -197,10 +197,41 @@ class DomainFacade:
             GrantRef(protocol, username, None),
             plan,
         )
-        self._store_credential(grant, applied.credential or b"", actor=actor, ip=ip, request_id=request_id)
+        self._store_credential(grant, applied.credential or b"", learned=applied.artifact_template,
+                               actor=actor, ip=ip, request_id=request_id)
         return applied.credential or b""
 
-    def _store_credential(self, grant, plaintext: bytes, *, actor, ip, request_id=None) -> None:
+    def escrow(
+        self, protocol: str, username: str, plaintext: bytes, *, learned: dict | None = None,
+        observed: dict, action: str = "grant.rotate", adopt: bool = True, actor, ip, request_id=None,
+    ) -> bool:
+        """Keep a credential a protocol route just received from the runtime.
+
+        The protocol pages create and rotate through the manager directly; without this
+        the only copy of a Mieru password (mita keeps a hash) would be the one-time reveal,
+        and a subscription would go on serving the replaced one. `adopt=False` keeps only a
+        credential the panel already records (NaiveProxy: the manager can hand its password
+        back, so an unrecorded account stays for «Импорт существующих» to capture).
+        False when nothing was kept.
+        """
+        if not plaintext or not self.clients.secrets.enabled:
+            return False
+        self._local_only(protocol, username)
+        grant = self.grant(protocol, username)
+        if grant is None and not adopt:
+            return False
+        grant = grant or self.touch_import(
+            protocol, username, enabled=True, options=observed,
+            actor=actor, ip=ip, request_id=request_id,
+        )
+        self._store_credential(grant, plaintext, learned=learned, action=action,
+                               actor=actor, ip=ip, request_id=request_id)
+        return True
+
+    def _store_credential(
+        self, grant, plaintext: bytes, *, learned: dict | None = None, action: str = "grant.rotate",
+        actor, ip, request_id=None,
+    ) -> None:
         reference_id = f"grant:{grant.id}"
         with self.clients.database.transaction() as db:
             version = db.execute(
@@ -224,10 +255,13 @@ class DomainFacade:
             if grant.secret_ref is not None:
                 # The runtime already runs the new credential: the old one is history.
                 self.clients.secrets.transition(db, grant.secret_ref, "revoked")
+            if learned:
+                # The link shape the runtime reported with it (Mieru: its ports or lane slot).
+                self.provisioning.remember_template(db, grant, learned)
             record(
                 db,
                 actor=actor,
-                action="grant.rotate",
+                action=action,
                 target=grant.id,
                 ip=ip,
                 request_id=request_id,

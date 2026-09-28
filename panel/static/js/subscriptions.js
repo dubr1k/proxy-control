@@ -14,22 +14,22 @@ const SUBSCRIBABLE = new Set(["naive", "mieru"]);
 const VARIANTS = [
   {
     format: "singbox",
-    label: "sing-box JSON для Karing",
-    clients: "Karing (оба ядра)",
-    carries: "NaiveProxy и Mieru как outbound'ы",
+    label: "sing-box JSON для Karing и Throne",
+    clients: "Karing (оба ядра), Throne и другие клиенты на форке sing-box с Mieru",
+    carries: "NaiveProxy и Mieru как outbound'ы; Throne 1.3.1 подключает Mieru по UDP, только если сервер задан IP-адресом, по TCP — всегда",
     leaves: "MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже",
   },
   {
     format: "singbox-official",
     label: "sing-box JSON для официального sing-box",
-    clients: "sing-box ≥ 1.13 (Apple, Android, Windows, часть сборок Linux)",
+    clients: "sing-box ≥ 1.13 (Apple, Android, Windows, часть сборок Linux); Throne — если нужен только NaiveProxy",
     carries: "только NaiveProxy",
     leaves: "Mieru и MTProxy — в unsupported: официальный sing-box не загрузит конфиг с неизвестным outbound'ом",
   },
   {
     format: "clash",
     label: "Clash YAML",
-    clients: "mihomo и Clash-совместимые, Karing",
+    clients: "mihomo и Clash-совместимые, Karing; не для Throne — он не берёт из Clash YAML ни Mieru, ни NaiveProxy",
     carries: "Mieru как proxies (TCP/UDP, диапазоны портов)",
     leaves: "NaiveProxy и MTProxy — в unsupported (у mihomo нет таких типов)",
   },
@@ -38,7 +38,7 @@ const VARIANTS = [
     label: "Ссылки текстом",
     clients: "ручной импорт, QR, человек",
     carries: "tg://proxy, naive+https://, mierus:// по одной на строку",
-    leaves: "автообновления нет: клиенту придётся переимпортировать после изменений",
+    leaves: "автообновления нет: клиенту придётся переимпортировать после изменений; Throne склеивает порты ссылки mierus:// в один TCP-профиль и теряет UDP",
   },
 ];
 
@@ -64,7 +64,7 @@ function explain(exception) {
 }
 
 function grantRow(grant, matrix) {
-  const marks = ["karing", "singbox", "mihomo"].map((client) => {
+  const marks = ["karing", "singbox", "mihomo", "throne"].map((client) => {
     const status = matrix[grant.protocol]?.[client] || "unsupported";
     return `<small class="refresh-${esc(status)}" title="${esc(client)}: ${esc(AUTO_REFRESH[status] || status)}">${esc(client)}</small>`;
   }).join("");

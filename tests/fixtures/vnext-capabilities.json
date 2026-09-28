@@ -173,6 +173,11 @@
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
       "naive": {"status": "unproven", "note": "sing-box based, but the shipped core version and naive build variant are unverified"},
       "mieru": {"status": "unsupported", "note": "sing-box based; the official core has no mieru outbound"}
+    },
+    "throne": {
+      "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
+      "naive": {"status": "supported", "note": "ThroneCore (a sing-box fork) takes the naive outbound from either sing-box JSON cut; verified with Throne 1.3.1 on the lab host"},
+      "mieru": {"status": "supported", "note": "the mieru outbound comes from the Karing sing-box JSON cut, never from Clash YAML (Throne's clash parser has no mieru type); in Throne 1.3.1 a UDP binding connects only when the server is an IP address"}
     }
   }
 }

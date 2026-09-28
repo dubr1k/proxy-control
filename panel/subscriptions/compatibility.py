@@ -24,6 +24,7 @@ MATRIX: dict[str, dict[str, str]] = {
         "nekobox": "unsupported",
         "v2rayn": "unsupported",
         "hiddify": "unsupported",
+        "throne": "unsupported",
     },
     "naive": {
         "karing": "supported",
@@ -35,6 +36,7 @@ MATRIX: dict[str, dict[str, str]] = {
         "nekobox": "unproven",
         "v2rayn": "unproven",
         "hiddify": "unproven",
+        "throne": "supported",
     },
     "mieru": {
         "karing": "supported",
@@ -46,6 +48,7 @@ MATRIX: dict[str, dict[str, str]] = {
         "nekobox": "unsupported",
         "v2rayn": "unproven",
         "hiddify": "unsupported",
+        "throne": "supported",
     },
 }
 
@@ -60,6 +63,7 @@ NOTES: dict[str, dict[str, str]] = {
         "nekobox": "no MTProto import path",
         "v2rayn": "no MTProto import path",
         "hiddify": "no MTProto import path",
+        "throne": "no MTProto import path",
     },
     "naive": {
         "karing": "sing-box fork core; accepts a sing-box JSON subscription with a naive outbound",
@@ -71,6 +75,7 @@ NOTES: dict[str, dict[str, str]] = {
         "nekobox": "NekoBox forks parse naive+https:// links, but subscription auto-refresh with our feed is unverified",
         "v2rayn": "depends on the bundled core version; not verified against our sing-box renderer",
         "hiddify": "sing-box based, but the shipped core version and naive build variant are unverified",
+        "throne": "ThroneCore (a sing-box fork) takes the naive outbound from either sing-box JSON cut; verified with Throne 1.3.1 on the lab host",
     },
     "mieru": {
         "karing": "release notes list Mieru support for both the sing-box and clash cores",
@@ -82,6 +87,7 @@ NOTES: dict[str, dict[str, str]] = {
         "nekobox": "no verified Mieru import format (docs/MIERU_SHARING.en.md)",
         "v2rayn": "depends on the bundled core version; not verified against our clash renderer",
         "hiddify": "sing-box based; the official core has no mieru outbound",
+        "throne": "the mieru outbound comes from the Karing sing-box JSON cut, never from Clash YAML (Throne's clash parser has no mieru type); in Throne 1.3.1 a UDP binding connects only when the server is an IP address",
     },
 }
 

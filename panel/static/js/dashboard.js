@@ -40,17 +40,33 @@ const HOST_CRITICAL_PERCENT = 90;
 // the overview is open. `/api/host` asks the agent alone, not every protocol runtime.
 const HOST_REFRESH_MS = 5000;
 
-function hostRow(label, usage, detail) {
+function usageLevel(percent) {
+  return percent >= HOST_CRITICAL_PERCENT ? "critical" : percent >= HOST_WARN_PERCENT ? "warn" : "";
+}
+
+function usageBar(label, percent) {
+  return `<span class="usage-bar ${usageLevel(percent)}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i data-usage-percent="${percent.toFixed(1)}"></i></span>`;
+}
+
+function hostRow(label, usage, detail, extra = "") {
   const percent = usage?.used_percent;
   if (typeof percent !== "number") {
-    return `<span><small>${esc(label)}</small><b>—</b><em>Нет данных</em></span>`;
+    return `<span><small>${esc(label)}</small><b>—</b><em>Нет данных</em>${extra}</span>`;
   }
-  const level = percent >= HOST_CRITICAL_PERCENT
-    ? "critical"
-    : percent >= HOST_WARN_PERCENT ? "warn" : "";
   return `<span><small>${esc(label)}</small><b>${percent.toFixed(1)} %</b>
-    <span class="usage-bar ${level}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i data-usage-percent="${percent.toFixed(1)}"></i></span>
-    <em>${esc(detail)}</em></span>`;
+    ${usageBar(label, percent)}
+    <em>${esc(detail)}</em>${extra}</span>`;
+}
+
+// Swap sits under RAM: it is the same story (memory pressure) told one step later. An
+// agent older than the panel sends no swap section, and then the card says nothing.
+function swapLine(swap) {
+  if (!swap) return "";
+  if (!swap.total_bytes) return '<span class="host-swap"><small>Swap</small><em>выключен на сервере</em></span>';
+  const percent = typeof swap.used_percent === "number" ? swap.used_percent : 0;
+  return `<span class="host-swap"><small>Swap</small><b>${percent.toFixed(1)} %</b>
+    ${usageBar("Swap", percent)}
+    <em>${esc(`${bytes(swap.used_bytes)} из ${bytes(swap.total_bytes)}`)}</em></span>`;
 }
 
 function updatedAt(when) {
@@ -68,7 +84,7 @@ function hostCard(host, when = new Date()) {
       <p class="protocol-note">${esc(reason)} · ${esc(updatedAt(when))}</p>
     </article>`;
   }
-  const { cpu, memory, disk } = host;
+  const { cpu, memory, swap, disk } = host;
   const worst = Math.max(
     ...[cpu?.used_percent, memory?.used_percent, disk?.used_percent]
       .filter((value) => typeof value === "number"),
@@ -84,7 +100,7 @@ function hostCard(host, when = new Date()) {
     <p class="protocol-note">${esc(cores)} · ${esc(updatedAt(when))}</p>
     <div class="protocol-metrics host-metrics">
       ${hostRow("Загрузка CPU", cpu, "Мгновенная утилизация, окно 150 мс")}
-      ${hostRow("Оперативная память", memory, memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "")}
+      ${hostRow("Оперативная память", memory, memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "", swapLine(swap))}
       ${hostRow("Диск (корень)", disk, disk ? `${bytes(disk.available_bytes)} свободно из ${bytes(disk.total_bytes)}` : "")}
     </div>
   </article>`;

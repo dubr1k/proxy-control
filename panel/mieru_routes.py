@@ -2,17 +2,29 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import re
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import Depends, HTTPException, Request
 
 from .fleet_v2.guard import require_unmanaged
 from .mieru import MieruError
-from .protocols.mieru import parse_share_url, singbox_outbounds
+from .protocols.mieru import parse_share_url, singbox_outbounds, template_from
 from .reveals import karing_client, qr_data
 from .schemas import MieruQuotaUpdate, MieruRevision, MieruUserCreate
+from .secrets_store import SecretError
 from .web_context import RequestContext
+
+log = logging.getLogger(__name__)
+
+# mita keeps only a hash of the password: the panel's escrow is the one copy there is.
+NOT_KEPT = (
+    "Панель не хранит ключ этого пользователя: он был выдан до того, как ключи Mieru "
+    "стали сохраняться. Выпустите новую ссылку один раз — дальше ключ будет показываться "
+    "без ротации."
+)
 
 
 def mieru_access(value) -> dict:
@@ -100,6 +112,8 @@ async def _domain_created(app, context, username: str, payload: dict, request, u
 
 
 def register_mieru_routes(app, context: RequestContext) -> None:
+    from .clients.store import ClientConflict  # noqa: PLC0415 - avoids an import cycle
+
     def require_mieru():
         if not context.settings.mieru_enabled:
             raise HTTPException(404, "feature unavailable")
@@ -107,6 +121,66 @@ def register_mieru_routes(app, context: RequestContext) -> None:
     def local_only(username: str):
         with app.state.database.connect() as db:
             require_unmanaged(db, app.state.managed, "mieru", username)
+
+    def kept(username: str) -> bool:
+        grant = app.state.domain_facade.grant("mieru", username)
+        return grant is not None and grant.secret_ref is not None
+
+    async def escrow(username: str, share_url, *, quotas=None, action: str, request, user) -> None:
+        """Keep the password of a link the manager has just issued, with the link's shape,
+        so the next look at it needs no rotation and a subscription serves this one. The
+        reveal is already owed to the operator: a failure here is logged, not raised."""
+        try:
+            share = parse_share_url(share_url)
+            if quotas is None and app.state.domain_facade.grant("mieru", username) is None:
+                row = next((item for item in await app.state.mieru.list_users()
+                            if isinstance(item, dict) and item.get("username") == username), {})
+                quotas = row.get("quotas", [])
+            template = template_from(share_url, share.username, share.password)
+            app.state.domain_facade.escrow(
+                "mieru", username, share.password.encode(),
+                learned={"share_template": template} if template else None,
+                observed={"quotas": quotas or []}, action=action,
+                **context.domain_context(request, user),
+            )
+        except (ValueError, ClientConflict, SecretError, MieruError, HTTPException) as exc:
+            log.warning("mieru %s: the new credential is not kept by the panel: %s", username, type(exc).__name__)
+
+    async def live_template(username: str) -> str | None:
+        """The link shape mita serves the user now: its lane slot, else every main port."""
+        try:
+            view = await app.state.mieru.lanes()
+        except MieruError:
+            return None
+        if not isinstance(view, dict):
+            return None
+        for entry in view.get("lanes", []):
+            template = (entry.get("share_templates") or {}).get(username) if isinstance(entry, dict) else None
+            if isinstance(template, str):
+                return template
+        template = view.get("service_share_template")
+        return template if isinstance(template, str) else None
+
+    async def kept_share_url(username: str) -> str:
+        facade = app.state.domain_facade
+        grant = facade.grant("mieru", username)
+        if grant is None or grant.secret_ref is None:
+            raise HTTPException(409, NOT_KEPT)
+        try:
+            password = facade.credential("mieru", username).decode()
+        except (ClientConflict, SecretError, UnicodeDecodeError) as exc:
+            raise HTTPException(409, NOT_KEPT) from exc
+        template = await live_template(username)
+        if template is not None:
+            try:
+                return template.format(
+                    username=quote(username, safe=""), password=quote(password, safe=""),
+                    profile=quote(username, safe=""),
+                )
+            except (KeyError, IndexError, ValueError):
+                pass
+        adapter = app.state.adapters["mieru"]
+        return adapter.render_artifacts(grant, password.encode(), public_host=adapter.public_host)[0].value
 
     @app.get("/api/mieru/users")
     async def mieru_users(_user=Depends(context.current)):
@@ -138,6 +212,8 @@ def register_mieru_routes(app, context: RequestContext) -> None:
             row = {
                 "username": item["username"],
                 "enabled": item.get("enabled") is True,
+                # Whether the panel holds the key: "Конфигурация" shows it without a rotation.
+                "credential_kept": kept(item["username"]),
                 "traffic_available": False,
                 "quotas": item.get("quotas", [])
                 if isinstance(item.get("quotas", []), list)
@@ -186,6 +262,8 @@ def register_mieru_routes(app, context: RequestContext) -> None:
             data = await _domain_created(app, context, body.username, payload, request, user)
         else:
             data = await app.state.mieru.create(payload)
+            await escrow(body.username, data.get("share_url"), quotas=payload["quotas"],
+                         action="grant.credential.capture", request=request, user=user)
         await context.audit(
             user,
             "mieru.create",
@@ -239,6 +317,19 @@ def register_mieru_routes(app, context: RequestContext) -> None:
         await context.audit(user, "mieru.metrics.baseline", username, request)
         return data
 
+    @app.post("/api/mieru/users/{username}/access")
+    async def mieru_kept_access(
+        username: str,
+        request: Request,
+        user=Depends(context.roles("owner", "admin")),
+    ):
+        """The configuration of the key the panel keeps: nothing on the node changes."""
+        require_mieru()
+        local_only(username)
+        data = mieru_access(await kept_share_url(username))
+        await context.audit(user, "mieru.access", username, request)
+        return data
+
     @app.post("/api/mieru/users/{username}/{operation}")
     async def mieru_operation(
         username: str,
@@ -257,6 +348,8 @@ def register_mieru_routes(app, context: RequestContext) -> None:
                 "mieru", username, operation == "enable", observed={"quotas": []},
                 **context.domain_context(request, user),
             )
+        if operation == "rotate":
+            await escrow(username, data.get("share_url"), action="grant.rotate", request=request, user=user)
         await context.audit(user, f"mieru.{operation}", username, request)
         if operation == "rotate":
             return {
@@ -277,6 +370,9 @@ def register_mieru_routes(app, context: RequestContext) -> None:
     ):
         require_mieru()
         local_only(username)
-        data = await app.state.mieru.delete(username, body.expected_revision)
+        data = await app.state.lifecycle.delete_from_protocol_page(
+            "mieru", username, lambda: app.state.mieru.delete(username, body.expected_revision),
+            **context.domain_context(request, user),
+        )
         await context.audit(user, "mieru.delete", username, request)
         return data

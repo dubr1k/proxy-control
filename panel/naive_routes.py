@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from typing import Literal
 from urllib.parse import quote, unquote, urlsplit
@@ -11,7 +12,10 @@ from .fleet_v2.guard import require_unmanaged
 from .naive import NaiveError
 from .reveals import karing_client, qr_data
 from .schemas import NaiveQuotaUpdate, NaiveUserCreate
+from .secrets_store import SecretError
 from .web_context import RequestContext
+
+log = logging.getLogger(__name__)
 
 
 def safe_naive_traffic(data):
@@ -142,6 +146,23 @@ def register_naive_routes(app, context: RequestContext) -> None:
     def local_only(username: str):
         with app.state.database.connect() as db:
             require_unmanaged(db, app.state.managed, "naive", username)
+
+    async def escrow(username: str, value, *, action: str, request, user, quota_bytes=None) -> None:
+        """Replace the password the panel keeps for a recorded account with the one the
+        manager has just issued, so a subscription serves the new one. An account the panel
+        does not record stays unrecorded: the manager can hand its password back, and
+        «Импорт существующих» captures it later. The reveal is already owed to the operator: a
+        failure here is logged, not raised."""
+        from .clients.store import ClientConflict  # noqa: PLC0415 - avoids an import cycle
+
+        try:
+            password = unquote(urlsplit(value["proxy_url"]).password or "")
+            app.state.domain_facade.escrow(
+                "naive", username, password.encode(), observed={"quota_bytes": quota_bytes},
+                action=action, adopt=False, **context.domain_context(request, user),
+            )
+        except (KeyError, TypeError, ValueError, ClientConflict, SecretError, NaiveError, HTTPException) as exc:
+            log.warning("naive %s: the new credential is not kept by the panel: %s", username, type(exc).__name__)
 
     def naive_reveal(value, username: str) -> dict:
         if not isinstance(value, dict) or not isinstance(value.get("proxy_url"), str):
@@ -307,10 +328,10 @@ def register_naive_routes(app, context: RequestContext) -> None:
                 body.username,
             )
         else:
-            data = naive_reveal(
-                await app.state.naive.create(body.username, body.quota_bytes),
-                body.username,
-            )
+            created = await app.state.naive.create(body.username, body.quota_bytes)
+            data = naive_reveal(created, body.username)
+            await escrow(body.username, created, action="grant.credential.capture",
+                         request=request, user=user, quota_bytes=body.quota_bytes)
         await context.audit(
             user,
             "naive.create",
@@ -374,7 +395,9 @@ def register_naive_routes(app, context: RequestContext) -> None:
         require_naive()
         local_only(username)
         if operation == "rotate":
-            data = naive_reveal(await app.state.naive.rotate(username), username)
+            rotated = await app.state.naive.rotate(username)
+            data = naive_reveal(rotated, username)
+            await escrow(username, rotated, action="grant.rotate", request=request, user=user)
             result = {
                 "username": username,
                 "reveal_token": context.create_reveal(data, user),
@@ -432,5 +455,8 @@ def register_naive_routes(app, context: RequestContext) -> None:
     ):
         require_naive()
         local_only(username)
-        await app.state.naive.delete(username)
+        await app.state.lifecycle.delete_from_protocol_page(
+            "naive", username, lambda: app.state.naive.delete(username),
+            **context.domain_context(request, user),
+        )
         await context.audit(user, "naive.delete", username, request)

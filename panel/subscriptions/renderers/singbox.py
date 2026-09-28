@@ -11,6 +11,10 @@ The same JSON has two consumers with different vocabularies, so the renderer tak
 `client`: `karing` (the default) gets both types, `singbox` gets naive only — an
 official sing-box refuses a configuration with an outbound type it does not know,
 and a feed it cannot load is worse than one that names what it left out.
+
+The `karing` cut is also what Throne takes: ThroneCore is a sing-box fork with a mieru
+outbound, and Throne's parser reads `outbounds[]` of both types as they are (checked
+with Throne 1.3.1 on the lab host). Its Clash parser has neither type.
 """
 from __future__ import annotations
 

@@ -22,11 +22,17 @@ function mieruRow(context, user) {
   const traffic = user.traffic_available === true
     ? `<b>↑ ${bytes(user.upload_bytes)} · ↓ ${bytes(user.download_bytes)}</b><small>application bytes · rolling quota approximate</small>`
     : "<b>Недоступно</b><small>mita 3.35–3.36 не предоставляет типизированную историю трафика</small>";
+  // The panel keeps every key it issues: showing it again changes nothing on the node.
+  // A key issued before it did exists only as mita's hash — one rotation stores it.
+  const access = user.credential_kept === true
+    ? `<button class="action-button share" data-mieru-action="access" data-user="${esc(user.username)}">Конфигурация</button>`
+    : '<span class="action-note" title="Ключ выдан до того, как панель начала их хранить">Ключ не сохранён</span>';
   const actions = context.state.me.role === "viewer"
     ? "Только просмотр"
-    : `<button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
+    : `${access}
+       <button class="action-button" data-mieru-action="quotas" data-user="${esc(user.username)}">Квота</button>
        <button class="action-button" data-mieru-action="${enabled ? "disable" : "enable"}" data-user="${esc(user.username)}">${enabled ? "Отключить" : "Включить"}</button>
-       <button class="action-button" data-mieru-action="rotate" data-user="${esc(user.username)}">Новая ссылка + QR</button>
+       <button class="action-button" data-mieru-action="rotate" data-user="${esc(user.username)}">Новый ключ</button>
        <button class="action-button danger-text" data-mieru-action="delete" data-user="${esc(user.username)}">Удалить</button>`;
   return `<div class="data-row naive-grid">
     <div class="identity"><span class="user-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>Mieru · native AEAD</small></span></div>
@@ -109,6 +115,11 @@ function openMieruQuotaModal(context, user) {
 export async function handleMieruAction(context, action, username, button) {
   try {
     const { api, state, ui } = context;
+    if (action === "access") {
+      ui.setBusy(button, true, "Загрузка…");
+      context.access.showMieruAccess(await api(`/api/mieru/users/${encodeURIComponent(username)}/access`, { method: "POST" }), username);
+      return;
+    }
     if (action === "quotas") {
       const user = state.mieruUsers.find((item) => item.username === username);
       if (user) openMieruQuotaModal(context, user);
@@ -117,7 +128,7 @@ export async function handleMieruAction(context, action, username, button) {
     const labels = {
       enable: "включить",
       disable: "отключить",
-      rotate: "выпустить новую ссылку",
+      rotate: "выпустить новый ключ (текущая ссылка перестанет работать)",
       delete: "удалить",
     };
     if (!await ui.confirmed("Изменить Mieru-доступ?", `${labels[action]} для ${username}. Ротация и отзыв принудительно перезапускают mita.`, "Продолжить")) return;

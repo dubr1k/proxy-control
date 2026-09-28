@@ -2,7 +2,8 @@
 
 Only `type: mieru` proxies live here — mihomo has no naive type (an open feature
 request) and no MTProto type — so naive and MTProxy grants go under
-`proxy-control.unsupported` with those reasons.
+`proxy-control.unsupported` with those reasons. Not for Throne: its Clash parser has no
+mieru type and imports nothing from this feed (it takes the sing-box `karing` cut).
 
 The YAML is written by hand on purpose: PyYAML is not a dependency of the panel, and a
 subscription does not need a YAML library. Every string is a single-quoted scalar, every

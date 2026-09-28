@@ -47,7 +47,11 @@ function laneControl(context, grant) {
   if (!LANE_PROTOCOLS.has(grant.protocol) || grant.desired_state === "deleted") return "";
   const own = grant.routing_lane === "own";
   const owner = context.state.me?.role === "owner";
-  const button = owner ? `<button class="ghost" data-client-action="grant-lane" data-lane-mode="${own ? "service" : "own"}">${own ? "как у сервиса" : "своя полоса"}</button>` : "";
+  // The button names the move, not the state beside it: «своя полоса» next to
+  // «маршрут: как у сервиса» read as a second status.
+  const button = owner
+    ? `<button class="ghost" data-client-action="grant-lane" data-lane-mode="${own ? "service" : "own"}" title="${own ? "Вернуть общий маршрут сервиса" : "Дать клиенту свою полосу маршрутизации"}">${own ? "Вернуть общий" : "Выделить полосу"}</button>`
+    : "";
   return `<span class="grant-lane" data-lane="${own ? "own" : "service"}"><small>маршрут: ${own ? "своя полоса" : "как у сервиса"}</small>${button}</span>`;
 }
 
@@ -59,19 +63,30 @@ function grantTools(grant) {
   return `<span class="grant-tools">${toggle}<button class="ghost" data-client-action="grant-rotate">Ротировать</button><button class="ghost danger-text" data-client-action="grant-delete">Удалить</button></span>`;
 }
 
+// Every grant row has the same five cells, empty or not, so the columns line up from
+// one row to the next: protocol · account · state · route · actions.
 function grantChip(context, grant, canWrite) {
   const orphan = grant.secret_ref === null
-    ? '<em title="Панель не хранит его секрет, поэтому доступ не попадает в подписку">· без секрета</em>'
+    ? '<em title="Панель не хранит его секрет, поэтому доступ не попадает в подписку">без секрета</em>'
     : "";
-  return `<li class="grant-chip" data-grant-protocol="${esc(grant.protocol)}" data-grant-id="${esc(grant.id)}">
-    <b>${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}</b>
-    <span>${esc(grant.runtime_username)}</span>
-    <small>${esc(grantStatus(grant))}</small>
-    ${nodeLabel(context, grant)}
-    ${orphan}
-    ${laneControl(context, grant)}
-    ${canWrite ? grantTools(grant) : ""}
+  // The dot's colour: what the node reports when it is not yet what was asked, else the ask.
+  const tone = ["failed", "pending"].includes(grant.observed_state) ? grant.observed_state : grant.desired_state;
+  return `<li class="grant-chip grant-row" data-grant-protocol="${esc(grant.protocol)}" data-grant-id="${esc(grant.id)}" data-grant-state="${esc(tone)}">
+    <b class="grant-protocol">${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}</b>
+    <span class="grant-account">${esc(grant.runtime_username)}${nodeLabel(context, grant)}</span>
+    <span class="grant-state"><small>${esc(grantStatus(grant))}</small>${orphan}</span>
+    <span class="grant-route">${laneControl(context, grant)}</span>
+    ${canWrite ? grantTools(grant) : '<span class="grant-tools"></span>'}
   </li>`;
+}
+
+// One order on every card, whatever order the grants were issued in.
+const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2 };
+
+function byProtocol(left, right) {
+  return (PROTOCOL_ORDER[left.protocol] ?? 9) - (PROTOCOL_ORDER[right.protocol] ?? 9)
+    || String(left.node_id || "").localeCompare(String(right.node_id || ""))
+    || String(left.runtime_username).localeCompare(String(right.runtime_username));
 }
 
 // Only Mieru cannot hand its credential back, so only Mieru costs the subscriber
@@ -124,8 +139,8 @@ function clientCard(context, entry) {
     </button>
     <span class="status-pill ${tone}"><i></i>${esc(label)}</span>
     <ul class="client-grants">${grants.length
-      ? grants.map((grant) => grantChip(context, grant, canWrite)).join("")
-      : '<li class="grant-chip empty"><small>Доступов пока нет — импортируйте существующие</small></li>'}</ul>
+      ? [...grants].sort(byProtocol).map((grant) => grantChip(context, grant, canWrite)).join("")
+      : `<li class="grant-chip empty"><small>${client.state === "archived" ? "Доступов нет — клиент в архиве" : "Доступов пока нет — выдайте их в «Узлы и доступы» или импортируйте существующие"}</small></li>`}</ul>
     ${adoptNote(context, grants)}
     ${actions(context, client)}
   </article>`;
@@ -143,8 +158,15 @@ export async function renderClients(context, generation) {
       ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
     </div>
     <section class="client-list">${context.state.clients.length
-      ? context.state.clients.map((entry) => safeCard(context, entry)).join("")
+      ? [...context.state.clients].sort(byState).map((entry) => safeCard(context, entry)).join("")
       : '<div class="empty-state"><span>◇</span><h3>Клиентов пока нет</h3><p>Импортируйте пользователей, которые уже работают на этом сервере, — панель ничего в них не меняет.</p></div>'}</section>`;
+}
+
+// Working clients first, archived ones at the bottom; the list's own order within each.
+const STATE_ORDER = { active: 0, suspended: 1, archived: 2 };
+
+function byState(left, right) {
+  return (STATE_ORDER[left?.client?.state] ?? 1) - (STATE_ORDER[right?.client?.state] ?? 1);
 }
 
 // One malformed entry (an option shape a newer node reports, say) must not take the whole

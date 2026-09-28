@@ -214,7 +214,7 @@ revoked. The links themselves live in the same window's «Ссылки MTProxy»
 panel's escrow, one per node, and hands them over through a one-time reveal with their QR codes.
 
 Formats are chosen with `?format=` or by `Accept`: `raw` (plain text, one link per
-line, no base64), `singbox` (`application/json`, naive + mieru outbounds for Karing;
+line, no base64), `singbox` (`application/json`, naive + mieru outbounds for Karing and Throne — Throne does not import Clash YAML;
 `&client=singbox` cuts it to naive only, because an official sing-box ≥ 1.13 refuses a
 configuration with an outbound type it does not know), `clash` (`text/yaml`, mieru
 proxies for mihomo), `manifest`

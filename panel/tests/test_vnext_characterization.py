@@ -66,7 +66,7 @@ async def test_same_username_in_three_managers_is_three_independent_accounts(cli
     assert "alice" in mieru.users
 
 
-async def test_mtproxy_and_naive_access_are_re_revealable_but_mieru_is_not(client, login_user, mieru):
+async def test_every_protocol_access_is_re_revealable(client, login_user, mieru):
     csrf = await _csrf(client, login_user)
     headers = {"X-CSRF-Token": csrf}
     await client.post("/api/users", json={"username": "phone"}, headers=headers)
@@ -85,9 +85,11 @@ async def test_mtproxy_and_naive_access_are_re_revealable_but_mieru_is_not(clien
     body = naive_access.json()
     assert "reveal_token" not in body
     assert body["clients"]["nekobox"]["share_url"].startswith("naive+https://")
-    # Mieru keeps only hashedPassword: there is no re-reveal route at all.
+    # mita keeps only hashedPassword, but the panel keeps the key it issued (owner,
+    # 2026-09-28: «ключи mieru не надо постоянно ротировать»): the same payload shape.
     mieru_access = await client.post("/api/mieru/users/phone/access", headers=headers)
-    assert mieru_access.status_code in {404, 405, 422}
+    assert mieru_access.status_code == 200 and "reveal_token" not in mieru_access.json()
+    assert mieru_access.json()["clients"]["native"]["simple_share_url"].startswith("mierus://phone:")
 
 
 async def test_one_time_reveal_is_consumed_once_and_lives_only_in_memory(client, login_user):

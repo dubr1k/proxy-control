@@ -62,7 +62,8 @@ def _load_average() -> list[float] | None:
         return None
 
 
-def _memory() -> dict | None:
+def _meminfo() -> dict[str, int] | None:
+    """/proc/meminfo in bytes."""
     try:
         lines = _PROC.joinpath("meminfo").read_text().splitlines()
     except OSError:
@@ -73,6 +74,13 @@ def _memory() -> dict | None:
         fields = rest.split()
         if fields and fields[0].isdigit():
             values[key] = int(fields[0]) * 1024
+    return values
+
+
+def _memory() -> dict | None:
+    values = _meminfo()
+    if values is None:
+        return None
     total = values.get("MemTotal")
     available = values.get("MemAvailable")
     if not total or available is None:
@@ -85,6 +93,24 @@ def _memory() -> dict | None:
         "available_bytes": available,
         "used_bytes": total - available,
         "used_percent": round(100.0 * (total - available) / total, 1),
+    }
+
+
+def _swap() -> dict | None:
+    """Swap in use. A host without swap reports a zero total and no percentage: "no
+    swap" is a fact about the server, not a missing reading."""
+    values = _meminfo()
+    if values is None or "SwapTotal" not in values or "SwapFree" not in values:
+        return None
+    total = values["SwapTotal"]
+    if total == 0:
+        return {"total_bytes": 0, "available_bytes": 0, "used_bytes": 0}
+    free = min(values["SwapFree"], total)
+    return {
+        "total_bytes": total,
+        "available_bytes": free,
+        "used_bytes": total - free,
+        "used_percent": round(100.0 * (total - free) / total, 1),
     }
 
 
@@ -109,9 +135,9 @@ def _disk(path: str = _ROOT) -> dict | None:
 
 
 def host_metrics() -> dict:
-    """Read-only host telemetry: CPU utilisation, memory and root filesystem.
+    """Read-only host telemetry: CPU utilisation, memory, swap and root filesystem.
 
     Every section degrades to null independently, because a kernel that stops
     exposing one of these files must not blank the whole card.
     """
-    return {"cpu": _cpu(), "memory": _memory(), "disk": _disk()}
+    return {"cpu": _cpu(), "memory": _memory(), "swap": _swap(), "disk": _disk()}

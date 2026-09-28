@@ -37,8 +37,12 @@ export function createUi(root) {
     button.removeAttribute("aria-busy");
   }
 
-  function renderSkeleton() {
-    view.innerHTML = '<div class="skeleton-grid"><i></i><i></i><i></i><i></i></div>';
+  // The overview's placeholder has the overview's own shape (resources across, three
+  // protocols under it); a generic row of tiles made it jump between 3, 4 and 1 + 3.
+  function renderSkeleton(name = "") {
+    view.innerHTML = name === "dashboard"
+      ? '<div class="protocol-overview skeleton-overview"><i class="host-row"></i><i></i><i></i><i></i></div>'
+      : '<div class="skeleton-grid"><i></i><i></i><i></i><i></i></div>';
   }
 
   function renderError(error) {

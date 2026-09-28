@@ -163,6 +163,22 @@ class GrantLifecycle:
                 secret_id=secret_id, secret_version=version,
             )
 
+    async def delete_from_protocol_page(self, protocol: str, username: str, delete_runtime, *, actor, ip,
+                                        request_id=None):
+        """A protocol page deletes the runtime account itself (with its own revision and
+        reply); the grant the panel keeps for it — the one its key is escrowed on — goes
+        with it, its own lane first, exactly as `delete` orders a local grant. Returns what
+        `delete_runtime` returned."""
+        grant = self.facade.grant(protocol, username)
+        if grant is not None and self.lanes is not None and grant.routing_lane == "own":
+            await self.lanes.disable(grant.id, actor=actor, ip=ip, request_id=request_id)
+        result = await delete_runtime()
+        if grant is not None:
+            await self.facade.forget(protocol, username, actor=actor, ip=ip, request_id=request_id)
+            with self.database.transaction() as db:
+                self.clients.purge_grant(db, grant.id)
+        return result
+
     async def delete(self, grant_id: str, *, actor, ip, request_id=None) -> None:
         """Local: the account is removed, the grant follows it (`forget`) and the row is
         purged at once, so the name can be granted again. Remote: the grant is `deleted`

@@ -407,6 +407,30 @@ async def test_naive_create_accepts_quota_and_invalid_quota_never_reaches_manage
     assert naive.calls == []
 
 
+async def test_naive_rotation_on_its_page_replaces_the_kept_credential(client, login_user, naive):
+    """A subscription serves the escrowed password: a rotation here must replace it,
+    or the client's feed keeps handing out the password the node no longer accepts. An
+    account the panel does not record (the legacy writer's create) stays unrecorded: the
+    manager keeps its password, and «Импорт существующих» captures it without a rotation."""
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    await client.post("/api/naive/users", json={"username": "ios-phone"}, headers={"X-CSRF-Token": csrf})
+    facade = client._transport.app.state.domain_facade
+    recorded = client._transport.app.state.settings.vnext_writer == "domain"
+    first = facade.credential("naive", "ios-phone").decode() if recorded else None
+    assert (facade.grant("naive", "ios-phone") is not None) is recorded
+
+    rotated = await client.post("/api/naive/users/ios-phone/rotate", headers={"X-CSRF-Token": csrf})
+    reveal = (await client.get("/api/reveal/" + rotated.json()["reveal_token"])).json()
+    second = urlsplit(reveal["clients"]["native"]["config"]["proxy"]).password
+
+    if recorded:
+        assert second != first
+        assert facade.credential("naive", "ios-phone").decode() == second
+    else:
+        assert facade.grant("naive", "ios-phone") is None
+
+
 async def test_viewer_cannot_change_naive_quota(client, login_user, naive):
     naive.seed("phone", "hidden", enabled=True)
     client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")

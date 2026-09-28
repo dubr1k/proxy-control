@@ -20,14 +20,18 @@ The reveal response carries `Cache-Control: no-store`. URL and QR exist in front
 
 ## Reissue for an existing user
 
-Mita stores `hashedPassword`; plaintext cannot be recovered. The previous URL/QR therefore cannot be safely displayed after one-time reveal expires.
+Mita stores only `hashedPassword`, but the panel keeps every key it issues itself (create and **New key**) in its encrypted secret store (master key `PANEL_MASTER_KEY_FILE`). Therefore:
 
-Select **New link + QR**. The panel:
+- **Configuration** shows the current key again — no rotation, nothing changes on the node, the old link keeps working (`POST /api/mieru/users/{username}/access`, audit `mieru.access`). The link follows the shape mita serves now: a user in its own lane gets the slot's port.
+- The client's subscription serves the same key and switches to the new one right after **New key**.
+- A user issued before the panel kept keys shows «Key not kept» («Ключ не сохранён»): its password exists only as a hash. Press **New key** once; from then on it is kept.
+
+**New key** is a rotation. The panel:
 
 1. generates a new credential;
 2. performs controlled restart/reload under Mieru transaction policy;
 3. invalidates the previous client configuration;
-4. displays a new one-time URL and QR.
+4. keeps the new key and displays the new URL and QR.
 
 Warn the user that the old config stops working as soon as rotation succeeds.
 
@@ -39,6 +43,7 @@ Warn the user that the old config stops working as soon as rotation succeeds.
 | Karing | Full Mieru sing-box profile, download, and `karing://install-config` | Not offered | The Karing deep link containing the full profile |
 | Shadowrocket | Not offered; no verified format | Not offered | None |
 | NekoBox+ | Not offered; no verified format | Not offered | None |
+| Throne (formerly Nekoray) | The «sing-box JSON for Karing and Throne» subscription (`?format=singbox`); Throne does not import Clash YAML. In Throne 1.3.1 a UDP binding connects only when the server is an IP address | Not offered | None |
 
 Use an official Mieru client compatible with server `mita` 3.35.x, 3.36.x or 3.37.x, or a current Karing build. The [official Mieru client guide](https://github.com/enfein/mieru/blob/main/docs/client-install.md) defines `mierus://`, `mieru import config`, and the sing-box Mieru outbound fields. Karing documents configuration-content import and its [URL scheme](https://karing.app/en/cooperation/scheme); its current source lists the Mieru outbound type.
 
@@ -61,7 +66,7 @@ Create, rotate, and reveal require authorized mutation roles and CSRF where appl
 
 ## Dialog closed too early
 
-Do not search the DB or logs. Perform another **New link + QR** rotation and deliver the new credential. One-time disclosure is intentional.
+Do not search the DB or logs. Press **Configuration** — the panel shows the same key again. Rotate only when the key is compromised or the user predates kept keys («Key not kept»).
 
 ## Mobile UI
 

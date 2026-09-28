@@ -18,6 +18,7 @@ import {
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
 import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
+import { applyAccent, bindAccentPicker } from "./theme.js";
 import {
   bindRouting,
   handleRoutingChange,
@@ -114,7 +115,7 @@ function createNavigator(context) {
       users: "Подключение",
     }[name] || "Добавить";
 
-    context.ui.renderSkeleton();
+    context.ui.renderSkeleton(name);
     try {
       await renderer(context, generation);
     } catch (error) {
@@ -221,6 +222,7 @@ function bindPanel(context) {
     if (event.key === "Escape" && !profileMenu.hidden) { setProfileMenu(false); profileButton.focus(); }
   });
 
+  bindAccentPicker(root);
   bindUsers(context);
   bindClients(context);
   bindMieru(context);
@@ -288,6 +290,8 @@ async function initialise(context) {
 }
 
 export function boot(root = document) {
+  // Before anything renders, so the saved accent is the first colour the operator sees.
+  applyAccent();
   if (bindLogin(root)) return;
   if (!query("#view", root)) return;
   const context = {

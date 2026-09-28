@@ -127,7 +127,7 @@ Unit добавляет одно точное правило TCPMSS в `mangle/P
 
 ## Пользователи, ссылки и QR
 
-Create возвращает one-time `mierus://` URL, QR и import command. List API secret-free. Existing password из `hashedPassword` не восстанавливается; **«Новая ссылка + QR»** выполняет rotation и инвалидирует старый config. Полный flow: [MIERU_SHARING.ru.md](docs/MIERU_SHARING.ru.md).
+Create возвращает one-time `mierus://` URL, QR и import command. List API secret-free. Password из `hashedPassword` не восстанавливается, но панель хранит выданный ею ключ: **«Конфигурация»** показывает его снова; **«Новый ключ»** выполняет rotation и инвалидирует старый config. Полный flow: [MIERU_SHARING.ru.md](docs/MIERU_SHARING.ru.md).
 
 Credential rotation, disable и delete требуют controlled restart для revocation. Quota-only change может использовать reload. Config apply — full-snapshot CAS transaction; apply сам по себе не гарантирует изменение live state.
 

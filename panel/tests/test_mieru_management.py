@@ -313,6 +313,124 @@ def test_mieru_reveal_rejects_invalid_authority_port_as_a_controlled_conflict():
     assert caught.value.status_code == 409
 
 
+def _password(reveal: dict) -> str:
+    return urlsplit(reveal["clients"]["native"]["simple_share_url"]).password
+
+
+async def test_mieru_key_is_kept_and_shown_again_without_rotation(client, login_user, mieru):
+    """mita keeps a hash only: the panel's escrow is what lets «Конфигурация» show the
+    key again — and a rotation on this page must replace the kept key, or every
+    subscription of the client would go on serving the old one."""
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    created = await client.post(
+        "/api/mieru/users",
+        json={"username": "phone", "quotas": [], "expected_revision": "rev-1"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    first = _password((await client.get("/api/reveal/" + created.json()["reveal_token"])).json())
+    listed = (await client.get("/api/mieru/users")).json()["items"]
+    assert [item["credential_kept"] for item in listed] == [True]
+
+    revision = mieru.revision
+    shown = await client.post("/api/mieru/users/phone/access", headers={"X-CSRF-Token": csrf})
+    assert shown.status_code == 200
+    assert _password(shown.json()) == first
+    assert set(shown.json()["clients"]) == {"native", "karing"}
+    assert mieru.revision == revision  # showing the key changed nothing on the node
+
+    rotated = await client.post(
+        "/api/mieru/users/phone/rotate",
+        json={"expected_revision": mieru.revision},
+        headers={"X-CSRF-Token": csrf},
+    )
+    second = _password((await client.get("/api/reveal/" + rotated.json()["reveal_token"])).json())
+    assert second != first
+    again = (await client.post("/api/mieru/users/phone/access", headers={"X-CSRF-Token": csrf})).json()
+    assert _password(again) == second
+    facade = client._transport.app.state.domain_facade
+    assert facade.credential("mieru", "phone").decode() == second
+
+    audit = str((await client.get("/api/audit")).json())
+    assert "mieru.access" in audit and "mierus://" not in audit and second not in audit
+
+
+async def test_mieru_key_issued_before_it_was_kept_asks_for_one_rotation(client, login_user, mieru):
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    mieru.users["legacy"] = {"username": "legacy", "enabled": True, "quotas": []}
+
+    listed = (await client.get("/api/mieru/users")).json()["items"]
+    assert [item["credential_kept"] for item in listed] == [False]
+    refused = await client.post("/api/mieru/users/legacy/access", headers={"X-CSRF-Token": csrf})
+    assert refused.status_code == 409
+    assert "Выпустите новую ссылку один раз" in refused.json()["detail"]
+
+    await client.post(
+        "/api/mieru/users/legacy/rotate",
+        json={"expected_revision": mieru.revision},
+        headers={"X-CSRF-Token": csrf},
+    )
+    listed = (await client.get("/api/mieru/users")).json()["items"]
+    assert [item["credential_kept"] for item in listed] == [True]
+    assert (await client.post("/api/mieru/users/legacy/access", headers={"X-CSRF-Token": csrf})).status_code == 200
+
+
+async def test_mieru_kept_key_follows_the_users_lane_slot(client, login_user, mieru):
+    """The link is rebuilt from the shape mita serves now: a user in a lane gets the
+    slot's port, not the main one."""
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    await client.post(
+        "/api/mieru/users",
+        json={"username": "phone", "quotas": [], "expected_revision": "rev-1"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    mieru.router_url = "socks5://lane:secret@127.0.0.1:45102"
+    await mieru.set_lanes([{"lane": "grant:x", "users": ["phone"], "upstream": {"user": "u", "password": "p"}}])
+    shown = (await client.post("/api/mieru/users/phone/access", headers={"X-CSRF-Token": csrf})).json()
+    url = shown["clients"]["native"]["simple_share_url"]
+    assert "port=46101" in url and "port=8443" not in url
+
+
+async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(client, login_user, mieru, naive):
+    """The page that keeps a key must not leave its grant behind: a subscription would go on
+    listing an account the node no longer has."""
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    await client.post("/api/mieru/users", json={"username": "phone", "quotas": [], "expected_revision": mieru.revision},
+                      headers={"X-CSRF-Token": csrf})
+    await client.post("/api/naive/users", json={"username": "phone"}, headers={"X-CSRF-Token": csrf})
+    facade = client._transport.app.state.domain_facade
+    # Mieru is always recorded (its key exists nowhere else); Naive only by the domain writer.
+    naive_recorded = client._transport.app.state.settings.vnext_writer == "domain"
+    assert facade.grant("mieru", "phone") is not None
+    assert (facade.grant("naive", "phone") is not None) is naive_recorded
+
+    deleted = await client.request("DELETE", "/api/mieru/users/phone", json={"expected_revision": mieru.revision},
+                                   headers={"X-CSRF-Token": csrf})
+    assert deleted.status_code == 200 and "phone" not in mieru.users
+    assert (await client.delete("/api/naive/users/phone", headers={"X-CSRF-Token": csrf})).status_code == 204
+    assert facade.grant("mieru", "phone") is None and facade.grant("naive", "phone") is None
+    audit = [row["action"] for row in (await client.get("/api/audit")).json()["items"]]
+    assert audit.count("grant.delete") == 1 + naive_recorded and "mieru.delete" in audit and "naive.delete" in audit
+
+
+async def test_viewer_cannot_see_a_kept_mieru_key(client, login_user, mieru):
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    await client.post(
+        "/api/mieru/users",
+        json={"username": "phone", "quotas": [], "expected_revision": "rev-1"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    client._transport.app.state.store.create_admin("watcher", "correct horse battery staple", "viewer")
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": csrf})
+    await login_user(client, "watcher")
+    response = await client.post(
+        "/api/mieru/users/phone/access", headers={"X-CSRF-Token": client.cookies["panel_csrf"]}
+    )
+    assert response.status_code == 403
 
 
 async def test_panel_preserves_unavailable_metrics_without_synthesizing_zero(

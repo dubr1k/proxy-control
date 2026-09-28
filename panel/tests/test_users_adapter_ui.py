@@ -354,7 +354,10 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     assert ".cell b,.cell small{display:block}" in css.text
     assert "showMieruAccess" in modules["access"] and "qrFor(value.qr, value.share_url)" in modules["access"]
     assert "QR и кнопка открытия передают Karing полный профиль" in modules["access"]
-    assert "Новая ссылка + QR" in modules["mieru"]
+    assert "Новый ключ" in modules["mieru"] and "Новая ссылка + QR" not in modules["mieru"]
+    # The kept key is shown again without a rotation; a key never kept says so instead.
+    assert 'data-mieru-action="access"' in modules["mieru"] and "user.credential_kept === true" in modules["mieru"]
+    assert "/access`, { method: \"POST\" }" in modules["mieru"] and "Ключ не сохранён" in modules["mieru"]
     assert "rolling application-byte admission quota" in modules["mieru"]
     assert "/quotas" in modules["mieru"] and "expected_revision: context.state.mieruService.revision" in modules["mieru"]
     assert "Открыть Mieru" not in modules["mieru"]
@@ -671,7 +674,13 @@ async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
         assert all(row["secret_id"] is not None for row in grants)
         assert [row["display_name"] for row in clients] == ["alice"]
     else:
-        assert grants == [] and clients == []
+        # The legacy writer provisions through the managers, but a Mieru password is kept
+        # all the same — mita has only a hash of it, so the reveal would be its last copy:
+        # that account is recorded as imported, with its credential. Telemt and the Naive
+        # manager hand their secrets back, so «Импорт существующих» captures those later.
+        assert {row["protocol"] for row in grants} == {"mieru"}
+        assert all(row["origin"] == "imported" and row["secret_id"] is not None for row in grants)
+        assert [row["display_name"] for row in clients] == ["alice"]
 
 
 async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, login_user, telemt, naive, mieru):
