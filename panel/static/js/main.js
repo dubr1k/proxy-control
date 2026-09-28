@@ -19,6 +19,7 @@ import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mier
 import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
 import { applyAccent, bindAccentPicker } from "./theme.js";
+import { applyLanguage, bindLanguageSwitch } from "./i18n.js";
 import {
   bindRouting,
   handleRoutingChange,
@@ -292,6 +293,9 @@ async function initialise(context) {
 export function boot(root = document) {
   // Before anything renders, so the saved accent is the first colour the operator sees.
   applyAccent();
+  // The English dictionary loads beside the first render and follows every later one.
+  void applyLanguage();
+  bindLanguageSwitch(root);
   if (bindLogin(root)) return;
   if (!query("#view", root)) return;
   const context = {

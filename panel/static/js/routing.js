@@ -3,7 +3,7 @@
 // compiler's honest answer: an unsupported rule is named, not silently dropped, and
 // «Применить» is enabled only for a saved, supported policy.
 import { registerReasons } from "./api.js";
-import { date, esc, number, query, queryAll } from "./common.js";
+import { date, esc, locale, number, query, queryAll } from "./common.js";
 import { capabilityList, guideHtml } from "./routing-guide.js";
 import { isCurrent } from "./state.js";
 
@@ -384,7 +384,7 @@ function ruleLabel(policy, ruleId) {
 
 function historyTable(rows) {
   if (!rows?.length) return '<p class="form-hint">Применений ещё не было.</p>';
-  const body = rows.map((row) => `<tr><td>${esc(String(row.created_at ? new Date(row.created_at * 1000).toLocaleString("ru-RU") : "—"))}</td><td>${esc(STATE_TEXT[row.outcome] || row.outcome)}</td><td>rev ${number(row.revision)}</td><td><code>${esc(String(row.digest || "").slice(0, 12))}</code></td><td>${esc(row.actor || "")}</td></tr>`).join("");
+  const body = rows.map((row) => `<tr><td>${esc(String(row.created_at ? new Date(row.created_at * 1000).toLocaleString(locale()) : "—"))}</td><td>${esc(STATE_TEXT[row.outcome] || row.outcome)}</td><td>rev ${number(row.revision)}</td><td><code>${esc(String(row.digest || "").slice(0, 12))}</code></td><td>${esc(row.actor || "")}</td></tr>`).join("");
   return `<div class="import-table-wrap"><table class="import-table routing-history"><thead><tr><th>Когда</th><th>Исход</th><th>Ревизия</th><th>Digest</th><th>Кто</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 

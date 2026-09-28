@@ -1,3 +1,9 @@
+// Numbers and dates follow the interface language (v0.17): `<html lang>` is set by the
+// language switch before the first render.
+export function locale() {
+  return document.documentElement.lang === "en" ? "en-GB" : "ru-RU";
+}
+
 export function query(selector, root = document) {
   return root.querySelector(selector);
 }
@@ -44,7 +50,7 @@ export function paintClientsCount(context, total) {
 }
 
 export function number(value) {
-  return new Intl.NumberFormat("ru-RU").format(Number(value) || 0);
+  return new Intl.NumberFormat(locale()).format(Number(value) || 0);
 }
 
 export function bytes(value) {
@@ -81,7 +87,7 @@ export function date(value) {
   const numeric = Number(value);
   const result = new Date(numeric ? (numeric < 1e12 ? numeric * 1000 : numeric) : value);
   if (Number.isNaN(result.valueOf())) return "—";
-  return result.toLocaleString("ru-RU", {
+  return result.toLocaleString(locale(), {
     day: "2-digit",
     month: "short",
     hour: "2-digit",

@@ -315,3 +315,6 @@
   .routing-guide-scenario header button{width:100%;min-height:40px}
   .routing-guide-na{text-align:left;max-width:none}
 }
+/* Interface language (v0.17): the switch names the language it switches to. */
+.lang-switch{font-size:11px;font-weight:650;letter-spacing:.04em}
+.login-lang{position:absolute;top:14px;right:14px}

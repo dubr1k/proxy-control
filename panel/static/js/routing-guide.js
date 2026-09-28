@@ -104,7 +104,7 @@ function scenarioBlock(scenario, capabilities, available) {
   return `<article class="routing-guide-scenario" data-scenario-id="${esc(scenario.id)}">
     <header><b>${esc(scenario.title)}</b>${button}</header>
     <p>${esc(scenario.why)}</p>
-    <ol>${scenario.steps.map((step) => `<li>${esc(step).replace(/`([^`]+)`/g, "<code>$1</code>")}</li>`).join("")}</ol>
+    <ol>${scenario.steps.map((step) => `<li>${esc(step).replace(/\x60([^\x60]+)\x60/g, "<code>$1</code>")}</li>`).join("")}</ol>
   </article>`;
 }
 

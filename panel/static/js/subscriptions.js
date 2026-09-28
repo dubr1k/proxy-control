@@ -1,4 +1,4 @@
-import { OPERATION_MESSAGE, OPERATION_OK, esc, query, queryAll } from "./common.js";
+import { esc, locale, OPERATION_MESSAGE, OPERATION_OK, query, queryAll } from "./common.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
@@ -51,7 +51,7 @@ const SETTLE_DELAYS = [3000, 5000, 8000, 12000, 20000, 30000, 45000];
 
 function formatDate(seconds) {
   if (!seconds) return "никогда";
-  return new Date(seconds * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+  return new Date(seconds * 1000).toLocaleString(locale(), { dateStyle: "short", timeStyle: "short" });
 }
 
 // A managed node refuses grant changes from the central panel with a raw invariant message;

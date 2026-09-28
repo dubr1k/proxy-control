@@ -1,4 +1,4 @@
-import { bytes, esc, icon, number, paintClientsCount, query } from "./common.js";
+import { bytes, esc, icon, locale, number, paintClientsCount, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { refreshUsers } from "./users.js";
 
@@ -70,7 +70,7 @@ function swapLine(swap) {
 }
 
 function updatedAt(when) {
-  return `обновлено ${when.toLocaleTimeString("ru-RU")}`;
+  return `обновлено ${when.toLocaleTimeString(locale())}`;
 }
 
 function hostCard(host, when = new Date()) {
