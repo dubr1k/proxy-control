@@ -553,7 +553,7 @@ function customExitsPanel(context, target) {
     return `<tr data-exit-id="${esc(exit.id)}" class="${exit.enabled ? "" : "disabled"}">
       <td><b>${esc(exit.name)}</b>${exit.enabled ? "" : " <small>выключен</small>"}</td>
       <td>${esc(EXIT_PROTOCOL_NAMES[exit.protocol] || exit.protocol)}</td>
-      <td>${esc(exit.address)}:${number(exit.port)}${exit.security?.kind && exit.security.kind !== "none" ? ` · ${esc(exit.security.kind)}` : ""}</td>
+      <td>${esc(exit.address)}:${esc(String(exit.port))}${exit.security?.kind && exit.security.kind !== "none" ? ` · ${esc(exit.security.kind)}` : ""}</td>
       <td class="${exit.last_test && !exit.last_test.ok ? "danger-text" : ""}">${test}</td>
       <td class="routing-rule-tools">
         <button type="button" class="ghost" data-routing-action="exit-test" data-exit-id="${esc(exit.id)}"${owner && target.router.available ? "" : " disabled"}>Проверить</button>
@@ -577,7 +577,7 @@ function relayLine(context, target) {
   const relay = target.relay;
   if (!relay || !target.router) return "";
   const owner = context.state.me?.role === "owner";
-  const status = relay.enabled ? (relay.pending ? "relay включается (ждём отчёт узла)" : `relay включён · порт ${number(relay.port)}`) : "relay выключен: другие узлы не могут выходить через этот";
+  const status = relay.enabled ? (relay.pending ? "relay включается (ждём отчёт узла)" : `relay включён · порт ${esc(String(relay.port))}`) : "relay выключен: другие узлы не могут выходить через этот";
   const button = relay.enabled ? "" : `<button class="secondary" data-routing-action="relay-enable"${owner && target.router.available ? "" : " disabled"}>Включить relay</button>`;
   return `<div class="routing-relay-line"><span class="status-pill ${relay.enabled ? "" : "muted"}"><i></i>${esc(status)}</span>${button}</div>`;
 }
@@ -1293,7 +1293,7 @@ async function relayEnable(context, button) {
   context.ui.setBusy(button, true, "…");
   try {
     const result = await context.api(`/api/routing/relay/${encodeURIComponent(target.node_id)}/enable`, { method: "POST", body: JSON.stringify({}) });
-    context.ui.toast(result.pending ? "Отправлено узлу: relay включится после heartbeat" : `Relay включён на порту ${number(result.port)}`);
+    context.ui.toast(result.pending ? "Отправлено узлу: relay включится после heartbeat" : `Relay включён на порту ${esc(String(result.port))}`);
     await context.navigate("routing");
   } catch (error) {
     context.ui.toast(error.message, "error");

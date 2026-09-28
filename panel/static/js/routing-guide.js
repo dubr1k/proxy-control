@@ -50,14 +50,14 @@ export const SCENARIOS = [
     title: "Отдельные сайты через WARP, остальное напрямую",
     why: "Например, ChatGPT, Claude, YouTube или сайты, которые не открываются с IP сервера.",
     needs: "selective_domain",
-    steps: ["«Добавить правило» → «Действие»: «Через выход», «Куда»: WARP.", "В «Домены» — адреса через запятую: openai.com, chatgpt.com, claude.ai. Поддомены входят сами.", "На Xray-router можно взять готовый список: geosite `openai`, `youtube`, `google`.", "«Готово» → «Сохранить» → «Применить»."],
+    steps: ["«Добавить правило» → «Действие»: «Через выход», «Куда»: WARP.", "В «Домены» — адреса через запятую: openai.com, chatgpt.com, claude.ai. Поддомены входят сами.", "На Xray-router можно взять готовый список: geosite openai, youtube, google.", "«Готово» → «Сохранить» → «Применить»."],
   },
   {
     id: "block-ads",
     title: "Заблокировать рекламу и трекеры",
     why: "Меньше трафика и рекламы у всех клиентов сервиса сразу.",
     needs: "block_geosite",
-    steps: ["В «Быстрых настройках» включить «Реклама → блок» (список geosite `category-ads-all`).", "«Сохранить» → «Применить»."],
+    steps: ["В «Быстрых настройках» включить «Реклама → блок» (список geosite category-ads-all).", "«Сохранить» → «Применить»."],
   },
   {
     id: "block-torrent",
@@ -104,7 +104,7 @@ function scenarioBlock(scenario, capabilities, available) {
   return `<article class="routing-guide-scenario" data-scenario-id="${esc(scenario.id)}">
     <header><b>${esc(scenario.title)}</b>${button}</header>
     <p>${esc(scenario.why)}</p>
-    <ol>${scenario.steps.map((step) => `<li>${esc(step).replace(/\x60([^\x60]+)\x60/g, "<code>$1</code>")}</li>`).join("")}</ol>
+    <ol>${scenario.steps.map((step) => `<li>${esc(step)}</li>`).join("")}</ol>
   </article>`;
 }
 
@@ -112,12 +112,12 @@ function scenarioBlock(scenario, capabilities, available) {
 // saving versus applying, and what to do when the check refuses.
 export function guideHtml(target) {
   const capabilities = target?.capabilities || [];
-  const service = target ? `${esc(target.protocolName || target.protocol)} на узле «${esc(target.node_name || target.node_id)}»` : "выбранный сервис";
+  const service = target ? `<b>${esc(target.protocolName || target.protocol)}</b> на узле <b>${esc(target.node_name || target.node_id)}</b>` : "выбранный сервис";
   return `
   <section><h3>Что это за экран</h3>
     <p>Здесь решается, <b>куда сервис выпускает трафик клиентов</b>: напрямую с IP сервера, через WARP (Cloudflare), через другой узел парка, через ваш собственный выход — или блокирует его. Настройка делается отдельно для каждого сервиса (MTProxy, NaiveProxy, Mieru) на каждом узле.</p>
     <p>У сервиса одна <b>политика</b>: выход <b>по умолчанию</b> и список <b>правил-исключений</b>. Правила читаются сверху вниз, срабатывает первое подходящее; всё, что не попало ни в одно правило, идёт «по умолчанию».</p>
-    <p>Сейчас открыт ${service}. Он умеет: ${esc(capabilityList(capabilities).join(", ") || "—")}.</p>
+    <p>Открыт сервис ${service}. Он умеет: ${esc(capabilityList(capabilities).join(", ") || "—")}.</p>
   </section>
   <section><h3>Слова на экране</h3>
     <dl class="routing-guide-terms">
