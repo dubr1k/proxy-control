@@ -114,7 +114,7 @@ def safe_host(data):
         "available": True,
         "cpu": cpu or None,
         "memory": _safe_usage(data.get("memory")),
-        # An agent older than v0.16 has no swap section: null, and the card says nothing.
+        # An agent older than v1.0 has no swap section: null, and the card says nothing.
         "swap": _safe_usage(data.get("swap")),
         "disk": _safe_usage(data.get("disk")),
     }
