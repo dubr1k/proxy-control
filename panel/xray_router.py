@@ -13,6 +13,8 @@ import httpx
 
 from .routing.document import EGRESS_REASON_CODES, ROUTER_DIRECT_INTENT, canonical
 
+# v1.0.1: the sources the router manager knows (`xray_router_manager.geodata.SOURCE_KINDS`).
+GEODATA_SOURCE_KINDS = ("xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom")
 ROUTER_SERVICES = ("naive", "mieru")
 # What the spike proved the router enforces (xray_router_manager/intent.py).
 ROUTER_CAPABILITIES = (
@@ -114,9 +116,10 @@ class MemoryXrayRouter:
         self.lane_accounts: dict[str, dict[str, str]] = {service: {} for service in ROUTER_SERVICES}
         self.relay_state: dict = {"enabled": False, "port": None, "server_name": None, "public_key": None,
                                   "short_ids": [], "accounts": []}
-        # v0.8: the geodata the router resolves codes against, as the manager reports it
+        # v0.8: the geodata the router resolves codes against, as the manager reports it — here a
+        # router on the pin (the owner's choice; since v1.0.1 a new router starts on Loyalsoldier).
         self.geodata_state: dict = {"source": {"kind": "xray", "geosite_url": None, "geoip_url": None}, "auto_update": False,
-                                    "interval_hours": 24, "origin": "seed", "version": None, "updated_at": None,
+                                    "interval_hours": 24, "update_hour": 2, "next_check_at": None, "origin": "seed", "version": None, "updated_at": None,
                                     "last_check_at": None, "last_error": None,
                                     "files": {"geosite": {"sha256": "a" * 64, "size": 3, "codes": 3},
                                               "geoip": {"sha256": "b" * 64, "size": 2, "codes": 2}}}
@@ -262,7 +265,7 @@ class MemoryXrayRouter:
 
     def _geodata_view(self) -> dict:
         return {**copy.deepcopy(self.geodata_state), "seed": {"geosite": {"sha256": "a" * 64}, "geoip": {"sha256": "b" * 64}},
-                "limits": {"max_file_bytes": 64 * 1024 * 1024, "interval_hours": [1, 336]}}
+                "limits": {"max_file_bytes": 128 * 1024 * 1024, "interval_hours": [1, 336]}}
 
     async def geodata(self):
         if not self.available:
@@ -280,8 +283,8 @@ class MemoryXrayRouter:
         self.calls.append(("geodata_settings", copy.deepcopy(body)))
         if "source" in body:
             source = body["source"]
-            if source.get("kind") not in ("xray", "loyalsoldier", "custom"):
-                raise XrayRouterError("source.kind must be xray, loyalsoldier or custom", 422, "geodata_invalid")
+            if source.get("kind") not in GEODATA_SOURCE_KINDS:
+                raise XrayRouterError("source.kind is not a known source", 422, "geodata_invalid")
             if source["kind"] == "custom" and not all(str(source.get(f"{n}_url", "")).startswith("https://") for n in ("geosite", "geoip")):
                 raise XrayRouterError("geosite_url must be an https URL", 422, "geodata_invalid")
             self.geodata_state["source"] = {"kind": source["kind"], "geosite_url": source.get("geosite_url"),
@@ -292,6 +295,11 @@ class MemoryXrayRouter:
             if not isinstance(body["interval_hours"], int) or not 1 <= body["interval_hours"] <= 336:
                 raise XrayRouterError("interval_hours must be 1..336", 422, "geodata_invalid")
             self.geodata_state["interval_hours"] = body["interval_hours"]
+        if "update_hour" in body:
+            hour = body["update_hour"]
+            if hour is not None and (not isinstance(hour, int) or not 0 <= hour <= 23):
+                raise XrayRouterError("update_hour must be 0..23 (UTC) or null", 422, "geodata_invalid")
+            self.geodata_state["update_hour"] = hour
         return self._geodata_view()
 
     async def geodata_update(self):
@@ -330,7 +338,7 @@ class MemoryXrayRouter:
                 "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES},
                 "relay": self._relay_view(),
                 "geodata": {key: self.geodata_state[key] for key in ("source", "origin", "version", "updated_at", "auto_update",
-                                                                       "interval_hours", "last_error", "files")}}
+                                                                       "interval_hours", "update_hour", "last_error", "files")}}
 
     async def egress(self, service):
         self._check(service)

@@ -14,6 +14,9 @@ failure. Your job is to choose what to install, in which order, and to check aft
    `available`); nodes — `overview` → `nodes[].status_json.versions` (the node's cache; the same
    candidates, upstream is shared). If a node's `checked_at` is older than a day, before installing
    on it run `post_nodes_by_node_id_versions_check` (`confirm`).
+   Since v1.0.1 `available` also lists older releases (up to six per runtime) to roll back to;
+   each entry carries `newer` — an «update» means only entries with `newer: true`. The panel
+   itself is only ever offered forward.
 2. **The list** to the owner before installing: host × component, `current → version`, source
    (`catalog` — the operator's catalog; `upstream` — from the project's release, not verified on the
    lab host), what restarts. Install only after an explicit yes; the Xray-router on a node with live
@@ -35,7 +38,7 @@ costly: `telemt` → `mita` → `xray` → `naive` → `panel`.
 | Component | What happens | Check afterwards |
 |---|---|---|
 | `telemt` | image by digest, only `mtproxy` is recreated (seconds; MTProxy clients reconnect) | `daemon: ok`, connections return |
-| `mita` | binary, restart of `mita` and its slots, `mieru-manager` recreated; a version outside the manager's window is marked `manager_unsupported` and is not installable | `daemon: ok`, `get_mieru_users` intact |
+| `mita` | binary, restart of `mita` and its slots, `mieru-manager` recreated; any published mita is offered (since v1.0.1 there is no manager window); the manager reads every config write back, a mismatch rolls it back | `daemon: ok`, `get_mieru_users` intact |
 | `xray` | three router files, the container recreated; naive/mieru traffic through the router drops for seconds | `identity.router.available`, new `identity.router.xray_version`, `providers.warp.reachable`, naive/mieru `egress.providers.router.reachable` |
 | `naive` | Caddy is built on the host (`docker build`), up to 15 minutes, «Собираем…»; a custom build (`-custom.N`) never updates from upstream, a 422 on its check is normal | `daemon: ok`, version |
 | `panel` | the release archive, rebuild, restart; the answer is `async: true` | poll `get_versions` until `status` leaves `updating`; `pending_rebuild` names managers to rebuild by hand; then `reload_tools` |

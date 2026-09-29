@@ -1,4 +1,4 @@
-import { bytes, cssEscape, date, esc, icon, number, query, queryAll } from "./common.js";
+import { bytes, cssEscape, date, esc, icon, number, query, queryAll, versionOptions } from "./common.js";
 import { nodeDetail, refreshCommands, updateCommandFieldsAfterRender } from "./fleet.js";
 import { routingSummary } from "./routing.js";
 import { isCurrent } from "./state.js";
@@ -254,9 +254,9 @@ function updatesTab(context, node) {
     const offered = (Array.isArray(item?.available) ? item.available : [])
       .filter((entry) => entry?.version && entry.version !== current);
     const control = offered.length && canUpdate
-      ? `<select data-node-version-select="${esc(component)}" aria-label="Версия ${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}">${esc(entry.version)} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select>
-        <button class="secondary" data-node-action="update-component" data-component="${esc(component)}" data-current="${esc(current)}">Обновить</button>`
-      : `<small>${offered.length ? "" : "обновлений в каталоге узла нет"}</small>`;
+      ? `<select data-node-version-select="${esc(component)}" aria-label="Версия ${esc(component)}">${versionOptions(offered)}</select>
+        <button class="secondary" data-node-action="update-component" data-component="${esc(component)}" data-current="${esc(current)}">Установить</button>`
+      : `<small>${offered.length ? "" : "других версий в каталоге узла нет"}</small>`;
     return `<li class="node-component"><span><b>${esc(COMPONENT_NAMES[component] || component)}</b><small>текущая версия: ${esc(current)}</small></span>${control}</li>`;
   }).join("");
   // v0.11: a node that reports `versions.check` can be asked to poll upstream; the result
@@ -723,15 +723,17 @@ async function linkLifecycle(context, node, action, button) {
       context.ui.toast(`Импорт с панели — ${importSummary(result)}`);
     } else if (action === "update-component") {
       const { component, current } = button.dataset;
-      const version = query(`[data-node-version-select="${cssEscape(component)}"]`, button.closest(".node-component"))?.value;
+      const select = query(`[data-node-version-select="${cssEscape(component)}"]`, button.closest(".node-component"));
+      const version = select?.value;
+      const back = select?.selectedOptions[0]?.dataset.newer === "0";
       if (!version) {
         context.ui.toast("Выберите версию", "error");
         return;
       }
       const confirmed = await context.ui.confirmed(
-        "Обновить компонент узла?",
+        back ? "Откатить компонент узла?" : "Обновить компонент узла?",
         `${node.display_name} · ${component}: ${current} → ${version}. Version-agent узла перезапустит сервис и при ошибке выполнит rollback.`,
-        "Обновить",
+        back ? "Откатить" : "Обновить",
       );
       if (!confirmed) return;
       context.ui.setBusy(button, true, "Обновляем…");
@@ -739,7 +741,7 @@ async function linkLifecycle(context, node, action, button) {
         method: "POST",
         body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }),
       });
-      context.ui.toast(`${component} на узле обновляется до ${version}; версии обновятся после следующего heartbeat`);
+      context.ui.toast(`${component} на узле: ставится ${version}; версии обновятся после следующего heartbeat`);
     } else if (action === "check-versions") {
       context.ui.setBusy(button, true, "Проверяем…");
       await context.api(path("/versions/check"), { method: "POST" });

@@ -26,8 +26,8 @@ def test_versions_screen_checks_upstream_and_labels_the_source():
     # agent already hides `xray` on a host without the router, so the UI has no such branch.
     assert 'reason === "no_published_digest"' in JS
     assert 'reason === "router_not_installed"' not in JS
-    # A mita newer than the Mieru manager supports is shown, not offered (found live).
-    assert 'reason === "manager_unsupported"' in JS and "менеджер этой версии ещё не поддерживает" in JS
+    # v1.0.1: the Mieru manager takes any mita, so there is no «not supported yet» branch.
+    assert "manager_unsupported" not in JS
 
 
 def test_versions_screen_hides_the_check_when_upstream_polling_is_off():

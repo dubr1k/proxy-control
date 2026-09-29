@@ -288,6 +288,7 @@ class XrayRouterManager:
         self.geodata = GeodataStore(self.state_dir / "geodata",
                                     {name: self.artifacts[name][0] for name in ("geosite", "geoip") if name in self.artifacts})
         self._geodata_busy = threading.Lock()
+        self._geodata_thread: threading.Thread | None = None
         # v0.8: how an exit is tried — a TLS fetch of the trace page through a throwaway Xray.
         self.exit_prober = probe_trace
         self._exit_busy = threading.Lock()
@@ -554,6 +555,8 @@ class XrayRouterManager:
             self.xray_version = self.runner.version()
             if len(self.geodata.seed) == 2:
                 self.geodata.ensure_seed()
+                # A new Xray release brings a new seed; the pin as the source follows it.
+                self.geodata.follow_seed()
             self._recover()
             current = self._current()
             if current is None:
@@ -696,6 +699,9 @@ class XrayRouterManager:
         if auto is not None and not isinstance(auto, bool):
             raise GeodataError("auto_update must be a boolean")
         interval = body.get("interval_hours")
+        if "update_hour" in body:
+            return self.geodata.settings(source=source, auto_update=auto, interval_hours=interval,
+                                         update_hour=body["update_hour"])
         return self.geodata.settings(source=source, auto_update=auto, interval_hours=interval)
 
     def geodata_update(self, fetcher=None) -> dict:
@@ -760,18 +766,33 @@ class XrayRouterManager:
                 # Xray reads the .dat files at start: the running process still holds the old ones.
                 self.runner.stop(self.handle)
                 self.handle = None
-                self._start_generation(current["generation"])
+                try:
+                    self._start_generation(current["generation"])
+                except Exception as exc:
+                    # The lists are in; the watchdog keeps restarting the router. Say so on the
+                    # screen — the container log shows nothing of it.
+                    self.geodata.record_failure(GeodataError(
+                        f"lists installed, the router did not restart: {exc}"[:300], "geodata_restart_failed"))
+                    raise
             return {**view, "changed": True}
 
     def geodata_tick(self) -> None:
-        """Automatic updates at the configured interval, off the watchdog thread; a failure
-        is recorded and tried again after the interval."""
+        """Automatic updates at the configured interval; a failure is recorded and tried
+        again after the interval. The download (up to minutes) runs in its own thread: the
+        watchdog thread that calls this keeps restarting a dead Xray meanwhile."""
         if self.artifact_error or not self.geodata.due():
             return
-        try:
-            self.geodata_update()
-        except (GeodataError, ManagerConflict, XrayError, ManualInterventionRequired):
+        if self._geodata_thread is not None and self._geodata_thread.is_alive():
             return
+
+        def run() -> None:
+            try:
+                self.geodata_update()
+            except (GeodataError, ManagerConflict, XrayError, ManualInterventionRequired):
+                return
+
+        self._geodata_thread = threading.Thread(target=run, name="geodata-update", daemon=True)
+        self._geodata_thread.start()
 
     def status(self) -> dict:
         with self.lock:
@@ -797,6 +818,7 @@ class XrayRouterManager:
         return {"source": meta["source"], "origin": meta.get("origin"), "version": meta.get("version"),
                 "updated_at": meta.get("updated_at"), "auto_update": bool(meta.get("auto_update")),
                 "interval_hours": meta.get("interval_hours"), "last_error": meta.get("last_error"),
+                "update_hour": meta.get("update_hour"), "last_check_at": meta.get("last_check_at"),
                 "files": {name: {"sha256": (entry or {}).get("sha256"), "codes": (entry or {}).get("codes")}
                           for name, entry in files.items()}}
 

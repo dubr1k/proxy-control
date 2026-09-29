@@ -297,9 +297,12 @@ function ruleRow(target, rule, index, total, editable) {
 function presetsLine(context, target, draft, editable) {
   const presets = context.state.routingPresets || [];
   if (!presets.length || target.backend !== "xray_router") return "";
+  const source = ensureState(context).geodata?.source?.kind;
   const buttons = presets.map((item) => {
     const on = draft.rules.some((rule) => rule.preset === item.id);
-    return `<label class="routing-preset${on ? " on" : ""}" title="${esc(item.description)}"><input type="checkbox" data-routing-preset="${esc(item.id)}"${on ? " checked" : ""}${editable ? "" : " disabled"}> ${esc(item.title)}</label>`;
+    // v1.0.1: a regional preset whose codes only one geodata source carries says which.
+    const needs = item.geodata && source && item.geodata !== source ? ` <small>нужен источник «${esc(GEODATA_SOURCES[item.geodata] || item.geodata)}»</small>` : "";
+    return `<label class="routing-preset${on ? " on" : ""}" title="${esc(item.description)}"><input type="checkbox" data-routing-preset="${esc(item.id)}"${on ? " checked" : ""}${editable ? "" : " disabled"}> ${esc(item.title)}${needs}</label>`;
   }).join("");
   return `<div class="routing-presets"><b>Быстрые настройки</b>${buttons}</div>`;
 }
@@ -438,7 +441,10 @@ function exitsLine(context, target) {
 
 // Geodata (v0.8): what the router's geosite/geoip codes are resolved against, and where
 // the lists come from — the operator sees the version and refreshes or changes the source.
-const GEODATA_SOURCES = { xray: "архив Xray-core (пин)", loyalsoldier: "Loyalsoldier", custom: "свои URL" };
+const GEODATA_SOURCES = {
+  xray: "архив Xray-core (пин)", loyalsoldier: "Loyalsoldier — Китай и общий", runetfreedom: "Россия — runetfreedom",
+  iran: "Иран — chocolate4u", v2fly: "v2fly — без региональных списков", custom: "свои URL",
+};
 
 function geodataLine(context, target) {
   const state = ensureState(context);
@@ -452,7 +458,11 @@ function geodataLine(context, target) {
   const source = GEODATA_SOURCES[geo.source?.kind] || geo.source?.kind || "?";
   const version = geo.version ? ` ${esc(geo.version)}` : "";
   const when = geo.updated_at ? ` · обновлено ${esc(date(Date.parse(geo.updated_at) / 1000))}` : "";
-  const auto = geo.auto_update ? ` · автообновление раз в ${number(geo.interval_hours || 24)} ч` : " · без автообновления";
+  // v1.0.1: a daily update waits for its UTC hour (the router restarts on new lists).
+  const hour = Number.isInteger(geo.update_hour) && (geo.interval_hours || 24) >= 24 ? `, обновление в ${esc(String(geo.update_hour).padStart(2, "0"))}:00 UTC` : "";
+  const auto = geo.auto_update ? ` · автообновление раз в ${number(geo.interval_hours || 24)} ч${hour}` : " · без автообновления";
+  const checked = geo.last_check_at ? ` · проверено ${esc(date(geo.last_check_at))}` : "";
+  const next = geo.auto_update && geo.next_check_at ? ` · следующая проверка ${esc(date(geo.next_check_at))}` : "";
   const error = geo.last_error ? `<small class="routing-geodata-error">последняя попытка: ${esc(geo.last_error)}</small>` : "";
   // With the pin as the source the same button restores the pinned pair (the lists may
   // still be a previous source's until then) — `geodataUpdate` picks the action by the kind.
@@ -460,7 +470,7 @@ function geodataLine(context, target) {
   return `<div class="routing-geodata" id="routing-geodata">
     <b>Geodata</b>
     <span class="status-pill ${geo.last_error ? "blocked" : ""}"><i></i>${esc(source)}${version}</span>
-    <small>${esc(counts)}${when}${auto}</small>
+    <small>${esc(counts)}${when}${auto}${checked}${next}</small>
     ${error}
     <span class="routing-geodata-tools">
       <button class="ghost" data-routing-action="geodata-update"${owner ? "" : " disabled"}>${pinned ? "Вернуть пин" : "Обновить сейчас"}</button>
@@ -486,6 +496,10 @@ function openGeodataModal(context) {
   query("#geodata-geoip-url", root).value = geo.source?.geoip_url || "";
   query("#geodata-auto", root).checked = geo.auto_update === true;
   query("#geodata-interval", root).value = String(geo.interval_hours || 24);
+  // A router before v1.0.1 has no update hour: the field is hidden and not sent.
+  const hourField = query("#geodata-hour", root);
+  hourField.closest("label").hidden = !("update_hour" in geo);
+  hourField.value = Number.isInteger(geo.update_hour) ? String(geo.update_hour) : "";
   query("#geodata-custom", root).hidden = query("#geodata-source", root).value !== "custom";
   context.ui.openModal("#geodata-modal", "#geodata-source");
 }
@@ -500,6 +514,8 @@ async function saveGeodata(context, button) {
     auto_update: query("#geodata-auto", root).checked,
     interval_hours: Number(query("#geodata-interval", root).value) || 24,
   };
+  const hourField = query("#geodata-hour", root);
+  if (!hourField.closest("label").hidden) body.update_hour = hourField.value === "" ? null : Number(hourField.value);
   if (kind === "custom") {
     body.source.geosite_url = query("#geodata-geosite-url", root).value.trim();
     body.source.geoip_url = query("#geodata-geoip-url", root).value.trim();
@@ -957,7 +973,7 @@ function startScenario(context, id) {
   query("#routing-guide", context.root)?.close();
   if (!target) return;
   readDraft(context);
-  const presetFor = { "block-ads": "ads", "block-torrent": "torrent", "ru-direct": "ru_direct" };
+  const presetFor = { "block-ads": "ads", "block-torrent": "torrent", "ru-direct": "ru_direct", "ru-blocked-warp": "ru_blocked_warp", "cn-direct": "cn_direct" };
   if (id === "warp-all") {
     state.draft.default_action = "egress";
     state.draft.default_egress = "warp";

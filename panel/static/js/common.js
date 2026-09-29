@@ -125,6 +125,16 @@ export const OPERATION_MESSAGE = {
 // The outcomes that are not failures: done, or handed to the node.
 export const OPERATION_OK = new Set(["succeeded", "pending_remote"]);
 
+// v1.0.1: a component's recent releases, split into updates and roll-backs by the agent's
+// `newer` flag (an agent before 1.0.1 lists only newer releases and sends no flag).
+export function versionOptions(entries) {
+  const option = (entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}" data-newer="${entry.newer === false ? "0" : "1"}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"}</option>`;
+  const group = (label, list) => (list.length ? `<optgroup label="${label}">${list.map(option).join("")}</optgroup>` : "");
+  const newer = entries.filter((entry) => entry.newer !== false);
+  const older = entries.filter((entry) => entry.newer === false);
+  return `<option value="">Выберите версию</option>${group("Новее установленной", newer)}${group("Откат на прежнюю", older)}`;
+}
+
 export function cssEscape(value) {
   if (globalThis.CSS?.escape) return globalThis.CSS.escape(value);
   return String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&");

@@ -1,4 +1,4 @@
-import { cssEscape, date, esc, initials, query } from "./common.js";
+import { cssEscape, date, esc, initials, query, versionOptions } from "./common.js";
 import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
@@ -30,20 +30,19 @@ export async function renderVersions(context, generation) {
     const available = Array.isArray(item.available) ? item.available : [];
     const current = item.current || "не определена";
     const offered = available.filter((entry) => entry.version !== current);
+    const hasNewer = offered.some((entry) => entry.newer !== false);
     const upstream = item.upstream || {};
     const risk = offered.some((entry) => entry.source === "upstream") ? `<small class="version-risk">${RISK}</small>` : "";
-    const notInstallable = !offered.length && upstream.latest && upstream.reason === "no_published_digest"
+    const notInstallable = !hasNewer && upstream.latest && upstream.reason === "no_published_digest"
       ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но релиз без опубликованного хэша — установка невозможна</p>`
-      : !offered.length && upstream.latest && upstream.reason === "manager_unsupported"
-        ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но менеджер этой версии ещё не поддерживает — поддержка придёт с обновлением панели</p>`
-        : "";
+      : "";
     // The panel's own update runs in the agent's background (another tab may have started it).
     const updating = component === "panel" && item.status === "updating";
     const control = updating
       ? `<p class="version-empty"><b>Обновление идёт…</b> Панель пересобирается и перезапускается; страница перезагрузится сама.</p><button class="primary version-update" disabled>Обновление идёт…</button>`
       : offered.length
-        ? `<label>Установить версию<select data-version-select="${esc(component)}"><option value="">Выберите версию</option>${offered.map((entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"} · ${esc(entry.kind || "artifact")}</option>`).join("")}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Обновить ${esc(component)}</button>`
-        : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Обновить ${esc(component)}</button>`;
+        ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Установить</button>`
+        : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Установить</button>`;
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
     // Managers the agent does not rebuild: their sources changed with the release.
     const pending = Array.isArray(item.pending_rebuild) && item.pending_rebuild.length
@@ -123,8 +122,10 @@ async function versionAction(context, component, button) {
   const building = component === "naive" && select.selectedOptions[0]?.dataset.kind === "build";
   const warning = building ? " Caddy будет пересобран на хосте, это занимает до 15 минут." : "";
   const panel = component === "panel";
+  const back = select.selectedOptions[0]?.dataset.newer === "0";
   const text = panel ? `Панель: ${current} → ${version}. ${PANEL_CONFIRM}` : `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`;
-  if (!await context.ui.confirmed(panel ? "Обновить панель?" : "Обновить runtime?", text, "Обновить")) return;
+  const title = panel ? "Обновить панель?" : back ? "Откатить компонент?" : "Обновить компонент?";
+  if (!await context.ui.confirmed(title, text, back ? "Откатить" : "Обновить")) return;
   try {
     context.ui.setBusy(button, true, panel ? "Перезапускаем…" : building ? "Собираем…" : "Обновляем…");
     await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }) });
@@ -133,7 +134,7 @@ async function versionAction(context, component, button) {
       await pollPanelUpdate(context, version);
       return;
     }
-    context.ui.toast(`${component} обновлён до ${version}`);
+    context.ui.toast(`${component}: установлена ${version}`);
     await context.navigate("versions");
   } catch (error) {
     context.ui.toast(error.message, "error");

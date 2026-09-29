@@ -29,7 +29,7 @@ Real **v1.0.0** panel captures from an isolated lab with synthetic data. The gal
 [Mobile overview](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Synthetic client card](docs/releases/assets/v1.0.0/clients.png) · [Built-in guide](docs/releases/assets/v1.0.0/routing-guide.png) · [Russian overview](docs/releases/assets/v1.0.0/dashboard.png) · [Russian routing](docs/releases/assets/v1.0.0/routing.png) · [Sign-in](docs/releases/assets/v1.0.0/login.png)
 
 > [!WARNING]
-> **Current release: [v1.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.0)**, the first stable release. [Release notes](docs/releases/v1.0.0.md).
+> **Current release: [v1.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.1)**: any component version from the Versions screen, regional geodata with automatic refreshes. [Release notes](docs/releases/v1.0.1.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The

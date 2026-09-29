@@ -372,6 +372,27 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 ```
 
+## Upgrading to v1.0.1: any component version, regional geodata
+
+No database migrations relative to v1.0.0. Order:
+
+1. Versions → the panel card → `1.0.1` → «Установить». The agent syncs the code, rebuilds the panel
+   and restarts itself.
+2. The panel card says «Изменились менеджеры: mieru_manager, xray_router_manager» — rebuild them with
+   the installation's own overlays (the router only where there is one):
+
+   ```bash
+   cd /opt/mtproxy-shared443
+   docker compose --env-file .env --env-file .env.mieru --env-file .env.xray-router --env-file .env.naive \
+     -f compose.yaml -f compose.mieru.yaml -f compose.xray-router.yaml -f compose.naive.yaml \
+     up -d --build --no-deps --wait mieru-manager xray-router
+   ```
+
+   The Mieru manager then takes any mita; a router whose geodata nobody set up moves to Loyalsoldier
+   with automatic refreshes at 02:00 UTC and fetches fresh lists at once (one router restart).
+3. The Versions dropdowns now list newer and earlier releases of each component; mita 3.38 is
+   installed from there.
+
 ## Panel version-agent
 
 The panel never downloads a runtime artifact and never receives the Docker socket. A separate root-owned `version-agent` reads `/etc/proxy-control/versions.json` and exposes only a Unix socket at `/run/proxy-control/version-agent.sock`.

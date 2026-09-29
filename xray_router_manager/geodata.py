@@ -26,13 +26,35 @@ from dataclasses import dataclass
 from pathlib import Path
 
 FILES = ("geosite", "geoip")
-SOURCE_KINDS = ("xray", "loyalsoldier", "custom")
-LOYALSOLDIER_URLS = {
-    "geosite": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
-    "geoip": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
+
+
+def _release(repository: str, geosite: str = "geosite.dat") -> dict[str, str]:
+    base = f"https://github.com/{repository}/releases/latest/download"
+    return {"geosite": f"{base}/{geosite}", "geoip": f"{base}/geoip.dat"}
+
+
+# v1.0.1: the maintained regional lists as ready sources — every publisher ships
+# `<file>.sha256sum` beside the files, which the download checks.
+PRESET_URLS: dict[str, dict[str, str]] = {
+    # China plus the general categories (ads, gfw, geolocation-!cn); the default.
+    "loyalsoldier": _release("Loyalsoldier/v2ray-rules-dat"),
+    # Russia: ru-blocked / ru-available-only-inside on top of the general categories.
+    "runetfreedom": _release("runetfreedom/russia-v2ray-rules-dat"),
+    # Iran: category-ir and its sub-categories, geoip:ir.
+    "iran": _release("chocolate4u/Iran-v2ray-rules"),
+    # The upstream community lists, no regional additions.
+    "v2fly": {"geosite": "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat",
+              "geoip": "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"},
 }
-MAX_FILE_BYTES = 64 * 1024 * 1024
+LOYALSOLDIER_URLS = PRESET_URLS["loyalsoldier"]
+SOURCE_KINDS = ("xray", *PRESET_URLS, "custom")
+DEFAULT_SOURCE = "loyalsoldier"
+# runetfreedom's geosite.dat alone is ~74 MB.
+MAX_FILE_BYTES = 128 * 1024 * 1024
 MIN_INTERVAL_HOURS, MAX_INTERVAL_HOURS, DEFAULT_INTERVAL_HOURS = 1, 24 * 14, 24
+# A daily (or longer) update restarts Xray and drops the router's connections: it waits
+# for this UTC hour — 02:00 UTC is the night in Europe and Russia. `None` = any hour.
+DEFAULT_UPDATE_HOUR = 2
 DOWNLOAD_TIMEOUT = 60.0
 USER_AGENT = "proxy-control-xray-router/0.8"
 _URL = re.compile(r"^https://[A-Za-z0-9.-]+(?::\d{1,5})?/[^\s]{1,1024}$")
@@ -55,8 +77,8 @@ class Source:
     geoip_url: str | None = None
 
     def urls(self) -> dict[str, str] | None:
-        if self.kind == "loyalsoldier":
-            return dict(LOYALSOLDIER_URLS)
+        if self.kind in PRESET_URLS:
+            return dict(PRESET_URLS[self.kind])
         if self.kind == "custom":
             return {"geosite": self.geosite_url or "", "geoip": self.geoip_url or ""}
         return None
@@ -68,7 +90,7 @@ class Source:
 def parse_source(value: object) -> Source:
     """`{"kind": ..., "geosite_url"?, "geoip_url"?}` validated: custom needs two HTTPS URLs."""
     if not isinstance(value, dict) or value.get("kind") not in SOURCE_KINDS:
-        raise GeodataError("source.kind must be xray, loyalsoldier or custom")
+        raise GeodataError(f"source.kind must be one of {', '.join(SOURCE_KINDS)}")
     kind = value["kind"]
     if kind != "custom":
         return Source(kind=kind)
@@ -79,6 +101,14 @@ def parse_source(value: object) -> Source:
             raise GeodataError(f"{name}_url must be an https URL")
         urls[name] = url.strip()
     return Source(kind="custom", geosite_url=urls["geosite"], geoip_url=urls["geoip"])
+
+
+def parse_hour(value: object) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 23:
+        raise GeodataError("update_hour must be 0..23 (UTC) or null")
+    return value
 
 
 def parse_interval(value: object) -> int:
@@ -228,16 +258,26 @@ class GeodataStore:
 
     def meta(self) -> dict:
         path = self.directory / "meta.json"
-        default = {"source": Source("xray").wire(), "auto_update": False, "interval_hours": DEFAULT_INTERVAL_HOURS,
-                   "origin": "seed", "version": None, "updated_at": None, "last_check_at": None, "last_error": None,
-                   "files": {}}
+        default = {"source": Source(DEFAULT_SOURCE).wire(), "auto_update": True, "interval_hours": DEFAULT_INTERVAL_HOURS,
+                   "update_hour": DEFAULT_UPDATE_HOUR, "origin": "seed", "version": None, "updated_at": None,
+                   "last_check_at": None, "last_error": None, "files": {}, "schema": 2}
         if not path.exists():
             return default
         try:
             value = json.loads(path.read_text())
         except ValueError:
             return default
-        return {**default, **value} if isinstance(value, dict) else default
+        if not isinstance(value, dict):
+            return default
+        if "schema" not in value:
+            # Before v1.0.1 a router started on the pin with no updates. A pin nobody chose
+            # (never checked: «Вернуть пин» leaves a check time) takes the new default.
+            untouched = (value.get("source") or {}).get("kind") == "xray" and not value.get("auto_update") \
+                and value.get("last_check_at") is None
+            value = {**value, "schema": 2, "update_hour": value.get("update_hour", DEFAULT_UPDATE_HOUR)}
+            if untouched:
+                value.update({"source": Source(DEFAULT_SOURCE).wire(), "auto_update": True})
+        return {**default, **value}
 
     def _write_meta(self, meta: dict) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -285,7 +325,7 @@ class GeodataStore:
 
     def view(self) -> dict:
         meta = self.meta()
-        return {**meta, "files": self._file_facts(), "seed": {name: {"sha256": _sha256_path(path)} for name, path in self.seed.items()},
+        return {**meta, "next_check_at": self._next_check(meta), "files": self._file_facts(), "seed": {name: {"sha256": _sha256_path(path)} for name, path in self.seed.items()},
                 "limits": {"max_file_bytes": MAX_FILE_BYTES, "interval_hours": [MIN_INTERVAL_HOURS, MAX_INTERVAL_HOURS]}}
 
     def codes(self) -> dict[str, list[str]]:
@@ -300,8 +340,10 @@ class GeodataStore:
         return result
 
     def settings(self, *, source: Source | None = None, auto_update: bool | None = None,
-                 interval_hours: int | None = None) -> dict:
+                 interval_hours: int | None = None, update_hour: object = ...) -> dict:
         meta = self.meta()
+        if update_hour is not ...:
+            meta["update_hour"] = parse_hour(update_hour)
         if source is not None:
             meta["source"] = source.wire()
         if auto_update is not None:
@@ -311,14 +353,49 @@ class GeodataStore:
         self._write_meta(meta)
         return self.view()
 
-    def due(self) -> bool:
-        meta = self.meta()
+    def _next_check(self, meta: dict) -> float | None:
+        """When the next automatic check may run: the interval after the last one — for a
+        daily or longer interval, inside the next `update_hour` window from then (an hour's
+        slack, so a check made at 02:00:30 is due again at 02:00 the next day). A window
+        that passed unused (the host was down) moves to the next day's."""
         if not meta.get("auto_update") or meta["source"]["kind"] == "xray":
-            return False
+            return None
         last = meta.get("last_check_at")
+        now = self.clock.time()
         if not last:
-            return True
-        return self.clock.time() - float(last) >= int(meta.get("interval_hours") or DEFAULT_INTERVAL_HOURS) * 3600
+            return now
+        interval = int(meta.get("interval_hours") or DEFAULT_INTERVAL_HOURS) * 3600
+        hour = meta.get("update_hour")
+        if hour is None or interval < 24 * 3600:
+            return float(last) + interval
+        earliest = float(last) + interval - 3600
+
+        def window(moment: float) -> float:
+            start = moment - moment % 86400 + hour * 3600
+            return start if start + 3600 > moment else start + 86400
+
+        start = window(earliest)
+        if now >= start + 3600:
+            start = window(now)
+        return max(start, earliest)
+
+    def due(self) -> bool:
+        next_check = self._next_check(self.meta())
+        return next_check is not None and self.clock.time() >= next_check
+
+    def follow_seed(self) -> bool:
+        """With the pin as the source the live pair is the seed: after the version-agent
+        installed a new Xray release (a new seed), copy it in. True when it did."""
+        meta = self.meta()
+        if meta["source"]["kind"] != "xray" or meta.get("origin") != "seed":
+            return False
+        if all(_sha256_path(self.seed[name]) == _sha256_path(self.path(name)) for name in FILES):
+            return False
+        for name in FILES:
+            _atomic_write(self.path(name), self.seed[name].read_bytes(), 0o644)
+        meta.update({"updated_at": _now(self.clock), "last_error": None, "files": self._file_facts()})
+        self._write_meta(meta)
+        return True
 
     def stage(self, fetcher=fetch) -> dict[str, dict] | None:
         """Download the source's pair into the directory under temporary names. None when the

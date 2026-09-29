@@ -3,6 +3,8 @@ that the store keeps, the router compiles `protocols` into Xray's `protocol` and
 native backends refuse it honestly, the definitions come from one place."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -33,7 +35,7 @@ def test_a_rule_may_stand_on_the_sniffed_protocol_alone_and_carries_its_preset()
 
 
 def test_every_preset_is_a_valid_rule_and_the_ids_are_distinct():
-    assert len(set(PRESET_IDS)) == len(PRESETS) == 3
+    assert len(set(PRESET_IDS)) == len(PRESETS) == 6
     for item in PRESETS:
         rule = RoutingRule.model_validate(rule_for(item["id"]))
         assert rule.preset == item["id"] and item["placement"] in ("first", "last")
@@ -93,3 +95,30 @@ async def test_the_presets_endpoint_lists_the_definitions(client, login_user):
     items = response.json()["items"]
     assert [item["id"] for item in items] == list(PRESET_IDS)
     assert items[0]["rule"]["match"] == {"protocols": ["bittorrent"]} and items[0]["placement"] == "first"
+
+
+def test_regional_presets_name_the_geodata_source_their_codes_need():
+    """v1.0.1: cn / category-ir are in every source; ru-blocked only in runetfreedom's lists."""
+    blocked = RoutingRule.model_validate(rule_for("ru_blocked_warp"))
+    assert blocked.action == "egress" and blocked.egress == "warp"
+    assert blocked.match.geosites == ["ru-blocked"] and blocked.match.geoips == ["ru-blocked"]
+    by_id = {item["id"]: item for item in PRESETS}
+    assert by_id["ru_blocked_warp"]["geodata"] == "runetfreedom"
+    assert "geodata" not in by_id["cn_direct"] and "geodata" not in by_id["ir_direct"]
+    assert RoutingRule.model_validate(rule_for("cn_direct")).match.geoips == ["cn"]
+    assert RoutingRule.model_validate(rule_for("ir_direct")).match.geosites == ["category-ir"]
+
+
+def test_the_panel_knows_every_geodata_source_the_router_manager_does():
+    from typing import get_args
+
+    from panel.fleet_v2.node_routes import GeodataSource
+    from panel.routing.routes import GeodataSourceBody
+    from panel.xray_router import GEODATA_SOURCE_KINDS
+    from xray_router_manager.geodata import SOURCE_KINDS
+    for model in (GeodataSourceBody, GeodataSource):
+        assert set(get_args(model.model_fields["kind"].annotation)) == set(SOURCE_KINDS)
+    assert set(GEODATA_SOURCE_KINDS) == set(SOURCE_KINDS)
+    html = (Path(__file__).resolve().parents[1] / "static" / "index.html").read_text()
+    for kind in SOURCE_KINDS:
+        assert f'<option value="{kind}">' in html, kind

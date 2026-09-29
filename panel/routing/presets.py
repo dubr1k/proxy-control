@@ -6,6 +6,10 @@ the rule with that mark; a rule the operator edits loses the mark (the UI clears
 toggle honestly shows «off» for a rule that no longer is the preset. The codes are what the
 Loyalsoldier lists and the Xray archive both carry; the router's preview still says
 `geosite_unknown` if a node's lists lack one.
+
+v1.0.1: regional settings. `cn` / `category-ir` and `geoip:cn` / `geoip:ir` are in every
+geodata source; `ru-blocked` only in the Russian one (runetfreedom) — `geodata` names the
+source a preset needs, and the screen says so next to the toggle.
 """
 from __future__ import annotations
 
@@ -19,6 +23,17 @@ PRESETS: tuple[dict, ...] = (
     {"id": "ru_direct", "title": "Российские домены и IP → напрямую", "placement": "last",
      "description": "geosite:category-ru и geoip:ru идут напрямую, минуя выход по умолчанию.",
      "rule": {"action": "direct", "match": {"geosites": ["category-ru"], "geoips": ["ru"]}, "note": "RU → напрямую"}},
+    {"id": "ru_blocked_warp", "title": "Заблокированное в РФ → через WARP", "placement": "last", "geodata": "runetfreedom",
+     "description": "geosite:ru-blocked и geoip:ru-blocked уходят через WARP узла, остальное — как по умолчанию. "
+                    "Нужен источник geodata «Россия — runetfreedom».",
+     "rule": {"action": "egress", "egress": "warp", "match": {"geosites": ["ru-blocked"], "geoips": ["ru-blocked"]},
+              "note": "Заблокированное в РФ → WARP"}},
+    {"id": "cn_direct", "title": "Китайские домены и IP → напрямую", "placement": "last",
+     "description": "geosite:cn и geoip:cn идут напрямую, минуя выход по умолчанию.",
+     "rule": {"action": "direct", "match": {"geosites": ["cn"], "geoips": ["cn"]}, "note": "CN → напрямую"}},
+    {"id": "ir_direct", "title": "Иранские домены и IP → напрямую", "placement": "last",
+     "description": "geosite:category-ir и geoip:ir идут напрямую, минуя выход по умолчанию.",
+     "rule": {"action": "direct", "match": {"geosites": ["category-ir"], "geoips": ["ir"]}, "note": "IR → напрямую"}},
 )
 PRESET_IDS = tuple(item["id"] for item in PRESETS)
 

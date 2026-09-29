@@ -884,6 +884,21 @@ class Acceptance:
             cards = b.js("[...document.querySelectorAll('.version-card h2')].map(h => h.textContent)") or []
             self.check("versions.components_listed", len(cards) >= 3 and "Текущая версия" in b.page_text(), str(cards))
             self.check("versions.update_needs_a_chosen_version", b.js("[...document.querySelectorAll('.version-update')].every(x => x.disabled)"))
+            # v1.0.1: every offered version sits in a «newer» or «roll back» group, the panel
+            # card never offers one backwards.
+            self.check("versions.dropdown_groups", b.js(
+                "[...document.querySelectorAll('[data-version-select] option')].every(o => o.value === '' || o.parentElement.tagName === 'OPTGROUP')"))
+            self.check("versions.panel_only_forward", b.js(
+                "!document.querySelector('[data-version-select=panel] option[data-newer=\"0\"]')"))
+            self.report["facts"]["version_options"] = b.js(
+                "Object.fromEntries([...document.querySelectorAll('[data-version-select]')].map(s => [s.dataset.versionSelect, s.options.length - 1]))")
+            b.phone()
+            try:
+                self.check("versions.phone.no_horizontal_scroll",
+                           b.js("document.documentElement.scrollWidth <= window.innerWidth + 1"))
+                b.shot("versions-phone.png", 390)
+            finally:
+                b.desktop()
         else:
             self.check("versions.agent_absence_is_honest", "Агент обновлений недоступен" in b.page_text())
         self.report["facts"]["version_agent"] = bool(agent.get("enabled"))
@@ -1016,7 +1031,14 @@ class Acceptance:
         self.check("routing.geodata_block", b.wait("!!document.querySelector('#routing-geodata') && (document.querySelector('#routing-geodata')?.textContent || '').includes('geosite')", 15))
         b.click("[data-routing-action=geodata-settings]")
         self.check("routing.geodata_dialog_opens", b.wait("document.querySelector('#geodata-modal')?.open === true && !!document.querySelector('#geodata-source option[value=loyalsoldier]')", 10))
+        # v1.0.1: the regional sources and the update hour.
+        self.check("routing.geodata_regional_sources", b.js(
+            "['runetfreedom','iran','v2fly'].every(k => !!document.querySelector(`#geodata-source option[value=${k}]`))"))
+        self.check("routing.geodata_update_hour", b.js("document.querySelectorAll('#geodata-hour option').length === 25"))
+        b.shot("routing-geodata.png")
         b.close_dialog("#geodata-modal")
+        self.check("routing.regional_presets", b.js(
+            "['ru_blocked_warp','cn_direct','ir_direct'].every(k => !!document.querySelector(`[data-routing-preset=${k}]`))"))
         b.click("[data-routing-action=exit-add]")
         self.check("routing.exit_dialog_opens", b.wait("document.querySelector('#exit-modal')?.open === true", 10))
         b.type("#exit-name", "lab socks")

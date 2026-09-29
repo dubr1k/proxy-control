@@ -249,6 +249,9 @@ def test_update_installs_a_cached_upstream_candidate_by_version(tmp_path: Path):
     assert state["sha256"] == hashlib.sha256(BINARY).hexdigest()
     assert state["archive"] == {"format": "tar.gz", "member": "mita"}
     assert ["systemctl", "restart", "mita"] in commands
+    # v1.0.1: the screen splits the list into updates and roll-backs by `newer`.
+    listed = agent.list_versions()["components"]["mita"]["available"]
+    assert {entry["version"]: entry["newer"] for entry in listed} == {"3.35.0": False, "3.37.0": False}
 
 
 def test_update_refuses_a_version_that_is_neither_in_the_catalog_nor_cached(tmp_path: Path):

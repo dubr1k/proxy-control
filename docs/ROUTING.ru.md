@@ -273,11 +273,16 @@ POST   /api/routing/exits/{id}/enable | disable | delete    delete — 409 exit_
 удаляет его, правка снимает метку. Торренты — селектор `protocols: ["bittorrent"]` по снифферу
 Xray (только роутер); реклама — `geosite:category-ads-all`; RU — `geosite:category-ru` +
 `geoip:ru` (коды есть и в архиве Xray, и у Loyalsoldier; чужие списки могут их не знать — тогда
-`geosite_unknown` в предпросмотре).
+`geosite_unknown` в предпросмотре). С v1.0.1 добавлены региональные: «Заблокированное в РФ →
+через WARP» (`geosite:ru-blocked` + `geoip:ru-blocked` через WARP узла; коды есть только в
+источнике geodata «Россия — runetfreedom», переключатель это подписывает), «Китайские домены и
+IP → напрямую» (`cn`) и «Иранские домены и IP → напрямую» (`category-ir` + `geoip:ir`).
 
 **Geodata** — файлы `geosite.dat`/`geoip.dat`, по которым роутер понимает коды. Они лежат в
 каталоге состояния роутера, сеются из закреплённой установщиком пары и обновляются из
-выбранного источника: `xray` (пин), `loyalsoldier` (сообщество, ежедневные выпуски) или два
+выбранного источника: `loyalsoldier` (Китай и общие категории — по умолчанию с v1.0.1, с
+автообновлением в 02:00 UTC), `runetfreedom` (Россия), `iran` (Иран), `v2fly` (официальные),
+`xray` (пин) или два
 своих HTTPS-URL. Обновление — транзакция роутера ([XRAY_ROUTER](XRAY_ROUTER.ru.md)); панель
 показывает версию, число кодов и дату, подсказывает коды в правилах и управляет автообновлением:
 `GET /api/routing/geodata?node=`, `GET …/geodata/codes`, `PUT …/geodata/settings`

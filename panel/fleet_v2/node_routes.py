@@ -68,7 +68,7 @@ GEODATA_REFUSALS = ("geodata_invalid", "geodata_corrupt", "geodata_rejected", "g
 
 class GeodataSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["xray", "loyalsoldier", "custom"]
+    kind: Literal["xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom"]
     geosite_url: str | None = Field(default=None, max_length=1024)
     geoip_url: str | None = Field(default=None, max_length=1024)
 
@@ -83,6 +83,13 @@ class GeodataSettings(BaseModel):
     source: GeodataSource | None = None
     auto_update: bool | None = None
     interval_hours: int | None = Field(default=None, ge=1, le=336)
+    update_hour: int | None = Field(default=None, ge=0, le=23)
+
+    def forwarded(self) -> dict:
+        body = self.model_dump(exclude_none=True)
+        if "update_hour" in self.model_fields_set:
+            body["update_hour"] = self.update_hour
+        return body
 
 
 class VersionUpdateRequest(VersionUpdate):
@@ -379,9 +386,9 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
 
     @app.put("/api/fleet/v2/geodata/settings")
     async def geodata_settings(body: GeodataSettings, request: Request, key=Depends(context.fleet_key)):
-        result = await _geodata("settings", body.model_dump(exclude_none=True))
+        result = await _geodata("settings", body.forwarded())
         if not isinstance(result, JSONResponse):
-            await context.audit(key, "fleet.geodata.settings", app.state.panel_guid, request, body.model_dump(exclude_none=True))
+            await context.audit(key, "fleet.geodata.settings", app.state.panel_guid, request, body.forwarded())
         return result
 
     @app.post("/api/fleet/v2/geodata/{action}")

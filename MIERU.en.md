@@ -1,10 +1,10 @@
-# Mieru / mita v3.35–v3.36 management
+# Mieru / mita management
 
 **English** · [Русский](MIERU.ru.md)
 
 See also the product [architecture](docs/ARCHITECTURE.md), [accounting contract](docs/ACCOUNTING.md), and [upgrade procedure](docs/UPGRADING.md).
 
-Proxy Control supports exactly **mita 3.35.x and 3.36.x** through a local, authenticated Unix-socket manager. Mita remains a separate GPLv3+ process; this adapter is MIT and contains no copied upstream source or generated stubs.
+Proxy Control manages mita through a local, authenticated Unix-socket manager. Since v1.0.1 there is no list of «verified» mita versions: the installer puts the pinned version below in place, and after that any published mita release (newer or older) can be picked on the Versions screen — the version-agent checks its SHA-256 and rolls a failed install back. The manager writes the configuration as a whole (`mita replace config` where the binary offers it — 3.38 on; before that `mita apply config`, which up to 3.37 stored the configuration as a whole) and reads it back after every write: a mismatch rolls the transaction back instead of going unnoticed. Mita remains a separate GPLv3+ process; this adapter is MIT and contains no copied upstream source or generated stubs.
 
 ## Pinned upstream artifacts
 
@@ -35,7 +35,7 @@ MIERU_MANAGER_STATE=/var/lib/mieru-manager
 MIERU_MITA_SHA256=38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170
 ```
 
-The helper verifies the pinned executable SHA-256 before every invocation and accepts only mita 3.35.x or 3.36.x at bootstrap. It invokes only fixed `/usr/bin/mita` argv commands with in-memory bounded stdout/stderr. Each invocation runs in a new process group; timeout, output-limit, exceptional, and successful completion paths kill remaining same-group descendants before returning. A malicious child can escape that boundary by double-forking and calling `setsid()`, so this containment is not a sandbox and depends on the executable remaining pinned and trusted. Complete secret-bearing JSON is inherited through an anonymous FD and never a named tempfile, command line, log, audit, or HTTP list response. Keep `/run/mita/mita.sock` mode 0770; do not enable `MITA_INSECURE_UDS` in production.
+The helper verifies the pinned executable SHA-256 before every invocation and accepts any mita that reports a version at bootstrap. It invokes only fixed `/usr/bin/mita` argv commands with in-memory bounded stdout/stderr. Each invocation runs in a new process group; timeout, output-limit, exceptional, and successful completion paths kill remaining same-group descendants before returning. A malicious child can escape that boundary by double-forking and calling `setsid()`, so this containment is not a sandbox and depends on the executable remaining pinned and trusted. Complete secret-bearing JSON is inherited through an anonymous FD and never a named tempfile, command line, log, audit, or HTTP list response. Keep `/run/mita/mita.sock` mode 0770; do not enable `MITA_INSECURE_UDS` in production.
 
 A fresh host must persist one valid generation before enabling the hardened `mita` unit: selected TCP+UDP bindings, one protected bootstrap user, and the all-domain/all-IP WARP SOCKS5 egress rule. Start a temporary `mita run` boundary with the stable UDS, apply a mode-`0600` mita-owned bootstrap JSON, prove `RUNNING`, stop the transient boundary, delete the plaintext input, then enable `deploy/mita.service`. Keep the protected bootstrap user; use separate temporary users for TCP/UDP acceptance and delete those afterward. Starting the hardened unit with an empty/zero-user generation is a hard stop.
 

@@ -196,14 +196,22 @@ Limits: ≤ 32 lanes and ≤ 16 chains per service, ≤ 3 hops per chain, a sche
 not from the binary directory: on first start the manager copies the pinned pair there (their
 digests are still checked at start), and from then on the files are the operator's choice —
 `xray` (the pin), `loyalsoldier` (`https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/…`)
-or two HTTPS URLs of your own. A refresh is a transaction: both files are downloaded under
-temporary names (≤ 64 MiB, HTTPS end to end, the `<url>.sha256sum` sidecar checked when the
+or two HTTPS URLs of your own; since v1.0.1 also the regional sets `runetfreedom` (Russia:
+`ru-blocked`, `ru-available-only-inside`), `iran` (chocolate4u: `category-ir`, `geoip:ir`) and
+`v2fly` (the official lists). A refresh is a transaction: both files are downloaded under
+temporary names (≤ 128 MiB, HTTPS end to end, the `<url>.sha256sum` sidecar checked when the
 publisher offers one), the running generation's config is `xray run -test`-ed against the
 candidates (a code the new lists lack fails here — `geodata_rejected`), then an atomic swap and
 a restart of the current generation. A failure leaves the old files in place and lands in
 `last_error` (`geodata_fetch_failed`, `geodata_digest_mismatch`, `geodata_too_large`,
-`geodata_corrupt`). Automatic refreshes run from the watchdog thread at `interval_hours`
-(1…336, default 24); `meta.json` beside the files keeps the source, the version (release tag),
+`geodata_corrupt`). Automatic refreshes run at `interval_hours` (1…336, default 24), the
+download in its own thread so the watchdog keeps restarting a dead Xray. Since v1.0.1 a new
+router starts on `loyalsoldier` with automatic refreshes; a router whose geodata nobody set up
+(the pin, never checked) moves to the same on upgrade; an owner's explicit choice is kept. A
+daily or rarer refresh waits for the `update_hour` (UTC, default 02:00, `null` = any hour): new
+lists restart the router and drop its connections. A restart failure after the swap lands in
+`last_error` (`geodata_restart_failed`); with the `xray` source, a new pin from an updated Xray
+is copied into the live files when the manager starts; `meta.json` beside the files keeps the source, the version (release tag),
 the date and the sha256s. `restore` returns to the pin and switches the automatic refresh off.
 The manager parses the lists' codes from the protobuf itself (`/v1/geodata/codes`, cached by
 sha256) for the rule editor's suggestions. Capability `geodata`.

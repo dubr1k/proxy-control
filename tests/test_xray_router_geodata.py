@@ -12,6 +12,9 @@ import pytest
 from tests.test_xray_router_manager import BLOCK_DOC, manager
 from xray_router_manager.geodata import (
     LOYALSOLDIER_URLS,
+    MAX_FILE_BYTES,
+    PRESET_URLS,
+    SOURCE_KINDS,
     GeodataError,
     GeodataStore,
     Source,
@@ -20,7 +23,7 @@ from xray_router_manager.geodata import (
     parse_source,
 )
 from xray_router_manager.server import ManagerHTTPServer
-from xray_router_manager.service import ManagerConflict
+from xray_router_manager.service import ManagerConflict, XrayError
 
 
 def _varint(value: int) -> bytes:
@@ -124,7 +127,9 @@ def test_bootstrap_seeds_the_geodata_directory_from_the_pinned_pair(tmp_path):
     directory = instance.state_dir / "geodata"
     assert (directory / "geosite.dat").read_bytes() == b"site" and (directory / "geoip.dat").read_bytes() == b"ip"
     view = instance.geodata_view()
-    assert view["origin"] == "seed" and view["source"]["kind"] == "xray" and view["auto_update"] is False
+    # v1.0.1: the seed is only what Xray starts on; the source is Loyalsoldier, kept fresh.
+    assert view["origin"] == "seed" and view["source"]["kind"] == "loyalsoldier" and view["auto_update"] is True
+    assert view["interval_hours"] == 24 and view["update_hour"] == 2 and instance.geodata.due() is True
     assert view["files"]["geosite"]["sha256"] == hashlib.sha256(b"site").hexdigest()
     assert instance.status()["geodata"]["origin"] == "seed"
     # The seed is not copied again over an operator's files.
@@ -189,6 +194,8 @@ def test_automatic_updates_run_at_the_interval_from_the_watchdog(tmp_path, monke
     instance.geodata_settings({"auto_update": True, "interval_hours": 6})
     assert instance.geodata.due() is True
     instance.watchdog_tick()
+    # v1.0.1: the download runs off the watchdog thread, which keeps restarting a dead Xray.
+    instance._geodata_thread.join(5)
     assert instance.geodata_view()["origin"] == "download"
     assert instance.geodata.due() is False
     clock["now"] += 6 * 3600 - 1
@@ -313,3 +320,113 @@ def test_fetch_reports_the_hop_that_names_the_release(monkeypatch):
     data, final = geodata.fetch("https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat")
     assert data == b"geodata-bytes" and final == hops[0]
     assert geodata._RELEASE_TAG.search(final).group(1) == "202609172350"
+
+
+# ------------------------------------------------------------------ v1.0.1
+
+def test_regional_presets_are_sources_with_their_publishers_urls():
+    assert set(SOURCE_KINDS) == {"xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom"}
+    for kind, urls in PRESET_URLS.items():
+        assert parse_source({"kind": kind}).urls() == urls
+        assert set(urls) == {"geosite", "geoip"}
+        assert all(url.startswith("https://github.com/") and "/releases/latest/download/" in url for url in urls.values())
+    assert PRESET_URLS["loyalsoldier"] == LOYALSOLDIER_URLS
+    assert "runetfreedom/russia-v2ray-rules-dat" in PRESET_URLS["runetfreedom"]["geosite"]
+    # The Russian geosite.dat alone is ~74 MB.
+    assert MAX_FILE_BYTES >= 128 * 1024 * 1024
+
+
+def _old_meta(directory, **extra):
+    directory.mkdir(parents=True, exist_ok=True)
+    meta = {"source": {"kind": "xray", "geosite_url": None, "geoip_url": None}, "auto_update": False,
+            "interval_hours": 24, "origin": "seed", "version": None, "updated_at": "2026-09-19T12:47:00Z",
+            "last_check_at": None, "last_error": None, "files": {}, **extra}
+    (directory / "meta.json").write_text(json.dumps(meta))
+
+
+def test_a_pin_nobody_ever_chose_moves_to_loyalsoldier_but_a_chosen_one_stays(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    untouched, _ = manager(tmp_path / "a")
+    _old_meta(untouched.state_dir / "geodata")
+    untouched.bootstrap()
+    view = untouched.geodata_view()
+    assert view["source"]["kind"] == "loyalsoldier" and view["auto_update"] is True
+
+    chosen, _ = manager(tmp_path / "b")
+    # «Вернуть пин» leaves a check time behind: the owner's choice, kept.
+    _old_meta(chosen.state_dir / "geodata", last_check_at=1_790_000_000.0)
+    chosen.bootstrap()
+    assert chosen.geodata_view()["source"]["kind"] == "xray" and chosen.geodata_view()["auto_update"] is False
+
+
+def _clocked(store, now):
+    store.clock = type("Clock", (), {"time": staticmethod(lambda: now["now"])})()
+
+
+def test_daily_updates_wait_for_the_update_hour_and_the_view_says_when(tmp_path):
+    store = GeodataStore(tmp_path / "geo", {"geosite": tmp_path / "s", "geoip": tmp_path / "i"})
+    day = 1_790_000_000 - 1_790_000_000 % 86400
+    now = {"now": day + 2 * 3600 + 30}
+    _clocked(store, now)
+    store.settings(source=Source("loyalsoldier"), auto_update=True, interval_hours=24)
+    meta = store.meta()
+    meta["last_check_at"] = now["now"]
+    store._write_meta(meta)
+    assert store.view()["next_check_at"] == day + 86400 + 2 * 3600
+    now["now"] = day + 86400 + 2 * 3600 - 60
+    assert store.due() is False
+    now["now"] = day + 86400 + 2 * 3600 + 10
+    assert store.due() is True
+    # A window missed (the host was down) waits for the next one: no restart in the daytime.
+    now["now"] = day + 86400 + 9 * 3600
+    assert store.due() is False and store.view()["next_check_at"] == day + 2 * 86400 + 2 * 3600
+    # Any hour when the owner clears the window; shorter intervals ignore it.
+    store.settings(update_hour=None)
+    assert store.due() is True
+    store.settings(update_hour=2, interval_hours=6)
+    now["now"] = day + 86400 + 2 * 3600 + 6 * 3600 + 30
+    assert store.due() is True
+    with pytest.raises(GeodataError, match="update_hour"):
+        store.settings(update_hour=24)
+
+
+def test_the_hour_is_a_setting_of_the_manager_api(tmp_path):
+    instance, runner = manager(tmp_path)
+    instance.bootstrap()
+    assert instance.geodata_settings({"update_hour": 5})["update_hour"] == 5
+    assert instance.geodata_settings({"update_hour": None})["update_hour"] is None
+    with pytest.raises(GeodataError):
+        instance.geodata_settings({"update_hour": "5"})
+
+
+def test_a_router_that_does_not_come_back_after_the_swap_is_recorded(tmp_path):
+    instance, runner, fetcher, site, ip = _loyal(tmp_path)
+
+    def broken_start(*args, **kwargs):
+        raise XrayError("xray exited: config error")
+
+    instance._start_generation = broken_start
+    with pytest.raises(XrayError):
+        instance.geodata_update(fetcher)
+    view = instance.geodata_view()
+    assert view["last_error"].startswith("geodata_restart_failed") and view["origin"] == "download"
+
+
+def test_the_pin_follows_a_new_seed_after_an_xray_update(tmp_path):
+    seed = {"geosite": tmp_path / "geosite.dat", "geoip": tmp_path / "geoip.dat"}
+    seed["geosite"].write_bytes(b"site-1")
+    seed["geoip"].write_bytes(b"ip-1")
+    store = GeodataStore(tmp_path / "geo", seed)
+    store.ensure_seed()
+    store.settings(source=Source("xray"), auto_update=False)
+    assert store.follow_seed() is False
+    # The version-agent put the new release's pair into the binary directory.
+    seed["geosite"].write_bytes(b"site-2")
+    seed["geoip"].write_bytes(b"ip-2")
+    assert store.follow_seed() is True
+    assert store.path("geosite").read_bytes() == b"site-2" and store.meta()["origin"] == "seed"
+    # Downloaded lists are never replaced by the seed.
+    store.settings(source=Source("loyalsoldier"))
+    seed["geosite"].write_bytes(b"site-3")
+    assert store.follow_seed() is False

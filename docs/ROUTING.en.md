@@ -274,11 +274,17 @@ travels the channel the generations use). Audit: `routing.exit.create | import |
 rule (blocks first, directions last), off removes it, an edit clears the mark. Torrents are the
 selector `protocols: ["bittorrent"]` on Xray's sniffer (router only); ads — `geosite:category-ads-all`;
 RU — `geosite:category-ru` + `geoip:ru` (both the Xray archive and Loyalsoldier carry the codes;
-foreign lists may not — then `geosite_unknown` in the preview).
+foreign lists may not — then `geosite_unknown` in the preview). Since v1.0.1 there are regional
+ones: «Заблокированное в РФ → через WARP» (`geosite:ru-blocked` + `geoip:ru-blocked` through the
+node's WARP; only the «Russia — runetfreedom» geodata source carries the codes, and the toggle
+says so), «Китайские домены и IP → напрямую» (`cn`) and «Иранские домены и IP → напрямую»
+(`category-ir` + `geoip:ir`).
 
 **Geodata** — the `geosite.dat`/`geoip.dat` files the router resolves codes against. They live in
 the router's state directory, are seeded from the installer's pinned pair and refreshed from the
-chosen source: `xray` (the pin), `loyalsoldier` (the community lists, daily releases) or two HTTPS
+chosen source: `loyalsoldier` (China and general categories — the default since v1.0.1, refreshed
+automatically at 02:00 UTC), `runetfreedom` (Russia), `iran` (Iran), `v2fly` (official), `xray`
+(the pin) or two HTTPS
 URLs of your own. A refresh is a router transaction ([XRAY_ROUTER](XRAY_ROUTER.en.md)); the panel
 shows the version, the code counts and the date, suggests codes in the rule editor and drives
 the automatic refresh: `GET /api/routing/geodata?node=`, `GET …/geodata/codes`,

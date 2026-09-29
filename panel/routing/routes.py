@@ -43,7 +43,8 @@ class RelayEnableBody(BaseModel):
 
 
 class GeodataSourceBody(BaseModel):
-    kind: Literal["xray", "loyalsoldier", "custom"]
+    # v1.0.1: the regional presets of `xray_router_manager.geodata.PRESET_URLS` (a test keeps them equal).
+    kind: Literal["xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom"]
     geosite_url: str | None = Field(default=None, max_length=1024)
     geoip_url: str | None = Field(default=None, max_length=1024)
 
@@ -52,6 +53,14 @@ class GeodataSettingsBody(BaseModel):
     source: GeodataSourceBody | None = None
     auto_update: bool | None = None
     interval_hours: int | None = Field(default=None, ge=1, le=336)
+    # v1.0.1: the UTC hour a daily update waits for; an explicit null = any hour.
+    update_hour: int | None = Field(default=None, ge=0, le=23)
+
+    def forwarded(self) -> dict:
+        body = self.model_dump(exclude_none=True)
+        if "update_hour" in self.model_fields_set:
+            body["update_hour"] = self.update_hour
+        return body
 
 
 class ExitImportBody(BaseModel):
@@ -216,7 +225,7 @@ def register_routing_routes(app, context: RequestContext) -> None:
 
     @app.put("/api/routing/geodata/settings")
     async def geodata_settings(body: GeodataSettingsBody, request: Request, node: str = "local", user=Depends(owner)):
-        return await app.state.routing.geodata(node, "settings", body.model_dump(exclude_none=True), **_ctx(request, user))
+        return await app.state.routing.geodata(node, "settings", body.forwarded(), **_ctx(request, user))
 
     @app.post("/api/routing/geodata/{action}")
     async def geodata_action(action: Literal["update", "restore"], request: Request, node: str = "local", user=Depends(owner)):

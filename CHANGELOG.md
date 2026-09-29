@@ -4,6 +4,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-29
+
+- Versions screen: each runtime's dropdown lists several recent releases both ways (newer / roll back, the agent's `newer` flag); the panel is only ever offered forward and the agent refuses a panel downgrade. The same on a node's Updates tab.
+- Mieru takes any mita: no list of verified lines. The manager writes the whole config with the verb the binary offers (`replace config` from 3.38, `apply config` before), reads every write back and rolls back on a mismatch; a rollback that does not restore the snapshot is reported as needing recovery.
+- Geodata: regional sources «runetfreedom» (Russia), «iran» (chocolate4u) and «v2fly» next to Loyalsoldier and the pin; a new router starts on Loyalsoldier with daily refreshes, an untouched pin moves there on upgrade. A daily refresh waits for `update_hour` (UTC, default 02:00); the line shows the last and next check. Files up to 128 MB (the Russian geosite is ~74 MB); a restart failure after the swap is recorded; the pin follows a new Xray seed; the download runs off the watchdog thread.
+- Fix: the NaiveProxy upstream check asked for forwardproxy's `caddy2` branch, which no longer exists (422); it follows the `naive` branch now.
+- Routing quick settings «Заблокированное в РФ → через WARP» (needs the runetfreedom source), «Китайские домены и IP → напрямую», «Иранские домены и IP → напрямую»; two new guide scenarios.
+
+After the panel update rebuild `mieru-manager` and `xray-router`. See [release notes](docs/releases/v1.0.1.md).
+
 ## [1.0.0] - 2026-09-28
 
 The first stable release: it joins the prepared 0.16 and 0.17 — kept Mieru keys, a subscription for Throne, step-by-step routing with a built-in guide, and an English interface.

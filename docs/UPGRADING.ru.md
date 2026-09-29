@@ -370,6 +370,28 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 ```
 
+## Обновление до v1.0.1: любые версии компонентов, региональные geodata
+
+Относительно v1.0.0 — без миграций базы. Порядок:
+
+1. «Версии» → карточка панели → `1.0.1` → «Установить». Агент синхронизирует код, пересобирает
+   панель и перезапускает себя.
+2. Карточка панели скажет «Изменились менеджеры: mieru_manager, xray_router_manager» — пересоберите
+   их с тем же набором overlay, что у установки (роутер — только там, где он есть):
+
+   ```bash
+   cd /opt/mtproxy-shared443
+   docker compose --env-file .env --env-file .env.mieru --env-file .env.xray-router --env-file .env.naive \
+     -f compose.yaml -f compose.mieru.yaml -f compose.xray-router.yaml -f compose.naive.yaml \
+     up -d --build --no-deps --wait mieru-manager xray-router
+   ```
+
+   Менеджер Mieru после этого принимает любую mita; роутер, где geodata никто не настраивал,
+   переходит на Loyalsoldier с автообновлением в 02:00 UTC и сразу скачивает свежие списки
+   (один перезапуск роутера).
+3. На «Версиях» в выпадающих списках появятся и более новые, и прежние версии компонентов;
+   mita 3.38 ставится оттуда же.
+
 ## Обновление из панели через version-agent
 
 Панель не скачивает runtime-артефакты и не получает Docker socket. Отдельный root-owned `version-agent` читает `/etc/proxy-control/versions.json` и слушает только `/run/proxy-control/version-agent.sock`.

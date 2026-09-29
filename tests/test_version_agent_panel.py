@@ -306,6 +306,17 @@ def test_panel_digest_mismatch_touches_nothing(tmp_path: Path):
     assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n" and _mutations(host.commands) == []
 
 
+def test_the_panel_is_never_downgraded_even_from_the_catalog(tmp_path: Path):
+    """v1.0.1: the database migrates forward only; an older build would not start on it."""
+    host = _PanelHost(tmp_path)
+    agent = host.agent(_panel_archive())
+    host.running = "0.12.0-beta.1\n"
+    assert agent.list_versions()["components"]["panel"]["available"][0]["newer"] is False
+    with pytest.raises(UpdateError, match="cannot be downgraded"):
+        agent.update("panel", NEW_PANEL, expected_current="0.12.0-beta.1")
+    assert _mutations(host.commands) == []
+
+
 def test_a_second_panel_update_is_refused_while_one_is_running(tmp_path: Path):
     host = _PanelHost(tmp_path)
     agent = host.agent(_panel_archive())

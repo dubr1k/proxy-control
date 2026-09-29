@@ -287,14 +287,35 @@ def test_bootstrap_accepts_mita_3_36(tmp_path):
     assert result["version"] == "3.36.0"
 
 
-def test_bootstrap_accepts_mita_3_37_and_refuses_an_unverified_line(tmp_path):
-    """v0.11: 3.37 verified live (same CLI, one optional field); 3.38 is not until it is."""
+@pytest.mark.parametrize("version", ["3.37.0", "3.38.0", "4.0.0"])
+def test_bootstrap_accepts_any_mita_version(tmp_path, version):
+    """v1.0.1: no list of verified mita lines — the readback after every apply catches a
+    CLI whose semantics moved, and the version-agent rolls a bad update back."""
     mita = FakeMita()
-    mita.version = lambda: "3.37.0"
-    assert manager(tmp_path, mita).bootstrap()["version"] == "3.37.0"
-    mita.version = lambda: "3.38.0"
-    with pytest.raises(ConfigConflict, match="3.37.x"):
-        manager(tmp_path, mita).bootstrap()
+    mita.version = lambda: version
+    assert manager(tmp_path, mita).bootstrap()["version"] == version
+
+
+class MergingMita(FakeMita):
+    """A CLI that merges the sent config into the stored one (mita 3.38 `apply config`)."""
+
+    def apply(self, config):
+        self.calls.append(("apply", json.loads(json.dumps(config))))
+        merged = {**self.config, **json.loads(json.dumps(config))}
+        users = {row["name"]: row for row in self.config.get("users", [])}
+        users.update({row["name"]: row for row in config.get("users", [])})
+        merged["users"] = [users[name] for name in sorted(users)]
+        self.config = self._persist(merged)
+
+
+def test_a_rollback_that_does_not_restore_the_snapshot_is_not_reported_as_rolled_back(tmp_path):
+    mita = MergingMita()
+    service = manager(tmp_path, mita)
+    revision = service.bootstrap()["revision"]
+    mita.fail_probe = True
+
+    with pytest.raises(RuntimeError, match="transaction rollback requires recovery"):
+        service.create_user("bob", [], expected_revision=revision)
 
 
 def test_bootstrap_creates_private_durable_journal_authentication_key(tmp_path):
@@ -939,6 +960,39 @@ elif sys.argv[1:] == ['get', 'metrics']: print(json.dumps({'users':[]}))
     assert "not-on-argv" not in lines
     assert "/proc/self/fd/" in lines
     assert cli.observe()["portBindings"][0]["port"] == 8443
+
+
+@pytest.mark.parametrize(
+    ("help_text", "verb"),
+    [
+        # mita 3.38 made `apply config` merge into the stored config; the whole-config
+        # write the manager needs moved to `replace config`.
+        ("  apply config <JSON_FILE>\\n  replace config <JSON_FILE>\\n  describe config", "replace"),
+        # Up to 3.37 `apply config` stored the sent config as a whole.
+        ("  apply config <JSON_FILE>\\n  describe config", "apply"),
+    ],
+)
+def test_cli_writes_the_whole_config_with_the_verb_the_binary_offers(tmp_path, help_text, verb):
+    log = tmp_path / "argv.json"
+    fake = tmp_path / "mita"
+    fake.write_text(f"""#!/usr/bin/python3
+import json, os, sys
+with open(os.environ['ARGV_LOG'], 'a') as out: out.write(json.dumps(sys.argv[1:])+'\\n')
+if sys.argv[1:] == ['help']: print("{help_text}")
+elif sys.argv[1:2] in (['apply'], ['replace']):
+    assert sys.argv[2] == 'config' and sys.argv[3].startswith('/proc/self/fd/')
+    json.load(open(sys.argv[3]))
+else: raise SystemExit(8)
+""")
+    fake.chmod(0o755)
+    cli = MitaCLI(executable=fake, env={"ARGV_LOG": str(log)}, timeout=2, max_output=4096)
+    config = {"portBindings": [{"port": 8443, "protocol": "TCP"}]}
+
+    cli.apply(config)
+    cli.apply(config)
+
+    calls = [json.loads(line)[:2] for line in log.read_text().splitlines()]
+    assert calls == [["help"], [verb, "config"], [verb, "config"]]
 
 
 @pytest.mark.parametrize("stream", ["stdout", "stderr"])

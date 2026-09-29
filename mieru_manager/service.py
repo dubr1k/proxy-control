@@ -32,11 +32,10 @@ from .egress import EgressUnreachable
 from .lanes import Slot
 
 
-# Every mita line the manager's CLI/config contract was verified against: 3.37 added in
-# v0.11 (its only change is an optional listen address; `help`, `describe config` and
-# `apply config` are byte-identical to 3.36). `version_agent.upstream.MITA_SUPPORTED`
-# mirrors this so the Versions screen never offers a mita the manager would refuse.
-SUPPORTED_VERSION = re.compile(r"(?:mita\s+)?(3\.(?:35|36|37)\.\d+)\Z")
+# Any mita version is accepted (v1.0.1): the manager reads every write back and a
+# mismatch rolls the transaction back, so a CLI whose semantics moved fails loudly
+# instead of drifting. `version` only has to look like a version.
+MITA_VERSION = re.compile(r"(?:mita\s+)?(\d+\.\d+\.\d+[0-9A-Za-z.+-]*)\Z")
 LOG_LEVELS = {"DEFAULT", "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"}
 TRANSPORTS = {"TCP", "UDP"}
 DUAL_STACK = {"USE_FIRST_IP", "PREFER_IPv4", "PREFER_IPv6", "ONLY_IPv4", "ONLY_IPv6"}
@@ -560,6 +559,26 @@ class MitaCLI:
         self.timeout = timeout
         self.max_output = max_output
         self.expected_sha256 = expected_sha256
+        self._write_verb: tuple[tuple, str] | None = None
+
+    def _whole_config_verb(self) -> str:
+        """The verb that stores a config as a whole. Up to 3.37 `apply config` did; 3.38
+        made it merge into the stored config and added `replace config` for that. Asked
+        of the binary itself, once per executable file."""
+        try:
+            info = os.stat(self.executable)
+            key = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+        except OSError as exc:
+            raise MitaError("mita operation unavailable") from exc
+        if self._write_verb is None or self._write_verb[0] != key:
+            try:
+                text = self._run(["help"], output=True).decode(errors="replace")
+            except MitaError:
+                # No readable help: the older verb; the readback still guards the write.
+                text = ""
+            verb = "replace" if re.search(r"^\s*replace config\b", text, re.MULTILINE) else "apply"
+            self._write_verb = (key, verb)
+        return self._write_verb[1]
 
     def verify_executable(self) -> None:
         if self.expected_sha256 is None:
@@ -696,7 +715,7 @@ class MitaCLI:
         return value
 
     def apply(self, config: dict) -> None:
-        self._run(["apply", "config"], input_value=config)
+        self._run([self._whole_config_verb(), "config"], input_value=config)
 
     def reload(self) -> None:
         self._run(["reload"])
@@ -779,9 +798,9 @@ class MieruManager:
             self._journal_key()
             if os.path.lexists(self.journal_file):
                 self._recover()
-            match = SUPPORTED_VERSION.fullmatch(str(self.mita.version()).strip())
+            match = MITA_VERSION.fullmatch(str(self.mita.version()).strip())
             if not match:
-                raise ConfigConflict("only mita v3.35.x, v3.36.x or v3.37.x is supported")
+                raise ConfigConflict("mita did not report its version")
             observed = self.mita.observe()
             validate_config(observed, elevated=True)
             if self.state_file.exists():
@@ -1074,6 +1093,8 @@ class MieruManager:
         except BaseException as exc:
             try:
                 self.mita.apply(before)
+                if _hash(self.mita.observe()) != previous_hash:
+                    raise MitaError("rollback readback mismatch")
                 journal["phase"] = "rollback_applied"
                 self._write_journal(journal)
                 self.mita.stop()
@@ -1701,6 +1722,8 @@ class MieruManager:
             except BaseException as exc:
                 try:
                     client.apply(before)
+                    if _hash(client.observe()) != _hash(before):
+                        raise MitaError("slot rollback readback mismatch")
                     if client.status() == "RUNNING":
                         client.stop()
                         self._wait_slot(client, "IDLE")

@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 from .artifacts import ArtifactError, extract_member
 from .catalog import CatalogEntry, CatalogError, entry_from_dict, load_catalog, sha256_bytes
-from .upstream import ALLOWED_HOSTS, Fetcher, UpstreamError
+from .upstream import ALLOWED_HOSTS, Fetcher, UpstreamError, compare_versions
 from .upstream import check_all as _check_all
 from .upstream import fetch_https, open_allowed
 
@@ -331,6 +331,10 @@ class VersionAgent:
                 if isinstance(candidate, dict) and candidate.get("version") not in seen:
                     entries.append(dict(candidate))
                     seen.add(candidate["version"])
+            installed = self._panel_current(current) if component == "panel" else current.get("version")
+            for entry in entries:
+                # The Versions screen splits the list into updates and roll-backs.
+                entry["newer"] = installed is None or compare_versions(entry["version"], installed) > 0
             components[component] = {
                 "current": current.get("version"),
                 "status": current.get("status", "ready"),
@@ -344,7 +348,7 @@ class VersionAgent:
                 },
             }
             if component == "panel":
-                components[component]["current"] = self._panel_current(current)
+                components[component]["current"] = installed
                 for key in ("last_error", "pending_rebuild", "previous_version"):
                     if key in current:
                         components[component][key] = current[key]
@@ -497,6 +501,9 @@ class VersionAgent:
                 raise ConflictError("runtime version changed; reload the versions page")
             if current == version:
                 return {"component": "panel", "version": version, "changed": False}
+            if current is not None and compare_versions(version, current) < 0:
+                # The database only migrates forward: going back is a full restore.
+                raise UpdateError("the panel cannot be downgraded; restore a backup instead")
             marker = {k: v for k, v in data.items() if k not in ("status", "last_error", "pending_rebuild")}
             marker.update({"version": current, "status": "updating", "started_at": int(time.time())})
             state.setdefault("components", {})["panel"] = marker

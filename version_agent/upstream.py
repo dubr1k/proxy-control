@@ -29,11 +29,12 @@ MAX_DIGEST_FILE = 4096
 MAX_MANIFEST = 64 * 1024
 MAX_TOKEN = 16 * 1024
 USER_AGENT = "proxy-control-version-agent/1"
-# The mita lines `mieru_manager.service.SUPPORTED_VERSION` accepts; a newer release is
-# shown but not offered (reason `manager_unsupported`) until the manager is verified
-# against it and both patterns move together (a test keeps them equal).
-MITA_SUPPORTED = re.compile(r"3\.(?:35|36|37)\.\d+")
 COMPONENTS = ("telemt", "naive", "mita", "xray", "panel")
+# v1.0.1: a runtime's recent releases, back as well as forward, so the Versions screen can
+# pick any of them; `installable` still means «a newer one exists». The panel only goes
+# forward — its database migrates and an older build does not start on it.
+MAX_CANDIDATES = 6
+NAIVE_CANDIDATES = 3
 XRAY_MEMBERS = {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}
 TELEMT_REPOSITORY = "samnet-dev/mtproxymax-telemt"
 # The panel itself (v0.11): this project's releases; every one of them is a pre-release.
@@ -190,6 +191,13 @@ def compare_versions(a: str, b: str) -> int:
     return 1 if sa > sb else -1
 
 
+def _probe(latest: str | None, current: str | None, candidates: list[dict], reason: str | None) -> dict:
+    """`installable` — a candidate newer than the installed version exists; the older
+    candidates are there to go back to, not an update."""
+    newer = any(current is None or compare_versions(c["version"], current) > 0 for c in candidates)
+    return {"latest": latest, "installable": newer, "reason": None if newer else reason, "candidates": candidates}
+
+
 def _releases(fetcher: Fetcher, repository: str, *, prereleases: bool = False) -> list[dict]:
     """The repository's last ten releases, newest first. Drafts never count; a pre-release
     counts only where the project marks every release so (Xray-core does, and so does
@@ -252,7 +260,6 @@ def _github_binary(
     archive_for: Callable[[str], dict],
     *,
     prereleases: bool = False,
-    supported: re.Pattern[str] | None = None,
 ) -> dict:
     releases = _releases(fetcher, repository, prereleases=prereleases)
     if not releases:
@@ -261,25 +268,27 @@ def _github_binary(
     candidates: list[dict] = []
     reason = None
     for release in releases:
-        if current is not None and compare_versions(release["version"], current) <= 0:
+        if len(candidates) >= MAX_CANDIDATES:
+            break
+        order = 1 if current is None else compare_versions(release["version"], current)
+        if order == 0:
             continue
-        if supported is not None and not supported.fullmatch(release["version"]):
-            reason = reason or "manager_unsupported"
-            continue
+        # Only a newer release without a digest is worth a reason on the screen.
+        missing = "no_published_digest" if order > 0 else None
         name = asset_for(release["version"])
         url = _asset_url(release["assets"], name, repository)
         digest_url = _asset_url(release["assets"], name + digest_suffix, repository)
         if not url or not digest_url:
-            reason = reason or "no_published_digest"
+            reason = reason or missing
             continue
         status, _, body = fetcher(digest_url, None, MAX_DIGEST_FILE)
         if status != 200:
-            reason = reason or "no_published_digest"
+            reason = reason or missing
             continue
         try:
             digest = parse(body.decode("utf-8", "replace"))
         except UpstreamError:
-            reason = reason or "no_published_digest"
+            reason = reason or missing
             continue
         candidates.append(
             {
@@ -293,12 +302,7 @@ def _github_binary(
                 "published_at": release["published_at"],
             }
         )
-    return {
-        "latest": latest,
-        "installable": bool(candidates),
-        "reason": None if candidates else reason,
-        "candidates": candidates,
-    }
+    return _probe(latest, current, candidates, reason)
 
 
 def _token(fetcher: Fetcher, token_url: str) -> str:
@@ -339,10 +343,18 @@ def _telemt(fetcher: Fetcher, current: str | None) -> dict:
     if not versions:
         return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
     candidates = []
-    for version in versions[:5]:
-        if current is not None and compare_versions(version, current) <= 0:
+    for version in versions:
+        if len(candidates) >= MAX_CANDIDATES:
+            break
+        order = 1 if current is None else compare_versions(version, current)
+        if order == 0:
             continue
-        digest = _registry_digest(fetcher, "ghcr.io", repository, by_version[version], token)
+        try:
+            digest = _registry_digest(fetcher, "ghcr.io", repository, by_version[version], token)
+        except UpstreamError:
+            if order > 0:
+                raise
+            continue  # an older image the registry no longer answers for is just not offered
         candidates.append(
             {
                 "version": version,
@@ -353,17 +365,18 @@ def _telemt(fetcher: Fetcher, current: str | None) -> dict:
                 "published_at": None,
             }
         )
-    return {"latest": versions[0], "installable": bool(candidates), "reason": None, "candidates": candidates}
+    return _probe(versions[0], current, candidates, None)
 
 
 def _naive(fetcher: Fetcher, current: str | None) -> dict:
     releases = _releases(fetcher, "caddyserver/caddy")
     if not releases:
         return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
-    latest = releases[0]
-    if current is not None and compare_versions(latest["version"], current) <= 0:
-        return {"latest": latest["version"], "installable": False, "reason": None, "candidates": []}
-    head = _json(fetcher, "https://api.github.com/repos/klzgrad/forwardproxy/commits/caddy2")
+    picked = [r for r in releases if current is None or compare_versions(r["version"], current) != 0][:NAIVE_CANDIDATES]
+    if not picked:
+        return {"latest": releases[0]["version"], "installable": False, "reason": None, "candidates": []}
+    # NaiveProxy's forwardproxy lives on the `naive` branch (the `caddy2` one is gone: 422).
+    head = _json(fetcher, "https://api.github.com/repos/klzgrad/forwardproxy/commits/naive")
     commit = head.get("sha") if isinstance(head, dict) else None
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise UpstreamError("forwardproxy commit is missing")
@@ -371,22 +384,31 @@ def _naive(fetcher: Fetcher, current: str | None) -> dict:
         fetcher,
         "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/caddy:pull",
     )
-    digest = _registry_digest(
-        fetcher, "registry-1.docker.io", "library/caddy", f"{latest['version']}-builder", token
-    )
-    candidate = {
-        "version": latest["version"],
-        "tag": latest["tag"],
-        "kind": "build",
-        "source": "upstream",
-        "published_at": latest["published_at"],
-        "build": {
-            "caddy_version": latest["version"],
-            "builder_image": f"caddy:{latest['version']}-builder@{digest}",
-            "forwardproxy_commit": commit,
-        },
-    }
-    return {"latest": latest["version"], "installable": True, "reason": None, "candidates": [candidate]}
+    candidates = []
+    for release in picked:
+        # A Caddy the builder or forwardproxy cannot build fails before the host changes:
+        # the agent checks the version the fresh binary reports.
+        try:
+            digest = _registry_digest(
+                fetcher, "registry-1.docker.io", "library/caddy", f"{release['version']}-builder", token
+            )
+        except UpstreamError:
+            if current is None or compare_versions(release["version"], current) > 0:
+                raise
+            continue  # no builder image for an older Caddy: not offered
+        candidates.append({
+            "version": release["version"],
+            "tag": release["tag"],
+            "kind": "build",
+            "source": "upstream",
+            "published_at": release["published_at"],
+            "build": {
+                "caddy_version": release["version"],
+                "builder_image": f"caddy:{release['version']}-builder@{digest}",
+                "forwardproxy_commit": commit,
+            },
+        })
+    return _probe(releases[0]["version"], current, candidates, None)
 
 
 def _panel(fetcher: Fetcher, current: str | None) -> dict:
@@ -459,7 +481,6 @@ def check_component(component: str, current: str | None, *, fetcher: Fetcher, ro
             ".sha256.txt",
             parse_sha256_txt,
             lambda _v: {"format": "tar.gz", "member": "mita"},
-            supported=MITA_SUPPORTED,
         )
     if component == "telemt":
         return _telemt(fetcher, current)

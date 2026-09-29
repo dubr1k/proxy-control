@@ -144,21 +144,21 @@ def test_mita_candidate_reads_sha256_txt_and_names_the_tar_member():
     assert candidate["archive"] == {"format": "tar.gz", "member": "mita"} and candidate["sha256"] == "b" * 64
 
 
-def test_mita_newer_than_the_manager_supports_is_shown_but_not_offered():
-    """The manager refuses a mita line it was not verified against; the agent must not
-    hand it an update it would crash-loop on (found live on ams-test with 3.37 before the
-    manager learnt it). The two patterns move together."""
-    from mieru_manager.service import SUPPORTED_VERSION
-    from version_agent.upstream import MITA_SUPPORTED
-    for version in ("3.35.0", "3.36.2", "3.37.0", "3.38.0", "4.0.0"):
-        assert bool(MITA_SUPPORTED.fullmatch(version)) == bool(SUPPORTED_VERSION.fullmatch(version)), version
-    releases = [{**MIERU_RELEASES[0], "tag_name": "v3.38.0",
-                 "assets": [{"name": "mita_3.38.0_linux_amd64.tar.gz", "browser_download_url": "https://github.com/enfein/mieru/releases/download/v3.38.0/mita_3.38.0_linux_amd64.tar.gz"},
-                            {"name": "mita_3.38.0_linux_amd64.tar.gz.sha256.txt", "browser_download_url": "https://github.com/enfein/mieru/releases/download/v3.38.0/mita_3.38.0_linux_amd64.tar.gz.sha256.txt"}]}]
-    fetch = fetcher_from({"https://api.github.com/repos/enfein/mieru/releases?per_page=10": (200, {}, json.dumps(releases).encode())})
+@pytest.mark.parametrize("version", ["3.38.0", "4.0.0"])
+def test_every_published_mita_with_a_digest_is_offered(version):
+    """v1.0.1: no list of mita lines the manager was verified against — any release with a
+    published digest is a candidate; the manager's readback and the agent's rollback guard it."""
+    base = f"https://github.com/enfein/mieru/releases/download/v{version}/mita_{version}_linux_amd64.tar.gz"
+    releases = [{**MIERU_RELEASES[0], "tag_name": f"v{version}",
+                 "assets": [{"name": f"mita_{version}_linux_amd64.tar.gz", "browser_download_url": base},
+                            {"name": f"mita_{version}_linux_amd64.tar.gz.sha256.txt", "browser_download_url": base + ".sha256.txt"}]}]
+    fetch = fetcher_from({
+        "https://api.github.com/repos/enfein/mieru/releases?per_page=10": (200, {}, json.dumps(releases).encode()),
+        base + ".sha256.txt": (200, {}, b"c" * 64 + f"  mita_{version}_linux_amd64.tar.gz\n".encode()),
+    })
     result = check_component("mita", "3.37.0", fetcher=fetch, router_enabled=False)
-    assert result == {"latest": "3.38.0", "installable": False, "reason": "manager_unsupported", "candidates": []}
-    assert fetch.seen == ["https://api.github.com/repos/enfein/mieru/releases?per_page=10"]  # the digest is never fetched
+    assert result["installable"] is True and result["reason"] is None
+    assert [candidate["version"] for candidate in result["candidates"]] == [version]
 
 
 def test_release_without_a_digest_file_is_visible_but_not_installable():
@@ -194,7 +194,7 @@ def test_telemt_candidate_is_the_registry_manifest_digest():
 def test_naive_candidate_is_a_build_with_the_builder_digest_and_forwardproxy_commit():
     fetch = fetcher_from({
         "https://api.github.com/repos/caddyserver/caddy/releases?per_page=10": (200, {}, json.dumps([{"tag_name": "v2.12.0", "prerelease": False, "draft": False, "published_at": "2026-02-01T00:00:00Z", "assets": []}]).encode()),
-        "https://api.github.com/repos/klzgrad/forwardproxy/commits/caddy2": (200, {}, json.dumps({"sha": "d" * 40}).encode()),
+        "https://api.github.com/repos/klzgrad/forwardproxy/commits/naive": (200, {}, json.dumps({"sha": "d" * 40}).encode()),
         "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/caddy:pull": (200, {}, b'{"token": "t"}'),
         "https://registry-1.docker.io/v2/library/caddy/manifests/2.12.0-builder": (200, {"Docker-Content-Digest": "sha256:" + "e" * 64}, b"{}"),
     })
@@ -205,12 +205,75 @@ def test_naive_candidate_is_a_build_with_the_builder_digest_and_forwardproxy_com
     assert candidate["source"] == "upstream" and candidate["version"] == "2.12.0"
 
 
-def test_only_newer_than_current_are_candidates_and_xray_is_off_without_the_router():
-    fetch = fetcher_from({"https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10": (200, {}, json.dumps(XRAY_RELEASES).encode())})
-    assert check_component("xray", "26.5.3", fetcher=fetch, router_enabled=True)["candidates"] == []
+def test_older_releases_are_candidates_too_but_only_a_newer_one_is_an_update():
+    """v1.0.1: the Versions screen picks any recent release of a runtime, back as well as
+    forward; `installable` still means «a newer one exists»; the installed one is not listed."""
+    fetch = fetcher_from({
+        "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10": (200, {}, json.dumps(XRAY_RELEASES).encode()),
+        "https://github.com/XTLS/Xray-core/releases/download/v26.4.1/Xray-linux-64.zip.dgst": (200, {}, b"SHA2-256= " + b"a" * 64 + b"\n"),
+    })
+    result = check_component("xray", "26.5.3", fetcher=fetch, router_enabled=True)
+    assert [c["version"] for c in result["candidates"]] == ["26.4.1"]
+    assert result["installable"] is False and result["reason"] is None and result["latest"] == "26.5.3"
     assert check_component("xray", "26.3.27", fetcher=fetch, router_enabled=False) == {
         "latest": None, "installable": False, "reason": "router_not_installed", "candidates": []}
-    assert fetch.seen == ["https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10"]
+
+
+def test_an_older_release_without_a_digest_is_skipped_without_a_reason():
+    releases = [{**MIERU_RELEASES[0], "tag_name": "v3.36.0", "assets": []}]
+    fetch = fetcher_from({"https://api.github.com/repos/enfein/mieru/releases?per_page=10": (200, {}, json.dumps(releases).encode())})
+    assert check_component("mita", "3.37.0", fetcher=fetch, router_enabled=False) == {
+        "latest": "3.36.0", "installable": False, "reason": None, "candidates": []}
+
+
+def test_candidates_are_capped_at_the_six_newest_releases():
+    releases, table = [], {}
+    for minor in range(30, 40):
+        version = f"3.{minor}.0"
+        base = f"https://github.com/enfein/mieru/releases/download/v{version}/mita_{version}_linux_amd64.tar.gz"
+        releases.append({**MIERU_RELEASES[0], "tag_name": f"v{version}", "assets": [
+            {"name": f"mita_{version}_linux_amd64.tar.gz", "browser_download_url": base},
+            {"name": f"mita_{version}_linux_amd64.tar.gz.sha256.txt", "browser_download_url": base + ".sha256.txt"}]})
+        table[base + ".sha256.txt"] = (200, {}, b"c" * 64 + f"  mita_{version}_linux_amd64.tar.gz\n".encode())
+    table["https://api.github.com/repos/enfein/mieru/releases?per_page=10"] = (200, {}, json.dumps(releases).encode())
+    result = check_component("mita", "3.37.0", fetcher=fetcher_from(table), router_enabled=False)
+    assert [c["version"] for c in result["candidates"]] == ["3.39.0", "3.38.0", "3.36.0", "3.35.0", "3.34.0", "3.33.0"]
+    assert result["installable"] is True
+
+
+def test_telemt_lists_older_images_and_skips_the_installed_one():
+    fetch = fetcher_from({
+        "https://ghcr.io/token?scope=repository:samnet-dev/mtproxymax-telemt:pull": (200, {}, b'{"token": "t"}'),
+        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/tags/list?n=100": (200, {}, b'{"tags": ["3.4.24", "3.4.25-51e58b5", "latest"]}'),
+        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/manifests/3.4.24": (200, {"Docker-Content-Digest": "sha256:" + "c" * 64}, b"{}"),
+    })
+    result = check_component("telemt", "3.4.25", fetcher=fetch, router_enabled=False)
+    assert [c["version"] for c in result["candidates"]] == ["3.4.24"] and result["installable"] is False
+
+
+def test_naive_offers_the_three_newest_caddy_releases_but_the_installed_one():
+    caddy = [{"tag_name": f"v2.{minor}.0", "prerelease": False, "draft": False, "published_at": None, "assets": []}
+             for minor in (10, 11, 12, 13)]
+    table = {
+        "https://api.github.com/repos/caddyserver/caddy/releases?per_page=10": (200, {}, json.dumps(caddy).encode()),
+        "https://api.github.com/repos/klzgrad/forwardproxy/commits/naive": (200, {}, json.dumps({"sha": "d" * 40}).encode()),
+        "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/caddy:pull": (200, {}, b'{"token": "t"}'),
+    }
+    for minor in (10, 11, 12, 13):
+        table[f"https://registry-1.docker.io/v2/library/caddy/manifests/2.{minor}.0-builder"] = (
+            200, {"Docker-Content-Digest": "sha256:" + "e" * 64}, b"{}")
+    result = check_component("naive", "2.12.0", fetcher=fetcher_from(table), router_enabled=False)
+    assert [c["version"] for c in result["candidates"]] == ["2.13.0", "2.11.0", "2.10.0"]
+    assert result["installable"] is True
+
+
+def test_the_panel_is_never_offered_backwards():
+    """A panel migrates its database forward; an older build does not start on it. Going
+    back is a full restore, not a pick from the list."""
+    fetch = fetcher_from({
+        "https://api.github.com/repos/dubr1k/proxy-control/releases?per_page=10": (200, {}, json.dumps(PANEL_RELEASES).encode()),
+    })
+    assert check_component("panel", "0.12.0-beta.1", fetcher=fetch, router_enabled=False)["candidates"] == []
 
 
 def test_rate_limited_github_becomes_an_error_and_check_all_keeps_going():
@@ -245,3 +308,13 @@ def test_redirect_handler_refuses_a_hop_outside_the_allowlist():
         handler.redirect_request(request, None, 302, "Found", {}, "https://evil.example/asset")
     with pytest.raises(HTTPError):
         handler.redirect_request(request, None, 302, "Found", {}, "http://github.com/asset")
+
+
+def test_an_older_image_the_registry_does_not_answer_for_is_skipped():
+    fetch = fetcher_from({
+        "https://ghcr.io/token?scope=repository:samnet-dev/mtproxymax-telemt:pull": (200, {}, b'{"token": "t"}'),
+        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/tags/list?n=100": (200, {}, b'{"tags": ["3.4.23", "3.4.24", "3.4.25"]}'),
+        "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt/manifests/3.4.23": (200, {"Docker-Content-Digest": "sha256:" + "c" * 64}, b"{}"),
+    })
+    result = check_component("telemt", "3.4.25", fetcher=fetch, router_enabled=False)
+    assert [c["version"] for c in result["candidates"]] == ["3.4.23"]
