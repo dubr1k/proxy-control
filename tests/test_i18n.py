@@ -46,6 +46,7 @@ def test_the_runtime_switches_follows_renders_and_spares_typed_names():
         assert f'"{attribute}"' in source
     assert ".client-identity b" in source and ".grant-account" in source and "[data-no-i18n]" in source
     assert "void applyLanguage();" in main and "bindLanguageSwitch(root);" in main
-    assert 'document.documentElement.lang === "en" ? "en-GB" : "ru-RU"' in common
+    # optional chaining: the renderers also run in Node, where there is no document
+    assert 'globalThis.document?.documentElement?.lang === "en" ? "en-GB" : "ru-RU"' in common
     for page in ("index.html", "login.html"):
         assert 'id="lang-button"' in (STATIC / page).read_text(encoding="utf-8"), page

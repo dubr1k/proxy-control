@@ -1,7 +1,8 @@
 // Numbers and dates follow the interface language (v0.17): `<html lang>` is set by the
 // language switch before the first render.
 export function locale() {
-  return document.documentElement.lang === "en" ? "en-GB" : "ru-RU";
+  // globalThis: the renderers also run outside a browser (the layout tests render them in Node).
+  return globalThis.document?.documentElement?.lang === "en" ? "en-GB" : "ru-RU";
 }
 
 export function query(selector, root = document) {
