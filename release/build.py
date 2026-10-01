@@ -93,10 +93,15 @@ def _git(source: Path, *arguments: str) -> str:
     return completed.stdout
 
 
+# Tracked for the people and agents who work on the repository, never shipped: the project's
+# knowledge graph (`graphify update .`) is tens of megabytes no node needs.
+OMITTED_TOP_LEVEL = frozenset({"graphify-out"})
+
+
 def tracked_files(source: Path) -> tuple[str, ...]:
-    """Every tracked path, sorted, with the forbidden ones refused."""
+    """Every tracked path, sorted, with the forbidden ones refused and the omitted ones left out."""
     raw = _git(source, "ls-files", "-z")
-    names = tuple(sorted(name for name in raw.split("\0") if name))
+    names = tuple(sorted(name for name in raw.split("\0") if name and name.split("/", 1)[0] not in OMITTED_TOP_LEVEL))
     if not names:
         raise ReleaseBuildError("the source tree tracks no files")
     for name in names:

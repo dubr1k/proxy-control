@@ -610,3 +610,17 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions():
     for name, versions in named.items():
         assert len(versions) >= 2, f"{name}: both languages must name the pinned version"
         assert set(versions) == {pins[name]}, f"{name}: the script says {sorted(set(versions))}, the pin is {pins[name]}"
+
+
+def test_the_knowledge_graph_is_tracked_but_never_shipped(tmp_path):
+    """`graphify-out/` lives in the repository for agents; a release archive leaves it out."""
+    import subprocess
+
+    from release.build import tracked_files
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "graphify-out").mkdir()
+    (tmp_path / "graphify-out" / "graph.json").write_text("{}")
+    (tmp_path / "VERSION").write_text("1.1.0\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    assert tracked_files(tmp_path) == ("VERSION",)
