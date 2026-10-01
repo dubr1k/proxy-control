@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-01
+
+- The release publishes `install-release.sh` and `install-release.sh.sha256`: the install script with its release's version and archive SHA-256 written in (a swapped archive does not pass even with a swapped `SHA256SUMS`), attested; `SHA256SUMS` still names three files.
+- Installer wizard: explanations and defaults for the host mode, the profile and the 3x-ui mode; Mieru ports default to `46001`; the Xray version in the question comes from the external-artifact manifest; an invalid configuration says why; the review omits unused fields.
+- Fix: with «apply» straight from the wizard, the typed panel and 3x-ui passwords were replaced by generated ones — they now reach the installation in a private temporary copy.
+- Fix: the `initial_user` question says what it is (the first MTProxy and Mieru user; the panel login is always `owner`); «WARP domains» no longer promises «blank for none» and takes `geosite:`/`domain:`; `managed-new` is not offered in `coexist`; `existing` asks only for the VLESS domains (at least one); Mieru TCP ports are checked against the installer's own ports (8443, 8445, 8787, 4443, 8793, WARP, Xray-router, relay, lane slots, the managed 3x-ui); «No changes were made» is printed once; a 3x-ui username is kept with a generated password; the 3x-ui subscription domain joins the SNI uniqueness check.
+
+The panel did not change. See [release notes](docs/releases/v1.0.3.md).
+
 ## [1.0.2] - 2026-10-01
 
 - The access window: a click on an access row (client card or client window) opens its details (node, state and the node's report, route, limits, validity, subscription apps, secret, dates, ID), this access's own link with a QR on request («Открыть в Telegram» for MTProxy, «Профили для приложений» for NaiveProxy/Mieru on this server) and its actions: enable/disable, rotate, own lane, delete, adopt. The link does not stay in the window.

@@ -372,6 +372,12 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 ```
 
+## Upgrading to v1.0.3: the install script in the release, a fixed wizard
+
+The installer and the release files change; the panel, the managers and the runtimes do not,
+and there are no migrations. Running installations need not upgrade; if you want to — Versions →
+the panel card → `1.0.3` → «Установить».
+
 ## Upgrading to v1.0.2: the access window, client search and filters
 
 Relative to v1.0.1 only the panel changes — no database migrations, no manager rebuild.

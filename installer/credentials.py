@@ -157,7 +157,12 @@ def stage_credentials(root: Path, config_path: Path) -> Path | None:
     Returns None when the operator chose generated credentials, in which case
     nothing is written and nothing is left behind.
     """
-    values = read_credentials(config_path)
+    return stage_operator_credentials(root, read_credentials(config_path))
+
+
+def stage_operator_credentials(root: Path, values: OperatorCredentials | None) -> Path | None:
+    """Stage credentials already in hand — the wizard's own «apply» holds what the
+    operator typed in memory and never writes it beside the configuration."""
     if values is None or values.is_empty():
         return None
     anchor = _anchor(root)

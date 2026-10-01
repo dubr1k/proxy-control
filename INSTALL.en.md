@@ -20,6 +20,20 @@ This is the supported way to install Proxy Control. It replaces the manual
 `scripts/proxyctl.py` sequence below, which stays documented for an existing
 deployment and for reviewing what the installer does.
 
+Shortest is the install script published beside the archive (from v1.0.3): it carries its
+release's version and archive SHA-256, runs unprivileged, downloads and checks the four release
+files (a swapped archive does not pass, even with `SHA256SUMS` swapped too), extracts and starts
+the wizard through one `sudo`:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+bash install-release.sh
+```
+
+By hand:
+
 Download the archive, `SHA256SUMS`, `release-manifest.json`, and
 `sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
 attestation; from v0.2.0-beta.1 on, the release workflow publishes a provenance

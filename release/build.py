@@ -29,6 +29,16 @@ IDENTITY_NAME = "release/release.json"
 MANIFEST_NAME = "release-manifest.json"
 SBOM_NAME = "sbom.spdx.json"
 CHECKSUM_NAME = "SHA256SUMS"
+# The install script published beside the archive: the repository's
+# scripts/install-release.sh with this release's version and archive digest stamped in,
+# so `bash install-release.sh` installs exactly these bytes. Its digest goes to a file of
+# its own — SHA256SUMS keeps naming the three files that `install-release.sh` copies of
+# earlier releases check with `--check --strict`.
+INSTALLER_SOURCE = "scripts/install-release.sh"
+INSTALLER_NAME = "install-release.sh"
+INSTALLER_CHECKSUM_NAME = "install-release.sh.sha256"
+_STAMP_VERSION = 'STAMPED_VERSION=""'
+_STAMP_SHA256 = 'STAMPED_SHA256=""'
 
 # Top-level names that must never reach a release, even if someone tracks one
 # of them by accident.
@@ -67,6 +77,7 @@ class BuiltRelease:
     archive_sha256: str
     manifest_bytes: bytes
     sbom_bytes: bytes
+    installer: Path | None = None
 
 
 def _git(source: Path, *arguments: str) -> str:
@@ -179,6 +190,28 @@ def _external_artifacts(source: Path) -> tuple[dict[str, str], dict[str, str]]:
     return components, artifacts
 
 
+def stamp_installer(script: bytes, *, version: str, archive_sha256: str) -> bytes:
+    """The published copy of the install script: the two empty stamps filled in."""
+    text = script.decode("utf-8")
+    for stamp in (_STAMP_VERSION, _STAMP_SHA256):
+        if text.count(f"\n{stamp}\n") != 1:
+            raise ReleaseBuildError(f"{INSTALLER_SOURCE} must carry the line {stamp} exactly once")
+    if re.fullmatch(r"[0-9a-f]{64}", archive_sha256) is None:
+        raise ReleaseBuildError("the archive digest to stamp is not a SHA-256")
+    text = text.replace(f"\n{_STAMP_VERSION}\n", f'\nSTAMPED_VERSION="{version}"\n')
+    text = text.replace(f"\n{_STAMP_SHA256}\n", f'\nSTAMPED_SHA256="{archive_sha256}"\n')
+    return text.encode("utf-8")
+
+
+def _stamps(script: bytes) -> tuple[str, str]:
+    text = script.decode("utf-8")
+    version = re.search(r'^STAMPED_VERSION="([^"]*)"$', text, re.M)
+    digest = re.search(r'^STAMPED_SHA256="([^"]*)"$', text, re.M)
+    if version is None or digest is None:
+        raise ReleaseBuildError(f"{INSTALLER_NAME} carries no release stamps")
+    return version.group(1), digest.group(1)
+
+
 def build_release(
     output: Path,
     *,
@@ -275,6 +308,16 @@ def build_release(
     sbom_path = output / SBOM_NAME
     sbom_path.write_bytes(sbom)
 
+    if INSTALLER_SOURCE not in payloads:
+        raise ReleaseBuildError(f"{INSTALLER_SOURCE} is not a tracked file")
+    installer_bytes = stamp_installer(payloads[INSTALLER_SOURCE], version=version, archive_sha256=archive_sha256)
+    installer = output / INSTALLER_NAME
+    installer.write_bytes(installer_bytes)
+    installer.chmod(0o755)
+    (output / INSTALLER_CHECKSUM_NAME).write_text(
+        f"{hashlib.sha256(installer_bytes).hexdigest()}  {INSTALLER_NAME}\n"
+    )
+
     checksums = output / CHECKSUM_NAME
     checksums.write_text(
         "".join(
@@ -293,6 +336,7 @@ def build_release(
         archive_sha256=archive_sha256,
         manifest_bytes=manifest_bytes,
         sbom_bytes=sbom,
+        installer=installer,
     )
 
 
@@ -313,6 +357,15 @@ def verify_release(dist: Path) -> BuiltRelease:
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
         if recorded.get(path.name) != actual:
             raise ReleaseBuildError(f"{path.name} does not match {CHECKSUM_NAME}")
+    # The published install script: its own checksum file, and stamps naming exactly
+    # this release and this archive.
+    installer = dist / INSTALLER_NAME
+    installer_bytes = installer.read_bytes()
+    value, _, name = (dist / INSTALLER_CHECKSUM_NAME).read_text().strip().partition("  ")
+    if name != INSTALLER_NAME or value != hashlib.sha256(installer_bytes).hexdigest():
+        raise ReleaseBuildError(f"{INSTALLER_NAME} does not match {INSTALLER_CHECKSUM_NAME}")
+    if _stamps(installer_bytes) != (str(manifest["version"]), digest):
+        raise ReleaseBuildError(f"{INSTALLER_NAME} is stamped for another release")
     return BuiltRelease(
         archive=archive,
         checksums=dist / CHECKSUM_NAME,
@@ -323,6 +376,7 @@ def verify_release(dist: Path) -> BuiltRelease:
         archive_sha256=digest,
         manifest_bytes=manifest_bytes,
         sbom_bytes=(dist / SBOM_NAME).read_bytes(),
+        installer=installer,
     )
 
 

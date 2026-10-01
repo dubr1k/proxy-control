@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 
 from release.build import (
+    INSTALLER_CHECKSUM_NAME,
+    INSTALLER_NAME,
     MANIFEST_NAME,
     SBOM_NAME,
     ReleaseBuildError,
@@ -23,7 +25,7 @@ from release.sbom import SbomError, build_sbom
 
 ROOT = Path(__file__).parents[1]
 FIXED_EPOCH = 1_767_225_600  # 2026-01-01T00:00:00Z
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 
 def sha256(path: Path) -> str:
@@ -62,6 +64,10 @@ def clean_checkout(tmp_path: Path, name: str = "source") -> Path:
     (root / "install.sh").chmod(0o755)
     (root / "installer" / "cli.py").write_text("print('cli')\n")
     (root / "README.md").write_text("# release fixture\n")
+    # The real install script: the release stamps it and publishes it beside the archive.
+    (root / "scripts").mkdir()
+    (root / "scripts" / "install-release.sh").write_bytes((ROOT / "scripts" / "install-release.sh").read_bytes())
+    (root / "scripts" / "install-release.sh").chmod(0o755)
     (root / ".gitignore").write_text(
         ".env\nsecrets/\n.lab-state/\nlab-results/\n__pycache__/\n*.pyc\n"
     )
@@ -275,6 +281,106 @@ def test_verify_release_accepts_a_built_dist_and_rejects_a_tampered_one(tmp_path
     built.archive.write_bytes(built.archive.read_bytes() + b"tampered")
     with pytest.raises(ReleaseBuildError, match="digest does not match"):
         verify_release(tmp_path / "dist")
+
+
+def test_the_release_publishes_its_install_script_stamped_with_its_own_identity(tmp_path):
+    """`install-release.sh` beside the archive installs exactly that release: its version
+    and archive digest are stamped in; the repository's copy keeps both empty."""
+    source = clean_checkout(tmp_path)
+    built = build(tmp_path, "dist", source)
+    script = (tmp_path / "dist" / INSTALLER_NAME).read_text()
+    assert f'\nSTAMPED_VERSION="{VERSION}"\n' in script
+    assert f'\nSTAMPED_SHA256="{built.archive_sha256}"\n' in script
+    assert os.access(tmp_path / "dist" / INSTALLER_NAME, os.X_OK)
+    recorded = (tmp_path / "dist" / INSTALLER_CHECKSUM_NAME).read_text()
+    assert recorded == f"{sha256(tmp_path / 'dist' / INSTALLER_NAME)}  {INSTALLER_NAME}\n"
+    # Apart from the two stamps the published copy is the tracked script, byte for byte.
+    original = (source / "scripts" / "install-release.sh").read_text()
+    assert script.replace(f'"{VERSION}"', '""', 1).replace(f'"{built.archive_sha256}"', '""', 1) == original
+    # SHA256SUMS still names the three files earlier install scripts check strictly.
+    names = {line.split("  ", 1)[1] for line in built.checksums.read_text().splitlines()}
+    assert names == {built.archive.name, MANIFEST_NAME, SBOM_NAME}
+    repository = (ROOT / "scripts" / "install-release.sh").read_text()
+    assert '\nSTAMPED_VERSION=""\n' in repository and '\nSTAMPED_SHA256=""\n' in repository
+
+
+def test_verify_refuses_an_install_script_changed_or_stamped_for_another_release(tmp_path):
+    source = clean_checkout(tmp_path)
+    build(tmp_path, "dist", source)
+    dist = tmp_path / "dist"
+    script = dist / INSTALLER_NAME
+    original = script.read_bytes()
+    script.write_bytes(original + b"\n# changed\n")
+    with pytest.raises(ReleaseBuildError, match="does not match"):
+        verify_release(dist)
+    restamped = original.replace(f'STAMPED_VERSION="{VERSION}"'.encode(), b'STAMPED_VERSION="9.9.9"')
+    script.write_bytes(restamped)
+    (dist / INSTALLER_CHECKSUM_NAME).write_text(f"{hashlib.sha256(restamped).hexdigest()}  {INSTALLER_NAME}\n")
+    with pytest.raises(ReleaseBuildError, match="another release"):
+        verify_release(dist)
+
+
+def _run_published_script(dist: Path, *arguments: str) -> subprocess.CompletedProcess:
+    """The published copy, run the way an operator runs it: unprivileged, from a fresh
+    directory, on files already downloaded (`--from-dir`), never past `--no-wizard`."""
+    import shutil
+    import tempfile
+
+    work = Path(tempfile.mkdtemp(prefix="install-release-"))
+    try:
+        work.chmod(0o755)
+        shutil.copytree(dist, work / "dist")
+        command = ["bash", str(work / "dist" / INSTALLER_NAME), "--from-dir", str(work / "dist"),
+                   "--dir", str(work / "out"), "--lang", "en", "--no-wizard", *arguments]
+        if os.geteuid() == 0:
+            # The script refuses root by design; the suite on the lab host runs as root.
+            for path in [work, *work.rglob("*")]:
+                os.chown(path, 65534, 65534)
+            command = ["setpriv", "--reuid=65534", "--regid=65534", "--clear-groups", *command]
+        environment = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(work), "LANG": "C.UTF-8"}
+        result = subprocess.run(command, cwd=work, env=environment, capture_output=True, text=True, timeout=120)
+        extracted = (work / "out" / "proxy-control" / "release" / "release.json").is_file()
+        result.stdout += f"\nEXTRACTED={extracted}\n"
+        return result
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def test_the_published_install_script_installs_its_own_release_and_refuses_other_bytes(tmp_path):
+    source = clean_checkout(tmp_path)
+    built = build(tmp_path, "dist", source)
+    dist = tmp_path / "dist"
+    ok = _run_published_script(dist)
+    assert ok.returncode == 0, ok.stderr
+    assert f"verified: {built.archive.name} ({built.archive_sha256})" in ok.stdout
+    assert "EXTRACTED=True" in ok.stdout
+
+    # Someone swaps the archive and rewrites SHA256SUMS and the manifest to match: the
+    # stamped digest still refuses it before anything is extracted.
+    forged = dist / built.archive.name
+    forged.write_bytes(gzip_rewrap(forged.read_bytes()))
+    digest = sha256(forged)
+    manifest = json.loads((dist / MANIFEST_NAME).read_text())
+    manifest["archive_sha256"] = digest
+    (dist / MANIFEST_NAME).write_text(json.dumps(manifest))
+    (dist / "SHA256SUMS").write_text("".join(
+        f"{sha256(dist / name)}  {name}\n" for name in (built.archive.name, MANIFEST_NAME, SBOM_NAME)
+    ))
+    refused = _run_published_script(dist)
+    assert refused.returncode != 0
+    assert f"archive digest {digest}" in refused.stderr and built.archive_sha256 in refused.stderr
+    assert "EXTRACTED=False" in refused.stdout
+
+    # Another release asked for explicitly is not held to this release's digest.
+    other = _run_published_script(dist, "--version", "9.9.9")
+    assert "9.9.9" in other.stderr and built.archive_sha256 not in other.stderr
+
+
+def gzip_rewrap(data: bytes) -> bytes:
+    """The same tar, compressed again with another level: different bytes, still valid."""
+    import gzip
+
+    return gzip.compress(gzip.decompress(data), compresslevel=1, mtime=0)
 
 
 # ----------------------------------------------------------------------

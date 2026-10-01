@@ -410,3 +410,36 @@ def test_repair_has_every_adapter_without_composing_a_plan(tmp_path):
     assert set(adapter_factories()) <= set(services.engine.adapters)
     for name, adapter in services.engine.adapters.items():
         assert adapter.name == name
+
+
+def test_passwords_typed_in_the_wizard_reach_the_adapters_on_its_own_apply(tmp_path):
+    """v1.0.3 fix: «apply» straight from the wizard used to skip the staging that the
+    `install` path does, so a typed panel or 3x-ui password was silently replaced by a
+    generated one. The adapters now find it staged while the plan applies, and the
+    staged copy is gone afterwards."""
+    from installer.credentials import OperatorCredentials, staged_credentials, staged_path
+
+    config = load_config(CORE_CONFIG)
+    plan = _plan(config)
+    seen: list[object] = []
+
+    class StagingEngine(RecordingEngine):
+        def apply(self, plan: InstallPlan, accepted_digest: str) -> TransactionState:
+            seen.append(staged_credentials(tmp_path))
+            return super().apply(plan, accepted_digest)
+
+    @dataclass
+    class TypingWizard(ReturningWizard):
+        credentials: OperatorCredentials | None = None
+
+    typed = OperatorCredentials(panel_username="owner", panel_password="correct-horse-battery")
+    services, _engine = _services(config, wizard=TypingWizard(config, credentials=typed))
+    engine = StagingEngine(_state())
+    services = cli.CliServices(
+        audit=services.audit, plan=services.plan, engine=engine, store=services.store, wizard=services.wizard
+    )
+    result, _stdout, stderr = _run(["--root", str(tmp_path), "wizard"], services, input_text=plan.digest[:12] + "\n")
+
+    assert result == 0, stderr
+    assert engine.calls and seen == [typed]
+    assert not staged_path(tmp_path).exists()

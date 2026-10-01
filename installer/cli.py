@@ -14,7 +14,11 @@ from installer.config import ConfigError, load_config
 from installer.i18n import Locale, parse_locale, text
 from installer.model import InstallerConfig
 from installer.audit import CommandRunner, audit_host
-from installer.credentials import discard_staged_credentials, stage_credentials
+from installer.credentials import (
+    discard_staged_credentials,
+    stage_credentials,
+    stage_operator_credentials,
+)
 from installer.planner import (
     AuditFacts,
     Evidence,
@@ -277,7 +281,13 @@ def _wizard(
         confirmation, plan.digest[:12]
     ):
         raise CliError(text(selected_locale, "digest_mismatch"))
-    state = services.engine.apply(plan, accepted_digest=plan.digest)
+    # The passwords typed in the wizard reach the adapters exactly as on the `install`
+    # path: a private staged copy, discarded once the installation ends either way.
+    stage_operator_credentials(args.root, getattr(wizard, "credentials", None))
+    try:
+        state = services.engine.apply(plan, accepted_digest=plan.digest)
+    finally:
+        discard_staged_credentials(args.root)
     _write_status(state, json_output=args.json, output=output)
     return 0
 

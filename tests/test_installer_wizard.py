@@ -119,10 +119,9 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "mieru.example.com",
             "46001",
             "46001",
-            "xui.example.com",
+            # existing 3x-ui: only the two VLESS names are routed, so only they are asked
             "vless.example.com",
             "xhttp.example.com",
-            "hy2.example.com",
             "no",  # WARP: asked for Naive and Mieru profiles
             "no",  # Xray-router: offered whenever a proxy service could feed it (v0.5)
             "admin@example.com",
@@ -135,7 +134,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
     )
 
     assert completed.returncode == 0, transcript
-    assert "Пароли и ключи будут созданы только при установке" in transcript
+    assert "Ключи и пароли, оставленные пустыми, создаются при установке" in transcript
     assert "Изменения не внесены." not in transcript
     assert "No changes were made." not in transcript
     config = load_config(output)
@@ -280,7 +279,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
     )
 
     assert completed.returncode == 0, transcript
-    assert "Passwords and keys are generated only during installation" in transcript
+    assert "Keys and every password left blank are generated during installation" in transcript
     assert "No changes were made." not in transcript
     assert load_config(output).host_mode is HostMode.COEXIST
     assert load_config(output).domains.subscription is None
@@ -428,6 +427,9 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
 def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
     tmp_path: Path,
 ):
+    """An installed 3x-ui is asked only for the two VLESS names it gets routes for; both
+    blank is refused (the planner would refuse it later), one is enough, and review
+    «back»/«edit» change them without inventing the unused panel/Hysteria2 names."""
     output = tmp_path / "existing.toml"
     answers = [
         "",
@@ -438,18 +440,18 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
-        "xui.example.com",
-        "",
-        "",
+        "",  # VLESS TCP: blank
+        "",  # VLESS XHTTP: blank — refused, both asked again
+        "vless.example.com",
         "",
         "admin@example.com",
         "owner",
         "",  # panel password: blank keeps it generated
-        "back",
+        "back",  # the last editable field: VLESS XHTTP, still blank
         "",
         "edit",
-        "three_xui.panel_domain",
-        "",
+        "three_xui.vless_tcp_domain",
+        "tcp2.example.com",
         "save",
     ]
     transcript = io.StringIO()
@@ -463,9 +465,14 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
     with pytest.raises(WizardSaved) as caught:
         wizard.run(AuditFacts())
 
-    assert caught.value.config.three_xui.panel_domain is None
-    assert caught.value.config.three_xui.hysteria_domain is None
-    assert load_config(output) == caught.value.config
+    assert "At least one VLESS domain is needed" in transcript.getvalue()
+    assert "3x-ui panel domain" not in transcript.getvalue() and "Hysteria2 domain" not in transcript.getvalue()
+    assert "managed-new" not in transcript.getvalue().split("3x-ui mode", 1)[1].split(":", 1)[0]
+    config = caught.value.config
+    assert config.three_xui.vless_tcp_domain == "tcp2.example.com"
+    assert config.three_xui.vless_xhttp_domain is None
+    assert config.three_xui.panel_domain is None and config.three_xui.hysteria_domain is None
+    assert load_config(output) == config
 
 
 def test_wizard_quit_before_digest_confirmation_has_no_mutations(tmp_path: Path):
@@ -687,3 +694,109 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
     assert "Xray-router" not in transcript.getvalue()
+
+
+def _scripted(answers: list[str], output: Path, locale: Locale = Locale.EN) -> tuple[str, str]:
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=locale, config_output=output)
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    return transcript.getvalue(), output.read_text()
+
+
+def test_enter_takes_the_explained_defaults_and_the_example_mieru_ports(tmp_path: Path):
+    """v1.0.3: every choice is explained right before it is asked, Enter takes the common
+    case (fresh, full, no 3x-ui) and the Mieru ports default to the examples' 46001."""
+    output = tmp_path / "defaults.toml"
+    answers = [
+        "",  # language
+        "",  # host mode → fresh
+        "",  # profile → full
+        "",  # 3x-ui → none
+        "panel.example.com",
+        "relay.example.com",
+        "",
+        "",
+        "edge.example.com",
+        "mieru.example.com",
+        "",  # Mieru TCP → 46001
+        "",  # Mieru UDP → 46001
+        "no",  # WARP
+        "no",  # router
+        "admin@example.com",
+        "owner",
+        "",
+        "yes",
+        "save",
+    ]
+    transcript, written = _scripted(answers, output)
+    for line in ("fresh   — a clean server", "full       — the panel, MTProxy", "managed-new — the installer sets up its own 3x-ui"):
+        assert line in transcript, line
+    config = load_config(output)
+    assert (config.host_mode, config.profile, config.three_xui.mode) == (HostMode.FRESH, Profile.FULL, ThreeXuiMode.NONE)
+    assert config.mieru.tcp_ports == (46001,) and config.mieru.udp_ports == (46001,)
+    # The question says what the name is for: MTProxy and Mieru; the panel login is owner.
+    assert "first MTProxy and Mieru user (the panel login is always owner)" in transcript
+    # The review lists what this installation uses: no unset field, no 3x-ui block without 3x-ui.
+    review = transcript.split("Configuration review", 1)[1]
+    assert "| None" not in review and "three_xui.warp" not in review and "three_xui.mode | none" in review
+
+
+def test_the_router_question_names_the_pinned_xray_version():
+    import json
+
+    from installer.wizard import pinned_version
+
+    pins = json.loads((ROOT / "release" / "external-artifacts.json").read_text())
+    expected = next(item["version"] for item in pins["artifacts"] if item["name"] == "xray")
+    assert pinned_version("xray") == expected
+    from installer.i18n import text
+
+    assert f"Xray-core {expected}" in text(Locale.EN, "router", version=pinned_version("xray"))
+    assert f"Xray-core {expected}" in text(Locale.RU, "router", version=pinned_version("xray"))
+
+
+def test_warp_domains_take_geosite_lists_and_refuse_a_blank_answer(tmp_path: Path):
+    """The managed 3x-ui routes a list through WARP and the plan refuses an empty one, so the
+    question says «at least one» and keeps asking on a blank; `geosite:` and `domain:`
+    selectors are accepted exactly as `three_xui.warp_domains` accepts them."""
+    output = tmp_path / "warp.toml"
+    answers = [
+        "", "fresh", "core", "managed-new",
+        "panel.example.com", "relay.example.com", "", "",
+        "xui.example.com", "vless.example.com", "xhttp.example.com", "hy2.example.com",
+        "yes",  # WARP for 3x-ui
+        "",  # blank: refused, asked again
+        "geosite:openai, domain:Claude.AI, chatgpt.com",
+        "admin@example.com", "owner", "",
+        "xuiadmin", "",  # 3x-ui username, generated password
+        "yes", "save",
+    ]
+    transcript, written = _scripted(answers, output)
+    assert "blank for none" not in transcript
+    assert "at least one" in transcript
+    assert transcript.count("Enter one or more comma-separated domains or geosite:name lists.") == 1
+    config = load_config(output)
+    assert set(config.three_xui.warp_domains) == {"geosite:openai", "domain:claude.ai", "chatgpt.com"}
+
+
+def test_an_invalid_configuration_says_why(tmp_path: Path):
+    """A refused configuration names the reason instead of «edit the highlighted fields»
+    with nothing highlighted; the operator fixes the field and goes on."""
+    output = tmp_path / "conflict.toml"
+    answers = [
+        "", "fresh", "core-mieru", "none",
+        "panel.example.com", "relay.example.com", "", "",
+        "mieru.example.com",
+        "8443",  # the panel's private TLS listener: refused with the reason
+        "8443",
+        "no", "no",
+        "admin@example.com", "owner", "", "yes",
+        "mieru.tcp_ports", "46001",  # the field to fix and its new value
+        "save",
+    ]
+    transcript, _ = _scripted(answers, output)
+    reason = transcript.split("The configuration is invalid: ", 1)[1].splitlines()[0]
+    assert "8443 is taken by the panel's private TLS listener" in reason
+    assert load_config(output).mieru.tcp_ports == (46001,)

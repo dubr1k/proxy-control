@@ -15,6 +15,20 @@
 
 ## Проверка релиза
 
+Короче всего — скрипт установки, опубликованный рядом с архивом (с v1.0.3): в нём записаны
+версия и SHA-256 архива своего выпуска, он работает без привилегий, скачивает и проверяет
+четыре файла выпуска (подменённый архив не пройдёт, даже если подменён и `SHA256SUMS`),
+распаковывает и одним `sudo` запускает мастер:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+bash install-release.sh
+```
+
+Вручную — так:
+
 Скачайте архив, `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json` со
 страницы релиза. Для v0.1.0 GitHub attestation не опубликована. `sha256sum`
 сверяет три payload-файла из скачанного `SHA256SUMS`; сам файл контрольных сумм
@@ -133,10 +147,12 @@ manage_ufw = true
 ```
 
 `schema` — целое `1`. `host_mode` выбирает свежий хост или сосуществование с
-существующим Nginx-роутером на общем 443. `initial_user` — первый владелец
-панели и bootstrap-пользователь Mieru, поэтому имя должно быть безопасным. В
+существующим Nginx-роутером на общем 443. `initial_user` — имя первого
+пользователя MTProxy (Telemt) и bootstrap-пользователя Mieru, поэтому имя должно быть
+безопасным; вход в панель всегда под `owner`. В
 `three_xui` режим `mode = "none"` не принимает других ключей, `existing`
-принимает только домены, которые нужно маршрутизировать, а `managed-new`
+принимает только домены, которые нужно маршрутизировать (маршруты строятся к доменам
+VLESS Reality TCP и XHTTP), а `managed-new`
 требует все четыре домена плюс `warp` и `warp_domains` и работает только на
 чистом сервере. `warp_domains` без `warp = true` отклоняется. `manage_ufw` действует только на свежем хосте.
 

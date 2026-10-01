@@ -14,6 +14,20 @@ checksummed release that carries its own identity at `release/release.json`.
 
 ## Verifying a release
 
+Shortest is the install script published beside the archive (from v1.0.3): it carries its
+release's version and archive SHA-256, runs unprivileged, downloads and checks the four release
+files (a swapped archive does not pass, even with `SHA256SUMS` swapped too), extracts and starts
+the wizard through one `sudo`:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+bash install-release.sh
+```
+
+By hand:
+
 Download the archive, `SHA256SUMS`, `release-manifest.json`, and
 `sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
 attestation. `sha256sum` checks the three payload files named by the downloaded
@@ -136,10 +150,11 @@ manage_ufw = true
 ```
 
 `schema` is the integer `1`. `host_mode` selects a fresh host or coexistence
-with an existing shared-443 Nginx router. `initial_user` is the first panel
-owner and the Mieru bootstrap user, so it must be a safe name. Under
+with an existing shared-443 Nginx router. `initial_user` is the name of the
+first MTProxy (Telemt) user and the Mieru bootstrap user, so it must be a safe name; the panel
+login is always `owner`. Under
 `three_xui`, `mode = "none"` accepts no other key, `existing` accepts only the
-domains you want routed, and `managed-new` requires all four domains plus `warp`
+domains you want routed (the routes go to the VLESS Reality TCP and XHTTP domains), and `managed-new` requires all four domains plus `warp`
 and `warp_domains` and runs on a fresh host only. `warp_domains` without
 `warp = true` is rejected.
 `manage_ufw` only takes effect on a fresh host.

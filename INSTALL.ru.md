@@ -20,6 +20,20 @@ core. Связанные панели (Fleet v2, с v0.3) настраивают
 последовательность `scripts/proxyctl.py` ниже, которая остаётся в документации
 для уже развёрнутых систем и для разбора того, что делает установщик.
 
+Короче всего — скрипт установки, опубликованный рядом с архивом (с v1.0.3): в нём записаны
+версия и SHA-256 архива своего выпуска, он работает без привилегий, скачивает и проверяет
+четыре файла выпуска (подменённый архив не пройдёт, даже если подменён и `SHA256SUMS`),
+распаковывает и одним `sudo` запускает мастер:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+bash install-release.sh
+```
+
+Вручную — так:
+
 Скачайте архив, `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json` со
 страницы релиза. Для v0.1.0 GitHub attestation не опубликована; начиная с
 v0.2.0-beta.1 релизный workflow публикует attestation провенанса архива. `sha256sum`

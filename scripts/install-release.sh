@@ -14,6 +14,8 @@
 # `install-bootstrap` follows.
 #
 #   scripts/install-release.sh --requirements            # what is needed and what gets installed
+#   bash install-release.sh                              # the copy published beside a release:
+#                                                        # that release, its digest pinned
 #   scripts/install-release.sh --version 0.4.0-beta.1 --sha256 <lab-sha256>
 #   scripts/install-release.sh --version 0.4.0-beta.1 --no-wizard
 #   scripts/install-release.sh --version 0.4.0-beta.1 -- plan --config install.toml --json
@@ -28,6 +30,11 @@ MODE=install   # install | check | unpack | requirements
 REQUIRE_ATTESTATION=0
 SOURCE_DIR=
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# The copy published beside a release (`install-release.sh` on the release page) carries
+# that release's version and archive digest, stamped by release/build.py: run without
+# arguments it installs exactly those bytes. In the repository both stay empty.
+STAMPED_VERSION=""
+STAMPED_SHA256=""
 
 usage() {
     cat >&2 <<'USAGE'
@@ -35,9 +42,11 @@ usage: scripts/install-release.sh [--version X.Y.Z[-beta.N]] [--sha256 DIGEST] [
                                   [--from-dir VERIFIED_DIST] [--lang ru|en] [--requirements | --check-only | --no-wizard]
                                   [--attest] [-- INSTALLER ARGS...]
 
-  --version       release to fetch (default: the VERSION file beside this script's tree)
+  --version       release to fetch (default: the release this copy was published with,
+                  or the VERSION file beside this script's tree)
   --sha256        pin the archive digest — the `lab-sha256` of the tag annotation
                   or the digest in the release note; a different archive is refused
+                  (the copy published with a release pins its own digest already)
   --dir           where to download and extract (default: ./proxy-control-vX.Y.Z; must be new)
   --from-dir      use four already-downloaded release files from this directory;
                   they are copied, then verified exactly like downloaded files
@@ -208,8 +217,15 @@ if [[ $MODE == requirements ]]; then
     exit 0
 fi
 
-if [[ -z $VERSION && -f $SCRIPT_DIR/../VERSION ]]; then
+if [[ -z $VERSION && -n $STAMPED_VERSION ]]; then
+    VERSION=$STAMPED_VERSION
+elif [[ -z $VERSION && -f $SCRIPT_DIR/../VERSION ]]; then
     VERSION=$(tr -d '[:space:]' < "$SCRIPT_DIR/../VERSION")
+fi
+# The stamped digest belongs to the stamped release only: another --version is fetched
+# unpinned (or with its own --sha256), never checked against this release's bytes.
+if [[ -z $EXPECTED && -n $STAMPED_SHA256 && $VERSION == "$STAMPED_VERSION" ]]; then
+    EXPECTED=$STAMPED_SHA256
 fi
 [[ -n $VERSION ]] || fail "укажите --version" "pass --version"
 [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] \
@@ -300,6 +316,9 @@ done
 actual=$("${SHA256SUM[@]}" -- "$archive_name" | cut -d' ' -f1)
 if [[ -n $EXPECTED && $actual != "$EXPECTED" ]]; then
     fail "digest архива $actual ≠ ожидаемому $EXPECTED" "archive digest $actual ≠ expected $EXPECTED"
+fi
+if [[ -n $EXPECTED ]]; then
+    say "digest архива совпал с закреплённым" "the archive digest matches the pinned one"
 fi
 check_manifest() {
     python3 - release-manifest.json "$archive_name" "$actual" "$VERSION" <<'PYEOF'

@@ -91,6 +91,8 @@ jobs:
           test "$first" = "$second"
           cmp dist/release-manifest.json dist-again/release-manifest.json
           cmp dist/sbom.spdx.json dist-again/sbom.spdx.json
+          cmp dist/install-release.sh dist-again/install-release.sh
+          cmp dist/install-release.sh.sha256 dist-again/install-release.sh.sha256
           python3 release/build.py --verify dist
           # Only the bytes the lab host accepted may go out. The digest comes from the
           # dispatch input or from the annotated tag (`lab-sha256: <digest>`); a tag
@@ -141,7 +143,11 @@ jobs:
             = "${{ needs.build-twice-and-compare.outputs.archive-sha256 }}"
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
-          subject-path: dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz
+          # The install script published beside the archive is attested too: `gh attestation
+          # verify install-release.sh` proves it came from this workflow, before it runs.
+          subject-path: |
+            dist/proxy-control-v${{ needs.build-twice-and-compare.outputs.version }}.tar.gz
+            dist/install-release.sh
 
   draft-release:
     needs: [attest, build-twice-and-compare]
@@ -165,6 +171,8 @@ jobs:
             dist/release-manifest.json
             dist/sbom.spdx.json
             dist/SHA256SUMS
+            dist/install-release.sh
+            dist/install-release.sh.sha256
 
   publish:
     needs: [draft-release, build-twice-and-compare]

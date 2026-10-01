@@ -244,7 +244,11 @@ def test_primary_install_path_verifies_release_assets_before_sudo():
         extract_bootstrap = joined.index("tar -xOf proxy-control-v0.1.0.tar.gz")
         dispatch = joined.index("./install-bootstrap")
         assert checksum < extract_bootstrap < dispatch, path
-        assert "gh attestation verify" not in joined, path
+        # v1.0.3: the short path — the install script published beside the archive — is
+        # checked against its own published checksum before it runs, never piped to a shell.
+        script_checksum = joined.index("sha256sum --check install-release.sh.sha256")
+        assert joined.index("releases/latest/download/install-release.sh.sha256") < script_checksum, path
+        assert script_checksum < joined.index("bash install-release.sh"), path
         assert "curl |" not in joined, path
         assert "SHA256SUMS" in joined
         assert "sbom.spdx.json" in joined

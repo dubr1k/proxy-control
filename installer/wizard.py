@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -33,7 +34,8 @@ from installer.credentials import (
 from installer.planner import AuditFacts
 
 
-# The wizard offers only the modes the planner will accept.
+# Every 3x-ui mode; `managed-new` is offered on a fresh host only (planner.py refuses it
+# beside a foreign Nginx).
 OFFERED_THREE_XUI_MODES = tuple(ThreeXuiMode)
 
 _ENUM = TypeVar("_ENUM", bound=StrEnum)
@@ -43,6 +45,22 @@ _DOMAIN_RE = re.compile(
 )
 _EMAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+\Z")
 _SAFE_NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
+_GEOSITE_RE = re.compile(r"geosite:[a-z0-9_-]+\Z")
+# The Mieru ports the examples and the lab use; any free TCP/UDP port from 1024 up will do.
+DEFAULT_MIERU_PORTS = (46001,)
+_EXTERNAL_ARTIFACTS = Path(__file__).resolve().parents[1] / "release" / "external-artifacts.json"
+
+
+def pinned_version(name: str) -> str:
+    """The version release/external-artifacts.json pins for `name`, as the prompts show it."""
+    try:
+        document = json.loads(_EXTERNAL_ARTIFACTS.read_text(encoding="utf-8"))
+        for artifact in document["artifacts"]:
+            if artifact.get("name") == name:
+                return str(artifact["version"])
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return "?"
 
 
 class PromptValidationError(ValueError):
@@ -105,7 +123,9 @@ class WizardIO(Protocol):
         default: int | None = None,
     ) -> int: ...
 
-    def ports(self, prompt: str, *, default: tuple[int, ...] = ()) -> tuple[int, ...]: ...
+    def ports(
+        self, prompt: str, *, default: tuple[int, ...] = (), minimum: int = 1
+    ) -> tuple[int, ...]: ...
 
     def routes(self, prompt: str) -> tuple[tuple[str, int], ...]: ...
 
@@ -240,7 +260,9 @@ class TerminalIO:
         rendered_default = str(default) if default is not None else None
         return int(self.validated(prompt, validate, default=rendered_default))
 
-    def ports(self, prompt: str, *, default: tuple[int, ...] = ()) -> tuple[int, ...]:
+    def ports(
+        self, prompt: str, *, default: tuple[int, ...] = (), minimum: int = 1
+    ) -> tuple[int, ...]:
         rendered_default = ",".join(str(port) for port in default) or None
 
         def validate(value: str) -> str:
@@ -253,8 +275,8 @@ class TerminalIO:
                     port = int(part, 10)
                 except ValueError as exc:
                     raise PromptValidationError("invalid_ports") from exc
-                if not 1 <= port <= 65535:
-                    raise PromptValidationError("invalid_ports")
+                if not minimum <= port <= 65535:
+                    raise PromptValidationError("invalid_port_range", minimum=minimum)
                 if port in ports:
                     raise PromptValidationError("duplicate_ports")
                 ports.append(port)
@@ -345,6 +367,8 @@ class TerminalWizard:
         self.io = io
         self.locale = locale
         self.config_output = Path(config_output)
+        # What the operator typed, handed to the CLI on «apply» (never written there).
+        self.credentials: OperatorCredentials | None = None
 
     def run(self, facts: AuditFacts) -> InstallerConfig:
         if not isinstance(facts, AuditFacts):
@@ -367,8 +391,8 @@ class TerminalWizard:
         while True:
             try:
                 config = self._config(values)
-            except ConfigError:
-                self.io.write(text(self.locale, "invalid_config"))
+            except ConfigError as exc:
+                self.io.write(text(self.locale, "invalid_config", reason=str(exc)))
                 self._edit(values)
                 continue
             self._review(config)
@@ -378,9 +402,10 @@ class TerminalWizard:
                 default=ReviewAction.APPLY,
             )
             if action is ReviewAction.APPLY:
+                self.credentials = self._chosen_credentials(values)
                 return config
             if action is ReviewAction.QUIT:
-                self.io.write(text(self.locale, "quit"))
+                # The CLI says «no changes were made» for every way out of the wizard.
                 raise WizardQuit
             if action is ReviewAction.SAVE:
                 self.config_output.write_text(render_config(config), encoding="utf-8")
@@ -394,10 +419,20 @@ class TerminalWizard:
 
     def _collect(self) -> dict[str, object]:
         assert self.locale is not None
-        host_mode = self.io.choose_enum(text(self.locale, "host_mode"), tuple(HostMode))
-        profile = self.io.choose_enum(text(self.locale, "profile"), tuple(Profile))
+        # Each choice is explained right before it is asked; Enter takes the common case.
+        self.io.write(text(self.locale, "host_mode_help"))
+        host_mode = self.io.choose_enum(
+            text(self.locale, "host_mode"), tuple(HostMode), default=HostMode.FRESH
+        )
+        self.io.write(text(self.locale, "profile_help"))
+        profile = self.io.choose_enum(
+            text(self.locale, "profile"), tuple(Profile), default=Profile.FULL
+        )
+        self.io.write(text(self.locale, "three_xui_mode_help"))
+        # The planner installs 3x-ui only on a fresh host (it then owns Nginx as well).
+        offered = OFFERED_THREE_XUI_MODES if host_mode is HostMode.FRESH else (ThreeXuiMode.NONE, ThreeXuiMode.EXISTING)
         xui_mode = self.io.choose_enum(
-            text(self.locale, "three_xui_mode"), OFFERED_THREE_XUI_MODES
+            text(self.locale, "three_xui_mode"), offered, default=ThreeXuiMode.NONE
         )
         values: dict[str, object] = {
             "host_mode": host_mode,
@@ -423,8 +458,12 @@ class TerminalWizard:
             values["mieru"] = self.io.validated(
                 text(self.locale, "mieru_domain"), _domain
             )
-            values["mieru_tcp"] = self.io.ports(text(self.locale, "mieru_tcp_ports"))
-            values["mieru_udp"] = self.io.ports(text(self.locale, "mieru_udp_ports"))
+            values["mieru_tcp"] = self.io.ports(
+                text(self.locale, "mieru_tcp_ports"), default=DEFAULT_MIERU_PORTS, minimum=1024
+            )
+            values["mieru_udp"] = self.io.ports(
+                text(self.locale, "mieru_udp_ports"), default=DEFAULT_MIERU_PORTS, minimum=1024
+            )
         if xui_mode is ThreeXuiMode.MANAGED_NEW:
             values.update(self._managed_xui())
         elif xui_mode is ThreeXuiMode.EXISTING:
@@ -459,6 +498,23 @@ class TerminalWizard:
         )
         return values
 
+    @staticmethod
+    def _chosen_credentials(values: dict[str, object]) -> OperatorCredentials | None:
+        """What the operator typed, or None where every value is left to the installer.
+
+        The panel's login is always `owner` (adapters/core.py creates exactly that
+        account); a 3x-ui username counts on its own, a blank password beside it is
+        generated."""
+        chosen = OperatorCredentials(
+            panel_username="owner",
+            panel_password=_optional(values.get("panel_password")),
+            three_xui_username=_optional(values.get("xui_username")),
+            three_xui_password=_optional(values.get("xui_password")),
+        )
+        if (chosen.panel_password, chosen.three_xui_username, chosen.three_xui_password) == (None, None, None):
+            return None
+        return chosen
+
     def _save_credentials(self, values: dict[str, object]) -> None:
         """Write what the operator typed to a private file beside the config.
 
@@ -467,13 +523,8 @@ class TerminalWizard:
         leaves no extra file behind.
         """
         assert self.locale is not None
-        chosen = OperatorCredentials(
-            panel_username=str(values["initial_user"]),
-            panel_password=_optional(values.get("panel_password")),
-            three_xui_username=_optional(values.get("xui_username")),
-            three_xui_password=_optional(values.get("xui_password")),
-        )
-        if chosen.panel_password is None and chosen.three_xui_password is None:
+        chosen = self._chosen_credentials(values)
+        if chosen is None:
             return
         path = write_credentials(self.config_output, chosen)
         self.io.write(text(self.locale, "credentials_saved", path=path))
@@ -511,7 +562,9 @@ class TerminalWizard:
         assert isinstance(profile, Profile)
         services = [name for name, present in (("naive", profile.includes_naive), ("mieru", profile.includes_mieru)) if present]
         if services:
-            values["router"] = self.io.yes_no(text(self.locale, "router"), default=False)
+            values["router"] = self.io.yes_no(
+                text(self.locale, "router", version=pinned_version("xray")), default=False
+            )
         else:
             values.pop("router", None)
         for service in ("naive", "mieru"):
@@ -550,24 +603,29 @@ class TerminalWizard:
         return values
 
     def _existing_xui(self) -> dict[str, object]:
+        """An installed 3x-ui gets SNI routes to its VLESS inbounds and nothing else
+        (adapters/three_xui.py routes only the two VLESS names), so only those two are
+        asked, each may stay blank, and at least one is needed."""
         assert self.locale is not None
-        result: dict[str, object] = {}
-        for key, message in (
-            ("xui_panel", "xui_panel_domain"),
-            ("xui_tcp", "xui_vless_tcp_domain"),
-            ("xui_xhttp", "xui_vless_xhttp_domain"),
-            ("xui_hysteria", "xui_hysteria_domain"),
-        ):
-            value = self.io.validated(
-                text(self.locale, message), _domain, allow_empty=True
-            )
-            if value:
-                result[key] = value
-        return result
+        while True:
+            self.io.write(text(self.locale, "xui_existing_help"))
+            result: dict[str, object] = {}
+            for key, message in (
+                ("xui_tcp", "xui_vless_tcp_domain"),
+                ("xui_xhttp", "xui_vless_xhttp_domain"),
+            ):
+                value = self.io.validated(
+                    text(self.locale, message), _domain, allow_empty=True
+                )
+                if value:
+                    result[key] = value
+            if result:
+                return result
+            self.io.write(text(self.locale, "xui_existing_required"))
 
     def _domains(self, prompt: str) -> tuple[str, ...]:
         def validate(value: str) -> str:
-            domains = tuple(_domain(part) for part in value.split(",") if part.strip())
+            domains = tuple(_warp_selector(part) for part in value.split(",") if part.strip())
             if not domains:
                 raise PromptValidationError("invalid_domains")
             if len(domains) != len(set(domains)):
@@ -631,7 +689,12 @@ class TerminalWizard:
         self.io.write()
         self.io.write(text(self.locale, "review_title"))
         self.io.write(text(self.locale, "review_header"))
+        # Only what this installation uses: unset fields and the 3x-ui block of an
+        # installation without 3x-ui stay off the review.
+        without_xui = config.three_xui.mode is ThreeXuiMode.NONE
         for key, value in _flatten(config.canonical_dict()):
+            if value == "None" or (without_xui and key.startswith("three_xui.") and key != "three_xui.mode"):
+                continue
             self.io.write(f"{key} | {value}")
         self.io.write(text(self.locale, "secrets_notice"))
 
@@ -650,7 +713,7 @@ class TerminalWizard:
             fields.append(EditField.NAIVE)
         if isinstance(profile, Profile) and profile.includes_mieru:
             fields.extend((EditField.MIERU, EditField.MIERU_TCP, EditField.MIERU_UDP))
-        if xui_mode is not ThreeXuiMode.NONE:
+        if xui_mode is ThreeXuiMode.MANAGED_NEW:
             fields.extend(
                 (
                     EditField.XUI_PANEL,
@@ -659,6 +722,8 @@ class TerminalWizard:
                     EditField.XUI_HYSTERIA,
                 )
             )
+        elif xui_mode is ThreeXuiMode.EXISTING:
+            fields.extend((EditField.XUI_TCP, EditField.XUI_XHTTP))
         if xui_mode is ThreeXuiMode.MANAGED_NEW or (
             isinstance(profile, Profile)
             and (profile.includes_naive or profile.includes_mieru)
@@ -722,11 +787,11 @@ class TerminalWizard:
             )
         elif field is EditField.MIERU_TCP:
             values["mieru_tcp"] = self.io.ports(
-                text(self.locale, "mieru_tcp_ports"), default=values["mieru_tcp"]
+                text(self.locale, "mieru_tcp_ports"), default=values["mieru_tcp"], minimum=1024
             )
         elif field is EditField.MIERU_UDP:
             values["mieru_udp"] = self.io.ports(
-                text(self.locale, "mieru_udp_ports"), default=values["mieru_udp"]
+                text(self.locale, "mieru_udp_ports"), default=values["mieru_udp"], minimum=1024
             )
         elif field is EditField.WARP:
             values["warp"] = self.io.yes_no(
@@ -749,6 +814,19 @@ def _domain(value: str) -> str:
     if not _DOMAIN_RE.fullmatch(normalized):
         raise PromptValidationError("invalid_domain")
     return normalized
+
+
+def _warp_selector(value: str) -> str:
+    """One WARP target the way `three_xui.warp_domains` accepts it: a domain (optionally
+    `domain:`-prefixed) or a `geosite:` list."""
+    normalized = value.strip().lower()
+    if normalized.startswith("geosite:"):
+        if not _GEOSITE_RE.fullmatch(normalized):
+            raise PromptValidationError("invalid_domains")
+        return normalized
+    if normalized.startswith("domain:"):
+        return "domain:" + _domain(normalized.removeprefix("domain:"))
+    return _domain(normalized)
 
 
 def _email(value: str) -> str:

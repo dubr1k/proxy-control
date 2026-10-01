@@ -29,7 +29,7 @@ Real **v1.0.0** and **v1.0.2** (clients) panel captures from an isolated lab wit
 [Mobile overview](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Clients with search](docs/releases/assets/v1.0.2/clients.png) · [Access window](docs/releases/assets/v1.0.2/grant-window.png) · [Clients on a phone](docs/releases/assets/v1.0.2/clients-phone.png) · [Built-in guide](docs/releases/assets/v1.0.0/routing-guide.png) · [Russian overview](docs/releases/assets/v1.0.0/dashboard.png) · [Russian routing](docs/releases/assets/v1.0.0/routing.png) · [Sign-in](docs/releases/assets/v1.0.0/login.png)
 
 > [!WARNING]
-> **Current release: [v1.0.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.2)**: a window for every access with its link and QR, client search and filters, a tidy layout on desktop and phone. [Release notes](docs/releases/v1.0.2.md).
+> **Current release: [v1.0.3](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.3)**: the install script in every release, a fixed installer wizard. [Release notes](docs/releases/v1.0.3.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
@@ -241,7 +241,29 @@ names exactly which domain failed which check.
 
 ### Step 1. Download the release and verify it
 
-Download all four files under Assets: the archive, `SHA256SUMS`,
+**The short path (from v1.0.3).** Beside every release archive lies `install-release.sh` —
+the same [`scripts/install-release.sh`](scripts/install-release.sh) with that release's version and
+archive SHA-256 written in by the build. Download it with its checksum, check it, read it and
+run it as a regular user:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+less install-release.sh
+bash install-release.sh --requirements
+bash install-release.sh
+```
+
+`releases/latest` is the latest stable release; a given one comes from
+`releases/download/vX.Y.Z/`. The script downloads the four release files to disk, checks
+`SHA256SUMS`, the manifest and the archive digest written into it — a swapped archive is not
+extracted even when `SHA256SUMS` was swapped along with it — verifies the attestation when `gh`
+is present, extracts and starts the wizard through one `sudo`. The script's own origin is proved
+by `gh attestation verify install-release.sh --repo dubr1k/proxy-control`. `--check-only`
+downloads and verifies only, `--no-wizard` also extracts but does not start the wizard.
+
+**The same path by hand.** Download all four files under Assets: the archive, `SHA256SUMS`,
 `release-manifest.json`, and `sbom.spdx.json`. v0.1.0 has no published GitHub
 attestation; from v0.2.0-beta.1 on, the release workflow publishes a provenance
 attestation of the archive in the repository. The command below checks the three payload files named by the
@@ -302,13 +324,14 @@ There is no separate command to run: once the archive checks out,
 when given no arguments. It writes a configuration file — ordinary TOML you can
 read and edit by hand.
 
-Here is everything it asks, in order.
+Here is everything it asks, in order. Before each choice the wizard explains the options in
+a line; the answer in square brackets is the default, Enter takes it.
 
 **Language.** English or Russian.
 
 **Host mode.** `fresh` — the server is yours entirely and the installer sets up
 Nginx itself. `coexist` — the server already runs an Nginx that owns port 443,
-and the installer only adds its own routes to it.
+and the installer only adds its own routes to it. The default is `fresh`.
 
 **Profile.**
 
@@ -317,20 +340,22 @@ and the installer only adds its own routes to it.
 | `core` | Telemt/MTProxy and the panel |
 | `core-naive` | The same plus NaiveProxy |
 | `core-mieru` | The same plus Mieru |
-| `full` | Everything |
+| `full` | Everything (the default) |
 
 **3x-ui mode.**
 
-- `none` — leave 3x-ui alone entirely;
-- `existing` — adopt an installed one: the installer adds routes for its domains
-  and changes none of its files. You create its inbounds yourself;
+- `none` — leave 3x-ui alone entirely (the default);
+- `existing` — adopt an installed one: the installer adds routes to its VLESS
+  Reality inbounds and changes none of its files. You create its inbounds yourself.
+  The wizard asks only for the VLESS Reality TCP and XHTTP domains — those are the
+  ones routed; at least one is needed;
 - `managed-new` — install 3x-ui `3.7.0` itself. The installer issues its
   certificates, moves the panel off its public ports onto `127.0.0.1` under a
   private path, replaces the factory `admin/admin` with your own, and **creates
   the inbounds for you** — VLESS Reality TCP, VLESS Reality XHTTP, and
   Hysteria2. It requires `fresh` mode: installing 3x-ui means owning Nginx and
   the certificates too, and on a host that already runs Nginx those have an
-  owner already.
+  owner already. In `coexist` mode the wizard does not offer it.
 
 **Domains.** Only the ones the chosen profile actually needs:
 
@@ -340,17 +365,18 @@ and the installer only adds its own routes to it.
 | MTProxy Fake-TLS domain | always | MTProxy |
 | NaiveProxy domain | profiles with Naive | NaiveProxy |
 | Mieru hostname | profiles with Mieru | Mieru (needs no certificate) |
-| Mieru TCP and UDP ports | profiles with Mieru | the Mieru listeners |
-| 3x-ui panel domain | `existing` and `managed-new` | the 3x-ui panel |
-| VLESS Reality TCP domain | the same | the VLESS Reality TCP inbound |
-| VLESS Reality XHTTP domain | the same | the VLESS Reality XHTTP inbound |
-| Hysteria2 domain | the same | the Hysteria2 inbound |
+| Mieru TCP and UDP ports | profiles with Mieru; default `46001`, from 1024 | the Mieru listeners. A TCP port cannot be one the installer binds itself: `8443` (the panel TLS), `8445`, `8787`, `4443`, `8793`, `40000` (WARP), `45101`–`45102` and `45443` (Xray-router), `46101`+ (lane slots), the managed 3x-ui ports — the wizard names the one taken and by what |
+| 3x-ui panel domain | `managed-new` | the 3x-ui panel |
+| VLESS Reality TCP domain | `existing` and `managed-new` | the VLESS Reality TCP inbound |
+| VLESS Reality XHTTP domain | `existing` and `managed-new` | the VLESS Reality XHTTP inbound |
+| Hysteria2 domain | `managed-new` | the Hysteria2 inbound |
 | 3x-ui subscription domain | Not asked by the wizard; add `subscription_domain` to the `managed-new` TOML | serving the 3x-ui subscription over HTTPS |
 | Client subscription domain | always; blank keeps subscriptions off | the panel's client links `https://<domain>/s/<token>` |
 | MCP server domain | always; blank keeps MCP off. **Central panel only** — nodes leave it blank | MCP for Claude Code and Claude Desktop (v0.11) |
 
 **WARP.** In `managed-new` mode the wizard asks whether to enable WARP for Xray
-and, on yes, requires a non-empty list of domain selectors; NaiveProxy and Mieru
+and, on yes, requires a non-empty comma-separated list of domains and `geosite:` lists
+(for example `example.com, geosite:openai`); NaiveProxy and Mieru
 keep direct egress in that case. In 3x-ui modes `none` and `existing`, the wizard
 asks when the profile includes NaiveProxy or Mieru: yes routes all of their
 traffic through WARP and does not change an existing 3x-ui. The installer deploys
@@ -362,7 +388,9 @@ foreign WARP state is instead a hard stop. Inspect the resulting plan first.
 
 **Panel credentials.**
 
-- the first Proxy Control panel owner and their password;
+- the name of the first MTProxy and Mieru user — the installer creates their first
+  accesses under it. The Proxy Control panel login is always `owner`;
+- the password to sign in to the panel as `owner`;
 - the 3x-ui panel username and password — in `managed-new` mode only.
 
 A password is typed twice and never echoed. **A blank answer means "generate
@@ -373,12 +401,14 @@ installation. The only requirement is at least 12 characters.
 > Passwords never enter the configuration file: it is read to build the plan,
 > the plan is printed on screen, and reports are derived from the same values.
 > The wizard writes them beside it instead, to `<configuration-name>.credentials`
-> with mode `0600`. **Delete that file once the installation has finished.** The
-> installer erases its own working copy as soon as the installation ends,
-> successfully or not.
+> with mode `0600`, only when you choose «save»: it is there for a later
+> `install --config`. **Delete that file once the installation has finished.** On
+> «apply» the wizard hands the passwords to the installation directly, in a private
+> temporary copy the installer erases as soon as the installation ends, successfully or not.
 
-**Manage UFW.** On a fresh host only: whether the installer may open the ports
-it needs in the firewall itself.
+**Ports in UFW.** On a fresh host only: whether the installer may open the ports
+it needs in the firewall itself (yes by default). It adds only its own rules,
+commented `proxy-control:firewall`; an inactive UFW is enabled with the SSH rule first.
 
 At the end the wizard shows everything you answered and offers to correct any
 field, save the configuration, or go ahead with the installation.
@@ -467,16 +497,16 @@ Never copy that file into `.env`, Git, tickets, logs, or shared backups.
 **The 3x-ui panel** (`managed-new` mode only). It does not listen on a public
 port: it answers on `127.0.0.1:8451` under a private path of the form
 `/<random-characters>/`, and the factory `admin/admin` no longer works. From
-outside it is reachable through its own domain over the shared 443, and its path
-and credentials are the ones you gave the wizard. If you did not give any, the
-installer generated them and the report shows where to look:
+outside it is reachable through its own domain over the shared 443. The full address
+with its private path, the username and the password (given in the wizard or generated)
+are in a root-only file with mode `0600`:
 
 ```bash
-sudo python3 -m installer.cli status --json
+sudo cat /var/lib/proxy-control/three-xui/panel-access
 ```
 
-Remember to delete the `<configuration-name>.credentials` file the wizard wrote:
-it is no longer needed.
+If the wizard wrote a `<configuration-name>.credentials` file (you chose «save»),
+delete it: it is no longer needed.
 
 Roles:
 

@@ -115,6 +115,7 @@ def parse_config(text: str) -> InstallerConfig:
         ingress=ingress,
     )
     _reject_duplicate_tcp_sni_domains(config)
+    _reject_mieru_port_collisions(config)
     return config
 
 
@@ -424,12 +425,66 @@ def _reject_duplicate_tcp_sni_domains(config: InstallerConfig) -> None:
         config.three_xui.panel_domain,
         config.three_xui.vless_tcp_domain,
         config.three_xui.vless_xhttp_domain,
+        # The managed 3x-ui's subscription gets a TCP route of its own as well.
+        config.three_xui.subscription_domain,
     )
     seen: set[str] = set()
     for domain in (item for item in domains if item is not None):
         if domain in seen:
             raise ConfigError(f"duplicate TCP SNI domain: {domain}")
         seen.add(domain)
+
+
+# TCP ports this installation binds on the host besides 80/443 (Mieru's own ports start at
+# 1024, so those two never meet them). Mita listens on every address, so a Mieru TCP port
+# equal to one of these fails to bind at install time — refused here, before any plan.
+_MTPROXY_BACKEND_PORT = 8445  # adapters/core.py, compose.yaml MTPROXY_BACKEND_PORT
+_PANEL_APP_PORT = 8787  # compose.yaml panel, 127.0.0.1:8787
+_MCP_PORT = 8793  # adapters/mcp.py
+_NAIVE_PRIVATE_PORT = 4443  # adapters/naive.py: Caddy behind the SNI router
+_MANAGED_XUI_PORTS = {  # three_xui_api.py: the managed 3x-ui's loopback listeners
+    8449: "the managed 3x-ui VLESS Reality TCP inbound",
+    8450: "the managed 3x-ui VLESS Reality XHTTP inbound",
+    8451: "the managed 3x-ui panel",
+    2053: "a fresh 3x-ui's panel before the installer moves it",
+    2096: "the managed 3x-ui subscription",
+}
+
+
+def reserved_tcp_ports(config: InstallerConfig) -> dict[int, str]:
+    """Every TCP port the installer itself binds on the host for this configuration."""
+    reserved = {
+        config.panel_tls_port: "the panel's private TLS listener (ingress.panel_tls_port)",
+        _MTPROXY_BACKEND_PORT: "the MTProxy backend",
+        _PANEL_APP_PORT: "the panel application",
+    }
+    if config.domains.mcp is not None:
+        reserved[_MCP_PORT] = "the MCP server"
+    if config.profile.includes_naive:
+        reserved[_NAIVE_PRIVATE_PORT] = "NaiveProxy's private listener"
+    egress = config.effective_egress
+    if egress.warp:
+        reserved[egress.warp_port] = "the WARP SOCKS5 endpoint (egress.warp_port)"
+    if egress.router:
+        for service, port in ROUTER_PORTS.items():
+            reserved[port] = f"the Xray-router ingress for {service}"
+        if egress.relay_port:
+            reserved[egress.relay_port] = "the Xray-router relay (egress.relay_port)"
+    if config.mieru is not None:
+        for port in config.mieru.slot_ports():
+            reserved[port] = "a Mieru lane slot (mieru.lane_slots)"
+    if config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
+        reserved.update(_MANAGED_XUI_PORTS)
+    return reserved
+
+
+def _reject_mieru_port_collisions(config: InstallerConfig) -> None:
+    if config.mieru is None:
+        return
+    reserved = reserved_tcp_ports(config)
+    for port in config.mieru.tcp_ports:
+        if port in reserved:
+            raise ConfigError(f"mieru.tcp_ports: {port} is taken by {reserved[port]}")
 
 
 def _keys(
