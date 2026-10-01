@@ -589,3 +589,24 @@ def test_the_release_carries_the_mcp_server():
     assert {"mcp_server/server.py", "mcp_server/tools.py", "mcp_server/curated.py", "mcp_server/healthcheck.py"} <= modules
     assert modules <= names, sorted(modules - names)
     assert {"mcp_server/Dockerfile", "mcp_server/requirements.txt", "compose.mcp.yaml"} <= names
+
+
+def test_the_install_script_names_exactly_the_pinned_artifact_versions():
+    """AGENTS.md, «the auto-install script is updated with every change»: the versions the
+    `--requirements` text names in both languages are the ones release/external-artifacts.json
+    pins — a pin change that forgets the script fails here, not on an operator's host."""
+    import re
+
+    pins = {
+        item["name"]: item["version"]
+        for item in json.loads((ROOT / "release" / "external-artifacts.json").read_text())["artifacts"]
+    }
+    script = (ROOT / "scripts" / "install-release.sh").read_text()
+    named = {
+        "mita": re.findall(r"mita_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
+        "mieru": re.findall(r"mieru_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
+        "xray": re.findall(r"Xray-core ([0-9][0-9.]*[0-9])", script),
+    }
+    for name, versions in named.items():
+        assert len(versions) >= 2, f"{name}: both languages must name the pinned version"
+        assert set(versions) == {pins[name]}, f"{name}: the script says {sorted(set(versions))}, the pin is {pins[name]}"
