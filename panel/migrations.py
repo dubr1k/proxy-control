@@ -466,10 +466,75 @@ SUBSCRIPTION_ESCROW_V20 = Migration(20, "subscription-escrow", (
     "ALTER TABLE client_subscriptions ADD COLUMN secret_version INTEGER",
 ))
 
+# MTProxy routing (v1.1): a policy may name `mtproxy` and its own backend `mtproxy_native`
+# (Telemt's upstream), and a node records what it applied for MTProxy like for the others.
+# The same rebuild as v15/v16: the children reference the parent and are copied into fresh
+# tables first; `managed_egress` references nothing and is copied as it is.
+ROUTING_V21 = Migration(21, "routing-mtproxy", (
+    "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+    """CREATE TABLE routing_policies (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,
+      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru','mtproxy')),
+      lane TEXT NOT NULL DEFAULT 'svc',
+      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','mtproxy_native','xray_router')),
+      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),
+      default_egress TEXT,
+      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),
+      revision INTEGER NOT NULL DEFAULT 1,
+      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),
+      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,
+      desired_json TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(node_id, protocol, lane))""",
+    """INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,
+       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at)
+       SELECT id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,
+       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at
+       FROM routing_policies_old""",
+    """CREATE TABLE routing_rules_v21 (
+      id TEXT PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
+      match_json TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),
+      egress TEXT, note TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, preset TEXT,
+      UNIQUE(policy_id, position))""",
+    """INSERT INTO routing_rules_v21(id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset)
+       SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset FROM routing_rules""",
+    "DROP TABLE routing_rules",
+    "ALTER TABLE routing_rules_v21 RENAME TO routing_rules",
+    "DROP INDEX IF EXISTS routing_applies_policy",
+    """CREATE TABLE routing_applies_v21 (
+      id INTEGER PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,
+      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,
+      runtime_version TEXT,
+      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),
+      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)""",
+    """INSERT INTO routing_applies_v21 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,
+       detail,document_json,actor,created_at FROM routing_applies""",
+    "DROP TABLE routing_applies",
+    "ALTER TABLE routing_applies_v21 RENAME TO routing_applies",
+    "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+    "DROP TABLE routing_policies_old",
+    "ALTER TABLE managed_egress RENAME TO managed_egress_old",
+    """CREATE TABLE managed_egress (
+      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru','mtproxy')),
+      generation INTEGER NOT NULL, revision TEXT, digest TEXT,
+      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),
+      last_error TEXT, updated_at INTEGER NOT NULL, router_revision TEXT, router_digest TEXT)""",
+    """INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest)
+       SELECT protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest FROM managed_egress_old""",
+    "DROP TABLE managed_egress_old",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
     ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19, SUBSCRIPTION_ESCROW_V20,
+    ROUTING_V21,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

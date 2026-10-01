@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-01
+
+- MTProxy routing: MTProxy attaches to the node's Xray-router and leaves through WARP, a custom exit or another node of the fleet (a chain); rules by CIDR, `geoip` and port, while rules by domain, `geosite` and protocol are `rule_kind_unsupported` (Telemt reaches Telegram's data centres by IP). Telemt's own policy (`mtproxy_native`) is direct only.
+- Attach and detach change Telemt's upstream through its API (`PATCH /v1/config` + `POST /v1/system/reload`) without restarting the container; the rollback journal is the panel's `/data/telemt-egress.json`, secret-free.
+- Xray-router: a third ingress `mtproxy` — VLESS on a Unix socket; the `xray-router-ingress` bridge (same image) on the Compose network takes Telemt's SOCKS5 on `:45103`; the router mints the credential; the only bypass exception, on that ingress alone — private networks on `:443` direct (the `mask` TLS front). `GET /v1/ingress/mtproxy`.
+- Fleet: capability `egress.mtproxy.v1`, the generation's `egress.mtproxy` section; new codes `router_lacks_mtproxy`, `ingress_unreachable`, `node_lacks_mtproxy_egress`, `telemt_api_unsupported`, `egress_reload_failed`.
+- Migration 21 (`routing-mtproxy`): `routing_policies` and `managed_egress` allow `mtproxy`/`mtproxy_native`.
+- The installer starts, verifies and removes the bridge with the router; the wizard question and `--requirements` mention MTProxy.
+- One-command updates: `bash install-release.sh --update` verifies the release, then `scripts/update-host.sh` (root) asks the version-agent to update the panel to exactly the verified digest and rebuilds the managers in `pending_rebuild` (and the router's bridge).
+
+See [release notes](docs/releases/v1.1.0.md).
+
 ## [1.0.3] - 2026-10-01
 
 - The release publishes `install-release.sh` and `install-release.sh.sha256`: the install script with its release's version and archive SHA-256 written in (a swapped archive does not pass even with a swapped `SHA256SUMS`), attested; `SHA256SUMS` still names three files.

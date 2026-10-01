@@ -29,7 +29,7 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 [Мобильный обзор](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Клиенты с поиском](docs/releases/assets/v1.0.2/clients.png) · [Окно доступа](docs/releases/assets/v1.0.2/grant-window.png) · [Клиенты на телефоне](docs/releases/assets/v1.0.2/clients-phone.png) · [Встроенная инструкция](docs/releases/assets/v1.0.0/routing-guide.png) · [Английский обзор](docs/releases/assets/v1.0.0/dashboard-en.png) · [Маршрутизация на английском](docs/releases/assets/v1.0.0/routing-en.png) · [Вход](docs/releases/assets/v1.0.0/login.png)
 
 > [!WARNING]
-> **Текущий выпуск — [v1.0.3](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.3)**: скрипт установки в каждом выпуске, исправленный мастер установки. [Что нового](docs/releases/v1.0.3.md).
+> **Текущий выпуск — [v1.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.0)**: маршрутизация MTProxy через Xray-router — WARP, свой выход или другой узел парка. [Что нового](docs/releases/v1.1.0.md).
 
 > [!IMPORTANT]
 > Проект рассчитан на людей, которые понимают, что такое DNS, TLS, Nginx и
@@ -827,6 +827,24 @@ PY
 Ожидается ровно `ok`. Не копируйте один файл SQLite при работающем WAL-писателе.
 
 Подробности: [резервное копирование и восстановление](docs/BACKUP_RESTORE.ru.md).
+
+### Обновление Proxy Control одной командой (с v1.1)
+
+Уже установленный сервер обновляется тем же скриптом, что ставит новый, — режимом `--update`:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+bash install-release.sh --update
+```
+
+Скрипт проверяет выпуск так же, как при установке, распаковывает его и одним `sudo` запускает
+`scripts/update-host.sh` из проверенного дерева. Тот просит version-agent хоста обновить панель
+(с резервной копией дерева, образа и базы и откатом при неудаче) — только если агент собирается
+поставить ровно проверенный архив, — затем пересобирает изменившиеся менеджеры тем же вызовом
+Compose, что и агент, и на сервере с Xray-router поднимает мост `xray-router-ingress`. Telemt,
+сертификаты, `.env` и `secrets/` не трогаются. Нужен version-agent (ставится установщиком с v0.11).
 
 ### Обновление версий из панели
 

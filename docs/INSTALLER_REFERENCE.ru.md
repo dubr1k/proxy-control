@@ -262,7 +262,7 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
 | `firewall` | Только добавленными правилами UFW и только на управляемом свежем хосте |
 | `core` | Compose-проектом `mtproxy`, его секретами и зафиксированным TDLib-probe |
 | `warp` | Закреплённым пакетом клиента Cloudflare, его регистрацией и loopback-прокси |
-| `xray_router` | Тремя извлечёнными членами архива Xray в `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, токеном менеджера и двумя ключами ingress, `.env.xray-router` и Compose-сервисом `xray-router` |
+| `xray_router` | Тремя извлечёнными членами архива Xray в `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, токеном менеджера и двумя ключами ingress, `.env.xray-router` и Compose-сервисами `xray-router` и `xray-router-ingress` (v1.1) |
 | `naive` | Зафиксированной сборкой Caddy, разделёнными identity, состоянием и токеном manager, границей лога учёта и маршрутом Naive |
 | `mieru` | Зафиксированным исполняемым mita, identity mita и стабильным UDS, токеном и состоянием manager, выбранными слушателями |
 | `three_xui` | В режиме `existing` — ничем, кроме владеемого маршрута; в `managed-new` — одним staged-поколением, его панелью и созданными им инбаундами |
@@ -332,10 +332,12 @@ WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000` (
 identity `xray-router` (10006), готовит `/var/lib/xray-router`, пишет `secrets/xray-router-manager-token`
 и по одному `user:password` на ingress (`secrets/xray-router-ingress-naive`,
 `secrets/xray-router-ingress-mieru`, только root; существующие файлы сохраняются), пишет
-`.env.xray-router` (дайджесты членов и `XRAY_ROUTER_EGRESS_WARP`) и поднимает Compose-сервис `xray-router`.
+`.env.xray-router` (дайджесты членов и `XRAY_ROUTER_EGRESS_WARP`) и поднимает Compose-сервисы `xray-router` и
+(v1.1) `xray-router-ingress` — мост, через который MTProxy (Telemt) достаёт вход `mtproxy` роутера; учётку
+этого входа менеджер создаёт сам, порт моста `45103` есть только в сети Compose.
 Проверка читает статус менеджера (артефакты сверены, поколение закоммичено), убеждается, что оба
-ingress слушают только loopback, и пропускает один аутентифицированный CONNECT через ingress NaiveProxy в
-Интернет (три попытки: сеть до цели — не роутера).
+ingress слушают только loopback, пропускает один аутентифицированный CONNECT через ingress NaiveProxy в
+Интернет (три попытки: сеть до цели — не роутера) и что мост отвечает на SOCKS5-приветствие.
 
 С `relay_port` (v0.7) адаптер после подъёма контейнера включает relay через менеджер
 (`healthcheck --relay-enable <домен панели> <порт>`: ключевую пару Reality менеджер чеканит один раз и

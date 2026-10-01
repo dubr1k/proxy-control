@@ -211,6 +211,10 @@ def read_node_credentials(path: Path, default_username: str) -> tuple[str, str]:
     return default_username, lines[0].rstrip("\r\n")
 
 
+# Telegram's data centres (AS62041 and friends): what Telemt dials through its upstream.
+TELEGRAM_PREFIXES = ("149.154.", "91.108.", "91.105.", "95.161.", "185.76.151.")
+
+
 def mtproxy_secret(link: str) -> str:
     """The 32-hex Telemt secret inside a `tg://proxy` link: a Fake-TLS one is `ee` + secret +
     hex(domain); a bare secret is taken as it is (the probe adds the Fake-TLS framing)."""
@@ -1415,7 +1419,9 @@ class Scenario:
             self.check(f"r01_{protocol}_target", item.get("egress_v1") is True and item.get("backend") == f"{protocol}_native"
                        and item.get("providers", {}).get("warp", {}).get("reachable") is True and not item.get("reason"),
                        json.dumps(item)[:300])
-        self.check("r01_mtproxy_out_of_scope", targets.get("mtproxy", {}).get("reason") == "protocol_out_of_scope")
+        # v1.1: MTProxy is a target — Telemt's own backend, direct only until it is attached.
+        self.check("r01_mtproxy_native_direct", targets.get("mtproxy", {}).get("backend") == "mtproxy_native"
+                   and targets.get("mtproxy", {}).get("capabilities") == ["whole_direct"], json.dumps(targets.get("mtproxy"))[:300])
         local = {item["protocol"]: item for item in self.node.json("/api/routing/targets")["items"] if item["node_id"] == "local"}
         self.check("r01_node_local_managed_by_central", local.get("naive", {}).get("reason") == "managed_by_central",
                    json.dumps(local.get("naive"))[:200])
@@ -1627,7 +1633,8 @@ class Scenario:
         identity = self.node_identity()
         node_router = identity.get("router") or {}
         self.check("x01_identity_router", node_router.get("available") is True and "egress.router.v1" in identity.get("capabilities", [])
-                   and len(node_router.get("capabilities", [])) >= 12 and set(node_router.get("services", {})) == {"naive", "mieru"},
+                   and len(node_router.get("capabilities", [])) >= 12
+                   and set(node_router.get("services", {})) == {"naive", "mieru", "mtproxy"},
                    json.dumps({k: node_router.get(k) for k in ("available", "capabilities", "services")})[:400])
         status = self.host.router_status(container)
         self.check("x01_manager_status_verified_running", status.get("phase") == "idle" and (status.get("running") or {}).get("generation", 0) >= 1
@@ -1806,6 +1813,9 @@ class Scenario:
             self.check("x14_whole_warp_via_router_after_rotation", ok and urllib.parse.urlsplit(allowed).hostname in self.stub.hosts_since(mark), detail)
         credential = rotated
 
+        # router-15 (v1.1): MTProxy through the router — Telemt's upstream is the bridge.
+        self._router_mtproxy(container)
+
         # router-12: detach both — the native blocks say direct, the host around is untouched.
         for protocol in protocols:
             self._apply_and_wait("x12", protocol)
@@ -1826,6 +1836,38 @@ class Scenario:
             (item.get("router") or {}).get("attached") is False and item.get("policy") is None for item in targets.values() if item.get("router")))
         self.routing_probes.stop()
         self.stub.stop()
+
+    def _router_mtproxy(self, container: str) -> None:
+        """router-15 (v1.1): attach MTProxy (pass-through, the client still connects), the whole
+        service through «WARP» (the stub sees Telegram's data centres, the client connects), a
+        domain rule refused in the preview, then back direct and the policy gone."""
+        secret = self.credentials.get("mtproxy")
+        code, out = self.host._run("docker", "inspect", "-f", "{{.State.Health.Status}}", "proxy-control-xray-router-ingress")
+        self.check("x15_bridge_healthy", code == 0 and out.strip() == "healthy", out[:100])
+        services = (self.host.router_status(container).get("services") or {})
+        self.check("x15_router_serves_mtproxy", "mtproxy" in services, str(sorted(services)))
+        if not self._attach("x15", "mtproxy", True):
+            return
+        ok, detail = self.probes.mtproxy(secret)
+        self.check("x15_mtproxy_passthrough_client_connects", ok, detail)
+        if self._apply_and_wait("x15", "mtproxy", default="egress", backend="xray_router") is not None:
+            mark = len(self.stub.lines())
+            ok, detail = self.probes.mtproxy(secret)
+            self.check("x15_mtproxy_via_warp_client_connects", ok, detail)
+            hosts = self.stub.hosts_since(mark)
+            self.check("x15_stub_saw_telegram_dc", any(host.startswith(TELEGRAM_PREFIXES) for host in hosts), str(hosts[-5:]))
+        self._put_policy("mtproxy", default="egress", rules=[{"action": "block", "match": {"domains": ["t.me"]}}],
+                         backend="xray_router")
+        preview = self.central.json(f"{self._policy_path('mtproxy')}/preview", method="POST")
+        self.check("x15_domain_rule_refused", preview.get("status") == "unsupported"
+                   and {reason.get("code") for reason in preview.get("reasons", [])} == {"rule_kind_unsupported"},
+                   json.dumps(preview.get("reasons"))[:300])
+        self._apply_and_wait("x15_reset", "mtproxy", backend="xray_router")
+        if self._attach("x15", "mtproxy", False):
+            ok, detail = self.probes.mtproxy(secret)
+            self.check("x15_mtproxy_direct_after_detach", ok, detail)
+        status, _, body = self.central.request(self._policy_path("mtproxy"), method="DELETE")
+        self.check("x15_mtproxy_policy_deleted", status == 204, f"{status} {body[:200]!r}")
 
     # --- chains and lanes (v0.7, spec §10: chains-01 … chains-10) ---
 

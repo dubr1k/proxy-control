@@ -1,4 +1,4 @@
-# Маршрутизация Proxy Control (v0.4–v0.7): куда сервис выпускает трафик клиентов
+# Маршрутизация Proxy Control (v0.4–v1.1): куда сервис выпускает трафик клиентов
 
 [English](ROUTING.en.md) · **Русский**
 
@@ -29,7 +29,7 @@
 | NaiveProxy | `naive_native` — Caddy forwardproxy `upstream` + `acl` | весь сервис напрямую или через WARP; блокировка по домену (`example.com`, `*.example.com`) и по CIDR | выборочные правила `direct`/`egress` (один upstream на сервис); блокировку **рядом** с WARP по умолчанию — forwardproxy не применяет ACL при заданном upstream; блокировку по порту, geosite, geoip |
 | Mieru | `mieru_native` — mita `egress` | весь сервис напрямую или через WARP; блокировку по домену и по CIDR; выборочные `direct`/`egress` по домену и по CIDR, по порядку | блокировку по порту, geosite, geoip; `*.example.com` и `example.com` — один селектор (mita матчит суффикс домена) |
 | NaiveProxy или Mieru, **подключённые к Xray-router** (v0.5) | `xray_router` — правила `routing` Xray по ingress | весь сервис напрямую или через WARP; правила `block`, `direct` и `egress` по домену, `geosite:`, CIDR, `geoip:` и порту, по порядку, любое из них рядом с WARP по умолчанию; с v0.7 — **выходы через другие узлы парка** (цепи) и **своя полоса** у отдельного доступа со своей политикой | UDP (UDP mita остаётся напрямую) |
-| MTProxy (Telemt) | — | — | вне области: `protocol_out_of_scope` |
+| MTProxy (Telemt), v1.1 | `mtproxy_native` — upstream Telemt; **подключённый к Xray-router** — `xray_router` | сам — только напрямую; на роутере — весь сервис напрямую, через WARP, свой выход или **другой узел парка** (цепь), правила по CIDR, `geoip:` и порту | правила по домену, `geosite:` и протоколу (Telemt ходит к DC Telegram по IP, MTProto сниффер не распознаёт) — `rule_kind_unsupported`; свои полосы клиентов; UDP |
 
 Приватные назначения — loopback, link-local, RFC 1918, CGNAT и их IPv6-аналоги, плюс
 `localhost` — можно **блокировать**, но нельзя открыть правилом `direct` или `egress`
@@ -101,7 +101,7 @@ lane             svc (политика сервиса) | grant:<id> (v0.7: св�
 | `provider_unreachable` | WARP настроен, но не отвечает; `fallback = approved_direct` превращает это в предупреждение |
 | `protocol_disabled_on_node` | сервис на узле выключен |
 | `node_lacks_egress_v1` | связанная панель старше v0.4 |
-| `protocol_out_of_scope` | MTProxy |
+| `protocol_out_of_scope` | полоса доступа для протокола, у которого полос нет (MTProxy) |
 | `document_too_large` | больше 16 КиБ |
 | `manager_unavailable` | локальный менеджер не ответил |
 | `lane_requires_router` / `lane_not_attached` | политика полосы доступа, а на узле нет Xray-router или сервис к нему не подключён (v0.7) |
@@ -110,6 +110,11 @@ lane             svc (политика сервиса) | grant:<id> (v0.7: св�
 | `relay_no_warp` | цепь заканчивается «WARP узла-выхода», а у него нет WARP (v0.7) |
 | `chain_loop` | цепь проходит через этот же узел (v0.7) |
 | `node_lacks_lanes` | связанная панель без `egress.lanes.v1`: обновите её до v0.7 (v0.7) |
+| `router_lacks_mtproxy` | менеджер Xray-router узла старше v1.1: пересоберите `xray-router` и запустите `xray-router-ingress` (v1.1) |
+| `node_lacks_mtproxy_egress` | связанная панель без `egress.mtproxy.v1`: обновите её до v1.1 (v1.1) |
+| `ingress_unreachable` | мост `xray-router-ingress` не принял логин Telemt (v1.1) |
+| `telemt_api_unsupported` | у Telemt на узле нет API конфигурации (`/v1/config`) (v1.1) |
+| `egress_reload_failed` | Telemt не включил новый upstream (`failed`, `rolled_back` или 30 с без активации) — работает прежний (v1.1) |
 
 Предупреждения: `adopts_unmanaged_upstream` / `adopts_unmanaged_egress` (на узле есть
 `upstream` или секция `egress`, написанные вручную — первое применение переносит их под
@@ -158,6 +163,31 @@ owner, с аудитом (`routing.target.attach | detach`), а на связа�
 предыдущему применённому документу из собственной истории центра (связанная панель — один
 шаг назад, не стек). `DELETE` допустим, только когда узел работает «напрямую, без правил»
 (иначе 409 `policy_applied`): забытая политика никогда не меняет того, что узел применяет.
+
+### MTProxy через Xray-router (v1.1)
+
+Telemt живёт в сети Compose и не достаёт loopback хоста, где слушают входы роутера, поэтому у
+MTProxy свой путь: вход `mtproxy` роутера — VLESS на Unix-сокете в общем томе, а рядом в сети
+Compose работает мост `xray-router-ingress` (тот же образ менеджера), который принимает от
+Telemt SOCKS5 с логином на `xray-router-ingress:45103` и передаёт соединение в сокет. Новых
+портов хоста нет; третьего Xray нет — маршрутизирует тот же роутер.
+
+- «Подключить» для MTProxy: роутер получает секцию `mtproxy` как pass-through, панель проверяет
+  мост (SOCKS5-приветствие и логин), затем через API Telemt меняет `upstreams` на
+  `socks5 xray-router-ingress:45103` (`PATCH /v1/config` с `If-Match`) и включает новую
+  runtime-генерацию (`POST /v1/system/reload`) — **без перезапуска контейнера**; открытые сессии
+  доживают на прежнем upstream. «Отключить» возвращает тот direct-upstream, что был до подключения.
+- Своя политика Telemt (`mtproxy_native`) — только «напрямую, без правил»; всё остальное отвечает
+  `not_attached`. После подключения политика на `xray_router` — как у Naive и Mieru, кроме правил
+  по домену, `geosite:` и протоколу и полос клиентов.
+- Единственное исключение из обхода роутера: на входе `mtproxy` приватные сети `10/8`,
+  `172.16/12`, `192.168/16` на порт 443 идут напрямую — так Telemt обновляет TLS-фронт у своего
+  контейнера `mask`. Loopback и link-local по-прежнему блокируются.
+- Upstream'ы Telemt, написанные руками (не один `direct` и не мост), панель не трогает:
+  «Подключить» отвечает `manual_intervention_required`. Журнал для «Откатить» — в
+  `/data/telemt-egress.json` панели, без секретов; логин моста хранит только роутер.
+- Узел, обновлённый до v1.1 без пересборки роутера, продолжает работать для Naive и Mieru, а
+  MTProxy показывает `router_lacks_mtproxy`.
 
 ## Цепи и полосы (v0.7)
 

@@ -89,10 +89,13 @@ class TelemtClient:
     def _forget(self) -> None:
         self._inventory = None
 
-    async def _request(self, method, path, json=None):
+    async def _request(self, method, path, json=None, *, if_match=None):
+        headers = {"Authorization": self.auth_header}
+        if if_match is not None:
+            headers["If-Match"] = if_match
         try:
             async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout, transport=self.transport,
-                                         headers={"Authorization": self.auth_header}) as client:
+                                         headers=headers) as client:
                 response = await client.request(method, path, json=json)
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             # The connection was never established, so nothing was sent: a plain
@@ -152,6 +155,13 @@ class TelemtClient:
                 return access_from_user(row)
         return None
 
+    # v1.1 routing: Telemt's upstreams through its config API — `(data, revision)` where the
+    # revision is the whole config's (it moves with every user change too).
+    async def config(self): return await self._request("GET", "/v1/config")
+    async def patch_config(self, body, revision): return await self._request("PATCH", "/v1/config", body, if_match=revision)
+    async def reload(self, revision): return (await self._request("POST", "/v1/system/reload", {}, if_match=revision))[0]
+    async def reload_status(self, reload_id): return (await self._request("GET", f"/v1/system/reload/{int(reload_id)}"))[0]
+
 
 class MemoryTelemt:
     def __init__(self, public_host="localhost", public_port=443):
@@ -162,6 +172,15 @@ class MemoryTelemt:
         # {"create": "lose_response"} performs the mutation and then raises, the
         # way Telemt does when the reply never reaches the panel.
         self.faults = {}
+        # v1.1: the config API — what the entrypoint writes, a counter for the revision, and
+        # how the next reload ends (`succeeded`, `failed`, `rolled_back`, or `stuck`).
+        self.config_api = True
+        self.upstreams = [{"type": "direct", "ipv4": True, "ipv6": False}]
+        self.config_version = 1
+        self.reload_outcome = "succeeded"
+        self.reloads: dict[int, dict] = {}
+        self.runtime_upstreams = copy.deepcopy(self.upstreams)
+        self.config_calls: list[tuple] = []
 
     def _maybe_lose(self, operation):
         if self.faults.get(operation) == "lose_response":
@@ -218,3 +237,41 @@ class MemoryTelemt:
     async def connections(self): return {"active": 0, "top_users": []}
     async def active_ips(self): return []
     async def quota_stats(self): return {"users": list(self.quota_usage.values())}
+
+    def _config_revision(self) -> str:
+        return f"{self.config_version:064x}"
+
+    def _config_check(self) -> None:
+        if not self.config_api:
+            raise TelemtError("Telemt API error (404)", status_code=404)
+
+    async def config(self):
+        self._config_check()
+        return {"general": {"use_middle_proxy": False}, "upstreams": copy.deepcopy(self.upstreams)}, self._config_revision()
+
+    async def patch_config(self, body, revision):
+        self._config_check()
+        self.config_calls.append(("patch", copy.deepcopy(body)))
+        if revision != self._config_revision():
+            raise TelemtError("Telemt API error (412)", status_code=412)
+        self.upstreams = copy.deepcopy(body["upstreams"])
+        self.config_version += 1
+        self._maybe_lose("patch")
+        return ({"revision": self._config_revision(), "runtime_reload_required": True, "process_restart_required": False,
+                 "changed": ["upstreams"]}, self._config_revision())
+
+    async def reload(self, revision):
+        self._config_check()
+        if revision != self._config_revision():
+            raise TelemtError("Telemt API error (412)", status_code=412)
+        reload_id = len(self.reloads) + 1
+        self.config_calls.append(("reload", reload_id))
+        state = {"stuck": "preparing"}.get(self.reload_outcome, self.reload_outcome)
+        if state == "succeeded":
+            self.runtime_upstreams = copy.deepcopy(self.upstreams)
+        self.reloads[reload_id] = {"reload_id": reload_id, "state": state}
+        return {"reload_id": reload_id, "state": "accepted"}
+
+    async def reload_status(self, reload_id):
+        self._config_check()
+        return copy.deepcopy(self.reloads[int(reload_id)])

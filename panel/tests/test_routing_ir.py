@@ -416,7 +416,7 @@ def test_routing_v14_on_populated_db(tmp_path, monkeypatch):
         db.execute("INSERT INTO managed_resources(protocol,runtime_username,ref,generation,state,updated_at)"
                    " VALUES('naive','alice','r1',1,'converged',1)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [14, 15, 16, 17, 18, 19, 20]
+    assert apply_migrations(database) == [14, 15, 16, 17, 18, 19, 20, 21]
     assert apply_migrations(database) == []
     with database.transaction() as db:
         assert db.execute("SELECT count(*) FROM managed_resources").fetchone()[0] == 1
@@ -424,8 +424,8 @@ def test_routing_v14_on_populated_db(tmp_path, monkeypatch):
         assert {"routing_policies", "routing_rules", "routing_applies", "managed_egress"} <= tables
         db.execute("INSERT INTO managed_egress(protocol,generation,revision,digest,state,updated_at)"
                    " VALUES('naive',3,'r','d','converged',1)")
-        with pytest.raises(sqlite3.IntegrityError):
-            db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('mtproxy',3,'converged',1)")
+        with pytest.raises(sqlite3.IntegrityError):  # v1.1 allows mtproxy, nothing else
+            db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('socks',3,'converged',1)")
         with pytest.raises(sqlite3.IntegrityError):  # a policy needs its node
             db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
                        " VALUES('p','ghost','naive','naive_native','direct','fail_closed',1,1)")

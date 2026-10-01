@@ -73,7 +73,7 @@ async def test_attach_detach_are_owner_only_and_audited(client, login_user, rout
 
 async def test_attach_refusals_carry_codes(client, login_user, router, naive):
     await login_user(client)
-    assert (await client.post("/api/routing/targets/local/mtproxy/attach", headers=_csrf(client))).status_code == 422
+    assert (await client.post("/api/routing/targets/local/socks/attach", headers=_csrf(client))).status_code == 422
     assert (await client.post("/api/routing/targets/missing/naive/attach", headers=_csrf(client))).status_code == 404
     naive.router_reachable = False
     refused = await client.post("/api/routing/targets/local/naive/attach", headers=_csrf(client))

@@ -37,7 +37,10 @@ APPLY_DEADLINE = 25.0
 # and reports the router in `identity.router`.
 # `versions.check` (v0.11): this node's agent polls upstream on request; a central hides
 # the button for a node without it.
-CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1")
+# `egress.mtproxy.v1` (v1.1): this node applies an `mtproxy` egress section (Telemt's upstream,
+# and the MTProxy section of its router) and reports its MTProxy egress target.
+CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1",
+                "egress.mtproxy.v1")
 ROUTER_CAPABILITY = "egress.router.v1"
 # v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
 # and applies the `relay` section, reporting both in `identity.router`.
@@ -147,13 +150,17 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         if router is None:
             return None
         sections, lanes = {}, {}
-        for service in ("naive", "mieru"):
+        for service in ("naive", "mieru", "mtproxy"):
             target = await router.target(service)
+            if service == "mtproxy" and target.reason == "router_lacks_mtproxy":
+                continue  # a router not rebuilt since v1.1 still serves the other two
             if not target.available:
                 return {"available": False, "reason": target.reason or "router_unavailable"}
             sections[service] = {"revision": target.revision,
                                  "applied_digest": target.applied["digest"] if target.applied else None}
             capabilities, providers, xray_version = target.capabilities, target.providers, target.xray_version
+            if service == "mtproxy":
+                continue  # no lanes on MTProxy
             try:
                 lanes[service] = sorted((await router.lanes(service)).get("lanes", []))
             except AdapterError:

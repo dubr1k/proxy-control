@@ -61,3 +61,23 @@ What a backend cannot enforce is `unsupported` with the rule named, in the previ
 the API; a WARP the node reports as down fails closed unless the policy chose
 `fallback = approved_direct`, and then the substitution is shown, never silent.
 `docs/ROUTING.en.md` describes the result.
+
+## Amended in v1.1 (2026-10-01): MTProxy through the Xray-router
+
+Leaving MTProxy out was a scope decision of v0.4, not a property of Telemt: Telemt dials
+Telegram through `[[upstreams]]` (`socks5` with a login among them) and its config API changes
+them without a restart (`PATCH /v1/config`, then `POST /v1/system/reload`), proved on the stand.
+The owner wanted a central in one country to send a node's MTProxy out through another node.
+
+- MTProxy is a routing target now. Its own backend, `mtproxy_native`, is Telemt's upstream and
+  can only be direct; a policy that asks more compiles to `not_attached`.
+- Attached to the node's Xray-router (ADR 007), MTProxy gets the router's policy vocabulary —
+  WARP, custom exits, chains through other nodes, CIDR/`geoip`/port rules — except what its
+  traffic can never match: rules by domain, `geosite` and sniffed protocol are `unsupported`
+  (Telemt dials data centres by address; MTProto is opaque), and so are client lanes (Telemt
+  cannot tell its users apart upstream).
+- Telemt sits on the Compose bridge network, the router on the host network: the router's
+  `mtproxy` ingress is a VLESS inbound on a Unix socket in a shared volume, reached through the
+  `xray-router-ingress` bridge — no host port, no firewall rule, no third Xray.
+- The bypass of private destinations keeps one fixed exception on that ingress only: private
+  networks on port 443 go direct, so Telemt can fetch the TLS front of its own `mask` container.

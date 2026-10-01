@@ -58,7 +58,9 @@ async def test_identity_reports_egress_v1_and_targets(client, login_user, naive,
     assert naive_egress["revision"] and naive_egress["mode"] == "direct"
     assert identity["protocols"]["mieru"]["egress"]["providers"] == {"warp": {"reachable": False}}
     assert identity["protocols"]["mieru"]["egress"]["restart_required"] is True
-    assert identity["protocols"]["mtproxy"]["egress"] is None
+    mtproxy_egress = identity["protocols"]["mtproxy"]["egress"]  # v1.1: Telemt's upstream, direct
+    assert mtproxy_egress["backend"] == "mtproxy_native" and mtproxy_egress["mode"] == "direct"
+    assert "egress.mtproxy.v1" in identity["capabilities"]
     assert "socks5://" not in repr(identity)
     # A manager that cannot answer contributes no target rather than failing the identity.
     naive.broken = True

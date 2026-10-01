@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .geodata import GeodataError
-from .intent import SERVICES, EgressInvalid, EgressUnreachable
+from .intent import EgressInvalid, EgressUnreachable
 from .service import ArtifactMismatch, ManagerConflict, ManualInterventionRequired, ValidationError, XrayError
 
 LOGGER = logging.getLogger("xray_router_manager")
@@ -120,7 +120,7 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if path.startswith("/v1/lanes/"):
                 tail = path[len("/v1/lanes/"):].split("/")
                 service = tail[0]
-                if service not in SERVICES:
+                if service not in manager.services or service == "mtproxy":
                     return self._send(404, {"detail": "not found"})
                 if self.command == "GET" and len(tail) == 1:
                     return self._send(200, manager.lanes(service))
@@ -141,6 +141,11 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 if self.command == "DELETE":
                     return self._send(200, manager.relay_disable())
                 return self._send(404, {"detail": "not found"})
+            # v1.1: what the panel writes into Telemt — the bridge's address and Telemt's login.
+            if path == "/v1/ingress/mtproxy" and self.command == "GET":
+                if "mtproxy" not in manager.services:
+                    return self._send(404, {"detail": "not found"})
+                return self._send(200, manager.ingress("mtproxy"))
             if path == "/v1/relay/accounts" and self.command == "PUT":
                 body = self._body()
                 self._exact(body, {"accounts"})
@@ -149,7 +154,7 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if path.startswith(prefix):
                 tail = path[len(prefix):].split("/")
                 service = tail[0]
-                if service not in SERVICES:
+                if service not in manager.services:
                     return self._send(404, {"detail": "not found"})
                 if self.command == "GET" and len(tail) == 1:
                     return self._send(200, manager.egress(service))

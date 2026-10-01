@@ -6,7 +6,7 @@ import signal
 import threading
 from pathlib import Path
 
-from .intent import PORTS
+from .intent import MTPROXY_SOCKET, PORTS
 from .server import ManagerHTTPServer
 from .service import ArtifactMismatch, SubprocessXrayRunner, XrayRouterManager
 
@@ -38,6 +38,9 @@ def build_manager() -> XrayRouterManager:
                    "geoip": (bin_dir / "geoip.dat", _env("XRAY_ROUTER_GEOIP_SHA256")),
                    "geosite": (bin_dir / "geosite.dat", _env("XRAY_ROUTER_GEOSITE_SHA256"))},
         ports=ports,
+        # v1.1: the MTProxy ingress on a Unix socket the `xray-router-ingress` bridge shares;
+        # empty turns it off (a router that serves naive and mieru only).
+        mtproxy_socket=os.getenv("XRAY_ROUTER_INGRESS_MTPROXY_SOCKET", MTPROXY_SOCKET).strip() or None,
     )
 
 

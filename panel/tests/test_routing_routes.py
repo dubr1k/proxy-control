@@ -26,7 +26,8 @@ async def test_viewer_reads_and_previews_but_never_mutates(client, login_user):
     assert targets.status_code == 200
     naive = next(item for item in targets.json()["items"] if item["protocol"] == "naive")
     assert naive["backend"] == "naive_native" and naive["policy"]["revision"] == 1 and naive["kind"] == "local"
-    assert next(item for item in targets.json()["items"] if item["protocol"] == "mtproxy")["reason"] == "protocol_out_of_scope"
+    mtproxy = next(item for item in targets.json()["items"] if item["protocol"] == "mtproxy")
+    assert mtproxy["reason"] is None and mtproxy["backend"] == "mtproxy_native"  # v1.1
     assert (await client.get("/api/routing/policies/local/naive")).status_code == 200
     preview = await client.post("/api/routing/policies/local/naive/preview", json=BLOCK, headers=_csrf(client))
     assert preview.status_code == 200 and preview.json()["status"] == "supported"
@@ -63,7 +64,7 @@ async def test_put_upserts_with_expected_revision_and_keeps_rule_ids(client, log
                 {"rules": [{"action": "block", "match": {"domains": ["a.com"]}, "surprise": 1}]},
                 {"revision": 3}):
         assert (await client.put("/api/routing/policies/local/mieru", json=bad, headers=_csrf(client))).status_code == 422, bad
-    out = await client.put("/api/routing/policies/local/mtproxy", json=BLOCK, headers=_csrf(client))
+    out = await client.put("/api/routing/policies/local/socks", json=BLOCK, headers=_csrf(client))
     assert out.status_code == 422 and out.json()["code"] == "protocol_out_of_scope"
     missing = await client.put("/api/routing/policies/ghost/naive", json=BLOCK, headers=_csrf(client))
     assert missing.status_code == 404 and missing.json()["code"] == "node_not_found"

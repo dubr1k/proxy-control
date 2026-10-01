@@ -23,10 +23,24 @@ class RouterAdapter:
         try:
             view = await self.client.egress(service)
         except XrayRouterError as exc:
+            if service == "mtproxy" and exc.status_code == 404:
+                # A router manager from before v1.1: rebuild `xray-router` (and start its bridge).
+                return RouterTarget(available=False, service=service, reason="router_lacks_mtproxy")
             reason = exc.code or ("router_unavailable" if exc.status_code == 502 else UNAVAILABLE_REASONS.get(
                 exc.status_code, "router_unavailable"))
             return RouterTarget(available=False, service=service, reason=reason)
         return router_target_from_view(service, view)
+
+    async def ingress(self, service: str) -> dict:
+        """Where a data plane off the host network reaches its ingress (v1.1: `mtproxy`, the
+        bridge's address and Telemt's login) — the panel writes it into Telemt."""
+        try:
+            return await self.client.ingress(service)
+        except XrayRouterError as exc:
+            if exc.status_code == 404:
+                raise AdapterError("the Xray-router has no MTProxy ingress: rebuild xray-router",
+                                   code="router_lacks_mtproxy") from exc
+            raise self._error(exc) from exc
 
     async def status(self) -> dict | None:
         try:

@@ -1488,5 +1488,13 @@
  "узла": "nodes",
  "узлов": "nodes",
  "учётной записи нет": "no account",
- "хранится в панели": "kept in the panel"
+ "хранится в панели": "kept in the panel",
+ "MTProxy маршрутизируется только через Xray-router: подключите сервис в «Возможностях узла» ниже, затем выберите выход — WARP, свой выход или другой узел.": "MTProxy is routed only through the Xray-router: attach the service under “Node capabilities” below, then pick an exit — WARP, your own exit or another node.",
+ "Telemt не включил новый upstream — работает прежний": "Telemt did not activate the new upstream — the previous one keeps running",
+ "Telemt ходит к дата-центрам Telegram по IP: правила по CIDR, geoip и порту работают, по домену, geosite и протоколу — нет.": "Telemt reaches Telegram data centres by IP: rules by CIDR, geoip and port work, by domain, geosite and protocol do not.",
+ "Xray-router узла старше v1.1 — пересоберите xray-router и запустите xray-router-ingress": "The node's Xray-router is older than v1.1 — rebuild xray-router and start xray-router-ingress",
+ "Xray-router: не установлен — без него MTProxy ходит только напрямую.": "Xray-router: not installed — without it MTProxy goes direct only.",
+ "мост xray-router-ingress не отвечает — запустите его": "the xray-router-ingress bridge does not answer — start it",
+ "у Telemt на узле нет API конфигурации — обновите Telemt": "Telemt on the node has no config API — update Telemt",
+ "узел нужно обновить до v1.1 для маршрутизации MTProxy": "the node must be updated to v1.1 to route MTProxy"
 }

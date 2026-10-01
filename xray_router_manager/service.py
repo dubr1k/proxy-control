@@ -16,6 +16,8 @@ Files under the state directory (all `0600`, directory `0700`):
     state.json             {phase: idle|swapping|broken, candidate, failures}
     lanes.json             {svc: {lane: {user, password, issued_at}}} — the grant lanes' accounts (v0.7)
     relay.json             {enabled, port, server_name, private_key, public_key, short_ids, accounts} (v0.7)
+    ingress-mtproxy.json   {uuid, username, password} — the MTProxy ingress (v1.1), minted here once;
+                           a copy for the `xray-router-ingress` bridge sits next to the socket
 
 Lanes, the relay and chains (v0.7, spec §4): a lane account is minted here, shown once and put
 on the ingress with a new generation at once; the relay keypair is minted once per node; a chain
@@ -36,6 +38,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import uuid as uuid_module
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -43,6 +46,7 @@ from typing import Protocol
 from . import intent as intent_module
 from .intent import (
     CAPABILITIES,
+    MTPROXY_BRIDGE_ADDRESS,
     PORTS,
     SCHEMA_V2,
     SERVICES,
@@ -104,7 +108,7 @@ class XrayRunner(Protocol):
     def start(self, config_path: Path) -> object: ...
     def stop(self, handle: object) -> None: ...
     def alive(self, handle: object) -> bool: ...
-    def wait_ready(self, ports: list[int], timeout: float) -> None: ...
+    def wait_ready(self, ports: list[int], timeout: float, sockets: tuple[str, ...] = ()) -> None: ...
 
 
 class SubprocessXrayRunner:
@@ -174,10 +178,10 @@ class SubprocessXrayRunner:
         process: subprocess.Popen = handle  # type: ignore[assignment]
         return process.poll() is None
 
-    def wait_ready(self, ports: list[int], timeout: float) -> None:
+    def wait_ready(self, ports: list[int], timeout: float, sockets: tuple[str, ...] = ()) -> None:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if all(_port_open(port) for port in ports):
+            if all(_port_open(port) for port in ports) and all(_socket_open(path) for path in sockets):
                 return
             time.sleep(0.05)
         raise XrayError("the ingress ports did not open in time")
@@ -212,6 +216,16 @@ def _free_port() -> int:
 def _port_open(port: int) -> bool:
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def _socket_open(path: str) -> bool:
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+            probe.settimeout(0.5)
+            probe.connect(path)
             return True
     except OSError:
         return False
@@ -273,8 +287,12 @@ class _Journal:
 class XrayRouterManager:
     def __init__(self, *, state_dir: Path, runner: XrayRunner, ingress_files: dict[str, Path], warp_url: str | None,
                  artifacts: dict[str, tuple[Path, str]], ports: dict[str, int] | None = None,
-                 ready_timeout: float = 10.0, reachability=None):
+                 ready_timeout: float = 10.0, reachability=None, mtproxy_socket: Path | str | None = None):
         self.state_dir = Path(state_dir)
+        # v1.1: the MTProxy ingress (a `vless` inbound on this Unix socket) — None keeps the
+        # router what it was before: naive and mieru only.
+        self.mtproxy_socket = None if mtproxy_socket is None else Path(mtproxy_socket)
+        self.services: tuple[str, ...] = tuple(tag for tag in SERVICES if tag != "mtproxy" or self.mtproxy_socket is not None)
         self.runner = runner
         self.ingress_files = {tag: Path(path) for tag, path in ingress_files.items()}
         self.warp_url = warp_url or None
@@ -326,11 +344,22 @@ class XrayRouterManager:
         self._write_json("state.json", {"phase": phase, "candidate": candidate, "failures": failures})
 
     def _current(self) -> dict | None:
-        return self._read_json("current.json", None)
+        """`current.json`, with every service this router serves present: a node updated from a
+        release without the service (v1.1 `mtproxy`) runs it pass-through until it is applied."""
+        current = self._read_json("current.json", None)
+        if current is None:
+            return None
+        services = current.setdefault("services", {})
+        for tag in self.services:
+            if tag not in services:
+                document = direct_document()
+                services[tag] = {"document": document, "digest": document_digest(document),
+                                 "revision": revision_of(current["generation"], document)}
+        return current
 
     def _journal(self) -> dict[str, dict]:
         journal = self._read_json("journal.json", {})
-        for tag in SERVICES:
+        for tag in self.services:
             journal.setdefault(tag, {"current": None, "previous": None, "history": []})
         return journal
 
@@ -338,7 +367,12 @@ class XrayRouterManager:
 
     def _ingresses(self) -> list[Ingress]:
         ingresses = []
-        for tag in SERVICES:
+        for tag in self.services:
+            if tag == "mtproxy":
+                record = self._mtproxy_credential()
+                ingresses.append(Ingress(tag=tag, port=0, user=record["username"], password=record["password"],
+                                         socket=str(self.mtproxy_socket), uuid=record["uuid"]))
+                continue
             path = self.ingress_files[tag]
             try:
                 text = path.read_text().strip()
@@ -350,11 +384,43 @@ class XrayRouterManager:
             ingresses.append(Ingress(tag=tag, port=self.ports[tag], user=match.group(1), password=match.group(2)))
         return ingresses
 
+    def _mtproxy_credential(self) -> dict:
+        """The MTProxy ingress's credential, minted on first use (v1.1): no Docker secret, so a
+        node updated in place needs nothing new from the installer. `uuid` is the VLESS client
+        the bridge presents; `username`/`password` what Telemt presents to the bridge."""
+        record = self._read_json("ingress-mtproxy.json", None)
+        if record is not None:
+            fields = (record.get("uuid"), record.get("username"), record.get("password")) if isinstance(record, dict) else ()
+            if (len(fields) != 3 or not all(isinstance(value, str) for value in fields)
+                    or UUID.fullmatch(fields[0]) is None or CREDENTIAL.fullmatch(f"{fields[1]}:{fields[2]}") is None):
+                raise ManualInterventionRequired("ingress credential for mtproxy is malformed")
+        else:
+            record = {"uuid": str(uuid_module.uuid4()), "username": "telemt", "password": secrets.token_urlsafe(32)}
+            self._write_json("ingress-mtproxy.json", record)
+        return record
+
+    def _publish_mtproxy_credential(self) -> None:
+        """The bridge's copy, next to the socket in the volume the two containers share."""
+        if self.mtproxy_socket is None:
+            return
+        record = self._mtproxy_credential()
+        _atomic_write(self.mtproxy_socket.parent / "ingress-mtproxy.json",
+                      json.dumps(record, sort_keys=True, separators=(",", ":")).encode() + b"\n")
+
+    def ingress(self, service: str) -> dict:
+        """Where and how a data plane outside the host network reaches its ingress (v1.1: only
+        `mtproxy`, through the bridge) — for the panel, which writes it into Telemt."""
+        if service != "mtproxy" or self.mtproxy_socket is None:
+            raise ValidationError("unknown service")
+        with self.lock:
+            record = self._mtproxy_credential()
+            return {"address": MTPROXY_BRIDGE_ADDRESS, "username": record["username"], "password": record["password"]}
+
     # ------------------------------------------------------ lanes and relay (v0.7)
 
     def _lanes(self) -> dict[str, dict[str, dict]]:
         lanes = self._read_json("lanes.json", {})
-        return {tag: dict(lanes.get(tag, {})) for tag in SERVICES}
+        return {tag: dict(lanes.get(tag, {})) for tag in self.services}
 
     def _lane_accounts(self) -> dict[str, list[LaneAccount]]:
         return {tag: [LaneAccount(lane, entry["user"], entry["password"]) for lane, entry in lanes.items()]
@@ -414,6 +480,9 @@ class XrayRouterManager:
     def lane_issue(self, service: str, lane: str) -> dict:
         """Mint (or rotate) a grant lane's account, put it on the ingress now, return it once."""
         self._service(service)
+        if service == "mtproxy":
+            # One VLESS client behind the bridge: Telemt cannot tell its users apart upstream.
+            raise ValidationError("mtproxy has no lanes")
         match = GRANT_LANE.fullmatch(lane) if isinstance(lane, str) else None
         if match is None:
             raise ValidationError("invalid lane")
@@ -558,9 +627,10 @@ class XrayRouterManager:
                 # A new Xray release brings a new seed; the pin as the source follows it.
                 self.geodata.follow_seed()
             self._recover()
+            self._publish_mtproxy_credential()
             current = self._current()
             if current is None:
-                intents = {tag: direct_document() for tag in SERVICES}
+                intents = {tag: direct_document() for tag in self.services}
                 self._commit_generation(1, intents, operation_ids={}, rollback_of=None)
                 return
             intents = self._current_intents(current)
@@ -590,9 +660,19 @@ class XrayRouterManager:
         path = self._generation_path(generation)
         if not path.exists():
             raise ManualInterventionRequired(f"generation file is missing: {path}")
+        sockets: tuple[str, ...] = ()
+        if self.mtproxy_socket is not None:
+            # A socket left behind by a process that died keeps Xray from binding (proved on
+            # 26.3.27: `bind: address already in use`); the previous process is stopped by now.
+            self.mtproxy_socket.unlink(missing_ok=True)
+            sockets = (str(self.mtproxy_socket),)
         handle = self.runner.start(path)
         try:
-            self.runner.wait_ready([self.ports[tag] for tag in SERVICES], self.ready_timeout)
+            ports = [self.ports[tag] for tag in self.services if tag in self.ports]
+            if sockets:
+                self.runner.wait_ready(ports, self.ready_timeout, sockets=sockets)
+            else:
+                self.runner.wait_ready(ports, self.ready_timeout)
         except XrayError:
             self.runner.stop(handle)
             raise
@@ -804,7 +884,7 @@ class XrayRouterManager:
             return {
                 "version": RENDER_VERSION, "xray_version": self.xray_version, "artifacts": self.artifact_report,
                 "artifact_error": self.artifact_error, "phase": state.get("phase", "idle"), "running": running,
-                "services": {tag: self._service_view(current, tag) for tag in SERVICES},
+                "services": {tag: self._service_view(current, tag) for tag in self.services},
                 "providers": self._providers(probe=True), "capabilities": [*CAPABILITIES, *CAPABILITIES_V2],
                 "restart_required": True,
                 "lanes": {tag: sorted(lanes) for tag, lanes in self._lanes().items()}, "relay": self._relay_view(),
@@ -842,9 +922,8 @@ class XrayRouterManager:
 
     # ----------------------------------------------------------- transactions
 
-    @staticmethod
-    def _service(service: str) -> None:
-        if service not in SERVICES:
+    def _service(self, service: str) -> None:
+        if service not in self.services:
             raise ValidationError("unknown service")
 
     def _target(self, service: str, expected_revision: str, document: object) -> tuple[dict, dict, dict[str, dict]]:
@@ -961,13 +1040,13 @@ class XrayRouterManager:
         previous_current = self._current()
         self._swap(generation, previous_current)
         services = {}
-        for tag in SERVICES:
+        for tag in self.services:
             services[tag] = {"document": intents[tag], "digest": document_digest(intents[tag]),
                              "revision": revision_of(generation, intents[tag])}
         self._write_json("current.json", {"generation": generation, "digest": digest, "since": _now(), "services": services})
-        journal = self._journal() if keep_journal else {tag: {"current": None, "previous": None, "history": []} for tag in SERVICES}
+        journal = self._journal() if keep_journal else {tag: {"current": None, "previous": None, "history": []} for tag in self.services}
         entries = {}
-        for tag in SERVICES:
+        for tag in self.services:
             entry = {"document": intents[tag], "digest": services[tag]["digest"], "revision": services[tag]["revision"],
                      "generation": generation, "generation_digest": digest, "operation_id": operation_ids.get(tag),
                      "applied_at": _now()}

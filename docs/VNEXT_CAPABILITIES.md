@@ -61,8 +61,9 @@ The cells that shape v0.2 most:
   NaiveProxy blocks by domain and CIDR beside a direct default and has no
   selective rule (one upstream per service; forwardproxy skips its ACL when an
   upstream is set); Mieru blocks and selects by domain (suffix) and by literal-IP
-  CIDR, applied by a restart of mita. `per_client_routing` stays `unproven` and
-  MTProxy is outside routing scope entirely (ADR 006) — [ROUTING](ROUTING.en.md).
+  CIDR, applied by a restart of mita. `per_client_routing` stays `unproven`; MTProxy
+  was outside routing scope until v1.1 and now routes only through the Xray-router
+  (ADR 006, amended) — [ROUTING](ROUTING.en.md).
 - **The Xray-router (v0.5).** A service attached to the node's dedicated router
   gets `domain_routing`, `cidr_routing`, `geosite_routing`, `geoip_routing` and
   `port_routing` as `supported` for `direct`, `block` and `egress: warp`, in order and

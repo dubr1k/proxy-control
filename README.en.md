@@ -29,7 +29,7 @@ Real **v1.0.0** and **v1.0.2** (clients) panel captures from an isolated lab wit
 [Mobile overview](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Clients with search](docs/releases/assets/v1.0.2/clients.png) · [Access window](docs/releases/assets/v1.0.2/grant-window.png) · [Clients on a phone](docs/releases/assets/v1.0.2/clients-phone.png) · [Built-in guide](docs/releases/assets/v1.0.0/routing-guide.png) · [Russian overview](docs/releases/assets/v1.0.0/dashboard.png) · [Russian routing](docs/releases/assets/v1.0.0/routing.png) · [Sign-in](docs/releases/assets/v1.0.0/login.png)
 
 > [!WARNING]
-> **Current release: [v1.0.3](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.3)**: the install script in every release, a fixed installer wizard. [Release notes](docs/releases/v1.0.3.md).
+> **Current release: [v1.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.0)**: MTProxy routing through the Xray-router — WARP, your own exit or another node of the fleet. [Release notes](docs/releases/v1.1.0.md).
 
 > [!IMPORTANT]
 > This project is for people who know what DNS, TLS, Nginx, and Docker are. The
@@ -842,6 +842,25 @@ It must print exactly `ok`. Never copy the single SQLite file while a WAL writer
 is running.
 
 More: [backup and restore](docs/BACKUP_RESTORE.en.md).
+
+### Updating Proxy Control with one command (since v1.1)
+
+An installed server updates with the same script that installs a new one, in `--update` mode:
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256
+bash install-release.sh --update
+```
+
+The script verifies the release exactly as for an install, extracts it and, through one `sudo`,
+runs `scripts/update-host.sh` from the verified tree. That asks the host's version-agent to update
+the panel (with a backup of the tree, image and database and a rollback on failure) — only if the
+agent is about to install exactly the verified archive — then rebuilds the changed managers with
+the agent's own Compose call and, on a server with the Xray-router, starts the
+`xray-router-ingress` bridge. Telemt, certificates, `.env` and `secrets/` are not touched. It needs
+the version-agent (installed by the installer since v0.11).
 
 ### Upgrading versions from the panel
 

@@ -60,6 +60,21 @@ policy key carries `lane` (`svc` for every pre-v0.7 row); migration 16 is additi
 `/run/mita/lane-<n>.sock`, state `/var/lib/mita/lanes/<n>`, ports `46100+n`, env `MIERU_LANE_SLOTS`; the
 router's `lanes.json` and `relay.json` in `/var/lib/xray-router` (0600); router intent schema 2.
 
+## v1.1: MTProxy routing — additive on the wire
+
+`schema_version` and `api_version` are unchanged. New, optional: capability `egress.mtproxy.v1`; the key
+`mtproxy` in `GenerationDocument.egress` (sent only to a node that declared the capability,
+`node_lacks_mtproxy_egress` otherwise) and in `identity.protocols[*].egress` / `identity.router.services`
+(the latter only when the node's router manager serves it). Backend value `mtproxy_native`; Telemt's native
+documents `{"schema": 1, "upstream": null | {"provider": "router"}}`. Codes `router_lacks_mtproxy`,
+`ingress_unreachable`, `node_lacks_mtproxy_egress`, `telemt_api_unsupported`, `egress_reload_failed`.
+Migration 21 (`routing_policies`, `managed_egress` allow `mtproxy`/`mtproxy_native`) is additive in effect.
+Router manager: service `mtproxy`, `GET /v1/ingress/mtproxy`, `ingress-mtproxy.json` in `/var/lib/xray-router`
+(0600), env `XRAY_ROUTER_INGRESS_MTPROXY_SOCKET` (empty turns the ingress off). Host identifiers: Compose service
+and container `xray-router-ingress` / `proxy-control-xray-router-ingress` (port 45103 on the Compose network,
+never published), socket `/run/xray-router/ingress-mtproxy.sock` in the `xray-router-run` volume; the panel's
+journal `/data/telemt-egress.json`.
+
 ## v0.6 (verification): nothing new on the wire
 
 `schema_version`, `api_version`, the Fleet v2 documents and every identifier above are unchanged. Two additive

@@ -787,7 +787,8 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(model["name"], "mtproxy")
             self.assertEqual(
                 set(model["services"]),
-                {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "fleet-agent", "fleet-ingress", "mcp"},
+                {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "xray-router-ingress", "fleet-agent",
+                 "fleet-ingress", "mcp"},
             )
             expected_container_names = {
                 "mask": "proxy-control-mask",
@@ -796,12 +797,16 @@ class DeployCliTests(unittest.TestCase):
                 "naive-manager": "proxy-control-naive-manager",
                 "mieru-manager": "proxy-control-mieru-manager",
                 "xray-router": "proxy-control-xray-router",
+                "xray-router-ingress": "proxy-control-xray-router-ingress",
                 "fleet-agent": "proxy-control-fleet-agent",
                 "fleet-ingress": "proxy-control-fleet-ingress",
                 "mcp": "proxy-control-mcp",
             }
             for service, container_name in expected_container_names.items():
                 self.assertEqual(model["services"][service]["container_name"], container_name)
+            # v1.1: the MTProxy ingress bridge lives on the Compose network only.
+            self.assertNotIn("ports", model["services"]["xray-router-ingress"])
+            self.assertNotIn("network_mode", model["services"]["xray-router-ingress"])
             agent = model["services"]["fleet-agent"]
             self.assertEqual(agent["environment"]["TELEMT_API_URL"], "http://mtproxy:9091")
             self.assertNotIn("network_mode", agent)

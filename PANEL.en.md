@@ -343,7 +343,7 @@ Details of both transports: [FLEET.en.md](FLEET.en.md).
 
 **«Маршрутизация»** sets, per node and per service, where the clients' traffic leaves:
 a node selector (this server and the linked panels), the tabs NaiveProxy / Mieru / MTProxy
-(the last one says «вне области маршрутизации»), and for each policy the defaults
+(since v1.1 MTProxy is routed only through the node's Xray-router: «Подключить» first, then an exit), and for each policy the defaults
 («По умолчанию: Напрямую | Через WARP», «При недоступности WARP: отказать | напрямую»)
 and the ordered rules — enabled, domains, CIDRs, ports, action (Блокировать / Напрямую /
 Через WARP), a note — with ↑/↓ and drag, «Добавить правило», «Сбросить» (direct, no

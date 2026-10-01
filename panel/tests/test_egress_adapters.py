@@ -201,15 +201,18 @@ async def test_a_custom_unmanaged_egress_has_no_applied_document(backend):
     assert "10.0.0.1" not in repr(target)
 
 
-async def test_telemt_adapter_has_no_egress_target():
+async def test_telemt_adapter_egress_is_direct_only_without_a_router():
+    """v1.1: Telemt's upstream is a native egress target that can only be direct on its own
+    (the rest goes through the router — test_mtproxy_routing.py)."""
     adapter = TelemtAdapter(MemoryTelemt(public_host="proxy.example.com", public_port=443), public_host="proxy.example.com")
-    assert await adapter.egress_target() is None
+    target = await adapter.egress_target()
+    assert target.backend == "mtproxy_native" and target.mode == "direct" and target.providers == {}
     with pytest.raises(AdapterError) as failure:
         await adapter.apply_egress({"schema": 1}, expected_revision="x", operation_id="op")
-    assert failure.value.code == "egress_unsupported"
+    assert failure.value.code == "egress_invalid"
     with pytest.raises(AdapterError) as failure:
         await adapter.rollback_egress(expected_revision="x")
-    assert failure.value.code == "egress_unsupported"
+    assert failure.value.code == "egress_no_previous"
 
 
 @pytest.mark.parametrize("client_class, error, header", [

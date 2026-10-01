@@ -25,6 +25,11 @@ Schema 2 (v0.7, docs/spikes/CHAINS_PER_CLIENT.md) adds, on the same shape:
   own TLS listener) with one client per `relay:<source>:<exit>` account and rules that send
   `…:warp` accounts to this node's WARP and everything else direct.
 
+v1.1 adds the `mtproxy` service: a `vless` inbound on a Unix socket (`raw`, one client — the
+`xray-router-ingress` bridge Telemt dials over the Compose network) whose rules start with the
+one fixed exception to the bypass, private networks on port 443 direct, so Telemt can fetch the
+TLS front of its own `mask` container. Without an `mtproxy` ingress nothing of it is rendered.
+
 A schema-1 intent without lanes or a relay renders byte-for-byte as in v0.5.
 """
 from __future__ import annotations
@@ -35,6 +40,10 @@ import json
 from dataclasses import dataclass, field
 
 from .intent import PORTS, SCHEMA_V2, SERVICES, EgressInvalid, provider_endpoint, uses_provider
+
+# What Telemt itself dials through its upstream besides Telegram: the TLS front of the `mask`
+# container on the Compose network. Loopback and link-local stay blocked.
+MTPROXY_PRIVATE_EXCEPTION = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 
 RENDER_VERSION = "2"
 OUTBOUND_FOR = {"direct": "direct", "block": "block", "egress": "warp"}
@@ -48,6 +57,9 @@ class Ingress:
     port: int
     user: str
     password: str
+    # v1.1, `mtproxy`: the inbound listens on this Unix socket and admits this VLESS client.
+    socket: str | None = None
+    uuid: str | None = None
 
 
 @dataclass(frozen=True)
@@ -235,9 +247,18 @@ def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_ur
     ports = ports or PORTS
     lanes = lanes or {}
     by_tag = {ingress.tag: ingress for ingress in ingresses}
+    services = [tag for tag in SERVICES if tag in by_tag]
     inbounds = []
-    for tag in SERVICES:
+    for tag in services:
         ingress = by_tag[tag]
+        if ingress.socket is not None:
+            inbounds.append({
+                "tag": tag, "listen": ingress.socket, "port": 0, "protocol": "vless",
+                "settings": {"clients": [{"id": ingress.uuid, "email": tag, "flow": ""}], "decryption": "none"},
+                "streamSettings": {"network": "raw"},
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"], "routeOnly": True},
+            })
+            continue
         accounts = [{"user": ingress.user, "pass": ingress.password}]
         accounts += [{"user": account.user, "pass": account.password} for account in lanes.get(tag, [])]
         inbounds.append({
@@ -250,15 +271,17 @@ def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_ur
     outbounds = [{"tag": "block", "protocol": "blackhole"},
                  {"tag": "direct", "protocol": "freedom", "settings": {"domainStrategy": "UseIP"}}]
     relay_warp = [email for email, _uuid in (relay.accounts if relay else []) if email.endswith(":warp")]
-    needs_warp = [tag for tag in SERVICES if tag in intents and uses_provider(intents[tag])] or relay_warp
+    needs_warp = [tag for tag in services if tag in intents and uses_provider(intents[tag])] or relay_warp
     if needs_warp:
         host, port = provider_endpoint(warp_url)
         outbounds.append({"tag": "warp", "protocol": "socks", "settings": {"servers": [{"address": host, "port": port}]}})
     rules = []
-    for tag in SERVICES:
+    for tag in services:
         intent = intents.get(tag) or {"default": {"action": "direct", "egress": None}, "rules": []}
         chain_outbounds, chain_tags = _chain_outbounds(tag, intent)
         outbounds.extend(chain_outbounds)
+        if by_tag[tag].socket is not None:
+            rules.append({"inboundTag": [tag], "ip": list(MTPROXY_PRIVATE_EXCEPTION), "port": "443", "outboundTag": "direct"})
         rules.extend(_bypass(tag))
         if intent.get("schema") == SCHEMA_V2:
             rules.extend(_lane_rules(tag, by_tag[tag], intent, {a.lane: a for a in lanes.get(tag, [])}, chain_tags))

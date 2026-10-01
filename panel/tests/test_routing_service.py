@@ -61,14 +61,16 @@ def _audits(database, action):
     return [(row["target"], json.loads(row["detail_json"])) for row in rows]
 
 
-async def test_targets_lists_local_protocols_with_backends_and_mtproxy_out_of_scope(stand):
+async def test_targets_lists_local_protocols_with_backends_and_mtproxy_direct_only(stand):
     service = stand["service"]
     stand["mieru"].reachable = False
     service.save("local", "naive", _warp(), expected_revision=None, **CTX)
     items = await service.targets()
     assert [(i["node_id"], i["protocol"]) for i in items] == [("local", "mtproxy"), ("local", "naive"), ("local", "mieru")]
     mtproxy, naive, mieru = items
-    assert mtproxy["backend"] is None and mtproxy["reason"] == "protocol_out_of_scope" and mtproxy["policy"] is None
+    # v1.1: MTProxy is a target — Telemt's own backend, direct only without a router.
+    assert mtproxy["backend"] == "mtproxy_native" and mtproxy["reason"] is None and mtproxy["policy"] is None
+    assert mtproxy["capabilities"] == ["whole_direct"] and mtproxy["router"] is None
     assert naive["backend"] == "naive_native" and naive["egress_v1"] is True and naive["kind"] == "local"
     assert naive["providers"] == {"warp": {"reachable": True}} and "whole_warp" in naive["capabilities"]
     assert naive["policy"]["revision"] == 1 and naive["policy"]["state"] == "draft" and naive["policy"]["applied_current"] is False
@@ -109,8 +111,10 @@ async def test_preview_of_a_draft_never_saves_and_reports_unsupported_rules(stan
     compiled = await service.preview("local", "naive", draft)
     assert compiled.status == "unsupported" and compiled.reasons[0].code == "backend_capability_missing"
     assert (await service.preview("local", "mieru", draft)).status == "supported"
+    mtproxy = await service.preview("local", "mtproxy", draft)  # v1.1: only through the router
+    assert mtproxy.status == "unsupported" and mtproxy.reasons[0].code == "not_attached"
     with pytest.raises(RoutingError) as failure:
-        await service.preview("local", "mtproxy", draft)
+        await service.preview("local", "socks", draft)
     assert failure.value.status == 422 and failure.value.code == "protocol_out_of_scope"
     with pytest.raises(RoutingError) as failure:
         await service.preview("ghost", "naive", draft)

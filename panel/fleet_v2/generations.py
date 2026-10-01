@@ -128,6 +128,9 @@ def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | Non
     if "egress.lanes.v1" not in capabilities:
         # A v0.6 node: its router knows no lanes or chains (schema 2).
         desired = {protocol: entry for protocol, entry in desired.items() if entry.document.get("schema") != 2}
+    if "egress.mtproxy.v1" not in capabilities:
+        # A node before v1.1: its strict model has no `mtproxy` egress (its apply was refused earlier).
+        desired.pop("mtproxy", None)
     return desired or None
 
 

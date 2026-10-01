@@ -14,9 +14,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-Protocol = Literal["naive", "mieru"]
+Protocol = Literal["naive", "mieru", "mtproxy"]
 # The native backend of each data plane (v0.4) or the node's dedicated Xray-router (v0.5).
-Backend = Literal["naive_native", "mieru_native", "xray_router"]
+Backend = Literal["naive_native", "mieru_native", "mtproxy_native", "xray_router"]
 Action = Literal["direct", "block", "egress"]
 DefaultAction = Literal["direct", "egress"]
 # An egress names where the connection leaves (v0.7): this node's WARP, or a chain of other
@@ -26,7 +26,12 @@ Egress = str
 Fallback = Literal["fail_closed", "approved_direct"]
 State = Literal["draft", "applying", "applied", "failed", "rolled_back"]
 
-BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native"}
+# v1.1: MTProxy's own backend is Telemt's upstream — it can only be direct; anything else the
+# service does goes through the router once it is attached.
+BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native", "mtproxy": "mtproxy_native"}
+# Protocols whose users may get a lane of their own on the router (v0.7): Telemt cannot tell
+# its users apart upstream, so MTProxy has none.
+LANE_PROTOCOLS = ("naive", "mieru")
 NATIVE_BACKEND_FOR = BACKEND_FOR
 ROUTER_BACKEND = "xray_router"
 MAX_RULES = 128

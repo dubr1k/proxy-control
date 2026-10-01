@@ -32,6 +32,29 @@ ingress into the block it owns (Caddy's `upstream`, mita's `egress` with
 `socks5Authentication`). **Detach** is the reverse. A policy never attaches a service by
 itself; the seed `[egress] naive = "router"` at install time is the same attach, done once.
 
+### A third ingress: MTProxy (v1.1)
+
+Telemt runs on the Compose network, not the host's, and cannot see the host loopback. So the
+`mtproxy` ingress is a VLESS inbound on the Unix socket `/run/xray-router/ingress-mtproxy.sock` in
+the `xray-router-run` volume, and the **`xray-router-ingress`** bridge (the same manager image,
+`python -m xray_router_manager.bridge`) runs beside it on the Compose network: it takes Telemt's
+SOCKS5 with a login on `xray-router-ingress:45103` (never published) and hands each connection to
+the socket.
+
+```text
+Telemt ──socks5 telemt:…@xray-router-ingress:45103──> bridge ──VLESS over the unix socket──> xray-router ──> direct | warp | exit | chain
+```
+
+The manager mints the ingress credential itself on first start (`uuid` for the bridge, a login
+and password for Telemt) into `ingress-mtproxy.json` in its state directory and puts a copy for
+the bridge next to the socket; no new Docker secret, no host port. The panel reads the login from
+the manager (`GET /v1/ingress/mtproxy`) and writes it into Telemt's upstream through Telemt's
+API. The one rule of the `mtproxy` ingress the others lack: the private networks `10/8`,
+`172.16/12`, `192.168/16` on port 443 go direct (Telemt refreshes the TLS front of its `mask`
+container that way); everything else private stays blocked. MTProxy has no lanes. Why not SOCKS
+on the socket and not a second Xray: Xray 26.3.27's `socks` inbound silently ignores a socket
+path and its outbounds cannot dial one — proved on the stand.
+
 ## What it enforces
 
 Every cell below was proved on the stand (`spikes/XRAY_EGRESS_ROUTER.md`, Xray-core
@@ -49,7 +72,7 @@ Every cell below was proved on the stand (`spikes/XRAY_EGRESS_ROUTER.md`, Xray-c
 Rules are first-match, in the order of the policy; a block **beside** a WARP default
 works (unlike NaiveProxy's own ACL). What is **not** claimed: UDP through the router
 (mita's UDP stays direct; the ingresses do not relay UDP), per-grant rules, regular
-expressions, a `geoip:private` selector (see below), MTProxy.
+expressions, a `geoip:private` selector (see below).
 
 ### DNS and private destinations
 

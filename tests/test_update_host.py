@@ -1,0 +1,146 @@
+"""`install-release.sh --update` → `scripts/update-host.sh` (v1.1): the host's version-agent updates
+the panel only to the digest the script verified, then the managers it names are rebuilt with the
+agent's own Compose call and the router's MTProxy bridge is started — against a fake agent on a
+Unix socket and a fake `docker` that records what it was asked."""
+from __future__ import annotations
+
+import json
+import os
+import socketserver
+import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).parents[1]
+SCRIPT = ROOT / "scripts" / "update-host.sh"
+DIGEST = "a" * 64
+pytestmark = pytest.mark.skipif(os.geteuid() != 0, reason="update-host.sh runs as root (the lab suite does)")
+
+
+class Agent:
+    def __init__(self, *, current="1.0.3", offered_digest=DIGEST, pending=("xray_router_manager",)):
+        self.current, self.offered_digest, self.pending = current, offered_digest, list(pending)
+        self.updates: list[dict] = []
+
+    def versions(self) -> dict:
+        panel = {"current": self.current, "status": "ready", "pending_rebuild": self.pending if self.updates else [],
+                 "available": [{"version": "1.1.0", "sha256": self.offered_digest}]}
+        return {"components": {"panel": panel}}
+
+
+def _serve(path: Path, agent: Agent):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def _answer(self, value):
+            data = json.dumps(value).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            self._answer(agent.versions() if self.path == "/v1/versions" else {"ok": True})
+
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if self.path == "/v1/update":
+                request = json.loads(body)
+                agent.updates.append(request)
+                agent.current = request["version"]
+            self._answer(agent.versions() if self.path == "/v1/upstream/check" else {"changed": True})
+
+    class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+        daemon_threads = True
+
+        def get_request(self):
+            request, _ = super().get_request()
+            return request, ("local", 0)
+
+    server = Server(str(path), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+@pytest.fixture
+def host(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".env").write_text("X=1\n")
+    (project / ".env.xray-router").write_text("Y=1\n")
+    (project / "compose.xray-router.yaml").write_text("services:\n  xray-router:\n    image: x\n  xray-router-ingress:\n    image: x\n")
+    env_file = tmp_path / "version-agent.env"
+    env_file.write_text(f"PROXY_CONTROL_COMPOSE_DIR={project}\n"
+                        "PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.naive.yaml:compose.xray-router.yaml\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "docker.log"
+    (bin_dir / "docker").write_text(f"""#!/bin/sh
+echo "$*" >> {log}
+case "$1 $2" in
+  "exec proxy-control-panel") echo 1.1.0 ;;
+  "inspect -f") echo healthy ;;
+  "ps -a") echo proxy-control-panel; echo proxy-control-xray-router-ingress ;;
+esac
+exit 0
+""")
+    (bin_dir / "docker").chmod(0o755)
+    return {"tmp": tmp_path, "env_file": env_file, "bin": bin_dir, "log": log, "project": project}
+
+
+def _run(host, agent: Agent, digest=DIGEST):
+    socket_path = host["tmp"] / "agent.sock"
+    server = _serve(socket_path, agent)
+    try:
+        environment = {"PATH": f"{host['bin']}:/usr/bin:/bin", "UPDATE_HOST_AGENT_SOCKET": str(socket_path),
+                       "UPDATE_HOST_AGENT_ENV": str(host["env_file"]), "UPDATE_HOST_POLL_SECONDS": "0"}
+        return subprocess.run(["bash", str(SCRIPT), "--version", "1.1.0", "--sha256", digest, "--lang", "en"],
+                              env=environment, capture_output=True, text=True, timeout=120)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_updates_the_panel_then_rebuilds_the_router_and_starts_the_bridge(host):
+    agent = Agent()
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert agent.updates == [{"component": "panel", "version": "1.1.0", "expected_current": "1.0.3"}]
+    calls = host["log"].read_text().splitlines()
+    up = [line for line in calls if " up -d --build --no-deps --wait " in line]
+    assert len(up) == 1 and up[0].endswith("xray-router xray-router-ingress")
+    assert "--env-file .env.xray-router" in up[0] and f"-f {host['project']}/compose.xray-router.yaml" in up[0]
+    assert "done: Proxy Control 1.1.0" in result.stdout
+
+
+def test_a_digest_other_than_the_verified_one_changes_nothing(host):
+    agent = Agent(offered_digest="b" * 64)
+    result = _run(host, agent)
+    assert result.returncode != 0 and "verified" in result.stderr
+    assert agent.updates == [] and not host["log"].exists()
+
+
+def test_a_host_already_on_the_release_only_rebuilds_what_is_missing(host):
+    agent = Agent(current="1.1.0")
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert agent.updates == []
+    up = [line for line in host["log"].read_text().splitlines() if " up -d " in line]
+    assert len(up) == 1 and up[0].endswith("--wait xray-router-ingress")
+
+
+def test_without_an_agent_it_points_to_the_manual_upgrade(host):
+    environment = {"PATH": "/usr/bin:/bin", "UPDATE_HOST_AGENT_SOCKET": str(host["tmp"] / "none.sock")}
+    result = subprocess.run(["bash", str(SCRIPT), "--version", "1.1.0", "--sha256", DIGEST], env=environment,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode != 0 and "UPGRADING" in result.stderr
+
+
+def test_the_published_script_offers_update():
+    text = (ROOT / "scripts" / "install-release.sh").read_text()
+    assert "--update) MODE=update" in text and 'scripts/update-host.sh" --version "$VERSION" --sha256 "$actual"' in text

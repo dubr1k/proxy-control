@@ -25,7 +25,7 @@ from release.sbom import SbomError, build_sbom
 
 ROOT = Path(__file__).parents[1]
 FIXED_EPOCH = 1_767_225_600  # 2026-01-01T00:00:00Z
-VERSION = "1.0.3"
+VERSION = "1.1.0"
 
 
 def sha256(path: Path) -> str:

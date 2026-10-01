@@ -1,4 +1,4 @@
-# Proxy Control routing (v0.4–v0.7): where each service lets its clients' traffic out
+# Proxy Control routing (v0.4–v1.1): where each service lets its clients' traffic out
 
 **English** · [Русский](ROUTING.ru.md)
 
@@ -29,7 +29,7 @@ documentation promises. Where a backend cannot honour a rule, the preview says
 | NaiveProxy | `naive_native` — Caddy forwardproxy `upstream` + `acl` | the whole service direct or through WARP; block by domain (`example.com`, `*.example.com`) and by CIDR | selective `direct`/`egress` rules (one upstream per service); a block **beside** a WARP default — forwardproxy skips its ACL when an upstream is set; block by port, geosite, geoip |
 | Mieru | `mieru_native` — mita `egress` | the whole service direct or through WARP; block by domain and by CIDR; selective `direct`/`egress` by domain and by CIDR, in order | block by port, geosite, geoip; `*.example.com` and `example.com` are the same selector (mita matches domain suffixes) |
 | NaiveProxy or Mieru **attached to the Xray-router** (v0.5) | `xray_router` — Xray `routing` rules per ingress | the whole service direct or through WARP; `block`, `direct` and `egress` rules by domain, `geosite:`, CIDR, `geoip:` and port, in order, any of them beside a WARP default; from v0.7 **exits through other nodes of the fleet** (chains) and a client's **own lane** with its own policy | UDP (mita's UDP stays direct) |
-| MTProxy (Telemt) | — | — | out of scope: `protocol_out_of_scope` |
+| MTProxy (Telemt), v1.1 | `mtproxy_native` — Telemt's upstream; **attached to the Xray-router** — `xray_router` | on its own — direct only; on the router — the whole service direct, through WARP, your own exit or **another node of the fleet** (a chain), rules by CIDR, `geoip:` and port | rules by domain, `geosite:` and protocol (Telemt reaches Telegram's data centres by IP and no sniffer names MTProto) — `rule_kind_unsupported`; client lanes; UDP |
 
 Private destinations — loopback, link-local, RFC 1918, CGNAT and their IPv6
 counterparts, plus `localhost` — may be **blocked** but never opened by a `direct` or
@@ -102,7 +102,7 @@ reasons:
 | `provider_unreachable` | WARP is configured but does not answer; `fallback = approved_direct` turns this into a warning |
 | `protocol_disabled_on_node` | the service is not enabled on that node |
 | `node_lacks_egress_v1` | a linked panel older than v0.4 |
-| `protocol_out_of_scope` | MTProxy |
+| `protocol_out_of_scope` | a client lane for a protocol that has none (MTProxy) |
 | `document_too_large` | over 16 KiB |
 | `manager_unavailable` | the local manager did not answer |
 | `lane_requires_router` / `lane_not_attached` | a grant lane's policy while the node has no Xray-router or the service is not attached to it (v0.7) |
@@ -111,6 +111,11 @@ reasons:
 | `relay_no_warp` | the chain ends in «the exit node's WARP» and that node has none (v0.7) |
 | `chain_loop` | the chain passes through this very node (v0.7) |
 | `node_lacks_lanes` | a linked panel without `egress.lanes.v1`: update it to v0.7 (v0.7) |
+| `router_lacks_mtproxy` | the node's Xray-router manager predates v1.1: rebuild `xray-router` and start `xray-router-ingress` (v1.1) |
+| `node_lacks_mtproxy_egress` | a linked panel without `egress.mtproxy.v1`: update it to v1.1 (v1.1) |
+| `ingress_unreachable` | the `xray-router-ingress` bridge did not take Telemt's login (v1.1) |
+| `telemt_api_unsupported` | Telemt on the node has no config API (`/v1/config`) (v1.1) |
+| `egress_reload_failed` | Telemt did not activate the new upstream (`failed`, `rolled_back` or 30 s without activation) — the previous one keeps running (v1.1) |
 
 Warnings: `adopts_unmanaged_upstream` / `adopts_unmanaged_egress` (the node carries an
 `upstream` or an `egress` section somebody wrote by hand — the first apply moves it under
@@ -161,6 +166,32 @@ could not restore it; its backup path is in the manager's log), `manager_unavail
 to the previous applied document of the central's own history (linked panel — one step
 back, not a stack). `DELETE` is allowed only once the node runs «direct, no rules»
 (otherwise 409 `policy_applied`): forgetting a policy never changes what a node enforces.
+
+### MTProxy through the Xray-router (v1.1)
+
+Telemt lives on the Compose network and cannot reach the host loopback where the router's
+ingresses listen, so MTProxy has its own way in: the router's `mtproxy` ingress is a VLESS
+inbound on a Unix socket in a shared volume, and the `xray-router-ingress` bridge (the same
+manager image) on the Compose network takes Telemt's SOCKS5 with a login on
+`xray-router-ingress:45103` and hands the connection to the socket. No new host ports; no third
+Xray — the same router routes it.
+
+- «Attach» for MTProxy: the router gets the `mtproxy` section as pass-through, the panel checks
+  the bridge (SOCKS5 greeting and login), then through Telemt's API switches `upstreams` to
+  `socks5 xray-router-ingress:45103` (`PATCH /v1/config` with `If-Match`) and activates a new
+  runtime generation (`POST /v1/system/reload`) — **without restarting the container**; open
+  sessions finish on the previous upstream. «Detach» puts back the direct upstream Telemt had.
+- Telemt's own policy (`mtproxy_native`) is «direct, no rules» only; anything else answers
+  `not_attached`. Once attached, an `xray_router` policy works as for Naive and Mieru, except
+  rules by domain, `geosite:` and protocol, and client lanes.
+- The one exception to the router's bypass: on the `mtproxy` ingress the private networks
+  `10/8`, `172.16/12`, `192.168/16` on port 443 go direct — that is how Telemt refreshes the TLS
+  front of its own `mask` container. Loopback and link-local stay blocked.
+- Hand-written Telemt upstreams (anything but one `direct` or the bridge) are left alone:
+  «Attach» answers `manual_intervention_required`. The journal for «Rollback» is the panel's
+  `/data/telemt-egress.json`, secret-free; only the router keeps the bridge's login.
+- A node updated to v1.1 without rebuilding its router keeps working for Naive and Mieru, and
+  MTProxy shows `router_lacks_mtproxy`.
 
 ## Chains and lanes (v0.7)
 

@@ -39,7 +39,14 @@ ATTACH_DOCUMENTS = {
     "naive": {"schema": 1, "upstream": {"provider": "router"}, "acl": []},
     "mieru": {"schema": 1, "proxies": [{"name": "router", "provider": "router"}],
               "rules": [{"domains": ["*"], "cidrs": ["*"], "action": "PROXY", "proxy": "router"}]},
+    # v1.1: Telemt's upstream is the router's MTProxy ingress (through the bridge); the panel
+    # writes it into Telemt itself — there is no manager in between.
+    "mtproxy": {"schema": 1, "upstream": {"provider": "router"}},
 }
+# Telemt's own document (v1.1) for «direct»: the upstream it had before the router.
+TELEMT_DIRECT_DOCUMENT = {"schema": 1, "upstream": None}
+# Where Telemt reaches the router: the `xray-router-ingress` bridge on the Compose network.
+MTPROXY_BRIDGE_ADDRESS = "xray-router-ingress:45103"
 ROUTER_DIRECT_INTENT = {"schema": 1, "default": {"action": "direct", "egress": None}, "rules": []}
 
 
@@ -51,7 +58,7 @@ def attached_to_router(protocol: str, document: dict | None) -> bool:
     """Whether a native manager's applied document hands the service to the router."""
     if not isinstance(document, dict):
         return False
-    if protocol == "naive":
+    if protocol in ("naive", "mtproxy"):
         return document.get("upstream") == {"provider": "router"}
     if protocol == "mieru":
         rules = document.get("rules") or []

@@ -12,6 +12,10 @@ VNEXT_ROUTING_ENGINE.md`), plus the constraints that no capability flag can expr
 - `mieru_native` — mita matches `domainNames` as a suffix, so `example.com` and
   `*.example.com` compile to the same selector; a wildcard-free block still covers the
   subdomains there.
+- `mtproxy_native` (v1.1) — Telemt's upstream: direct, or handed whole to the router. Its
+  own policy can only be «direct, no rules»; the rest is `not_attached`. On the router,
+  Telemt dials Telegram's data centres by address and speaks MTProto, which no sniffer
+  names: a rule on a domain, a `geosite` or a protocol could never match, so it is refused.
 
 Private destinations (loopback, link-local, RFC 1918) may be blocked but never opened
 by a `direct`/`egress` rule (spec §10): Caddy denies them by default, mita must not hand
@@ -25,7 +29,7 @@ import json
 
 from ..protocols.base import EgressTarget, RouterTarget
 from .adapters.xray_router import ChainHop, compile_intent
-from .document import ROUTER_DIRECT_INTENT, canonical, document_digest
+from .document import ROUTER_DIRECT_INTENT, TELEMT_DIRECT_DOCUMENT, canonical, document_digest
 from .models import (
     BACKEND_FOR,
     COMPILER_VERSION,
@@ -90,7 +94,25 @@ def direct_document(backend: str) -> dict:
     deleted in (spec §8.1). On the router (v0.5) that is the pass-through intent."""
     if backend == "xray_router":
         return json.loads(json.dumps(ROUTER_DIRECT_INTENT))
+    if backend == "mtproxy_native":
+        return json.loads(json.dumps(TELEMT_DIRECT_DOCUMENT))
     return (_naive_document if backend == "naive_native" else _mieru_document)("direct", [])
+
+
+def _mtproxy_rules(policy: RoutingPolicy, lanes: list[RoutingPolicy] | None) -> list[Reason]:
+    """What MTProxy's traffic can never match on the router (v1.1), and its lanes."""
+    reasons = []
+    for other in [policy, *(lanes or [])]:
+        if other.lane != LANE_SERVICE:
+            reasons.append(Reason(code="rule_kind_unsupported",
+                                  message="MTProxy has no client lanes: Telemt cannot tell its users apart upstream"))
+            continue
+        for rule in other.rules:
+            if rule.enabled and (rule.match.domains or rule.match.geosites or rule.match.protocols):
+                reasons.append(Reason(code="rule_kind_unsupported", rule_id=rule.id,
+                                      message="MTProxy connects to Telegram data centres by address: match it by CIDR, "
+                                              "geoip or port, not by domain, geosite or protocol"))
+    return reasons
 
 
 def _mieru_document(default_action: str, rules: list[RoutingRule]) -> dict:
@@ -145,6 +167,11 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
             unsupported.reasons.append(Reason(code=code,
                                               message=f"{policy.protocol} is not attached to the node's Xray-router"))
             return unsupported
+        if policy.protocol == "mtproxy":
+            reasons = _mtproxy_rules(policy, lanes)
+            if reasons:
+                unsupported.reasons = reasons
+                return unsupported
         return compile_intent(policy, router, private=_private, warnings=list(target.warnings), lanes=lanes,
                               resolver=chains, own_guids=own_guids, exits_resolver=exits)
     if is_lane:
@@ -160,6 +187,8 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
                                           message=f"{policy.protocol} is attached to the node's Xray-router: "
                                                   "the policy must target xray_router"))
         return unsupported
+    if target.backend == "mtproxy_native":
+        return _compile_mtproxy_native(policy, target, unsupported)
 
     reasons: list[Reason] = []
     warnings: list[str] = list(target.warnings)
@@ -230,6 +259,29 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     return Compiled(
         status="supported", reasons=[], warnings=warnings, document=document, digest=digest, diff=diff,
         restart_required=target.restart_required,
+        rollback=None if applied is None else {"to_revision": applied["revision"], "to_digest": applied["digest"]},
+        compiler_version=COMPILER_VERSION, backend=target.backend, runtime_version=target.runtime_version,
+    )
+
+
+def _compile_mtproxy_native(policy: RoutingPolicy, target: EgressTarget, unsupported: Compiled) -> Compiled:
+    """Telemt's own upstream (v1.1): «direct, no rules» is the one policy it runs by itself —
+    what «reset» applies and what a detach leaves. Anything else needs the router."""
+    if policy.default_action != "direct" or any(rule.enabled for rule in policy.rules):
+        unsupported.reasons.append(Reason(code="not_attached",
+                                          message="MTProxy is routed only through the node's Xray-router: attach it first"))
+        unsupported.warnings = list(target.warnings)
+        return unsupported
+    document = direct_document("mtproxy_native")
+    digest = document_digest(document)
+    applied = target.applied
+    if applied is not None and applied.get("document") is None:
+        diff = [] if applied.get("digest") == digest else _diff(None, document)
+    else:
+        diff = _diff(None if applied is None else applied["document"], document)
+    return Compiled(
+        status="supported", reasons=[], warnings=[*target.warnings, "policy_empty"], document=document, digest=digest,
+        diff=diff, restart_required=False,
         rollback=None if applied is None else {"to_revision": applied["revision"], "to_digest": applied["digest"]},
         compiler_version=COMPILER_VERSION, backend=target.backend, runtime_version=target.runtime_version,
     )

@@ -49,6 +49,9 @@ _ROUTER_UID = 10006
 _ROUTER_GID = 10006
 _SERVICE = "xray-router"
 _CONTAINER = "proxy-control-xray-router"
+# v1.1: the MTProxy ingress bridge — Telemt's way to the router from the Compose network.
+_BRIDGE_SERVICE = "xray-router-ingress"
+_BRIDGE_CONTAINER = "proxy-control-xray-router-ingress"
 _XRAY_VERSION = "26.3.27"
 _ARCHIVE = "Xray-linux-64.zip"
 _MEMBERS = ("xray", "geoip.dat", "geosite.dat")
@@ -185,6 +188,16 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
     def router_relay_enable(self, server_name: str, port: int) -> Mapping[str, object]:
         """`POST /v1/relay`: the inbound up with the node's panel name as its cover (v0.7)."""
         return self._relay_json("--relay-enable", server_name, str(port))
+
+    def bridge_check(self) -> bool:
+        """The MTProxy ingress bridge (v1.1) answers a SOCKS5 greeting from inside its container."""
+        try:
+            output = self.capture(
+                ("docker", "exec", _BRIDGE_CONTAINER, "sh", "-c",
+                 "python -m xray_router_manager.bridge --check && echo bridge-ok"), max_chars=512)
+        except Exception:
+            return False
+        return output.strip().endswith("bridge-ok")
 
     def ingress_probe(self, port: int, credential_file: str) -> bool:
         """One authenticated SOCKS5 CONNECT through the ingress reaches the Internet.
@@ -334,6 +347,8 @@ class XrayRouterAdapter:
                     # The relay inbound (v0.7): its public port and the panel name it hides behind.
                     f"relay-port={config.effective_egress.relay_port}",
                     f"relay-server-name={config.domains.panel.lower() if config.effective_egress.relay_port else ''}",
+                    # v1.1: the bridge Telemt dials on the Compose network (never published).
+                    f"mtproxy-bridge={_BRIDGE_SERVICE}:45103",
                 ),
                 preconditions=(
                     "the Core runtime is verified",
@@ -347,10 +362,11 @@ class XrayRouterAdapter:
                     "the manager reports verified artifacts and a running generation",
                     "both ingresses listen on the loopback only",
                     "one authenticated CONNECT through the NaiveProxy ingress reaches the Internet",
+                    "the MTProxy ingress bridge answers on the Compose network",
                     *(("the relay inbound is enabled on its port behind the panel name",) if config.effective_egress.relay_port else ()),
                 ),
                 inverse=(
-                    "stop and remove only the xray-router Compose service",
+                    "stop and remove only the xray-router and xray-router-ingress Compose services",
                     "remove only the owned binaries, helpers and env overlay",
                     "preserve manager state and secrets unless purge is explicit",
                 ),
@@ -404,7 +420,8 @@ class XrayRouterAdapter:
         required = {"project", "xray-version", "architecture", "archive", "archive-url", "archive-digest", "bin-dir",
                     "state-dir", "router-uid", "router-gid", "warp-provider",
                     *(f"{member}-digest" for member in _MEMBERS), *(f"port-{service}" for service in _SERVICES)}
-        optional = {"relay-port", "relay-server-name"}  # v0.7; a v0.5/v0.6 action has neither
+        optional = {"relay-port", "relay-server-name",  # v0.7; a v0.5/v0.6 action has neither
+                    "mtproxy-bridge"}  # v1.1; an older action has none
         if not required <= set(values) or set(values) - required - optional:
             raise XrayRouterError("Xray-router action is invalid")
         url, archive_sha256, members = self._pins()
@@ -429,6 +446,8 @@ class XrayRouterAdapter:
         relay_port = values.get("relay-port", "0")
         if not relay_port.isdigit() or int(relay_port) > 65535 or (0 < int(relay_port) < 1024):
             raise XrayRouterError("invalid relay port")
+        if values.get("mtproxy-bridge", f"{_BRIDGE_SERVICE}:45103") != f"{_BRIDGE_SERVICE}:45103":
+            raise XrayRouterError("Xray-router action is invalid")
         server_name = values.get("relay-server-name", "")
         if int(relay_port) and (not server_name or _DOMAIN.fullmatch(server_name) is None):
             raise XrayRouterError("invalid relay server name")
@@ -512,7 +531,7 @@ class XrayRouterAdapter:
         if isinstance(marker_value, str):
             self._atomic(self._host(self.paths.marker), (marker_value + "\n").encode(), 0o600)
         # 3. The service, healthy (the manager bootstraps generation 1 before it answers).
-        self._compose("up", "-d", "--build", "--wait", _SERVICE)
+        self._compose("up", "-d", "--build", "--wait", _SERVICE, _BRIDGE_SERVICE)
         # 4. The relay inbound (v0.7): the manager mints its keypair once and keeps it.
         self._enable_relay(selected)
         # 5. The version-agent (v0.11) offers the `xray` component only while the router is installed.
@@ -632,6 +651,9 @@ class XrayRouterAdapter:
             if attempt == 2:
                 raise XrayRouterError("an authenticated CONNECT through the NaiveProxy ingress did not reach the Internet")
             time.sleep(_PROBE_RETRY_SECONDS)
+        bridge = getattr(self.runner, "bridge_check", None)
+        if not callable(bridge) or not bridge():
+            raise XrayRouterError("the MTProxy ingress bridge (xray-router-ingress) does not answer")
         relay = self._relay_view(selected)
         return Evidence(
             action_id=action.id,
@@ -639,6 +661,7 @@ class XrayRouterAdapter:
             observations=(
                 "pinned Xray members, verified artifacts and a running generation",
                 "both ingresses are loopback-only and the NaiveProxy ingress relays",
+                "the MTProxy ingress bridge answers",
                 *(("the relay inbound is up on its public port behind the panel name",) if relay else ()),
             ),
             details={"generation": generation, "xray_version": str(status.get("xray_version") or ""),
@@ -651,7 +674,7 @@ class XrayRouterAdapter:
         self._assert_live_identities()
         self._run(self.paths.state_preparer, "verify", self.paths.state_dir)
         self._atomic(self._host(self.paths.env_overlay), self.env_text(selected).encode(), 0o600)
-        self._compose("up", "-d", "--wait", _SERVICE)
+        self._compose("up", "-d", "--wait", _SERVICE, _BRIDGE_SERVICE)
         self._enable_relay(selected)
         return prepared
 
@@ -668,6 +691,9 @@ class XrayRouterAdapter:
         self._selection(action)
         prepared = self._checkpoint(checkpoint, action, applied=True)
         destructive_purge = rollback_target == "uninstalled" and purge_data
+        method = getattr(self.runner, "compose_service_present", None)
+        if callable(method) and method(_BRIDGE_SERVICE):
+            self._compose("rm", "--stop", "--force", _BRIDGE_SERVICE)
         if self._compose_service_present():
             self._compose("rm", "--stop", "--force", _SERVICE)
         self._set_agent_router(False, create=False)

@@ -15,7 +15,7 @@ from .routing.document import EGRESS_REASON_CODES, ROUTER_DIRECT_INTENT, canonic
 
 # v1.0.1: the sources the router manager knows (`xray_router_manager.geodata.SOURCE_KINDS`).
 GEODATA_SOURCE_KINDS = ("xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom")
-ROUTER_SERVICES = ("naive", "mieru")
+ROUTER_SERVICES = ("naive", "mieru", "mtproxy")
 # What the spike proved the router enforces (xray_router_manager/intent.py).
 ROUTER_CAPABILITIES = (
     "whole_direct", "whole_warp",
@@ -81,6 +81,8 @@ class XrayRouterClient:
     async def lane_issue(self, service, lane): return await self._request("POST", f"/v1/lanes/{service}", {"lane": lane})
     async def lane_forget(self, service, lane): return await self._request("DELETE", f"/v1/lanes/{service}/{lane}")
     async def relay(self): return await self._request("GET", "/v1/relay")
+    # v1.1: the MTProxy ingress as Telemt must dial it
+    async def ingress(self, service): return await self._request("GET", f"/v1/ingress/{service}")
     async def relay_enable(self, server_name, port):
         return await self._request("POST", "/v1/relay", {"server_name": server_name, "port": port})
     async def relay_disable(self): return await self._request("DELETE", "/v1/relay")
@@ -99,8 +101,12 @@ class MemoryXrayRouter:
     """The router manager as tests see it: one intent per service, a generation counter,
     a journal per service, the manager's codes on demand (`fail_next`)."""
 
-    def __init__(self, *, warp_url: str | None = "socks5://127.0.0.1:40000", available: bool = True):
+    def __init__(self, *, warp_url: str | None = "socks5://127.0.0.1:40000", available: bool = True,
+                 mtproxy: bool = True):
         self.warp_url = warp_url
+        # `mtproxy` False = a router manager from before v1.1 (no MTProxy ingress).
+        self.mtproxy = mtproxy
+        self.mtproxy_credential = {"address": "xray-router-ingress:45103", "username": "telemt", "password": "m" * 43}
         self.reachable = True
         # `available` False = the manager does not answer at all (container down).
         self.available = available
@@ -136,7 +142,7 @@ class MemoryXrayRouter:
     def _check(self, service: str, expected_revision: str | None = None) -> None:
         if not self.available:
             raise XrayRouterError("Xray-router manager unavailable")
-        if service not in ROUTER_SERVICES:
+        if service not in ROUTER_SERVICES or (service == "mtproxy" and not self.mtproxy):
             raise XrayRouterError("not found", 404)
         if self.artifact_error:
             raise XrayRouterError("Xray-router manager rejected request", 503, "artifact_mismatch")
@@ -210,6 +216,12 @@ class MemoryXrayRouter:
         del self.lane_accounts[service][lane]
         self.generation += 1
         return {"lane": lane, "forgotten": True}
+
+    async def ingress(self, service):
+        self._check(service)
+        if service != "mtproxy":
+            raise XrayRouterError("not found", 404)
+        return dict(self.mtproxy_credential)
 
     def _relay_view(self) -> dict:
         return {**self.relay_state, "accounts": len(self.relay_state["accounts"]),
@@ -333,9 +345,11 @@ class MemoryXrayRouter:
                 "artifacts": {name: {"sha256": "0" * 64, "verified": True} for name in ("xray", "geoip", "geosite")},
                 "running": {"generation": self.generation, "digest": "0" * 64, "since": None},
                 "services": {service: {"revision": self._revision(service), "digest": self._digest(service),
-                                       "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES},
+                                       "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES
+                             if service != "mtproxy" or self.mtproxy},
                 "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay"],
-                "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES},
+                "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES
+                                                    if service != "mtproxy"},
                 "relay": self._relay_view(),
                 "geodata": {key: self.geodata_state[key] for key in ("source", "origin", "version", "updated_at", "auto_update",
                                                                        "interval_hours", "update_hour", "last_error", "files")}}

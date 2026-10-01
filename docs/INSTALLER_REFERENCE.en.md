@@ -280,7 +280,7 @@ boundary:
 | `firewall` | Only the UFW rules it added, and only on a managed fresh host |
 | `core` | The `mtproxy` Compose project, its secrets, and the pinned TDLib probe |
 | `warp` | The pinned Cloudflare client package, its registration and loopback proxy |
-| `xray_router` | The three extracted Xray members under `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, the manager token and the two ingress credentials, `.env.xray-router` and the `xray-router` Compose service |
+| `xray_router` | The three extracted Xray members under `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, the manager token and the two ingress credentials, `.env.xray-router` and the `xray-router` and `xray-router-ingress` (v1.1) Compose services |
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
@@ -353,11 +353,14 @@ re-checked by the container before it starts anything), creates the system ident
 `secrets/xray-router-manager-token` and one `user:password` per ingress
 (`secrets/xray-router-ingress-naive`, `secrets/xray-router-ingress-mieru`, root-only;
 existing files are kept), writes `.env.xray-router` (the members' digests and
-`XRAY_ROUTER_EGRESS_WARP`) and starts the `xray-router` Compose service. Verification
-reads the manager's status (artifacts verified, a committed generation), checks that
-both ingresses listen on the loopback only and sends one authenticated CONNECT through
-the NaiveProxy ingress to the Internet (three tries: the Internet to the target is not
-the router's).
+`XRAY_ROUTER_EGRESS_WARP`) and starts the `xray-router` and (v1.1) `xray-router-ingress`
+Compose services — the latter is the bridge MTProxy (Telemt) reaches the router's `mtproxy`
+ingress through; the manager mints that ingress's credential itself and the bridge's port
+`45103` exists only on the Compose network. Verification reads the manager's status
+(artifacts verified, a committed generation), checks that both ingresses listen on the
+loopback only, sends one authenticated CONNECT through the NaiveProxy ingress to the
+Internet (three tries: the Internet to the target is not the router's) and checks that the
+bridge answers a SOCKS5 greeting.
 
 With `relay_port` (v0.7) the adapter enables the relay through the manager once the container is
 up (`healthcheck --relay-enable <panel domain> <port>`: the manager mints the Reality keypair once

@@ -74,7 +74,8 @@ async def test_targets_show_router_available_and_not_attached(stand):
                               "restart_required": True, "reason": None}
     assert item["backend"] == "naive_native" and item["providers"]["router"] == {"reachable": True}
     assert "block_geosite" not in item["capabilities"]
-    assert (await _item(stand["service"], "mtproxy"))["router"] is None
+    mtproxy = await _item(stand["service"], "mtproxy")  # v1.1: MTProxy is attachable too
+    assert mtproxy["router"]["available"] is True and mtproxy["router"]["attached"] is False
 
 
 async def test_router_none_means_targets_report_no_router(stand):

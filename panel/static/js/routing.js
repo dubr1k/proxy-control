@@ -55,6 +55,12 @@ const REASON_TEXT = {
   node_unknown: "такого узла нет в парке",
   grant_not_found: "доступ не найден",
   node_not_local: "на связанной панели это делается через её поколение",
+  // MTProxy through the router (v1.1).
+  router_lacks_mtproxy: "Xray-router узла старше v1.1 — пересоберите xray-router и запустите xray-router-ingress",
+  ingress_unreachable: "мост xray-router-ingress не отвечает — запустите его",
+  node_lacks_mtproxy_egress: "узел нужно обновить до v1.1 для маршрутизации MTProxy",
+  telemt_api_unsupported: "у Telemt на узле нет API конфигурации — обновите Telemt",
+  egress_reload_failed: "Telemt не включил новый upstream — работает прежний",
 };
 const WARNING_TEXT = {
   provider_unreachable: "WARP на узле не отвечает: политика применится напрямую (fallback)",
@@ -85,7 +91,7 @@ const WARNING_TEXT = {
   geodata_invalid: "источник geodata задан неверно",
   geodata_install_failed: "списки не удалось положить на место",
 };
-const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", xray_router: "Xray-router" };
+const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", mtproxy_native: "Telemt", xray_router: "Xray-router" };
 const EXIT_PROTOCOL_NAMES = { vless: "VLESS", trojan: "Trojan", shadowsocks: "Shadowsocks", socks: "SOCKS5", http: "HTTP" };
 const SNIFFED_PROTOCOLS = ["tls", "http", "quic", "bittorrent"];
 const STATE_TEXT = {
@@ -407,7 +413,11 @@ function cardActions(context, policy, compiled, dirty, editable) {
 // one action that moves it — an explicit, confirmed step, never a side effect of a policy.
 function routerLine(context, target) {
   const router = target.router;
-  if (!router) return "<p class='form-hint routing-router-line'>Xray-router: не установлен — политика применяется собственным backend сервиса.</p>";
+  if (!router) {
+    return target.protocol === "mtproxy"
+      ? "<p class='form-hint routing-router-line'>Xray-router: не установлен — без него MTProxy ходит только напрямую.</p>"
+      : "<p class='form-hint routing-router-line'>Xray-router: не установлен — политика применяется собственным backend сервиса.</p>";
+  }
   const owner = context.state.me?.role === "owner";
   const status = !router.available ? `не отвечает (${esc(reasonText(router.reason))})` : router.attached ? "сервис подключён" : "сервис не подключён";
   const tone = !router.available ? "blocked" : router.attached ? "" : "muted";
@@ -669,6 +679,8 @@ function targetCard(context) {
       <span class="status-pill ${tone}"><i></i>${esc(statusText)}</span>
     </div>
     <p class="routing-can">Этот сервис умеет: ${esc(capabilities)}.</p>
+    ${target.protocol === "mtproxy" && !target.router?.attached ? '<p class="form-hint routing-reason-line">MTProxy маршрутизируется только через Xray-router: подключите сервис в «Возможностях узла» ниже, затем выберите выход — WARP, свой выход или другой узел.</p>' : ""}
+    ${target.protocol === "mtproxy" && target.router?.attached ? '<p class="form-hint">Telemt ходит к дата-центрам Telegram по IP: правила по CIDR, geoip и порту работают, по домену, geosite и протоколу — нет.</p>' : ""}
     ${reason}
     <section class="routing-step">
       ${stepHead(1, "Для кого", "Весь сервис или отдельный клиент со своей полосой: его трафик живёт по своей политике.")}

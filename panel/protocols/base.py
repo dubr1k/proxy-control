@@ -106,7 +106,7 @@ class EgressTarget:
     `custom`): the first apply adopts it, and a rollback puts it back verbatim."""
 
     protocol: str
-    backend: Literal["naive_native", "mieru_native", "xray_router"]
+    backend: Literal["naive_native", "mieru_native", "mtproxy_native", "xray_router"]
     capabilities: frozenset[str]
     providers: dict[str, dict]
     revision: str

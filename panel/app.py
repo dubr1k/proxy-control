@@ -110,7 +110,9 @@ def create_app(
     # inside the link they return — `MTPROXY_DOMAIN` is only the fallback for a grant
     # that has not learned its endpoint yet.
     app.state.adapters = {
-        "mtproxy": TelemtAdapter(app.state.telemt, public_host=settings.mtproxy_public_host),
+        # v1.1: the Telemt egress journal sits next to the database (the panel's data volume).
+        "mtproxy": TelemtAdapter(app.state.telemt, public_host=settings.mtproxy_public_host,
+                                 journal_path=settings.database_path.parent / "telemt-egress.json"),
         "naive": NaiveAdapter(app.state.naive, public_host=settings.naive_public_host),
         "mieru": MieruAdapter(app.state.mieru),
     }
@@ -121,6 +123,8 @@ def create_app(
         app.state.router = RouterAdapter(XrayRouterClient(settings.xray_router_socket, settings.xray_router_token))
     else:
         app.state.router = None
+    # Telemt has no manager of its own: it asks the router for the MTProxy ingress (v1.1).
+    app.state.adapters["mtproxy"].router = app.state.router
     app.state.clients.adapters = app.state.adapters
     # Resources the central panel owns (ADR 003): every local writer asks here first.
     app.state.managed = ManagedStore(app.state.database)

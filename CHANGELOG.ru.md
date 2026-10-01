@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-01
+
+- Маршрутизация MTProxy: MTProxy подключается к Xray-router узла и выходит через WARP, свой выход или другой узел парка (цепь); правила по CIDR, `geoip` и порту, а правила по домену, `geosite` и протоколу — `rule_kind_unsupported` (Telemt ходит к DC Telegram по IP). Своя политика Telemt (`mtproxy_native`) — только «напрямую».
+- Подключение и отключение меняют upstream Telemt через его API (`PATCH /v1/config` + `POST /v1/system/reload`) без перезапуска контейнера; журнал для отката — `/data/telemt-egress.json` панели, без секретов.
+- Xray-router: третий вход `mtproxy` — VLESS на Unix-сокете; мост `xray-router-ingress` (тот же образ) в сети Compose принимает SOCKS5 Telemt на `:45103`; учётку роутер создаёт сам; исключение из обхода только на этом входе — приватные сети `:443` напрямую (TLS-фронт `mask`). `GET /v1/ingress/mtproxy`.
+- Парк: ёмкость `egress.mtproxy.v1`, секция `egress.mtproxy` поколения; новые коды `router_lacks_mtproxy`, `ingress_unreachable`, `node_lacks_mtproxy_egress`, `telemt_api_unsupported`, `egress_reload_failed`.
+- Миграция 21 (`routing-mtproxy`): `routing_policies` и `managed_egress` допускают `mtproxy`/`mtproxy_native`.
+- Установщик поднимает, проверяет и снимает мост вместе с роутером; текст вопроса мастера и `--requirements` упоминают MTProxy.
+- Обновление одной командой: `bash install-release.sh --update` проверяет выпуск, затем `scripts/update-host.sh` (root) просит version-agent обновить панель ровно до проверенного digest и пересобирает менеджеры из `pending_rebuild` (и мост роутера).
+
+Заметка: [docs/releases/v1.1.0.md](docs/releases/v1.1.0.md).
+
 ## [1.0.3] - 2026-10-01
 
 - Выпуск публикует `install-release.sh` и `install-release.sh.sha256`: скрипт установки с записанными версией и SHA-256 архива своего выпуска (подменённый архив не пройдёт и при подменённом `SHA256SUMS`), с attestation; `SHA256SUMS` по-прежнему называет три файла.

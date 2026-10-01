@@ -72,9 +72,10 @@ def test_egress_section_is_part_of_the_digest_and_omitted_when_absent():
     assert canonical_digest(with_egress) != canonical_digest(plain)
     assert canonical_digest(with_egress) != canonical_digest(_doc(egress={"naive": _egress(NAIVE_BLOCK)}))
     # A v0.3 node's strict model is what `_doc(...).wire()` without egress satisfies; an unknown
-    # key would be a 422 there — here, the same rule refuses mtproxy and unknown fields.
+    # key would be a 422 there — here, the same rule refuses an unknown protocol and unknown fields
+    # (`mtproxy` is a key since v1.1, sent only to a node with `egress.mtproxy.v1`).
     with pytest.raises(ValidationError):
-        _doc(egress={"mtproxy": _egress(NAIVE_WARP)})
+        _doc(egress={"socks": _egress(NAIVE_WARP)})
     with pytest.raises(ValidationError):
         GenerationDocument.model_validate({**plain.wire(), "egress": {"naive": {**_egress(NAIVE_WARP).model_dump(), "x": 1}}})
 
@@ -219,7 +220,7 @@ async def test_targets_for_remote_node_from_identity_json(pair):
     assert remote["providers"] == {"warp": {"reachable": True}} and "block_domain" in remote["capabilities"]
     assert remote["reason"] is None and remote["mode"] == "direct"
     assert items[(node_id, "mieru")]["reason"] == "protocol_disabled_on_node"  # the node runs Naive only
-    assert items[(node_id, "mtproxy")]["reason"] == "protocol_out_of_scope"
+    assert items[(node_id, "mtproxy")]["backend"] == "mtproxy_native"  # v1.1: Telemt's upstream, direct only
     # A node without the capability (a v0.3 panel) is shown as such.
     with central.state.database.transaction() as db:
         row = central.state.links.link(db, node_id)

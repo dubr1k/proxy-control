@@ -372,6 +372,42 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 ```
 
+## Upgrading to v1.1.0: MTProxy routing
+
+The panel (migration 21), the Xray-router manager and `compose.xray-router.yaml` (a new
+`xray-router-ingress` service) change. `bash install-release.sh --update` of the v1.1.0 release does
+steps 1–2 in one go (README, «Updating Proxy Control with one command»). By hand:
+
+1. «Versions» → the panel card → `1.1.0` → «Install». The agent syncs the code and rebuilds the
+   panel (on first start **migration 21** `routing-mtproxy` rebuilds `routing_policies`,
+   `routing_rules`, `routing_applies` and `managed_egress` to allow `mtproxy` and
+   `mtproxy_native`; every row is kept with its history).
+2. Only on nodes with an Xray-router: the panel card says «Managers changed:
+   xray_router_manager». Rebuild the router and start the bridge with the overlays the
+   installation keeps:
+
+   ```bash
+   cd /opt/mtproxy-shared443
+   docker compose --env-file .env --env-file .env.mieru --env-file .env.xray-router --env-file .env.naive \
+     -f compose.yaml -f compose.mieru.yaml -f compose.xray-router.yaml -f compose.naive.yaml \
+     up -d --build --no-deps --wait xray-router xray-router-ingress
+   ```
+
+   The router mints the `mtproxy` ingress credential itself and re-renders its generation (one
+   Xray restart: Naive and Mieru sessions through the router drop once). Until the router is
+   rebuilt, Naive and Mieru keep working and MTProxy shows `router_lacks_mtproxy` on the routing
+   screen.
+3. «Routing» → MTProxy → «Attach to the Xray-router», then the exit: WARP, your own exit or
+   another node. Attaching changes Telemt's upstream through its API without restarting the
+   container.
+
+**Fleet order.** Nodes first, then the central: a v1.1 central sends an `egress.mtproxy` section
+only to a node that declared `egress.mtproxy.v1`; a node older than v1.1 shows
+`node_lacks_mtproxy_egress`.
+
+**Rollback** follows the general order, with the database (a v1.0.x image refuses a schema-21
+database). Detach MTProxy from the router first: Telemt then goes direct on its previous upstream.
+
 ## Upgrading to v1.0.3: the install script in the release, a fixed wizard
 
 The installer and the release files change; the panel, the managers and the runtimes do not,

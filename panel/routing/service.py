@@ -82,6 +82,9 @@ def router_target_from_identity(protocol: str, router: dict | None) -> RouterTar
     if not router.get("available"):
         reason = router.get("reason") if isinstance(router.get("reason"), str) else "router_unavailable"
         return RouterTarget(available=False, service=protocol, reason=reason)
+    if protocol == "mtproxy" and "mtproxy" not in (router.get("services") or {}):
+        # The node's router manager is from before v1.1 (v1.1 nodes report it once rebuilt).
+        return RouterTarget(available=False, service=protocol, reason="router_lacks_mtproxy")
     section = (router.get("services") or {}).get(protocol) or {}
     revision = str(section.get("revision") or "")
     digest = section.get("applied_digest")
@@ -162,6 +165,8 @@ class RoutingService:
         identity = row["link"].get("identity") or {}
         if "egress.v1" not in (identity.get("capabilities") or []):
             return None, False
+        if protocol == "mtproxy" and "egress.mtproxy.v1" not in (identity.get("capabilities") or []):
+            raise AdapterError("the node must be updated to v1.1 to route MTProxy", code="node_lacks_mtproxy_egress")
         return target_from_identity(protocol, (identity.get("protocols") or {}).get(protocol, {}).get("egress")), True
 
     async def _router_target(self, row: dict, protocol: str) -> RouterTarget | None:

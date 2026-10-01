@@ -35,8 +35,15 @@ import socket
 from urllib.parse import urlsplit
 
 SCHEMA = 1
-SERVICES = ("naive", "mieru")
+SERVICES = ("naive", "mieru", "mtproxy")
 PORTS = {"naive": 45101, "mieru": 45102}
+# v1.1: MTProxy (Telemt) lives on the Compose bridge network and cannot reach the host
+# loopback, so its ingress is a `vless` inbound on a Unix socket in the volume it shares with
+# the `xray-router-ingress` bridge (docs/superpowers/specs/2026-10-01-v1.1-mtproxy-routing-design.md).
+SOCKET_SERVICES = ("mtproxy",)
+MTPROXY_SOCKET = "/run/xray-router/ingress-mtproxy.sock"
+# What Telemt dials: the bridge's name and port on the Compose network.
+MTPROXY_BRIDGE_ADDRESS = "xray-router-ingress:45103"
 PROVIDERS = ("warp",)
 ACTIONS = ("direct", "block", "egress")
 DEFAULT_ACTIONS = ("direct", "egress")
@@ -74,7 +81,7 @@ MAX_CHAINS = 16
 MAX_HOPS = 3
 MAX_DOCUMENT_BYTES_V2 = 65536
 CHAIN_EXITS = ("direct", "warp")
-_LANE = re.compile(r"(?:svc:(?:naive|mieru)|grant:[A-Za-z0-9_-]{1,64})\Z")
+_LANE = re.compile(r"(?:svc:(?:naive|mieru|mtproxy)|grant:[A-Za-z0-9_-]{1,64})\Z")
 _CHAIN_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
 _GUID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")

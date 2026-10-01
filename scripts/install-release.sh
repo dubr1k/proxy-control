@@ -19,6 +19,8 @@
 #   scripts/install-release.sh --version 0.4.0-beta.1 --sha256 <lab-sha256>
 #   scripts/install-release.sh --version 0.4.0-beta.1 --no-wizard
 #   scripts/install-release.sh --version 0.4.0-beta.1 -- plan --config install.toml --json
+#   bash install-release.sh --update                     # v1.1: update an installed host to that
+#                                                        # release (scripts/update-host.sh, as root)
 set -Eeuo pipefail
 
 REPO=${PROXY_CONTROL_REPO:-dubr1k/proxy-control}
@@ -26,7 +28,7 @@ VERSION=
 EXPECTED=
 DESTINATION=
 LANGUAGE=
-MODE=install   # install | check | unpack | requirements
+MODE=install   # install | update | check | unpack | requirements
 REQUIRE_ATTESTATION=0
 SOURCE_DIR=
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -40,7 +42,7 @@ usage() {
     cat >&2 <<'USAGE'
 usage: scripts/install-release.sh [--version X.Y.Z[-beta.N]] [--sha256 DIGEST] [--dir DIR]
                                   [--from-dir VERIFIED_DIST] [--lang ru|en] [--requirements | --check-only | --no-wizard]
-                                  [--attest] [-- INSTALLER ARGS...]
+                                  [--attest] [--update] [-- INSTALLER ARGS...]
 
   --version       release to fetch (default: the release this copy was published with,
                   or the VERSION file beside this script's tree)
@@ -55,6 +57,9 @@ usage: scripts/install-release.sh [--version X.Y.Z[-beta.N]] [--sha256 DIGEST] [
   --check-only    download and verify only; extract nothing, install nothing
   --no-wizard     download, verify and extract; print the next command instead of running it
   --attest        require `gh attestation verify` to pass (default: verify when gh exists)
+  --update        update this already installed host to the release instead of installing:
+                  the same verification, then (as root) the host's version-agent updates the
+                  panel and the changed managers are rebuilt (scripts/update-host.sh)
   --              everything after it goes to `python3 -m installer.cli` (default: wizard)
 USAGE
     exit 2
@@ -82,6 +87,7 @@ while (($#)); do
         --check-only) MODE=check; shift ;;
         --no-wizard) MODE=unpack; shift ;;
         --attest) REQUIRE_ATTESTATION=1; shift ;;
+        --update) MODE=update; shift ;;
         -h|--help) usage ;;
         --) shift; break ;;
         *) usage ;;
@@ -134,7 +140,15 @@ WARP (необязательно): секция [egress] в install.toml или 
 
 Xray-router (необязательно, v0.5): [egress] router = true — выделенный Xray для
   политик с geosite/geoip/портами и блокировками рядом с WARP; мастер предлагает его
-  каждому профилю с NaiveProxy или Mieru, архив приезжает сам (см. выше).
+  каждому профилю с NaiveProxy или Mieru, архив приезжает сам (см. выше). С v1.1 через
+  него же можно направить MTProxy (WARP, свой выход, другой узел): рядом встаёт мост
+  xray-router-ingress в сети Compose, новых портов хоста нет.
+
+Обновление уже установленного хоста (с v1.1): скачайте install-release.sh и .sha256
+  нового выпуска так же, как для установки, сверьте сумму и запустите
+  `bash install-release.sh --update` — та же проверка выпуска, затем version-agent
+  хоста обновляет панель (с резервными копиями и откатом), изменившиеся менеджеры
+  пересобираются. Telemt, сертификаты, .env и secrets/ не трогаются.
 
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
@@ -191,6 +205,14 @@ WARP (optional): the [egress] section of install.toml or the wizard's questions 
 Xray-router (optional, v0.5): [egress] router = true — a dedicated Xray for
   policies with geosite/geoip/ports and blocks beside WARP; the wizard offers it to
   every profile with NaiveProxy or Mieru, the archive arrives by itself (see above).
+  Since v1.1 MTProxy can be sent through it too (WARP, your own exit, another node):
+  the xray-router-ingress bridge runs beside it on the Compose network, no new host ports.
+
+Updating an installed host (since v1.1): download the new release's install-release.sh
+  and .sha256 as for an install, check the sum and run `bash install-release.sh --update`
+  — the same release verification, then the host's version-agent updates the panel (with
+  its backups and rollback) and the changed managers are rebuilt. Telemt, certificates,
+  .env and secrets/ are not touched.
 
 What the installer does (wizard → plan → digest confirmation → apply):
   • Ubuntu packages missing on the host: ca-certificates certbot curl
@@ -267,7 +289,7 @@ if [[ $os_id != ubuntu || $os_version != 24.04 ]]; then
     say "предупреждение: релиз проверен на Ubuntu 24.04, здесь ${os_id:-?} ${os_version:-?} — аудит установщика решит сам" \
         "warning: the release is verified on Ubuntu 24.04, this host is ${os_id:-?} ${os_version:-?} — the installer's audit decides" >&2
 fi
-if [[ $MODE == install ]] && ! command -v sudo >/dev/null 2>&1; then
+if [[ $MODE == install || $MODE == update ]] && ! command -v sudo >/dev/null 2>&1; then
     fail "нужен sudo для запуска установщика (или --no-wizard)" "sudo is required to start the installer (or use --no-wizard)"
 fi
 
@@ -376,6 +398,15 @@ if [[ $MODE == unpack ]]; then
     say "дальше: cd $root && sudo python3 -m installer.cli wizard   (или plan --config ... --json без изменений)" \
         "next: cd $root && sudo python3 -m installer.cli wizard   (or plan --config ... --json, which changes nothing)"
     exit 0
+fi
+
+if [[ $MODE == update ]]; then
+    [[ -f $root/scripts/update-host.sh ]] \
+        || fail "в этом выпуске нет scripts/update-host.sh (обновление через curl — с v1.1.0)" "this release has no scripts/update-host.sh (curl updates start with v1.1.0)"
+    say "обновляю этот хост до v$VERSION от root (sudo): панель через version-agent, затем изменившиеся менеджеры" \
+        "updating this host to v$VERSION as root (sudo): the panel through the version-agent, then the changed managers"
+    cd -- "$root"
+    exec sudo -- bash "$root/scripts/update-host.sh" --version "$VERSION" --sha256 "$actual" --lang "$LANGUAGE"
 fi
 
 if (($#)); then

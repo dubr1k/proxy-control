@@ -100,6 +100,8 @@ class FakeRunner:
         self.calls: list[tuple[str, ...]] = []
         self.compose_present = False
         self.probed: list[tuple[int, str]] = []
+        self.bridge = True
+        self.removed: set[str] = set()
 
     def run(self, argv, *, stdin_path=None):
         del stdin_path
@@ -117,8 +119,10 @@ class FakeRunner:
             self.named.pop(("group", command[-1]), None)
         if "up" in command:
             self.compose_present = True
+            self.removed = set()
         if "rm" in command and "--stop" in command:
-            self.compose_present = False
+            self.removed.add(command[-1])
+            self.compose_present = not {"xray-router", "xray-router-ingress"} <= self.removed
 
     def identity_owner(self, kind, identifier):
         return self.identities.get((kind, identifier))
@@ -127,7 +131,10 @@ class FakeRunner:
         return self.named.get((database, name))
 
     def compose_service_present(self, service):
-        return self.compose_present and service == "xray-router"
+        return self.compose_present and service in ("xray-router", "xray-router-ingress") and service not in self.removed
+
+    def bridge_check(self):
+        return self.bridge
 
     def router_status(self):
         return self.status
@@ -307,7 +314,7 @@ def test_apply_installs_binaries_state_secrets_env_and_starts_service(tmp_path):
     assert any(call[:1] == ("useradd",) and call[-1] == "xray-router" and "10006" in call for call in runner.calls)
     assert (PATHS.state_preparer, "prepare", PATHS.state_dir) in runner.calls
     compose = [call for call in runner.calls if call[:2] == ("docker", "compose")]
-    assert compose and compose[-1][-5:] == ("up", "-d", "--build", "--wait", "xray-router")
+    assert compose and compose[-1][-6:] == ("up", "-d", "--build", "--wait", "xray-router", "xray-router-ingress")
     assert f"{PATHS.project_dir}/compose.xray-router.yaml" in compose[-1]
     assert applied["identities_created"] == {"group": True, "user": True}
     assert set(applied["ownership"]) >= {PATHS.env_overlay, PATHS.marker, f"{PATHS.bin_dir}/xray"}
@@ -407,6 +414,26 @@ def test_verify_refuses_public_listener_or_dead_ingress(tmp_path, monkeypatch):
     assert len(runner.probed) == 3  # three tries before the verdict
 
 
+def test_verify_refuses_a_bridge_that_does_not_answer(tmp_path):
+    runner = FakeRunner()
+    instance, action = _applied(tmp_path, runner)
+    runner.bridge = False
+    with pytest.raises(XrayRouterError, match="xray-router-ingress"):
+        instance.verify(action)
+    assert "mtproxy-bridge=xray-router-ingress:45103" in action.mutations
+
+
+def test_rollback_removes_the_bridge_before_the_router(tmp_path):
+    runner = FakeRunner()
+    stage_archive(tmp_path)
+    instance = adapter(tmp_path, runner)
+    action = action_for(tmp_path)
+    checkpoint = instance.apply(action, instance.prepare(action))
+    instance.rollback(action, checkpoint)
+    removed = [call[-1] for call in runner.calls if "rm" in call and "--stop" in call]
+    assert removed == ["xray-router-ingress", "xray-router"]
+
+
 def test_verify_refuses_a_drifted_member(tmp_path):
     instance, action = _applied(tmp_path, FakeRunner())
     (host(tmp_path, PATHS.bin_dir) / "geoip.dat").write_bytes(b"drift\n")
@@ -455,7 +482,7 @@ def test_repair_verifies_state_and_restarts_the_service(tmp_path):
     runner.calls.clear()
     instance.repair(action, checkpoint)
     assert (PATHS.state_preparer, "verify", PATHS.state_dir) in runner.calls
-    assert runner.calls[-1][-4:] == ("up", "-d", "--wait", "xray-router")
+    assert runner.calls[-1][-5:] == ("up", "-d", "--wait", "xray-router", "xray-router-ingress")
 
 
 def test_ingress_credential_shape():

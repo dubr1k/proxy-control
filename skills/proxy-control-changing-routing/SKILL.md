@@ -37,6 +37,13 @@ One policy per (node, protocol): `default_action` plus first-match `rules`. Savi
    `get_nodes_by_node_id` → `converged`; `explain` for the same hosts shows the expected
    `action`/`exit`.
 
+MTProxy (v1.1): routable only through the router. `mtproxy_native` runs «direct, no rules» and nothing
+else (`not_attached`): attach first (`post_routing_targets_by_node_id_by_protocol_attach` with
+`protocol: mtproxy` — Telemt's upstream switches to the `xray-router-ingress` bridge without a
+restart), then a policy on `xray_router` with an exit (`warp`, `exit:<id>`, `node:<guid>`). Rules by
+CIDR, `geoip` and port work; by domain, `geosite` and protocol are `rule_kind_unsupported` (Telemt
+dials Telegram by IP); no lanes.
+
 Rollback: `post_routing_policies_by_node_id_by_protocol_rollback` with the **current**
 `expected_revision` and `confirm` — the panel returns to the previous applied document (the
 preview's `rollback.to_digest` shows which). A lane for one client — `post_routing_lanes_by_grant_id`,
@@ -51,6 +58,8 @@ then the same policy with `lane: grant:<id>`.
 | `provider_unavailable` / `provider_unreachable` | WARP not configured / not answering; `fallback: approved_direct` trades fail-closed for «direct» — only with consent |
 | `geosite_unknown` / `geoip_unknown` | no such code: `get_routing_geodata_codes`, refresh geodata (`post_routing_geodata_by_action`) |
 | `exit_disabled`, `relay_*`, `chain_loop` | the exit is disabled, the exit node lacks a relay, or the chain loops — fix the exit |
+| `router_lacks_mtproxy`, `ingress_unreachable` | the node's router predates v1.1 or its `xray-router-ingress` bridge is down — the owner rebuilds `xray-router` and starts the bridge (UPGRADING, v1.1.0) |
+| `node_lacks_mtproxy_egress`, `telemt_api_unsupported` | the linked panel predates v1.1 / Telemt has no config API — update it first |
 
 Warnings `adopts_unmanaged_*` — a hand-made setting on the node; the first apply takes it under
 management and keeps it for rollback. `policy_empty` is what «Сбросить» applies. `restart_required: true` on the router and on

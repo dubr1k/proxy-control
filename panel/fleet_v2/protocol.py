@@ -91,7 +91,7 @@ class EgressDocument(_Strict):
     — the native attach document beside a router intent, the router's pass-through beside a
     native detach. Absent from the wire when None, so a v0.4 node keeps its strict model."""
 
-    backend: Literal["naive_native", "mieru_native", "xray_router"]
+    backend: Literal["naive_native", "mieru_native", "mtproxy_native", "xray_router"]
     policy_id: str = Field(min_length=1, max_length=64)
     policy_revision: int = Field(ge=1)
     document: dict
@@ -125,7 +125,8 @@ class GenerationDocument(_Strict):
     # node without `egress.v1` — its strict model would refuse the whole generation — and
     # left out of the wire form and the digest when None, so a v0.3 central and a v0.4 node
     # (or the reverse) agree on every document that carries no egress.
-    egress: dict[Literal["naive", "mieru"], EgressDocument] | None = None
+    # `mtproxy` (v1.1) only for a node that declared `egress.mtproxy.v1`.
+    egress: dict[Literal["naive", "mieru", "mtproxy"], EgressDocument] | None = None
     # The node's relay (v0.7). Absent = leave it as it is; never sent to a node without
     # `relay.v1`, and off the wire and the digest when None.
     relay: RelaySection | None = None

@@ -3,7 +3,9 @@ name: mtproxy
 # The dedicated Xray egress router (v0.5, ADR 007): one supervised Xray process behind a
 # manager on a Unix socket, two authenticated SOCKS5 ingresses on the host loopback
 # (naive 45101, mieru 45102). Host network so the loopback ingresses are where Caddy and
-# mita can reach them; nothing else of the container is reachable. The Xray binary and its
+# mita can reach them; nothing else of the container is reachable. v1.1: a third ingress for
+# MTProxy, a VLESS inbound on a Unix socket in the shared `xray-router-run` volume, which
+# Telemt reaches through the `xray-router-ingress` bridge on the Compose network. The Xray binary and its
 # geodata come from the host path the installer filled from the pinned release archive,
 # and the manager checks their digests before it starts anything.
 services:
@@ -29,6 +31,8 @@ services:
       # The host's WARP proxy-mode endpoint the router may send traffic through; empty = no
       # `warp` provider on this node. Written by the installer.
       XRAY_ROUTER_EGRESS_WARP: ${XRAY_ROUTER_EGRESS_WARP:-}
+      # v1.1: the MTProxy ingress; its credential the manager mints in the state directory.
+      XRAY_ROUTER_INGRESS_MTPROXY_SOCKET: /run/xray-router/ingress-mtproxy.sock
       TMPDIR: /tmp
     secrets: [xray-router-manager-token, xray-router-ingress-naive, xray-router-ingress-mieru]
     volumes:
@@ -57,6 +61,38 @@ services:
       timeout: 3s
       retries: 3
       start_period: 15s
+
+  # The MTProxy ingress bridge (v1.1): Telemt's upstream is `socks5 xray-router-ingress:45103`
+  # on the Compose network (never published); the bridge hands each connection to the
+  # router's socket as VLESS. The same image as the router, so nothing new to pin or build.
+  xray-router-ingress:
+    container_name: proxy-control-xray-router-ingress
+    build:
+      context: .
+      dockerfile: xray_router_manager/Dockerfile
+    entrypoint: ["python", "-m", "xray_router_manager.bridge"]
+    restart: unless-stopped
+    depends_on:
+      xray-router:
+        condition: service_healthy
+    user: "10006:10006"
+    environment:
+      XRAY_ROUTER_INGRESS_MTPROXY_SOCKET: /run/xray-router/ingress-mtproxy.sock
+      XRAY_ROUTER_BRIDGE_LISTEN: 0.0.0.0:45103
+    expose:
+      - "45103"
+    volumes:
+      - xray-router-run:/run/xray-router:ro
+    read_only: true
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-m", "xray_router_manager.bridge", "--check"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   # The data-plane managers learn their private ingress through their own overlays
   # (`NAIVE_EGRESS_ROUTER*` in compose.naive.yaml, `MIERU_EGRESS_ROUTER*` in

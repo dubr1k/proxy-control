@@ -70,5 +70,6 @@ apply (`managed_by_central`, ADR 003).
 ## Non-goals
 
 - Replacing 3x-ui or taking over its inbounds.
-- Routing MTProxy/Telemt traffic (out of scope, ADR 006).
+- Routing MTProxy/Telemt traffic (out of scope in v0.4–v1.0; since v1.1 it goes through this
+  same router — see ADR 006, «Amended in v1.1»).
 - Routing UDP through the router, or per-grant routing (both `unsupported` in v0.5).

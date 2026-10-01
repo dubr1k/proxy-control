@@ -370,6 +370,40 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 ```
 
+## Обновление до v1.1.0: маршрутизация MTProxy
+
+Меняются панель (миграция 21), менеджер Xray-router и `compose.xray-router.yaml` (новый сервис
+`xray-router-ingress`). Шаги 1–2 одной командой делает `bash install-release.sh --update` выпуска v1.1.0
+(README, «Обновление Proxy Control одной командой»). Вручную:
+
+1. «Версии» → карточка панели → `1.1.0` → «Установить». Агент синхронизирует код, пересобирает
+   панель (при первом старте — **миграция 21** `routing-mtproxy`: перестраивает `routing_policies`,
+   `routing_rules`, `routing_applies` и `managed_egress`, чтобы допустить `mtproxy` и
+   `mtproxy_native`; каждая строка сохраняется с историей).
+2. Только на узлах с Xray-router: карточка панели скажет «Изменились менеджеры:
+   xray_router_manager». Пересоберите роутер и поднимите мост с тем же набором overlay, что у
+   установки:
+
+   ```bash
+   cd /opt/mtproxy-shared443
+   docker compose --env-file .env --env-file .env.mieru --env-file .env.xray-router --env-file .env.naive \
+     -f compose.yaml -f compose.mieru.yaml -f compose.xray-router.yaml -f compose.naive.yaml \
+     up -d --build --no-deps --wait xray-router xray-router-ingress
+   ```
+
+   Роутер сам создаст учётку входа `mtproxy` и перерисует генерацию (один перезапуск Xray:
+   сессии Naive и Mieru, идущие через роутер, один раз прервутся). Пока роутер не пересобран,
+   Naive и Mieru работают как раньше, а MTProxy на экране маршрутизации показывает
+   `router_lacks_mtproxy`.
+3. «Маршрутизация» → MTProxy → «Подключить к Xray-router», затем выход: WARP, свой выход или
+   другой узел. Подключение меняет upstream Telemt через его API без перезапуска контейнера.
+
+**Порядок в парке.** Сначала узлы, потом центр: центр v1.1 шлёт секцию `egress.mtproxy` только
+узлу, объявившему `egress.mtproxy.v1`; узлу старше v1.1 центр показывает `node_lacks_mtproxy_egress`.
+
+**Откат** — по общему порядку, вместе с базой (образ v1.0.x отказывается от базы на схеме 21).
+До отката отключите MTProxy от роутера: тогда Telemt снова ходит напрямую своим прежним upstream.
+
 ## Обновление до v1.0.3: скрипт установки в выпуске, исправленный мастер
 
 Меняются установщик и файлы выпуска; панель, менеджеры и runtime — нет, миграций нет.

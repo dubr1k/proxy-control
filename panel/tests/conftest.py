@@ -19,6 +19,18 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def bridge_answers(monkeypatch):
+    """The MTProxy ingress bridge (v1.1) is a container on the Compose network: in tests it
+    answers, instead of a DNS lookup of `xray-router-ingress` that would only time out."""
+    import panel.protocols.telemt as telemt_adapter
+
+    async def probe(_ingress):
+        return True
+
+    monkeypatch.setattr(telemt_adapter, "_probe_bridge", probe)
+
+
 @pytest.fixture
 def telemt() -> MemoryTelemt:
     return MemoryTelemt(public_host="proxy.example.com", public_port=443)
