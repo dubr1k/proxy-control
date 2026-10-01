@@ -441,6 +441,25 @@ class Acceptance:
             time.sleep(0.5)
         return False
 
+    def open_grant(self, card: str, protocol: str, timeout: float = 20) -> bool:
+        """v1.0.2: a grant's row opens its own window (details, link, actions). The list behind
+        is re-rendered after every change, so the row is looked up again on each attempt."""
+        b = self.browser
+        row = f"{card} .grant-item[data-grant-protocol={protocol}] .grant-row"
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if b.wait(f"!!document.querySelector({json.dumps(row)})", 5):
+                b.click(row)
+                if b.wait("document.querySelector('#grant-window')?.open === true && document.querySelectorAll('#grant-facts .grant-fact').length > 0", 3):
+                    return True
+            time.sleep(0.5)
+        return False
+
+    def grant_action(self, action: str) -> bool:
+        """A button of the open grant window, once it is there."""
+        selector = f"#grant-actions [data-grant-action={action}]"
+        return self.browser.wait(f"!!document.querySelector({json.dumps(selector)})", 30) and self.browser.click(selector)
+
     def poll_matrix_cell(self, card: str, node: str, protocol: str, keyword: str, timeout: float = 30) -> bool:
         """The open window must reach the status on its own: since v0.13 the card re-reads
         the client while a cell still says «ожидает узел», so a cell that only settles after
@@ -743,16 +762,32 @@ class Acceptance:
         self.check("clients.bundle_names_three_protocols", all(word in bundle for word in ("mtproxy", "naive", "mieru")), bundle[:200])
         b.close_dialog("#bundle-modal")
         b.close_dialog("#subscription-modal")
-        self.check("clients.three_grant_chips", b.wait(f"document.querySelectorAll('{card} .grant-chip[data-grant-id]').length === 3", 30))
+        self.check("clients.three_grant_rows", b.wait(f"document.querySelectorAll('{card} .grant-item[data-grant-id] .grant-row').length === 3", 30))
         for protocol in ("mtproxy", "naive", "mieru"):
             self.created[{"mtproxy": "users", "naive": "naive", "mieru": "mieru"}[protocol]].append(grant_user)
-        chip = f"{card} .grant-chip[data-grant-protocol=naive]"
-        b.click(f"{chip} [data-client-action=grant-disable]")
-        self.check("clients.grant_disable_marks_chip", b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-enable]')", 30))
-        b.click(f"{chip} [data-client-action=grant-enable]")
-        self.check("clients.grant_enable_restores", b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-disable]')", 30))
-        b.click(f"{chip} [data-client-action=grant-rotate]")
-        self.check("clients.grant_rotate_asks", b.confirm() and b.wait(f"!!document.querySelector('{chip} [data-client-action=grant-rotate]')", 30))
+        # v1.0.2: a row opens the grant window; its actions and its own link live there.
+        row = f"{card} .grant-item[data-grant-protocol=naive] .grant-row"
+        self.check("clients.grant_window_opens_from_the_row", self.open_grant(card, "naive"))
+        self.grant_action("disable")
+        self.check("clients.grant_disable_marks_row", b.wait(f"document.querySelector('{row}')?.dataset.grantState === 'disabled' && !!document.querySelector('#grant-actions [data-grant-action=enable]')", 30))
+        self.grant_action("enable")
+        self.check("clients.grant_enable_restores", b.wait(f"document.querySelector('{row}')?.dataset.grantState === 'enabled' && !!document.querySelector('#grant-actions [data-grant-action=disable]')", 30))
+        self.grant_action("rotate")
+        self.check("clients.grant_rotate_asks", b.confirm() and b.wait("!!document.querySelector('#grant-actions [data-grant-action=rotate]') && !document.querySelector('#grant-error')?.textContent", 30),
+                   b.text("#grant-error"))
+        b.close_dialog("#grant-window")
+        # One grant's own link with a QR — checked by its shape, never shown in a frame.
+        for protocol, prefix, with_qr, cleared in (
+            ("mtproxy", "tg://proxy?", "clients.grant_link_mtproxy_with_qr", "clients.grant_link_mtproxy_cleared_on_close"),
+            ("naive", "https://", "clients.grant_link_naive_with_qr", "clients.grant_link_naive_cleared_on_close"),
+            ("mieru", "mierus://", "clients.grant_link_mieru_with_qr", "clients.grant_link_mieru_cleared_on_close"),
+        ):
+            self.open_grant(card, protocol)
+            b.click("#grant-link-actions [data-grant-action=show]")
+            shown = b.wait(f"(document.querySelector('#grant-link-body input')?.value || '').startsWith({json.dumps(prefix)}) && document.querySelector('#grant-link-body img.link-qr')?.naturalWidth > 0", 30)
+            self.check(with_qr, shown, b.text("#grant-error"))
+            b.close_dialog("#grant-window")
+            self.check(cleared, b.wait("!document.querySelector('#grant-link-body input')", 5))
         # The subscription: issued with the client, shown again on request, rotated, revoked.
         self.check("clients.subscription_window_opens", self.open_client_window(card) and b.wait("!!document.querySelector('#subscription-actions button')", 20))
         configured = "не настроен" not in b.text("#subscription-status")
@@ -827,24 +862,29 @@ class Acceptance:
         self.created["clients"].append(imported["client"]["id"])
         icard = f"[data-client-id={json.dumps(imported['client']['id'])}]"
         b.click(f"{icard} [data-client-action=adopt]")
-        self.check("clients.adopt_captures_the_credential", b.wait(f"!document.querySelector('{icard} [data-client-action=adopt]') && !!document.querySelector('{icard} .grant-chip[data-grant-id]')", 30))
+        self.check("clients.adopt_captures_the_credential", b.wait(f"!document.querySelector('{icard} [data-client-action=adopt]') && !!document.querySelector('{icard} .grant-item[data-grant-id]')", 30))
         b.click(f"{card} [data-client-action=suspend]")
         self.check("clients.suspend_marks_card", b.wait(f"!!document.querySelector('{card} [data-client-action=resume]')", 30))
         b.click(f"{card} [data-client-action=resume]")
         self.check("clients.resume_restores", b.wait(f"!!document.querySelector('{card} [data-client-action=suspend]')", 30))
         b.shot("clients.png")
         self.frame_is_secret_free("clients")
-        # Every grant deleted through its chip, every client archived: the runtime is as before.
+        # Every grant deleted through its window, every client archived: the runtime is as before.
         for target in (card, icard, tgcard):
             for _ in range(4):
-                if not b.exists(f"{target} .grant-chip [data-client-action=grant-delete]"):
+                if not b.exists(f"{target} .grant-item .grant-row"):
                     break
-                b.click(f"{target} .grant-chip [data-client-action=grant-delete]")
+                protocol = b.js(f"document.querySelector('{target} .grant-item')?.dataset.grantProtocol || ''")
+                if not self.open_grant(target, protocol):
+                    break
+                self.grant_action("delete")
                 b.confirm()
                 b.wait("document.querySelector('#confirm')?.open !== true", 10)
+                b.wait("document.querySelector('#grant-window')?.open !== true", 30)
+                b.close_dialog("#grant-window")
                 time.sleep(1.5)
                 b.wait(f"!!document.querySelector('{target}')", 30)
-        self.check("clients.grant_delete_empties_the_card", b.wait(f"document.querySelectorAll('{card} .grant-chip[data-grant-id]').length === 0 && document.querySelectorAll('{icard} .grant-chip[data-grant-id]').length === 0", 60))
+        self.check("clients.grant_delete_empties_the_card", b.wait(f"document.querySelectorAll('{card} .grant-item[data-grant-id]').length === 0 && document.querySelectorAll('{icard} .grant-item[data-grant-id]').length === 0", 60))
         for target in (card, icard, tgcard):
             b.wait(f"!!document.querySelector('{target} [data-client-action=archive]')", 30)
             b.click(f"{target} [data-client-action=archive]")
@@ -1133,12 +1173,15 @@ class Acceptance:
         b.shot("routing-lane-applied.png")
         # «Клиенты»: the grant says it has its own lane; the toggle brings it back to the service.
         self.goto_view("clients", "!!document.querySelector('.client-list')")
-        chip = f"[data-client-id={json.dumps(client_id)}] .grant-chip[data-grant-protocol=naive]"
-        self.check("clients.lane_flag_on_the_chip", b.wait(f"document.querySelector('{chip} .grant-lane')?.dataset.lane === 'own'", 20))
-        b.click(f"{chip} [data-client-action=grant-lane]")
+        lane_card = f"[data-client-id={json.dumps(client_id)}]"
+        row = f"{lane_card} .grant-item[data-grant-protocol=naive] .grant-row"
+        self.check("clients.lane_flag_on_the_row", b.wait(f"(document.querySelector('{row} .grant-route-label')?.textContent || '').includes('своя полоса')", 20))
+        self.open_grant(lane_card, "naive")
+        b.click("#grant-actions [data-grant-action=lane]")
         self.check("clients.lane_toggle_asks", b.wait("document.querySelector('#confirm')?.open === true && (document.querySelector('#confirm')?.textContent || '').includes('Вернуть к маршруту сервиса')"))
         b.click("#confirm-ok")
-        self.check("clients.lane_toggle_returns_to_service", b.wait(f"document.querySelector('{chip} .grant-lane')?.dataset.lane === 'service'", 40))
+        self.check("clients.lane_toggle_returns_to_service", b.wait(f"(document.querySelector('{row} .grant-route-label')?.textContent || '').includes('маршрут сервиса')", 40))
+        b.close_dialog("#grant-window")
         targets = {i["protocol"]: i for i in self.api.json("/api/routing/targets")["items"] if i["node_id"] == "local"}
         self.check("routing.lane_gone_from_targets", not [item for item in targets["naive"]["lanes"] if item["lane"] == lane], str(targets["naive"]["lanes"]))
         self.goto_view("routing", f"!!document.querySelector('#routing-form') && {loaded}")
@@ -1352,9 +1395,11 @@ class Acceptance:
             self.check("central.grant_reaches_the_node", delivered)
             self.created["naive"].append(remote_user)
             self.goto_view("clients", "!!document.querySelector('.client-list')")
-            self.check("central.chip_says_delivered", b.wait(f"(document.querySelector('{ccard} .grant-chip')?.textContent || '').includes('включён')", 60))
-            b.click(f"{ccard} .grant-chip [data-client-action=grant-delete]")
+            self.check("central.row_says_delivered", b.wait(f"(document.querySelector('{ccard} .grant-row')?.textContent || '').includes('включён')", 60))
+            self.open_grant(ccard, "naive")
+            self.grant_action("delete")
             b.confirm()
+            b.close_dialog("#grant-window")
             deadline = time.monotonic() + 90
             gone = False
             while time.monotonic() < deadline and not gone:

@@ -101,3 +101,34 @@ async def test_an_unknown_client_has_no_links(client, login_user, telemt, naive,
     await login_user(client)
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     assert (await client.post("/api/clients/nope/links", headers=headers)).status_code == 404
+
+
+async def test_one_grant_is_revealed_alone_with_a_qr_for_its_link(client, login_user, telemt, naive, mieru):
+    """Окно одного доступа просит только его: остальные секреты клиента не расшифровываются,
+    а ссылка любого протокола приходит с QR — её сканируют так же, как `tg://proxy`."""
+    client_id, headers = await _client_with_grants(client, login_user, [
+        {"protocol": "mtproxy", "runtime_username": "laptop", "options": {}},
+        {"protocol": "naive", "runtime_username": "laptop", "options": {}},
+        {"protocol": "mieru", "runtime_username": "laptop", "options": {}},
+    ])
+    listed = (await client.get(f"/api/clients/{client_id}")).json()
+    for wanted in listed["grants"]:
+        issued = await client.post(f"/api/clients/{client_id}/links?grant_id={wanted['id']}", headers=headers)
+        assert issued.status_code == 200, issued.text
+        payload = (await client.get(f"/api/reveal/{issued.json()['reveal_token']}")).json()
+        assert [grant["grant_id"] for grant in payload["grants"]] == [wanted["id"]]
+        artifact = payload["grants"][0]["artifacts"][0]
+        assert artifact["qr"].startswith("data:image/svg+xml;base64,"), wanted["protocol"]
+    rows = (await client.get("/api/audit")).json()["items"]
+    reveals = [row for row in rows if row["action"] == "client.links.reveal"]
+    assert len(reveals) == 3
+
+
+async def test_a_grant_of_another_client_is_not_revealed(client, login_user, telemt, naive, mieru):
+    client_id, headers = await _client_with_grants(client, login_user, [
+        {"protocol": "mtproxy", "runtime_username": "laptop", "options": {}},
+    ])
+    other = await client.post("/api/clients", json={"display_name": "Other"}, headers=headers)
+    grant_id = (await client.get(f"/api/clients/{client_id}")).json()["grants"][0]["id"]
+    refused = await client.post(f"/api/clients/{other.json()['id']}/links?grant_id={grant_id}", headers=headers)
+    assert refused.status_code == 404

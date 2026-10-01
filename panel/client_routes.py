@@ -271,27 +271,30 @@ def register_client_routes(app, context: RequestContext) -> None:
         client_id: str,
         request: Request,
         protocol: str | None = None,
+        grant_id: str | None = None,
         user=Depends(context.roles("owner", "admin")),
     ):
         """Every link the client can be handed right now, rebuilt from escrow, with a QR for
         each of them: MTProxy has no subscription a client could poll, so this is how that
-        access is given out — at issue time and every time after it."""
+        access is given out — at issue time and every time after it. `grant_id` asks for
+        one grant only: the window of a single access shows its own link and nothing else."""
         try:
             payload = await asyncio.to_thread(
                 app.state.provisioning.client_links, client_id,
                 public_hosts=lambda node_id: public_hosts_for(app.state, node_id),
-                protocol=protocol, **_context(request, user),
+                protocol=protocol, grant_id=grant_id, **_context(request, user),
             )
         except KeyError as exc:
-            raise HTTPException(404, "client not found") from exc
+            raise HTTPException(404, "grant not found" if grant_id else "client not found") from exc
         except SecretError as exc:
             raise HTTPException(409, str(exc)) from exc
         payload["grants"] = [
             {
                 **grant,
-                # QR только для того, что вообще сканируется: конфиг целиком в код не лезет.
+                # QR только для того, что вообще сканируется — ссылки (`tg://`, `naive+https://`,
+                # `mierus://`); конфиг целиком в код не лезет.
                 "artifacts": [
-                    {**artifact, "qr": qr_data(artifact["value"]) if artifact["kind"] == "link" else None}
+                    {**artifact, "qr": qr_data(artifact["value"]) if artifact["media_type"] == "text/uri-list" else None}
                     for artifact in grant["artifacts"]
                 ],
             }

@@ -372,6 +372,12 @@ docker exec proxy-control-panel cat /app/VERSION   # 0.11.0-beta.1
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 ```
 
+## Upgrading to v1.0.2: the access window, client search and filters
+
+Relative to v1.0.1 only the panel changes — no database migrations, no manager rebuild.
+Versions → the panel card → `1.0.2` → «Установить»: the agent syncs the code, rebuilds the panel and
+restarts itself. Nodes are updated from the central panel: Nodes → the node → Updates.
+
 ## Upgrading to v1.0.1: any component version, regional geodata
 
 No database migrations relative to v1.0.0. Order:

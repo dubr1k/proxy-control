@@ -1,9 +1,10 @@
 import { api } from "./api.js";
 import { createAccessDialogs } from "./access.js";
 import { handleAuditClick, handleAuditSubmit, renderAudit } from "./audit.js";
-import { bindClients, handleClientsClick, openClientModal, renderClients } from "./clients.js";
+import { bindClients, handleClientsClick, handleClientsInput, openClientModal, renderClients } from "./clients.js";
 import { query, queryAll } from "./common.js";
 import { renderDashboard } from "./dashboard.js";
+import { createGrantDialog } from "./grant.js";
 import { handleFleetChange, handleFleetClick, handleFleetSubmit } from "./fleet.js";
 import { bindKeys, handleKeysClick } from "./keys.js";
 import {
@@ -234,9 +235,10 @@ function bindPanel(context) {
   bindKeys(context);
   context.access.bind();
   context.subscriptions.bind();
+  context.grants.bind();
 
   ui.view.addEventListener("input", (event) => {
-    handleRoutingInput(context, event.target) || handleUsersInput(context, event.target) || handleNaiveInput(context, event.target);
+    handleRoutingInput(context, event.target) || handleClientsInput(context, event.target) || handleUsersInput(context, event.target) || handleNaiveInput(context, event.target);
   });
   ui.view.addEventListener("change", (event) => {
     handleRoutingChange(context, event.target) || handleManagementChange(context, event.target) || handleFleetChange(context, event.target);
@@ -305,10 +307,12 @@ export function boot(root = document) {
     ui: createUi(root),
     access: null,
     subscriptions: null,
+    grants: null,
     navigate: null,
   };
   context.access = createAccessDialogs(context);
   context.subscriptions = createSubscriptionDialog(context);
+  context.grants = createGrantDialog(context);
   context.navigate = createNavigator(context);
   bindPanel(context);
   void initialise(context);

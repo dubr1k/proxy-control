@@ -25,19 +25,6 @@
 .status-pill.muted{background:rgba(255,255,255,.045);border-color:var(--line);color:var(--muted)}
 .status-pill.muted i{background:var(--quiet)}
 .node-actions{grid-area:actions;display:flex;flex-wrap:wrap;gap:8px}
-.client-card{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"glyph identity pill" "grants grants grants" "note note note" "actions actions actions";gap:10px 12px;align-items:center;padding:14px}
-.client-card>.user-glyph{grid-area:glyph}
-.client-identity{grid-area:identity;min-width:0;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:inherit;font:inherit;display:grid;gap:2px}
-.client-identity b{display:block;overflow-wrap:anywhere}
-.client-identity small{color:var(--muted)}
-.client-card>.status-pill{grid-area:pill;justify-self:end}
-.client-grants{grid-area:grants;list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0}
-.grant-chip{display:inline-flex;align-items:baseline;gap:6px;padding:4px 9px;border:1px solid var(--line);border-radius:99px;background:var(--surface-2);font-size:11px}
-.grant-chip b{font-weight:560}
-.grant-chip small,.grant-chip em{color:var(--muted);font-size:10px;font-style:normal}
-.grant-chip em{color:var(--amber)}
-.client-card>.form-hint{grid-area:note;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.client-actions{grid-area:actions;display:flex;flex-wrap:wrap;gap:8px}
 .import-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
 .import-table{width:100%;border-collapse:collapse;font-size:11px}
 .import-table th,.import-table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
@@ -59,7 +46,6 @@
 .advanced-body{margin-top:10px}
 .enrollment-checklist{margin:12px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
 .enrollment-checklist code{display:block;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-2)}
-@media(max-width:560px){.client-card{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "grants grants" "note note" "actions actions"}.client-card>.status-pill{justify-self:start}.client-actions button{flex:1 1 100%}}
 @media(max-width:560px){.node-card{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "facts facts" "detail detail" "actions actions" "advanced advanced"}.node-card>.status-pill{justify-self:start}.node-actions button{flex:1 1 100%}}
 .node-card.linked-node{grid-template-areas:"glyph identity pill" "tabs tabs tabs" "body body body" "actions actions actions"}
 .node-card>.node-tabs{grid-area:tabs;display:flex;flex-wrap:wrap;gap:6px;margin:0;min-width:0}
@@ -95,13 +81,6 @@
 .key-reveal{display:grid;gap:6px}
 .key-reveal>small{color:var(--muted);font-size:10px}
 .key-reveal .copy-field input{font-size:11px}
-.grant-chip{flex-wrap:wrap;max-width:100%;min-width:0;row-gap:4px}
-.grant-chip>span:not(.grant-tools):not(.grant-node){overflow-wrap:anywhere;min-width:0}
-.grant-node{color:var(--muted);font-size:10px}
-.grant-tools{display:inline-flex;flex-wrap:wrap;gap:2px;margin-left:2px}
-.grant-tools button,.grant-lane button{min-height:22px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:10px}
-.grant-tools button:hover,.grant-lane button:hover{border-color:var(--line);color:var(--text)}
-.grant-tools button.danger-text{color:#d97880}
 .placement-box{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:12px 0;display:flex;flex-direction:column;gap:8px;min-width:0}.placement-box legend{padding:0 6px;color:var(--muted);font-size:11px}
 #placement-body{min-width:0}
 .placement-scroll{overflow-x:auto;max-width:100%;min-width:0;margin:10px 0;-webkit-overflow-scrolling:touch}
@@ -111,9 +90,9 @@
 .placement-cell label{display:inline-flex;align-items:center;gap:6px;margin:0}.placement-cell small{color:var(--muted);font-size:10px}
 .placement-cell button{margin-left:4px;min-height:24px;padding:0 6px}
 .placement-row-locked th,.placement-row-locked td{color:var(--muted)}
-@media(max-width:560px){.node-card.linked-node{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "tabs tabs" "body body" "actions actions"}.node-tabs button{flex:1 1 auto;min-height:38px}.link-grid{grid-template-columns:1fr}.node-component>span,.node-component select{flex-basis:100%}.node-component button{flex:1 1 100%}.node-import-actions button{flex:1 1 100%}.grant-tools{flex-basis:100%;margin-left:0}}
+@media(max-width:560px){.node-card.linked-node{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "tabs tabs" "body body" "actions actions"}.node-tabs button{flex:1 1 auto;min-height:38px}.link-grid{grid-template-columns:1fr}.node-component>span,.node-component select{flex-basis:100%}.node-component button{flex:1 1 100%}.node-import-actions button{flex:1 1 100%}}
 @media(max-width:900px){.key-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.key-grid.data-head{display:none}.key-grid .row-actions{grid-column:1 / -1;justify-content:flex-start}}
-.subscription-grants{margin:10px 0}.subscription-grants .auto-refresh{display:inline-flex;gap:4px}.subscription-grants .auto-refresh small{padding:1px 6px;border-radius:99px;border:1px solid var(--line);font-size:9px}.refresh-supported{color:var(--green);border-color:rgba(45,186,116,.4)!important}.refresh-unsupported{color:var(--quiet)}.refresh-unproven{color:var(--amber);border-color:rgba(231,168,75,.4)!important}
+.refresh-supported{color:var(--green);border-color:rgba(45,186,116,.4)!important}.refresh-unsupported{color:var(--quiet)}.refresh-unproven{color:var(--amber);border-color:rgba(231,168,75,.4)!important}
 .subscription-formats{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:12px 0;display:grid;gap:8px}.subscription-formats legend{padding:0 6px;color:var(--muted);font-size:11px}input[type=radio],input[type=checkbox]{width:auto;min-height:auto;margin:0;accent-color:var(--accent)}.subscription-variant{display:grid;grid-template-columns:16px minmax(0,1fr);gap:10px;align-items:start;padding:6px 0;cursor:pointer}.subscription-variant input{width:16px;height:16px;margin-top:2px;justify-self:center}.subscription-variant span{display:grid;gap:2px}.subscription-variant b{font-weight:560}.subscription-variant small{color:var(--muted);font-size:10px;overflow-wrap:anywhere}
 .subscription-reveal{display:grid;gap:10px;padding:12px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);margin:12px 0}.subscription-reveal label{display:grid;gap:6px;color:var(--text-2);font-size:10px}.subscription-qr{width:180px;height:180px;background:#fff;border-radius:7px;padding:8px;justify-self:center}
 /* Ссылки MTProxy в окне клиента: по карточке на узел — ссылка, QR и обе кнопки под ним. */
@@ -168,76 +147,15 @@
 .routing-explain input[name=host]{min-width:240px}
 .routing-explain input[name=port]{width:90px}
 .routing-explain-answer{flex-basis:100%;margin:4px 0 0;font-size:.95rem}
-.grant-lane{display:inline-flex;align-items:center;gap:6px}
-.grant-lane small{color:var(--muted)}
 .choose-field{display:block;margin:8px 0 4px}
 .choose-field select{width:100%}
-/* Clients and nodes use pictograms rather than name fragments in square tiles. */
-.client-card>.user-glyph,.node-card>.user-glyph{border-radius:50%}
-.client-card>.user-glyph .ui-icon,.node-card>.user-glyph .ui-icon{width:18px;height:18px}
 @media(max-width:560px){
-  .client-card .grant-chip:not(.empty){border-radius:9px}
   .routing-presets{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
   .routing-presets b{margin:0 0 2px}
   .routing-preset{display:flex;align-items:center;gap:10px;min-width:0;min-height:40px;width:100%;padding:8px 12px;line-height:1.35;font-size:12px}
   .routing-preset input{flex:0 0 16px;width:16px;height:16px}
 }
 @media(max-width:900px){.routing-explain input[name=host]{min-width:0;width:100%}.routing-lanes .ghost{margin-left:0}.routing-table thead,.routing-exits-table thead{display:none}.routing-table,.routing-table tbody,.routing-table tr,.routing-table td,.routing-exits-table,.routing-exits-table tbody,.routing-exits-table tr,.routing-exits-table td{display:block;width:100%}.routing-table tr,.routing-exits-table tr{padding:8px 10px;border:1px solid var(--line);border-radius:7px;margin-bottom:8px;box-sizing:border-box}.routing-table td,.routing-exits-table td{padding:3px 0;border-bottom:0}.routing-rule-order{width:auto;color:var(--quiet);font-size:10px}.routing-rule-where{white-space:normal}.routing-rule-tools{white-space:normal;text-align:left;display:flex;flex-wrap:wrap;gap:4px}.routing-rule-tools .ghost{flex:0 0 auto}.routing-rule-what{max-width:none}.routing-geodata-tools{margin-left:0}}
-/* Client card grants: one row per grant with the same five cells, laid on the
-   list's columns through subgrid, so protocol, account, state, route and actions line
-   up across rows instead of wrapping as pills of different widths. */
-.client-grants{display:grid;grid-template-columns:minmax(84px,max-content) minmax(120px,1fr) minmax(96px,max-content) minmax(0,max-content) max-content;column-gap:18px;row-gap:6px}
-.client-grants>.grant-row{display:grid;grid-column:1/-1;grid-template-columns:subgrid;align-items:center;min-height:40px;padding:6px 8px 6px 14px;border-radius:var(--radius);font-size:12px;row-gap:0}
-.client-grants>.grant-chip.empty{grid-column:1/-1;justify-self:start;border-radius:var(--radius)}
-.grant-row>.grant-protocol{font-weight:600;color:var(--text)}
-.grant-row>.grant-account{min-width:0;color:var(--text-2);overflow-wrap:anywhere}
-.grant-row>.grant-account .grant-node{margin-left:6px}
-.grant-row>.grant-state{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
-.grant-row>.grant-state small,.grant-row>.grant-state em{font-size:11px}
-.grant-row>.grant-route{display:flex;align-items:center;min-width:0}
-.grant-row>.grant-route .grant-lane{flex-wrap:wrap;gap:4px 10px}
-.grant-row>.grant-route .grant-lane small{font-size:11px}
-.grant-row>.grant-tools{justify-content:flex-end;margin-left:0;gap:4px}
-.grant-row .grant-tools button,.grant-row .grant-lane button{min-height:28px;padding:0 9px;font-size:11px;border-color:var(--line)}
-/* The table needs ~960px of card beside the 236px sidebar; narrower, each grant stacks. */
-@media(max-width:1359px){
-  .client-grants{display:flex;flex-direction:column;gap:8px}
-  .client-grants>.grant-row{grid-template-columns:minmax(0,max-content) minmax(0,1fr) auto;grid-template-areas:"protocol account state" "route route route" "tools tools tools";column-gap:12px;row-gap:6px;padding:10px 12px}
-  .grant-row>.grant-protocol{grid-area:protocol}
-  .grant-row>.grant-account{grid-area:account}
-  .grant-row>.grant-state{grid-area:state;justify-content:flex-end}
-  .grant-row>.grant-route{grid-area:route}
-  .grant-row>.grant-route:empty{display:none}
-  .grant-row>.grant-tools{grid-area:tools;justify-content:flex-start;padding-top:6px;border-top:1px solid var(--line)}
-  .grant-row>.grant-tools:empty{display:none}
-}
-@media(max-width:560px){
-  .client-grants>.grant-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"protocol state" "account account" "route route" "tools tools"}
-  .grant-row>.grant-route .grant-lane{width:100%;justify-content:space-between}
-  .grant-row>.grant-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex-basis:auto}
-  .grant-row .grant-tools button,.grant-row .grant-lane button{min-height:36px}
-}
-/* The generic phone rules for `.data-row` (a `1fr auto` grid, every child `display:block`,
-   all `!important`) are for table rows; on a client card they put the name in the right
-   column and flattened its lists. The card keeps its own grid on a phone. */
-@media(max-width:900px){
-  .data-row.client-card{grid-template-columns:auto minmax(0,1fr) auto!important;align-items:start}
-  .data-row.client-card>.client-grants{display:flex!important;flex-direction:column;gap:8px}
-  .data-row.client-card>.client-actions{display:flex!important}
-  .data-row.client-card>.status-pill{display:inline-flex!important;align-self:center}
-  .data-row.client-card>.form-hint{display:flex!important}
-}
-@media(max-width:560px){
-  .data-row.client-card{grid-template-columns:auto minmax(0,1fr)!important;grid-template-areas:"glyph identity" "glyph pill" "grants grants" "note note" "actions actions";row-gap:8px}
-  .data-row.client-card>.status-pill{justify-self:start;align-self:start}
-  .data-row.client-card>.client-actions{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
-  .data-row.client-card>.client-actions button{width:100%;min-height:40px}
-}
-/* A grant's state reads at a glance: a dot in the state's colour before the word. */
-.grant-row>.grant-state small::before{content:"";display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:var(--quiet);vertical-align:1px}
-.grant-row[data-grant-state=enabled]>.grant-state small::before{background:var(--green)}
-.grant-row[data-grant-state=disabled]>.grant-state small::before,.grant-row[data-grant-state=failed]>.grant-state small::before{background:var(--red)}
-.grant-row[data-grant-state=pending]>.grant-state small::before{background:var(--amber)}
 /* Accent themes: every accent tint derives from --accent, so one attribute on <html>
    recolours the panel. Status colours (green, amber, red) never change with it. */
 :root[data-accent=blue]{--accent:#3d7ff5;--accent-hover:#5f97ff}
@@ -318,3 +236,167 @@
 /* Interface language (v0.17): the switch names the language it switches to. */
 .lang-switch{font-size:11px;font-weight:650;letter-spacing:.04em}
 .login-lang{position:absolute;top:14px;right:14px}
+/* Clients and nodes use pictograms rather than name fragments in square tiles. */
+.client-card>.user-glyph,.node-card>.user-glyph{border-radius:50%}
+.client-card>.user-glyph .ui-icon,.node-card>.user-glyph .ui-icon{width:18px;height:18px}
+/* «Клиенты» (v1.0.2). One block for the list, its grant rows, the client window's grant list
+   and the grant window. Every text cell has min-width:0 and wraps inside its own box: a long
+   name or status grows the row in height, it never runs out of its frame. */
+.status-pill,.filter-pill{max-width:100%;white-space:normal;overflow-wrap:break-word;text-align:left}
+.client-toolbar{display:grid;gap:10px;margin-bottom:14px;min-width:0}
+.client-toolbar-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+.client-toolbar-row .search{flex:1 1 280px;max-width:560px;min-width:0}
+.client-toolbar-row>[data-client-action=import]{margin-left:auto}
+.client-state-filter{flex-wrap:wrap;width:auto;overflow:visible}
+.client-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+.client-filters select{flex:0 1 210px;width:auto;min-width:0;min-height:32px;font-size:11px}
+.client-count{margin-left:auto;color:var(--muted);font-size:11px}
+.client-list{display:grid;gap:10px;min-width:0}
+.client-list>.empty-state{border:1px dashed var(--line);border-radius:var(--radius)}
+.client-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:12px 14px;align-items:center;min-width:0;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.018)}
+.client-card:hover{border-color:var(--line-strong)}
+.client-card[data-client-state=archived]{background:transparent}
+.client-card[data-client-state=archived] .client-identity b{color:var(--text-2)}
+.client-card>.user-glyph{grid-row:1;grid-column:1;align-self:start}
+.client-identity{display:grid;gap:2px;min-width:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.client-identity b{font-size:14px;font-weight:560;overflow-wrap:anywhere}
+.client-identity small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.client-identity:hover b{color:var(--accent-soft)}
+.client-card>.client-identity{grid-row:1;grid-column:2}
+.client-card>.status-pill{grid-row:1;grid-column:3;justify-self:end}
+.client-actions{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.client-card>.client-actions{grid-row:1;grid-column:4;justify-content:flex-end}
+.client-card>.client-grants,.client-card>.client-empty{grid-column:1/-1;order:1}
+.client-card>.client-note{grid-column:1/-1;order:2}
+.client-card.client-card-error{display:grid;grid-template-columns:minmax(0,1fr);gap:4px}
+.client-empty{margin:0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.client-note{display:grid;gap:8px;min-width:0;padding:10px 12px;border:1px solid rgba(231,168,75,.2);border-radius:8px;background:rgba(231,168,75,.05)}
+.client-note .form-hint{font-size:11px;overflow-wrap:anywhere}
+.client-note-actions{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.client-note-actions button{max-width:100%;height:auto;min-height:32px;padding:6px 12px;white-space:normal;overflow-wrap:anywhere;text-align:left}
+/* A grant is one row and the row is one button: protocol · account and node · state · route ·
+   (in the client window) the apps that refresh it · a chevron that says it opens. */
+.client-grants{list-style:none;display:grid;gap:6px;min-width:0;margin:0;padding:0;container-type:inline-size;container-name:grants}
+.grant-item{min-width:0}
+.grant-row{display:grid;grid-template-columns:minmax(0,104px) minmax(0,320px) minmax(0,1fr) minmax(0,150px) 12px;align-items:center;column-gap:14px;row-gap:4px;width:100%;min-width:0;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text-2);font:inherit;font-size:12px;text-align:left;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.grant-row:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,var(--surface-2))}
+.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,104px) minmax(0,280px) minmax(0,1fr) minmax(0,130px) minmax(0,auto) 12px}
+.grant-row>*{min-width:0;overflow-wrap:anywhere}
+.grant-proto{color:var(--text);font-weight:600}
+.grant-account{display:grid;gap:1px}
+.grant-account>span{color:var(--text)}
+.grant-node{color:var(--muted);font-size:10px}
+.grant-state{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.grant-state small{font-size:11px}
+.grant-flag{padding:1px 6px;border:1px solid rgba(231,168,75,.35);border-radius:5px;color:var(--amber);font-size:10px;font-style:normal}
+.grant-route-label{color:var(--muted);font-size:11px}
+.grant-chevron{color:var(--quiet);font-size:16px;line-height:1;text-align:right}
+.grant-row:hover .grant-chevron{color:var(--accent-soft)}
+/* A grant's state reads at a glance: a dot in the state's colour before the word. */
+.grant-state small::before,.grant-state-word::before{content:"";display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:var(--quiet);vertical-align:1px}
+[data-grant-state=enabled]>.grant-state small::before,.grant-state-word[data-grant-state=enabled]::before{background:var(--green)}
+[data-grant-state=disabled]>.grant-state small::before,[data-grant-state=failed]>.grant-state small::before,.grant-state-word[data-grant-state=disabled]::before,.grant-state-word[data-grant-state=failed]::before{background:var(--red)}
+[data-grant-state=pending]>.grant-state small::before,.grant-state-word[data-grant-state=pending]::before{background:var(--amber)}
+.auto-refresh{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.auto-refresh small{padding:1px 6px;border:1px solid var(--line);border-radius:5px;font-size:10px;line-height:1.5;white-space:nowrap}
+.subscription-grants{margin:10px 0}
+/* The row follows the width of its own list — a wide card, the client window, a phone —
+   not the width of the screen: the same row sits in all three. */
+@container grants (max-width:900px){
+  .grant-row,.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,96px) minmax(0,1fr) minmax(0,auto) 12px;grid-template-areas:"proto account state chevron" "proto route route chevron" "proto extra extra chevron"}
+  .grant-proto{grid-area:proto;align-self:start}
+  .grant-account{grid-area:account}
+  .grant-state{grid-area:state;justify-content:flex-end;text-align:right}
+  .grant-route-label{grid-area:route}
+  .grant-row>.auto-refresh{grid-area:extra}
+  .grant-chevron{grid-area:chevron}
+  .grant-route-label:empty{display:none}
+}
+@container grants (max-width:460px){
+  .grant-row,.grant-row:has(.auto-refresh){grid-template-columns:minmax(0,1fr) minmax(0,auto) 12px;grid-template-areas:"proto state chevron" "account account chevron" "route route chevron" "extra extra chevron";padding:10px 12px}
+  .grant-proto{align-self:center}
+}
+/* The client window: one type scale for its hints, labels and warnings (they fell back to
+   the 14px body size and read louder than the headings). */
+.access-dialog .form-hint,.access-dialog .subscription-warning{font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.access-dialog .form-hint:empty,#links-actions:empty,#links-body:empty{display:none}
+.placement-box>label{display:grid;gap:6px;margin:0;color:var(--text-2);font-size:11px}
+.placement-box>label small{color:var(--quiet);font-size:10px}
+.placement-box>.client-grants{margin:2px 0}
+.links-box>.modal-copy{margin:0}
+/* The grant window. */
+.grant-dialog{width:min(700px,calc(100vw - 28px))}
+.grant-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin:0 0 14px;padding:0;min-width:0}
+.grant-fact.wide{grid-column:1/-1}
+.grant-fact{min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02)}
+.grant-fact dt{margin-bottom:3px;color:var(--quiet);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.grant-fact dd{display:grid;gap:4px;margin:0;color:var(--text);font-size:12px;overflow-wrap:anywhere}
+.grant-fact code{font-size:11px;word-break:break-all}
+.grant-fact .form-hint{font-size:10px}
+.grant-link{display:grid;gap:10px;min-width:0;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius)}
+.grant-link legend{padding:0 6px;color:var(--muted);font-size:11px}
+.grant-link .form-hint{font-size:11px}
+.grant-link-actions,.grant-actions{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.grant-link-actions:empty,.grant-link-body:empty{display:none}
+.grant-link-body{display:grid;gap:10px;min-width:0}
+.grant-link-field{display:grid;gap:6px;min-width:0;color:var(--text-2);font-size:10px}
+.grant-link-field .copy-field{min-width:0}
+.grant-link-field .copy-field input{min-width:0}
+.grant-link-body .link-qr{justify-self:center}
+.grant-actions{padding-top:2px}
+.grant-actions button,.grant-link-actions button,.link-card-actions .button{max-width:100%;height:auto;min-height:34px;white-space:normal;text-align:center}
+@media(max-width:1180px){
+  .client-card{grid-template-columns:auto minmax(0,1fr) auto}
+  .client-card>.client-actions{grid-row:auto;grid-column:1/-1;order:3;justify-content:flex-start}
+}
+@media(max-width:640px){
+  .client-toolbar-row>[data-client-action=import]{margin-left:0;flex:1 1 100%}
+  .client-filters select{flex:1 1 calc(50% - 4px)}
+  .client-count{flex:1 1 100%;margin-left:0}
+  .client-card{grid-template-columns:auto minmax(0,1fr);gap:10px 12px;padding:12px}
+  .client-card>.user-glyph{grid-row:1/span 2}
+  .client-card>.status-pill{grid-row:2;grid-column:2;justify-self:start;align-self:start}
+  .client-card>.client-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .client-card>.client-actions button{width:100%;min-height:40px;height:auto;white-space:normal}
+  .client-card>.client-actions:has(> :only-child){grid-template-columns:minmax(0,1fr)}
+  .grant-facts{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .grant-actions button,.grant-link-actions button,.link-card-actions .button{flex:1 1 calc(50% - 4px)}
+}
+@media(max-width:380px){
+  .grant-facts{grid-template-columns:minmax(0,1fr)}
+}
+/* Between the phone and the wide desktop (v1.0.2): a protocol card of the overview is too narrow
+   for three metric tiles, and the Mieru/NaiveProxy rows for a fourth column of buttons. The
+   tiles go two by two, the buttons to a row of their own under the row they act on. */
+@media(min-width:1041px) and (max-width:1400px){
+  .protocol-metrics:not(.host-metrics){grid-template-columns:1fr 1fr}
+  .protocol-metrics:not(.host-metrics)>span:last-child{grid-column:1/-1}
+}
+@media(min-width:901px) and (max-width:1320px){
+  .naive-grid{grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) minmax(0,1fr)}
+  .naive-grid>*:nth-child(1){grid-column:1;grid-row:1}
+  .naive-grid>*:nth-child(2){grid-column:2;grid-row:1}
+  .naive-grid>*:nth-child(3){grid-column:3;grid-row:1;padding-top:0}
+  .naive-grid>*:nth-child(4){grid-column:1/-1;grid-row:2;justify-content:flex-start;text-align:left}
+  .data-head.naive-grid>*:nth-child(4){display:none}
+  .data-row.naive-grid{row-gap:8px}
+}
+/* The journal's row had fixed minimums (~770px) wider than the content beside the sidebar at
+   ~960px: the columns may shrink, their text wraps inside them. */
+@media(min-width:901px){
+  .audit-main{grid-template-columns:7.5rem minmax(0,.55fr) minmax(0,1.25fr) minmax(0,1fr) auto}
+}
+/* Mieru/NaiveProxy rows between the phone and the tablet: one column, as on the phone —
+   the generic two-column row put the buttons over the name. */
+@media(max-width:900px){
+  .data-row.naive-grid{grid-template-columns:minmax(0,1fr)!important}
+  .data-row.naive-grid>*{grid-column:1!important;grid-row:auto!important;text-align:left!important;justify-self:start}
+  .data-row.naive-grid>.row-actions{justify-content:flex-start}
+}
+/* The narrowest phones: the four header buttons go under a long section title instead of
+   pushing the page sideways. */
+@media(max-width:420px){
+  .topbar{flex-wrap:wrap;row-gap:10px}
+  .topbar h1{overflow-wrap:break-word}
+  .header-actions{flex-wrap:wrap}
+}

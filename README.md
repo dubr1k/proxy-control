@@ -20,16 +20,16 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 
 ## Интерфейс
 
-Настоящие снимки панели **v1.0.0** с изолированного стенда и тестовыми данными. В галерее нет ключей, QR-кодов и адресов рабочих узлов.
+Настоящие снимки панели **v1.0.0** и **v1.0.2** (клиенты) с изолированного стенда и тестовыми данными. В галерее нет ключей, QR-кодов и адресов рабочих узлов.
 
 | Обзор | Маршрутизация по шагам |
 |---|---|
 | [![Обзор трёх прокси-сервисов и ресурсов сервера](docs/releases/assets/v1.0.0/dashboard.png)](docs/releases/assets/v1.0.0/dashboard.png) | [![Четыре шага маршрутизации NaiveProxy](docs/releases/assets/v1.0.0/routing.png)](docs/releases/assets/v1.0.0/routing.png) |
 
-[Мобильный обзор](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Карточка тестового клиента](docs/releases/assets/v1.0.0/clients.png) · [Встроенная инструкция](docs/releases/assets/v1.0.0/routing-guide.png) · [Английский обзор](docs/releases/assets/v1.0.0/dashboard-en.png) · [Маршрутизация на английском](docs/releases/assets/v1.0.0/routing-en.png) · [Вход](docs/releases/assets/v1.0.0/login.png)
+[Мобильный обзор](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Клиенты с поиском](docs/releases/assets/v1.0.2/clients.png) · [Окно доступа](docs/releases/assets/v1.0.2/grant-window.png) · [Клиенты на телефоне](docs/releases/assets/v1.0.2/clients-phone.png) · [Встроенная инструкция](docs/releases/assets/v1.0.0/routing-guide.png) · [Английский обзор](docs/releases/assets/v1.0.0/dashboard-en.png) · [Маршрутизация на английском](docs/releases/assets/v1.0.0/routing-en.png) · [Вход](docs/releases/assets/v1.0.0/login.png)
 
 > [!WARNING]
-> **Текущий выпуск — [v1.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.1)**: любые версии компонентов с экрана «Версии», региональные geodata с автообновлением. [Что нового](docs/releases/v1.0.1.md).
+> **Текущий выпуск — [v1.0.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.0.2)**: окно каждого доступа со ссылкой и QR, поиск и фильтры клиентов, аккуратная вёрстка на компьютере и телефоне. [Что нового](docs/releases/v1.0.2.md).
 
 > [!IMPORTANT]
 > Проект рассчитан на людей, которые понимают, что такое DNS, TLS, Nginx и

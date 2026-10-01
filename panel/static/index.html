@@ -306,6 +306,22 @@
     </form>
   </dialog>
 
+  <dialog id="grant-window" class="access-dialog grant-dialog">
+    <form method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">ДОСТУП</span><h2 id="grant-title">Доступ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <fieldset class="grant-link" id="grant-link" hidden>
+        <legend>Ссылка и QR</legend>
+        <p class="form-hint" id="grant-link-hint"></p>
+        <div class="grant-link-actions" id="grant-link-actions"></div>
+        <div class="grant-link-body" id="grant-link-body"></div>
+      </fieldset>
+      <dl class="grant-facts" id="grant-facts"></dl>
+      <div class="grant-actions" id="grant-actions"></div>
+      <div class="form-error" id="grant-error" role="alert"></div>
+      <footer><button class="secondary" value="cancel" formnovalidate>Закрыть</button></footer>
+    </form>
+  </dialog>
+
   <dialog id="client-import-modal" class="access-dialog">
     <form method="dialog" id="client-import-form">
       <div class="modal-head"><div><span class="eyebrow">ИМПОРТ</span><h2>Импорт существующих доступов</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>

@@ -123,13 +123,14 @@ def test_routing_js_speaks_lanes_chains_and_the_relay():
     assert 'draft.default_action === "egress" ? draft.default_egress || "warp" : null' in ROUTING
     state = (STATIC / "js/state.js").read_text()
     assert 'routingLane: "svc"' in state
-    clients = (STATIC / "js/clients.js").read_text()
-    for fragment in ('data-client-action="grant-lane"', "/api/routing/lanes/", "своя полоса", "как у сервиса", "Ссылка Mieru изменится"):
-        assert fragment in clients, fragment
+    # v1.0.2: a grant's lane is switched from its own window (grant.js), opened by its row.
+    grant = (STATIC / "js/grant.js").read_text()
+    for fragment in ('data-grant-action="lane"', "/api/routing/lanes/", "своя полоса", "как у сервиса", "Ссылка Mieru изменится"):
+        assert fragment in grant, fragment
     html = (STATIC / "index.html").read_text()
     assert 'id="choose"' in html and 'id="choose-select"' in html
     css = (STATIC / "style.css").read_text()
-    for selector in (".routing-exits{", ".routing-exit-chip{", ".routing-lanes{", ".routing-explain{", ".grant-lane{"):
+    for selector in (".routing-exits{", ".routing-exit-chip{", ".routing-lanes{", ".routing-explain{", ".grant-route-label{"):
         assert selector in css, selector
 
 

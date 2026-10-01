@@ -331,28 +331,35 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
         """
 
     def client_card() -> str:
-        """The client card carries grant chips instead of traffic cells, so it is its own variant."""
-        return """
-          <article class="data-row client-card">
-            <span class="user-glyph">СД</span>
-            <div class="client-identity"><b>Ноутбук Сергея с очень длинным именем</b><small>Доступов: 3</small></div>
+        """The client card carries clickable grant rows instead of traffic cells, so it is its own
+        variant (v1.0.2: the row opens the grant window; its buttons live there)."""
+        def row(protocol, name, account, node, state, tone, flag="", route=""):
+            return f"""<li class="grant-item" data-grant-id="g-{protocol}" data-grant-protocol="{protocol}">
+                <button type="button" class="grant-row" data-grant-open="g-{protocol}" data-grant-state="{tone}">
+                  <b class="grant-proto">{name}</b>
+                  <span class="grant-account"><span>{account}</span><small class="grant-node">{node}</small></span>
+                  <span class="grant-state"><small>{state}</small>{flag}</span>
+                  <small class="grant-route-label">{route}</small>
+                  <span class="grant-chevron" aria-hidden="true">›</span>
+                </button></li>"""
+        grants = "".join((
+            row("mtproxy", "MTProxy", "alice", "Этот сервер", "включён", "enabled"),
+            row("naive", "NaiveProxy", "alice", "Frankfurt panel with a long name", "ожидает узел", "pending",
+                '<em class="grant-flag">без секрета</em>', "маршрут сервиса"),
+            row("mieru", "Mieru", "alice-with-a-very-long-runtime-name-that-does-not-fit", "Этот сервер", "выключен", "disabled", "", "своя полоса"),
+        ))
+        return f"""
+          <article class="client-card" data-client-id="c1" data-client-state="active">
+            <span class="user-glyph"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/></svg></span>
+            <button type="button" class="client-identity"><b>Ноутбук Сергея с очень длинным именем, которое не помещается в одну строку</b><small>3 доступа · 2 узла</small></button>
             <span class="status-pill active"><i></i>Активен</span>
-            <ul class="client-grants">
-              <li class="grant-chip grant-row"><b class="grant-protocol">MTProxy</b><span class="grant-account">alice</span><span class="grant-state"><small>включён</small></span><span class="grant-route"></span>
-                <span class="grant-tools"><button class="ghost">Выключить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
-              <li class="grant-chip grant-row"><b class="grant-protocol">NaiveProxy</b><span class="grant-account">alice<span class="grant-node">· Frankfurt panel</span></span><span class="grant-state"><small>ожидает узел</small><em>без секрета</em></span>
-                <span class="grant-route"><span class="grant-lane" data-lane="service"><small>маршрут: как у сервиса</small><button class="ghost">Выделить полосу</button></span></span>
-                <span class="grant-tools"><button class="ghost">Выключить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
-              <li class="grant-chip grant-row"><b class="grant-protocol">Mieru</b><span class="grant-account">alice-with-a-very-long-runtime-name</span><span class="grant-state"><small>выключен</small></span>
-                <span class="grant-route"><span class="grant-lane" data-lane="own"><small>маршрут: своя полоса</small><button class="ghost">Вернуть общий</button></span></span>
-                <span class="grant-tools"><button class="ghost">Включить</button><button class="ghost">Ротировать</button><button class="ghost danger-text">Удалить</button></span></li>
-            </ul>
-            <p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку.
-              <button class="secondary" disabled>Принять доступ</button></p>
             <div class="client-actions">
-              <button class="secondary">Открыть</button>
+              <button class="secondary">Открыть</button><button class="secondary">Узлы и доступы</button>
               <button class="secondary">Приостановить</button><button class="danger ghost">Архивировать</button>
             </div>
+            <ul class="client-grants">{grants}</ul>
+            <div class="client-note"><p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку и не даёт ссылку.</p>
+              <span class="client-note-actions"><button class="secondary" disabled>Принять NaiveProxy · alice-with-a-very-long-runtime-name</button></span></div>
           </article>
         """
 
@@ -521,16 +528,26 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             }
           }
           const identity = card.querySelector(".client-identity").getBoundingClientRect();
+          const pill = card.querySelector(":scope > .status-pill").getBoundingClientRect();
           const grants = card.querySelector(".client-grants").getBoundingClientRect();
+          const note = card.querySelector(".client-note").getBoundingClientRect();
           const actions = card.querySelector(".client-actions").getBoundingClientRect();
-          if (grants.top + tolerance < identity.bottom) errors.push("client grants overlap identity");
-          if (actions.top + tolerance < grants.bottom) errors.push("client actions overlap grants");
-          for (const chip of card.querySelectorAll(".grant-chip")) {
-            const box = chip.getBoundingClientRect();
-            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
-              errors.push("grant chip escapes card");
+          if (pill.top + tolerance < identity.bottom) errors.push("client status overlaps identity");
+          if (grants.top + tolerance < pill.bottom) errors.push("client grants overlap the header");
+          if (note.top + tolerance < grants.bottom) errors.push("client note overlaps grants");
+          if (actions.top + tolerance < note.bottom) errors.push("client actions overlap the note");
+          // Every grant row, and every text inside it, stays inside the card: a long account
+          // or node name wraps in its cell instead of running out of the row.
+          for (const row of card.querySelectorAll(".grant-row")) {
+            const box = row.getBoundingClientRect();
+            if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) errors.push("grant row escapes card");
+            for (const cell of row.querySelectorAll("*")) {
+              const inner = cell.getBoundingClientRect();
+              if (inner.width && (inner.left < box.left - tolerance || inner.right > box.right + tolerance)) errors.push(`grant ${cell.className || cell.tagName} escapes its row`);
+              if (cell.scrollWidth > cell.clientWidth + tolerance && cell.clientWidth) errors.push(`grant ${cell.className || cell.tagName} text wider than its box`);
             }
           }
+          if (card.querySelector(".grant-row .grant-state").getBoundingClientRect().height > 60) errors.push("grant state wraps letter by letter");
           for (const button of card.querySelectorAll("button")) {
             const box = button.getBoundingClientRect();
             if (box.left < cardBox.left - tolerance || box.right > cardBox.right + tolerance) {
@@ -591,13 +608,20 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
     html = (ROOT / "static" / "index.html").read_text()
     dialog = re.search(r'<dialog id="subscription-modal".*?</dialog>', html, re.DOTALL).group(0)
     grants = "".join(
-        f"""<li class="grant-chip"><b>{protocol}</b><span>{user}</span>
-            <span class="auto-refresh" data-auto-refresh><small class="refresh-supported">karing</small><small class="refresh-unsupported">singbox</small><small class="refresh-unproven">mihomo</small></span>{note}</li>"""
-        for protocol, user, note in (
-            ("MTProxy", "alice-with-a-very-long-runtime-name", ""),
-            ("NaiveProxy", "alice", "<em>без секрета — в подписке как unsupported</em>"),
-            ("Mieru", "alice", "<em>выключен — в подписку не попадает</em>"),
-        )
+        f"""<li class="grant-item" data-grant-id="g{index}" data-grant-protocol="{protocol.lower()}">
+            <button type="button" class="grant-row" data-grant-open="g{index}" data-grant-state="enabled">
+              <b class="grant-proto">{protocol}</b>
+              <span class="grant-account"><span>{user}</span><small class="grant-node">Этот сервер</small></span>
+              <span class="grant-state"><small>{state}</small>{flag}</span>
+              <small class="grant-route-label">маршрут сервиса</small>
+              <span class="auto-refresh" data-auto-refresh><small class="refresh-supported">karing</small><small class="refresh-unsupported">singbox</small><small class="refresh-unproven">mihomo</small><small class="refresh-supported">throne</small></span>
+              <span class="grant-chevron" aria-hidden="true">›</span>
+            </button></li>"""
+        for index, (protocol, user, state, flag) in enumerate((
+            ("MTProxy", "alice-with-a-very-long-runtime-name", "включён", ""),
+            ("NaiveProxy", "alice", "ожидает узел", '<em class="grant-flag">без секрета</em>'),
+            ("Mieru", "alice", "выключен", ""),
+        ))
     )
     variants = "".join(
         f"""<label class="subscription-variant"><input type="radio" name="subscription-format" value="{name}"{" checked" if name == "singbox" else ""}>
@@ -636,7 +660,7 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
         const form = dialog.querySelector("form");
         const formBox = form.getBoundingClientRect();
         if (formBox.right > innerWidth + tolerance || formBox.left < -tolerance) errors.push("dialog wider than the viewport");
-        for (const node of dialog.querySelectorAll(".grant-chip, .subscription-variant, .subscription-reveal, .copy-field, .subscription-qr, footer button, #subscription-actions button, .subscription-warning, .placement-box, .placement-scroll, #placement-actions button")) {{
+        for (const node of dialog.querySelectorAll(".grant-row, .grant-row *, .subscription-variant, .subscription-reveal, .copy-field, .subscription-qr, footer button, #subscription-actions button, .subscription-warning, .placement-box, .placement-scroll, #placement-actions button")) {{
           const box = node.getBoundingClientRect();
           if (box.left < formBox.left - tolerance || box.right > formBox.right + tolerance) errors.push(`${{node.className || node.tagName}} escapes the dialog`);
           if (node.scrollWidth > node.clientWidth + tolerance && !node.matches("input") && !node.matches(".placement-scroll")) errors.push(`${{node.className || node.tagName}} overflows horizontally`);
@@ -652,6 +676,76 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
       }});
     """
     page = tmp_path / "subscription-dialog.html"
+    page.write_text(
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<style>{css}</style></head><body><main></main>{dialog}<script>{script}</script></body></html>"
+    )
+
+    rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")
+    errors = json.loads(rendered["errors"])
+    assert rendered["innerWidth"] == 390
+    assert rendered["result"] == "pass", errors
+
+
+def test_grant_dialog_fits_the_phone_viewport_with_a_revealed_link(tmp_path: Path) -> None:
+    """The grant window (v1.0.2) is the real markup from index.html, filled the way grant.js fills
+    it: the facts, a revealed link with its QR and the actions — nothing may leave its box."""
+    import re
+
+    css = (ROOT / "static" / "style.css").read_text()
+    html = (ROOT / "static" / "index.html").read_text()
+    dialog = re.search(r'<dialog id="grant-window".*?</dialog>', html, re.DOTALL).group(0)
+    fact = lambda label, value, wide="": f'<div class="grant-fact{wide}"><dt>{label}</dt><dd>{value}</dd></div>'  # noqa: E731
+    facts = "".join((
+        fact("Клиент", "Ноутбук Сергея — рабочий, с очень длинным названием для проверки переноса · активен", " wide"),
+        fact("Протокол", "NaiveProxy"),
+        fact("Учётная запись", "<code>alice-with-a-very-long-runtime-name-that-does-not-fit</code>"),
+        fact("Узел", "Frankfurt panel with a long name"),
+        fact("Состояние", '<span class="grant-state-word" data-grant-state="pending">включён</span>'),
+        fact("Узел сообщает", "ошибка: manager refused the request because the quota could not be applied"),
+        fact("Подписка", '<span class="auto-refresh"><small class="refresh-supported">karing</small><small class="refresh-supported">singbox</small><small class="refresh-unsupported">mihomo</small><small class="refresh-supported">throne</small></span>'),
+        fact("ID доступа", "<code>0bcfa816-3a84-471a-ac1f-77f4b7610911</code>"),
+    ))
+    link = "https://alice-with-a-very-long-runtime-name:" + "p" * 40 + "@naive.example.test"
+    body = (
+        f'<label class="grant-link-field">Адрес прокси<span class="copy-field"><input readonly value="{link}"><button type="button" class="copy">Копировать</button></span></label>'
+        '<img class="link-qr" alt="QR" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIi8+PC9zdmc+">'
+        '<span class="link-card-actions"><a class="secondary button" href="#">Скачать QR</a></span>'
+    )
+    script = f"""
+      addEventListener("load", () => {{
+        const errors = [];
+        const tolerance = 1;
+        if (innerWidth !== 390) errors.push(`viewport is ${{innerWidth}}px instead of 390px`);
+        const dialog = document.querySelector("#grant-window");
+        document.querySelector("#grant-title").textContent = "NaiveProxy · alice-with-a-very-long-runtime-name-that-does-not-fit";
+        document.querySelector("#grant-facts").innerHTML = {json.dumps(facts)};
+        document.querySelector("#grant-link").hidden = false;
+        document.querySelector("#grant-link-hint").textContent = "Ссылка собирается из хранилища панели по запросу и в окне не остаётся.";
+        document.querySelector("#grant-link-actions").innerHTML = '<button type="button" class="primary">Показать заново</button><button type="button" class="secondary">Профили для приложений</button>';
+        document.querySelector("#grant-link-body").innerHTML = {json.dumps(body)};
+        document.querySelector("#grant-actions").innerHTML = '<button type="button" class="secondary">Выключить</button><button type="button" class="secondary">Ротировать секрет</button><button type="button" class="secondary">Вернуть общий маршрут</button><button type="button" class="danger ghost">Удалить доступ</button>';
+        dialog.showModal();
+        const form = dialog.querySelector("form");
+        const formBox = form.getBoundingClientRect();
+        if (formBox.right > innerWidth + tolerance || formBox.left < -tolerance) errors.push("dialog wider than the viewport");
+        if (form.scrollWidth > form.clientWidth + tolerance) errors.push("dialog scrolls horizontally");
+        for (const node of form.querySelectorAll(".grant-fact, .grant-fact *, .grant-link, .grant-link-body *, .grant-actions button, .grant-link-actions button")) {{
+          if (node.matches("input")) continue;
+          const box = node.getBoundingClientRect();
+          const parent = node.parentElement.getBoundingClientRect();
+          if (box.width && (box.left < parent.left - tolerance || box.right > parent.right + tolerance)) errors.push(`${{node.className || node.tagName}} escapes its box`);
+          if (node.scrollWidth > node.clientWidth + tolerance && node.clientWidth) errors.push(`${{node.className || node.tagName}} text wider than its box`);
+        }}
+        const link = document.querySelector("#grant-link").getBoundingClientRect();
+        const facts = document.querySelector("#grant-facts").getBoundingClientRect();
+        if (facts.top + tolerance < link.bottom) errors.push("facts overlap the link block");
+        document.body.dataset.result = errors.length ? "fail" : "pass";
+        document.body.dataset.errors = JSON.stringify(errors);
+      }});
+    """
+    page = tmp_path / "grant-dialog.html"
     page.write_text(
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"

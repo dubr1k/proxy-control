@@ -1,4 +1,5 @@
-import { OPERATION_MESSAGE, OPERATION_OK, esc, icon, paintClientsCount, query, queryAll } from "./common.js";
+import { esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, query, queryAll } from "./common.js";
+import { grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
 import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
 import { isCurrent } from "./state.js";
 
@@ -7,78 +8,6 @@ const CLIENT_STATE = {
   suspended: ["blocked", "Приостановлен"],
   archived: ["muted", "В архиве"],
 };
-
-const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
-
-const GRANT_STATE = {
-  enabled: "включён",
-  disabled: "выключен",
-  deleted: "удалён",
-};
-
-// What the node last reported about a grant, when it differs from what the panel wants:
-// a grant on a linked panel stays `pending` until the pusher delivers it (spec §7).
-const OBSERVED_STATE = {
-  pending: "ожидает узел",
-  failed: "ошибка",
-  drifted: "расхождение",
-  missing: "удалён",
-};
-
-function grantStatus(grant) {
-  const observed = OBSERVED_STATE[grant.observed_state];
-  if (!observed) return GRANT_STATE[grant.desired_state] || grant.desired_state;
-  return grant.observed_state === "failed" && grant.last_error ? `${observed}: ${grant.last_error}` : observed;
-}
-
-function nodeLabel(context, grant) {
-  if (!grant.node_id || grant.node_id === "local") return "";
-  const node = context.state.nodes.find((item) => item.node_id === grant.node_id);
-  return `<span class="grant-node">· ${esc(node?.display_name || grant.node_id)}</span>`;
-}
-
-// Enable/disable/rotate/delete of one grant go through /api/clients/grants/{id}/{action};
-// on a linked panel they only record what the central wants and the pusher delivers it.
-// The route of a grant (v0.7): the service's, or its own lane on the node — the owner
-// flips it here; the lane's rules live on «Маршрутизация».
-const LANE_PROTOCOLS = new Set(["naive", "mieru"]);
-
-function laneControl(context, grant) {
-  if (!LANE_PROTOCOLS.has(grant.protocol) || grant.desired_state === "deleted") return "";
-  const own = grant.routing_lane === "own";
-  const owner = context.state.me?.role === "owner";
-  // The button names the move, not the state beside it: «своя полоса» next to
-  // «маршрут: как у сервиса» read as a second status.
-  const button = owner
-    ? `<button class="ghost" data-client-action="grant-lane" data-lane-mode="${own ? "service" : "own"}" title="${own ? "Вернуть общий маршрут сервиса" : "Дать клиенту свою полосу маршрутизации"}">${own ? "Вернуть общий" : "Выделить полосу"}</button>`
-    : "";
-  return `<span class="grant-lane" data-lane="${own ? "own" : "service"}"><small>маршрут: ${own ? "своя полоса" : "как у сервиса"}</small>${button}</span>`;
-}
-
-function grantTools(grant) {
-  if (grant.desired_state === "deleted") return "";
-  const toggle = grant.desired_state === "enabled"
-    ? '<button class="ghost" data-client-action="grant-disable">Выключить</button>'
-    : '<button class="ghost" data-client-action="grant-enable">Включить</button>';
-  return `<span class="grant-tools">${toggle}<button class="ghost" data-client-action="grant-rotate">Ротировать</button><button class="ghost danger-text" data-client-action="grant-delete">Удалить</button></span>`;
-}
-
-// Every grant row has the same five cells, empty or not, so the columns line up from
-// one row to the next: protocol · account · state · route · actions.
-function grantChip(context, grant, canWrite) {
-  const orphan = grant.secret_ref === null
-    ? '<em title="Панель не хранит его секрет, поэтому доступ не попадает в подписку">без секрета</em>'
-    : "";
-  // The dot's colour: what the node reports when it is not yet what was asked, else the ask.
-  const tone = ["failed", "pending"].includes(grant.observed_state) ? grant.observed_state : grant.desired_state;
-  return `<li class="grant-chip grant-row" data-grant-protocol="${esc(grant.protocol)}" data-grant-id="${esc(grant.id)}" data-grant-state="${esc(tone)}">
-    <b class="grant-protocol">${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}</b>
-    <span class="grant-account">${esc(grant.runtime_username)}${nodeLabel(context, grant)}</span>
-    <span class="grant-state"><small>${esc(grantStatus(grant))}</small>${orphan}</span>
-    <span class="grant-route">${laneControl(context, grant)}</span>
-    ${canWrite ? grantTools(grant) : '<span class="grant-tools"></span>'}
-  </li>`;
-}
 
 // One order on every card, whatever order the grants were issued in.
 const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2 };
@@ -89,12 +18,16 @@ function byProtocol(left, right) {
     || String(left.runtime_username).localeCompare(String(right.runtime_username));
 }
 
+function liveGrants(entry) {
+  return (entry?.grants || []).filter((grant) => grant.desired_state !== "deleted");
+}
+
 // Only Mieru cannot hand its credential back, so only Mieru costs the subscriber
 // their current link when adopted.
 const ROTATION_REQUIRED = new Set(["mieru"]);
 
 function adoptNote(context, grants) {
-  const orphans = grants.filter((grant) => grant.secret_ref === null);
+  const orphans = grants.filter((grant) => grant.secret_ref === null && grant.desired_state !== "deleted");
   if (!orphans.length || context.state.me?.role === "viewer") return "";
   const buttons = orphans.map((grant) => {
     const warn = ROTATION_REQUIRED.has(grant.protocol);
@@ -103,7 +36,7 @@ function adoptNote(context, grants) {
       title="${warn ? "Потребуется ротация: старая ссылка перестанет работать" : "Панель прочитает текущий секрет, ссылка продолжит работать"}"
       >Принять ${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)} · ${esc(grant.runtime_username)}</button>`;
   }).join("");
-  return `<p class="form-hint">Нет сохранённого секрета у доступов: ${orphans.length}. Такой доступ не попадает в подписку. ${buttons}</p>`;
+  return `<div class="client-note"><p class="form-hint">Нет сохранённого секрета у доступов: ${orphans.length}. Такой доступ не попадает в подписку и не даёт ссылку.</p><span class="client-note-actions">${buttons}</span></div>`;
 }
 
 function actions(context, client) {
@@ -127,39 +60,45 @@ function actions(context, client) {
   </div>`;
 }
 
+function plural(count, one, few, many) {
+  const tens = count % 100;
+  const units = count % 10;
+  if (tens >= 11 && tens <= 14) return many;
+  if (units === 1) return one;
+  if (units >= 2 && units <= 4) return few;
+  return many;
+}
+
+// Under the name: how many accesses and where, so the card says it before it is opened.
+function summary(context, grants) {
+  if (!grants.length) return "Доступов нет";
+  const nodes = new Set(grants.map((grant) => grant.node_id || "local"));
+  const where = nodes.size === 1
+    ? nodeName(context.state.nodes, [...nodes][0])
+    : `${nodes.size} ${plural(nodes.size, "узел", "узла", "узлов")}`;
+  return `${grants.length} ${plural(grants.length, "доступ", "доступа", "доступов")} · ${where}`;
+}
+
 function clientCard(context, entry) {
-  const { client, grants } = entry;
+  const { client } = entry;
+  const grants = liveGrants(entry);
   const [tone, label] = CLIENT_STATE[client.state] || ["blocked", client.state];
-  const canWrite = context.state.me?.role !== "viewer" && client.state !== "archived";
-  return `<article class="data-row client-card" data-client-id="${esc(client.id)}">
+  const empty = client.state === "archived"
+    ? "Доступов нет — клиент в архиве"
+    : "Доступов пока нет — выдайте их в «Узлы и доступы» или импортируйте существующие";
+  return `<article class="client-card" data-client-id="${esc(client.id)}" data-client-state="${esc(client.state)}">
     <span class="user-glyph" aria-hidden="true">${icon("client")}</span>
     <button type="button" class="client-identity" data-client-action="open">
       <b>${esc(client.display_name)}</b>
-      <small>Доступов: ${grants.length}</small>
+      <small>${esc(summary(context, grants))}</small>
     </button>
     <span class="status-pill ${tone}"><i></i>${esc(label)}</span>
-    <ul class="client-grants">${grants.length
-      ? [...grants].sort(byProtocol).map((grant) => grantChip(context, grant, canWrite)).join("")
-      : `<li class="grant-chip empty"><small>${client.state === "archived" ? "Доступов нет — клиент в архиве" : "Доступов пока нет — выдайте их в «Узлы и доступы» или импортируйте существующие"}</small></li>`}</ul>
-    ${adoptNote(context, grants)}
     ${actions(context, client)}
+    ${grants.length
+      ? `<ul class="client-grants">${[...grants].sort(byProtocol).map((grant) => grantRowHtml(grant, { nodes: context.state.nodes })).join("")}</ul>`
+      : `<p class="client-empty">${esc(empty)}</p>`}
+    ${adoptNote(context, grants)}
   </article>`;
-}
-
-export async function renderClients(context, generation) {
-  // Nodes are read alongside: a grant on a linked panel is labelled with the panel's name.
-  const [data, nodes] = await Promise.all([context.api("/api/clients"), context.api("/api/nodes")]);
-  if (!isCurrent(context.state, generation, "clients")) return;
-  context.state.clients = data.items || [];
-  context.state.nodes = nodes.items || [];
-  paintClientsCount(context, context.state.clients.length);
-  const canImport = context.state.me?.role !== "viewer";
-  context.ui.view.innerHTML = `<div class="toolbar">
-      ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
-    </div>
-    <section class="client-list">${context.state.clients.length
-      ? [...context.state.clients].sort(byState).map((entry) => safeCard(context, entry)).join("")
-      : '<div class="empty-state"><span>◇</span><h3>Клиентов пока нет</h3><p>Импортируйте пользователей, которые уже работают на этом сервере, — панель ничего в них не меняет.</p></div>'}</section>`;
 }
 
 // Working clients first, archived ones at the bottom; the list's own order within each.
@@ -177,9 +116,156 @@ function safeCard(context, entry) {
   } catch (error) {
     console.error("client card failed to render", error);
     const name = entry?.client?.display_name || entry?.client?.id || "?";
-    return `<article class="data-row client-card client-card-error"><b>${esc(String(name))}</b>
+    return `<article class="client-card client-card-error"><b>${esc(String(name))}</b>
       <small>Карточку не удалось отобразить — обновите страницу или проверьте консоль браузера.</small></article>`;
   }
+}
+
+// --- Search and filters (v1.0.2): by name, account, node, protocol and the state of grants. ---
+
+export const CLIENT_FILTER_DEFAULT = { query: "", state: "all", protocol: "", node: "", issue: "" };
+
+const ISSUES = {
+  problem: ["С проблемами", (grant) => ["failed", "pending", "drifted", "missing"].includes(grant.observed_state) || grant.secret_ref === null],
+  pending: ["Ожидают узел", (grant) => grant.observed_state === "pending"],
+  failed: ["С ошибкой", (grant) => grant.observed_state === "failed"],
+  orphan: ["Без секрета", (grant) => grant.secret_ref === null],
+  disabled: ["С выключенными доступами", (grant) => grant.desired_state === "disabled"],
+  lane: ["Со своей полосой", (grant) => grant.routing_lane === "own"],
+};
+
+function filters(context) {
+  if (!context.state.clientFilter) context.state.clientFilter = { ...CLIENT_FILTER_DEFAULT };
+  return context.state.clientFilter;
+}
+
+function haystack(context, entry) {
+  const parts = [entry.client.display_name, entry.client.id];
+  for (const grant of liveGrants(entry)) {
+    parts.push(grant.runtime_username, PROTOCOL_NAMES[grant.protocol] || grant.protocol, nodeName(context.state.nodes, grant.node_id));
+  }
+  return parts.join("\n").toLowerCase();
+}
+
+export function matchesClient(context, entry, filter = filters(context)) {
+  if (filter.state !== "all" && entry.client.state !== filter.state) return false;
+  const needle = filter.query.trim().toLowerCase();
+  if (needle && !needle.split(/\s+/).every((word) => haystack(context, entry).includes(word))) return false;
+  // The grant-level conditions hold on one and the same grant: «Mieru on Frankfurt» means
+  // a Mieru grant there, not a Mieru grant somewhere and anything in Frankfurt.
+  const placed = liveGrants(entry).filter((grant) => (!filter.protocol || grant.protocol === filter.protocol)
+    && (!filter.node || (grant.node_id || "local") === filter.node));
+  // «Без доступов» reads with the other two: no Mieru at all, nothing on Frankfurt.
+  if (filter.issue === "empty") return placed.length === 0;
+  if (!filter.protocol && !filter.node && !filter.issue) return true;
+  return placed.some((grant) => !filter.issue || ISSUES[filter.issue]?.[1](grant));
+}
+
+function filtered(context) {
+  return [...context.state.clients].sort(byState).filter((entry) => matchesClient(context, entry));
+}
+
+function filterActive(filter) {
+  return Object.entries(CLIENT_FILTER_DEFAULT).some(([key, value]) => filter[key] !== value);
+}
+
+function countLabel(shown, total) {
+  return shown === total ? `Клиентов: ${total}` : `Показано ${shown} из ${total}`;
+}
+
+function nodeFilterOptions(context, selected) {
+  const ids = new Set(["local"]);
+  for (const node of context.state.nodes || []) if (node.node_id === "local" || node.transport === "panel") ids.add(node.node_id);
+  for (const entry of context.state.clients) for (const grant of liveGrants(entry)) ids.add(grant.node_id || "local");
+  return [...ids].map((id) => `<option value="${esc(id)}"${id === selected ? " selected" : ""}>${esc(nodeName(context.state.nodes, id))}</option>`).join("");
+}
+
+function toolbar(context) {
+  const filter = filters(context);
+  const clients = context.state.clients;
+  const count = (state) => clients.filter((entry) => entry.client.state === state).length;
+  const pill = (value, label) => `<button type="button" class="filter-pill${filter.state === value ? " active" : ""}" data-client-filter-state="${value}" aria-pressed="${filter.state === value}">${label}</button>`;
+  const option = (value, label, current) => `<option value="${esc(value)}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
+  const canImport = context.state.me?.role !== "viewer";
+  return `<div class="client-toolbar">
+      <div class="client-toolbar-row">
+        <div class="search"><input id="client-search" type="search" value="${esc(filter.query)}" placeholder="Поиск: клиент, учётная запись, узел" aria-label="Поиск клиентов" autocomplete="off"></div>
+        ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
+      </div>
+      <div class="filter-pills client-state-filter" role="group" aria-label="Состояние клиента">
+        ${pill("all", `Все · ${clients.length}`)}${pill("active", `Активные · ${count("active")}`)}${pill("suspended", `Приостановленные · ${count("suspended")}`)}${pill("archived", `В архиве · ${count("archived")}`)}
+      </div>
+      <div class="client-filters">
+        <select id="client-filter-protocol" aria-label="Протокол">${option("", "Любой протокол", filter.protocol)}${Object.entries(PROTOCOL_NAMES).map(([value, label]) => option(value, label, filter.protocol)).join("")}</select>
+        <select id="client-filter-node" aria-label="Узел">${option("", "Любой узел", filter.node)}${nodeFilterOptions(context, filter.node)}</select>
+        <select id="client-filter-issue" aria-label="Состояние доступов">${option("", "Любые доступы", filter.issue)}${Object.entries(ISSUES).map(([value, [label]]) => option(value, label, filter.issue)).join("")}${option("empty", "Без доступов", filter.issue)}</select>
+        <button type="button" class="ghost" data-client-action="reset-filters"${filterActive(filter) ? "" : " hidden"}>Сбросить</button>
+        <span class="client-count" id="client-count" aria-live="polite">${esc(countLabel(filtered(context).length, clients.length))}</span>
+      </div>
+    </div>`;
+}
+
+function listHtml(context) {
+  if (!context.state.clients.length) {
+    return '<div class="empty-state"><span>◇</span><h3>Клиентов пока нет</h3><p>Импортируйте пользователей, которые уже работают на этом сервере, — панель ничего в них не меняет.</p></div>';
+  }
+  const items = filtered(context);
+  return items.length
+    ? items.map((entry) => safeCard(context, entry)).join("")
+    : '<div class="empty-state"><span>◇</span><h3>Никто не подходит</h3><p>Измените запрос или сбросьте фильтры.</p><button class="secondary" data-client-action="reset-filters">Сбросить фильтры</button></div>';
+}
+
+// A keystroke repaints the list and the counter only — the search field keeps its focus.
+function paintList(context) {
+  const view = context.ui.view;
+  const list = view.querySelector?.(".client-list");
+  if (!list) return;
+  list.innerHTML = listHtml(context);
+  const filter = filters(context);
+  const counter = view.querySelector("#client-count");
+  if (counter) counter.textContent = countLabel(filtered(context).length, context.state.clients.length);
+  const reset = view.querySelector(".client-filters [data-client-action=reset-filters]");
+  if (reset) reset.hidden = !filterActive(filter);
+  view.querySelectorAll("[data-client-filter-state]").forEach((button) => {
+    const active = button.dataset.clientFilterState === filter.state;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+export async function renderClients(context, generation) {
+  // Nodes are read alongside: a grant on a linked panel is labelled with the panel's name.
+  const [data, nodes] = await Promise.all([context.api("/api/clients"), context.api("/api/nodes")]);
+  if (!isCurrent(context.state, generation, "clients")) return;
+  context.state.clients = data.items || [];
+  context.state.nodes = nodes.items || [];
+  paintClientsCount(context, context.state.clients.length);
+  context.ui.view.innerHTML = `${toolbar(context)}<section class="client-list">${listHtml(context)}</section>`;
+}
+
+const FILTER_FIELDS = {
+  "client-search": "query",
+  "client-filter-protocol": "protocol",
+  "client-filter-node": "node",
+  "client-filter-issue": "issue",
+};
+
+export function handleClientsInput(context, target) {
+  const key = FILTER_FIELDS[target?.id];
+  if (!key || context.state.view !== "clients") return false;
+  filters(context)[key] = target.value;
+  paintList(context);
+  return true;
+}
+
+function resetFilters(context) {
+  context.state.clientFilter = { ...CLIENT_FILTER_DEFAULT };
+  const view = context.ui.view;
+  for (const [id, key] of Object.entries(FILTER_FIELDS)) {
+    const field = view.querySelector(`#${id}`);
+    if (field) field.value = CLIENT_FILTER_DEFAULT[key];
+  }
+  paintList(context);
 }
 
 // One dialog creates the client and, when cells of the node × protocol matrix are ticked,
@@ -478,82 +564,35 @@ async function adopt(context, button) {
   }
 }
 
-const GRANT_CONFIRMATION = {
-  rotate: ["Ротировать доступ?", "выпустит новый секрет: старая ссылка перестанет работать, клиенту понадобится новая.", "Ротировать"],
-  delete: ["Удалить доступ?", "будет удалён из протокола; на связанной панели — после доставки узлу.", "Удалить"],
-};
-
-async function grantAction(context, button) {
-  const chip = button.closest("[data-grant-id]");
+// A click on a grant's row opens its own window: details, link and QR, its actions.
+function openGrant(context, button) {
   const card = button.closest("[data-client-id]");
-  const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
-  const grant = entry?.grants.find((item) => item.id === chip?.dataset.grantId);
-  if (!grant) return;
-  const action = button.dataset.clientAction.slice("grant-".length);
-  const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
-  try {
-    if (GRANT_CONFIRMATION[action]) {
-      const [title, text, ok] = GRANT_CONFIRMATION[action];
-      if (!await context.ui.confirmed(title, `${label} ${text}`, ok)) return;
-    }
-    context.ui.setBusy(button, true);
-    await context.api(`/api/clients/grants/${encodeURIComponent(grant.id)}/${action}`, { method: "POST" });
-    context.ui.toast({
-      enable: "Доступ включён",
-      disable: "Доступ выключен",
-      rotate: "Секрет ротирован; выдайте клиенту новую ссылку",
-      delete: "Доступ удалён",
-    }[action]);
-    await context.navigate("clients");
-  } catch (exception) {
-    context.ui.toast(exception.message, "error");
-  } finally {
-    context.ui.setBusy(button, false);
-  }
-}
-
-async function laneAction(context, button) {
-  const chip = button.closest("[data-grant-id]");
-  const card = button.closest("[data-client-id]");
-  const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
-  const grant = entry?.grants.find((item) => item.id === chip?.dataset.grantId);
-  if (!grant) return;
-  const mode = button.dataset.laneMode;
-  const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
-  const link = grant.protocol === "mieru" ? " Ссылка Mieru изменится (другой порт); подписка обновится сама." : "";
-  const [title, text, ok] = mode === "own"
-    ? ["Своя полоса для доступа?", `${label} получит собственный маршрут на узле: его правила — на экране «Маршрутизация», вкладка полосы.${link}`, "Создать полосу"]
-    : ["Вернуть к маршруту сервиса?", `${label} пойдёт как весь сервис; политика полосы будет удалена.${link}`, "Вернуть"];
-  if (!await context.ui.confirmed(title, text, ok)) return;
-  context.ui.setBusy(button, true);
-  try {
-    const result = await context.api(`/api/routing/lanes/${encodeURIComponent(grant.id)}`, { method: "POST", body: JSON.stringify({ mode }) });
-    context.ui.toast(result.pending ? "Отправлено узлу: результат появится после heartbeat" : mode === "own" ? "Полоса создана: правила — на «Маршрутизации»" : "Доступ вернулся в полосу сервиса");
-    await context.navigate("clients");
-  } catch (exception) {
-    context.ui.toast(exception.message, "error");
-  } finally {
-    context.ui.setBusy(button, false);
-  }
+  if (!card) return;
+  context.grants.open(card.dataset.clientId, button.dataset.grantOpen);
 }
 
 export function handleClientsClick(context, button) {
+  if (button.dataset.grantOpen) {
+    openGrant(context, button);
+    return true;
+  }
+  if (button.dataset.clientFilterState) {
+    filters(context).state = button.dataset.clientFilterState;
+    paintList(context);
+    return true;
+  }
   const action = button.dataset.clientAction;
   if (!action) return false;
+  if (action === "reset-filters") {
+    resetFilters(context);
+    return true;
+  }
   if (action === "import") {
     void openImportModal(context);
     return true;
   }
   if (action === "adopt") {
     void adopt(context, button);
-    return true;
-  }
-  if (action === "grant-lane") {
-    void laneAction(context, button);
-    return true;
-  }
-  if (action.startsWith("grant-")) {
-    void grantAction(context, button);
     return true;
   }
   if (action === "open" || action === "placement") {

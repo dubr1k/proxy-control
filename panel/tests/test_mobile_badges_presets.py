@@ -75,7 +75,7 @@ def test_mobile_cards_have_semantic_icons_and_quick_settings_align(tmp_path: Pat
             if (!box || box.width < 32 || box.height < 32) errors.push(`${selector}: icon badge too small`);
           }
         }
-        const grant = document.querySelector('.client-card .grant-chip[data-grant-id="g1"]');
+        const grant = document.querySelector('.client-card .grant-item[data-grant-id="g1"] .grant-row');
         if (!grant) errors.push('grant card missing');
         else {
           const box = grant.getBoundingClientRect();

@@ -4,6 +4,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-01
+
+- The access window: a click on an access row (client card or client window) opens its details (node, state and the node's report, route, limits, validity, subscription apps, secret, dates, ID), this access's own link with a QR on request («Открыть в Telegram» for MTProxy, «Профили для приложений» for NaiveProxy/Mieru on this server) and its actions: enable/disable, rotate, own lane, delete, adopt. The link does not stay in the window.
+- Clients: search by name, account and node; state buttons with counts; filters by protocol, node and the state of accesses (problems, waiting for the node, error, no secret, disabled, own lane, no access); «Показано N из M» and «Сбросить». Filters survive list refreshes.
+- API: `POST /api/clients/{id}/links?grant_id=…` reveals one access; links of all three protocols come with a QR.
+- Client card and client window: compact clickable access rows, an access's buttons live in its window; one type size in the client window.
+- Fix: text left its box (bubbles with vertical text in the client window, pills breaking mid-word); in-between widths — overview metrics, Mieru/NaiveProxy rows, the journal, the header on narrow phones.
+
+Panel only: no migrations, no manager rebuild. See [release notes](docs/releases/v1.0.2.md).
+
 ## [1.0.1] - 2026-09-29
 
 - Versions screen: each runtime's dropdown lists several recent releases both ways (newer / roll back, the agent's `newer` flag); the panel is only ever offered forward and the agent refuses a panel downgrade. The same on a node's Updates tab.

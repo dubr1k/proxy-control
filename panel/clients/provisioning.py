@@ -688,6 +688,7 @@ class ProvisioningService:
 
     def client_links(
         self, client_id: str, *, public_hosts, protocol: str | None = None,
+        grant_id: str | None = None,
         actor: dict, ip: str, request_id: str | None = None,
     ) -> dict:
         """Everything the client can be handed right now, not only what one operation made.
@@ -699,6 +700,8 @@ class ProvisioningService:
 
         `protocol` narrows the answer: a screen that shows only Telegram links asks only for
         them, so no other credential is decrypted to be dropped on the way to the browser.
+        `grant_id` narrows it to one grant of this client — the window of a single access;
+        a grant that is not this client's, deleted or without a stored secret is a KeyError.
         """
         hosts = public_hosts if callable(public_hosts) else (lambda _node_id: public_hosts)
         with self.database.connect() as db:
@@ -709,7 +712,10 @@ class ProvisioningService:
                 if grant.desired_state != "deleted"
                 and grant.secret_ref is not None
                 and (protocol is None or grant.protocol == protocol)
+                and (grant_id is None or grant.id == grant_id)
             ]
+            if grant_id is not None and not grants:
+                raise KeyError(grant_id)
             rendered = [self._rendered(db, grant, hosts) for grant in grants]
             # Показ ссылки — выдача живого секрета, как и показ подписки: он попадает в журнал.
             record(

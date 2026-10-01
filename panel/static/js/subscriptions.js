@@ -2,6 +2,7 @@ import { esc, locale, OPERATION_MESSAGE, OPERATION_OK, query, queryAll } from ".
 import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
+import { grantRowHtml } from "./grant.js";
 
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
 
@@ -63,20 +64,16 @@ function explain(exception) {
   return exception.message;
 }
 
-function grantRow(grant, matrix) {
-  const marks = ["karing", "singbox", "mihomo", "throne"].map((client) => {
-    const status = matrix[grant.protocol]?.[client] || "unsupported";
-    return `<small class="refresh-${esc(status)}" title="${esc(client)}: ${esc(AUTO_REFRESH[status] || status)}">${esc(client)}</small>`;
-  }).join("");
-  const note = !grant.has_credential
-    ? '<em>без секрета — в подписке как unsupported</em>'
-    : (grant.enabled ? "" : "<em>выключен — в подписку не попадает</em>");
-  return `<li class="grant-chip">
-    <b>${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}</b>
-    <span>${esc(grant.runtime_username)}</span>
-    <span class="auto-refresh" data-auto-refresh>${marks}</span>
-    ${note}
-  </li>`;
+// The grant list of the window: the same clickable rows as on the card, each with the apps
+// that refresh it from the subscription. A click opens the grant's own window — its link.
+function grantRow(grant, matrix, nodes) {
+  const marks = SUBSCRIBABLE.has(grant.protocol)
+    ? ["karing", "singbox", "mihomo", "throne"].map((client) => {
+      const status = matrix[grant.protocol]?.[client] || "unsupported";
+      return `<small class="refresh-${esc(status)}" title="${esc(client)}: ${esc(AUTO_REFRESH[status] || status)}">${esc(client)}</small>`;
+    }).join("")
+    : '<small class="refresh-unsupported" title="Telegram не читает подписку: только ссылка tg://proxy">только ссылка</small>';
+  return grantRowHtml(grant, { nodes, extra: `<span class="auto-refresh" data-auto-refresh>${marks}</span>` });
 }
 
 function variantOption(variant, selected) {
@@ -150,7 +147,7 @@ export function createSubscriptionDialog(context) {
       <button type="button" class="danger ghost" data-subscription-action="revoke">Отозвать</button>`;
   }
 
-  function renderPlacementBox(overview) {
+  function renderPlacementBox() {
     const rows = placementRows(context.state.nodes || [], state.grants);
     state.rows = rows;
     query("#placement-body", root).innerHTML = renderPlacement(rows, { canWrite: canWrite() });
@@ -158,9 +155,12 @@ export function createSubscriptionDialog(context) {
     const names = new Set(state.grants.filter((grant) => grant.desired_state !== "deleted").map((grant) => grant.runtime_username));
     if (!username.dataset.typed) username.value = names.size === 1 ? [...names][0] : proposeUsername(state.name);
     query("#placement-username-row", root).hidden = !canWrite();
-    query("#subscription-grants", root).innerHTML = overview.grants.length
-      ? overview.grants.map((grant) => grantRow(grant, state.matrix)).join("")
-      : '<li class="grant-chip empty"><small>У клиента нет доступов — подписке нечего отдавать</small></li>';
+    const order = { mtproxy: 0, naive: 1, mieru: 2 };
+    const grants = liveGrants().sort((left, right) => (order[left.protocol] ?? 9) - (order[right.protocol] ?? 9)
+      || String(left.node_id).localeCompare(String(right.node_id)));
+    query("#subscription-grants", root).innerHTML = grants.length
+      ? grants.map((grant) => grantRow(grant, state.matrix, context.state.nodes)).join("")
+      : '<li class="client-empty">У клиента нет доступов — отметьте узлы и протоколы выше</li>';
     query("#placement-actions", root).innerHTML = canWrite()
       ? '<button type="button" class="primary" data-placement-action="apply">Применить</button>'
       : "";
@@ -199,7 +199,7 @@ export function createSubscriptionDialog(context) {
     query("#subscription-variants", root).innerHTML = VARIANTS.map((variant) => variantOption(variant, state.format)).join("");
     renderSubscription(overview);
     renderLinks();
-    renderPlacementBox(overview);
+    renderPlacementBox();
     showReveal();
   }
 
@@ -485,7 +485,9 @@ export function createSubscriptionDialog(context) {
       const placement = event.target.closest("button[data-placement-action]");
       if (placement) return void apply(placement);
       const remove = event.target.closest("button[data-placement-delete]");
-      if (remove) void removeGrant(remove);
+      if (remove) return void removeGrant(remove);
+      const grant = event.target.closest("button[data-grant-open]");
+      if (grant) context.grants.open(state.clientId, grant.dataset.grantOpen, { client: state.client, grants: state.grants });
     });
     dialog.addEventListener("change", (event) => {
       if (event.target.name !== "subscription-format") return;
@@ -519,5 +521,11 @@ export function createSubscriptionDialog(context) {
     });
   }
 
-  return { bind, open };
+  // The grant window changed something of this client: the open window follows.
+  async function reloadIfOpen(clientId) {
+    if (!query("#subscription-modal", root)?.open || state.clientId !== clientId) return;
+    await load().catch(() => {});
+  }
+
+  return { bind, open, reloadIfOpen };
 }
