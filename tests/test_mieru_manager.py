@@ -1043,7 +1043,9 @@ def test_cli_timeout_kills_descendant_that_inherits_output_pipes(tmp_path):
     cli = MitaCLI(
         executable=fake,
         env={"PID_FILE": str(grandchild_pid)},
-        timeout=0.1,
+        # Both interpreters must start before the deadline can exercise orphan
+        # cleanup. 100 ms can kill the parent before it forks on a busy lab host.
+        timeout=1.0,
         max_output=1024,
     )
 
