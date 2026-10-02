@@ -430,6 +430,16 @@ is mutated:
 
 ## Recovery, repair, rollback, and uninstall
 
+Core host commands run in a dedicated process group. A timeout or Python interruption
+kills that group, reaps the command and waits until no live group members remain before
+returning control to rollback. Standard output stays suppressed; standard error remains
+available for the caller's bounded, redacted diagnostic. Cleanup waits are bounded. If
+termination cannot be confirmed, the installer stops with the transaction still
+`applying`: do not run `resume` or `repair` until an operator has checked the processes.
+This covers the command's process group, not independently daemonized processes or work
+already delegated to the Docker daemon; Docker build cancellation requires its own
+acceptance check.
+
 ```bash installer-check
 python3 -m installer.cli status --json
 python3 -m installer.cli resume --json

@@ -8,10 +8,12 @@ import json
 import os
 import re
 import secrets
+import signal
 import shutil
 import ssl
 import stat
 import subprocess
+import sys
 import time
 import tempfile
 import urllib.error
@@ -160,18 +162,76 @@ class _DefaultCoreRunner:
             # and callers redact and bound them before they reach a report.
             # Discarding them here left failures that named a command and
             # nothing else.
-            return subprocess.run(
+            process = subprocess.Popen(
                 [str(value) for value in argv],
-                check=False,
                 stdin=stdin,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
-                timeout=self.timeout,
                 env=dict(env) if env is not None else None,
+                start_new_session=True,
             )
+            try:
+                _stdout, stderr = process.communicate(timeout=self.timeout)
+                return subprocess.CompletedProcess(process.args, process.returncode, None, stderr)
+            except BaseException as exc:
+                # The leader may already have exited while its descendants retain
+                # stderr or keep mutating the host. Never gate killpg on poll().
+                try:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        _stdout, stderr = process.communicate(timeout=1.0)
+                    except subprocess.TimeoutExpired as cleanup:
+                        # An independently daemonized process can escape the group and
+                        # retain the pipe. Do not make the original timeout unbounded.
+                        stderr = cleanup.stderr
+                        process.wait(timeout=1.0)
+                    self._wait_process_group_stopped(process.pid)
+                except BaseException:
+                    # TransactionEngine rolls ordinary Exceptions back. Unknown
+                    # command liveness must stop that path, leaving state applying.
+                    raise SystemExit(
+                        "command cleanup could not be confirmed; do not resume or repair "
+                        "until an operator verifies all command processes have stopped"
+                    ) from None
+                if isinstance(exc, subprocess.TimeoutExpired) and stderr is not None:
+                    exc.stderr = stderr
+                raise
+            finally:
+                if process.stderr is not None:
+                    process.stderr.close()
         finally:
             if stdin_path is not None:
                 stdin.close()
+
+    @staticmethod
+    def _wait_process_group_stopped(group: int) -> None:
+        # Waiting for the shell or stderr EOF does not wait for a child which
+        # closed stderr. Linux may still be delivering the group's SIGKILL.
+        deadline = time.monotonic() + 1.0
+        proc = Path("/proc")
+        # Fail closed if Linux procfs is unavailable; an empty glob is not proof.
+        if int((proc / "self/stat").read_text().split(" ", 1)[0]) != os.getpid():
+            raise CoreError("process observation is unavailable")
+        while True:
+            active = False
+            for path in proc.iterdir():
+                if not path.name.isdecimal():
+                    continue
+                try:
+                    fields = (path / "stat").read_text().rsplit(")", 1)[1].split()
+                except (FileNotFoundError, ProcessLookupError):
+                    continue
+                if int(fields[2]) == group and fields[0] not in ("Z", "X"):
+                    active = True
+                    break
+            if not active:
+                return
+            if time.monotonic() >= deadline:
+                raise CoreError("command process group did not stop after SIGKILL")
+            time.sleep(0.01)
 
     def capture(self, argv: Sequence[str], *, max_chars: int) -> str:
         limit = min(max(max_chars, 0), 4096)
@@ -644,6 +704,7 @@ class _DefaultCoreRunner:
             )
             return configured_count + 1, configured_count + 1
         finally:
+            pending = sys.exc_info()[1]
             cleanup_failure: BaseException | None = None
             if created:
                 try:
@@ -662,8 +723,14 @@ class _DefaultCoreRunner:
                 if cleanup_failure is None:
                     cleanup_failure = exc
             if temporary is not None:
-                temporary.unlink(missing_ok=True)
+                try:
+                    temporary.unlink(missing_ok=True)
+                except BaseException as exc:
+                    if cleanup_failure is None:
+                        cleanup_failure = exc
             if cleanup_failure is not None:
+                if isinstance(pending, (SystemExit, KeyboardInterrupt)):
+                    raise pending from None
                 raise cleanup_failure
     def _login(
         self,

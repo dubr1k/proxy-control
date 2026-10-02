@@ -311,6 +311,42 @@ def engine_for(root: Path, *adapters: RecordingAdapter) -> TransactionEngine:
     )
 
 
+@pytest.mark.parametrize("failure", ["group", "reap"])
+def test_unconfirmed_core_command_cleanup_prevents_automatic_rollback(tmp_path, monkeypatch, failure):
+    import subprocess
+    import sys
+    from installer.adapters.core import CoreError, _DefaultCoreRunner
+
+    runner = _DefaultCoreRunner(timeout=0.05)
+    if failure == "group":
+        def unconfirmed(_group):
+            raise CoreError("group still active")
+        monkeypatch.setattr(runner, "_wait_process_group_stopped", unconfirmed)
+    else:
+        wait = subprocess.Popen.wait
+
+        def unconfirmed(process, *args, **kwargs):
+            wait(process, *args, **kwargs)  # Reap the real child, then inject failed confirmation.
+            raise subprocess.TimeoutExpired(process.args, 1)
+        monkeypatch.setattr(subprocess.Popen, "wait", unconfirmed)
+
+    class CommandAdapter(RecordingAdapter):
+        def apply(self, action, checkpoint):
+            super().apply(action, checkpoint)
+            runner.run((sys.executable, "-c", "import time; time.sleep(15)"))
+            return checkpoint
+
+    events = []
+    adapter = CommandAdapter("core", tmp_path, log=events)
+    engine = engine_for(tmp_path, adapter)
+    plan = plan_for("core")
+    with pytest.raises(SystemExit, match="do not resume or repair"):
+        engine.apply(plan, accepted_digest=plan.digest)
+    assert engine.store.read_state().status == "applying"
+    assert adapter.target.exists()
+    assert events == ["apply:core"]
+
+
 @pytest.mark.parametrize("crash_after", ["prepared", "applied", "verified"])
 def test_resume_after_each_checkpoint_does_not_repeat_committed_mutation(
     tmp_path: Path,
