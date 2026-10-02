@@ -211,6 +211,7 @@ SHA256_RE = r"^[0-9a-fA-F]{64}$"
 
 class NodeFingerprint(BaseModel):
     url: str = Field(min_length=1, max_length=PANEL_URL_MAX)
+    allow_private_address: bool = False
 
 
 class NodeLinkTest(BaseModel):

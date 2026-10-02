@@ -487,7 +487,9 @@ function bindLinkDialog(context) {
     }
     try {
       ui.setBusy(button, true, "Запрашиваем…");
-      const result = await api("/api/nodes/fingerprint", { method: "POST", body: JSON.stringify({ url }) });
+      const result = await api("/api/nodes/fingerprint", { method: "POST", body: JSON.stringify({
+        url, allow_private_address: linkForm(context).allow_private_address,
+      }) });
       query("#link-pinned", root).value = result.sha256;
       query('input[name="tls_verify"][value="pin"]', root).checked = true;
       ui.toast("Отпечаток получен: сверьте его с тем, что показывает сама панель");

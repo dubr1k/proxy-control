@@ -3,8 +3,11 @@ from __future__ import annotations
 import http.server
 import json
 import ssl
+import socket
 import threading
 
+import anyio
+import httpcore
 import httpx
 import pytest
 
@@ -200,7 +203,7 @@ def test_fingerprint_matches_the_real_leaf_certificate(tmp_path):
     expected = ca.certificate_metadata(cert)["fingerprint_sha256"]
     server, thread = _start_tls_server(cert, key)
     try:
-        digest = fingerprint(f"https://127.0.0.1:{server.server_port}")
+        digest = fingerprint(f"https://127.0.0.1:{server.server_port}", allow_private=True)
     finally:
         server.shutdown()
         thread.join(timeout=2)
@@ -215,16 +218,132 @@ async def test_pinned_transport_accepts_matching_and_rejects_mismatched_pin(tmp_
     server, thread = _start_tls_server(cert, key)
     try:
         base_url = f"https://127.0.0.1:{server.server_port}"
-        good = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256=expected)
+        good = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256=expected, allow_private_address=True)
         assert (await good.identity()) == {}
         assert server.requests == ["/api/fleet/v2/identity"]
 
         # A pin mismatch is an active MITM by definition: the handshake must fail before a
         # single byte of HTTP (the bearer key, the credentials of a push) reaches the peer.
-        bad = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256="0" * 64)
+        bad = NodeClient(base_url, "k", tls_verify="pin", pinned_sha256="0" * 64, allow_private_address=True)
         with pytest.raises(NodeUnreachable):
             await bad.identity()
         assert server.requests == ["/api/fleet/v2/identity"], "the mismatched server must not see a request"
     finally:
         server.shutdown()
         thread.join(timeout=2)
+
+
+@pytest.mark.parametrize("addresses", [["127.0.0.1"], ["::1"], ["169.254.169.254"], ["224.0.0.1"],
+                                      ["::ffff:127.0.0.1"], ["8.8.8.8", "10.0.0.1"]])
+@pytest.mark.parametrize("mode", ["verify", "pin"])
+async def test_dns_private_addresses_are_refused_before_connect(monkeypatch, addresses, mode):
+    connected = []
+
+    async def resolve(*args, **kwargs):
+        return [(0, 0, 0, "", (ip, 443)) for ip in addresses]
+
+    async def connect(self, host, port, **kwargs):
+        connected.append(host)
+        raise httpcore.ConnectError("test connection")
+
+    monkeypatch.setattr(anyio, "getaddrinfo", resolve)
+    monkeypatch.setattr(httpcore.AnyIOBackend, "connect_tcp", connect)
+    client = NodeClient("https://node.example", "synthetic-key", tls_verify=mode, pinned_sha256="0" * 64)
+    with pytest.raises(NodeUnreachable):
+        await client.identity()
+    assert connected == []
+
+
+async def test_dns_is_checked_again_for_each_connection_and_only_numeric_ip_is_dialed(monkeypatch):
+    connected, names, hosts = [], [], []
+    addresses = iter(["8.8.8.8", "127.0.0.1"])
+
+    async def resolve(*args, **kwargs):
+        return [(0, 0, 0, "", (next(addresses), 443))]
+
+    class Stream(httpcore.AsyncMockStream):
+        async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+            names.append(server_hostname)
+            return self
+
+        async def write(self, buffer, timeout=None):
+            if b"Host:" in buffer:
+                hosts.append(b"Host: node.example" in buffer)
+
+    async def connect(self, host, port, **kwargs):
+        connected.append(host)
+        return Stream([b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}"])
+
+    monkeypatch.setattr(anyio, "getaddrinfo", resolve)
+    monkeypatch.setattr(httpcore.AnyIOBackend, "connect_tcp", connect)
+    client = NodeClient("https://node.example", "synthetic-key")
+    assert await client.identity() == {}
+    with pytest.raises(NodeUnreachable):
+        await client.identity()
+    assert connected == ["8.8.8.8"]
+    assert names == ["node.example"] and hosts == [True]
+
+
+async def test_explicit_private_opt_in_reaches_loopback(monkeypatch):
+    connected = []
+
+    async def connect(self, host, port, **kwargs):
+        connected.append(host)
+        raise httpcore.ConnectError("test connection")
+
+    monkeypatch.setattr(httpcore.AnyIOBackend, "connect_tcp", connect)
+    client = NodeClient("https://127.0.0.1", "synthetic-key", allow_private_address=True)
+    with pytest.raises(NodeUnreachable):
+        await client.identity()
+    assert connected == ["127.0.0.1"]
+
+
+def test_fingerprint_dns_private_answer_is_refused_before_connect(monkeypatch):
+    connected = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [(0, 0, 0, "", ("127.0.0.1", 443))])
+
+    def connect(*args, **kwargs):
+        connected.append(args)
+        raise OSError("test connection")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    with pytest.raises(OSError):
+        fingerprint("https://node.example")
+    assert connected == []
+
+
+async def test_dns_timeout_is_bounded_and_typed(monkeypatch):
+    async def resolve(*args, **kwargs):
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(anyio, "getaddrinfo", resolve)
+    with pytest.raises(NodeUnreachable, match="ConnectTimeout"):
+        await NodeClient("https://node.example", "key", connect_timeout=0.01).identity()
+
+
+async def test_public_ipv6_failure_falls_back_to_validated_ipv4(monkeypatch):
+    connected = []
+
+    async def resolve(*args, **kwargs):
+        return [(0, 0, 0, "", (ip, 443)) for ip in ("2001:4860:4860::8888", "8.8.8.8")]
+
+    async def connect(self, host, port, **kwargs):
+        connected.append(host)
+        raise httpcore.ConnectError("test connection")
+
+    monkeypatch.setattr(anyio, "getaddrinfo", resolve)
+    monkeypatch.setattr(httpcore.AnyIOBackend, "connect_tcp", connect)
+    with pytest.raises(NodeUnreachable):
+        await NodeClient("https://node.example", "key").identity()
+    assert connected == ["2001:4860:4860::8888", "8.8.8.8"]
+
+
+async def test_redirect_never_sends_the_bearer_key_to_another_origin():
+    seen = []
+
+    def redirect(request):
+        seen.append(request.url.host)
+        return httpx.Response(302, headers={"Location": "https://127.0.0.1/internal"})
+
+    await _client(redirect).identity()
+    assert seen == ["node.example"]

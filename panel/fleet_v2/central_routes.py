@@ -96,11 +96,11 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
     async def node_fingerprint(body: NodeFingerprint, _user=Depends(owner)):
         """SHA-256 of the certificate the panel at `url` presents, for pin-on-trust (spec §4)."""
         try:
-            url = validate_panel_url(body.url, allow_private=True)
+            url = validate_panel_url(body.url, allow_private=body.allow_private_address)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         try:
-            return {"sha256": await asyncio.to_thread(fingerprint, url)}
+            return {"sha256": await asyncio.to_thread(fingerprint, url, allow_private=body.allow_private_address)}
         except OSError as exc:  # DNS, connect, timeout and TLS errors alike
             raise NodeUnreachable(type(exc).__name__) from exc
 

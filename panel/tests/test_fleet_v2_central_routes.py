@@ -5,6 +5,21 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
+async def test_fingerprint_private_address_requires_explicit_opt_in(central_http, monkeypatch):
+    _, _, _, http = central_http
+    seen = []
+
+    def capture(url, **kwargs):
+        seen.append(kwargs.get("allow_private"))
+        return "0" * 64
+
+    monkeypatch.setattr("panel.fleet_v2.central_routes.fingerprint", capture)
+    denied = await http.post("/api/nodes/fingerprint", json={"url": "https://127.0.0.1"})
+    assert denied.status_code == 422 and seen == []
+    allowed = await http.post("/api/nodes/fingerprint", json={"url": "https://127.0.0.1", "allow_private_address": True})
+    assert allowed.status_code == 200 and seen == [True]
+
+
 @pytest.fixture
 async def central_http(pair, login_user):
     node, central, plaintext = pair

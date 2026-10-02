@@ -9,6 +9,23 @@ pytestmark = pytest.mark.anyio
 ACTOR = {"id": 1, "username": "owner"}
 
 
+@pytest.mark.parametrize("allow_private", [False, True])
+async def test_private_address_policy_survives_link_and_client_recreation(pair, allow_private):
+    node, central, key = pair
+    seen = []
+    original = central.state.links.client_factory
+
+    def factory(url, api_key, **kwargs):
+        seen.append(kwargs.get("allow_private_address"))
+        return original(url, api_key, **kwargs)
+
+    central.state.links.client_factory = factory
+    node_id = await central.state.links.add("Edge", "https://node.example", key, "verify", None,
+                                            allow_private, actor=ACTOR, ip="x")
+    await central.state.links.client_for(node_id).identity()
+    assert seen == [allow_private, allow_private]
+
+
 async def test_test_and_add_link_a_panel_by_url_and_key(pair):
     node, central, plaintext = pair
     probe = await central.state.links.test("https://node.example", plaintext, "verify", None, False)

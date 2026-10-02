@@ -56,7 +56,8 @@ class NodeLinkService:
 
     def _client(self, link: dict, key: str) -> NodeClient:
         return self.client_factory(link["panel_url"], key, tls_verify=link["tls_verify"],
-                                   pinned_sha256=link["pinned_cert_sha256"])
+                                   pinned_sha256=link["pinned_cert_sha256"],
+                                   allow_private_address=bool(link["allow_private_address"]))
 
     def client_for(self, node_id: str) -> NodeClient:
         with self.database.connect() as db:
@@ -69,7 +70,8 @@ class NodeLinkService:
     async def test(self, url, api_key, tls_verify, pinned_sha256, allow_private) -> dict:
         """identity + status + inventory of the panel at `url`, nothing stored."""
         url = validate_panel_url(url, allow_private=allow_private)
-        client = self.client_factory(url, api_key, tls_verify=tls_verify, pinned_sha256=pinned_sha256)
+        client = self.client_factory(url, api_key, tls_verify=tls_verify, pinned_sha256=pinned_sha256,
+                                     allow_private_address=allow_private)
         started = self.clock.monotonic()
         try:
             identity = await client.identity()

@@ -6,8 +6,10 @@ import ipaddress
 import json as json_module
 import socket
 import ssl
+import time
 from urllib.parse import urlsplit
 
+import anyio
 import httpcore
 import httpx
 
@@ -53,15 +55,34 @@ def validate_panel_url(url: str, *, allow_private: bool) -> str:
     return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
 
 
-def fingerprint(url: str, *, timeout: float = 5.0) -> str:
+def _public_address(value: str) -> bool:
+    address = ipaddress.ip_address(value)
+    return address.is_global and not address.is_multicast
+
+
+def fingerprint(url: str, *, timeout: float = 5.0, allow_private: bool = False) -> str:
     """SHA-256 of the leaf certificate presented at `url`, hex-encoded, chain unverified.
     Used to capture a pin when a node is linked (spec §4: pin-on-trust for lab/self-signed certs)."""
     parts = urlsplit(url)
     context = ssl.create_default_context()
     context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
-    with socket.create_connection((parts.hostname, parts.port or 443), timeout=timeout) as raw:
-        with context.wrap_socket(raw, server_hostname=parts.hostname) as tls:
-            return hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
+    deadline = time.monotonic() + timeout
+    addresses = list(dict.fromkeys(row[4][0] for row in socket.getaddrinfo(
+        parts.hostname, parts.port or 443, type=socket.SOCK_STREAM)))
+    if not addresses or (not allow_private and any(not _public_address(address) for address in addresses)):
+        raise OSError("private or local addresses need allow_private_address")
+    last_error = None
+    for address in addresses:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("certificate probe timed out")
+        try:
+            with socket.create_connection((address, parts.port or 443), timeout=remaining) as raw:
+                with context.wrap_socket(raw, server_hostname=parts.hostname) as tls:
+                    return hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
+        except OSError as exc:
+            last_error = exc
+    raise last_error
 
 
 class _PinningStream(httpcore.AsyncNetworkStream):
@@ -95,38 +116,65 @@ class _PinningStream(httpcore.AsyncNetworkStream):
         return tls
 
 
-class _PinningBackend(httpcore.AsyncNetworkBackend):
-    """Wrap the anyio backend so every TCP connection's TLS handshake is pinned (see `_PinningStream`)."""
+class _NodeBackend(httpcore.AsyncNetworkBackend):
+    """Resolve and validate each connection, then dial a numeric address without a second DNS lookup.
 
-    def __init__(self, expected: str):
+    httpcore keeps the original origin for Host, SNI and certificate hostname validation.
+    Reject the whole answer if any address is non-global: falling back from a public
+    address must never route credentials into a private network without explicit opt-in.
+    """
+
+    def __init__(self, *, allow_private: bool, expected: str | None = None):
         self._inner, self._expected = httpcore.AnyIOBackend(), expected
+        self._allow_private = allow_private
 
     async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
-        stream = await self._inner.connect_tcp(host, port, timeout=timeout, local_address=local_address,
-                                               socket_options=socket_options)
-        return _PinningStream(stream, self._expected)
+        try:
+            # One budget covers DNS and all candidate connections, including fallback.
+            with anyio.fail_after(timeout):
+                try:
+                    addresses = [str(ipaddress.ip_address(host))]
+                except ValueError:
+                    resolved = await anyio.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+                    addresses = list(dict.fromkeys(str(ipaddress.ip_address(row[4][0])) for row in resolved))
+                if not addresses or (not self._allow_private and any(
+                        not _public_address(address) for address in addresses)):
+                    raise httpcore.ConnectError("private or local addresses need allow_private_address")
+                last_error = None
+                for address in addresses:
+                    try:
+                        stream = await self._inner.connect_tcp(
+                            address, port, timeout=timeout, local_address=local_address,
+                            socket_options=socket_options)
+                        return _PinningStream(stream, self._expected) if self._expected else stream
+                    except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
+                        last_error = exc
+                raise last_error
+        except TimeoutError as exc:
+            raise httpcore.ConnectTimeout() from exc
+        except (OSError, ValueError) as exc:
+            raise httpcore.ConnectError("node address resolution failed") from exc
 
     async def connect_unix_socket(self, path, timeout=None, socket_options=None):  # pragma: no cover
-        raise httpcore.ConnectError("pinned transport is TCP-only")
+        raise httpcore.ConnectError("node transport is TCP-only")
 
     async def sleep(self, seconds):
         await self._inner.sleep(seconds)
 
 
-class _PinnedTransport(httpx.AsyncHTTPTransport):
-    """Verify the leaf certificate by SHA-256 instead of by chain (self-signed/lab certs).
-    Chain verification is off (`CERT_NONE`), so the pin is the only trust anchor — it is
-    checked inside the handshake (`_PinningStream.start_tls`), never after a response."""
+class _NodeTransport(httpx.AsyncHTTPTransport):
+    """Apply the address policy with normal TLS verification or a handshake-time leaf pin."""
 
-    def __init__(self, expected: str, **kw):
+    def __init__(self, *, allow_private: bool, expected: str | None = None):
         context = ssl.create_default_context()
-        context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
-        super().__init__(verify=context, **kw)
-        self.expected = expected.lower()
+        if expected is not None:
+            context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
+        super().__init__(verify=context, trust_env=False)
         # Replace httpx's pool with one whose network backend pins the handshake (httpx exposes no hook
         # for the backend); the pool limits are httpx's defaults (100 / 20 / 5 s), HTTP/1.1 only.
         self._pool = httpcore.AsyncConnectionPool(
-            ssl_context=context, network_backend=_PinningBackend(self.expected),
+            ssl_context=context, network_backend=_NodeBackend(
+                allow_private=allow_private, expected=expected.lower() if expected else None),
             max_connections=100, max_keepalive_connections=20, keepalive_expiry=5.0, http1=True, http2=False)
 
 
@@ -134,7 +182,8 @@ class NodeClient:
     """Bearer-authenticated client to one node's `/api/fleet/v2/*` routes (spec §5.2)."""
 
     def __init__(self, base_url: str, api_key: str, *, tls_verify: str = "verify", pinned_sha256: str | None = None,
-                 timeout: float = 30.0, connect_timeout: float = 5.0, transport=None):
+                 timeout: float = 30.0, connect_timeout: float = 5.0, transport=None,
+                 allow_private_address: bool = False):
         if tls_verify not in TLS_MODES:
             raise ValueError("tls_verify must be verify or pin")
         if tls_verify == "pin" and not pinned_sha256:
@@ -143,13 +192,14 @@ class NodeClient:
         # The key never lands in an attribute we might log or repr elsewhere; only the header dict holds it.
         self.headers = {"Authorization": f"Bearer {api_key}"}
         self.timeout = httpx.Timeout(timeout, connect=connect_timeout)
-        self.transport = transport or (_PinnedTransport(pinned_sha256) if tls_verify == "pin" else None)
+        self.transport = transport or _NodeTransport(
+            allow_private=allow_private_address, expected=pinned_sha256 if tls_verify == "pin" else None)
 
     async def _call(self, method: str, path: str, json=None) -> tuple[int, dict]:
         content = bytearray()
         try:
             async with httpx.AsyncClient(base_url=self.base_url, headers=self.headers, timeout=self.timeout,
-                                         transport=self.transport) as client:
+                                         transport=self.transport, trust_env=False, follow_redirects=False) as client:
                 async with client.stream(method, path, json=json) as response:
                     status = response.status_code
                     if status in (401, 403):
