@@ -105,7 +105,7 @@ class TelemtAdapter:
         self._lock = asyncio.Lock()
 
     def batch(self):
-        """One inventory read for a whole reconcile pass (`TelemtClient.batch`); a client
+        """Reuse inventory between mutations; post-write readback is fresh. A client
         without one (a fake) gets a no-op context."""
         batch = getattr(self.client, "batch", None)
         return batch() if batch is not None else contextlib.nullcontext()
