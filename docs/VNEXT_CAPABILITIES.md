@@ -90,6 +90,19 @@ until runtime readback confirms the requested state; retries do not rewrite the
 operator's administrative choice. The central refreshes observed timed grants on
 its heartbeat.
 
+A late `drifted` report never confirms a newer generation's on/off state. The
+legacy drift report carries no actual on/off value: for an enabled grant with a
+validity window the central therefore shows `pending` until it receives an
+explicit `enabled`/`disabled` report. It does not infer the node's state from its
+own clock. Option drift on an explicitly disabled generation still confirms
+`disabled`, independent of clocks.
+
+Поздний отчёт `drifted` не подтверждает новое поколение. Такой отчёт не содержит
+фактическое состояние включения: доступ с временным окном остаётся `pending`,
+пока узел не сообщит явно `enabled`/`disabled`. Центр не подменяет подтверждение
+расчётом по своим часам. Явно отключённое поколение подтверждает `disabled`
+даже при расхождении остальных настроек.
+
 The current managers cannot atomically create a disabled user. Creating an access
 outside its window therefore creates, disables and reads it back before provisioning
 can succeed. This prevents a false success report but does **not** guarantee an

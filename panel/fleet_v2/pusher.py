@@ -23,7 +23,6 @@ import logging
 import time
 from dataclasses import dataclass
 
-from ..clients.models import effective_enabled
 from ..routing.store import PolicyNotFound
 from ..routing.lanes import RELAY_PURPOSE, RelayRegistry
 from ..secrets_store import SecretError, SecretRef
@@ -513,6 +512,7 @@ class FleetPusher:
             elif current and observed.reconcile_state == "failed":
                 self._defer(node_id, latest["generation"])
             grants = {grant.id: grant for grant in self.clients.store.grants(db, node_id=node_id, include_deleted=True)}
+            sent_resources = {resource.ref: resource for resource in latest["document"].resources} if current else {}
             for item in observed.resources:
                 grant = grants.get(item.ref.removeprefix("grant:"))
                 if grant is None:
@@ -521,8 +521,19 @@ class FleetPusher:
                 # could not be applied. `failed`: the last known state stands; the node's
                 # error is in observed_generations and on the operation's step.
                 if item.state == "drifted":
-                    person = self.clients.store.client(db, grant.client_id)
-                    state = "enabled" if effective_enabled(grant, person, now) else "disabled"
+                    # Drift reports do not carry the actual on/off value. Never use
+                    # today's client state or the central's clock to invent readback:
+                    # a late report may predate a suspension or a node deadline tick.
+                    resource = sent_resources.get(item.ref)
+                    if resource is None:
+                        continue
+                    if resource.desired_state == "disabled":
+                        state = "disabled"
+                    elif resource.desired_state == "enabled" and resource.valid_from is None and resource.valid_until is None:
+                        state = "enabled"
+                    else:
+                        self.clients.store.update_grant(db, grant.id, observed_state="pending", updated_at=now)
+                        continue
                 else:
                     state = item.state
                 if state not in GRANT_STATES:

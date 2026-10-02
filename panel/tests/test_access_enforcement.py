@@ -229,3 +229,40 @@ async def test_remote_option_drift_does_not_report_suspended_runtime_as_enabled(
     await central.state.pusher.tick()
     assert await _enabled(node) is False
     assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "disabled"
+
+
+async def _drifted_report(pair, monkeypatch, **window):
+    node, central, node_id, person, _, grant = await _remote(pair)
+    await central.state.pusher.tick()
+
+    async def unsupported(ref, options):
+        return None
+
+    monkeypatch.setattr(node.state.adapters["naive"], "update_options", unsupported)
+    with central.state.database.transaction() as db:
+        central.state.clients.store.update_grant(db, grant.id, protocol_options_json='{"quota_bytes":100}', **window)
+        central.state.clients.notify(db, person.id)
+    await central.state.pusher.tick()
+    with node.state.database.connect() as db:
+        report = node.state.managed.observed(db)
+    assert report.resources[0].state == "drifted"
+    return node, central, node_id, person, report
+
+
+async def test_stale_option_drift_report_cannot_confirm_a_new_suspension(pair, monkeypatch):
+    node, central, node_id, person, report = await _drifted_report(pair, monkeypatch)
+    central.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
+    assert await _enabled(node) is True
+    central.state.pusher._absorb(node_id, report, {})
+    assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
+
+
+@pytest.mark.parametrize("central_now", [0, 9999999999])
+async def test_drift_report_does_not_infer_node_runtime_from_central_clock(pair, monkeypatch, central_now):
+    node, central, node_id, person, report = await _drifted_report(
+        pair, monkeypatch, valid_from=1, valid_until=9999999999,
+    )
+    central.state.pusher.clock = SimpleNamespace(time=lambda: central_now)
+    assert await _enabled(node) is True
+    central.state.pusher._absorb(node_id, report, {})
+    assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
