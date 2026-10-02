@@ -30,6 +30,7 @@ PANEL_CANDIDATE = {
     "url": PANEL_URL, "sha256": "0" * 64, "published_at": "2026-09-21T00:00:00Z",
 }
 PANEL_EXEC = ["docker", "exec", "proxy-control-panel", "cat", "/app/VERSION"]
+PANEL_IMAGE_ID = "sha256:" + "a" * 64
 
 
 def _release_tar(entries: dict[str, bytes | tuple[bytes, int]]) -> bytes:
@@ -94,6 +95,8 @@ class _PanelHost:
         self.commands.append(list(command))
         if command[:3] == ["docker", "volume", "inspect"]:
             return str(self.volume)
+        if command == ["docker", "inspect", "--format", "{{.Image}}", "proxy-control-panel"]:
+            return PANEL_IMAGE_ID
         if command[:2] == ["docker", "compose"] and "up" in command and self.migrate \
                 and (self.compose / "VERSION").read_text().strip() == NEW_PANEL:
             # A newer panel migrates the database at start-up; the restored one does not.
@@ -218,7 +221,7 @@ def test_panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies(tmp_p
     assert (host.agent_dir / "version_agent/service.py").read_text() == "new agent\n"
     assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "systemd-run"]
     tag = next(c for c in host.commands if c[:2] == ["docker", "tag"])
-    assert tag[2] == "mtproxy-panel:latest" and tag[3].startswith("mtproxy-panel:rollback-")
+    assert tag[2] == PANEL_IMAGE_ID and tag[3].startswith("mtproxy-panel:rollback-")
     build = next(c for c in host.commands if "build" in c)
     assert build[:4] == ["docker", "compose", "--project-name", "mtproxy"] and "--env-file" in build
     assert build[-2:] == ["build", "panel"]

@@ -725,6 +725,13 @@ class VersionAgent:
         after = {name: self._tree_hash(staging / name) for name in present}
         pending = [name for name in PANEL_MANAGERS if name in present and before[name] != after[name]]
         agent_changed = PANEL_AGENT_DIR in present and before[PANEL_AGENT_DIR] != after[PANEL_AGENT_DIR]
+        # A manual build can move :latest while the old container keeps running.
+        # Refuse before changing files if its immutable identity is unavailable.
+        running_image = self.runner(
+            ["docker", "inspect", "--format", "{{.Image}}", self.panel_container], timeout=30,
+        ).strip()
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", running_image):
+            raise UpdateError("running panel image identity is unavailable")
         backup_dir = self.state_path.parent / "backups" / "panel.previous"
         db_backup = self.state_path.parent / "backups" / "panel-db.previous"
         shutil.rmtree(backup_dir, ignore_errors=True)
@@ -742,8 +749,9 @@ class VersionAgent:
                 synced.append(name)
                 self._copy_entry(staging / name, target)
             self._fsync_directory(self.compose_dir)
-            rollback_tag = f"{self.panel_image}:rollback-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}"
-            self.runner(["docker", "tag", f"{self.panel_image}:latest", rollback_tag], timeout=60)
+            tag = f"{self.panel_image}:rollback-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}"
+            self.runner(["docker", "tag", running_image, tag], timeout=60)
+            rollback_tag = tag
             self.runner(self._compose_command("build", "panel", **self._override_kwargs()), cwd=self.compose_dir, timeout=900)
             self._stop_panel_writers()
             volume_dir = self._panel_volume_dir()
@@ -812,8 +820,10 @@ class VersionAgent:
                     (volume_dir / name).unlink(missing_ok=True)
         if rollback_tag is not None:
             self.runner(["docker", "tag", rollback_tag, f"{self.panel_image}:latest"], timeout=60)
-        self._compose_up("panel")
-        self._start_panel_peers()
+            self._compose_up("panel")
+            self._start_panel_peers()
+        # Before the image was tagged no runtime command ran. Leave that still-
+        # running container alone rather than recreating it from an unrelated latest.
 
     # ------------------------------------------------------------------
     # xray (the router's pinned bin-dir: xray, geoip.dat, geosite.dat)

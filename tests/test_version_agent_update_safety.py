@@ -6,7 +6,7 @@ import pytest
 from tests.test_version_agent_panel import (
     NEW_PANEL, OLD_PANEL, _PanelHost, _panel_archive, _release_tar, _state,
 )
-from version_agent.service import RollbackFailedError, RolledBackError, VersionAgent
+from version_agent.service import RollbackFailedError, RolledBackError, UpdateError, VersionAgent
 
 
 def test_mcp_source_is_updated_and_reported_for_rebuild(tmp_path):
@@ -123,3 +123,43 @@ def test_mcp_source_rolls_back_with_failed_panel_generation(tmp_path):
     with pytest.raises(RolledBackError):
         agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
     assert source.read_text() == "old mcp"
+
+
+def test_rollback_image_is_the_running_container_even_when_latest_was_rebuilt(tmp_path):
+    host = _PanelHost(tmp_path, container_version=OLD_PANEL)
+    running_image = "sha256:" + "1" * 64
+    run = host.run
+
+    def runner(command, **kwargs):
+        if command == ["docker", "inspect", "--format", "{{.Image}}", "proxy-control-panel"]:
+            host.commands.append(command)
+            return running_image
+        return run(command, **kwargs)
+
+    agent = host.agent(_panel_archive())
+    agent.runner = runner
+    with pytest.raises(RolledBackError):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    tags = [command for command in host.commands if command[:2] == ["docker", "tag"]]
+    assert tags[0][2] == running_image  # latest may already name a different image
+    assert tags[1][2] == tags[0][3] and tags[1][3] == "mtproxy-panel:latest"
+
+
+@pytest.mark.parametrize("failure", ["identity", "tag"])
+def test_missing_rollback_image_refuses_before_recreating_from_latest(tmp_path, failure):
+    host = _PanelHost(tmp_path)
+    agent = host.agent(_panel_archive())
+    run = host.run
+
+    def runner(command, **kwargs):
+        if failure == "identity" and command[:4] == ["docker", "inspect", "--format", "{{.Image}}"]:
+            return ""
+        if failure == "tag" and command[:2] == ["docker", "tag"]:
+            raise RuntimeError("could not save rollback image")
+        return run(command, **kwargs)
+
+    agent.runner = runner
+    with pytest.raises(UpdateError):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert not any(command[:2] == ["docker", "compose"] for command in host.commands)
+    assert (host.compose / "VERSION").read_text().strip() == OLD_PANEL

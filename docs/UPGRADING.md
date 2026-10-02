@@ -533,6 +533,8 @@ container still mounts the panel volume. A failed stop or a remaining writer pre
 restore and leaves the backup intact for operator recovery; an incomplete snapshot is never
 used for rollback. The failed new panel is stopped again before restoring the old database.
 Legacy ingress is restarted after the panel.
+The rollback tag points to the running container's immutable image ID, even if a
+separate build has already moved `mtproxy-panel:latest` to a different image.
 
 The sync set and `pending_rebuild` also include `mcp_server/`. Panel rollback restores its
 previous sources. `install-release.sh --update` reconciles an enabled MCP from the verified
