@@ -191,7 +191,8 @@ foreign frontend without verifying every existing backend.
 The verified one-command updater migrates only exact predecessor fresh templates.
 `python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443` prints a
 read-only plan; add `--apply` as root to back up both configs, replace them, run
-`nginx -t` and reload. Validation/reload failure restores both files and reloads
+`nginx -t` and reload, then waits for a new live Nginx worker generation. Occupied
+new Unix socket paths are refused without removing them. Validation/reload failure restores both files and reloads
 the predecessor. Edited templates are refused; foreign coexist configs report
 `coexist_manual` and stay unchanged. Backup directories are private
 directories under `/var/lib/proxy-control/ingress-backups`. UI-only panel updates require this host step.

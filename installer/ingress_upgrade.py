@@ -13,6 +13,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from installer.adapters.core import _mcp_vhost_text, _panel_vhost_text, _subscription_vhost_text
@@ -102,7 +103,46 @@ def _run(command: tuple[str, ...]) -> None:
     subprocess.run(command, check=True, capture_output=True, timeout=30)
 
 
-def _upgrade(project: Path, *, root: Path, apply: bool, run) -> dict:
+def _workers() -> tuple[int, set[int]]:
+    master = subprocess.run(("systemctl", "show", "nginx", "--property=MainPID", "--value"),
+                            check=True, capture_output=True, text=True, timeout=10).stdout.strip()
+    if not master.isdigit() or int(master) <= 1:
+        raise UpgradeError("Nginx master process is unavailable")
+    children = Path(f"/proc/{master}/task/{master}/children").read_text().split()
+    workers = set()
+    for child in children:
+        try:
+            command = Path(f"/proc/{child}/cmdline").read_bytes()
+        except FileNotFoundError:
+            continue
+        if command.startswith(b"nginx: worker process") and b"shutting down" not in command:
+            workers.add(int(child))
+    return int(master), workers
+
+
+def _reload(run) -> None:
+    # Sending HUP is asynchronous: systemctl can succeed while a bind error leaves
+    # the old workers serving. The master starts new workers only after accepting
+    # the new configuration and opening every listener.
+    master, old = _workers()
+    if not old:
+        raise UpgradeError("Nginx has no serving workers before reload")
+    run(("systemctl", "reload", "nginx"))
+    deadline = time.monotonic() + 10
+    previous = set()
+    while time.monotonic() < deadline:
+        current_master, workers = _workers()
+        if current_master != master:
+            raise UpgradeError("Nginx master changed during reload")
+        fresh = workers - old
+        if fresh & previous:
+            return
+        previous = fresh
+        time.sleep(0.2)
+    raise UpgradeError("Nginx did not activate a new worker generation")
+
+
+def _upgrade(project: Path, *, root: Path, apply: bool, run, reload) -> dict:
     marker = project / ".mtproxy-owned"
     stream, panel = root / STREAM, root / PANEL
     if not marker.exists() or not stream.exists():
@@ -116,6 +156,12 @@ def _upgrade(project: Path, *, root: Path, apply: bool, run) -> dict:
         return {"status": "current", "client_ip": "proxy_protocol"}
     if not apply:
         return {"status": "pending", "files": ["stream.d/proxy-control.conf", "conf.d/proxy-control-panel.conf"]}
+    old_sockets = set(re.findall(rb"listen unix:([^ ;]+)", b"\n".join(before.values())))
+    new_sockets = set(re.findall(rb"listen unix:([^ ;]+)", b"\n".join(desired.values())))
+    for name in new_sockets - old_sockets:
+        path = root / name.decode().lstrip("/")
+        if path.exists() or path.is_symlink():
+            raise UpgradeError("a new ingress Unix socket path is occupied")
     backup = Path(tempfile.mkdtemp(prefix="backup-", dir=root / STATE))
     metadata = {}
     for path, name in ((stream, "stream.conf"), (panel, "panel.conf")):
@@ -135,24 +181,24 @@ def _upgrade(project: Path, *, root: Path, apply: bool, run) -> dict:
     try:
         write(desired)
         run(("nginx", "-t"))
-        run(("systemctl", "reload", "nginx"))
+        reload(run)
     except Exception as exc:
         try:
             write(before)
             run(("nginx", "-t"))
-            run(("systemctl", "reload", "nginx"))
+            reload(run)
         except Exception:
             raise UpgradeError(f"ingress rollback failed; private backup: {backup}") from None
         raise UpgradeError(f"ingress upgrade failed; original configuration restored; private backup: {backup}") from exc
     return {"status": "applied", "client_ip": "proxy_protocol", "backup": str(backup)}
 
 
-def upgrade(project: Path, *, root: Path = Path("/"), apply: bool = False, run=_run) -> dict:
+def upgrade(project: Path, *, root: Path = Path("/"), apply: bool = False, run=_run, reload=_reload) -> dict:
     if not apply:
-        return _upgrade(project, root=root, apply=False, run=run)
+        return _upgrade(project, root=root, apply=False, run=run, reload=reload)
     if not project.is_dir() or project.is_symlink():
         raise UpgradeError("project directory is unavailable or unsafe")
-    plan = _upgrade(project, root=root, apply=False, run=run)
+    plan = _upgrade(project, root=root, apply=False, run=run, reload=reload)
     if plan["status"] != "pending":
         return plan
     state = root / STATE
@@ -166,7 +212,7 @@ def upgrade(project: Path, *, root: Path = Path("/"), apply: bool = False, run=_
     fd = os.open(state / ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return _upgrade(project, root=root, apply=True, run=run)
+        return _upgrade(project, root=root, apply=True, run=run, reload=reload)
     finally:
         os.close(fd)
 
