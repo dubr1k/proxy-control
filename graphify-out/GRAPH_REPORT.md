@@ -1,22 +1,22 @@
 # Graph Report - audit-hardening  (2026-10-02)
 
 ## Corpus Check
-- 540 files · ~1,112,065 words
+- 540 files · ~1,112,600 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 40 file(s) not represented in the graph (top: (none) 14, .service 8, .conf 5)
 
 ## Summary
-- 12618 nodes · 36201 edges · 439 communities (328 shown, 111 thin omitted)
+- 12621 nodes · 36212 edges · 417 communities (305 shown, 112 thin omitted)
 - Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 3882 edges (avg confidence: 0.93)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1386b83b`
+- Built from commit: `361072e3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- installer/audit.py
+- CommandRunner
 - release.py
 - TrafficCollector
 - _DefaultMieruRunner
@@ -30,28 +30,28 @@
 - ThreeXuiAdapter
 - Sharing Mieru configurations
 - test_installer_mieru.py
-- test_protocol_adapter_contract.py
+- TerminalWizard
 - parse_config
 - test_installer_naive.py
-- central_routes.py
+- test_fleet_v2_post_merge.py
 - install-bootstrap
-- Action
+- .stage
 - Task 16: Reproducible release builder and GitHub workflow
 - MemoryMieru
 - test_installer_transaction.py
 - Управление Mieru / mita 3.35–3.36
-- AuditFacts
-- grant.js
+- test_installer_nginx.py
+- query
 - test_naive_manager.py
 - test_installer_wizard.py
 - firewall.py
 - test_installer_credentials.py
-- PlanError
+- AuditFacts
 - Acceptance
 - test_xray_router_geodata.py
-- RuntimeInstaller
+- test_proxyctl_runtime.py
 - Proxy Control documentation index
-- test_routing_fleet.py
+- test_routing_fleet_chains.py
 - GrantIntent
 - Planned File Structure
 - test_mieru_manager.py
@@ -62,7 +62,7 @@
 - qemu_lab.py
 - test_installer_release.py
 - test_installer_docs.py
-- PackagesAdapter
+- Action
 - render_config
 - TopologyError
 - test_installer_fresh_host.py
@@ -71,7 +71,7 @@
 - test_mieru_deployment.py
 - RoutingService
 - CentralProcess
-- ClientConflict
+- build.py
 - CoreError
 - test_naive_acceptance_tunnels_a_real_inner_tls_session
 - Troubleshooting Proxy Control
@@ -88,46 +88,46 @@
 - Матрица негативных и security-тестов vNext (Task 39)
 - test_installer_mcp.py
 - routing-spike.py
-- ThreeXuiMode
+- GeodataStore
 - proxyctl.py
 - test_proxyctl_transactions.py
 - DesiredGeneration (node_id, generation, schema_version, digest, resources_json, required_capabilities, previous_generation)
-- Reconciler
-- parse_effective_nginx
+- test_naive_management.py
+- test_routing_service.py
 - CoreAdapter
 - test_routing_lanes_routes.py
-- register_naive_routes
+- full_config
 - test_version_agent_upstream.py
 - prepare-naive-state.py
-- exits.py
+- routing/service.py
 - test_panel_entrypoint.py
-- test_version_agent_host.py
+- test_version_agent_server.py
 - Store
 - 3x-ui mode: managed-new
 - register_routing_routes
-- NodeRegistry
+- test_dns_is_checked_again_for_each_connection_and_only_numeric_ip_is_dialed
 - core_checks
 - CertificateAuthority
 - compile
-- auto_import
-- NodeClient
+- panel
+- test_fleet_v2_client.py
 - Task 6: Encrypted secret versions and master key
 - QuotaEnforcer
 - _DefaultCoreRunner
 - MemoryTelemt
 - WarpAdapter
-- query
+- createSubscriptionDialog
 - FleetPusher
-- ValidationError
+- Path
 - test_installer_cli.py
 - test_mieru_manager_lanes.py
 - main.js
 - QemuLabTests
-- test_node_lifecycle.py
+- Panel
 - test_mieru_egress.py
 - nodes.js
 - mcp_server/server.py
-- UnixHTTPServer
+- .verify
 - Task 2: automatic WARP with selective routing
 - test_installer_xray_router.py
 - access.js
@@ -135,30 +135,30 @@
 - test_naive_manager_lanes.py
 - Continuation prompt for a new Claude Code context
 - register_fleet_v2_node_routes
-- client.py
+- _PinningStream
 - MTProxy acceptance failure: Connection closed
 - Proxy Control v0.1.0 Beta
 - test_installer_version_agent.py
 - curated.py
 - XrayRouterManager
-- _render_at_phone_viewport
+- test_mobile_layout.py
 - docker_lab.py
 - Task 4: Unified DB layer and migrations
 - Panel version-agent
 - PolicyInput
-- test_fleet_v2_post_merge.py
+- sbom.py
 - clients.js
 - AgentTransportServer
 - test_fleet_v2_reconcile.py
 - test_mcp_server.py
-- test_subscription_renderers.py
+- renderers/base.py
 - 3x-ui mode managed-new: install on clean server, create inbounds
 - FakeFleet
 - test_naive_manager_egress.py
-- audit.js
+- ManagerHTTPServer
 - test_fleet_acceptance_script.py
 - 3. Задачи
-- routing/service.py
+- RoutingRule
 - Global Constraints
 - index.cjs
 - Interactive Release Installer Design
@@ -166,13 +166,13 @@
 - create_app
 - EgressInvalid
 - test_xray_router_mtproxy.py
-- managed_config
+- Trust Boundaries
 - test_three_xui_api.py
 - guest-runner.sh script
 - MemoryXrayRouter
 - ReleaseMatrixTests
 - Proxy Control Cover Art
-- node_agent.py
+- route-coverage.py
 - NaiveClient
 - run_captured
 - Task 1: ADRs and v0.2 architecture record
@@ -180,9 +180,8 @@
 - ReleaseManifest
 - mieru-client/probe.py
 - Промпт для продолжения работы в новом контексте
-- Unreleased
 - test_ui_browser_findings.py
-- Installer CLI commands
+- test_route_coverage.py
 - container_cmd
 - installer_cmd
 - prepare_mieru_token.py
@@ -193,13 +192,13 @@
 - ProvisioningService
 - tools.py
 - Rule: verify the open port, not the panel record
-- UpgradeError
+- ingress_upgrade.py
 - client_probe
 - test_mtproxy_respq_probe.py
 - test_version_agent_panel.py
-- document_digest
+- 4. Автоматическое развёртывание узла
 - check-js-syntax.sh
-- test_resource_boundaries.py
+- BoundedBodyMiddleware
 - probe/install.sh
 - test_installer_three_xui.py
 - Private Vulnerability Reporting Path
@@ -207,7 +206,7 @@
 - .compose
 - upstream
 - test_routing_router_service.py
-- ADR 006: Engine-neutral routing policy IR
+- RuntimeRunner
 - MieruClient
 - MemoryNaive
 - XrayRouterClient
@@ -217,11 +216,11 @@
 - InstallerConfig
 - mieru-mss-clamp.sh
 - ThreeXuiApiError
-- MitaCLI
+- test_fleet_v2_ui_contract.py
 - _panel_health_diagnosis
 - entrypoint.sh
 - test_grant_lifecycle.py
-- README.md
+- Diagnosing a client's access
 - Screenshot Sanitization Policy
 - telemt-entrypoint.sh
 - install.sh
@@ -247,37 +246,37 @@
 - CatalogError
 - accepted_sha256
 - host-teardown.sh
-- SubprocessXrayRunner
+- XrayError
 - v0.8 — «Выходы и правила»: маршрутизация в духе 3x-ui поверх Xray-router
 - common.js
 - i18n-strings.py
-- test_routing_fleet_chains.py
+- routes.py
 - CommandRunner
 - English
 - test_fleet_v2_node_api.py
 - InstallPlan
-- socks5-stub.py
-- DomainFacade
+- ipaddress
+- Xray egress-router spike (v0.5, Task 32)
 - test_access_enforcement.py
-- .enabled
+- Proxy Control v0.6 — руководство оператора: архитектура, домены, автоматическое развёртывание, узлы, доступы из центра, маршрутизация
 - Рабочий протокол для AI-агентов
 - test_client_links.py
 - English
-- AcceptanceError
-- BearerGate
+- SequentialSecrets
+- ArtifactPin
 - safe_extract_zip
 - Browser
 - .step_05c_chains
-- test_routing_presets.py
-- test_fleet_v2_links.py
+- EgressConfig
+- SecurityHeadersMiddleware
 - English
 - NaivePaths
-- Промпт для продолжения работы в новом контексте
+- test_managed_provision_actually_applies_warp_and_subscription
 - test_routing_ui_contract.py
-- _DefaultThreeXuiRunner
-- test_subscription_lifecycle.py
+- ThreeXuiPaths
+- ADR 008: Panel-to-panel transport with scoped API keys
 - ManagedClient
-- ThreeXuiAudit
+- 8.2 Локальный узел
 - ThreeXuiClient
 - Host
 - register_node_routes
@@ -294,63 +293,56 @@
 - test_subscription_http.py
 - Proxy Control v0.5 — выделенный Xray egress-router и финализация vNext
 - TelemtAdapter
-- CONTINUE HERE — v0.4 маршрутизация
+- dashboard
 - XrayRouterAdapter
 - test_management_ui_contract.py
 - proxy-control-lab-clients Compose project
-- command
+- test_fleet.py
 - Api
 - The MCP server (v0.11): the panel as tools for Claude Code, Claude Desktop, Codex and OMP
-- test_provisioning_saga.py
+- vNext capability matrix
 - MCP-сервер (v0.11): панель как инструменты Claude Code, Claude Desktop, Codex и OMP
 - Isolated Ubuntu 24.04 installer lab
 - 6. Центр и узлы: привязка панелей
-- _Checked
-- NginxReloadRecovery
+- naive_manager/healthcheck.py
+- .__init__
 - test_dashboard_ui_contract.py
 - English
-- RolledBackError
+- Granting access to a client
 - CONTINUE HERE — v0.8 (свои выходы, таблица правил, geodata, автоимпорт)
 - xray_router_manager/healthcheck.py
-- mieru.js
+- docker/links.py
 - test_mieru_management.py
 - English
-- test_fleet_v2_post_merge_node.py
+- ADR 003: One writer per resource
 - ImageMetadataTests
 - test_xray_router_deployment.py
 - Журнал изменений
 - test_view_addressing_ui.py
 - rotate-xray-router-ingress.sh
-- StubManager
 - _DefaultXrayRouterRunner
 - _preparer
 - Живая проверка (AMS_Z ↔ ams-test)
-- _canonical_json_value
-- TelemtError
+- test_telemt_recovery.py
 - install-release.sh
 - prepare-xray-router-state.sh
-- 5. Интерфейс
+- v0.10 — клиент на нескольких узлах и подписка под рукой
 - test_client_import.py
 - Telemt MTProto data plane
 - ADR 002: Declarative immutable generations
 - AccessGrant
 - ._compose_start
-- parse_reality_keypair
+- test_compose_runs_to_completion_not_through_diagnostic_capture
 - i18n.js
 - test_api_key_auth.py
 - test_fleet_v2_central_routes.py
-- .plan
-- status / resume / repair
-- panel
-- .install
+- English
+- English
 - .view_central
-- _validate_destination
-- PanelClient
-- RelayRegistry
+- test_mieru_replanning_accepts_ports_its_own_server_already_holds
 - Структура файлов
 - ManagerHandler
 - English
-- Handler
 - test_placement_ui_contract.py
 - test_clients_filters_ui.py
 - json
@@ -359,11 +351,10 @@
 - English
 - test_update_host.py
 - CONTINUE HERE — v0.6 сверка функций v0.2–v0.5
-- test_installer_firewall.py
 - https_probe
 - ReleaseFixtureTests
-- InstallerConflict
-- Proxy Control architecture
+- RuntimeInstaller
+- Accounting semantics
 - test_a_download_that_does_not_match_its_pin_is_discarded
 - Api
 - ContainerImageTests
@@ -379,56 +370,40 @@
 - ReleaseArtifactTests
 - test_routing_routes.py
 - test_a_failed_core_command_names_the_command_that_failed
-- CuratedTool
 - ADR 004: Client, AccessGrant and subscription as a projection
 - v1.1 — маршрутизация MTProxy через Xray-router
-- _serve
 - test_a_failed_core_command_never_echoes_a_credential
 - _deploy_hook_text
 - test_compose_builds_the_images_from_the_release_it_installs
-- test_panel_client_accepts_a_full_reveal_payload
 - ArtifactError
 - _command_failure
 - test_naive_bootstrap_log_matches_the_manager_accounting_writer
-- RelayRunner
+- config
 - test_the_shared_core_project_is_not_mistaken_for_naive_resources
-- _Clock
 - ContainerScenarioTests
 - test_mieru_acceptance_deletes_with_a_compare_and_set_revision
 - _sanitize_diagnostic
 - ADR 009: Lanes per client and chains through the fleet's relays
 - Исправления по аудиту v1.1.0
 - test_the_release_manifest_pins_x86_64_only
-- .run
 - test_a_failed_identity_lookup_is_not_a_collision
 - ADR 005: Secrets travel as references
 - RenderedNaive
-- test_renewal_retries_the_order_not_ready_race_once
 - test_socks5_stub.py
 - English
 - test_fetch_reports_the_hop_that_names_the_release
 - remote-gate.sh
-- ._probe_image_compatible
-- test_telemt_adapter_does_not_leak_secret_in_errors
-- register_auth_admin_audit_routes
 - SecretGenerator
 - FakePanel
-- test_telemt_client_batches_inventory_reads_until_access_changes
-- _ScopedClientDouble
 - update-host.sh
 - test_rbac_audit.py
 - Handler
-- test_a_failed_acceptance_step_carries_what_the_probe_said
 - warp_routing
-- test_a_failing_command_reports_what_it_said
-- test_the_domain_writer_adopts_a_user_it_did_not_create
 - ProtocolError
 - RenderedCore
 - FakeClock
 - ADR 007: Routing enforcement ownership
-- facts_with_uid
-- ingress_credential
-- exdev_between_directories
+- full_config
 
 ## God Nodes (most connected - your core abstractions)
 1. `Action` - 234 edges
@@ -473,31 +448,31 @@
 - **Fixed numeric UID/GID isolation contract across services** — compose_mieru_mieru_manager_service, compose_naive_naive_manager_service, compose_panel_service [INFERRED 0.85]
 - **One-time credential reveal flow** — panel_en_one_time_reveal, panel_en_naive_client_formats, panel_static_index_access_modal, panel_static_index_mieru_access_modal, panel_static_index_naive_access_modal, mieru_en_users_links_qr, readme_en_first_sign_in [INFERRED 0.85]
 
-## Communities (439 total, 111 thin omitted)
+## Communities (417 total, 112 thin omitted)
 
-### Community 0 - "installer/audit.py"
-Cohesion: 0.06
-Nodes (56): _applicable_caa(), _audit_host(), AuditError, _bounded_execute(), _bounded_resolve(), _caa_compatible(), _canonical_caa_record(), _canonical_ip() (+48 more)
+### Community 0 - "CommandRunner"
+Cohesion: 0.05
+Nodes (74): _applicable_caa(), audit_host(), _audit_host(), AuditError, _bounded_execute(), _bounded_resolve(), _caa_compatible(), _certificate_fact() (+66 more)
 
 ### Community 1 - "release.py"
-Cohesion: 0.12
-Nodes (35): ArtifactPin, _copy_regular_member(), _copy_verified_archive(), _decode_bounded_tar(), _digest_open_file(), _DuplicateKeyError, ExternalArtifact, _extract_members() (+27 more)
+Cohesion: 0.10
+Nodes (47): _best_effort_remove_tree_at(), _copy_regular_member(), _copy_verified_archive(), _create_private_stage(), _decode_bounded_tar(), _destination_identity(), _DestinationAnchor, _digest_open_file() (+39 more)
 
 ### Community 2 - "TrafficCollector"
 Cohesion: 0.05
 Nodes (43): build_manager(), _assert_safe_parent_chain(), _Candidate, _now(), TrafficCollector, collector(), record(), test_active_hardlink_alias_counts_once_and_does_not_consume_rotation_or_verify_budget() (+35 more)
 
 ### Community 3 - "_DefaultMieruRunner"
-Cohesion: 0.08
+Cohesion: 0.07
 Nodes (9): _acceptance_value(), _AcceptanceCollision, AcceptanceError, _client_config_for(), _DefaultMieruRunner, MieruAcceptance, _require_acceptance(), test_real_mieru_runner_recognizes_existing_named_system_group() (+1 more)
 
 ### Community 4 - "MieruAdapter"
-Cohesion: 0.04
-Nodes (22): _decode_transports(), _encode_transports(), MieruAdapter, MieruError, StagedMita, _validate_ownership_mapping(), clean_facts(), mieru_action() (+14 more)
+Cohesion: 0.07
+Nodes (6): _command_failure(), _decode_transports(), MieruAdapter, MieruError, _validate_ownership_mapping(), test_compose_failure_retains_bounded_sanitized_diagnostics()
 
 ### Community 5 - "installer/cli.py"
-Cohesion: 0.10
-Nodes (24): _adopt_legacy_if_needed(), _automated_install(), _bounded_error(), _bounded_text(), CliError, CliServices, _default_services(), audit() (+16 more)
+Cohesion: 0.08
+Nodes (28): _adopt_legacy_if_needed(), _automated_install(), _bounded_error(), _bounded_text(), CliError, plan(), main(), _plan_from_path() (+20 more)
 
 ### Community 6 - "Scenario"
 Cohesion: 0.12
@@ -505,23 +480,23 @@ Nodes (3): describe_artifact(), Scenario, adopted()
 
 ### Community 7 - "NaiveCredentialManager"
 Cohesion: 0.05
-Nodes (21): Task 4: naive-manager — egress API (Task 29a), 6. Egress API менеджеров (Task 29), _assert_regular(), _assert_safe_parent_chain(), _atomic_write(), _durable_mkdir(), _durable_unlink(), _fsync_directory() (+13 more)
+Nodes (20): Task 4: naive-manager — egress API (Task 29a), 6. Egress API менеджеров (Task 29), _assert_regular(), _assert_safe_parent_chain(), _atomic_write(), _durable_mkdir(), _durable_unlink(), _fsync_directory() (+12 more)
 
 ### Community 8 - "Proxy Control"
 Cohesion: 0.04
-Nodes (82): In-lab verification checklist, Documentation contract runs every documented command through the CLI parser, Pinned external artifacts catalog release/external-artifacts.json, Fleet v1 Telemt-only, Profiles and adapters (packages, nginx, certificates, firewall, core, naive, mieru, three_xui), Naive site on port-only address with probe resistance, Per-protocol acceptance with real clients, Release acceptance lab (container and bare metal) (+74 more)
+Nodes (83): In-lab verification checklist, Documentation contract runs every documented command through the CLI parser, Pinned external artifacts catalog release/external-artifacts.json, Fleet v1 Telemt-only, Profiles and adapters (packages, nginx, certificates, firewall, core, naive, mieru, three_xui), Naive site on port-only address with probe resistance, Per-protocol acceptance with real clients, Release acceptance lab (container and bare metal) (+75 more)
 
 ### Community 9 - "NaiveAdapter"
 Cohesion: 0.08
-Nodes (5): NaiveAdapter, NaiveError, _validate_ownership_mapping(), test_compose_runs_to_completion_not_through_diagnostic_capture(), test_naive_plan_keeps_only_audited_adjacent_routes()
+Nodes (3): NaiveAdapter, NaiveError, _validate_ownership_mapping()
 
 ### Community 10 - "Панель управления Proxy Control"
-Cohesion: 0.05
-Nodes (73): compose-and-images job, Pinned Caddy build check with negative case, Synthetic Compose render inputs, Pinned Caddy negative build check, Validate every Compose model and image, Atomic SQLite login-attempt reservation before Argon2, NekoBox naive+https tab in Naive reveal, Tabs without verified QR drop the QR pane (+65 more)
+Cohesion: 0.04
+Nodes (104): Synthetic Compose render inputs, Busy buttons: capture event.currentTarget before finally, Client-specific Native/Karing/manual reveals, Host resource card via version-agent GET /v1/host, Generation-specific Karing profile name after rotation, Former host/systemd MTProxy install scripts removed, Atomic SQLite login-attempt reservation before Argon2, Complete mieru-client.json in Native reveal (+96 more)
 
 ### Community 11 - "ThreeXuiAdapter"
-Cohesion: 0.09
-Nodes (4): ArtifactError, ThreeXuiAdapter, ThreeXuiError, durable_mkdir()
+Cohesion: 0.04
+Nodes (14): ArtifactError, _client_count(), _DefaultThreeXuiRunner, _plain_audit(), _safe_text(), _tags(), ThreeXuiAdapter, ThreeXuiAudit (+6 more)
 
 ### Community 12 - "Sharing Mieru configurations"
 Cohesion: 0.06
@@ -529,31 +504,27 @@ Nodes (55): Cache-Control: no-store reveal response, Client matrix, Create acces
 
 ### Community 13 - "test_installer_mieru.py"
 Cohesion: 0.08
-Nodes (52): ArtifactError, adapter(), applied(), artifact_action(), fake_deb(), FakeMieruRunner, host(), stage_client_package() (+44 more)
+Nodes (51): ArtifactError, adapter(), applied(), artifact_action(), fake_deb(), FakeMieruRunner, host(), stage_client_package() (+43 more)
 
-### Community 14 - "test_protocol_adapter_contract.py"
-Cohesion: 0.15
-Nodes (16): adapter(), adopted(), anyio_backend(), backends(), _credential(), _imported(), _intent(), test_a_credential_plan_must_match_the_protocol() (+8 more)
+### Community 14 - "TerminalWizard"
+Cohesion: 0.09
+Nodes (15): text(), _domain(), EditField, _email(), _optional(), pinned_version(), PromptValidationError, ReviewAction (+7 more)
 
 ### Community 15 - "parse_config"
-Cohesion: 0.05
-Nodes (74): _certificate_groups(), _as_dict(), _boolean(), ConfigError, _domain(), _domains(), _enum(), _integer() (+66 more)
+Cohesion: 0.06
+Nodes (76): _as_dict(), _boolean(), ConfigError, _domain(), _domains(), _enum(), _integer(), _keys() (+68 more)
 
 ### Community 16 - "test_installer_naive.py"
 Cohesion: 0.11
 Nodes (42): adapter(), applied(), FakeNaiveRunner, host(), naive_action(), _router_config(), _stage_router_secret(), test_naive_acceptance_requires_closed_connect_accounting() (+34 more)
 
-### Community 17 - "central_routes.py"
-Cohesion: 0.06
-Nodes (42): 6.5 Карточка узла и ежедневная проверка, Task 11: Маршруты центра — связи, импорт пользователей узла, версии, подписки по узлам, 6. Центр, _refusal(), register_fleet_v2_central_routes(), _linked(), node_auth_failed(), node_fingerprint() (+34 more)
+### Community 17 - "test_fleet_v2_post_merge.py"
+Cohesion: 0.02
+Nodes (88): 6.5 Карточка узла и ежедневная проверка, Task 8: Связи с узлами — миграция, `NodeLinkService`, `DesiredStore`, компиляция поколений, 6. Центр, _refusal(), register_fleet_v2_central_routes(), _linked(), node_auth_failed(), node_fingerprint() (+80 more)
 
 ### Community 18 - "install-bootstrap"
-Cohesion: 0.05
-Nodes (59): Acceptance per protocol, Commands, Configuration file, Core acceptance evidence, core adapter, Hard stops, host_mode (fresh | coexist), initial_user (+51 more)
-
-### Community 19 - "Action"
-Cohesion: 0.06
-Nodes (26): Adapter, _as_text(), _command_failure(), _decode_adjacent_routes(), _encode_adjacent_routes(), _file_sha256(), _sanitize_diagnostic(), _valid_adjacent_backend() (+18 more)
+Cohesion: 0.04
+Nodes (74): report.json public acceptance report, Installer CLI commands, Commands, Configuration file, credentials/handoff.json, Fleet v1 Telemt-only limit, Hard stops, host_mode (fresh | coexist) (+66 more)
 
 ### Community 20 - "Task 16: Reproducible release builder and GitHub workflow"
 Cohesion: 0.09
@@ -564,28 +535,28 @@ Cohesion: 0.13
 Nodes (3): MemoryMieru, MieruError, test_memory_mieru_replays_a_caller_credential_and_refuses_a_generated_one()
 
 ### Community 22 - "test_installer_transaction.py"
-Cohesion: 0.05
-Nodes (58): _assert_contained(), import_runtime_v2(), operation_lock(), _owned_path(), OwnershipError, _path_identity(), _root_path(), RuntimeV2Adapter (+50 more)
+Cohesion: 0.08
+Nodes (50): import_runtime_v2(), OwnershipError, TransactionBusyError, TransactionStore, RuntimePlan, action_for(), engine_for(), InjectedCrash (+42 more)
 
 ### Community 23 - "Управление Mieru / mita 3.35–3.36"
 Cohesion: 0.07
-Nodes (47): Opt-in systemd Mieru TCP MSS clamp, Pinned mita 3.36.x admitted alongside 3.35.x, Next integrations: Panel/Naive, Mieru, Fleet, Следующие интеграции, First valid generation before the hardened mita unit, Full-snapshot CAS config transactions with journal v3 HMAC, compose.mieru.yaml overlay, MIERU_MITA_SHA256 executable digest gate (+39 more)
+Nodes (45): Opt-in systemd Mieru TCP MSS clamp, Pinned mita 3.36.x admitted alongside 3.35.x, Next integrations: Panel/Naive, Mieru, Fleet, Следующие интеграции, First valid generation before the hardened mita unit, Full-snapshot CAS config transactions with journal v3 HMAC, compose.mieru.yaml overlay, MIERU_MITA_SHA256 executable digest gate (+37 more)
 
-### Community 24 - "AuditFacts"
-Cohesion: 0.09
-Nodes (48): ensure_stream_context(), NginxAdapter, WizardRunner, HostMode, AuditFacts, test_generated_manager_token_is_valid_http_text(), config(), facts() (+40 more)
+### Community 24 - "test_installer_nginx.py"
+Cohesion: 0.08
+Nodes (52): _certificate_groups(), ensure_stream_context(), NginxAdapter, DomainConfig, HostMode, config(), facts(), FreshExecutor (+44 more)
 
-### Community 25 - "grant.js"
+### Community 25 - "query"
 Cohesion: 0.09
-Nodes (44): [0.7.0-beta.1] - 2026-09-18, Добавлено, Изменено, Исправлено, Исправлено (после v0.6, в ветке до этого тега), 6.1 Модель (`panel/routing/models.py`, схема базы 16), 6.2 Сервис маршрутизации и цели, 6.3 Экран «Маршрутизация и цепи» (+36 more)
+Nodes (50): [0.7.0-beta.1] - 2026-09-18, Добавлено, Изменено, Исправлено, Исправлено (после v0.6, в ветке до этого тега), 6.1 Модель (`panel/routing/models.py`, схема базы 16), 6.2 Сервис маршрутизации и цели, 6.3 Экран «Маршрутизация и цепи» (+42 more)
 
 ### Community 26 - "test_naive_manager.py"
 Cohesion: 0.05
 Nodes (71): ManagerHTTPServer, ManagerRecoveryError, _bootstrapped(), Hooks, manager(), test_accounting_migration_fault_at_each_phase_restores_then_retries_idempotently(), test_adapted_semantic_drift_makes_health_unready(), test_additional_basic_auth_outside_managed_block_makes_health_unready() (+63 more)
 
 ### Community 27 - "test_installer_wizard.py"
-Cohesion: 0.05
-Nodes (43): Locale, locale_from_environment(), parse_locale(), text(), _domain(), EditField, _egress_choice(), _email() (+35 more)
+Cohesion: 0.10
+Nodes (24): load_config(), TerminalIO, WizardSaved, _run_cli_in_pty(), _scripted(), test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(), test_an_invalid_configuration_says_why(), test_blank_passwords_leave_no_credentials_file_behind() (+16 more)
 
 ### Community 28 - "firewall.py"
 Cohesion: 0.12
@@ -593,31 +564,31 @@ Nodes (30): _action_enable(), _action_ipv6_enabled(), _action_rules(), _action_s
 
 ### Community 29 - "test_installer_credentials.py"
 Cohesion: 0.10
-Nodes (24): _anchor(), CredentialError, credentials_path(), discard_staged_credentials(), OperatorCredentials, read_credentials(), stage_credentials(), stage_operator_credentials() (+16 more)
+Nodes (23): _anchor(), CredentialError, credentials_path(), discard_staged_credentials(), OperatorCredentials, read_credentials(), stage_credentials(), stage_operator_credentials() (+15 more)
 
-### Community 30 - "PlanError"
-Cohesion: 0.17
-Nodes (29): build_plan(), PlanError, StalePlanError, action(), adapters(), config(), facts(), FakeAdapter (+21 more)
+### Community 30 - "AuditFacts"
+Cohesion: 0.09
+Nodes (39): _encode_transports(), _assert_secret_free(), AuditFacts, build_plan(), _canonical_fact_value(), _canonical_json_value(), _freeze(), _nonempty() (+31 more)
 
 ### Community 32 - "test_xray_router_geodata.py"
-Cohesion: 0.06
-Nodes (40): _clocked(), _field(), geodata_file(), _loyal(), _old_meta(), test_a_pin_nobody_ever_chose_moves_to_loyalsoldier_but_a_chosen_one_stays(), test_automatic_updates_run_at_the_interval_from_the_watchdog(), test_block_document_still_applies_after_an_update() (+32 more)
+Cohesion: 0.08
+Nodes (34): _clocked(), _field(), geodata_file(), _loyal(), _old_meta(), test_a_pin_nobody_ever_chose_moves_to_loyalsoldier_but_a_chosen_one_stays(), test_automatic_updates_run_at_the_interval_from_the_watchdog(), test_block_document_still_applies_after_an_update() (+26 more)
 
-### Community 33 - "RuntimeInstaller"
-Cohesion: 0.11
-Nodes (24): RuntimeInstaller, FakeRunner, plan(), runtime_root(), test_compose_start_failure_reports_bounded_sanitized_diagnostics_and_rolls_back(), test_compose_start_keeps_health_diagnostics_ahead_of_bounded_logs_and_ps(), test_failed_install_rollback_is_retried_before_reinstall(), test_generated_acme_and_panel_sites_pass_native_nginx_syntax_check() (+16 more)
+### Community 33 - "test_proxyctl_runtime.py"
+Cohesion: 0.10
+Nodes (24): FakeRunner, plan(), runtime_root(), test_compose_start_failure_reports_bounded_sanitized_diagnostics_and_rolls_back(), test_compose_start_keeps_health_diagnostics_ahead_of_bounded_logs_and_ps(), run(), test_failed_install_rollback_is_retried_before_reinstall(), test_generated_acme_and_panel_sites_pass_native_nginx_syntax_check() (+16 more)
 
 ### Community 34 - "Proxy Control documentation index"
-Cohesion: 0.07
-Nodes (44): Changelog, Transactional release installer with durable journal, 1.0.0 — initial MTProxy release (2026-02-11), 1.1.0 — Fake TLS and hardening (2026-02-21), 1.2.0 — legacy installer fixes (2026-02-22), 1.3.0 — legacy MTProxy installer (2026-08-11), Развёртывание MTProto за Nginx SNI (RU), Backup and restore contract (EN) (+36 more)
+Cohesion: 0.06
+Nodes (51): Changelog, Transactional release installer with durable journal, 1.0.0 — initial MTProxy release (2026-02-11), 1.1.0 — Fake TLS and hardening (2026-02-21), 1.2.0 — legacy installer fixes (2026-02-22), 1.3.0 — legacy MTProxy installer (2026-08-11), Развёртывание MTProto за Nginx SNI (RU), Backup and restore contract (EN) (+43 more)
 
-### Community 35 - "test_routing_fleet.py"
-Cohesion: 0.04
-Nodes (70): Task 7: `NodeClient` — HTTP-клиент центра к узлу, Task 9: Fleet v2 — egress в поколении, узел и центр (Task 31), Task 6: Панель — клиент роутера, `RouterTarget`, адаптер, wiring, Task 6: Модуль матрицы `placement.js` — рендер, чтение, диф, Известные ограничения/решения (для ревью и после v0.5), 8.3 Подключённые панели (Fleet v2), 9.3 Подключённые панели (Fleet v2), v0.3 — Fleet v2 (+62 more)
+### Community 35 - "test_routing_fleet_chains.py"
+Cohesion: 0.02
+Nodes (115): Task 13: Документация, миграционные заметки, версия, Task 15: Живая проверка AMS_Z ↔ ams-test (разрешение владельца от 2026-09-11), Task 16: Релизный гейт v0.3.0-beta.1, Task 1: Идентичность панели и API-ключи (хранилище), Task 3: Протокол поколений и хранилище узла, Task 5: Reconciler узла, Task 6: Fleet API v2 узла и защита ресурсов центра, Task 7: `NodeClient` — HTTP-клиент центра к узлу (+107 more)
 
 ### Community 36 - "GrantIntent"
-Cohesion: 0.04
-Nodes (66): GrantIntent, NaiveOptions, test_local_enforcement_batches_runtime_inventory_per_protocol(), test_an_interrupted_operation_is_resumed_through_the_api(), test_capture_credential_refuses_a_remote_grant(), slow_create(), _linked(), test_a_failed_local_step_compensates_and_withdraws_the_remote_grant() (+58 more)
+Cohesion: 0.02
+Nodes (133): confirm(), _existing(), ImportDecision, ImportResult, _integer(), inventory(), InventoryItem, _mieru_options() (+125 more)
 
 ### Community 37 - "Planned File Structure"
 Cohesion: 0.08
@@ -625,51 +596,51 @@ Nodes (38): audit_host -> AuditFacts, AuditFacts, parse_config / render_config /
 
 ### Community 38 - "test_mieru_manager.py"
 Cohesion: 0.07
-Nodes (40): _authenticate_journal(), FakeMita, manager(), MergingMita, RecoveryMita, _service(), _status_cli(), test_a_caller_password_is_validated_and_operations_are_pruned() (+32 more)
+Nodes (45): _authenticate_journal(), FakeMita, manager(), MergingMita, _process_running(), RecoveryMita, _service(), _status_cli() (+37 more)
 
 ### Community 39 - "naive_manager/egress.py"
-Cohesion: 0.08
-Nodes (38): Task 1: Fix-wave — отложенные замечания v0.4, block_lines(), canonical(), check_reachable(), document_digest(), EgressInvalid, forward_proxy_bounds(), _indent() (+30 more)
+Cohesion: 0.07
+Nodes (39): Task 1: Fix-wave — отложенные замечания v0.4, block_lines(), canonical(), check_reachable(), document_digest(), EgressInvalid, forward_proxy_bounds(), _indent() (+31 more)
 
 ### Community 40 - "test_release_build.py"
-Cohesion: 0.05
-Nodes (55): archive_names(), assert_clean(), build_release(), BuiltRelease, _canonical(), commit_epoch(), _executable(), _external_artifacts() (+47 more)
+Cohesion: 0.10
+Nodes (28): build(), checkout_with_private_files(), clean_checkout(), git(), gzip_rewrap(), _run_published_script(), sha256(), tar_names() (+20 more)
 
 ### Community 41 - "vNext v0.2 local control plane implementation plan"
 Cohesion: 0.08
 Nodes (38): ADR 004: Client / AccessGrant / subscription, Disposable lab host ams-test, tests/fixtures/vnext-capabilities.json (4 protocols x 23 capabilities), Audit finding 2: Panel vhost is rendered in two places, Audit finding 3: uvicorn writes an access log to container stdout, Audit finding 6: Credential re-reveal differs per protocol, Audit finding 10: UI is ES modules without a bundler, Audit finding 11: Fleet tables and the reserved local node (+30 more)
 
 ### Community 42 - "Keyring"
-Cohesion: 0.07
-Nodes (39): Центральная панель (fleet_v2 central), Task 2: Escrow при выдаче, гашение при ротации/отзыве, `reveal_token`, 2. Хранение токена: escrow под keyring, 3. API, 4. Реестр аудита и события, 6. Ошибки и крайние случаи, 7. Тесты, 8. Документация к выпуску (+31 more)
+Cohesion: 0.03
+Nodes (60): Task 9: Fleet v2 — возможности, секция `relay`, полосы в поколении, Global Constraints, Self-review, Task 10: Документация выпуска и VERSION, Task 11: Гейт на ams-test и живая проверка AMS_Z → ams-test, Task 2: Escrow при выдаче, гашение при ротации/отзыве, `reveal_token`, Task 4: Подписка выдаётся вместе с клиентом, Task 5: Аудит и документация модели (ADR 004, OPERATIONS) (+52 more)
 
 ### Community 43 - "qemu_lab.py"
 Cohesion: 0.10
 Nodes (29): acceleration(), allocate_port(), _archive(), cleanup(), finalize_results(), full_egress_policy(), guest_remote(), junit_xml() (+21 more)
 
 ### Community 44 - "test_installer_release.py"
-Cohesion: 0.18
+Cohesion: 0.17
 Nodes (33): ArchiveEntry, ArchiveManifest, _manifest_data(), safe_extract_tar(), _stage_paths(), _tar(), test_archive_digest_is_verified_before_tar_processing(), test_archive_path_swap_cannot_change_verified_bytes() (+25 more)
 
 ### Community 45 - "test_installer_docs.py"
 Cohesion: 0.08
 Nodes (27): _parser(), checked_commands(), documented_files(), install_steps(), install_text(), python_requirements(), readme(), reference() (+19 more)
 
-### Community 46 - "PackagesAdapter"
-Cohesion: 0.14
-Nodes (19): _action_packages(), _assert_added_unchanged(), _assert_preexisting_unchanged(), _checkpoint_packages(), PackageError, PackagesAdapter, _version_mapping(), adapter_factories() (+11 more)
+### Community 46 - "Action"
+Cohesion: 0.06
+Nodes (28): Adapter, _action_packages(), _assert_added_unchanged(), _assert_preexisting_unchanged(), _checkpoint_packages(), PackageError, PackagesAdapter, _version_mapping() (+20 more)
 
 ### Community 47 - "render_config"
-Cohesion: 0.11
-Nodes (30): test_render_without_an_mtproxy_ingress_is_unchanged(), _intent(), test_generation_digest_changes_with_credentials_and_redact_hides_accounts(), test_redact_masks_relay_and_chain_secrets_too(), test_render_bypass_private_precedes_every_rule_per_tag(), test_render_chain_is_a_vless_reality_outbound_per_hop_dialled_through_the_previous(), test_render_default_egress_warp_needs_warp_url(), test_render_inbounds_have_password_auth_no_udp_and_sniffing_route_only() (+22 more)
+Cohesion: 0.10
+Nodes (31): test_render_without_an_mtproxy_ingress_is_unchanged(), _intent(), test_generation_digest_changes_with_credentials_and_redact_hides_accounts(), test_redact_masks_relay_and_chain_secrets_too(), test_render_bypass_private_precedes_every_rule_per_tag(), test_render_chain_is_a_vless_reality_outbound_per_hop_dialled_through_the_previous(), test_render_default_egress_warp_needs_warp_url(), test_render_inbounds_have_password_auth_no_udp_and_sniffing_route_only() (+23 more)
 
 ### Community 48 - "TopologyError"
-Cohesion: 0.07
-Nodes (27): _action_specification(), _address_facts(), _certificate_action(), _certificate_checkpoint(), _certificate_sans(), _certificate_vhost_path(), _checkpoint_identity(), _client_ip_backend() (+19 more)
+Cohesion: 0.05
+Nodes (57): _action_specification(), _address_facts(), _certificate_action(), _certificate_checkpoint(), _certificate_sans(), _certificate_vhost_path(), _checkpoint_identity(), _client_ip_backend() (+49 more)
 
 ### Community 49 - "test_installer_fresh_host.py"
-Cohesion: 0.10
-Nodes (53): CertificatePlan, ReleaseIdentity, test_renewal_does_not_retry_a_real_acme_failure(), test_renewal_retries_deactivated_authorization_race_without_hiding_errors(), test_renewal_reuses_only_same_process_same_lineage_evidence(), canonical_ufw(), CertRunner, config() (+45 more)
+Cohesion: 0.09
+Nodes (54): FirewallAdapter, CertificatePlan, test_renewal_does_not_retry_a_real_acme_failure(), test_renewal_retries_deactivated_authorization_race_without_hiding_errors(), test_renewal_retries_the_order_not_ready_race_once(), test_renewal_reuses_only_same_process_same_lineage_evidence(), canonical_ufw(), CertRunner (+46 more)
 
 ### Community 50 - "Dedicated Proxy-Control-owned xray-router"
 Cohesion: 0.09
@@ -685,27 +656,27 @@ Nodes (30): owned_private_file(), render_mieru_compose(), run_state_preparer(), 
 
 ### Community 53 - "RoutingService"
 Cohesion: 0.05
-Nodes (6): Сделано, direct_document(), Compiled, RoutingPolicy, RoutingError, RoutingService
+Nodes (9): CONTINUE HERE — v0.9 (стык фронт/бэк, matches_node, мобильный UI, Xray-router на центре), Сделано, Что дальше, direct_document(), lane_policies(), Compiled, RoutingPolicy, RoutingError (+1 more)
 
 ### Community 54 - "CentralProcess"
-Cohesion: 0.06
-Nodes (9): Task 2: Spike — нативные возможности Caddy forwardproxy и mita (Task 30), central_environment(), CentralProcess, main(), parse_args(), Probes, read_node_credentials(), Stub (+1 more)
+Cohesion: 0.11
+Nodes (4): central_environment(), CentralProcess, Stub, _terminate()
 
-### Community 55 - "ClientConflict"
-Cohesion: 0.04
-Nodes (27): UI, v0.3 — задачи после слияния (post-merge issues), Спека (follow-ups, не дефекты реализации), Стенд и приёмка, Узел (fleet_v2 node, local lifecycle), Global Constraints, Self-review, Task 10: Документация выпуска и VERSION (+19 more)
+### Community 55 - "build.py"
+Cohesion: 0.11
+Nodes (20): archive_names(), assert_clean(), build_release(), BuiltRelease, _canonical(), commit_epoch(), _executable(), _external_artifacts() (+12 more)
 
 ### Community 56 - "CoreError"
 Cohesion: 0.08
-Nodes (8): add(), CoreError, _path_sha256(), _read_existing_users(), _valid_master_key_file(), _valid_users_file(), _validate_ownership_mapping(), _validate_users()
+Nodes (9): add(), CoreError, _encode_adjacent_routes(), _file_sha256(), _path_sha256(), _read_existing_users(), _valid_master_key_file(), _validate_ownership_mapping() (+1 more)
 
 ### Community 58 - "Troubleshooting Proxy Control"
 Cohesion: 0.04
-Nodes (68): Accounting semantics, Mieru rolling session-admission quota, Fleet v1 Telemt-only limit, Mieru acceptance evidence, mieru adapter, NaiveProxy acceptance evidence, Ограничение Fleet v1, Адаптер mieru (+60 more)
+Nodes (57): Bounded log queries, Start of change window, Configuration change procedure, .env secrecy, Incident sequence, Log redaction before sharing, scripts/proxyctl.py repair, Restart and recovery (+49 more)
 
 ### Community 59 - "app.py"
-Cohesion: 0.03
-Nodes (100): 3.3 Tier `ui` — `scripts/lab/ui-acceptance.py` (+ `remote-gate.sh ui`), register_api_key_routes(), create_key(), _ctx(), delete_key(), set_enabled(), _client(), _grant() (+92 more)
+Cohesion: 0.02
+Nodes (140): What is new, Что нового, Task 11: Маршруты центра — связи, импорт пользователей узла, версии, подписки по узлам, Subscription client compatibility, register_api_key_routes(), create_key(), _ctx(), delete_key() (+132 more)
 
 ### Community 60 - "DeployCliTests"
 Cohesion: 0.05
@@ -716,16 +687,16 @@ Cohesion: 0.06
 Nodes (13): _acceptance_value(), _AcceptanceCollision, AcceptanceError, _DefaultNaiveRunner, relay(), NaiveAcceptance, _require_acceptance(), test_h2_curl_failure_exposes_only_allowlisted_tls_reason() (+5 more)
 
 ### Community 62 - "MieruManager"
-Cohesion: 0.10
-Nodes (9): _atomic(), _canonical(), ConfigConflict, _fsync_dir(), _hash(), MieruManager, _pruned_operations(), _read_secure() (+1 more)
+Cohesion: 0.06
+Nodes (23): _atomic(), _canonical(), ConfigConflict, _fsync_dir(), _go_duration_ns(), _hash(), MieruManager, MitaCLI (+15 more)
 
 ### Community 63 - "test_users_adapter_ui.py"
-Cohesion: 0.07
-Nodes (3): test_access_returns_sanitized_conflict_for_malformed_upstream_url(), test_busy_buttons_capture_their_target_instead_of_reading_it_after_await(), test_created_and_rotated_reveals_carry_the_qr_the_access_dialog_requires()
+Cohesion: 0.06
+Nodes (12): test_access_returns_sanitized_conflict_for_malformed_upstream_url(), test_busy_buttons_capture_their_target_instead_of_reading_it_after_await(), test_created_and_rotated_reveals_carry_the_qr_the_access_dialog_requires(), test_telemt_adapter_does_not_leak_secret_in_errors(), handler(), test_telemt_adapter_patches_limits_and_resets_quota(), handler(), test_telemt_adapter_reads_3425_quota_stats_route() (+4 more)
 
 ### Community 64 - "VersionAgent"
 Cohesion: 0.07
-Nodes (11): Task 7: Агент — `check_upstream`, кэш в `state.json`, выбор версии из upstream, Task 8: `mita` — обновление закреплённого потребителя вместо отказа, Task 9: Компонент `xray`, CatalogEntry, sha256_bytes(), agent_from_env(), _atomic_write(), _consumer_overlays() (+3 more)
+Nodes (12): Task 7: Агент — `check_upstream`, кэш в `state.json`, выбор версии из upstream, Task 8: `mita` — обновление закреплённого потребителя вместо отказа, Task 9: Компонент `xray`, 3.1. Артефакты внутри архивов, CatalogEntry, sha256_bytes(), agent_from_env(), _atomic_write() (+4 more)
 
 ### Community 65 - "test_installer_warp_transaction_recovery.py"
 Cohesion: 0.10
@@ -744,72 +715,72 @@ Cohesion: 0.13
 Nodes (18): build_managed_clients(), build_managed_inbounds(), ManagedInbound, config(), DeterministicSecrets, test_a_hysteria_client_authenticates_with_auth_not_password(), test_acceptance_clients_are_distinct_from_persistent_clients(), test_hysteria_matches_the_shape_a_running_server_actually_serves() (+10 more)
 
 ### Community 69 - "Матрица негативных и security-тестов vNext (Task 39)"
-Cohesion: 0.08
-Nodes (41): Матрица негативных и security-тестов vNext (Task 39), Task 4: `xray_router_manager` — рантайм и типизированный менеджер (Task 33), test_backend_accepts_xray_router_and_backends_for(), test_unix_api_exit_test_route(), _artifact(), _lanes_doc(), manager(), _state() (+33 more)
+Cohesion: 0.07
+Nodes (40): Матрица негативных и security-тестов vNext (Task 39), Task 4: `xray_router_manager` — рантайм и типизированный менеджер (Task 33), test_exit_test_runs_a_throwaway_xray_and_reports_what_the_far_end_saw(), _artifact(), FakeRunner, _lanes_doc(), manager(), _state() (+32 more)
 
 ### Community 70 - "test_installer_mcp.py"
 Cohesion: 0.07
-Nodes (28): _command_failure(), _DefaultMcpRunner, mcp_handoff(), mcp_url(), McpAdapter, McpError, McpPaths, _plaintext_of() (+20 more)
+Nodes (29): _command_failure(), _DefaultMcpRunner, mcp_handoff(), mcp_url(), McpAdapter, McpError, McpPaths, _plaintext_of() (+21 more)
 
 ### Community 71 - "routing-spike.py"
 Cohesion: 0.06
 Nodes (30): adapt(), admin(), curl_socks(), forward_proxy_handler(), walk(), load(), main(), apply_mita() (+22 more)
 
-### Community 72 - "ThreeXuiMode"
+### Community 72 - "GeodataStore"
 Cohesion: 0.13
-Nodes (33): audit_host(), ThreeXuiMode, config(), host_responses(), MissingOptionalExecutor, resolver(), scripted_audit(), ScriptedExecutor (+25 more)
+Nodes (8): test_wal_is_enabled_even_while_another_connection_holds_the_database(), hold(), _atomic_write(), _fsync_directory(), GeodataStore, _now(), _sha256(), _sha256_path()
 
 ### Community 73 - "proxyctl.py"
-Cohesion: 0.20
-Nodes (17): derive_owned_route_variable(), remove_owned_map_block(), sha256(), _apply_plan_unlocked(), _canonical_route(), _host_path(), _listening_ports(), _load_state() (+9 more)
+Cohesion: 0.19
+Nodes (17): sha256(), _apply_plan_unlocked(), _audit_mapping(), _canonical_route(), _host_path(), InstallerConflict, _load_state(), _owned_route_marker() (+9 more)
 
 ### Community 74 - "test_proxyctl_transactions.py"
-Cohesion: 0.18
-Nodes (20): apply_plan(), InstallPlan, repair_installation(), uninstall_installation(), facts_from_root(), host_root(), make_plan(), test_apply_is_transactional_preserves_metadata_and_writes_private_manifest() (+12 more)
+Cohesion: 0.17
+Nodes (20): AuditFacts, apply_plan(), InstallPlan, repair_installation(), facts_from_root(), host_root(), make_plan(), test_apply_is_transactional_preserves_metadata_and_writes_private_manifest() (+12 more)
 
 ### Community 75 - "DesiredGeneration (node_id, generation, schema_version, digest, resources_json, required_capabilities, previous_generation)"
 Cohesion: 0.11
 Nodes (27): ADR 002: declarative generations, Audit finding 1: Manager tests live in tests/test_naive_manager.py and tests/test_mieru_manager.py, Audit finding 7: Managers generate passwords themselves, Audit finding 8: Telemt list_users allows credential recovery, v0.3 acceptance criteria, DesiredGeneration (node_id, generation, schema_version, digest, resources_json, required_capabilities, previous_generation), Fleet v2 exchange (/agent/v2/nodes/{node_id}/heartbeat, desired, observed, secrets/resolve, secret-results), ObservedGeneration (applied_generation, bundle_digest, reconcile_state, resource_statuses, safe_drift_summary) (+19 more)
 
-### Community 76 - "Reconciler"
-Cohesion: 0.04
-Nodes (21): Self-review, Task 13: Документация, миграционные заметки, версия, Task 15: Живая проверка AMS_Z ↔ ams-test (разрешение владельца от 2026-09-11), Task 16: Релизный гейт v0.3.0-beta.1, Task 1: Идентичность панели и API-ключи (хранилище), Task 3: Протокол поколений и хранилище узла, Task 6: Fleet API v2 узла и защита ресурсов центра, v0.3 Central Panel Implementation Plan (+13 more)
+### Community 76 - "test_naive_management.py"
+Cohesion: 0.10
+Nodes (5): test_enabling_an_exhausted_user_reports_the_quota_reason_not_an_outage(), test_memory_naive_replays_an_operation_and_can_lose_a_response(), test_naive_adapter_accepts_empty_204_delete_response(), test_naive_feature_is_hidden_and_routes_fail_closed_when_disabled(), test_naive_rotation_on_its_page_replaces_the_kept_credential()
 
-### Community 77 - "parse_effective_nginx"
-Cohesion: 0.09
-Nodes (30): _listen_port(), _literal_backend(), MapRoute, _matching_close(), NginxMap, NginxTopology, parse_effective_nginx(), _parse_file_nginx() (+22 more)
+### Community 77 - "test_routing_service.py"
+Cohesion: 0.22
+Nodes (14): Task 8: Routing — сервис и HTTP API (локальный узел), anyio_backend(), _audits(), _block(), test_apply_io_outside_transaction(), test_apply_local_calls_manager_and_records_applied(), test_apply_manager_conflict_marks_failed(), test_apply_unreachable_provider_leaves_policy_unchanged() (+6 more)
 
 ### Community 78 - "CoreAdapter"
-Cohesion: 0.10
-Nodes (41): CoreAdapter, config(), core_action(), FakeRunner, test_a_generated_password_is_used_when_the_operator_chose_none(), test_absent_filesystem_adoption_refuses_active_fixed_label_resources(), test_acceptance_uses_transaction_unique_name_and_all_configured_credentials(), test_applying_checkpoint_removes_only_probe_and_image_created_after_prepare() (+33 more)
+Cohesion: 0.09
+Nodes (42): CoreAdapter, config(), core_action(), FakeRunner, test_a_generated_password_is_used_when_the_operator_chose_none(), test_absent_filesystem_adoption_refuses_active_fixed_label_resources(), test_acceptance_uses_transaction_unique_name_and_all_configured_credentials(), test_applying_checkpoint_removes_only_probe_and_image_created_after_prepare() (+34 more)
 
 ### Community 79 - "test_routing_lanes_routes.py"
 Cohesion: 0.22
 Nodes (12): _attach(), _csrf(), _grant(), router(), _subscription(), test_a_grant_gets_its_own_lane_and_loses_it_again(), test_a_lane_policy_with_rules_applies_as_one_intent_with_the_service(), test_deleting_a_laned_grant_drops_the_lane_first() (+4 more)
 
-### Community 80 - "register_naive_routes"
-Cohesion: 0.30
-Nodes (14): _domain_created(), register_naive_routes(), escrow(), local_only(), naive_access(), naive_add(), naive_delete(), naive_operation() (+6 more)
+### Community 80 - "full_config"
+Cohesion: 0.16
+Nodes (17): clean_facts(), config_without_initial_user(), full_config(), mieru_action(), test_recovery_verifies_nonempty_manager_state_and_new_token_is_32_bytes(), _router_config(), test_generated_manager_token_is_valid_http_text(), test_mieru_bootstrap_config_proxies_all_traffic_with_warp() (+9 more)
 
 ### Community 81 - "test_version_agent_upstream.py"
-Cohesion: 0.05
-Nodes (64): Task 6: Опрос upstream — GitHub Releases, ghcr.io, Docker Hub, 2026-09-22 — окно клиента, гейт, раскатка, CONTINUE HERE — v0.11 (обновления из upstream), состояние на 2026-09-22, MCP — СДЕЛАНО (2026-09-21, вечер), MCP-сервер (решение владельца: в v0.11, полный набор, с ноутбука через SNI, только на центре), WARP на парке единообразно (2026-09-22, по слову владельца), ВЫПУЩЕНО 2026-09-22 (по слову владельца), Обновление компонентов на парке (2026-09-22, по слову владельца «обнови») (+56 more)
+Cohesion: 0.06
+Nodes (61): 2026-09-22 — окно клиента, гейт, раскатка, CONTINUE HERE — v0.11 (обновления из upstream), состояние на 2026-09-22, MCP-сервер (решение владельца: в v0.11, полный набор, с ноутбука через SNI, только на центре), WARP на парке единообразно (2026-09-22, по слову владельца), ВЫПУЩЕНО 2026-09-22 (по слову владельца), Обновление компонентов на парке (2026-09-22, по слову владельца «обнови»), Открытые мелочи, Проверено живьём на ams-test (настоящая установка `aurora.sky.dubr1kkk.uk`) (+53 more)
 
 ### Community 82 - "prepare-naive-state.py"
 Cohesion: 0.17
 Nodes (17): _assert_directory(), _assert_identities(), _assert_identity_free(), _assert_owned_state(), _assert_safe_parents(), _assert_state_entry(), _create_directory(), _fail() (+9 more)
 
-### Community 83 - "exits.py"
+### Community 83 - "routing/service.py"
 Cohesion: 0.05
-Nodes (23): Task 6: Панель — модель политики v3 и миграция 16, _b64(), ExitCredential, ExitInput, ExitInUse, ExitSecurity, ExitStore, ExitTransport (+15 more)
+Nodes (25): Task 6: Панель — модель политики v3 и миграция 16, _b64(), ExitCredential, ExitInput, ExitInUse, ExitSecurity, ExitStore, ExitTransport (+17 more)
 
 ### Community 84 - "test_panel_entrypoint.py"
 Cohesion: 0.18
 Nodes (21): main(), open_source(), stage(), StageError, validate_source(), verify(), _fake_command(), logged_commands() (+13 more)
 
-### Community 85 - "test_version_agent_host.py"
-Cohesion: 0.11
-Nodes (17): _Proc, test_a_stalled_counter_reports_null_rather_than_a_confident_zero(), test_cpu_utilisation_is_a_delta_between_two_samples(), test_disk_reports_space_an_operator_can_actually_write(), test_host_endpoint_is_read_only_and_rejects_writes(), test_memory_counts_reclaimable_cache_as_available(), test_missing_proc_files_degrade_each_section_independently(), test_real_proc_is_parsed_on_linux() (+9 more)
+### Community 85 - "test_version_agent_server.py"
+Cohesion: 0.05
+Nodes (32): _Proc, test_a_stalled_counter_reports_null_rather_than_a_confident_zero(), test_cpu_utilisation_is_a_delta_between_two_samples(), test_disk_reports_space_an_operator_can_actually_write(), test_host_endpoint_is_read_only_and_rejects_writes(), test_memory_counts_reclaimable_cache_as_available(), test_missing_proc_files_degrade_each_section_independently(), test_real_proc_is_parsed_on_linux() (+24 more)
 
 ### Community 86 - "Store"
 Cohesion: 0.07
@@ -820,28 +791,32 @@ Cohesion: 0.10
 Nodes (21): release/external-artifacts.json, Interactive Release Installer Implementation Plan, Managed inbound templates vless_reality_tcp / vless_reality_xhttp / hysteria2_tls, ThreeXuiAdapter.plan_existing_upgrade, ReleaseManifest / ExternalArtifact.for_platform, safe_extract_tar, Task 12: Existing and staged 3x-ui lifecycle, Task 13: Managed 3x-ui inbounds, clients and optional WARP (+13 more)
 
 ### Community 88 - "register_routing_routes"
-Cohesion: 0.07
-Nodes (31): ExitImportBody, ExplainBody, GeodataSettingsBody, GeodataSourceBody, LaneModeBody, _outcome(), policy_view(), PolicyPut (+23 more)
+Cohesion: 0.10
+Nodes (23): _outcome(), policy_view(), _refusal(), register_routing_routes(), apply(), attach(), _ctx(), delete_policy() (+15 more)
 
-### Community 89 - "NodeRegistry"
-Cohesion: 0.08
-Nodes (3): Task 8: Связи с узлами — миграция, `NodeLinkService`, `DesiredStore`, компиляция поколений, NodeLinkService, NodeRegistry
+### Community 89 - "test_dns_is_checked_again_for_each_connection_and_only_numeric_ip_is_dialed"
+Cohesion: 0.12
+Nodes (8): test_dns_is_checked_again_for_each_connection_and_only_numeric_ip_is_dialed(), test_dns_private_addresses_are_refused_before_connect(), connect(), resolve(), test_dns_timeout_is_bounded_and_typed(), test_explicit_private_opt_in_reaches_loopback(), test_fingerprint_dns_private_answer_is_refused_before_connect(), test_public_ipv6_failure_falls_back_to_validated_ipv4()
 
 ### Community 90 - "core_checks"
 Cohesion: 0.18
 Nodes (7): Task 14: Лаборатория на стенде — `fleet-acceptance.py` и tier `fleet`, core_checks(), fetch(), _ip_through(), main(), _run(), _socks5_udp_dns()
 
+### Community 91 - "CertificateAuthority"
+Cohesion: 0.17
+Nodes (8): CertificateAuthority, issue_fixture(), mtls_context(), start_server(), test_agent_client_retries_result_from_durable_outbox_without_reexecution(), test_real_tls_poll_binds_san_serial_and_fingerprint_then_records_result(), test_revocation_and_request_body_bound_fail_closed(), test_tls_rejects_unknown_ca_and_route_rejects_certificate_for_other_node()
+
 ### Community 92 - "compile"
 Cohesion: 0.23
 Nodes (31): Task 7: Routing IR — модели, хранилище, миграция 14, компилятор (Task 26), compile(), _policy(), _rule(), _target(), test_compile_capability_missing_from_target(), test_compile_diff_against_applied(), test_compile_digest_is_canonical() (+23 more)
 
-### Community 93 - "auto_import"
-Cohesion: 0.10
-Nodes (20): English, Gate checklist (lab host `ams-test`), Installing, Live check (the fleet: ams-server → AMS_Z, AMS_Z → ams-test), Screenshots, Upgrading, v0.8.0-beta.1 — свои выходы, таблица правил, geodata, автоимпорт, What the verification found (+12 more)
+### Community 93 - "panel"
+Cohesion: 0.06
+Nodes (33): English, Fixed, Upgrading from v0.12, v0.13.0-beta.1 — мобильные карточки и быстрые настройки, Verification and rollout scope, Исправлено, Обновление с v0.12, Русский (+25 more)
 
-### Community 94 - "NodeClient"
-Cohesion: 0.04
-Nodes (38): NodeClient, NodeRejected, _client(), _EmptyHandler, _OneShotTLSServer, _start_tls_server(), test_api_key_never_appears_in_the_unreachable_exception(), test_capture_sends_bounded_resource_list_and_returns_body_verbatim() (+30 more)
+### Community 94 - "test_fleet_v2_client.py"
+Cohesion: 0.07
+Nodes (26): _client(), _EmptyHandler, _OneShotTLSServer, _start_tls_server(), test_api_key_never_appears_in_the_unreachable_exception(), test_capture_sends_bounded_resource_list_and_returns_body_verbatim(), test_client_scope_closes_after_transport_failure(), test_explicit_client_scope_reuses_http_client_and_closes_once() (+18 more)
 
 ### Community 95 - "Task 6: Encrypted secret versions and master key"
 Cohesion: 0.15
@@ -852,47 +827,43 @@ Cohesion: 0.10
 Nodes (9): caddy_adapt(), command_reload(), command_validate(), main(), QuotaEnforcer, _rewrite_listener(), test_caddy_adapt_unwraps_caddy_211_envelope(), test_private_listener_rewrite_disables_automatic_https_redirects() (+1 more)
 
 ### Community 98 - "_DefaultCoreRunner"
-Cohesion: 0.07
-Nodes (16): _acceptance_value(), _AcceptanceCollision, AcceptanceError, _compose_publishes_telemt_api(), CoreAcceptance, _DefaultCoreRunner, test_a_probe_image_built_from_older_sources_is_not_compatible(), test_acceptance_dataclass_rejects_inconsistent_counts() (+8 more)
+Cohesion: 0.06
+Nodes (16): _AcceptanceCollision, AcceptanceError, _DefaultCoreRunner, probe_sources_digest(), _valid_users_file(), test_a_failed_acceptance_step_carries_what_the_probe_said(), test_a_probe_image_built_from_older_sources_is_not_compatible(), test_adjacent_handshake_reads_the_report_not_the_exit_status() (+8 more)
 
 ### Community 99 - "MemoryTelemt"
 Cohesion: 0.05
-Nodes (31): Правила, добытые в этой серии, RouterAdapter, attach_document(), access_from_user(), MemoryTelemt, _adapter(), anyio_backend(), Bridge (+23 more)
+Nodes (33): RouterAdapter, attach_document(), router_target_from_identity(), MemoryTelemt, _adapter(), anyio_backend(), Bridge, _item() (+25 more)
 
 ### Community 100 - "WarpAdapter"
 Cohesion: 0.15
 Nodes (6): WarpAdapter, WarpError, test_warp_rollback_checks_all_ownership_before_any_mutation(), test_download_never_reuses_attacker_link(), test_warp_is_owned_before_consumers_and_requires_real_egress(), test_warp_owned_lifecycle_and_foreign_install_refusal()
 
-### Community 101 - "query"
+### Community 101 - "createSubscriptionDialog"
 Cohesion: 0.08
-Nodes (61): Task 7: Окно клиента: показ ссылки по кнопке, матрица, «Применить», Task 8: «Новый клиент» с матрицей и блок подписки в «Доступы выданы», bindClients(), collectDecisions(), loadNodeOptions(), openClientModal(), proposeUsername(), locale() (+53 more)
+Nodes (53): Task 7: Окно клиента: показ ссылки по кнопке, матрица, «Применить», Task 8: «Новый клиент» с матрицей и блок подписки в «Доступы выданы», CONTINUE HERE — v0.10 (клиент на нескольких узлах, подписка под рукой), Сделано, Что дальше, bindClients(), openClientModal(), proposeUsername() (+45 more)
 
 ### Community 102 - "FleetPusher"
-Cohesion: 0.07
-Nodes (5): _describe(), FleetPusher, _ImportState, _inventory_digest(), _refusal()
+Cohesion: 0.03
+Nodes (32): Audit event names, Authentication and administrators, Clients, grants and subscriptions, Nodes (central side), Nodes (node side, through the central's key), Routing (v0.4), Global Constraints, Self-review (+24 more)
 
-### Community 103 - "ValidationError"
-Cohesion: 0.16
-Nodes (13): _conflict_code(), ManagerHandler, _go_duration_ns(), _object(), _positive_int(), validate_config(), _validate_traffic(), ValidationError (+5 more)
+### Community 103 - "Path"
+Cohesion: 0.19
+Nodes (8): _assert_contained(), fsync_file(), fsync_tree(), operation_lock(), _owned_path(), _path_identity(), _root_path(), validate_legacy_runtime_v2()
 
 ### Community 104 - "test_installer_cli.py"
 Cohesion: 0.12
-Nodes (22): load_config(), main(), LabConfigurationsAreValid, _plan(), ReturningWizard, _run(), _run_in_pty(), _services() (+14 more)
+Nodes (22): CliServices, _default_services(), adapter_factories(), _plan(), RecordingStore, ReturningWizard, _run(), _run_in_pty() (+14 more)
 
 ### Community 105 - "test_mieru_manager_lanes.py"
 Cohesion: 0.06
-Nodes (23): check(), main(), empty_config(), LanesInvalid, parse_slots(), Slot, slot_config(), validate_request() (+15 more)
+Nodes (23): account_url(), empty_config(), LanesInvalid, parse_slots(), Slot, slot_config(), validate_request(), main() (+15 more)
 
 ### Community 106 - "main.js"
 Cohesion: 0.06
-Nodes (56): ADR-0008, Task 13: Экран версий — кнопка проверки, пометка источника, карточка Xray, CONTINUE HERE — v0.9 (стык фронт/бэк, matches_node, мобильный UI, Xray-router на центре), Что дальше, 5. Runtime и менеджер `xray_router_manager`, api(), API_REASONS, cookie() (+48 more)
-
-### Community 108 - "test_node_lifecycle.py"
-Cohesion: 0.11
-Nodes (15): CertificateRegistry, CertificateInfo, NodeView, derive(), _link_view(), NodeConflict, NodeLifecycleService, _cert() (+7 more)
+Nodes (63): ADR-0008, Task 13: Экран версий — кнопка проверки, пометка источника, карточка Xray, api(), API_REASONS, cookie(), DETAIL_WORTH_SHOWING, problemText(), registerReasons() (+55 more)
 
 ### Community 109 - "test_mieru_egress.py"
-Cohesion: 0.08
+Cohesion: 0.09
 Nodes (35): Task 5: naive-manager и mieru-manager — провайдер `router`, canonical(), check_reachable(), _cidr(), document_digest(), _domain(), EgressInvalid, EgressUnreachable (+27 more)
 
 ### Community 110 - "nodes.js"
@@ -900,12 +871,12 @@ Cohesion: 0.05
 Nodes (70): Task 12: UI — API-ключи, «Узлы → Добавить панель», карточка узла, выбор узла в «Клиентах», date(), commandForm(), commandPayload(), commandRow(), commandStatus(), FLEET_OPERATIONS, handleFleetChange() (+62 more)
 
 ### Community 111 - "mcp_server/server.py"
-Cohesion: 0.07
-Nodes (7): Config, _read_secret(), main(), build_server(), create_app(), test_a_host_outside_the_allowlist_is_refused(), test_config_reads_secrets_from_files_and_requires_allowed_hosts()
+Cohesion: 0.05
+Nodes (8): Config, _read_secret(), main(), BearerGate, build_server(), create_app(), test_a_host_outside_the_allowlist_is_refused(), test_config_reads_secrets_from_files_and_requires_allowed_hosts()
 
-### Community 112 - "UnixHTTPServer"
-Cohesion: 0.15
-Nodes (9): Task 11: Сервер агента — `POST /v1/upstream/check`, долгий таймаут для сборки, FakeAgent, test_unix_socket_server_answers_a_panel_update_as_accepted_and_async(), test_unix_socket_server_checks_upstream_on_post(), test_unix_socket_server_preserves_update_contract(), test_unix_socket_server_reports_a_failed_or_disabled_upstream_check(), check_upstream(), test_unix_socket_server_returns_distinct_rollback_failed_state() (+1 more)
+### Community 112 - ".verify"
+Cohesion: 0.18
+Nodes (4): _acceptance_value(), _compose_publishes_telemt_api(), CoreAcceptance, test_acceptance_dataclass_rejects_inconsistent_counts()
 
 ### Community 113 - "Task 2: automatic WARP with selective routing"
 Cohesion: 0.19
@@ -913,7 +884,7 @@ Nodes (15): ams-server production reference server, cloudflare-warp client / war
 
 ### Community 114 - "test_installer_xray_router.py"
 Cohesion: 0.10
-Nodes (33): Task 11: Установщик — `[egress] router`, адаптер `xray_router`, секреты, ротация, test_a_router_action_without_relay_keys_still_applies_and_verifies(), action_for(), adapter(), _agent_state(), _applied(), _archive_bytes(), FakeRunner (+25 more)
+Nodes (34): Task 11: Установщик — `[egress] router`, адаптер `xray_router`, секреты, ротация, ingress_credential(), action_for(), adapter(), _agent_state(), _applied(), _archive_bytes(), FakeRunner (+26 more)
 
 ### Community 115 - "access.js"
 Cohesion: 0.13
@@ -924,8 +895,8 @@ Cohesion: 0.09
 Nodes (35): _agent(), _build_catalog(), test_a_failed_source_keeps_its_previous_candidates_next_to_the_error(), test_archive_member_hash_is_checked_against_the_archive_not_the_file(), test_binary_rollback_restart_is_not_success_without_health(), test_binary_update_records_the_pin_the_unit_check_reads(), test_binary_update_restores_the_previous_pin_when_the_service_fails(), test_binary_update_rolls_back_when_service_restart_fails() (+27 more)
 
 ### Community 117 - "test_naive_manager_lanes.py"
-Cohesion: 0.11
-Nodes (19): handler_lines(), lane_credentials(), lanes_span(), LanesInvalid, outside_lanes(), primary_forward_proxy(), render(), validate_request() (+11 more)
+Cohesion: 0.12
+Nodes (18): handler_lines(), lane_credentials(), lanes_span(), LanesInvalid, primary_forward_proxy(), render(), validate_request(), lane_manager() (+10 more)
 
 ### Community 118 - "Continuation prompt for a new Claude Code context"
 Cohesion: 0.18
@@ -935,8 +906,8 @@ Nodes (7): ams-test disposable install server, full profile with three_xui.mode 
 Cohesion: 0.10
 Nodes (24): _conflict(), _log_late_outcome(), register_fleet_v2_node_routes(), capture(), _daemon(), _egress_entry(), _enabled(), _geodata() (+16 more)
 
-### Community 120 - "client.py"
-Cohesion: 0.09
+### Community 120 - "_PinningStream"
+Cohesion: 0.10
 Nodes (4): _NodeBackend, _NodeTransport, _PinningStream, _public_address()
 
 ### Community 121 - "MTProxy acceptance failure: Connection closed"
@@ -949,18 +920,18 @@ Nodes (14): Archive SHA-256 checksum for proxy-control-v0.1.0.tar.gz, Mieru (TCP
 
 ### Community 123 - "test_installer_version_agent.py"
 Cohesion: 0.06
-Nodes (35): _command_failure(), _DefaultVersionAgentRunner, _env_key(), _env_values(), VersionAgentAdapter, VersionAgentError, VersionAgentPaths, action_for() (+27 more)
+Nodes (36): _command_failure(), _DefaultVersionAgentRunner, _env_key(), _env_values(), VersionAgentAdapter, VersionAgentError, VersionAgentPaths, action_for() (+28 more)
 
 ### Community 124 - "curated.py"
-Cohesion: 0.21
-Nodes (26): Добавлено, Tools, Инструменты, 9a. MCP-сервер `proxy-control-mcp` (решение владельца 2026-09-21: в v0.11, полный набор, доступ с ноутбука через SNI), audit_tail(), client_subscription(), create_client(), derive_username() (+18 more)
+Cohesion: 0.15
+Nodes (28): Добавлено, Tools, Инструменты, 9a. MCP-сервер `proxy-control-mcp` (решение владельца 2026-09-21: в v0.11, полный набор, доступ с ноутбука через SNI), audit_tail(), client_subscription(), create_client(), CuratedTool (+20 more)
 
 ### Community 125 - "XrayRouterManager"
 Cohesion: 0.07
 Nodes (9): _atomic_write(), _free_port(), ManagerConflict, ManualInterventionRequired, _now(), revision_of(), _test_failure(), XrayRouterManager (+1 more)
 
-### Community 126 - "_render_at_phone_viewport"
-Cohesion: 0.08
+### Community 126 - "test_mobile_layout.py"
+Cohesion: 0.09
 Nodes (13): Task 9: Мобильный аудит окна клиента, _cards_from_real_renderers(), test_mobile_cards_have_semantic_icons_and_quick_settings_align(), _browser(), DevTools, _recv_exact(), _render_at_phone_viewport(), test_access_cards_and_navigation_do_not_collide_on_phone() (+5 more)
 
 ### Community 127 - "docker_lab.py"
@@ -972,20 +943,20 @@ Cohesion: 0.16
 Nodes (19): CommandRunner (bounded, sanitized errors), panel.audit.digest (sha256 of canonical JSON), panel.audit.record(db, ...), panel.audit.scrub (recursive), Migration 2 audit-structured, Migration 1 baseline-v0.1.0, panel.database.Database (WAL, foreign_keys, transaction()), panel.cli db-migrate / db-status (+11 more)
 
 ### Community 130 - "Panel version-agent"
-Cohesion: 0.07
-Nodes (29): Обновление существующего 3x-ui, Bounded log queries, Configuration change procedure, Incident sequence, Log redaction before sharing, scripts/proxyctl.py repair, Restart and recovery, Ограниченные запросы логов (+21 more)
+Cohesion: 0.15
+Nodes (14): Обновление существующего 3x-ui, Back up a complete generation before changing runtime, state, identities, ports or routes, NaiveProxy/Caddy and Mieru/mita binary update flow, Caddyfile and module checker validation, version-overrides/compose.versions.yaml, Single-generation backup, Обновление бинарников Caddy и mita, Проверка Caddyfile и module checker (+6 more)
 
 ### Community 131 - "PolicyInput"
-Cohesion: 0.05
-Nodes (40): As shipped in v0.4, Task 8: Routing — сервис и HTTP API (локальный узел), backends_for(), normalise_cidr(), normalise_domain(), normalise_geo_code(), normalise_lane(), normalise_port() (+32 more)
+Cohesion: 0.08
+Nodes (19): Известные ограничения/решения (для ревью и после v0.5), backends_for(), normalise_lane(), PolicyInput, PolicyPut, PolicyConflict, PolicyNotFound, RoutingStore (+11 more)
 
-### Community 132 - "test_fleet_v2_post_merge.py"
-Cohesion: 0.11
-Nodes (26): _Answering, _escrowed(), _events(), _link(), _link_row(), test_a_404_heartbeat_answer_is_still_offline(), test_a_429_or_5xx_heartbeat_answer_is_not_offline(), test_a_bare_gateway_5xx_is_offline() (+18 more)
+### Community 132 - "sbom.py"
+Cohesion: 0.26
+Nodes (7): build_sbom(), _external_packages(), _identifier(), main(), SbomError, test_sbom_is_deterministic_for_one_commit(), test_sbom_requires_at_least_one_packaged_file()
 
 ### Community 133 - "clients.js"
-Cohesion: 0.10
-Nodes (40): actions(), adopt(), adoptNote(), byProtocol(), byState(), CLIENT_FILTER_DEFAULT, CLIENT_STATE, clientCard() (+32 more)
+Cohesion: 0.06
+Nodes (61): proxyLink(), actions(), adopt(), adoptNote(), byProtocol(), byState(), CLIENT_FILTER_DEFAULT, CLIENT_STATE (+53 more)
 
 ### Community 134 - "AgentTransportServer"
 Cohesion: 0.19
@@ -993,15 +964,15 @@ Nodes (4): main(), required(), serve(), AgentTransportServer
 
 ### Community 135 - "test_fleet_v2_reconcile.py"
 Cohesion: 0.11
-Nodes (27): _accept(), anyio_backend(), _imported(), _push(), _resource(), test_a_missing_row_lingers_for_repeat_reports_and_never_claims_a_new_local_user(), test_a_regrant_under_a_new_ref_is_owned_under_that_ref_after_the_apply(), test_a_regrant_under_a_new_ref_retires_the_missing_row_and_still_respects_a_local_user() (+19 more)
+Nodes (26): _accept(), anyio_backend(), _imported(), _push(), _resource(), test_a_missing_row_lingers_for_repeat_reports_and_never_claims_a_new_local_user(), test_a_regrant_under_a_new_ref_is_owned_under_that_ref_after_the_apply(), test_a_regrant_under_a_new_ref_retires_the_missing_row_and_still_respects_a_local_user() (+18 more)
 
 ### Community 136 - "test_mcp_server.py"
-Cohesion: 0.10
-Nodes (21): tool_name(), anyio_backend(), config(), fake(), FakePanel, registry(), _rpc(), test_a_confirmed_call_reaches_the_panel_and_its_error_comes_back_as_tool_text() (+13 more)
+Cohesion: 0.09
+Nodes (22): tool_name(), anyio_backend(), config(), fake(), FakePanel, registry(), _rpc(), test_a_confirmed_call_reaches_the_panel_and_its_error_comes_back_as_tool_text() (+14 more)
 
-### Community 137 - "test_subscription_renderers.py"
+### Community 137 - "renderers/base.py"
 Cohesion: 0.05
-Nodes (37): What is new, Что нового, Subscription client compatibility, MieruShare, singbox_outbounds(), Manifest, ManifestGrant, check() (+29 more)
+Nodes (49): mieru_access(), register_mieru_routes(), escrow(), kept(), kept_share_url(), live_template(), local_only(), mieru_create() (+41 more)
 
 ### Community 138 - "3x-ui mode managed-new: install on clean server, create inbounds"
 Cohesion: 0.21
@@ -1011,9 +982,9 @@ Nodes (14): Task 3.4: 3x-ui subscription on ninth domain, zenith.sky.dubr1kkk.uk
 Cohesion: 0.12
 Nodes (28): EgressUnreachable, _block(), EgressHooks, manager(), router_manager(), test_a_failed_reload_restores_the_previous_bytes(), test_a_readback_mismatch_rolls_back_with_its_own_code(), test_apply_conflicts_on_a_stale_revision_without_touching_anything() (+20 more)
 
-### Community 141 - "audit.js"
-Cohesion: 0.30
-Nodes (11): ACTION_NAMES, applyFilters(), auditBody(), auditMarkup(), auditQuery(), auditRow(), handleAuditClick(), handleAuditSubmit() (+3 more)
+### Community 141 - "ManagerHTTPServer"
+Cohesion: 0.20
+Nodes (5): test_unix_api_exit_test_route(), build_manager(), _env(), main(), ManagerHTTPServer
 
 ### Community 142 - "test_fleet_acceptance_script.py"
 Cohesion: 0.10
@@ -1023,9 +994,9 @@ Nodes (5): _run(), test_naive_probe_retries_a_cut_connection_but_not_a_refusal()
 Cohesion: 0.15
 Nodes (12): 1. Где остановились, 2. Как WARP устроен на рабочем сервере (снято с `ams-server`), 3.1 Добить установку, 3.2 Автоматический WARP, 3.3 Выборочная маршрутизация через 3x-ui, 3.4 Подписка 3x-ui (девятый домен), 3.5 Релизная лаборатория, 3. Задачи (+4 more)
 
-### Community 144 - "routing/service.py"
-Cohesion: 0.06
-Nodes (33): Task 7: Панель — компилятор v3 (полосы, цепи, причины), RouterTarget, ChainHop, _check_lane(), compile_intent(), _diff(), intent_of(), intent_v2() (+25 more)
+### Community 144 - "RoutingRule"
+Cohesion: 0.03
+Nodes (55): ADR 006: Engine-neutral routing policy IR, Amended in v1.1 (2026-10-01): MTProxy through the Xray-router, As shipped in v0.4, Consequences, Context, Decision, Non-goals, Task 7: Панель — компилятор v3 (полосы, цепи, причины) (+47 more)
 
 ### Community 145 - "Global Constraints"
 Cohesion: 0.05
@@ -1041,19 +1012,19 @@ Nodes (29): CertificatePlan, parse_effective_nginx / select_route_target, Task 7
 
 ### Community 149 - "create_app"
 Cohesion: 0.04
-Nodes (41): Task 9: Pusher — heartbeat и доставка поколений, Task 12: Панель — `check()`, компонент `xray`, `/api/versions/check`, relay для узлов, create_app(), _lifespan(), AccessEnforcer, Settings, anyio_backend(), _app() (+33 more)
+Nodes (42): Task 2: Bearer-аутентификация, scope-гейты и `/api/keys`, Task 9: Pusher — heartbeat и доставка поколений, Task 12: Панель — `check()`, компонент `xray`, `/api/versions/check`, relay для узлов, Task 19A — релизный гейт v0.2 на `ams-test` (пройден 2026-09-11), Как проверять (единственный способ), Правила, добытые в этой серии, Промпт для продолжения работы в новом контексте, Прочитай сначала (+34 more)
 
 ### Community 150 - "EgressInvalid"
 Cohesion: 0.08
-Nodes (46): test_the_router_intent_and_the_xray_rule_carry_the_protocol_selector(), test_credentials_are_masked_in_the_redacted_intent(), test_exit_outbounds_render_the_way_xray_dials_them(), test_exit_test_runs_a_throwaway_xray_and_reports_what_the_far_end_saw(), test_the_intent_names_exits_and_a_rule_may_leave_through_one(), test_validate_exit_normalises_every_protocol_and_refuses_the_impossible(), _v2(), _doc() (+38 more)
+Nodes (45): Task 1: Xray-router — intent схемы 2 (полосы, выходы, цепи), test_the_router_intent_and_the_xray_rule_carry_the_protocol_selector(), test_credentials_are_masked_in_the_redacted_intent(), test_exit_outbounds_render_the_way_xray_dials_them(), test_the_intent_names_exits_and_a_rule_may_leave_through_one(), test_validate_exit_normalises_every_protocol_and_refuses_the_impossible(), _v2(), _doc() (+37 more)
 
 ### Community 151 - "test_xray_router_mtproxy.py"
-Cohesion: 0.08
-Nodes (19): test_a_router_that_does_not_come_back_after_the_swap_is_recorded(), broken_start(), FakeRunner, _inbound(), manager(), SocketRunner, test_a_chain_for_mtproxy_renders_like_any_service(), test_a_malformed_credential_is_a_manual_intervention_not_a_new_one() (+11 more)
+Cohesion: 0.14
+Nodes (15): _inbound(), manager(), SocketRunner, test_a_chain_for_mtproxy_renders_like_any_service(), test_a_malformed_credential_is_a_manual_intervention_not_a_new_one(), test_a_manager_without_the_socket_does_not_know_mtproxy(), test_a_node_updated_from_a_router_without_mtproxy_rerenders_it_pass_through(), test_a_stale_socket_is_removed_before_xray_starts() (+7 more)
 
-### Community 152 - "managed_config"
-Cohesion: 0.07
-Nodes (15): SystemSecrets, managed_config(), RecordingApi, _runtime_action(), test_apply_provisions_the_panel_and_the_inbounds(), test_managed_plan_requires_every_selected_domain(), test_managed_plan_routes_every_selected_domain_to_loopback(), test_provisioning_creates_every_promised_inbound() (+7 more)
+### Community 152 - "Trust Boundaries"
+Cohesion: 0.20
+Nodes (6): Pull Request Boundary Checklist, Contribution Architecture Rules, Local Development Gate Commands, Trust Boundaries, Caddy Builder Digest and forwardproxy Commit Pin, Third-Party License Boundary Summary
 
 ### Community 153 - "test_three_xui_api.py"
 Cohesion: 0.11
@@ -1064,8 +1035,8 @@ Cohesion: 0.26
 Nodes (12): case_run(), case_skip(), container_environment_preflight(), emit(), emit_plan_digest(), full_environment_preflight(), host_diagnostics(), host_environment_preflight() (+4 more)
 
 ### Community 155 - "MemoryXrayRouter"
-Cohesion: 0.06
-Nodes (19): attached_to_router(), canonical(), _csrf(), router(), test_a_linked_panels_geodata_is_driven_through_its_fleet_api(), test_geodata_is_owner_only_to_change_and_needs_a_router(), test_local_geodata_view_settings_update_restore_and_audit(), test_node_geodata_and_exit_routes_answer_the_central_key() (+11 more)
+Cohesion: 0.09
+Nodes (10): _csrf(), router(), test_a_linked_panels_geodata_is_driven_through_its_fleet_api(), test_geodata_is_owner_only_to_change_and_needs_a_router(), test_local_geodata_view_settings_update_restore_and_audit(), test_node_geodata_and_exit_routes_answer_the_central_key(), test_memory_router_behaves_like_the_manager(), test_router_adapter_maps_codes_and_targets() (+2 more)
 
 ### Community 156 - "ReleaseMatrixTests"
 Cohesion: 0.24
@@ -1075,13 +1046,9 @@ Nodes (3): _passing_report(), ReleaseMatrixTests, report_without()
 Cohesion: 0.33
 Nodes (8): Anime Key-Art Illustration Style, Beam vs Hammer Clash Metaphor, Twin-Tailed Girl Blocking With Stone Hammer, Proxy Control Cover Art, Central Impact Burst Where Beam Meets Hammer, Proxy Control Repository Branding Asset, Night Ruined Colosseum Arena Backdrop, Rearing Unicorn Emitting Magenta Horn Beam
 
-### Community 158 - "node_agent.py"
-Cohesion: 0.12
-Nodes (16): build_executor(), main(), required(), run(), AgentTransportClient, LocalTelemtExecutor, NodeAgent, RoutingExecutor (+8 more)
-
-### Community 159 - "NaiveClient"
-Cohesion: 0.12
-Nodes (7): 8.1 API (`panel/routing/routes.py`, owner для мутаций, viewer — чтение), 8.2 Локальный узел, 8.4 UI («Маршрутизация», `panel/static/js/routing.js`), 8. Панель, NaiveClient, _optional(), test_naive_adapter_accepts_empty_204_delete_response()
+### Community 158 - "route-coverage.py"
+Cohesion: 0.33
+Nodes (7): build_app(), collect_routes(), gate_problems(), _gates(), main(), _pattern(), unmentioned()
 
 ### Community 160 - "run_captured"
 Cohesion: 0.21
@@ -1092,11 +1059,11 @@ Cohesion: 0.22
 Nodes (12): ADR 001: pull-only node transport, ADR 003: one writer per resource, Task 1: ADRs and v0.2 architecture record, Task 2: Characterization tests of current boundaries, Ownership manifest, Fleet v1 Telemt-only command queue, Resource ownership terms: managed | adopted | foreign | drifted | tombstoned, Phase 0: Contract freeze and decision records (+4 more)
 
 ### Community 162 - "Proxy Control v0.3 — центральная панель и подключённые панели"
-Cohesion: 0.12
-Nodes (17): Task 0: Spike — принимает ли пиннутый Telemt-форк caller-supplied `secret`, 10. Тестирование, 11. Критерии приёмки v0.3, 12. Отклонения от Phase 5 спеки vNext, 1. Цель, 2. Паритет с 3x-ui, 3. Архитектурные решения, 5.1 API-ключи (+9 more)
+Cohesion: 0.15
+Nodes (13): Task 0: Spike — принимает ли пиннутый Telemt-форк caller-supplied `secret`, 10. Тестирование, 11. Критерии приёмки v0.3, 12. Отклонения от Phase 5 спеки vNext, 1. Цель, 2. Паритет с 3x-ui, 3. Архитектурные решения, 7. UI (+5 more)
 
 ### Community 163 - "ReleaseManifest"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (18): ReleaseManifest, _load_manifest(), main(), _parser(), sha256_file(), stage_xray(), _manifest_bytes(), test_an_architecture_this_release_does_not_build_for_is_refused() (+10 more)
 
 ### Community 164 - "mieru-client/probe.py"
@@ -1107,17 +1074,9 @@ Nodes (5): _endpoint(), main(), _run(), _socks5_connect(), _status_through()
 Cohesion: 0.22
 Nodes (8): Задача 1: добить установку, Задача 2: автоматический WARP, Задача 3: релиз, Отложено владельцем, Правила, добытые дорогой ценой, Промпт для продолжения работы в новом контексте, Прочитай сначала, Что уже сделано
 
-### Community 166 - "Unreleased"
-Cohesion: 0.08
-Nodes (34): Busy buttons: capture event.currentTarget before finally, Client-specific Native/Karing/manual reveals, Host resource card via version-agent GET /v1/host, Generation-specific Karing profile name after rotation, Former host/systemd MTProxy install scripts removed, Complete mieru-client.json in Native reveal, Mieru no longer re-hashes blanked passwords, MTProxy reveal carries QR so list refreshes (+26 more)
-
 ### Community 167 - "test_ui_browser_findings.py"
-Cohesion: 0.10
-Nodes (9): test_a_mieru_grant_without_options_means_no_quota(), test_an_audit_row_stacks_its_main_line_and_its_details(), test_every_documented_audit_action_has_a_journal_label(), test_no_module_renders_an_inline_style_attribute(), test_the_brand_mark_is_the_product_artwork_that_actually_ships(), test_the_grant_dialog_body_issues_a_mieru_grant(), test_the_grant_dialog_reads_only_its_own_protocol_boxes(), test_the_login_form_shows_a_refusal_instead_of_reloading() (+1 more)
-
-### Community 168 - "Installer CLI commands"
-Cohesion: 0.12
-Nodes (19): report.json public acceptance report, Installer CLI commands, credentials/handoff.json, install --accept-plan, --purge-data opt-in, repair command, report command, resume command (+11 more)
+Cohesion: 0.11
+Nodes (8): test_an_audit_row_stacks_its_main_line_and_its_details(), test_every_documented_audit_action_has_a_journal_label(), test_no_module_renders_an_inline_style_attribute(), test_the_brand_mark_is_the_product_artwork_that_actually_ships(), test_the_grant_dialog_body_issues_a_mieru_grant(), test_the_grant_dialog_reads_only_its_own_protocol_boxes(), test_the_login_form_shows_a_refusal_instead_of_reloading(), test_the_profile_button_opens_a_menu_instead_of_a_toast()
 
 ### Community 169 - "container_cmd"
 Cohesion: 0.22
@@ -1136,32 +1095,32 @@ Cohesion: 0.27
 Nodes (6): lab-amd64 CI release lab, Task 3.5: release lab lab-amd64, gh workflow run Release -f version=0.1.0 --ref main, lab-amd64 CI lab (red), Task 3: release v0.1.0 through CI, Verified: exact-archive lifecycle on isolated amd64 VPS (install, repair, idempotence, reboot/crash recovery, uninstall, coexistence)
 
 ### Community 173 - "Карта файлов"
-Cohesion: 0.12
-Nodes (14): Global Constraints, Task 10: `naive` — пересборка Caddy, Task 14: Установщик принимает версии из `state.json` агента, Task 15: Документация и changelog, Task 16: Гейт на ams-test и живая проверка на AMS_Z, Task 1: Обзор — без «Application bytes», ресурсы одной строкой, три карточки, Task 4: Каталог — `xray`, `source`, `archive`, `kind: build`, Task 5: Извлечение member из архива (+6 more)
+Cohesion: 0.13
+Nodes (14): Global Constraints, Task 10: `naive` — пересборка Caddy, Task 11: Сервер агента — `POST /v1/upstream/check`, долгий таймаут для сборки, Task 14: Установщик принимает версии из `state.json` агента, Task 15: Документация и changelog, Task 16: Гейт на ams-test и живая проверка на AMS_Z, Task 1: Обзор — без «Application bytes», ресурсы одной строкой, три карточки, Task 4: Каталог — `xray`, `source`, `archive`, `kind: build` (+6 more)
 
 ### Community 174 - "container_setup"
 Cohesion: 0.33
 Nodes (7): add_hosts(), container_setup(), container_write_configs(), host_ip(), host_setup(), setup_full_host(), write_fake_certbot()
 
 ### Community 175 - "FleetStore"
-Cohesion: 0.13
-Nodes (13): _canonical(), CommandConflict, FleetStore, command_envelope(), test_expired_command_advances_node_sequence_without_executing_mutation(), test_fleet_inventory_and_results_are_recursively_secret_free(), test_fleet_store_assigns_monotonic_sequences_and_enforces_idempotency(), test_fleet_v1_hides_and_retires_legacy_mieru_state() (+5 more)
+Cohesion: 0.26
+Nodes (5): _canonical(), FleetStore, test_fleet_inventory_and_results_are_recursively_secret_free(), test_fleet_v1_hides_and_retires_legacy_mieru_state(), test_fleet_v1_rejects_mieru_inventory_advertisement()
 
 ### Community 176 - "ProvisioningService"
 Cohesion: 0.08
 Nodes (4): Task 1: Fix-wave — отложенные замечания v0.3, OperationResult, ProvisioningService, StepResult
 
 ### Community 177 - "tools.py"
-Cohesion: 0.14
-Nodes (12): PanelError, _body_schema(), _build(), build_operations(), is_excluded(), is_irreversible(), Operation, resolve_refs() (+4 more)
+Cohesion: 0.15
+Nodes (12): PanelError, _body_schema(), _build(), build_operations(), is_excluded(), is_irreversible(), Operation, refusal() (+4 more)
 
 ### Community 178 - "Rule: verify the open port, not the panel record"
 Cohesion: 0.25
 Nodes (3): three_xui managed-new mode completed, 3x-ui 3.7.0 (pinned), 3x-ui mode existing: adopt installed 3x-ui without changing its files
 
-### Community 179 - "UpgradeError"
-Cohesion: 0.10
-Nodes (27): _mcp_vhost_text(), _panel_vhost_text(), _subscription_vhost_text(), main(), _panel_template(), _read(), _reload(), _stream_template() (+19 more)
+### Community 179 - "ingress_upgrade.py"
+Cohesion: 0.07
+Nodes (34): CONTINUE HERE — v0.4 маршрутизация, Где мы, Гейт (Task 13) — итог, Известные ограничения/решения (для ревью и v0.5), Коммиты ветки (по порядку), Публикация (по поручению владельца 2026-09-14), Что дальше (владелец), _mcp_vhost_text() (+26 more)
 
 ### Community 180 - "client_probe"
 Cohesion: 0.29
@@ -1175,57 +1134,53 @@ Nodes (4): run_wrapper(), test_wrapper_mounts_secret_file_read_only_without_plac
 Cohesion: 0.11
 Nodes (28): _mutations(), _panel_archive(), _PanelHost, _release_tar(), _state(), test_a_second_panel_update_is_refused_while_one_is_running(), test_a_version_file_ahead_of_the_running_panel_does_not_hide_the_update(), test_panel_current_falls_back_to_the_version_file_without_a_container() (+20 more)
 
-### Community 183 - "document_digest"
-Cohesion: 0.07
-Nodes (25): Task 9: Fleet v2 — `companion`, `egress.router.v1`, порядок применения на узле, удалённые attach/detach, router_target_from_view(), document_digest(), test_apply_egress_maps_the_manager_failure_codes(), test_apply_egress_refuses_an_unreachable_provider_and_changes_nothing(), test_apply_egress_returns_the_applied_entry_and_moves_the_target(), test_egress_target_reports_backend_capabilities_and_providers_without_the_url(), test_manager_clients_speak_the_egress_routes_and_keep_the_bounded_codes() (+17 more)
+### Community 183 - "4. Автоматическое развёртывание узла"
+Cohesion: 0.25
+Nodes (8): 4.1 Требования к хосту, 4.2 Скачать и проверить релиз (без root), 4.3 Мастер: вопросы по порядку, 4.4 План и digest, 4.6 Приёмка, отчёты, где пароли, 4.7 Первые действия в панели, 4.8 Повторный запуск, resume, repair, uninstall, 4. Автоматическое развёртывание узла
 
-### Community 185 - "test_resource_boundaries.py"
-Cohesion: 0.09
-Nodes (13): test_body_limit_stops_consuming_oversize_stream(), test_bounded_body_preserves_bytes_for_handler(), test_connection_context_commits_and_closes(), test_connection_context_rolls_back_and_closes(), test_incomplete_body_never_dispatches_or_becomes_server_error(), receive(), send(), test_static_files_ignore_excessive_ranges() (+5 more)
+### Community 185 - "BoundedBodyMiddleware"
+Cohesion: 0.33
+Nodes (3): receive(), BoundedBodyMiddleware, replay()
 
 ### Community 186 - "probe/install.sh"
 Cohesion: 0.33
 Nodes (5): DESTINATION, IMAGE, install.sh script, TDL_VERSION, TDLIB_VERSION
 
 ### Community 188 - "test_installer_three_xui.py"
-Cohesion: 0.08
-Nodes (43): adapter(), build_release(), config_with_clients_and_reality_secret(), existing_facts(), FakeThreeXuiRunner, installed_host(), managed_action(), pinned_action() (+35 more)
+Cohesion: 0.04
+Nodes (72): AcceptanceError, parse_reality_keypair(), ThreeXuiConfig, SystemSecrets, adapter(), build_release(), config_with_clients_and_reality_secret(), existing_config() (+64 more)
 
 ### Community 189 - "Private Vulnerability Reporting Path"
 Cohesion: 0.40
 Nodes (5): Sanitized Bug Report Template, Issue Template Config (blank issues disabled), Security Reporting Guidance Template, Code of Conduct, Private Vulnerability Reporting Path
 
 ### Community 190 - "test_proxyctl.py"
-Cohesion: 0.24
-Nodes (9): AuditFacts, facts_from_root(), fixture_root(), test_audit_discovers_stream_conf_d_routes(), test_audit_reports_existing_shared_443_without_dumping_secrets(), test_domain_validation_normalizes_valid_hostname(), test_domain_validation_rejects_unsafe_values(), test_install_plan_rejects_domain_and_port_collisions() (+1 more)
+Cohesion: 0.17
+Nodes (15): _canonical_caa_record(), _parse_caa_answer(), parse_http_domains(), parse_nginx_observation(), parse_xray_inbounds(), validate_domain(), test_audit_collision_routes_come_only_from_selected_active_map(), facts_from_root() (+7 more)
 
 ### Community 191 - ".compose"
-Cohesion: 0.15
-Nodes (12): Task 12: Лаборатория — сценарий `chains` (второй узел на стенде) и tier'ы, Task 15: Релиз, CONTINUE HERE — v0.5 Xray egress-router, Где мы, Гейт (Task 15) — итог, Коммиты ветки (по порядку), Что дальше (владелец), 11. Лаборатория и гейт (Task 31A) (+4 more)
+Cohesion: 0.20
+Nodes (8): CONTINUE HERE — v0.5 Xray egress-router, Где мы, Гейт (Task 15) — итог, Коммиты ветки (по порядку), Что дальше (владелец), Drill, main(), sha256()
 
 ### Community 192 - "upstream"
-Cohesion: 0.04
-Nodes (56): [0.5.0-beta.1] - 2026-09-16, Безопасность, Добавлено, Изменено, Отложено (дорожная карта), Consequences, END` inside `forward_proxy` of its Caddyfile, the mieru-manager owns the `egress`, Non-goals (+48 more)
+Cohesion: 0.03
+Nodes (66): [0.5.0-beta.1] - 2026-09-16, Безопасность, Добавлено, Изменено, Отложено (дорожная карта), Consequences, END` inside `forward_proxy` of its Caddyfile, the mieru-manager owns the `egress`, Non-goals (+58 more)
 
 ### Community 193 - "test_routing_router_service.py"
-Cohesion: 0.12
-Nodes (29): Global Constraints, Self-review (спека → план), Task 0: Ветка, спека, план, Task 14: Документация, ADR 007, CHANGELOG, VERSION, релизная заметка, Task 15: Гейт релиза на `ams-test` и точка продолжения, Task 3: Spike — Xray как egress-router на стенде (Task 32), Task 8: RoutingService — targets с роутером, attach/detach, apply/rollback через роутер (локально), v0.5 Xray Router Implementation Plan (+21 more)
-
-### Community 194 - "ADR 006: Engine-neutral routing policy IR"
-Cohesion: 0.33
-Nodes (6): ADR 006: Engine-neutral routing policy IR, Amended in v1.1 (2026-10-01): MTProxy through the Xray-router, Consequences, Context, Decision, Non-goals
+Cohesion: 0.17
+Nodes (22): Task 8: RoutingService — targets с роутером, attach/detach, apply/rollback через роутер (локально), anyio_backend(), _audits(), _block(), _item(), _rules(), test_apply_native_policy_on_attached_service_is_422(), test_apply_router_failure_marks_failed_and_maps_codes() (+14 more)
 
 ### Community 195 - "MieruClient"
 Cohesion: 0.12
 Nodes (5): MieruClient, test_mieru_client_lifecycle_uses_fixed_allowlisted_path_and_empty_body(), test_mieru_client_rotate_sends_the_caller_credential_and_operation_id(), test_mieru_client_sanitizes_manager_errors(), handler()
 
 ### Community 196 - "MemoryNaive"
-Cohesion: 0.06
-Nodes (9): Task 5: Reconciler узла, MemoryNaive, NaiveError, test_dashboard_stays_available_when_enabled_naive_manager_is_degraded(), health(), list_users(), test_enabling_an_exhausted_user_reports_the_quota_reason_not_an_outage(), test_memory_naive_replays_an_operation_and_can_lose_a_response() (+1 more)
+Cohesion: 0.11
+Nodes (6): MemoryNaive, NaiveError, canonical(), test_dashboard_stays_available_when_enabled_naive_manager_is_degraded(), health(), list_users()
 
-### Community 198 - "LaneService"
-Cohesion: 0.18
-Nodes (3): without_lane(), LaneError, LaneService
+### Community 197 - "XrayRouterClient"
+Cohesion: 0.08
+Nodes (12): Global Constraints, Self-review (спека → план), Task 0: Ветка, спека, план, Task 14: Документация, ADR 007, CHANGELOG, VERSION, релизная заметка, Task 15: Гейт релиза на `ams-test` и точка продолжения, Task 3: Spike — Xray как egress-router на стенде (Task 32), Task 6: Панель — клиент роутера, `RouterTarget`, адаптер, wiring, v0.5 Xray Router Implementation Plan (+4 more)
 
 ### Community 199 - "test_installer_reports.py"
 Cohesion: 0.12
@@ -1236,8 +1191,8 @@ Cohesion: 0.40
 Nodes (5): Domains and shared port 443, English, Included, Installation, Verified for this release
 
 ### Community 201 - "InstallerConfig"
-Cohesion: 0.08
-Nodes (44): Task 3: Установщик — секция `[egress]` (Task 28), _canonical_dataclass(), DomainConfig, EgressConfig, FirewallConfig, InstallerConfig, MieruConfig, Profile (+36 more)
+Cohesion: 0.09
+Nodes (24): WizardRunner, _canonical_dataclass(), FirewallConfig, InstallerConfig, Profile, adapters_for(), compose_file_list(), LabConfigurationsAreValid (+16 more)
 
 ### Community 202 - "mieru-mss-clamp.sh"
 Cohesion: 0.83
@@ -1247,33 +1202,29 @@ Nodes (3): check_rule(), mieru-mss-clamp.sh script, usage()
 Cohesion: 0.11
 Nodes (6): _form_value(), parse_csrf_token(), ThreeXuiApi, ThreeXuiApiError, test_a_page_without_a_usable_csrf_token_fails_closed(), test_csrf_token_is_read_from_the_page_the_panel_serves()
 
-### Community 204 - "MitaCLI"
-Cohesion: 0.14
-Nodes (8): MitaCLI, MitaError, _process_running(), test_cli_eof_before_child_exit_is_sanitized_and_reaps_child(), test_cli_passes_complete_config_through_anonymous_fd_and_bounds_output(), test_cli_refuses_unpinned_or_changed_executable_before_launch(), test_cli_success_kills_same_group_descendant_after_direct_child_exits(), test_cli_timeout_kills_descendant_that_inherits_output_pipes()
-
 ### Community 205 - "_panel_health_diagnosis"
-Cohesion: 0.15
-Nodes (5): _panel_health_diagnosis(), _without_health_polling(), test_a_failed_panel_health_check_says_what_the_containers_were_doing(), test_the_panel_diagnosis_drops_its_own_health_polling(), test_the_panel_diagnosis_never_lets_a_diagnostic_failure_mask_the_real_one()
+Cohesion: 0.11
+Nodes (8): _as_text(), _command_failure(), _panel_health_diagnosis(), _sanitize_diagnostic(), _without_health_polling(), test_a_failed_panel_health_check_says_what_the_containers_were_doing(), test_the_panel_diagnosis_drops_its_own_health_polling(), test_the_panel_diagnosis_never_lets_a_diagnostic_failure_mask_the_real_one()
 
 ### Community 208 - "test_grant_lifecycle.py"
-Cohesion: 0.16
-Nodes (22): _actions(), _generation(), _grant(), _node_users(), _remote(), _secret_states(), test_a_deleted_or_unknown_grant_is_refused(), test_bundle_never_renders_a_withdrawn_or_deleted_grant() (+14 more)
+Cohesion: 0.15
+Nodes (23): _actions(), _generation(), _grant(), _node_users(), _remote(), _secret_states(), test_a_deleted_or_unknown_grant_is_refused(), test_bundle_never_renders_a_withdrawn_or_deleted_grant() (+15 more)
 
-### Community 209 - "README.md"
-Cohesion: 0.08
-Nodes (18): Changing routing, Steps, `unsupported` reasons and what to do, What to tell the owner, Diagnosing a client's access, Report to the owner, Steps, Symptom → likely cause (+10 more)
+### Community 209 - "Diagnosing a client's access"
+Cohesion: 0.33
+Nodes (5): Diagnosing a client's access, Report to the owner, Steps, Symptom → likely cause, What not to do
 
 ### Community 214 - "Database"
-Cohesion: 0.03
-Nodes (58): Live check (AMS_Z ↔ ams-test), Task 1: Миграция 20 и `secret_ref` у подписки, ApiKeyService, _hash(), main(), Connection, Database, DatabaseError (+50 more)
+Cohesion: 0.02
+Nodes (87): Live check (AMS_Z ↔ ams-test), Task 1: Миграция 20 и `secret_ref` у подписки, 5.1 API-ключи, 5.2 Эндпоинты `/api/fleet/v2/*` (scope `node-sync` или `admin`), 5.3 Reconcile на узле (`panel/fleet_v2/reconcile.py`), 5. Узел: API-ключи и Fleet API v2, ApiKeyService, _hash() (+79 more)
 
 ### Community 219 - "UpdateError"
-Cohesion: 0.15
-Nodes (3): _load_state(), RollbackFailedError, UpdateError
+Cohesion: 0.09
+Nodes (14): 10. Тесты и проверка, 1. Цель, 3. Источники upstream (version-agent), 5. Компонент `xray`, 6. Компонент `mita` и закреплённый потребитель, 7. Компонент `naive` — пересборка Caddy, 9. Ошибки, v0.11 — обновления из upstream и обзор в одну строку (+6 more)
 
 ### Community 220 - "test_installer_chains.py"
 Cohesion: 0.13
-Nodes (7): MieruPaths, _slot_action(), SlotRunner, _stage_router(), test_mieru_apply_starts_the_slot_units_and_verify_and_repair_check_them(), test_mieru_without_slots_starts_none_and_a_slotted_action_needs_the_router(), pinned_client()
+Nodes (9): MieruPaths, _slot_action(), _slot_config(), SlotRunner, _stage_router(), test_mieru_apply_starts_the_slot_units_and_verify_and_repair_check_them(), test_mieru_plan_carries_the_slots_and_refuses_a_collision(), test_mieru_without_slots_starts_none_and_a_slotted_action_needs_the_router() (+1 more)
 
 ### Community 222 - "test_version_agent_artifacts.py"
 Cohesion: 0.25
@@ -1288,16 +1239,16 @@ Cohesion: 0.20
 Nodes (6): compose fleet-agent overlay service, compose fleet-ingress overlay service, Typed per-node command queue, Fleet central mTLS ingress, Outbound mTLS fleet transport v1, panel.cli fleet CA/enrollment commands
 
 ### Community 233 - "CatalogError"
-Cohesion: 0.17
+Cohesion: 0.16
 Nodes (16): Self-review, test_catalog_accepts_a_caddy_build_entry(), test_catalog_accepts_a_panel_release_entry_and_refuses_it_elsewhere(), test_catalog_rejects_archive_members_that_escape(), test_catalog_rejects_non_https_binary_sources(), test_catalog_requires_immutable_artifacts(), test_catalog_requires_the_xray_member_set_and_a_single_member_elsewhere(), _archive() (+8 more)
 
 ### Community 234 - "accepted_sha256"
 Cohesion: 0.28
 Nodes (7): accepted_caddy_pins(), accepted_sha256(), agent_component(), _state(), test_invalid_state_yields_only_the_pin(), test_missing_or_failed_state_yields_only_the_pin(), test_state_adds_the_agent_installed_hashes()
 
-### Community 238 - "SubprocessXrayRunner"
-Cohesion: 0.06
-Nodes (10): build_manager(), _env(), main(), check_hop_reachable(), _fsync_directory(), _port_open(), _sha256_file(), _socket_open() (+2 more)
+### Community 238 - "XrayError"
+Cohesion: 0.07
+Nodes (10): test_a_router_that_does_not_come_back_after_the_swap_is_recorded(), broken_start(), check_hop_reachable(), _fsync_directory(), _port_open(), _sha256_file(), _socket_open(), SubprocessXrayRunner (+2 more)
 
 ### Community 239 - "v0.8 — «Выходы и правила»: маршрутизация в духе 3x-ui поверх Xray-router"
 Cohesion: 0.12
@@ -1311,9 +1262,9 @@ Nodes (44): Task 2: Счётчик клиентов в навигации, 2. О
 Cohesion: 0.26
 Nodes (7): _clean(), fragments(), main(), _read_string(), _read_template(), _scan_code(), _skip_comment()
 
-### Community 242 - "test_routing_fleet_chains.py"
-Cohesion: 0.12
-Nodes (24): RelayAccount, redact_diff(), redact_document(), history(), _accept(), anyio_backend(), _doc(), _egress() (+16 more)
+### Community 242 - "routes.py"
+Cohesion: 0.15
+Nodes (9): redact_document(), ExitImportBody, ExplainBody, GeodataSettingsBody, GeodataSourceBody, LaneModeBody, history(), RelayEnableBody (+1 more)
 
 ### Community 243 - "CommandRunner"
 Cohesion: 0.15
@@ -1324,28 +1275,28 @@ Cohesion: 0.20
 Nodes (9): Changes, Deployment and rollback, English, v0.14.0-beta.1 — совместное использование 443 и приёмка Naive, Validation scope, Изменения, Развёртывание и откат, Русский (+1 more)
 
 ### Community 245 - "test_fleet_v2_node_api.py"
-Cohesion: 0.19
-Nodes (15): _doc(), _node_key(), _push(), test_a_push_landing_during_unlink_cannot_resurrect_managed_rows(), test_capture_unlink_and_versions_update(), test_central_owned_users_refuse_local_mutation_and_leave_local_inventory(), test_every_local_writer_refuses_a_central_resource(), test_identity_reports_egress_v1_and_targets() (+7 more)
+Cohesion: 0.16
+Nodes (17): _doc(), _node_key(), _push(), test_a_push_landing_during_unlink_cannot_resurrect_managed_rows(), test_capture_answers_null_not_500_while_telemt_is_down(), down(), test_capture_unlink_and_versions_update(), test_central_owned_users_refuse_local_mutation_and_leave_local_inventory() (+9 more)
 
 ### Community 246 - "InstallPlan"
-Cohesion: 0.08
+Cohesion: 0.07
 Nodes (19): InstallPlan, AcceptedDigestError, _canonical_json(), _checkpoint_data(), _evidence_to_dict(), _freeze(), _freeze_mapping(), _plan_from_dict() (+11 more)
 
-### Community 247 - "socks5-stub.py"
-Cohesion: 0.21
+### Community 247 - "ipaddress"
+Cohesion: 0.18
 Nodes (5): _main(), _pump(), _read_target(), _reply(), Stub
 
-### Community 248 - "DomainFacade"
-Cohesion: 0.09
-Nodes (3): Task 10: Lifecycle грантов (enable/disable/rotate/delete) для local и remote, DomainFacade, GrantLifecycle
+### Community 248 - "Xray egress-router spike (v0.5, Task 32)"
+Cohesion: 0.33
+Nodes (5): Decision, Results — Mieru via the router (`mieru` ingress), Results — NaiveProxy via the router (`naive` ingress), Results — the router itself, Xray egress-router spike (v0.5, Task 32)
 
 ### Community 249 - "test_access_enforcement.py"
-Cohesion: 0.18
-Nodes (19): _drifted_report(), _enabled(), _local(), test_background_timer_expires_access_without_a_request(), test_drift_report_does_not_infer_node_runtime_from_central_clock(), test_lifespan_enforces_expired_local_access_before_serving(), test_local_clock_transition_enables_then_expires_without_request(), test_local_enable_cannot_bypass_suspension_or_expiry() (+11 more)
+Cohesion: 0.17
+Nodes (20): _drifted_report(), _enabled(), _local(), test_background_timer_expires_access_without_a_request(), test_drift_report_does_not_infer_node_runtime_from_central_clock(), test_lifespan_enforces_expired_local_access_before_serving(), test_local_clock_transition_enables_then_expires_without_request(), test_local_enable_cannot_bypass_suspension_or_expiry() (+12 more)
 
-### Community 250 - ".enabled"
-Cohesion: 0.05
-Nodes (45): 10.1 Парк с нуля (центр + два узла), 10.2 Добавить узел в существующий парк, 10.3 Выдать доступ клиенту на другом узле, 10.4 Включить WARP для сервиса на узле, 10.5 Вывести узел из парка, 10. Сквозные чек-листы, 1. Термины, 2.1 Один узел: что на нём работает (+37 more)
+### Community 250 - "Proxy Control v0.6 — руководство оператора: архитектура, домены, автоматическое развёртывание, узлы, доступы из центра, маршрутизация"
+Cohesion: 0.07
+Nodes (29): 10.1 Парк с нуля (центр + два узла), 10.2 Добавить узел в существующий парк, 10.3 Выдать доступ клиенту на другом узле, 10.4 Включить WARP для сервиса на узле, 10.5 Вывести узел из парка, 10. Сквозные чек-листы, 1. Термины, 2.1 Один узел: что на нём работает (+21 more)
 
 ### Community 251 - "Рабочий протокол для AI-агентов"
 Cohesion: 0.22
@@ -1359,61 +1310,45 @@ Nodes (9): _client_with_grants(), _reveal(), test_a_clients_mtproxy_grants_come_
 Cohesion: 0.18
 Nodes (11): Added, Changed, English, Fixed, Upgrading from v1.0.0, v1.0.1 — любые версии компонентов, региональные geodata с автообновлением, Добавлено, Изменено (+3 more)
 
-### Community 254 - "AcceptanceError"
-Cohesion: 0.12
-Nodes (8): AcceptanceError, FakeApi, SequentialSecrets, test_a_failed_provisioning_leaves_no_panel_access_record(), add_inbound(), effective_config(), test_managed_configuration_fails_closed_on_a_surviving_acceptance_client(), test_managed_configuration_removes_every_acceptance_client()
-
 ### Community 256 - "safe_extract_zip"
 Cohesion: 0.25
 Nodes (15): Task 2: Артефакт Xray в каталоге релиза и `safe_extract_zip`, _copy_zip_member(), MemberPin, safe_extract_zip(), _validate_zip_members(), _pins(), _sha(), test_safe_extract_zip_extracts_named_members_only() (+7 more)
 
-### Community 257 - "Browser"
-Cohesion: 0.15
-Nodes (3): Task 3: Браузерный шаг «обзор на телефоне» в lab, test_overlapping_ticks_share_a_global_concurrency_limit_and_visit_every_node(), Browser
-
 ### Community 258 - ".step_05c_chains"
-Cohesion: 0.12
+Cohesion: 0.10
 Nodes (9): Task 12: Лаборатория — staging, `lab-host` с роутером, сценарии `router-*`, tier `router`, redact(), lane_built(), slot_learned(), warp_reachable(), settled(), settled(), settled() (+1 more)
 
-### Community 259 - "test_routing_presets.py"
-Cohesion: 0.09
-Nodes (20): Global Constraints, Self-review (спека → план), Task 0: Ветка, спека, план, Task 11: Лаборатория — сценарии routing и tier `routing`, Task 12: Документация, ADR, CHANGELOG, VERSION, Task 13: Гейт релиза и живая проверка (Task 31A), Task 5: mieru-manager — egress API (Task 29b), Task 6: Панель — клиенты менеджеров и адаптеры egress (+12 more)
+### Community 259 - "EgressConfig"
+Cohesion: 0.16
+Nodes (8): Task 0: Ветка, спека, план, Task 11: Лаборатория — сценарии routing и tier `routing`, Task 12: Документация, ADR, CHANGELOG, VERSION, Task 13: Гейт релиза и живая проверка (Task 31A), Task 3: Установщик — секция `[egress]` (Task 28), Task 5: mieru-manager — egress API (Task 29b), Структура файлов, EgressConfig
 
-### Community 260 - "test_fleet_v2_links.py"
-Cohesion: 0.11
-Nodes (19): LinkConflict, _linked(), test_a_grant_change_publishes_a_generation_for_the_linked_node_in_the_same_transaction(), test_a_panel_cannot_link_itself(), test_add_refuses_a_second_link_to_the_same_panel_and_a_bad_url(), test_add_writes_node_link_key_and_audit_together_and_the_view_is_secret_free(), test_client_for_reveals_the_key_and_reaches_the_node(), test_delete_of_a_node_with_large_generations_needs_no_temp_directory() (+11 more)
+### Community 260 - "SecurityHeadersMiddleware"
+Cohesion: 0.33
+Nodes (3): send(), SecurityHeadersMiddleware, secured_send()
 
 ### Community 261 - "English"
 Cohesion: 0.13
 Nodes (15): English, Gate checklist (lab host `ams-test`, tree `841a086`, 2026-09-14), Installing, Live check (AMS_Z), Proxy Control v0.4.0-beta.1, Screenshots, Upgrading, What's new (+7 more)
 
-### Community 263 - "Промпт для продолжения работы в новом контексте"
-Cohesion: 0.29
-Nodes (6): Task 19A — релизный гейт v0.2 на `ams-test` (пройден 2026-09-11), Как проверять (единственный способ), Промпт для продолжения работы в новом контексте, Прочитай сначала, Состояние репозитория (2026-09-11), Что делать первым делом
-
 ### Community 264 - "test_routing_ui_contract.py"
 Cohesion: 0.08
 Nodes (9): _interpolations(), test_every_interpolated_value_from_the_api_is_escaped(), test_routing_card_forgets_the_previous_policy_before_it_paints(), test_routing_js_seam_fixes_of_v09(), test_routing_js_speaks_lanes_chains_and_the_relay(), test_routing_js_speaks_presets_exits_and_geodata(), test_routing_js_speaks_the_router(), test_routing_js_tells_the_operator_when_the_node_already_runs_the_policy() (+1 more)
 
-### Community 266 - "_DefaultThreeXuiRunner"
-Cohesion: 0.10
-Nodes (3): _DefaultThreeXuiRunner, ThreeXuiPaths, test_the_xray_that_serves_reality_is_the_one_that_mints_its_keypair()
+### Community 267 - "ADR 008: Panel-to-panel transport with scoped API keys"
+Cohesion: 0.40
+Nodes (5): ADR 008: Panel-to-panel transport with scoped API keys, Consequences, Context, Decision, Non-goals
 
-### Community 267 - "test_subscription_lifecycle.py"
-Cohesion: 0.11
-Nodes (8): anyio_backend(), client_id(), clients(), Clock, subscriptions(), test_a_client_and_its_subscription_are_born_in_one_transaction(), test_a_second_active_subscription_cannot_exist(), test_generation_increments_with_the_mutation_or_not_at_all()
-
-### Community 269 - "ThreeXuiAudit"
-Cohesion: 0.13
-Nodes (6): _client_count(), _plain_audit(), _safe_text(), _tags(), ThreeXuiAudit, ThreeXuiInboundFact
+### Community 269 - "8.2 Локальный узел"
+Cohesion: 0.40
+Nodes (5): 8.1 API (`panel/routing/routes.py`, owner для мутаций, viewer — чтение), 8.2 Локальный узел, 8.3 Подключённые панели (Fleet v2), 8.4 UI («Маршрутизация», `panel/static/js/routing.js`), 8. Панель
 
 ### Community 270 - "ThreeXuiClient"
 Cohesion: 0.13
 Nodes (5): _default_api_factory(), _Sanitized, ThreeXuiClient, test_api_refuses_a_non_loopback_endpoint(), test_panel_client_uses_tls_and_pins_certificate_before_credentials()
 
 ### Community 271 - "Host"
-Cohesion: 0.08
-Nodes (8): Decision, Results — Mieru via the router (`mieru` ingress), Results — NaiveProxy via the router (`naive` ingress), Results — the router itself, Xray egress-router spike (v0.5, Task 32), Docker, Host, RoutingProbes
+Cohesion: 0.10
+Nodes (5): Docker, Host, main(), parse_args(), RoutingProbes
 
 ### Community 272 - "register_node_routes"
 Cohesion: 0.17
@@ -1424,8 +1359,8 @@ Cohesion: 0.22
 Nodes (9): Added, English, Fixed, Upgrading from v0.12–v0.14, v0.15.0-beta.1 — версия панели и обновления узлов из центра, Добавлено, Исправлено, Обновление с v0.12–v0.14 (+1 more)
 
 ### Community 274 - "Check"
-Cohesion: 0.14
-Nodes (5): mtproxy_secret(), NodeB, Panel, Check, Panel
+Cohesion: 0.11
+Nodes (10): UI, v0.3 — задачи после слияния (post-merge issues), Спека (follow-ups, не дефекты реализации), Стенд и приёмка, assert_secret_free(), walk(), mtproxy_secret(), NodeB (+2 more)
 
 ### Community 276 - "The Xray-router (v0.5): one dedicated egress router per node"
 Cohesion: 0.18
@@ -1436,7 +1371,7 @@ Cohesion: 0.11
 Nodes (12): script(), FakeConnection, FakeResponse, serve(), test_api_refuses_an_oversized_response(), script(), test_login_fetches_a_csrf_token_and_sends_it(), script() (+4 more)
 
 ### Community 278 - "test_xray_routing_compiler.py"
-Cohesion: 0.22
+Cohesion: 0.23
 Nodes (27): Task 7: Routing IR — backend `xray_router`, `geosites/geoips`, миграция 15, компилятор, _lane(), Resolver, test_a_service_without_lanes_or_node_exits_still_compiles_to_schema_1(), test_compiling_a_lane_policy_folds_the_service_and_the_other_lanes(), test_explain_walks_a_lanes_rules_for_a_destination(), test_lanes_and_node_exits_need_the_router_and_the_attachment(), test_lanes_fold_into_one_schema_2_intent_with_the_service_lane_and_chains() (+19 more)
 
 ### Community 279 - "_panel_probe"
@@ -1456,40 +1391,40 @@ Cohesion: 0.18
 Nodes (11): DNS и приватные адреса, Xray-router (v0.5): один выделенный egress-роутер на узел, Ключи и ротация, Ограничения и что отложено, Полосы, цепи и relay (v0.7), Рантайм, Транзакция, Третий вход: MTProxy (v1.1) (+3 more)
 
 ### Community 283 - "test_subscription_http.py"
-Cohesion: 0.04
-Nodes (46): [1.0.3] - 2026-10-01, Added, English, Fixed, Upgrading from v1.0.2, v1.0.3 — скрипт установки в каждом выпуске, исправленный мастер установки, Добавлено, Исправлено (+38 more)
+Cohesion: 0.06
+Nodes (29): [1.0.3] - 2026-10-01, Added, English, Fixed, Upgrading from v1.0.2, v1.0.3 — скрипт установки в каждом выпуске, исправленный мастер установки, Добавлено, Исправлено (+21 more)
 
 ### Community 284 - "Proxy Control v0.5 — выделенный Xray egress-router и финализация vNext"
-Cohesion: 0.12
-Nodes (17): 10. Spike (Task 32) — что проверяется на стенде, 12. Backup/restore и матрица негативных тестов (Tasks 37, 39), 14. Документация и релиз (Task 41), 15. Отклонения от спеки vNext и решения, принятые за владельца, 1. Цель, 2. Паритет с 3x-ui, 3. Архитектурные решения, 4. Артефакты и каталог релиза (+9 more)
+Cohesion: 0.07
+Nodes (28): The policy, Политика, 10. Spike (Task 32) — что проверяется на стенде, 11. Безопасность, 12. Backup/restore и матрица негативных тестов (Tasks 37, 39), 13. Лаборатория и гейт (Tasks 36, 40), 14. Документация и релиз (Task 41), 15. Отклонения от спеки vNext и решения, принятые за владельца (+20 more)
 
 ### Community 285 - "TelemtAdapter"
-Cohesion: 0.03
-Nodes (36): Runtime users (protocol routes), Task 4: Адаптеры — caller-supplied secret для Telemt и `update_options`, AccessArtifact, AdapterError, applied_egress_from_view(), AppliedEgress, AppliedGrant, CredentialPlan (+28 more)
+Cohesion: 0.02
+Nodes (64): Runtime users (protocol routes), Task 4: Адаптеры — caller-supplied secret для Telemt и `update_options`, Task 6: Панель — клиенты менеджеров и адаптеры egress, AccessArtifact, AdapterError, applied_egress_from_view(), AppliedEgress, AppliedGrant (+56 more)
 
-### Community 286 - "CONTINUE HERE — v0.4 маршрутизация"
-Cohesion: 0.13
-Nodes (12): CONTINUE HERE — v0.4 маршрутизация, Где мы, Гейт (Task 13) — итог, Известные ограничения/решения (для ревью и v0.5), Коммиты ветки (по порядку), Публикация (по поручению владельца 2026-09-14), Что дальше (владелец), 1. Цель (+4 more)
+### Community 286 - "dashboard"
+Cohesion: 0.10
+Nodes (17): Task 2: Tier `ui` — драйвер и view без второй панели, 1. Цель, 2. Что уже доказано (не переделывается), 3.1 Матрица сверки — `docs/VERIFICATION_MATRIX.md` + `tests/fixtures/verification-matrix.json`, 3.2 Аудит маршрутов — `scripts/dev/route-coverage.py`, 3.3 Tier `ui` — `scripts/lab/ui-acceptance.py` (+ `remote-gate.sh ui`), 3.4 Бэкенд: дыры в лабораторном покрытии, 3.5 Живая проверка на AMS_Z (по разрешению владельца) (+9 more)
 
 ### Community 287 - "XrayRouterAdapter"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (3): _command_failure(), XrayRouterAdapter, XrayRouterError
 
 ### Community 289 - "proxy-control-lab-clients Compose project"
 Cohesion: 0.23
 Nodes (16): Post-install acceptance checks, Installer transaction steps 1–7, External MTProto probe (TDLib addProxy/pingProxy), Приёмка после установки, Шаги транзакции установщика 1–7, Внешняя проба MTProto (TDLib), --config … --expect-status probe contract, https-cover curl probe (+8 more)
 
-### Community 290 - "command"
-Cohesion: 0.15
-Nodes (9): Executor, ExecutionIndeterminate, command(), test_agent_journal_prevents_reexecution_after_restart_and_rejects_sequence_gap(), test_concurrent_duplicate_does_not_corrupt_inflight_execution(), test_exclusive_startup_recovery_marks_crash_residue_without_reexecution(), test_local_executor_is_loopback_only_and_sends_revision_precondition(), test_uncertain_transport_outcome_is_durable_indeterminate() (+1 more)
+### Community 290 - "test_fleet.py"
+Cohesion: 0.08
+Nodes (24): Executor, build_executor(), main(), required(), run(), CommandConflict, ExecutionIndeterminate, LocalTelemtExecutor (+16 more)
 
 ### Community 292 - "The MCP server (v0.11): the panel as tools for Claude Code, Claude Desktop, Codex and OMP"
 Cohesion: 0.22
 Nodes (9): Connecting, How to enable, Rotating the token and the key, Skills, The `confirm` rule, The MCP server (v0.11): the panel as tools for Claude Code, Claude Desktop, Codex and OMP, Turning it off, Verification (+1 more)
 
-### Community 293 - "test_provisioning_saga.py"
-Cohesion: 0.25
-Nodes (11): anyio_backend(), backends(), _grants(), _intent(), test_a_clean_run_activates_every_grant_with_a_stored_credential(), test_a_refused_preflight_reserves_nothing(), test_compensation_never_deletes_what_the_operation_did_not_create(), test_every_fault_ends_in_a_declared_outcome_and_resumes() (+3 more)
+### Community 293 - "vNext capability matrix"
+Cohesion: 0.40
+Nodes (5): Control-plane access enforcement, Protocols and the Fleet v1 transport, Spike plan before any routing claim, Subscription clients, vNext capability matrix
 
 ### Community 294 - "MCP-сервер (v0.11): панель как инструменты Claude Code, Claude Desktop, Codex и OMP"
 Cohesion: 0.22
@@ -1497,19 +1432,11 @@ Nodes (9): MCP-сервер (v0.11): панель как инструменты 
 
 ### Community 295 - "Isolated Ubuntu 24.04 installer lab"
 Cohesion: 0.05
-Nodes (52): attest job, build-twice-and-compare job, draft-release job, lab-amd64 job, publish job, quality job, Release workflow, Tag, VERSION and manifest agreement check (+44 more)
+Nodes (56): attest job, build-twice-and-compare job, draft-release job, lab-amd64 job, publish job, quality job, Release workflow, Tag, VERSION and manifest agreement check (+48 more)
 
 ### Community 296 - "6. Центр и узлы: привязка панелей"
 Cohesion: 0.14
 Nodes (13): 6.1 Порядок раскатки парка, 6.2 Подготовка узла, 6.3 Привязка: три действия на центре, 6.4 Импорт существующих пользователей узла, 6.6 Отвязка, удаление, ротация ключа, 6. Центр и узлы: привязка панелей, CONTINUE HERE — v0.7 (цепи и полосы), Выпуск (сделано 2026-09-18 10:16–12:50 UTC) (+5 more)
-
-### Community 297 - "_Checked"
-Cohesion: 0.17
-Nodes (6): _Checked, test_the_automatic_upstream_check_survives_a_failure_and_stops_on_request(), test_the_automatic_upstream_check_waits_for_the_cache_to_age(), auto_check_upstream(), main(), upstream_due_in()
-
-### Community 298 - "NginxReloadRecovery"
-Cohesion: 0.22
-Nodes (4): NginxReloadRecovery, test_a_reload_failure_that_leaves_nginx_running_is_still_an_error(), run(), test_a_reload_that_kills_nginx_is_recovered_and_reported()
 
 ### Community 299 - "test_dashboard_ui_contract.py"
 Cohesion: 0.14
@@ -1519,9 +1446,9 @@ Nodes (3): test_host_card_follows_the_host_while_the_overview_is_open(), test_ov
 Cohesion: 0.14
 Nodes (14): English, Installing, Live check (AMS_Z), Proxy Control v0.5.0-beta.1, Screenshots, Upgrading, What's new, Живая проверка (AMS_Z) (+6 more)
 
-### Community 301 - "RolledBackError"
-Cohesion: 0.18
-Nodes (10): 10. Тесты и проверка, 1. Цель, 5. Компонент `xray`, 6. Компонент `mita` и закреплённый потребитель, 7. Компонент `naive` — пересборка Caddy, 8. API и данные, 9. Ошибки, v0.11 — обновления из upstream и обзор в одну строку (+2 more)
+### Community 301 - "Granting access to a client"
+Cohesion: 0.40
+Nodes (4): Granting access to a client, Link variants (`subscription.variants`), Pitfalls, Report to the owner
 
 ### Community 302 - "CONTINUE HERE — v0.8 (свои выходы, таблица правил, geodata, автоимпорт)"
 Cohesion: 0.40
@@ -1531,21 +1458,17 @@ Nodes (4): CONTINUE HERE — v0.8 (свои выходы, таблица пра�
 Cohesion: 0.20
 Nodes (8): test_healthcheck_relay_flags_post_and_get(), test_healthcheck_status_flag_prints_the_manager_status(), check(), main(), relay(), relay_enable(), _request(), status()
 
-### Community 304 - "mieru.js"
-Cohesion: 0.24
-Nodes (15): issueOnNode(), bindMieru(), collectQuotaRows(), createQuotas(), handleMieruAction(), handleMieruClick(), mieruRow(), openMieruModal() (+7 more)
-
 ### Community 305 - "test_mieru_management.py"
-Cohesion: 0.08
-Nodes (28): _domain_created(), mieru_access(), register_mieru_routes(), escrow(), kept(), kept_share_url(), live_template(), local_only() (+20 more)
+Cohesion: 0.05
+Nodes (12): check(), main(), _password(), request(), StubManager, test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(), test_manager_healthcheck_uses_authenticated_unix_health_endpoint(), test_manager_unix_api_is_authenticated_bounded_and_no_store() (+4 more)
 
 ### Community 306 - "English"
 Cohesion: 0.22
 Nodes (9): Added, English, Fixed, Upgrading from v0.12–v0.15, v1.0.0 — первый стабильный выпуск: понятная маршрутизация, английский интерфейс, сохранённые ключи Mieru, Добавлено, Исправлено, Обновление с v0.12–v0.15 (+1 more)
 
-### Community 307 - "test_fleet_v2_post_merge_node.py"
-Cohesion: 0.29
-Nodes (10): _audit(), _doc(), _node_key(), _push(), test_capture_is_audited_and_answers_local_users_only_for_an_import(), test_capture_with_an_unknown_purpose_is_422(), test_deleting_a_grant_whose_user_is_already_gone_succeeds(), test_only_a_superseded_generation_is_answered_stale() (+2 more)
+### Community 307 - "ADR 003: One writer per resource"
+Cohesion: 0.50
+Nodes (4): ADR 003: One writer per resource, Consequences, Decision, Non-goals
 
 ### Community 309 - "test_xray_router_deployment.py"
 Cohesion: 0.22
@@ -1564,8 +1487,8 @@ Cohesion: 0.27
 Nodes (10): compose(), fail(), MIERU_MANAGER_UID, NAIVE_MANAGER_GID, NAIVE_MANAGER_UID, random_hex(), random_password(), ROUTER_GID (+2 more)
 
 ### Community 315 - "_DefaultXrayRouterRunner"
-Cohesion: 0.07
-Nodes (5): 3.6 Исправления, _DefaultXrayRouterRunner, XrayRouterPaths, test_the_real_runner_fetches_over_https_only(), test_the_real_runner_sees_only_the_router_compose_service()
+Cohesion: 0.11
+Nodes (4): 3.6 Исправления, _DefaultXrayRouterRunner, test_the_real_runner_fetches_over_https_only(), test_the_real_runner_sees_only_the_router_compose_service()
 
 ### Community 316 - "_preparer"
 Cohesion: 0.40
@@ -1575,13 +1498,9 @@ Nodes (4): _preparer(), test_state_preparer_refuses_a_symlinked_boundary(), test
 Cohesion: 0.14
 Nodes (14): English, Gate checklist (lab host `ams-test`, tree `ade7fcc`, 2026-09-14 — after the three rounds of the final-review fix wave), Installing, Proxy Control v0.3.0-beta.1, Screenshots, Upgrading, What's new, Живая проверка (AMS_Z ↔ ams-test) (+6 more)
 
-### Community 318 - "_canonical_json_value"
-Cohesion: 0.17
-Nodes (7): _assert_secret_free(), _canonical_fact_value(), _canonical_json_value(), _freeze(), _nonempty(), _sort_key(), _topologically_sorted_adapters()
-
-### Community 319 - "TelemtError"
-Cohesion: 0.04
-Nodes (39): CONTINUE HERE — v0.3 центральная панель, Где мы, Гейт v0.3.0-beta.1 (2026-09-14 11:42–11:59 UTC, дерево `ade7fcc`, чистое — после трёх раундов фикс-волны), Действия владельца, Отложенные minor и out-of-scope наблюдения, Рулинги, принятые за владельца (в итоговый отчёт), Точка продолжения, Что дальше по ветке (+31 more)
+### Community 319 - "test_telemt_recovery.py"
+Cohesion: 0.19
+Nodes (10): anyio_backend(), _client(), telemt(), test_a_reply_lost_after_the_request_was_sent_is_indeterminate(), timeout(), test_a_request_that_never_left_is_a_plain_failure_not_indeterminate(), test_current_access_reads_the_live_link_from_the_user_listing(), listing() (+2 more)
 
 ### Community 320 - "install-release.sh"
 Cohesion: 0.52
@@ -1591,29 +1510,25 @@ Nodes (6): check_manifest(), fail(), requirements(), say(), install-release.sh s
 Cohesion: 0.43
 Nodes (6): fail(), ROUTER_GID, ROUTER_MODE, ROUTER_UID, prepare-xray-router-state.sh script, verify_regular_file()
 
-### Community 322 - "5. Интерфейс"
-Cohesion: 0.22
-Nodes (8): 1. Цель, 5.1 Окно клиента, 5.2 Диалог «Новый клиент», 5.3 Диалог «Выдать доступ», 5.4 Экраны MTProxy / NaiveProxy / Mieru, 5. Интерфейс, Не входит, 4. Кнопки «Проверить обновления» и «Обновить»
+### Community 322 - "v0.10 — клиент на нескольких узлах и подписка под рукой"
+Cohesion: 0.15
+Nodes (13): 1. Цель, 3. API, 4. Реестр аудита и события, 5.1 Окно клиента, 5.2 Диалог «Новый клиент», 5.3 Диалог «Выдать доступ», 5.4 Экраны MTProxy / NaiveProxy / Mieru, 5. Интерфейс (+5 more)
 
 ### Community 323 - "test_client_import.py"
-Cohesion: 0.18
-Nodes (12): _render(), _seed(), test_a_locally_imported_mtproxy_user_renders_with_telemts_link_host(), test_a_username_the_runtime_already_uses_is_refused_before_anything_is_written(), test_adopt_batch_reports_what_it_could_not_take(), test_adopting_an_imported_grant_makes_it_renderable(), test_import_can_attach_to_an_existing_client(), test_import_is_idempotent_and_makes_no_manager_mutation() (+4 more)
+Cohesion: 0.16
+Nodes (13): _render(), _seed(), test_a_locally_imported_mtproxy_user_renders_with_telemts_link_host(), test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_link_host(), test_a_username_the_runtime_already_uses_is_refused_before_anything_is_written(), test_adopt_batch_reports_what_it_could_not_take(), test_adopting_an_imported_grant_makes_it_renderable(), test_import_can_attach_to_an_existing_client() (+5 more)
 
 ### Community 324 - "Telemt MTProto data plane"
 Cohesion: 0.40
 Nodes (3): Private-network Caddy mask / cover site, Host Nginx stream/SNI router, Telemt MTProto data plane
 
 ### Community 325 - "ADR 002: Declarative immutable generations"
-Cohesion: 0.18
-Nodes (10): ADR 002: Declarative immutable generations, Consequences, Context, Decision, Non-goals, ADR 008: Panel-to-panel transport with scoped API keys, Consequences, Context (+2 more)
+Cohesion: 0.40
+Nodes (5): ADR 002: Declarative immutable generations, Consequences, Context, Decision, Non-goals
 
 ### Community 326 - "AccessGrant"
 Cohesion: 0.03
-Nodes (58): ADR 003: One writer per resource, Consequences, Context, Decision, Non-goals, Decision, Что уже сделано (Tasks 0–14), Decision records (+50 more)
-
-### Community 328 - "parse_reality_keypair"
-Cohesion: 0.18
-Nodes (5): parse_reality_keypair(), test_reality_keypair_also_reads_the_older_label_spelling(), test_reality_keypair_fails_closed_on_anything_it_does_not_recognise(), test_reality_keypair_never_echoes_the_key_material_in_its_error(), test_reality_keypair_reads_the_pinned_xray_output_verbatim()
+Nodes (40): Context, Decision, Task 10: Lifecycle грантов (enable/disable/rotate/delete) для local и remote, Узел (fleet_v2 node, local lifecycle), Что уже сделано (Tasks 0–14), Decision records, Goal of v0.2, Release train (+32 more)
 
 ### Community 329 - "i18n.js"
 Cohesion: 0.09
@@ -1624,28 +1539,16 @@ Cohesion: 0.46
 Nodes (7): _key(), test_admin_key_reads_and_mutates_without_a_session(), test_bad_missing_or_disabled_key_is_401(), test_key_management_is_owner_only_and_never_lists_plaintext(), test_key_rate_limit_answers_429(), test_monitor_key_is_read_only(), test_node_sync_key_reaches_only_the_fleet_api()
 
 ### Community 331 - "test_fleet_v2_central_routes.py"
-Cohesion: 0.18
-Nodes (4): central_http(), test_fingerprint_private_address_requires_explicit_opt_in(), test_fingerprint_request_deadline_also_bounds_slow_system_dns(), test_link_rejects_bad_key_private_url_and_self()
+Cohesion: 0.15
+Nodes (5): central_http(), test_fingerprint_private_address_requires_explicit_opt_in(), test_fingerprint_request_deadline_also_bounds_slow_system_dns(), test_link_rejects_bad_key_private_url_and_self(), test_node_version_update_is_relayed_to_the_node_and_audited_on_both_sides()
 
-### Community 334 - "status / resume / repair"
-Cohesion: 0.33
-Nodes (7): Ownership journal /var/lib/proxy-control/installer/state.json, status / resume / repair, uninstall and --purge-data, Журнал владения state.json, uninstall и --purge-data, Uninstalling, Удаление
+### Community 335 - "English"
+Cohesion: 0.22
+Nodes (9): English, Fresh install, Upgrading from v0.9 or v0.10, v0.11.0-beta.1 — обновления из upstream, What changed for you, Обновление с v0.9 или v0.10, Русский, Установка с нуля (+1 more)
 
-### Community 335 - "panel"
-Cohesion: 0.08
-Nodes (24): English, Fresh install, Upgrading from v0.9 or v0.10, v0.11.0-beta.1 — обновления из upstream, What changed for you, Обновление с v0.9 или v0.10, Русский, Установка с нуля (+16 more)
-
-### Community 336 - ".install"
-Cohesion: 0.10
-Nodes (17): English, Installer fixes, Installing, Proxy Control v0.2.0-beta.1, Verified for this release (on the lab host), Исправлено в установщике, Проверено для этого выпуска (на стенде), Русский (+9 more)
-
-### Community 338 - "_validate_destination"
-Cohesion: 0.20
-Nodes (14): _best_effort_remove_tree_at(), _create_private_stage(), _destination_identity(), _DestinationAnchor, _directory_fingerprint(), _directory_open_flags(), _enforce_destination_chain_trust(), _identity() (+6 more)
-
-### Community 340 - "RelayRegistry"
-Cohesion: 0.10
-Nodes (9): Audit event names, Authentication and administrators, Clients, grants and subscriptions, Nodes (central side), Nodes (node side, through the central's key), Routing (v0.4), 6. Модель политики и компилятор (`panel/routing/`), RelayRegistry (+1 more)
+### Community 336 - "English"
+Cohesion: 0.22
+Nodes (9): English, Installer fixes, Installing, Proxy Control v0.2.0-beta.1, Verified for this release (on the lab host), Исправлено в установщике, Проверено для этого выпуска (на стенде), Русский (+1 more)
 
 ### Community 341 - "Структура файлов"
 Cohesion: 0.20
@@ -1665,7 +1568,7 @@ Nodes (5): _node(), test_import_still_offers_clients_outside_the_current_page(),
 
 ### Community 347 - "json"
 Cohesion: 0.04
-Nodes (13): load_env(), main(), check(), main(), check(), main(), test_unlink_dialog_tells_the_truth_about_re_mastering(), leaf_fingerprint() (+5 more)
+Nodes (30): _decode_adjacent_routes(), _valid_adjacent_backend(), _download(), ensure_pinned_package(), _identity_from_entry(), _sanitize_diagnostic(), _canonical_ip(), _environment_secret_values() (+22 more)
 
 ### Community 348 - "Verification matrix — maintained functions and their proofs"
 Cohesion: 0.22
@@ -1680,32 +1583,28 @@ Cohesion: 0.18
 Nodes (11): Added, Changed, English, Fixed, Upgrading from v1.0.1, v1.0.2 — окно доступа, поиск и фильтры клиентов, аккуратная вёрстка, Добавлено, Изменено (+3 more)
 
 ### Community 351 - "test_update_host.py"
-Cohesion: 0.21
-Nodes (10): Agent, host(), _run(), test_a_digest_other_than_the_verified_one_changes_nothing(), test_a_host_already_on_the_release_only_rebuilds_what_is_missing(), test_failed_mcp_rebuild_restores_previous_image_and_reports_failure(), test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(), test_mcp_changes_are_rebuilt_with_the_installed_overlay() (+2 more)
+Cohesion: 0.14
+Nodes (18): Agent, host(), _run(), _serve(), _answer(), do_GET(), do_POST(), get_request() (+10 more)
 
 ### Community 352 - "CONTINUE HERE — v0.6 сверка функций v0.2–v0.5"
 Cohesion: 0.22
 Nodes (8): CONTINUE HERE — v0.6 сверка функций v0.2–v0.5, Где мы, Гейт (финальное дерево) и живая проверка, Известные ограничения/решения, Публикация (сделано 2026-09-17 11:18–11:30 UTC), Что дальше (владелец), Что сделано (коммиты по порядку), test_every_route_and_every_view_has_a_row()
 
-### Community 357 - "InstallerConflict"
-Cohesion: 0.13
-Nodes (5): _audit_mapping(), InstallerConflict, operation(), operation(), run()
+### Community 357 - "RuntimeInstaller"
+Cohesion: 0.16
+Nodes (3): RuntimeInstaller, operation(), operation()
 
-### Community 358 - "Proxy Control architecture"
-Cohesion: 0.08
-Nodes (22): Pull Request Boundary Checklist, Contribution Architecture Rules, Local Development Gate Commands, Naive completed-CONNECT byte collector, Telemt total_octets and quota usage counter, Proxy Control architecture, Caddy/NaiveProxy runtime and manager, Complete COMPOSE_FILE overlay set (+14 more)
+### Community 358 - "Accounting semantics"
+Cohesion: 0.05
+Nodes (47): Accounting semantics, Mieru rolling session-admission quota, Naive completed-CONNECT byte collector, Telemt total_octets and quota usage counter, Proxy Control architecture, Caddy/NaiveProxy runtime and manager, Complete COMPOSE_FILE overlay set, FastAPI panel on loopback (+39 more)
 
 ### Community 359 - "test_a_download_that_does_not_match_its_pin_is_discarded"
 Cohesion: 0.25
 Nodes (4): test_a_download_that_does_not_match_its_pin_is_discarded(), test_a_missing_package_is_fetched_from_its_pin(), fetch(), test_a_package_that_is_already_staged_is_not_fetched_again()
 
-### Community 369 - "CDP"
-Cohesion: 0.31
-Nodes (3): Task 2: Tier `ui` — драйвер и view без второй панели, CDP, _recv_exact()
-
 ### Community 370 - "AgentJournal"
 Cohesion: 0.14
-Nodes (7): ADR 001: Pull-only node transport, Consequences, Context, Decision, Non-goals, TypedCommand, AgentJournal
+Nodes (8): ADR 001: Pull-only node transport, Consequences, Context, Decision, Non-goals, TypedCommand, AgentJournal, test_node_journal_does_not_retry_removed_mieru_outbox()
 
 ### Community 373 - "test_routing_routes.py"
 Cohesion: 0.48
@@ -1719,13 +1618,9 @@ Nodes (4): ADR 004: Client, AccessGrant and subscription as a projection, Conseq
 Cohesion: 0.15
 Nodes (12): 1. Цель, 2. Что доказано на стенде (ams-test, 2026-10-01), 3. Топология, 4. Xray-router (менеджер), 5. Мост `xray-router-ingress`, 6. Панель, 7. Установщик, 7a. Обновление одной командой (добавлено владельцем 2026-10-01) (+4 more)
 
-### Community 378 - "_serve"
-Cohesion: 0.38
-Nodes (5): _serve(), _answer(), do_GET(), do_POST(), get_request()
-
-### Community 382 - "test_panel_client_accepts_a_full_reveal_payload"
-Cohesion: 0.33
-Nodes (3): oversized(), test_panel_client_accepts_a_full_reveal_payload(), open()
+### Community 386 - "config"
+Cohesion: 0.20
+Nodes (6): _relay_config(), RelayRunner, test_a_router_action_without_relay_keys_still_applies_and_verifies(), test_router_apply_enables_the_relay_and_verify_proves_its_public_part(), test_router_plan_carries_the_relay_and_refuses_a_claimed_relay_port(), config()
 
 ### Community 393 - "ADR 009: Lanes per client and chains through the fleet's relays"
 Cohesion: 0.50
@@ -1740,28 +1635,20 @@ Cohesion: 0.40
 Nodes (5): ADR 005: Secrets travel as references, Consequences, Context, Decision, Non-goals
 
 ### Community 405 - "test_socks5_stub.py"
-Cohesion: 0.31
-Nodes (7): _connect_through(), _echo(), _load(), _refuses(), _relays(), test_stub_logs_connect_target_and_relays(), test_stub_reports_a_refused_target_and_refuses_when_told_to()
+Cohesion: 0.14
+Nodes (9): Task 2: Spike — нативные возможности Caddy forwardproxy и mita (Task 30), Probes, _connect_through(), _echo(), _load(), _refuses(), _relays(), test_stub_logs_connect_target_and_relays() (+1 more)
 
 ### Community 411 - "English"
 Cohesion: 0.22
 Nodes (9): Added, Changed, English, Upgrading from v1.0.3, v1.1.0 — маршрутизация MTProxy через Xray-router, Добавлено, Изменено, Обновление с v1.0.3 (+1 more)
 
 ### Community 412 - "test_fetch_reports_the_hop_that_names_the_release"
-Cohesion: 0.22
-Nodes (3): test_fetch_reports_the_hop_that_names_the_release(), fetch(), redirect_request()
+Cohesion: 0.20
+Nodes (4): test_fetch_reports_the_hop_that_names_the_release(), build_opener(), fetch(), redirect_request()
 
 ### Community 413 - "remote-gate.sh"
 Cohesion: 0.36
 Nodes (7): Baseline main@8c787c5 (2026-09-10), Audit finding 15: Baseline on ams-test, Verification levels A-F (quick, full, compose, lab-container, lab-host, real install), Task 0: ams-test stand and baseline, remote(), remote-gate.sh script, sync_tree()
-
-### Community 415 - "test_telemt_adapter_does_not_leak_secret_in_errors"
-Cohesion: 0.25
-Nodes (6): test_telemt_adapter_does_not_leak_secret_in_errors(), handler(), test_telemt_adapter_patches_limits_and_resets_quota(), handler(), test_telemt_adapter_reads_3425_quota_stats_route(), test_telemt_adapter_sends_auth_and_maps_envelope()
-
-### Community 416 - "register_auth_admin_audit_routes"
-Cohesion: 0.09
-Nodes (8): Global Constraints, Task 2: Bearer-аутентификация, scope-гейты и `/api/keys`, register_auth_admin_audit_routes(), audit_log(), current(), fleet_key(), mutation(), check()
 
 ### Community 421 - "update-host.sh"
 Cohesion: 0.46
@@ -1771,21 +1658,17 @@ Nodes (7): agent(), fail(), has(), health(), json(), say(), update-host.sh scrip
 Cohesion: 0.40
 Nodes (4): warp_routing(), test_warp_appends_rules_without_replacing_the_final_policy(), test_warp_emits_nothing_when_disabled(), test_warp_requires_operator_confirmed_domains()
 
-### Community 428 - "test_the_domain_writer_adopts_a_user_it_did_not_create"
-Cohesion: 0.40
-Nodes (3): test_the_domain_writer_adopts_a_user_it_did_not_create(), test_the_domain_writer_records_a_client_and_grant_for_every_protocol(), _writer()
-
 ### Community 430 - "ProtocolError"
-Cohesion: 0.15
-Nodes (12): ProtocolError, validate_inventory(), validate_payload(), validate_result(), _walk_secret_free(), test_typed_protocol_rejects_generic_commands_and_unknown_payload_fields(), _csrf(), test_every_protocol_access_is_re_revealable() (+4 more)
+Cohesion: 0.13
+Nodes (13): ProtocolError, validate_inventory(), validate_payload(), validate_result(), _walk_secret_free(), AgentTransportClient, test_typed_protocol_rejects_generic_commands_and_unknown_payload_fields(), _csrf() (+5 more)
 
 ### Community 435 - "ADR 007: Routing enforcement ownership"
 Cohesion: 0.67
 Nodes (3): ADR 007: Routing enforcement ownership, Context, Decision
 
-### Community 444 - "facts_with_uid"
-Cohesion: 0.50
-Nodes (4): facts_with_uid(), test_naive_plan_adopts_its_own_reserved_identities(), test_naive_plan_stops_on_fixed_accounting_group_collision(), test_naive_plan_stops_on_fixed_identity_collision()
+### Community 444 - "full_config"
+Cohesion: 0.28
+Nodes (8): facts_with_uid(), full_config(), test_naive_plan_adopts_its_own_reserved_identities(), test_naive_plan_is_empty_without_the_naive_profile(), test_naive_plan_keeps_only_audited_adjacent_routes(), test_naive_plan_stops_on_fixed_accounting_group_collision(), test_naive_plan_stops_on_fixed_identity_collision(), test_naive_sends_every_tunnel_through_warp_when_it_is_enabled()
 
 ## Ambiguous Edges - Review These
 - `Beam vs Hammer Clash Metaphor` → `Cover Metaphor for Blocking vs Traversing Traffic`  [AMBIGUOUS]
@@ -1797,8 +1680,8 @@ Nodes (4): facts_with_uid(), test_naive_plan_adopts_its_own_reserved_identities(
 
 ## Knowledge Gaps
 - **670 isolated node(s):** `telemt-entrypoint.sh script`, `install.sh script`, `entrypoint.sh script`, `TELEMT_API_TOKEN_FILE`, `API_REASONS` (+665 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3569 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **111 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3568 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **112 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -1809,11 +1692,11 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `WARP as one loopback SOCKS5 endpoint` and `WARP as one SOCKS5 endpoint 127.0.0.1:40000`?**
   _Edge tagged AMBIGUOUS (relation: semantically_similar_to) - confidence is low._
-- **Why does `vNext architecture (v0.2 and v0.3)` connect `AccessGrant` to `test_subscription_renderers.py`, `Proxy Control documentation index`, `test_routing_fleet.py`?**
-  _High betweenness centrality (0.062) - this node is a cross-community bridge._
-- **Why does `Матрица негативных и security-тестов vNext (Task 39)` connect `Матрица негативных и security-тестов vNext (Task 39)` to `safe_extract_zip`, `PolicyInput`, `test_fleet_v2_post_merge.py`, `Scenario`, `test_fleet_v2_reconcile.py`, `test_subscription_renderers.py`, `test_naive_manager_egress.py`, `test_fleet_acceptance_script.py`, `central_routes.py`, `script`, `test_xray_routing_compiler.py`, `test_installer_transaction.py`, `EgressInvalid`, `test_subscription_http.py`, `node_agent.py`, `Proxy Control documentation index`, `command`, `test_routing_fleet.py`, `GrantIntent`, `test_rbac_audit.py`, `ReleaseManifest`, `test_mieru_manager.py`, `naive_manager/egress.py`, `test_installer_release.py`, `FleetStore`, `render_config`, `document_digest`, `DeployCliTests`, `test_users_adapter_ui.py`, `test_routing_router_service.py`, `test_fleet_v2_central_routes.py`, `test_grant_lifecycle.py`, `Database`, `test_mieru_egress.py`, `test_installer_xray_router.py`, `test_fleet_v2_node_api.py`?**
-  _High betweenness centrality (0.058) - this node is a cross-community bridge._
-- **Why does `Proxy Control` connect `Proxy Control` to `Proxy Control documentation index`, `Unreleased`, `Isolated Ubuntu 24.04 installer lab`, `Proxy Control architecture`, `Панель управления Proxy Control`, `status / resume / repair`, `install-bootstrap`, `Управление Mieru / mita 3.35–3.36`, `Troubleshooting Proxy Control`?**
-  _High betweenness centrality (0.048) - this node is a cross-community bridge._
+- **Why does `vNext architecture (v0.2 and v0.3)` connect `AccessGrant` to `test_routing_fleet_chains.py`, `Proxy Control documentation index`, `app.py`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **Why does `Матрица негативных и security-тестов vNext (Task 39)` connect `Матрица негативных и security-тестов vNext (Task 39)` to `safe_extract_zip`, `PolicyInput`, `Scenario`, `test_fleet_v2_reconcile.py`, `test_naive_manager_egress.py`, `test_fleet_acceptance_script.py`, `test_fleet_v2_post_merge.py`, `script`, `test_xray_routing_compiler.py`, `test_installer_transaction.py`, `EgressInvalid`, `test_subscription_http.py`, `Proxy Control documentation index`, `test_fleet.py`, `test_routing_fleet_chains.py`, `GrantIntent`, `test_rbac_audit.py`, `ReleaseManifest`, `test_mieru_manager.py`, `naive_manager/egress.py`, `test_installer_release.py`, `render_config`, `DeployCliTests`, `test_users_adapter_ui.py`, `test_routing_router_service.py`, `AccessGrant`, `test_fleet_v2_central_routes.py`, `test_routing_service.py`, `test_grant_lifecycle.py`, `Database`, `CertificateAuthority`, `test_mieru_egress.py`, `test_installer_xray_router.py`, `test_fleet_v2_node_api.py`?**
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **Why does `Proxy Control documentation index` connect `Proxy Control documentation index` to `Accounting semantics`, `Proxy Control v0.1.0 Beta`, `Proxy Control`, `Панель управления Proxy Control`, `Sharing Mieru configurations`, `install-bootstrap`, `Управление Mieru / mita 3.35–3.36`, `Troubleshooting Proxy Control`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
 - **Are the 38 inferred relationships involving `Action` (e.g. with `Adapter` and `CoreAdapter`) actually correct?**
   _`Action` has 38 INFERRED edges - model-reasoned connections that need verification._

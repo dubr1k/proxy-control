@@ -324,9 +324,9 @@
     "semantic_hash": ""
   },
   "tests/test_mieru_manager.py": {
-    "mtime": 1790959085.8383555,
-    "seen": 1790962492.6926599,
-    "ast_hash": "bace9dc75ebef931477e16e3175620f8",
+    "mtime": 1790963061.0060518,
+    "seen": 1790964345.061117,
+    "ast_hash": "553e11a1d06235b7c39a90874eb6ad1b",
     "semantic_hash": ""
   },
   "tests/test_naive_manager.py": {
@@ -846,15 +846,15 @@
     "semantic_hash": ""
   },
   "docs/UPGRADING.md": {
-    "mtime": 1790962451.8439398,
-    "seen": 1790962492.692696,
-    "ast_hash": "9decf1d87258baadeca86390d25bf714",
+    "mtime": 1790964300.076577,
+    "seen": 1790964345.0611572,
+    "ast_hash": "6b4b16b1f124ac4a4c816f8b9d513e4e",
     "semantic_hash": ""
   },
   "docs/UPGRADING.ru.md": {
-    "mtime": 1790962451.8443348,
-    "seen": 1790962492.692697,
-    "ast_hash": "ae9f6b9e25564574504946b3af0f717b",
+    "mtime": 1790964300.0768042,
+    "seen": 1790964345.0611572,
+    "ast_hash": "44611d898619d340b0b01c55d3001a0a",
     "semantic_hash": ""
   },
   "docs/VALIDATION.md": {
@@ -3630,15 +3630,15 @@
     "semantic_hash": ""
   },
   "scripts/update-host.sh": {
-    "mtime": 1790961182.0183713,
-    "seen": 1790962492.692642,
-    "ast_hash": "ed2eb27201659066c57ee4b023cae813",
+    "mtime": 1790964300.077072,
+    "seen": 1790964345.061098,
+    "ast_hash": "5b4698816d41faff2ac3f75cb0cf9d35",
     "semantic_hash": ""
   },
   "tests/test_update_host.py": {
-    "mtime": 1790961182.0187075,
-    "seen": 1790962492.6926668,
-    "ast_hash": "a0f0475fae0461b12ad23b759082703d",
+    "mtime": 1790964300.0772069,
+    "seen": 1790964345.061125,
+    "ast_hash": "d69f34eb8854f07fb9b9926e7d88b2af",
     "semantic_hash": ""
   },
   "tests/test_xray_router_bridge.py": {
