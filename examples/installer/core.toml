@@ -1,5 +1,7 @@
 schema = 1
 host_mode = "fresh"
+# Panel client IPs are preserved by owned Nginx Unix sockets; no extra TCP port.
+# IP клиентов панели сохраняется через Unix-сокеты Nginx без новых TCP-портов.
 profile = "core"
 acme_email = "admin@example.com"
 initial_user = "owner"

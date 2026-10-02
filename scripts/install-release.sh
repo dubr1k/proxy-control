@@ -115,7 +115,9 @@ Proxy Control — что нужно для установки
   • Python 3.11+ (в Ubuntu 24.04 — 3.12) для установщика; curl, tar, sha256sum — для
     этого скрипта.
   • Свободные TCP/443 и TCP/80 в режиме `fresh`; в режиме `coexist` — ваш Nginx
-    со `stream` уже владеет 443 и имеет ровно одну карту `$ssl_preread_server_name`.
+  со `stream` уже владеет 443 и имеет ровно одну карту `$ssl_preread_server_name`.
+  fresh сохраняет IP клиентов панели через приватные Unix-сокеты Nginx; новых
+  TCP-портов нет. В coexist сохранение IP требует настройки операторского PROXY bridge.
   • Публичный IPv4 без NAT; для домена MTProxy проксирование CDN выключено (DNS-only).
 
 Домены и DNS
@@ -180,7 +182,9 @@ Server
   • Python 3.11+ (Ubuntu 24.04 ships 3.12) for the installer; curl, tar, sha256sum —
     for this script.
   • Free TCP/443 and TCP/80 in `fresh` mode; in `coexist` mode your Nginx `stream`
-    already owns 443 and has exactly one `$ssl_preread_server_name` map.
+  already owns 443 and has exactly one `$ssl_preread_server_name` map.
+  fresh preserves panel client IPs through private Nginx Unix sockets, with no new
+  TCP ports. In coexist mode, preserving IPs requires an operator-configured PROXY bridge.
   • A public IPv4 without NAT; CDN proxying switched off for the MTProxy domain.
 
 Domains and DNS

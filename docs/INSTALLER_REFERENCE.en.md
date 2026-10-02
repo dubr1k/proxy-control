@@ -163,19 +163,38 @@ and `warp_domains` and runs on a fresh host only. `warp_domains` without
 
 Some existing Nginx stream frontends send a PROXY header to **all** backends.
 Do not switch that off: existing Xray/HTTPS backends may depend on the client
-address. Telemt, Caddy and the Core TLS vhost cannot consume that header.
+address. Telemt and Caddy cannot consume that header on their stock TCP listeners.
 Only for `host_mode = "coexist"`, pre-provision a loopback Nginx stream listener
 with `listen 127.0.0.1:10443 proxy_protocol; ssl_preread on;`. Route by
-`$ssl_preread_server_name` to raw TLS listeners: Telemt 8445, Caddy 4443,
-and Core `panel_tls_port` (including the subscription name). The frontend
+`$ssl_preread_server_name` to raw TLS listeners: Telemt 8445 and Caddy 4443.
+For the panel, subscriptions and MCP, preserve the original address with
+`set_real_ip_from 127.0.0.1;` on the trusted `listen ... proxy_protocol` stream bridge,
+and send a PROXY header to `unix:/run/proxy-control-panel-tls.sock`. Use a separate
+stream server for that branch: `proxy_protocol on` must not reach raw TLS backends.
+The frontend
 routes *only the new names* to this bridge, preserving its PROXY header and
 all existing routes. The bridge must forward TLS bytes **without** sending a
-new PROXY header. Set `[ingress].proxy_protocol_bridge` to the existing bridge
+new PROXY header to Telemt or Caddy. Set `[ingress].proxy_protocol_bridge` to the existing bridge
 address; the installer only confirms the listener exists and **does not own,
 create, verify its SNI map or roll back that bridge**. Verify all route
 handshakes independently before and after installation. If 8443 is already
 occupied, set `panel_tls_port` to a separate free loopback port (e.g. 10446).
 Back up and roll back the foreign bridge separately from the installer.
+
+Fresh installations preserve panel client IPs automatically. Their owned 443
+frontend emits PROXY to project-owned Unix sockets; raw protocol relays strip it,
+while the panel consumes it and overwrites incoming `X-Forwarded-For`. No new TCP
+port is reserved. Raw coexist forwarding without PROXY loses the address; neither
+the panel nor a backend bridge can recover it. Do not enable PROXY globally on a
+foreign frontend without verifying every existing backend.
+
+The verified one-command updater migrates only exact predecessor fresh templates.
+`python3 -m installer.ingress_upgrade --project-dir /opt/mtproxy-shared443` prints a
+read-only plan; add `--apply` as root to back up both configs, replace them, run
+`nginx -t` and reload. Validation/reload failure restores both files and reloads
+the predecessor. Edited templates are refused; foreign coexist configs report
+`coexist_manual` and stay unchanged. Backup directories are private
+directories under `/var/lib/proxy-control/ingress-backups`. UI-only panel updates require this host step.
 
 Only when existing certificate lineages have been independently checked for
 chain trust, exact SANs, expiry and private-key pairing, an operator facing a

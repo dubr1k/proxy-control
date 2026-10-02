@@ -1,5 +1,8 @@
 schema = 1
 host_mode = "coexist"
+# Raw TLS forwarding loses client IPs. For a PROXY-aware frontend configure the
+# operator bridge per docs/INSTALLER_REFERENCE.en.md; foreign routes stay unchanged.
+# Для сохранения IP нужен операторский PROXY bridge: docs/INSTALLER_REFERENCE.ru.md.
 profile = "core"
 acme_email = "admin@example.com"
 initial_user = "owner"

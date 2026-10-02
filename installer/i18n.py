@@ -14,7 +14,8 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "host_mode": "Host mode",
         "host_mode_help": (
             "  fresh   — a clean server: the installer sets up Nginx and takes TCP 80 and 443\n"
-            "  coexist — your Nginx with a `stream` block already owns 443: the installer adds its SNI routes beside yours"
+            "  coexist — your Nginx with a `stream` block already owns 443: the installer adds its SNI routes beside yours\n"
+            "  fresh preserves panel client IPs; coexist needs an operator-configured PROXY bridge (see INSTALLER_REFERENCE)"
         ),
         "profile": "Proxy Control profile",
         "profile_help": (
@@ -92,7 +93,8 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "host_mode": "Режим сервера",
         "host_mode_help": (
             "  fresh   — чистый сервер: установщик сам поставит Nginx и займёт TCP 80 и 443\n"
-            "  coexist — ваш Nginx с блоком `stream` уже держит 443: установщик добавит свои SNI-маршруты рядом с вашими"
+            "  coexist — ваш Nginx с блоком `stream` уже держит 443: установщик добавит свои SNI-маршруты рядом с вашими\n"
+            "  fresh сохраняет IP клиентов панели; для coexist нужен операторский PROXY bridge (см. INSTALLER_REFERENCE)"
         ),
         "profile": "Профиль Proxy Control",
         "profile_help": (

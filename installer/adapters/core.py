@@ -2660,10 +2660,12 @@ def _panel_vhost_text(
         f"proxy_pass http://127.0.0.1:{app_port}; "
         "proxy_set_header Host $host; "
         "proxy_set_header X-Forwarded-Proto https; "
-        "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; "
+        "proxy_set_header X-Forwarded-For $remote_addr; "
     )
     return (
         f"server {{ listen 127.0.0.1:{tls_port} ssl; "
+        "listen unix:/run/proxy-control-panel-tls.sock ssl proxy_protocol; "
+        "set_real_ip_from unix:; real_ip_header proxy_protocol; "
         f"server_name {panel_domain}; "
         f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
         f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
@@ -2689,10 +2691,12 @@ def _subscription_vhost_text(
         f"proxy_pass http://127.0.0.1:{app_port}; "
         "proxy_set_header Host $host; "
         "proxy_set_header X-Forwarded-Proto https; "
-        "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; "
+        "proxy_set_header X-Forwarded-For $remote_addr; "
     )
     return (
         f"server {{ listen 127.0.0.1:{tls_port} ssl; "
+        "listen unix:/run/proxy-control-panel-tls.sock ssl proxy_protocol; "
+        "set_real_ip_from unix:; real_ip_header proxy_protocol; "
         f"server_name {subscription_domain}; "
         f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
         f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "
@@ -2725,11 +2729,14 @@ def _mcp_vhost_text(
         'proxy_set_header Connection ""; '
         "proxy_set_header Host $host; "
         "proxy_set_header X-Forwarded-Proto https; "
+        "proxy_set_header X-Forwarded-For $remote_addr; "
         "proxy_buffering off; "
         "proxy_read_timeout 3600s; "
     )
     return (
         f"server {{ listen 127.0.0.1:{tls_port} ssl; "
+        "listen unix:/run/proxy-control-panel-tls.sock ssl proxy_protocol; "
+        "set_real_ip_from unix:; real_ip_header proxy_protocol; "
         f"server_name {mcp_domain}; "
         f"ssl_certificate /etc/letsencrypt/live/{certificate}/fullchain.pem; "
         f"ssl_certificate_key /etc/letsencrypt/live/{certificate}/privkey.pem; "

@@ -45,6 +45,31 @@ MULTI_MAP = FIXTURES / "multi-map.conf"
 AMBIGUOUS_MAP = FIXTURES / "ambiguous-map.conf"
 
 
+def test_fresh_ingress_preserves_client_address_and_strips_proxy_for_protocol_backends():
+    from installer.adapters.nginx import _render_fresh
+
+    rendered = _render_fresh({"client_ip": "proxy", "routes": (
+        ("mt.example.com", "127.0.0.1:8445"), ("panel.example.com", "127.0.0.1:8443"),
+        ("naive.example.com", "127.0.0.1:4443"),
+    )}).decode()
+    assert "panel.example.com unix:/run/proxy-control-panel-tls.sock;" in rendered
+    assert "listen 443;\n    ssl_preread on;\n    proxy_protocol on;" in rendered
+    assert "listen unix:/run/proxy-control-raw-8445.sock proxy_protocol;" in rendered
+    assert "listen unix:/run/proxy-control-raw-4443.sock proxy_protocol;" in rendered
+    assert rendered.count("proxy_protocol on;") == 1
+
+
+def test_core_vhosts_accept_proxy_only_on_private_unix_listener_and_overwrite_xff():
+    from installer.adapters.core import _panel_vhost_text, _subscription_vhost_text
+
+    for render, key in ((_panel_vhost_text, "panel_domain"), (_subscription_vhost_text, "subscription_domain")):
+        text = render(**{key: "panel.example.com", "certificate": "proxy.example.com", "app_port": 8787})
+        assert "listen unix:/run/proxy-control-panel-tls.sock ssl proxy_protocol;" in text
+        assert "set_real_ip_from unix:; real_ip_header proxy_protocol;" in text
+        assert "proxy_set_header X-Forwarded-For $remote_addr;" in text
+        assert "$proxy_add_x_forwarded_for" not in text
+
+
 def config(host_mode: HostMode = HostMode.COEXIST) -> InstallerConfig:
     return InstallerConfig(
         schema=1,
@@ -1340,7 +1365,8 @@ def test_the_shared_router_carries_the_three_xui_routes(tmp_path: Path) -> None:
     checkpoint = adapter.prepare(action)
     adapter.apply(action, checkpoint)
     generated = (root / "etc/nginx/stream.d/proxy-control.conf").read_text()
-    assert "xui.example.com 127.0.0.1:8451;" in generated
+    assert "xui.example.com unix:/run/proxy-control-raw-8451.sock;" in generated
+    assert "proxy_pass 127.0.0.1:8451;" in generated
     assert adapter.verify(action).success is True
 
 

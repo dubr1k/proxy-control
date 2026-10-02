@@ -45,6 +45,11 @@ replace its interface.
 The central idea: **you do not have to choose between Proxy Control and 3x-ui**.
 Both run on one server, behind one shared port 443, without fighting each other.
 
+Fresh installs preserve the panel client's IP through the shared Nginx ingress.
+For an existing foreign router, configure its PROXY bridge as described in the
+[installer reference](docs/INSTALLER_REFERENCE.en.md); raw TLS forwarding alone
+cannot preserve client IPs. The host updater migrates exact older fresh templates.
+
 What you get:
 
 | Boundary | What it is for |

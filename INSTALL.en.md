@@ -14,6 +14,11 @@ panels (Fleet v2, since v0.3) are set up from the panel's UI after the install â
 [FLEET.en.md](FLEET.en.md); legacy Fleet v1 remains a separate manual
 integration.
 
+In `fresh` mode, the owned Nginx router preserves panel client IPs through private
+Unix sockets, without new TCP ports. In `coexist`, an operator-owned PROXY bridge
+is needed to preserve IPs; the installer does not change foreign frontend behavior.
+See the [ingress and migration reference](docs/INSTALLER_REFERENCE.en.md).
+
 ## The primary install path: a verified release
 
 This is the supported way to install Proxy Control. It replaces the manual

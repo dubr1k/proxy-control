@@ -920,7 +920,7 @@ def test_mcp_lives_on_its_own_vhost_serving_only_mcp(tmp_path):
     assert (
         "location /mcp { proxy_pass http://127.0.0.1:8793; proxy_http_version 1.1; "
         'proxy_set_header Connection ""; proxy_set_header Host $host; '
-        "proxy_set_header X-Forwarded-Proto https; proxy_buffering off; "
+        "proxy_set_header X-Forwarded-Proto https; proxy_set_header X-Forwarded-For $remote_addr; proxy_buffering off; "
         "proxy_read_timeout 3600s; }" in mcp_vhost
     )
     assert "location / { return 404; }" in mcp_vhost

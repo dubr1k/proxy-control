@@ -596,7 +596,9 @@ class NginxAdapter:
             # installs is this installation, so a repeated install stays a
             # no-op. Anything else - a different backend, or an HTTP server
             # name with no route of ours behind it - is foreign.
-            if observed_backends.get(domain) == backend:
+            expected_backend = (_client_ip_backend(backend, f"127.0.0.1:{config.panel_tls_port}")
+                                if config.host_mode is HostMode.FRESH else backend)
+            if observed_backends.get(domain) in (backend, expected_backend):
                 continue
             raise TopologyError(f"domain already routed: {domain}")
         if config.host_mode is HostMode.FRESH:
@@ -649,6 +651,7 @@ class NginxAdapter:
         )
         mutations = (
             f"mode={mode}",
+            *(("client_ip=proxy", f"panel_tls_backend=127.0.0.1:{config.panel_tls_port}") if mode == "fresh" else ()),
             f"stream_context={stream_context}",
             f"target={target_path}",
             f"variable={variable}",
@@ -1485,9 +1488,14 @@ def _action_specification(action: Action) -> dict[str, object]:
     # protocol the profile selected; every domain appears exactly once. The
     # stream context (v0.7) is `present`, or `create` for a stock fresh host.
     stream_context = values.pop("stream_context", "present")
+    client_ip = values.pop("client_ip", "legacy")
+    panel_tls_backend = values.pop("panel_tls_backend", "127.0.0.1:8443")
     if (
         set(values) != required_values
         or values["mode"] not in {"fresh", "coexist"}
+        or client_ip not in {"legacy", "proxy"}
+        or (client_ip == "proxy" and values["mode"] != "fresh")
+        or re.fullmatch(r"127\.0\.0\.1:[0-9]{1,5}", panel_tls_backend) is None
         or stream_context not in {"present", "create"}
         or (stream_context == "create" and values["mode"] != "fresh")
         or values["path_kind"] not in {"missing", "file", "symlink"}
@@ -1529,6 +1537,8 @@ def _action_specification(action: Action) -> dict[str, object]:
         "resolved_path": resolved_path,
         "symlink_target": symlink_target,
         "routes": tuple(routes),
+        "client_ip": client_ip,
+        "panel_tls_backend": panel_tls_backend,
     }
 
 
@@ -1549,23 +1559,41 @@ def _desired_content(specification: Mapping[str, object], original: bytes) -> by
     ).encode()
 
 
+def _client_ip_backend(backend: str, panel_backend: str) -> str:
+    if backend == panel_backend:
+        return "unix:/run/proxy-control-panel-tls.sock"
+    if re.fullmatch(r"127\.0\.0\.1:[0-9]{1,5}", backend) is None:
+        raise TopologyError("fresh client-IP relay requires a loopback TCP backend")
+    return f"unix:/run/proxy-control-raw-{backend.rsplit(':', 1)[1]}.sock"
+
+
 def _render_fresh(specification: Mapping[str, object]) -> bytes:
     routes = specification["routes"]
     assert isinstance(routes, tuple)
+    preserve_ip = specification.get("client_ip") == "proxy"
+    panel_backend = str(specification.get("panel_tls_backend", "127.0.0.1:8443"))
+    mapped = tuple((domain, _client_ip_backend(backend, panel_backend) if preserve_ip else backend)
+                   for domain, backend in routes)
     lines = [
         GENERATED_BEGIN,
         "map $ssl_preread_server_name $proxy_control_backend {",
-        *(f"    {domain} {backend};" for domain, backend in routes),
-        "    default 127.0.0.1:8443;",
+        *(f"    {domain} {backend};" for domain, backend in mapped),
+        ("    default unix:/run/proxy-control-panel-tls.sock;" if preserve_ip else "    default 127.0.0.1:8443;"),
         "}",
         "server {",
         "    listen 443;",
         "    ssl_preread on;",
+        *(("    proxy_protocol on;",) if preserve_ip else ()),
         "    proxy_pass $proxy_control_backend;",
         "}",
-        GENERATED_END,
-        "",
     ]
+    if preserve_ip:
+        # Stock protocol backends expect raw TLS. Strip the header on project-owned
+        # Unix sockets; only the panel's TLS listener consumes it as a real address.
+        for backend in dict.fromkeys(backend for _domain, backend in routes if backend != panel_backend):
+            lines.extend(("server {", f"    listen {_client_ip_backend(backend, panel_backend)} proxy_protocol;",
+                          f"    proxy_pass {backend};", "}"))
+    lines.extend((GENERATED_END, ""))
     return "\n".join(lines).encode()
 
 
