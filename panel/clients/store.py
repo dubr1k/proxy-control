@@ -92,6 +92,14 @@ class ClientStore:
             sql, parameters = sql + " WHERE state=?", (state,)
         return [_client(row) for row in db.execute(sql + " ORDER BY created_at, id", parameters)]
 
+    def clients_with_grants(self, db) -> list[tuple[Client, list[AccessGrant]]]:
+        """Legacy full listing: two queries regardless of the number of clients."""
+        clients = self.clients(db)
+        grouped: dict[str, list[AccessGrant]] = {client.id: [] for client in clients}
+        for grant in self.grants(db):
+            grouped[grant.client_id].append(grant)
+        return [(client, grouped[client.id]) for client in clients]
+
     @staticmethod
     def set_client_state(db, client_id: str, state: str, *, updated_at: int) -> None:
         changed = db.execute(

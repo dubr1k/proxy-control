@@ -46,8 +46,8 @@ def register_client_routes(app, context: RequestContext) -> None:
         service = app.state.clients
         with service.database.connect() as db:
             return [
-                _client(client, service.store.grants(db, client_id=client.id))
-                for client in service.store.clients(db)
+                _client(client, grants)
+                for client, grants in service.store.clients_with_grants(db)
             ]
 
     async def _inventory() -> list[importer.InventoryItem]:
