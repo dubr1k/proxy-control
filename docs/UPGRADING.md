@@ -541,7 +541,10 @@ previous sources. `install-release.sh --update` reconciles an enabled MCP from t
 release tree even when the old agent omitted its sources. It rebuilds MCP with the installed
 overlay, tags the previous image first, and restores and health-checks the saved images if a
 rebuild fails. A rebuild failure remains a failed update, including when rollback succeeds.
-New services without a previous image require operator recovery. MCP sources saved by the
+Manager and MCP backups use the existing container's immutable image ID, not the mutable
+`latest` tag. If the container or its image cannot be identified, the rebuild is refused.
+For a new service, a cached image tag is preserved if available, but rollback does not start
+or claim to have restored that unverified service; it requires operator recovery. MCP sources saved by the
 legacy-agent compatibility step live in `version-overrides/mcp-source-previous-*`.
 
 ## Verification after any update

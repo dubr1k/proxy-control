@@ -156,11 +156,30 @@ if ((${#services[@]})); then
     "${compose[@]}" config -q || fail "модель Compose не собирается" "the Compose model does not render"
     stamp=$(date -u +%Y%m%dT%H%M%SZ)
     rollback_services=()
+    saved_images=()
     for service in "${services[@]}"; do
-        if docker image inspect "mtproxy-$service:latest" >/dev/null 2>&1; then
-            docker tag "mtproxy-$service:latest" "mtproxy-$service:rollback-$stamp" \
+        container=$("${compose[@]}" ps -a -q "$service") \
+            || fail "не удалось найти контейнер $service" "could not find the $service container"
+        if [[ -n $container ]]; then
+            # latest may have been rebuilt while this container still runs the old image.
+            [[ $container =~ ^[0-9a-f]{64}$ ]] \
+                || fail "неоднозначный контейнер $service" "ambiguous $service container"
+            image=$(docker inspect --format '{{.Image}}' "$container") \
+                || fail "не удалось прочитать образ $service" "could not read the $service image"
+            [[ $image =~ ^sha256:[0-9a-f]{64}$ ]] \
+                || fail "неверный ID образа $service" "invalid $service image ID"
+        else
+            # Preserve a cached tag too, but it cannot prove a new service ever worked.
+            image=$(docker image inspect --format '{{.Id}}' "mtproxy-$service:latest" 2>/dev/null) || image=
+            [[ -z $image || $image =~ ^sha256:[0-9a-f]{64}$ ]] \
+                || fail "неверный ID сохранённого образа $service" "invalid cached $service image ID"
+            say "служба $service новая: прежний runtime не проверен" "new service $service: previous runtime unverified"
+        fi
+        if [[ -n $image ]]; then
+            docker tag "$image" "mtproxy-$service:rollback-$stamp" \
                 || fail "не удалось сохранить образ $service" "could not save the $service image"
-            rollback_services+=("$service")
+            saved_images+=("$service")
+            [[ -z $container ]] || rollback_services+=("$service")
             say "точка отката: mtproxy-$service:rollback-$stamp" "rollback image: mtproxy-$service:rollback-$stamp"
         fi
     done
@@ -176,7 +195,7 @@ shutil.rmtree(sys.argv[1])
 os.replace(sys.argv[2], sys.argv[1])
 PY
         fi
-        for service in "${rollback_services[@]}"; do
+        for service in "${saved_images[@]}"; do
             docker tag "mtproxy-$service:rollback-$stamp" "mtproxy-$service:latest" \
                 || fail "откат образа $service не удался" "the $service image rollback failed"
         done

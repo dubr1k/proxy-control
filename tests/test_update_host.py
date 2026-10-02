@@ -18,6 +18,9 @@ import pytest
 ROOT = Path(__file__).parents[1]
 SCRIPT = ROOT / "scripts" / "update-host.sh"
 DIGEST = "a" * 64
+RUNNING_IMAGE = "sha256:" + "b" * 64
+CACHED_IMAGE = "sha256:" + "c" * 64
+CONTAINER = "d" * 64
 pytestmark = pytest.mark.skipif(os.geteuid() != 0, reason="update-host.sh runs as root (the lab suite does)")
 
 
@@ -83,9 +86,14 @@ def host(tmp_path):
     log = tmp_path / "docker.log"
     (bin_dir / "docker").write_text(f"""#!/bin/sh
 echo "$*" >> {log}
+case "$*" in
+  *" ps -a -q "*) echo {CONTAINER}; exit 0 ;;
+esac
 case "$1 $2" in
   "exec proxy-control-panel") echo 1.1.0 ;;
   "inspect -f") echo healthy ;;
+  "inspect --format") echo {RUNNING_IMAGE} ;;
+  "image inspect") echo {CACHED_IMAGE} ;;
   "ps -a") echo proxy-control-panel; echo proxy-control-xray-router-ingress ;;
 esac
 exit 0
@@ -156,7 +164,8 @@ def test_mcp_changes_are_rebuilt_with_the_installed_overlay(host):
     calls = host["log"].read_text().splitlines()
     up = next(line for line in calls if " up -d --build --no-deps --wait " in line)
     assert up.endswith("--wait mcp") and "--env-file .env.mcp" in up
-    assert any(line.startswith("tag mtproxy-mcp:latest mtproxy-mcp:rollback-") for line in calls)
+    assert any(line.startswith(f"tag {RUNNING_IMAGE} mtproxy-mcp:rollback-") for line in calls)
+    assert not any(line.startswith("tag mtproxy-mcp:latest ") for line in calls)
 
 
 def test_failed_mcp_rebuild_restores_previous_image_and_reports_failure(host):
@@ -168,9 +177,51 @@ def test_failed_mcp_rebuild_restores_previous_image_and_reports_failure(host):
     result = _run(host, Agent(pending=("mcp_server",)))
     assert result.returncode != 0 and "done:" not in result.stdout
     calls = host["log"].read_text().splitlines()
+    assert any(line.startswith(f"tag {RUNNING_IMAGE} mtproxy-mcp:rollback-") for line in calls)
+    assert not any(line.startswith(f"tag {CACHED_IMAGE} ") for line in calls)
     assert any(line.startswith("tag mtproxy-mcp:rollback-") and line.endswith(" mtproxy-mcp:latest") for line in calls)
     assert any(" up -d --no-build --no-deps --wait mcp" in line for line in calls)
     assert "previous images restored" in result.stderr
+
+
+@pytest.mark.parametrize("image_reply", ["echo invalid", "echo", "exit 1"])
+def test_existing_container_without_verified_image_refuses_manager_build(host, image_reply):
+    docker = host["bin"] / "docker"
+    docker.write_text(docker.read_text().replace(f'"inspect --format") echo {RUNNING_IMAGE}',
+                                               f'"inspect --format") {image_reply}'))
+    result = _run(host, Agent())
+    assert result.returncode != 0
+    calls = host["log"].read_text().splitlines()
+    assert not any(" up -d --build " in line for line in calls)
+    assert not any(line.startswith("tag ") for line in calls)
+
+
+def test_new_service_cached_image_is_preserved_but_never_claimed_as_restored(host):
+    docker = host["bin"] / "docker"
+    source = docker.read_text().replace(f'echo {CONTAINER}; exit 0', 'exit 0')
+    source = source.replace('case "$1 $2" in',
+                            'case "$*" in *" up -d --build "*) exit 1 ;; esac\ncase "$1 $2" in')
+    docker.write_text(source)
+    result = _run(host, Agent())
+    assert result.returncode != 0
+    calls = host["log"].read_text().splitlines()
+    assert any(line.startswith(f"tag {CACHED_IMAGE} mtproxy-xray-router:rollback-") for line in calls)
+    assert any(line.startswith("tag mtproxy-xray-router:rollback-")
+               and line.endswith(" mtproxy-xray-router:latest") for line in calls)
+    assert not any(" up -d --no-build " in line for line in calls)
+    assert "previous images restored" not in result.stderr
+    assert "new services need operator recovery" in result.stderr
+
+
+@pytest.mark.parametrize("container_reply", ["exit 1", "echo invalid"])
+def test_container_lookup_failure_refuses_manager_build(host, container_reply):
+    docker = host["bin"] / "docker"
+    docker.write_text(docker.read_text().replace(f'echo {CONTAINER}; exit 0', container_reply))
+    result = _run(host, Agent())
+    assert result.returncode != 0
+    calls = host["log"].read_text().splitlines()
+    assert not any(" up -d --build " in line for line in calls)
+    assert not any(line.startswith("tag ") for line in calls)
 
 
 def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
