@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.1-rc.2] - 2026-10-02
+
+Unpublished candidate with an additional fix found during installer validation.
+
+- Installer command timeouts stop the command's process group and verify termination before returning control to rollback. If termination cannot be confirmed, automatic rollback does not start; remaining processes must be inspected before another operation.
+
 ## [1.1.1-rc.1] - 2026-10-02
 
 Unpublished audit candidate; validation results are recorded separately from these changes.

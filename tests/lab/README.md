@@ -51,7 +51,7 @@ official Mieru client over every transport. 3x-ui's own protocols - VLESS
 Reality TCP and XHTTP, Hysteria2 - are **not** client-tested anywhere in this
 repository; in `existing` mode the installer only adopts and routes them.
 
-That matrix covers coexistence with an existing 3x-ui and an ambiguous multi-map Nginx, real protocol clients for Telemt, Naive, Mieru, VLESS TCP/XHTTP and Hysteria2, Docker build verification, repair, repeated install idempotence, restart recovery, a crash injected into every durable phase, secret scans, DNS/TLS preflight, uninstall twice, a foreign holder of a fixed identity, interrupted install/uninstall recovery, and final coexistence.
+That matrix covers coexistence with an existing 3x-ui and an ambiguous multi-map Nginx, real protocol clients for Telemt, Naive and Mieru, Docker build verification, repair, repeated install idempotence, restart recovery, a crash injected into every durable phase, secret scans, DNS/TLS preflight, uninstall twice, a foreign holder of a fixed identity, interrupted install/uninstall recovery, and final coexistence. VLESS TCP/XHTTP and Hysteria2 are not client-tested by this matrix, as described above.
 
 `--scenario NAME` (repeatable, or `LAB_SCENARIOS` through the Makefile) runs a subset. A filtered run is recorded as `filtered_scenarios` in the report and is only valid against what it declared: it can never stand in for a full release report. `qemu_lab.validate_report()` treats any required scenario missing from a full report as a failure even when the guest exits zero.
 

@@ -624,9 +624,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1790961855.8902454,
-    "seen": 1790962492.692681,
-    "ast_hash": "1db03dea149633a117aa4d968727f7c5",
+    "mtime": 1790970149.7442634,
+    "seen": 1790970440.429776,
+    "ast_hash": "8b424b5e8c4e10c668acd22cf4b91e8a",
     "semantic_hash": ""
   },
   "CODE_OF_CONDUCT.md": {
@@ -888,10 +888,10 @@
     "semantic_hash": ""
   },
   "tests/lab/README.md": {
-    "mtime": 1790959085.8343744,
-    "seen": 1790962492.692727,
-    "ast_hash": "9fdc05099b39086a012bc4a558a910cf",
-    "semantic_hash": "9fdc05099b39086a012bc4a558a910cf"
+    "mtime": 1790968431.8676753,
+    "seen": 1790970440.429825,
+    "ast_hash": "e5cfc27503d19e88091648c1743538cc",
+    "semantic_hash": ""
   },
   "assets/proxy-control-cover.png": {
     "mtime": 1790959085.7685404,
@@ -942,9 +942,9 @@
     "semantic_hash": "9e7d5b441f34908b67cd243e9ba5b78c"
   },
   "installer/adapters/core.py": {
-    "mtime": 1790961065.8448336,
-    "seen": 1790962492.692538,
-    "ast_hash": "5f9d1dbacf2baf1fe155273577bd8490",
+    "mtime": 1790970404.5301085,
+    "seen": 1790970440.4296162,
+    "ast_hash": "ef83a4363be04b62ae554c9836096e03",
     "semantic_hash": ""
   },
   "installer/adapters/firewall.py": {
@@ -1296,9 +1296,9 @@
     "semantic_hash": ""
   },
   "tests/test_installer_transaction.py": {
-    "mtime": 1790959085.8374698,
-    "seen": 1790962492.692656,
-    "ast_hash": "fabcc6b503d979dbcf2ee174d442659f",
+    "mtime": 1790970404.5304148,
+    "seen": 1790970440.4297469,
+    "ast_hash": "9c6130a20a9e01b44881f1cdd5f619cf",
     "semantic_hash": ""
   },
   "tests/test_installer_warp.py": {
@@ -1416,15 +1416,15 @@
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.en.md": {
-    "mtime": 1790961689.452555,
-    "seen": 1790962492.692692,
-    "ast_hash": "b9f39345745401519dfa818991fdec62",
+    "mtime": 1790970404.5295796,
+    "seen": 1790970440.429787,
+    "ast_hash": "5739bff5fb09a021a7708e212a3cd579",
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.ru.md": {
-    "mtime": 1790961689.4527435,
-    "seen": 1790962492.692692,
-    "ast_hash": "0c15125c25645f57896147b9df888b5e",
+    "mtime": 1790970404.5298028,
+    "seen": 1790970440.429787,
+    "ast_hash": "d407e82e0b6a73a43ae99305fa61fac8",
     "semantic_hash": ""
   },
   "docs/plans/2026-09-07-warp-and-final-installation.md": {
@@ -2574,9 +2574,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.ru.md": {
-    "mtime": 1790961855.8907514,
-    "seen": 1790962492.692682,
-    "ast_hash": "9382fc6e9f54d1751c30ced8b4c0a2be",
+    "mtime": 1790970149.7439687,
+    "seen": 1790970440.429776,
+    "ast_hash": "b51102fda2a1d336a695de48f99882b7",
     "semantic_hash": ""
   },
   "compose.xray-router.yaml": {
@@ -3720,9 +3720,15 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-02-audit-hardening.md": {
-    "mtime": 1790959182.713512,
-    "seen": 1790962492.692714,
-    "ast_hash": "aefefa5ed5191cb4c604c911d6deafea",
+    "mtime": 1790970331.186243,
+    "seen": 1790970440.429811,
+    "ast_hash": "c76bb386941a12ee49f0c3a0739dafd6",
+    "semantic_hash": ""
+  },
+  "tests/test_installer_core_runner_timeout.py": {
+    "mtime": 1790970404.5302572,
+    "seen": 1790970440.429739,
+    "ast_hash": "939ac2206fc474a2e77784a40e9c40aa",
     "semantic_hash": ""
   }
 }
