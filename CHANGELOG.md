@@ -4,6 +4,17 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.1-rc.1] - 2026-10-02
+
+Unpublished audit candidate; validation results are recorded separately from these changes.
+
+- Client suspension and access validity windows now reach local protocol runtimes and remote nodes; reconciliation verifies the resulting state and retries failures. Stale Fleet reports cannot confirm a pending suspension.
+- Client lists use batched reads and server-side pagination/search. Fleet pushes have bounded concurrency and connection-time DNS checks, preserving hostname verification and explicit private-address opt-in.
+- Panel updates stop database writers before snapshot/restore, preserve the original WAL after a partial snapshot failure, and include the MCP service in synchronization and rebuilds.
+- Request bodies are bounded while receiving; SQLite context managers close connections. Updated FastAPI, Starlette and related dependencies address dependency audit findings.
+- Fresh installer ingress preserves client IP through a trusted Unix socket. Host updates migrate only recognized, owned Nginx templates with rollback and worker-generation verification; foreign coexistence frontends require an operator-managed bridge.
+- CI validates all shipped Compose overlays, JavaScript syntax, pinned runtime dependencies and reproducible installer artifacts.
+
 ## [1.1.0] - 2026-10-01
 
 - MTProxy routing: MTProxy attaches to the node's Xray-router and leaves through WARP, a custom exit or another node of the fleet (a chain); rules by CIDR, `geoip` and port, while rules by domain, `geosite` and protocol are `rule_kind_unsupported` (Telemt reaches Telegram's data centres by IP). Telemt's own policy (`mtproxy_native`) is direct only.
