@@ -22,7 +22,7 @@ def _cards_from_real_renderers(tmp_path: Path) -> str:
       globalThis.window = { location: { origin: 'https://example.test' } };
       const view = { innerHTML: '' };
       const state = { view: 'clients', navigationGeneration: 1, me: { role: 'owner', panel_version: '0.12' }, nodes: [], fleet: [], fleetSelection: '', nodeTab: {}, routingTargets: [], versions: { enabled: false, components: {} } };
-      const api = async (path) => ({ items: path === '/api/clients' ? [
+      const api = async (path) => ({ items: new URL(path, window.location.origin).pathname === '/api/clients' ? [
         { client: { id: 'c1', display_name: 'iphone-my', state: 'active' }, grants: [
           { id: 'g1', protocol: 'naive', runtime_username: 'iphone-my', desired_state: 'enabled', observed_state: 'enabled', node_id: 'remote', routing_lane: 'service', secret_ref: 'stored' },
         ] },
