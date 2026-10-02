@@ -7,13 +7,14 @@ python3 -m venv .venv
 .venv/bin/pip install -r panel/requirements-dev.txt
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-python3 -m unittest -v tests/test_deploy.py
+.venv/bin/python -m unittest -v tests/test_deploy.py
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 git ls-files -z '*.sh' | xargs -0 -r shellcheck
 python3 scripts/check-doc-links.py
+bash scripts/dev/check-js-syntax.sh
 ```
 
-CI also renders core, core+Naive, core+Mieru, combined core+Naive+Mieru, agent and fleet-central Compose models, plus the documented Mieru render with an executable placeholder and an empty secret file. It builds panel/managers/agents/ingress and the pinned Caddy+forward-proxy artifact, executes the bounded Caddy checker against that artifact and a negative fixture, verifies service units where host tooling permits, and enforces diff hygiene and third-party notices.
+CI also renders core, core+Naive, core+Mieru, combined core+Naive+Mieru, agent, fleet-central, MCP, Naive+Xray-router and the combined optional-services Compose models, plus the documented Mieru render with an executable placeholder and an empty secret file. It builds panel/managers/agents/ingress/MCP/Xray-router and the pinned Caddy+forward-proxy artifact, executes the bounded Caddy checker against that artifact and a negative fixture, verifies service units where host tooling permits, and enforces diff hygiene and third-party notices. Runtime Python pins for the panel and MCP are scanned independently with `pip-audit==2.10.1 --strict --no-deps --disable-pip`; separate environments avoid mixing the components' dependency constraints.
 
 ## Lab tiers on the disposable host
 
@@ -68,4 +69,4 @@ Validate Nginx before reload, public listener ownership, all adjacent SNI routes
 
 Telemt/MTProto, NaiveProxy/Caddy and Mieru/mita have each passed live end-to-end protocol probes on an operator-controlled deployment, including manager health and panel integration. This evidence does not make host-specific credentials, names, addresses or logs public and does not replace validation on a new target host.
 
-A reproducible Ubuntu 24.04 QEMU install → audit → repair → upgrade → uninstall → rollback workflow remains pending and is not a required CI gate. Production fleet ingress/enrollment also remains pending until mTLS authorization and a durable command/result cycle are independently confirmed.
+Installer, deployment and installed-component changes require a fresh `lab-host` run against the archive under review. The existence of the QEMU/container/host harness is not evidence that a particular revision passed. Keep a per-revision record of commands, archive digest, exits, skips and the tested host class; an earlier release's results do not satisfy this gate. Fleet v1 mTLS and Fleet v2 linked-panel acceptance are distinct checks and must be reported separately.

@@ -7,6 +7,7 @@ from collections import defaultdict, deque
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.datastructures import Headers, MutableHeaders
 
 from .settings import Settings
 
@@ -166,28 +167,64 @@ class RequestContext:
         return value[2]
 
 
-def install_security_middleware(app, settings: Settings) -> None:
-    @app.middleware("http")
-    async def security(request: Request, call_next):
+class BoundedBodyMiddleware:
+    """Read at most the configured limit before dispatching to a handler.
+
+    The transport owns the current chunk; oversized chunks are never appended.
+    Replaying through ASGI keeps downstream body/JSON/form readers unchanged.
+    """
+
+    def __init__(self, app, limit: int):
+        self.app, self.limit = app, limit
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        lengths = Headers(scope=scope).getlist("content-length")
+        try:
+            invalid = any(not value.isdecimal() or int(value) > self.limit for value in lengths)
+        except ValueError:
+            invalid = True
+        if invalid:
+            return await JSONResponse({"detail": "request body too large"}, 413)(scope, receive, send)
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return await JSONResponse({"detail": "incomplete request body"}, 400)(scope, receive, send)
+            chunk = message.get("body", b"")
+            if len(body) + len(chunk) > self.limit:
+                return await JSONResponse({"detail": "request body too large"}, 413)(scope, receive, send)
+            body.extend(chunk)
+            if not message.get("more_body", False):
+                break
+        pending = True
+
+        async def replay():
+            nonlocal pending
+            if pending:
+                pending = False
+                message = {"type": "http.request", "body": bytes(body), "more_body": False}
+                body.clear()
+                return message
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+
+class SecurityHeadersMiddleware:
+    """Wrap ASGI directly so body cancellation never becomes a missing-response 500."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
         # One id per request, echoed to the client and stored on every audit row the
         # request writes, so a response can be traced to its trail and back.
-        request.state.request_id = secrets.token_hex(8)
-        length = request.headers.get("content-length")
-        try:
-            declared_too_large = bool(
-                length and int(length) > settings.body_limit_bytes
-            )
-        except ValueError:
-            declared_too_large = True
-        if declared_too_large:
-            response = JSONResponse({"detail": "request body too large"}, 413)
-        else:
-            body = await request.body()
-            response = (
-                JSONResponse({"detail": "request body too large"}, 413)
-                if len(body) > settings.body_limit_bytes
-                else await call_next(request)
-            )
+        request_id = secrets.token_hex(8)
+        scope.setdefault("state", {})["request_id"] = request_id
         headers = {
             "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
             "X-Content-Type-Options": "nosniff",
@@ -195,9 +232,9 @@ def install_security_middleware(app, settings: Settings) -> None:
             "Referrer-Policy": "no-referrer",
             "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
             "Cache-Control": "no-store",
-            "X-Request-Id": request.state.request_id,
+            "X-Request-Id": request_id,
         }
-        if request.url.path.startswith("/s/"):
+        if scope["path"].startswith("/s/"):
             # A subscription is fetched by clients that revalidate with `If-None-Match`,
             # so the route sets `private, no-cache` itself and it must survive; and the
             # human-readable page carries its own inline stylesheet and QR images, but
@@ -207,5 +244,15 @@ def install_security_middleware(app, settings: Settings) -> None:
                 "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
                 "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
             )
-        response.headers.update(headers)
-        return response
+        async def secured_send(message):
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message).update(headers)
+            await send(message)
+
+        await self.app(scope, receive, secured_send)
+
+
+def install_security_middleware(app, settings: Settings) -> None:
+    app.add_middleware(BoundedBodyMiddleware, limit=settings.body_limit_bytes)
+    # Registered last so headers also wrap early body-limit/disconnect responses.
+    app.add_middleware(SecurityHeadersMiddleware)

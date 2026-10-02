@@ -988,7 +988,7 @@ Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` не скачи�
 `pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
 `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
 `argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
-`qrcode`.
+`qrcode`, `annotated-doc`, `opentelemetry-api`.
 
 MCP-сервер (`mcp_server/requirements.txt`, отдельный образ): `mcp`, `mcp-types`,
 `starlette`, `sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`,

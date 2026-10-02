@@ -45,6 +45,7 @@ jobs:
       - name: Documentation, notices, service units, and diff hygiene
         run: |
           .venv/bin/python scripts/check-doc-links.py
+          bash scripts/dev/check-js-syntax.sh
           test -s LICENSE
           test -s THIRD_PARTY_NOTICES.md
           grep -q 'Mieru/mita' THIRD_PARTY_NOTICES.md
@@ -64,6 +65,22 @@ jobs:
           systemd-analyze verify deploy/*.service
           git diff --check
 
+  dependency-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        component: [panel, mcp_server]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Audit pinned runtime dependencies
+        run: |
+          python3 -m venv .audit-venv
+          .audit-venv/bin/python -m pip install pip-audit==2.10.1
+          .audit-venv/bin/python -m pip_audit --strict --no-deps --disable-pip -r "${{ matrix.component }}/requirements.txt"
+
   reproducible-release:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -80,6 +97,8 @@ jobs:
           cmp dist/proxy-control-v"$version".tar.gz dist-again/proxy-control-v"$version".tar.gz
           cmp dist/release-manifest.json dist-again/release-manifest.json
           cmp dist/sbom.spdx.json dist-again/sbom.spdx.json
+          cmp dist/install-release.sh dist-again/install-release.sh
+          cmp dist/install-release.sh.sha256 dist-again/install-release.sh.sha256
           python3 release/build.py --verify dist
       - name: The archive excludes private and lab state
         run: |
@@ -113,6 +132,9 @@ jobs:
           printf 'ci-naive-manager-token-0123456789abcdef0123456789abcdef\n' > secrets/naive-manager-token
           printf 'ci-mieru-manager-token-0123456789abcdef0123456789abcdef\n' > secrets/mieru-manager-token
           printf 'MIERU_MANAGER_TOKEN_FILE=%s\n' "$PWD/secrets/mieru-manager-token" >> .env
+          for name in mcp-panel-key mcp-token xray-router-manager-token xray-router-ingress-naive xray-router-ingress-mieru; do
+            printf 'ci-%s-placeholder\n' "$name" > "secrets/$name"
+          done
       - name: Render every Compose model
         run: |
           docker compose -f compose.yaml config -q
@@ -121,6 +143,13 @@ jobs:
           NAIVE_PUBLIC_HOST=naive.example.com MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml config -q
           FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key docker compose -f compose.yaml -f compose.agent.yaml config -q
           FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key FLEET_CLIENT_CA=/tmp/client-ca.crt docker compose -f compose.yaml -f compose.fleet-central.yaml config -q
+          export MCP_DOMAIN=mcp.example.com MCP_PANEL_HOST=panel.example.com
+          export XRAY_ROUTER_XRAY_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          export XRAY_ROUTER_GEOIP_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          export XRAY_ROUTER_GEOSITE_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          docker compose -f compose.yaml -f compose.mcp.yaml config -q
+          docker compose -f compose.yaml -f compose.naive.yaml -f compose.xray-router.yaml config -q
+          MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml -f compose.xray-router.yaml -f compose.mcp.yaml config -q
       - name: Render documented Mieru quickstart without secret contents
         run: |
           mkdir -p "$RUNNER_TEMP/mieru-render/state"
@@ -144,6 +173,10 @@ jobs:
           NAIVE_PUBLIC_HOST=naive.example.com MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml build panel naive-manager mieru-manager
           docker build -f deploy/Dockerfile.agent -t proxy-control-agent:test .
           docker build -f deploy/Dockerfile.ingress -t proxy-control-ingress:test .
+          docker build -f xray_router_manager/Dockerfile -t proxy-control-xray-router:test .
+          docker build -f mcp_server/Dockerfile -t proxy-control-mcp:test .
+          test "$(docker run --rm --entrypoint id proxy-control-xray-router:test -u)" = 10006
+          test "$(docker run --rm --entrypoint id proxy-control-mcp:test -u)" = 10007
           test "$(docker run --rm --entrypoint id proxy-control-ingress:test -u)" = 10001
           test "$(docker run --rm --entrypoint id proxy-control-ingress:test -g)" = 10001
       - name: Build and validate pinned Caddy

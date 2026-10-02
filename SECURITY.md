@@ -25,4 +25,4 @@ Treat image digest, Caddy module/build, Telemt and mita changes as security chan
 
 ## Supported status
 
-The repository test/Compose/image gates are maintained, and Telemt, NaiveProxy and Mieru have passed live operator-controlled protocol probes. Ubuntu 24.04 QEMU full lifecycle and production fleet enrollment remain pending; see [VALIDATION.md](docs/VALIDATION.md). Supported deployments use the Compose/Telemt path through `install.sh` or `proxyctl`; the former host/systemd MTProxy installer has been removed.
+The repository maintains test, Compose, image, dependency-audit and disposable-host lifecycle gates; see [VALIDATION.md](docs/VALIDATION.md). A gate definition or an earlier successful protocol probe does not establish that a new revision passed it. Release evidence must identify the tested archive digest, host tier, results and skipped checks. Supported deployments use the release installer and Compose/Telemt path; the former host/systemd MTProxy installer has been removed.

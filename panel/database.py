@@ -11,6 +11,16 @@ class DatabaseError(RuntimeError):
     pass
 
 
+class Connection(sqlite3.Connection):
+    """SQLite transaction context with deterministic resource release."""
+
+    def __exit__(self, *exc):
+        try:
+            return super().__exit__(*exc)
+        finally:
+            self.close()
+
+
 class Database:
     def __init__(self, path: Path, *, timeout: float = 10.0):
         self.path = Path(path)
@@ -44,7 +54,7 @@ class Database:
             time.sleep(0.05)
 
     def connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=self.timeout)
+        db = sqlite3.connect(self.path, timeout=self.timeout, factory=Connection)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
         # Temporary storage in memory, never in a temp directory: the panel runs as an

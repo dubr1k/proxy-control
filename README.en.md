@@ -1008,7 +1008,7 @@ Runtime (`panel/requirements.txt`): `fastapi`, `starlette`, `pydantic`,
 `pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
 `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
 `argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
-`qrcode`.
+`qrcode`, `annotated-doc`, `opentelemetry-api`.
 
 The MCP server (`mcp_server/requirements.txt`, its own image): `mcp`, `mcp-types`,
 `starlette`, `sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`,

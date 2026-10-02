@@ -266,7 +266,7 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 | Compose-проект узла | `/opt/mtproxy-shared443`, проект `mtproxy`, `.env` root-only с `COMPOSE_FILE=…` | `cd /opt/mtproxy-shared443 && sudo docker compose ps --format '{{.Name}} {{.Status}}'` — все `healthy` |
 | Панель | контейнер `proxy-control-panel`, `127.0.0.1:8787`, том `panel-data` | `curl -fsS -H 'Host: <panel-domain>' http://127.0.0.1:8787/healthz` |
 | Версия и схема базы | `VERSION` в каталоге проекта; `db-status` | `sudo docker exec proxy-control-panel python -m panel.cli db-status` |
-| Мастер-ключ | `secrets/panel-master-key` | `sudo docker exec proxy-control-panel python -m panel.cli master-key-verify` (печатает счётчики, не значения) |
+| Мастер-ключ | `secrets/panel-master-key` | `sudo docker exec proxy-control-panel python -m panel.cli master-key-verify --path /run/panel/master-key` (печатает счётчики, не значения) |
 | Nginx / 443 | stream-map `/etc/nginx/stream.d/proxy-control.conf` (fresh), TLS панели `127.0.0.1:8443` | `sudo nginx -t && ss -lntp 'sport = :443'` — владелец nginx |
 | Сертификаты | `/etc/letsencrypt/live/{proxy-control,naive,three-xui-*}` | `sudo certbot certificates` (без вывода ключей) |
 | NaiveProxy | `caddy-naive.service`, `/var/lib/naive-manager/Caddyfile`, `proxy-control-naive-manager` | `systemctl is-active caddy-naive` |
