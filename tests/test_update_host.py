@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import socketserver
+import shutil
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler
@@ -99,7 +100,7 @@ def _run(host, agent: Agent, digest=DIGEST):
     try:
         environment = {"PATH": f"{host['bin']}:/usr/bin:/bin", "UPDATE_HOST_AGENT_SOCKET": str(socket_path),
                        "UPDATE_HOST_AGENT_ENV": str(host["env_file"]), "UPDATE_HOST_POLL_SECONDS": "0"}
-        return subprocess.run(["bash", str(SCRIPT), "--version", "1.1.0", "--sha256", digest, "--lang", "en"],
+        return subprocess.run(["bash", str(host.get("script", SCRIPT)), "--version", "1.1.0", "--sha256", digest, "--lang", "en"],
                               env=environment, capture_output=True, text=True, timeout=120)
     finally:
         server.shutdown()
@@ -144,3 +145,48 @@ def test_without_an_agent_it_points_to_the_manual_upgrade(host):
 def test_the_published_script_offers_update():
     text = (ROOT / "scripts" / "install-release.sh").read_text()
     assert "--update) MODE=update" in text and 'scripts/update-host.sh" --version "$VERSION" --sha256 "$actual"' in text
+
+
+def test_mcp_changes_are_rebuilt_with_the_installed_overlay(host):
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.mcp.yaml\n")
+    (host["project"] / ".env.mcp").write_text("MCP_DOMAIN=example.test\n")
+    result = _run(host, Agent(pending=("mcp_server",)))
+    assert result.returncode == 0, result.stderr
+    calls = host["log"].read_text().splitlines()
+    up = next(line for line in calls if " up -d --build --no-deps --wait " in line)
+    assert up.endswith("--wait mcp") and "--env-file .env.mcp" in up
+    assert any(line.startswith("tag mtproxy-mcp:latest mtproxy-mcp:rollback-") for line in calls)
+
+
+def test_failed_mcp_rebuild_restores_previous_image_and_reports_failure(host):
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.mcp.yaml\n")
+    docker = host["bin"] / "docker"
+    docker.write_text(docker.read_text().replace('case "$1 $2" in',
+        'case "$*" in *" up -d --build "*) exit 1 ;; esac\ncase "$1 $2" in'))
+    result = _run(host, Agent(pending=("mcp_server",)))
+    assert result.returncode != 0 and "done:" not in result.stdout
+    calls = host["log"].read_text().splitlines()
+    assert any(line.startswith("tag mtproxy-mcp:rollback-") and line.endswith(" mtproxy-mcp:latest") for line in calls)
+    assert any(" up -d --no-build --no-deps --wait mcp" in line for line in calls)
+    assert "previous images restored" in result.stderr
+
+
+def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.mcp.yaml\n")
+    release = host["tmp"] / "release"
+    (release / "scripts").mkdir(parents=True)
+    (release / "mcp_server").mkdir()
+    (release / "mcp_server/server.py").write_text("new mcp")
+    host["script"] = release / "scripts/update-host.sh"
+    shutil.copy2(SCRIPT, host["script"])
+    source = host["project"] / "mcp_server"
+    source.mkdir()
+    (source / "server.py").write_text("old mcp")
+    result = _run(host, Agent(pending=()))
+    assert result.returncode == 0, result.stderr
+    assert (source / "server.py").read_text() == "new mcp"
+    assert any((p / "server.py").read_text() == "old mcp" for p in (host["project"] / "version-overrides").glob("mcp-source-previous-*"))
+    assert any(" up -d --build --no-deps --wait mcp" in line for line in host["log"].read_text().splitlines())

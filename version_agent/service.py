@@ -58,14 +58,14 @@ _BASE_COMPONENTS = ("telemt", "naive", "mita", "panel")
 PANEL_ARCHIVE_PREFIX = "proxy-control"
 PANEL_SYNC = (
     "panel", "installer", "scripts", "docker", "mieru_manager", "naive_manager", "xray_router_manager",
-    "release", "docs",
+    "mcp_server", "release", "docs",
     "compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml",
     "compose.mcp.yaml", "compose.agent.yaml", "compose.fleet-central.yaml",
     "VERSION", "uninstall.sh", "install.sh", "install-bootstrap",
     "CHANGELOG.md", "CHANGELOG.ru.md", "README.md", "README.en.md", "THIRD_PARTY_NOTICES.md", "LICENSE",
 )
 # Images the agent does not rebuild: a change here is reported as `pending_rebuild`.
-PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "docker")
+PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "mcp_server", "docker")
 PANEL_AGENT_DIR = "version_agent"
 PANEL_DB_FILES = ("panel.sqlite3", "panel.sqlite3-wal", "panel.sqlite3-shm")
 MAX_PANEL_TREE = 512 * 1024 * 1024
@@ -665,6 +665,30 @@ class VersionAgent:
             raise UpdateError("panel volume mountpoint is missing")
         return path
 
+    def _panel_writers(self) -> tuple[str, ...]:
+        # Legacy Fleet ingress shares the panel database, unlike Fleet v2 and MCP.
+        if "compose.fleet-central.yaml" in self.compose_files:
+            return ("panel", "fleet-ingress")
+        return ("panel",)
+
+    def _stop_panel_writers(self) -> None:
+        self.runner(
+            self._compose_command("stop", *self._panel_writers(), **self._override_kwargs()),
+            cwd=self.compose_dir, timeout=180,
+        )
+        # A successful stop command alone is insufficient: a foreign container could
+        # still mount the database. Refuse to copy files rather than stop its workload.
+        active = self.runner(
+            ["docker", "ps", "--filter", f"volume={self.panel_volume}", "--format", "{{.ID}}"],
+            timeout=30,
+        ).strip()
+        if active:
+            raise UpdateError("panel database volume still has active containers")
+
+    def _start_panel_peers(self) -> None:
+        for service in self._panel_writers()[1:]:
+            self._compose_up(service)
+
     @staticmethod
     def _copy_db_file(source: Path, target: Path) -> None:
         shutil.copy2(source, target)
@@ -721,21 +745,24 @@ class VersionAgent:
             rollback_tag = f"{self.panel_image}:rollback-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}"
             self.runner(["docker", "tag", f"{self.panel_image}:latest", rollback_tag], timeout=60)
             self.runner(self._compose_command("build", "panel", **self._override_kwargs()), cwd=self.compose_dir, timeout=900)
-            self.runner(self._compose_command("stop", "panel", **self._override_kwargs()), cwd=self.compose_dir, timeout=180)
+            self._stop_panel_writers()
             volume_dir = self._panel_volume_dir()
             shutil.rmtree(db_backup, ignore_errors=True)
             db_backup.mkdir(parents=True)
-            db_saved = {}
+            snapshot: dict[str, tuple[int, int]] = {}
             for name in PANEL_DB_FILES:
                 source = volume_dir / name
                 if source.is_file():
                     self._copy_db_file(source, db_backup / name)
                     stat = source.stat()
-                    db_saved[name] = (stat.st_uid, stat.st_gid)
+                    snapshot[name] = (stat.st_uid, stat.st_gid)
+            # A partial snapshot cannot replace the intact, still-stopped database.
+            db_saved = snapshot
             self._compose_up("panel")
             running = self._panel_container_version()
             if running != entry.version:
                 raise UpdateError(f"panel container reports {running or 'nothing'}, expected {entry.version}")
+            self._start_panel_peers()
         except Exception as exc:
             try:
                 self._restore_panel(targets, synced, backup_dir, db_backup, db_saved, volume_dir, rollback_tag)
@@ -765,6 +792,10 @@ class VersionAgent:
         volume_dir: Path | None,
         rollback_tag: str | None,
     ) -> None:
+        # The failed generation may be healthy enough to write while its version or
+        # health check fails. Quiesce before replacing either its files or database.
+        if db_saved is not None and volume_dir is not None:
+            self._stop_panel_writers()
         for name in synced:
             self._remove_entry(targets[name])
             if (backup_dir / name).exists():
@@ -782,6 +813,7 @@ class VersionAgent:
         if rollback_tag is not None:
             self.runner(["docker", "tag", rollback_tag, f"{self.panel_image}:latest"], timeout=60)
         self._compose_up("panel")
+        self._start_panel_peers()
 
     # ------------------------------------------------------------------
     # xray (the router's pinned bin-dir: xray, geoip.dat, geosite.dat)

@@ -59,7 +59,7 @@ usage: scripts/install-release.sh [--version X.Y.Z[-beta.N]] [--sha256 DIGEST] [
   --attest        require `gh attestation verify` to pass (default: verify when gh exists)
   --update        update this already installed host to the release instead of installing:
                   the same verification, then (as root) the host's version-agent updates the
-                  panel and the changed managers are rebuilt (scripts/update-host.sh)
+                  panel and changed managers plus enabled MCP are rebuilt (scripts/update-host.sh)
   --              everything after it goes to `python3 -m installer.cli` (default: wizard)
 USAGE
     exit 2
@@ -148,7 +148,8 @@ Xray-router (необязательно, v0.5): [egress] router = true — вы�
   нового выпуска так же, как для установки, сверьте сумму и запустите
   `bash install-release.sh --update` — та же проверка выпуска, затем version-agent
   хоста обновляет панель (с резервными копиями и откатом), изменившиеся менеджеры
-  пересобираются. Telemt, сертификаты, .env и secrets/ не трогаются.
+  и включённый MCP пересобираются с точками отката образов.
+  Telemt, сертификаты, .env и secrets/ не трогаются.
 
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
@@ -211,7 +212,7 @@ Xray-router (optional, v0.5): [egress] router = true — a dedicated Xray for
 Updating an installed host (since v1.1): download the new release's install-release.sh
   and .sha256 as for an install, check the sum and run `bash install-release.sh --update`
   — the same release verification, then the host's version-agent updates the panel (with
-  its backups and rollback) and the changed managers are rebuilt. Telemt, certificates,
+  its backups and rollback); changed managers and enabled MCP are rebuilt with image backups. Telemt, certificates,
   .env and secrets/ are not touched.
 
 What the installer does (wizard → plan → digest confirmation → apply):

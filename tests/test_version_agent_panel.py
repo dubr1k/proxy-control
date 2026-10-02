@@ -254,7 +254,7 @@ def test_panel_update_rolls_back_files_db_and_image_when_the_container_reports_t
     assert (host.volume / "panel.sqlite3").read_bytes() == b"db-old"
     assert (host.volume / "panel.sqlite3-wal").read_bytes() == b"wal-old"
     assert not (host.volume / "panel.sqlite3-shm").exists()  # the migrated generation's leftovers are gone
-    assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "tag", "up", "exec"]
+    assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "stop", "tag", "up", "exec"]
     tags = [c for c in host.commands if c[:2] == ["docker", "tag"]]
     assert tags[1][2] == tags[0][3] and tags[1][3] == "mtproxy-panel:latest"
     state = _state(tmp_path)

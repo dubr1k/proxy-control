@@ -19,6 +19,7 @@ LANGUAGE=en
 SOCK=${UPDATE_HOST_AGENT_SOCKET:-/run/proxy-control/version-agent.sock}
 ENV_FILE=${UPDATE_HOST_AGENT_ENV:-/etc/proxy-control/version-agent.env}
 POLL=${UPDATE_HOST_POLL_SECONDS:-5}
+RELEASE_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
 say() { if [[ $LANGUAGE == ru ]]; then printf '%s\n' "$1"; else printf '%s\n' "$2"; fi; }
 fail() { printf 'update-host: %s\n' "$(say "$1" "$2")" >&2; exit 1; }
@@ -97,8 +98,56 @@ for manager in $pending; do
         mieru_manager) has compose.mieru.yaml && services+=(mieru-manager) ;;
         naive_manager) has compose.naive.yaml && services+=(naive-manager) ;;
         xray_router_manager) has compose.xray-router.yaml && services+=(xray-router) ;;
+        mcp_server) has compose.mcp.yaml && services+=(mcp) ;;
     esac
 done
+# Agents predating this fix omitted mcp_server from their sync set. Complete that
+# boundary from the release tree whose digest install-release.sh already verified.
+mcp_backup=
+if has compose.mcp.yaml; then
+    mcp_backup=$(python3 - "$RELEASE_DIR/mcp_server" "$DIR" <<'PY'
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+import time
+
+source, project = Path(sys.argv[1]), Path(sys.argv[2])
+target = project / "mcp_server"
+def digest(path):
+    if not path.is_dir():
+        return None
+    result = hashlib.sha256()
+    for file in sorted(path.rglob("*")):
+        if "__pycache__" in file.parts:
+            continue
+        if file.is_symlink():
+            raise SystemExit("refusing a symlink in MCP sources")
+        if file.is_file():
+            result.update(str(file.relative_to(path)).encode() + b"\0" + file.read_bytes())
+    return result.digest()
+if source.is_symlink() or target.is_symlink() or not source.is_dir():
+    raise SystemExit("verified MCP source tree is missing or unsafe")
+if digest(source) != digest(target):
+    backups = project / "version-overrides"
+    backups.mkdir(exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".mcp-update-", dir=project))
+    try:
+        shutil.copytree(source, staging / "mcp_server", ignore=shutil.ignore_patterns("__pycache__"))
+        if target.exists():
+            previous = backups / f"mcp-source-previous-{time.time_ns()}"
+            os.replace(target, previous)
+            print(previous)
+        os.replace(staging / "mcp_server", target)
+    finally:
+        shutil.rmtree(staging)
+PY
+    ) || fail "не удалось обновить исходники MCP" "could not update MCP sources"
+    # Always reconcile an enabled MCP, including agents that did not report it.
+    [[ " ${services[*]} " == *" mcp "* ]] || services+=(mcp)
+fi
 # v1.1: the router's MTProxy bridge comes with the router (a new service on an updated host).
 if has compose.xray-router.yaml && grep -q '^  xray-router-ingress:' compose.xray-router.yaml; then
     services+=(xray-router-ingress)  # idempotent where it already runs the same image
@@ -106,13 +155,41 @@ fi
 if ((${#services[@]})); then
     "${compose[@]}" config -q || fail "модель Compose не собирается" "the Compose model does not render"
     stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    rollback_services=()
     for service in "${services[@]}"; do
-        docker image inspect "mtproxy-$service:latest" >/dev/null 2>&1 \
-            && docker tag "mtproxy-$service:latest" "mtproxy-$service:rollback-$stamp" \
-            && say "точка отката: mtproxy-$service:rollback-$stamp" "rollback image: mtproxy-$service:rollback-$stamp"
+        if docker image inspect "mtproxy-$service:latest" >/dev/null 2>&1; then
+            docker tag "mtproxy-$service:latest" "mtproxy-$service:rollback-$stamp" \
+                || fail "не удалось сохранить образ $service" "could not save the $service image"
+            rollback_services+=("$service")
+            say "точка отката: mtproxy-$service:rollback-$stamp" "rollback image: mtproxy-$service:rollback-$stamp"
+        fi
     done
     say "пересобираю: ${services[*]}" "rebuilding: ${services[*]}"
-    "${compose[@]}" up -d --build --no-deps --wait "${services[@]}" || fail "пересборка не удалась" "the rebuild failed"
+    if ! "${compose[@]}" up -d --build --no-deps --wait "${services[@]}"; then
+        if [[ -n $mcp_backup ]]; then
+            python3 - "$DIR/mcp_server" "$mcp_backup" <<'PY' \
+                || fail "откат исходников MCP не удался" "MCP source rollback failed"
+import os
+import shutil
+import sys
+shutil.rmtree(sys.argv[1])
+os.replace(sys.argv[2], sys.argv[1])
+PY
+        fi
+        for service in "${rollback_services[@]}"; do
+            docker tag "mtproxy-$service:rollback-$stamp" "mtproxy-$service:latest" \
+                || fail "откат образа $service не удался" "the $service image rollback failed"
+        done
+        if ((${#rollback_services[@]})); then
+            "${compose[@]}" up -d --no-build --no-deps --wait "${rollback_services[@]}" \
+                || fail "проверка служб после отката не прошла" "the restored services did not become healthy"
+        fi
+        if ((${#rollback_services[@]} == ${#services[@]})); then
+            fail "пересборка не удалась; прежние образы восстановлены" "the rebuild failed; previous images restored"
+        fi
+        fail "пересборка не удалась; восстановлены доступные образы, новым службам нужна проверка оператора" \
+            "the rebuild failed; available images restored, new services need operator recovery"
+    fi
 else
     say "менеджеры пересобирать не нужно" "no manager needs a rebuild"
 fi

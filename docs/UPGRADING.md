@@ -527,6 +527,21 @@ What the agent does, in order:
 
 Variables in `version-agent.env` (defaults match the installer): `PROXY_CONTROL_AGENT_DIR=/opt/proxy-control`, `PROXY_CONTROL_PANEL_IMAGE=mtproxy-panel`, `PROXY_CONTROL_PANEL_CONTAINER=proxy-control-panel`, `PROXY_CONTROL_PANEL_VOLUME=mtproxy_panel-data`.
 
+Database snapshots and rollback now stop both the panel and the legacy `fleet-ingress`
+service, when installed. Before copying any database files, the agent checks that no active
+container still mounts the panel volume. A failed stop or a remaining writer prevents the
+restore and leaves the backup intact for operator recovery; an incomplete snapshot is never
+used for rollback. The failed new panel is stopped again before restoring the old database.
+Legacy ingress is restarted after the panel.
+
+The sync set and `pending_rebuild` also include `mcp_server/`. Panel rollback restores its
+previous sources. `install-release.sh --update` reconciles an enabled MCP from the verified
+release tree even when the old agent omitted its sources. It rebuilds MCP with the installed
+overlay, tags the previous image first, and restores and health-checks the saved images if a
+rebuild fails. A rebuild failure remains a failed update, including when rollback succeeds.
+New services without a previous image require operator recovery. MCP sources saved by the
+legacy-agent compatibility step live in `version-overrides/mcp-source-previous-*`.
+
 ## Verification after any update
 
 Run, at minimum:
