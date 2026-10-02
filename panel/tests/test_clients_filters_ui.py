@@ -36,7 +36,7 @@ def _node(tmp_path: Path, body: str) -> dict:
     shutil.copytree(STATIC / "js", tmp_path / "js")
     (tmp_path / "package.json").write_text('{"type":"module"}')
     script = f"""
-      import {{ matchesClient, renderClients }} from './js/clients.js';
+      import {{ matchesClient, renderClients, handleClientsClick, handleClientsInput, openImportModal }} from './js/clients.js';
       globalThis.window = {{ location: {{ origin: 'https://example.test' }} }};
       const clients = {json.dumps(CLIENTS)};
       const nodes = {json.dumps(NODES)};
@@ -44,7 +44,7 @@ def _node(tmp_path: Path, body: str) -> dict:
       const state = {{ view: 'clients', navigationGeneration: 1, me: {{ role: 'owner' }}, clients, nodes,
         clientFilter: {{ query: '', state: 'all', protocol: '', node: '', issue: '' }} }};
       const context = {{ state, ui: {{ view }}, root: {{ querySelector: () => null }},
-        api: async (path) => ({{ items: path === '/api/clients' ? clients : nodes }}) }};
+        api: async (path) => ({{ items: path.startsWith('/api/clients') ? clients : nodes }}) }};
       const pick = (filter) => clients.filter((entry) => matchesClient(context, entry, {{ ...state.clientFilter, ...filter }})).map((entry) => entry.client.id);
       {body}
     """
@@ -125,3 +125,74 @@ def test_the_grant_window_is_wired_and_reveals_one_grant() -> None:
     assert "createGrantDialog" in main and "context.grants.bind()" in main and "handleClientsInput" in main
     for element in ('id="grant-window"', 'id="grant-facts"', 'id="grant-link"', 'id="grant-link-body"', 'id="grant-actions"', 'id="grant-error"'):
         assert element in html, element
+
+
+def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_responses(tmp_path):
+    result = _node(tmp_path, """
+      const rows = Array.from({length: 123}, (_, i) => ({client: {id: `id-${i}`, display_name: `Person ${i}`, state:'active'}, grants: []}));
+      const calls = [];
+      const list = {innerHTML:''}, counter = {textContent:''};
+      view.querySelector = (selector) => selector === '.client-list' ? list : selector === '#client-count' ? counter : null;
+      view.querySelectorAll = () => [];
+      context.ui.toast = () => {};
+      context.api = async (path) => {
+        calls.push(path);
+        if (path === '/api/nodes') return {items:nodes};
+        const url = new URL(path, 'https://example.test');
+        const start = Number(url.searchParams.get('cursor') || 0);
+        const selected = url.searchParams.get('query') ? rows.filter(row => row.client.display_name.includes(url.searchParams.get('query'))) : rows;
+        const limit = Number(url.searchParams.get('limit') || selected.length);
+        return {items:selected.slice(start,start+limit), next_cursor: start+limit < selected.length ? String(start+limit) : null,
+          matched:selected.length,total:rows.length,counts:{active:rows.length,suspended:0,archived:0},node_ids:['local','fra']};
+      };
+      await renderClients(context,1);
+      const first = state.clients.map(row=>row.client.id);
+      handleClientsClick(context,{dataset:{clientAction:'next-page'}});
+      await new Promise(setImmediate);
+      const second = state.clients.map(row=>row.client.id);
+      const secondCards = (list.innerHTML.match(/data-client-id=/g)||[]).length;
+      handleClientsClick(context,{dataset:{clientAction:'previous-page'}});
+      await new Promise(setImmediate);
+      const back = state.clients.map(row=>row.client.id);
+      handleClientsInput(context,{id:'client-search',value:'Person 122'});
+      await new Promise(resolve=>setTimeout(resolve,350));
+      const found = state.clients.map(row=>row.client.id);
+      const pending = [];
+      context.api = path => new Promise(resolve=>pending.push({path,resolve}));
+      handleClientsInput(context,{id:'client-filter-protocol',value:'mieru'});
+      handleClientsInput(context,{id:'client-filter-protocol',value:'naive'});
+      pending[1].resolve({items:[rows[2]],next_cursor:null,total:123,matched:1,counts:{active:123}});
+      await new Promise(setImmediate);
+      pending[0].resolve({items:[rows[1]],next_cursor:null,total:123,matched:1,counts:{active:123}});
+      await new Promise(setImmediate);
+      console.log(JSON.stringify({first,second,back,found,secondCards,calls,last:state.clients[0].client.id}));
+    """)
+    assert result["first"] == [f"id-{i}" for i in range(50)]
+    assert result["second"] == [f"id-{i}" for i in range(50, 100)]
+    assert result["secondCards"] == 50 and result["back"] == result["first"]
+    assert result["found"] == ["id-122"] and result["last"] == "id-2"
+    assert all("limit=50" in path for path in result["calls"] if path.startswith("/api/clients"))
+
+
+def test_import_still_offers_clients_outside_the_current_page(tmp_path):
+    result = _node(tmp_path, """
+      const rows = Array.from({length:123},(_,i)=>({client:{id:`id-${i}`,display_name:`Person ${i}`},grants:[]}));
+      state.clients = rows.slice(0,50);
+      const elements = new Map();
+      context.root.querySelector = selector => {
+        if (!elements.has(selector)) elements.set(selector,{innerHTML:'',textContent:''});
+        return elements.get(selector);
+      };
+      context.ui.openModal = () => {};
+      const calls = [];
+      context.api = async path => {
+        calls.push(path);
+        if (path === '/api/clients') return {items:rows};
+        return {already_imported:0,proposals:[{same_username_hint:false,items:[{protocol:'naive',runtime_username:'imported',enabled:true,imported_grant_id:null}]}]};
+      };
+      await openImportModal(context);
+      console.log(JSON.stringify({html:elements.get('#client-import-rows').innerHTML,calls,error:elements.get('#client-import-error').textContent}));
+    """)
+    assert not result["error"] and "/api/clients" in result["calls"]
+    assert result["html"].count('<option value="id-') == 123
+    assert '<option value="id-122">Person 122</option>' in result["html"]

@@ -536,6 +536,13 @@ accounts. The "Clients" screen keeps a person and their accesses to MTProxy,
 NaiveProxy and Mieru together, while the protocol screens keep working as
 before.
 
+The list shows 50 clients per page. Name, account and node-name search and filters
+apply to all clients on the server; import still offers every existing client.
+The API keeps the full `GET /api/clients` response for compatibility. For pages,
+add `limit=1..200`, then send the returned `next_cursor` as `cursor` with the same
+filters: `query`, `state`, `protocol`, `node`, `issue`. Reset the cursor whenever
+filters change. Responses include `matched`, `total` and global state `counts`.
+
 - **Import and adoption.** Existing manager users are imported read-only —
   nothing changes on the server. "Adopt access" takes the credentials into the
   panel: MTProxy and NaiveProxy by reading them, Mieru only through an explicit

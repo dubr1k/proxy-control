@@ -1496,5 +1496,10 @@
  "Xray-router: не установлен — без него MTProxy ходит только напрямую.": "Xray-router: not installed — without it MTProxy goes direct only.",
  "мост xray-router-ingress не отвечает — запустите его": "the xray-router-ingress bridge does not answer — start it",
  "у Telemt на узле нет API конфигурации — обновите Telemt": "Telemt on the node has no config API — update Telemt",
- "узел нужно обновить до v1.1 для маршрутизации MTProxy": "the node must be updated to v1.1 to route MTProxy"
+ "узел нужно обновить до v1.1 для маршрутизации MTProxy": "the node must be updated to v1.1 to route MTProxy",
+ "Всего": "Total",
+ "Далее": "Next",
+ "Назад": "Previous",
+ "Страницы клиентов": "Client pages",
+ "Не удалось загрузить клиентов": "Could not load clients"
 }

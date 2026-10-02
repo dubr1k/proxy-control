@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Query, Request
 
 from .clients import importer
 from .clients.models import PROTOCOL_OPTIONS, GrantIntent
@@ -42,13 +42,17 @@ def register_client_routes(app, context: RequestContext) -> None:
             "request_id": getattr(request.state, "request_id", None),
         }
 
-    def _listing() -> list[dict]:
+    def _listing(*, limit: int | None = None, **filters) -> dict:
         service = app.state.clients
         with service.database.connect() as db:
-            return [
+            if limit is not None:
+                page = service.store.client_page(db, limit=limit, **filters)
+                page["items"] = [_client(client, grants) for client, grants in page["items"]]
+                return page
+            return {"items": [
                 _client(client, grants)
                 for client, grants in service.store.clients_with_grants(db)
-            ]
+            ]}
 
     async def _inventory() -> list[importer.InventoryItem]:
         service = app.state.clients
@@ -64,8 +68,23 @@ def register_client_routes(app, context: RequestContext) -> None:
         )
 
     @app.get("/api/clients")
-    async def clients(_user=Depends(context.current)):
-        return {"items": await asyncio.to_thread(_listing)}
+    async def clients(
+        limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+        cursor: Annotated[str | None, Query(max_length=512)] = None,
+        query: Annotated[str, Query(max_length=256)] = "",
+        state: Literal["all", "active", "suspended", "archived"] = "all",
+        protocol: Literal["", "mtproxy", "naive", "mieru"] = "",
+        node: Annotated[str, Query(max_length=128)] = "",
+        issue: Literal["", "problem", "pending", "failed", "orphan", "disabled", "lane", "empty"] = "",
+        _user=Depends(context.current),
+    ):
+        try:
+            return await asyncio.to_thread(
+                _listing, limit=limit, cursor=cursor, query=query, state=state,
+                protocol=protocol, node=node, issue=issue,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @app.post("/api/clients", status_code=201)
     async def create(body: ClientCreate, request: Request, user=Depends(context.roles("owner", "admin"))):

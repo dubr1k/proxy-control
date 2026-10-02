@@ -162,6 +162,7 @@ export function matchesClient(context, entry, filter = filters(context)) {
 }
 
 function filtered(context) {
+  if (context.state.clientPage) return context.state.clients;
   return [...context.state.clients].sort(byState).filter((entry) => matchesClient(context, entry));
 }
 
@@ -175,6 +176,7 @@ function countLabel(shown, total) {
 
 function nodeFilterOptions(context, selected) {
   const ids = new Set(["local"]);
+  for (const id of context.state.clientPage?.node_ids || []) ids.add(id);
   for (const node of context.state.nodes || []) if (node.node_id === "local" || node.transport === "panel") ids.add(node.node_id);
   for (const entry of context.state.clients) for (const grant of liveGrants(entry)) ids.add(grant.node_id || "local");
   return [...ids].map((id) => `<option value="${esc(id)}"${id === selected ? " selected" : ""}>${esc(nodeName(context.state.nodes, id))}</option>`).join("");
@@ -183,35 +185,39 @@ function nodeFilterOptions(context, selected) {
 function toolbar(context) {
   const filter = filters(context);
   const clients = context.state.clients;
-  const count = (state) => clients.filter((entry) => entry.client.state === state).length;
+  const count = (state) => context.state.clientPage?.counts?.[state] ?? clients.filter((entry) => entry.client.state === state).length;
+  const total = context.state.clientPage?.total ?? clients.length;
   const pill = (value, label) => `<button type="button" class="filter-pill${filter.state === value ? " active" : ""}" data-client-filter-state="${value}" aria-pressed="${filter.state === value}">${label}</button>`;
   const option = (value, label, current) => `<option value="${esc(value)}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
   const canImport = context.state.me?.role !== "viewer";
   return `<div class="client-toolbar">
       <div class="client-toolbar-row">
-        <div class="search"><input id="client-search" type="search" value="${esc(filter.query)}" placeholder="Поиск: клиент, учётная запись, узел" aria-label="Поиск клиентов" autocomplete="off"></div>
+        <div class="search"><input id="client-search" type="search" maxlength="256" value="${esc(filter.query)}" placeholder="Поиск: клиент, учётная запись, узел" aria-label="Поиск клиентов" autocomplete="off"></div>
         ${canImport ? '<button class="secondary" data-client-action="import">Импорт существующих</button>' : ""}
       </div>
       <div class="filter-pills client-state-filter" role="group" aria-label="Состояние клиента">
-        ${pill("all", `Все · ${clients.length}`)}${pill("active", `Активные · ${count("active")}`)}${pill("suspended", `Приостановленные · ${count("suspended")}`)}${pill("archived", `В архиве · ${count("archived")}`)}
+        ${pill("all", `Все · ${total}`)}${pill("active", `Активные · ${count("active")}`)}${pill("suspended", `Приостановленные · ${count("suspended")}`)}${pill("archived", `В архиве · ${count("archived")}`)}
       </div>
       <div class="client-filters">
         <select id="client-filter-protocol" aria-label="Протокол">${option("", "Любой протокол", filter.protocol)}${Object.entries(PROTOCOL_NAMES).map(([value, label]) => option(value, label, filter.protocol)).join("")}</select>
         <select id="client-filter-node" aria-label="Узел">${option("", "Любой узел", filter.node)}${nodeFilterOptions(context, filter.node)}</select>
         <select id="client-filter-issue" aria-label="Состояние доступов">${option("", "Любые доступы", filter.issue)}${Object.entries(ISSUES).map(([value, [label]]) => option(value, label, filter.issue)).join("")}${option("empty", "Без доступов", filter.issue)}</select>
         <button type="button" class="ghost" data-client-action="reset-filters"${filterActive(filter) ? "" : " hidden"}>Сбросить</button>
-        <span class="client-count" id="client-count" aria-live="polite">${esc(countLabel(filtered(context).length, clients.length))}</span>
+        <span class="client-count" id="client-count" aria-live="polite">${esc(pageLabel(context))}</span>
       </div>
     </div>`;
 }
 
 function listHtml(context) {
-  if (!context.state.clients.length) {
+  if (context.state.clientPageError) {
+    return `<p role="alert">${esc(context.state.clientPageError)}</p><button class="secondary" data-client-action="retry-page">Повторить</button>`;
+  }
+  if (!(context.state.clientPage?.total ?? context.state.clients.length)) {
     return '<div class="empty-state"><span>◇</span><h3>Клиентов пока нет</h3><p>Импортируйте пользователей, которые уже работают на этом сервере, — панель ничего в них не меняет.</p></div>';
   }
   const items = filtered(context);
   return items.length
-    ? items.map((entry) => safeCard(context, entry)).join("")
+    ? items.map((entry) => safeCard(context, entry)).join("") + pager(context)
     : '<div class="empty-state"><span>◇</span><h3>Никто не подходит</h3><p>Измените запрос или сбросьте фильтры.</p><button class="secondary" data-client-action="reset-filters">Сбросить фильтры</button></div>';
 }
 
@@ -223,7 +229,7 @@ function paintList(context) {
   list.innerHTML = listHtml(context);
   const filter = filters(context);
   const counter = view.querySelector("#client-count");
-  if (counter) counter.textContent = countLabel(filtered(context).length, context.state.clients.length);
+  if (counter) counter.textContent = pageLabel(context);
   const reset = view.querySelector(".client-filters [data-client-action=reset-filters]");
   if (reset) reset.hidden = !filterActive(filter);
   view.querySelectorAll("[data-client-filter-state]").forEach((button) => {
@@ -233,13 +239,87 @@ function paintList(context) {
   });
 }
 
+const CLIENT_PAGE_SIZE = 50;
+
+function pageLabel(context) {
+  const state = context.state;
+  if (state.clientLoading) return "Загрузка…";
+  if (state.clientPageError) return "Не удалось загрузить клиентов";
+  const page = state.clientPage;
+  if (!page || page.matched <= CLIENT_PAGE_SIZE) return countLabel(filtered(context).length, page?.total ?? state.clients.length);
+  const start = (state.clientPageHistory?.length || 0) * CLIENT_PAGE_SIZE;
+  return `${start + 1}–${start + state.clients.length} из ${page.matched} · Всего ${page.total}`;
+}
+
+function pager(context) {
+  const state = context.state;
+  if (!state.clientPage?.next_cursor && !state.clientPageHistory?.length) return "";
+  return `<nav class="client-toolbar-row" aria-label="Страницы клиентов">
+    <button type="button" class="secondary" data-client-action="previous-page"${state.clientLoading || !state.clientPageHistory?.length ? " disabled" : ""}>Назад</button>
+    <button type="button" class="secondary" data-client-action="next-page"${state.clientLoading || !state.clientPage.next_cursor ? " disabled" : ""}>Далее</button>
+  </nav>`;
+}
+
+function pageUrl(context, cursor = null) {
+  const params = new URLSearchParams({ limit: String(CLIENT_PAGE_SIZE), ...filters(context) });
+  if (cursor) params.set("cursor", cursor);
+  return `/api/clients?${params}`;
+}
+
+function acceptPage(context, data, cursor = null, history = []) {
+  const state = context.state;
+  state.clients = data.items || [];
+  state.clientPage = { total: state.clients.length, matched: state.clients.length, ...data };
+  state.clientPageCursor = cursor;
+  state.clientPageHistory = history;
+  state.clientPageError = "";
+  state.clientLoading = false;
+  paintClientsCount(context, state.clientPage.total);
+}
+
+async function loadPage(context, cursor = null, history = []) {
+  const state = context.state;
+  const sequence = state.clientRequest = (state.clientRequest || 0) + 1;
+  const generation = state.navigationGeneration;
+  state.clientLoading = true;
+  state.clientPageError = "";
+  paintList(context);
+  try {
+    const data = await context.api(pageUrl(context, cursor));
+    if (!isCurrent(state, generation, "clients") || sequence !== state.clientRequest) return;
+    acceptPage(context, data, cursor, history);
+  } catch (error) {
+    if (!isCurrent(state, generation, "clients") || sequence !== state.clientRequest) return;
+    state.clientLoading = false;
+    state.clientPageError = error.message;
+  }
+  paintList(context);
+}
+
+function refreshFilters(context, debounce = false) {
+  const state = context.state;
+  clearTimeout(state.clientSearchTimer);
+  state.clientRequest = (state.clientRequest || 0) + 1; // invalidate responses even during debounce
+  if (debounce) {
+    state.clientLoading = true;
+    paintList(context);
+    const generation = state.navigationGeneration;
+    state.clientSearchTimer = setTimeout(() => {
+      if (isCurrent(state, generation, "clients")) void loadPage(context);
+    }, 250);
+  } else {
+    void loadPage(context);
+  }
+}
+
 export async function renderClients(context, generation) {
+  clearTimeout(context.state.clientSearchTimer);
+  const sequence = context.state.clientRequest = (context.state.clientRequest || 0) + 1;
   // Nodes are read alongside: a grant on a linked panel is labelled with the panel's name.
-  const [data, nodes] = await Promise.all([context.api("/api/clients"), context.api("/api/nodes")]);
-  if (!isCurrent(context.state, generation, "clients")) return;
-  context.state.clients = data.items || [];
+  const [data, nodes] = await Promise.all([context.api(pageUrl(context)), context.api("/api/nodes")]);
+  if (!isCurrent(context.state, generation, "clients") || sequence !== context.state.clientRequest) return;
+  acceptPage(context, data);
   context.state.nodes = nodes.items || [];
-  paintClientsCount(context, context.state.clients.length);
   context.ui.view.innerHTML = `${toolbar(context)}<section class="client-list">${listHtml(context)}</section>`;
 }
 
@@ -254,7 +334,7 @@ export function handleClientsInput(context, target) {
   const key = FILTER_FIELDS[target?.id];
   if (!key || context.state.view !== "clients") return false;
   filters(context)[key] = target.value;
-  paintList(context);
+  refreshFilters(context, key === "query");
   return true;
 }
 
@@ -265,7 +345,7 @@ function resetFilters(context) {
     const field = view.querySelector(`#${id}`);
     if (field) field.value = CLIENT_FILTER_DEFAULT[key];
   }
-  paintList(context);
+  refreshFilters(context);
 }
 
 // One dialog creates the client and, when cells of the node × protocol matrix are ticked,
@@ -578,11 +658,25 @@ export function handleClientsClick(context, button) {
   }
   if (button.dataset.clientFilterState) {
     filters(context).state = button.dataset.clientFilterState;
-    paintList(context);
+    refreshFilters(context);
     return true;
   }
   const action = button.dataset.clientAction;
   if (!action) return false;
+  if (["next-page", "previous-page", "retry-page"].includes(action)) {
+    if (context.state.clientLoading) return true;
+    const state = context.state;
+    const history = [...(state.clientPageHistory || [])];
+    if (action === "next-page" && state.clientPage?.next_cursor) {
+      history.push(state.clientPageCursor || null);
+      void loadPage(context, state.clientPage.next_cursor, history);
+    } else if (action === "previous-page" && history.length) {
+      void loadPage(context, history.pop(), history);
+    } else if (action === "retry-page") {
+      void loadPage(context);
+    }
+    return true;
+  }
   if (action === "reset-filters") {
     resetFilters(context);
     return true;

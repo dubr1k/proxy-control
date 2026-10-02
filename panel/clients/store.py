@@ -2,6 +2,7 @@
 audit row commit together — the store never opens a transaction of its own."""
 from __future__ import annotations
 
+import base64
 import json
 
 from ..database import Database
@@ -97,8 +98,95 @@ class ClientStore:
         clients = self.clients(db)
         grouped: dict[str, list[AccessGrant]] = {client.id: [] for client in clients}
         for grant in self.grants(db):
-            grouped[grant.client_id].append(grant)
+            # A concurrent import may create a client between the two reads.
+            if grant.client_id in grouped:
+                grouped[grant.client_id].append(grant)
         return [(client, grouped[client.id]) for client in clients]
+
+    @staticmethod
+    def client_page(db, *, limit: int, cursor: str | None = None, query: str = "",
+                    state: str = "all", protocol: str = "", node: str = "", issue: str = "") -> dict:
+        """Filter before paging; hydrate grants only for the returned client IDs.
+
+        SQLite's built-in LOWER is ASCII-only. Python's Unicode lower preserves the
+        existing browser search, including Cyrillic and literal '%'/'_' characters.
+        """
+        if not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        db.create_function("client_lower", 1, lambda value: str(value or "").lower(), deterministic=True)
+        conditions, parameters = [], []
+        if state != "all":
+            conditions.append("c.state=?")
+            parameters.append(state)
+        live = "g.client_id=c.id AND g.desired_state<>'deleted'"
+        for word in query.lower().split():
+            conditions.append(f"""(instr(client_lower(c.display_name || char(10) || c.id), ?) > 0
+                OR EXISTS (SELECT 1 FROM access_grants g LEFT JOIN fleet_nodes n ON n.node_id=g.node_id
+                WHERE {live} AND instr(client_lower(g.runtime_username || char(10) ||
+                    CASE g.protocol WHEN 'naive' THEN 'NaiveProxy' WHEN 'mtproxy' THEN 'MTProxy' ELSE 'Mieru' END
+                    || char(10) || CASE WHEN g.node_id='local' THEN 'Этот сервер'
+                        ELSE COALESCE(NULLIF(n.display_name,''), g.node_id) END), ?) > 0))""")
+            parameters.extend((word, word))
+        placement = [live]
+        for column, value in (("protocol", protocol), ("node_id", node)):
+            if value:
+                placement.append(f"g.{column}=?")
+                parameters.append(value)
+        orphan = "(g.secret_id IS NULL OR g.secret_version IS NULL)"
+        issues = {
+            "problem": f"(g.observed_state IN ('failed','pending','drifted','missing') OR {orphan})",
+            "pending": "g.observed_state='pending'", "failed": "g.observed_state='failed'",
+            "orphan": orphan, "disabled": "g.desired_state='disabled'", "lane": "g.routing_lane='own'",
+        }
+        if issue in issues:
+            placement.append(issues[issue])
+        elif issue not in ("", "empty"):
+            raise ValueError("unknown issue filter")
+        if protocol or node or issue:
+            exists = "NOT EXISTS" if issue == "empty" else "EXISTS"
+            conditions.append(f"{exists} (SELECT 1 FROM access_grants g WHERE {' AND '.join(placement)})")
+        where = " AND ".join(conditions) or "1"
+        matched = db.execute(f"SELECT COUNT(*) FROM clients c WHERE {where}", parameters).fetchone()[0]
+        rank = "CASE c.state WHEN 'active' THEN 0 WHEN 'suspended' THEN 1 ELSE 2 END"
+        if cursor:
+            try:
+                position = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+                if (not isinstance(position, list) or len(position) != 3
+                        or type(position[0]) is not int or position[0] not in (0, 1, 2)
+                        or type(position[1]) is not int or not 0 <= position[1] < 2**63
+                        or not isinstance(position[2], str)):
+                    raise ValueError
+            except (ValueError, TypeError, UnicodeError) as exc:
+                raise ValueError("invalid client cursor") from exc
+            where += f" AND ({rank},c.created_at,c.id) > (?,?,?)"
+            parameters.extend(position)
+        rows = list(db.execute(
+            f"SELECT c.* FROM clients c WHERE {where} ORDER BY {rank},c.created_at,c.id LIMIT ?",
+            (*parameters, limit + 1),
+        ))
+        clients = [_client(row) for row in rows[:limit]]
+        next_cursor = None
+        if len(rows) > limit:
+            last = clients[-1]
+            position = [{"active": 0, "suspended": 1, "archived": 2}[last.state], last.created_at, last.id]
+            next_cursor = base64.urlsafe_b64encode(json.dumps(position).encode()).decode().rstrip("=")
+        grouped: dict[str, list[AccessGrant]] = {client.id: [] for client in clients}
+        if clients:
+            placeholders = ",".join("?" for _ in clients)
+            for row in db.execute(
+                f"SELECT * FROM access_grants WHERE desired_state<>'deleted' AND client_id IN ({placeholders}) ORDER BY created_at,id",
+                list(grouped),
+            ):
+                grouped[row["client_id"]].append(_grant(row))
+        counts = {key: 0 for key in ("active", "suspended", "archived")}
+        counts.update(dict(db.execute("SELECT state,COUNT(*) FROM clients GROUP BY state")))
+        node_ids = [row[0] for row in db.execute(
+            "SELECT DISTINCT node_id FROM access_grants WHERE desired_state<>'deleted' ORDER BY node_id"
+        )]
+        return {
+            "items": [(client, grouped[client.id]) for client in clients], "next_cursor": next_cursor,
+            "matched": matched, "total": sum(counts.values()), "counts": counts, "node_ids": node_ids,
+        }
 
     @staticmethod
     def set_client_state(db, client_id: str, state: str, *, updated_at: int) -> None:
