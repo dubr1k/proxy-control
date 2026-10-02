@@ -180,6 +180,7 @@ def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
     (release / "scripts").mkdir(parents=True)
     (release / "mcp_server").mkdir()
     (release / "mcp_server/server.py").write_text("new mcp")
+    shutil.copytree(ROOT / "installer", release / "installer")
     host["script"] = release / "scripts/update-host.sh"
     shutil.copy2(SCRIPT, host["script"])
     source = host["project"] / "mcp_server"
@@ -190,3 +191,24 @@ def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
     assert (source / "server.py").read_text() == "new mcp"
     assert any((p / "server.py").read_text() == "old mcp" for p in (host["project"] / "version-overrides").glob("mcp-source-previous-*"))
     assert any(" up -d --build --no-deps --wait mcp" in line for line in host["log"].read_text().splitlines())
+
+
+@pytest.mark.parametrize("migration_exit", [0, 1])
+def test_verified_update_runs_ingress_migration_and_reports_failure(host, migration_exit):
+    wrapper = host["bin"] / "python3"
+    migration_log = host["tmp"] / "migration.log"
+    wrapper.write_text(f'''#!/bin/sh
+if [ "$1" = "-m" ] && [ "$2" = "installer.ingress_upgrade" ]; then
+  printf '%s\\n' "$PWD" "$*" > "{migration_log}"
+  exit {migration_exit}
+fi
+exec /usr/bin/python3 "$@"
+''')
+    wrapper.chmod(0o755)
+    result = _run(host, Agent())
+    assert migration_log.exists()
+    calls = migration_log.read_text().splitlines()
+    assert calls[0] == str(ROOT)
+    assert calls[1] == f"-m installer.ingress_upgrade --project-dir {host['project']} --apply"
+    assert (result.returncode == 0) == (migration_exit == 0)
+    assert ("done: Proxy Control" in result.stdout) == (migration_exit == 0)

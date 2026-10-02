@@ -5,10 +5,10 @@
 #
 #   bash install-release.sh --update        # the copy published beside a release
 #
-# It changes nothing by itself that the panel's own «Versions» screen would not: the host's
-# version-agent updates the panel (its tree, image and database, with its own backups and
+# The host's version-agent updates the panel (its tree, image and database, with its own backups and
 # rollback); then the managers the agent names in `pending_rebuild` are rebuilt with exactly the
 # Compose call the agent uses, and on a host with the Xray-router its MTProxy bridge is started.
+# The owned Nginx ingress templates then migrate transactionally to preserve client IP.
 # Telemt, mask, certificates, `.env*` and `secrets/` are never touched. The digest the agent is
 # about to install must be the one this release's script verified, or nothing happens.
 set -Eeuo pipefail
@@ -195,6 +195,10 @@ else
 fi
 [[ " $pending " == *" docker "* ]] && say "изменился каталог docker/: Telemt и mask не перезапускались — сделайте это сами, когда удобно (docs/UPGRADING.ru.md)" \
     "docker/ changed: Telemt and mask were not restarted — do it when convenient (docs/UPGRADING.md)"
+
+(cd -- "$RELEASE_DIR" && python3 -m installer.ingress_upgrade --project-dir "$DIR" --apply) \
+    || fail "миграция ingress не прошла; проверьте её отчёт и резервную копию" \
+        "ingress migration failed; inspect its report and backup"
 
 bad=$(docker ps -a --format '{{.Names}}' | grep '^proxy-control-' | while read -r name; do
     state=$(health "$name"); case $state in healthy|running) ;; *) echo "$name=$state" ;; esac; done)
