@@ -159,6 +159,11 @@ class FleetPusher:
 
     async def _sync(self, node_id: str) -> None:
         client = self.links.client_for(node_id)
+        # A cycle shares one pool through heartbeat, adoption, push and readback.
+        async with client:
+            await self._sync_client(node_id, client)
+
+    async def _sync_client(self, node_id: str, client) -> None:
         started = self.clock.monotonic()
         try:
             identity = await client.identity()

@@ -17,6 +17,14 @@ pytestmark = pytest.mark.anyio
 ACTOR = {"id": 1, "username": "owner"}  # фикстура `pair` приходит из panel/tests/conftest.py
 
 
+class _ScopedClientDouble:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        pass
+
+
 async def _link(pair):
     node, central, plaintext = pair
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
@@ -39,6 +47,53 @@ async def test_remote_grant_is_pushed_applied_and_activated(pair):
     assert link["config_dirty"] == 0 and link["acknowledged_generation"] == 1 and link["status"] == "online"
 
 
+async def test_sync_reuses_one_http_client_for_heartbeat_inventory_and_push(pair, monkeypatch):
+    from panel.fleet_v2.client import NodeClient
+
+    _, central, node_id, client = await _link(pair)
+    intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="pooled", options=NaiveOptions())
+    operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
+    created, paths = [], []
+    original = NodeClient._new_http_client
+
+    async def observe(request):
+        paths.append(request.url.path)
+
+    def tracked(self):
+        http = original(self)
+        http.event_hooks["request"].append(observe)
+        created.append(http)
+        return http
+
+    monkeypatch.setattr(NodeClient, "_new_http_client", tracked)
+    await central.state.pusher.sync_node(node_id)
+    assert central.state.provisioning.status(operation)["status"] == "succeeded"
+    assert {"/api/fleet/v2/identity", "/api/fleet/v2/status", "/api/fleet/v2/inventory",
+            "/api/fleet/v2/generation"} <= set(paths)
+    assert len(created) == 1
+    assert created[0].is_closed
+
+
+async def test_sync_closes_scoped_http_client_on_offline_early_return(pair):
+    from panel.fleet_v2.client import NodeClient
+
+    _, central, node_id, _ = await _link(pair)
+    closed = []
+
+    class Transport(httpx.MockTransport):
+        async def aclose(self):
+            closed.append(True)
+
+    def fail(request):
+        raise httpx.ConnectError("synthetic offline node")
+
+    scoped = NodeClient("https://node.example", "synthetic", transport=Transport(fail))
+    central.state.links.client_factory = lambda *args, **kwargs: scoped
+    await central.state.pusher.sync_node(node_id)
+    assert central.state.nodes.get(node_id).connectivity_state == "offline"
+    assert closed == [True] and scoped._http_client is None
+
+
 async def test_offline_node_keeps_the_grant_pending_and_converges_later(pair, monkeypatch):
     node, central, node_id, client = await _link(pair)
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
@@ -47,7 +102,7 @@ async def test_offline_node_keeps_the_grant_pending_and_converges_later(pair, mo
 
     def dead(url, key, **kw):
         from panel.fleet_v2.client import NodeUnreachable
-        class Dead:
+        class Dead(_ScopedClientDouble):
             async def identity(self): raise NodeUnreachable("refused")
         return Dead()
 
@@ -331,6 +386,13 @@ async def test_a_rejected_push_is_retried_with_backoff_not_every_tick(pair):
         inner = real(url, key, **kw)
 
         class Rejecting:
+            async def __aenter__(self):
+                await inner.__aenter__()
+                return self
+
+            async def __aexit__(self, *exc):
+                await inner.__aexit__(*exc)
+
             async def identity(self):
                 return await inner.identity()
 
@@ -371,7 +433,7 @@ async def test_one_broken_node_does_not_stall_the_others(pair, caplog):
 
     def factory(url, key, **kw):
         if url.startswith("https://broken."):
-            class Broken:
+            class Broken(_ScopedClientDouble):
                 async def identity(self): raise RuntimeError("unexpected")
             return Broken()
         return real(url, key, **kw)
