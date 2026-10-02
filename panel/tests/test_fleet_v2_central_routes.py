@@ -20,6 +20,22 @@ async def test_fingerprint_private_address_requires_explicit_opt_in(central_http
     assert allowed.status_code == 200 and seen == [True]
 
 
+async def test_fingerprint_request_deadline_also_bounds_slow_system_dns(central_http, monkeypatch):
+    import time
+    from panel.fleet_v2 import central_routes
+
+    _, _, _, http = central_http
+
+    def blocked_lookup(*args, **kwargs):
+        time.sleep(0.2)
+        return "0" * 64
+
+    monkeypatch.setattr(central_routes, "FINGERPRINT_TIMEOUT", 0.01, raising=False)
+    monkeypatch.setattr(central_routes, "fingerprint", blocked_lookup)
+    result = await http.post("/api/nodes/fingerprint", json={"url": "https://node.example"})
+    assert result.status_code == 502
+
+
 @pytest.fixture
 async def central_http(pair, login_user):
     node, central, plaintext = pair

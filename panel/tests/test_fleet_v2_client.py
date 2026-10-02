@@ -71,7 +71,8 @@ async def test_push_returns_status_and_typed_response():
 
 def test_url_validation_refuses_http_query_and_private_hosts():
     assert validate_panel_url("https://panel.example.com/", allow_private=False) == "https://panel.example.com"
-    for bad in ("http://panel.example.com", "https://panel.example.com/?x=1", "https://10.0.0.1", "https://localhost"):
+    for bad in ("http://panel.example.com", "https://panel.example.com/?x=1", "https://10.0.0.1", "https://localhost",
+                "https://@panel.example.com", "https://:synthetic@panel.example.com"):
         with pytest.raises(ValueError):
             validate_panel_url(bad, allow_private=False)
     assert validate_panel_url("https://10.0.0.1:8443", allow_private=True) == "https://10.0.0.1:8443"
@@ -347,3 +348,44 @@ async def test_redirect_never_sends_the_bearer_key_to_another_origin():
 
     await _client(redirect).identity()
     assert seen == ["node.example"]
+
+
+async def test_explicit_client_scope_reuses_http_client_and_closes_once(monkeypatch):
+    created, closed = [], []
+    original = httpx.AsyncClient
+
+    class TrackedClient(original):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+        async def aclose(self):
+            closed.append(self)
+            await super().aclose()
+
+    monkeypatch.setattr(httpx, "AsyncClient", TrackedClient)
+    client = _client(lambda request: httpx.Response(200, json={}))
+    async with client:
+        await client.identity()
+        await client.status()
+        await client.inventory()
+        assert len(created) == 1 and closed == []
+    assert len(closed) == 1
+    assert client._http_client is None
+
+
+async def test_client_scope_closes_after_transport_failure():
+    closed = []
+
+    class Transport(httpx.MockTransport):
+        async def aclose(self):
+            closed.append(True)
+
+    def fail(request):
+        raise httpx.ConnectError("synthetic failure")
+
+    client = NodeClient("https://node.example", "key", transport=Transport(fail))
+    with pytest.raises(NodeUnreachable):
+        async with client:
+            await client.identity()
+    assert closed == [True]

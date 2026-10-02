@@ -26,6 +26,7 @@ from .importing import ImportItem, UnknownClient, import_resources
 from .links import LinkConflict
 
 PROTOCOLS = ("mtproxy", "naive", "mieru")
+FINGERPRINT_TIMEOUT = 5.0
 # A linked panel is the only node whose credentials/versions the central operates by hand;
 # the central's own runtime keeps its existing routes.
 NOT_A_LINKED_PANEL = "the local node has its own routes for this"
@@ -100,7 +101,12 @@ def register_fleet_v2_central_routes(app, context: RequestContext) -> None:
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         try:
-            return {"sha256": await asyncio.to_thread(fingerprint, url, allow_private=body.allow_private_address)}
+            # The system resolver may ignore a socket timeout. Bound the HTTP request
+            # too; a timed-out resolver thread finishes independently without credentials.
+            digest = await asyncio.wait_for(asyncio.to_thread(
+                fingerprint, url, timeout=FINGERPRINT_TIMEOUT, allow_private=body.allow_private_address),
+                timeout=FINGERPRINT_TIMEOUT)
+            return {"sha256": digest}
         except OSError as exc:  # DNS, connect, timeout and TLS errors alike
             raise NodeUnreachable(type(exc).__name__) from exc
 

@@ -59,6 +59,13 @@ optional port and base path, no query string), the API key, and how to check TLS
 
 A private, loopback, link-local or `*.local` address is refused unless «Разрешить
 приватный адрес» is ticked (a lab or an internal network).
+The same choice applies when fetching a certificate fingerprint. Before every new
+connection the client validates all resolved IPv4/IPv6 addresses, then dials only
+the validated numeric address while retaining the original TLS hostname. Mixed
+public/private DNS answers are refused; redirects and environment HTTP proxies are
+not followed. The node probe shares one HTTP client for its three requests and
+closes it afterwards. The fingerprint HTTP request has a five-second deadline;
+a blocked system resolver thread may finish independently after that deadline.
 
 **«Проверить»** calls the node's `identity`, `status` and `inventory` with the key and
 stores nothing. The dialog then shows what the panel reported about itself (GUID,

@@ -74,9 +74,10 @@ class NodeLinkService:
                                      allow_private_address=allow_private)
         started = self.clock.monotonic()
         try:
-            identity = await client.identity()
-            status = await client.status()
-            inventory = await client.inventory()
+            async with client:
+                identity = await client.identity()
+                status = await client.status()
+                inventory = await client.inventory()
         except NodeAuthFailed as exc:
             raise LinkConflict("the node refused the API key") from exc
         except NodeUnreachable as exc:

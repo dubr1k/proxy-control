@@ -7,6 +7,7 @@ import json as json_module
 import socket
 import ssl
 import time
+from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 import anyio
@@ -42,7 +43,7 @@ def validate_panel_url(url: str, *, allow_private: bool) -> str:
     """https:// only, no query/fragment/userinfo, and no private/loopback/link-local
     host unless the caller opts in (linking a node on a lab or LAN)."""
     parts = urlsplit(url.strip())
-    if parts.scheme != "https" or not parts.hostname or parts.query or parts.fragment or parts.username:
+    if parts.scheme != "https" or not parts.hostname or parts.query or parts.fragment or parts.username is not None:
         raise ValueError("panel URL must be https://host[:port][/base-path]")
     host = parts.hostname
     try:
@@ -194,12 +195,37 @@ class NodeClient:
         self.timeout = httpx.Timeout(timeout, connect=connect_timeout)
         self.transport = transport or _NodeTransport(
             allow_private=allow_private_address, expected=pinned_sha256 if tls_verify == "pin" else None)
+        self._http_client = None
+
+    def _new_http_client(self):
+        return httpx.AsyncClient(base_url=self.base_url, headers=self.headers, timeout=self.timeout,
+                                 transport=self.transport, trust_env=False, follow_redirects=False)
+
+    async def __aenter__(self):
+        if self._http_client is not None:
+            raise RuntimeError("node client scope is already open")
+        self._http_client = self._new_http_client()
+        return self
+
+    async def __aexit__(self, *_exc):
+        client, self._http_client = self._http_client, None
+        if client is not None:
+            with anyio.CancelScope(shield=True):
+                await client.aclose()
+
+    @asynccontextmanager
+    async def _session(self):
+        if self._http_client is not None:
+            yield self._http_client
+        else:
+            # Existing one-shot callsites keep deterministic automatic cleanup.
+            async with self._new_http_client() as client:
+                yield client
 
     async def _call(self, method: str, path: str, json=None) -> tuple[int, dict]:
         content = bytearray()
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, headers=self.headers, timeout=self.timeout,
-                                         transport=self.transport, trust_env=False, follow_redirects=False) as client:
+            async with self._session() as client:
                 async with client.stream(method, path, json=json) as response:
                     status = response.status_code
                     if status in (401, 403):
