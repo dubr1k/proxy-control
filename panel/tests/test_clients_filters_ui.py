@@ -132,6 +132,8 @@ def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_respons
       const rows = Array.from({length: 123}, (_, i) => ({client: {id: `id-${i}`, display_name: `Person ${i}`, state:'active'}, grants: []}));
       const calls = [];
       const list = {innerHTML:''}, counter = {textContent:''};
+      const badge = {textContent:''};
+      context.root.querySelector = selector => selector === '#clients-count' ? badge : null;
       view.querySelector = (selector) => selector === '.client-list' ? list : selector === '#client-count' ? counter : null;
       view.querySelectorAll = () => [];
       context.ui.toast = () => {};
@@ -147,6 +149,7 @@ def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_respons
       };
       await renderClients(context,1);
       const first = state.clients.map(row=>row.client.id);
+      const firstBadge = badge.textContent;
       handleClientsClick(context,{dataset:{clientAction:'next-page'}});
       await new Promise(setImmediate);
       const second = state.clients.map(row=>row.client.id);
@@ -165,9 +168,10 @@ def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_respons
       await new Promise(setImmediate);
       pending[0].resolve({items:[rows[1]],next_cursor:null,total:123,matched:1,counts:{active:123}});
       await new Promise(setImmediate);
-      console.log(JSON.stringify({first,second,back,found,secondCards,calls,last:state.clients[0].client.id}));
+      console.log(JSON.stringify({first,second,back,found,secondCards,calls,firstBadge,lastBadge:badge.textContent,last:state.clients[0].client.id}));
     """)
     assert result["first"] == [f"id-{i}" for i in range(50)]
+    assert result["firstBadge"] == result["lastBadge"] == "123"
     assert result["second"] == [f"id-{i}" for i in range(50, 100)]
     assert result["secondCards"] == 50 and result["back"] == result["first"]
     assert result["found"] == ["id-122"] and result["last"] == "id-2"
