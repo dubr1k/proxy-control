@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -14,6 +15,7 @@ from .api_keys import ApiKeyService
 from .auth_routes import register_auth_admin_audit_routes
 from .client_routes import register_client_routes
 from .clients.facade import DomainFacade
+from .clients.enforcement import AccessEnforcer
 from .clients.lifecycle import GrantLifecycle
 from .clients.provisioning import ProvisioningService
 from .clients.service import ClientService
@@ -55,8 +57,26 @@ from .versions import VersionAgentError, VersionClient
 from .web_context import KeyRateLimiter, RequestContext, install_security_middleware
 from .xray_router import XrayRouterClient
 
-# How long shutdown waits for a fleet tick in flight before cancelling it.
+# How long shutdown waits for background work before cancelling it.
 PUSHER_STOP_GRACE = 5.0
+
+
+@asynccontextmanager
+async def _lifespan(app):
+    # Expired grants are enforced before requests are accepted after a restart.
+    await app.state.access_enforcer.tick(force=True)
+    app.state.pusher_task = asyncio.create_task(app.state.pusher.run_forever())
+    app.state.access_task = asyncio.create_task(app.state.access_enforcer.run_forever())
+    try:
+        yield
+    finally:
+        app.state.pusher.stop()
+        app.state.access_enforcer.stop()
+        tasks = {app.state.pusher_task, app.state.access_task}
+        _, pending = await asyncio.wait(tasks, timeout=PUSHER_STOP_GRACE)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def create_app(
@@ -79,7 +99,7 @@ def create_app(
         raise ValueError("PANEL_FLEET_HEARTBEAT_SECONDS must be positive")
 
     app = FastAPI(
-        title="Proxy Control API", docs_url=None, redoc_url=None, openapi_url=None
+        title="Proxy Control API", docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan
     )
     app.add_middleware(
         TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts)
@@ -163,8 +183,7 @@ def create_app(
         app.state.database, app.state.secrets, app.state.adapters, app.state.managed,
         guid=app.state.panel_guid, router=app.state.router,
     )
-    # A generation accepted before a restart is applied again (spec §5.3).
-    app.add_event_handler("startup", app.state.reconciler.run_pending)
+    app.state.access_enforcer = AccessEnforcer(app.state.clients, app.state.reconciler)
     # The central side (spec §6): linked panels and the generations compiled for them.
     app.state.desired = DesiredStore(app.state.database)
     app.state.links = NodeLinkService(app.state.database, app.state.secrets, app.state.nodes,
@@ -204,23 +223,6 @@ def create_app(
     app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
                                   app.state.router, publisher=app.state.routing.publisher)
     app.state.lifecycle.lanes = app.state.lanes
-
-    # The heartbeat/delivery loop lives as a background task for the process's lifetime:
-    # startup never waits on a node, and shutdown lets a tick in flight finish briefly
-    # before cancelling it (a push cut short is simply repeated after the restart).
-    async def _start_pusher():
-        app.state.pusher_task = asyncio.create_task(app.state.pusher.run_forever())
-
-    async def _stop_pusher():
-        task = app.state.pusher_task
-        app.state.pusher.stop()
-        done, _ = await asyncio.wait({task}, timeout=PUSHER_STOP_GRACE)
-        if not done:
-            task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
-
-    app.add_event_handler("startup", _start_pusher)
-    app.add_event_handler("shutdown", _stop_pusher)
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")

@@ -17,7 +17,7 @@ from ..audit import record
 from ..fleet_v2.guard import require_unmanaged
 from ..protocols.base import AdapterError, GrantRef
 from .facade import LOCAL_NODE_ID, DomainFacade
-from .models import AccessGrant
+from .models import AccessGrant, effective_enabled
 from .provisioning import is_remote_node, new_credential
 from .service import CREDENTIAL_PURPOSE
 from .store import ClientConflict
@@ -98,9 +98,15 @@ class GrantLifecycle:
         """What the central now wants of a remote grant, in the caller's transaction: the
         row, the audit row and the generation (`notify`) commit together or not at all.
         `observed_state` is `pending` until the node reports what it made of it."""
-        self.clients.store.update_grant(
-            db, grant.id, observed_state="pending", updated_at=int(self.clock.time()), **fields
-        )
+        now = int(self.clock.time())
+        observed_state = "pending"
+        if set(fields) == {"desired_state"} and fields["desired_state"] != "deleted":
+            client = self.clients.store.client(db, grant.client_id)
+            if effective_enabled(grant, client, now) == effective_enabled(grant.model_copy(update=fields), client, now):
+                # Suspension/expiry already blocks it; unchanged compiled content will
+                # publish no generation, so do not wait for a report that cannot arrive.
+                observed_state = grant.observed_state
+        self.clients.store.update_grant(db, grant.id, observed_state=observed_state, updated_at=now, **fields)
         self._audit(db, grant, action, actor=actor, ip=ip, request_id=request_id)
         self.clients.notify(db, grant.client_id)
         return self.clients.store.grant(db, grant.id)
@@ -109,8 +115,6 @@ class GrantLifecycle:
         action, state = ("enable", "enabled") if enabled else ("disable", "disabled")
         grant, remote = self._load(grant_id)
         if not remote:
-            adapter = self.facade.adapters[grant.protocol]
-            await (adapter.enable if enabled else adapter.disable)(self._ref(grant))
             await self.facade.set_enabled(
                 grant.protocol, grant.runtime_username, enabled, observed=self._observed(grant),
                 actor=actor, ip=ip, request_id=request_id,

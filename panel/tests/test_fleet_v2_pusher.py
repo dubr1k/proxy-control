@@ -420,11 +420,40 @@ async def test_run_forever_ticks_on_its_interval_and_stops(pair):
 
 async def test_the_app_starts_the_loop_in_the_background_and_stops_it_on_shutdown(pair):
     node, central, plaintext = pair
-    await central.router.startup()
-    task = central.state.pusher_task
-    assert isinstance(task, asyncio.Task) and not task.done()
-    await central.router.shutdown()
+    async with central.router.lifespan_context(central):
+        task = central.state.pusher_task
+        access = central.state.access_task
+        assert isinstance(task, asyncio.Task) and not task.done()
+        assert isinstance(access, asyncio.Task) and not access.done()
     assert task.done() and not task.cancelled()
+    assert access.done() and not access.cancelled()
+
+
+async def test_overlapping_ticks_share_a_global_concurrency_limit_and_visit_every_node(pair, monkeypatch):
+    from collections import Counter
+    from panel.fleet_v2.pusher import FleetPusher
+
+    _, central, _ = pair
+    state = central.state
+    pusher = FleetPusher(state.database, state.links, state.desired, state.secrets, state.clients,
+                         state.provisioning, state.events, max_concurrent=2)
+    node_ids = [f"node-{index}" for index in range(12)]
+    monkeypatch.setattr(state.links, "links", lambda db: [{"node_id": value, "enabled": True} for value in node_ids])
+    active, peak = 0, 0
+    visited = Counter()
+
+    async def sync(node_id):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        visited[node_id] += 1
+        await asyncio.sleep(0.001)
+        active -= 1
+
+    monkeypatch.setattr(pusher, "_sync", sync)
+    await asyncio.gather(pusher.tick(), pusher.tick())
+    assert peak == 2
+    assert visited == Counter({node_id: 2 for node_id in node_ids})
 
 
 # ---- fix round 1 (Task 14 review, I2): learned link facts are wire input -----------------

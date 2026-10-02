@@ -17,7 +17,7 @@ import logging
 import time
 from collections import Counter
 
-from ..clients.models import PROTOCOL_OPTIONS, GrantIntent
+from ..clients.models import PROTOCOL_OPTIONS, GrantIntent, within_validity
 from ..protocols.base import AdapterError, AppliedGrant, CredentialPlan, GrantRef, ObservedGrant
 from ..routing.document import document_digest
 from ..secrets_store import SecretError, SecretRef
@@ -98,11 +98,20 @@ class Reconciler:
                 return self.managed.unlink(db)
 
     async def run_pending(self) -> None:
-        """At startup: an accepted generation that never converged is applied again."""
+        """Retry failures and elapsed windows, including a previously converged generation."""
         with self.database.connect() as db:
             latest = self.managed.latest(db)
-        if latest is not None and latest["state"] != "converged":
+            known = self.managed.resources(db) if latest is not None else {}
+        due = latest is not None and any(
+            resource.desired_state != "deleted" and
+            known.get((resource.protocol, resource.runtime_username), {}).get("state") != _state(self._wanted(resource))
+            for resource in latest["document"].resources)
+        if latest is not None and (latest["state"] != "converged" or due):
             await self.apply(latest["generation"])
+
+    def _wanted(self, resource: Resource) -> bool:
+        return resource.desired_state == "enabled" and within_validity(
+            resource.valid_from, resource.valid_until, int(self.clock.time()))
 
     # ---- planning ------------------------------------------------------------------
 
@@ -227,7 +236,7 @@ class Reconciler:
                 captured = await adapter.capture(ref)
                 if captured:
                     credentials[resource.credential_ref] = captured.decode()
-        wanted = resource.desired_state == "enabled"
+        wanted = self._wanted(resource)
         if wanted != (state == "enabled"):
             applied = await (adapter.enable(ref) if wanted else adapter.disable(ref))
             state, revision = _state(applied.enabled), applied.revision or revision
@@ -268,6 +277,7 @@ class Reconciler:
             return True
         observed = {item.runtime_username: item for item in inventory.items}
         failed = False
+        applied_resources = []
         for resource in resources:
             record = known.get((protocol, resource.runtime_username))
             try:
@@ -287,6 +297,22 @@ class Reconciler:
             else:
                 self._record(generation, resource, state, revision=revision, credential_ref=resource.credential_ref,
                              learned=learned)
+                applied_resources.append(resource)
+        # Confirm the whole protocol once, rather than one inventory round-trip per
+        # user. A manager's successful mutation reply is not runtime evidence.
+        if applied_resources:
+            try:
+                readback = {item.runtime_username: item for item in (await adapter.discover()).items}
+            except Exception:  # noqa: BLE001 — bounded error, no credential-bearing exception text
+                readback = None
+            for resource in applied_resources:
+                item = None if readback is None else readback.get(resource.runtime_username)
+                confirmed = readback is not None and (
+                    item is None if resource.desired_state == "deleted"
+                    else item is not None and item.enabled == self._wanted(resource))
+                if not confirmed:
+                    failed = True
+                    self._record(generation, resource, "failed", error="runtime access readback did not match")
         # Orphans: central-owned users this generation no longer names (spec §5.3). A row
         # left `missing` owned nothing any more: a same-named user present now is local.
         for username in orphans:
@@ -406,7 +432,7 @@ class Reconciler:
             rows = self.managed.resources(db)
         wanted: dict[str, list[str]] = {}
         for resource in resources:
-            if resource.lane != "own" or resource.desired_state != "enabled":
+            if resource.lane != "own" or not self._wanted(resource):
                 continue
             row = rows.get((resource.protocol, resource.runtime_username))
             if row is not None and row.get("state") == "enabled":

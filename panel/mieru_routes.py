@@ -340,10 +340,12 @@ def register_mieru_routes(app, context: RequestContext) -> None:
     ):
         require_mieru()
         local_only(username)
-        data = await app.state.mieru.operation(
-            username, operation, body.expected_revision
-        )
-        if context.settings.vnext_writer == "domain" and operation in {"enable", "disable"}:
+        effective = operation
+        if operation in {"enable", "disable"}:
+            effective = ("enable" if app.state.domain_facade.effective_operation("mieru", username, operation == "enable")
+                         else "disable")
+        data = await app.state.mieru.operation(username, effective, body.expected_revision)
+        if (context.settings.vnext_writer == "domain" or app.state.domain_facade.grant("mieru", username) is not None) and operation in {"enable", "disable"}:
             await app.state.domain_facade.set_enabled(
                 "mieru", username, operation == "enable", observed={"quotas": []},
                 **context.domain_context(request, user),

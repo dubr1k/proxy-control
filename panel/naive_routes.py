@@ -404,13 +404,13 @@ def register_naive_routes(app, context: RequestContext) -> None:
             }
         else:
             changed = await app.state.naive.set_enabled(
-                username, operation == "enable"
+                username, app.state.domain_facade.effective_operation("naive", username, operation == "enable")
             )
             result = {
                 "username": username,
                 "enabled": changed.get("enabled") is True,
             }
-            if context.settings.vnext_writer == "domain":
+            if context.settings.vnext_writer == "domain" or app.state.domain_facade.grant("naive", username) is not None:
                 # A username the panel has never seen is recorded, not recreated.
                 await app.state.domain_facade.set_enabled(
                     "naive", username, operation == "enable",

@@ -148,6 +148,10 @@ def effective_enabled(grant: AccessGrant, client: Client, now: int) -> bool:
     return (
         client.state == "active"
         and grant.desired_state == "enabled"
-        and (grant.valid_from is None or grant.valid_from <= now)
-        and (grant.valid_until is None or now < grant.valid_until)
+        and within_validity(grant.valid_from, grant.valid_until, now)
     )
+
+
+def within_validity(valid_from: int | None, valid_until: int | None, now: int) -> bool:
+    """The same half-open window is enforced by a node even without its central."""
+    return (valid_from is None or valid_from <= now) and (valid_until is None or now < valid_until)

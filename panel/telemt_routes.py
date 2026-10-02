@@ -511,8 +511,13 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
         else:
             data = safe_user(
                 await app.state.telemt.set_enabled(
-                    username, operation == "enable"
+                    username, app.state.domain_facade.effective_operation("mtproxy", username, operation == "enable")
                 )
             )
+            if app.state.domain_facade.grant("mtproxy", username) is not None:
+                await app.state.domain_facade.set_enabled(
+                    "mtproxy", username, operation == "enable", observed={},
+                    **context.domain_context(request, user),
+                )
         await context.audit(user, f"user.{operation}", username, request)
         return data

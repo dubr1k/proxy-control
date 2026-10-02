@@ -23,6 +23,7 @@ import logging
 import time
 from dataclasses import dataclass
 
+from ..clients.models import effective_enabled
 from ..routing.store import PolicyNotFound
 from ..routing.lanes import RELAY_PURPOSE, RelayRegistry
 from ..secrets_store import SecretError, SecretRef
@@ -99,7 +100,7 @@ class _ImportState:
 
 class FleetPusher:
     def __init__(self, database, links, desired, secrets, clients, provisioning, events, *, interval=15.0, clock=time,
-                 routing=None):
+                 routing=None, max_concurrent=8):
         self.database, self.links, self.desired, self.secrets = database, links, desired, secrets
         self.clients, self.provisioning, self.events = clients, provisioning, events
         # The routing store (v0.4): a republish carries the node's egress section, and the
@@ -107,6 +108,9 @@ class FleetPusher:
         self.routing = routing
         self.interval, self.clock, self._stop = interval, clock, asyncio.Event()
         self._locks: dict[str, asyncio.Lock] = {}
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be positive")
+        self._slots = asyncio.Semaphore(max_concurrent)
         # Per node: the inventory the last auto-import saw, so an unchanged node costs one
         # `inventory` read per tick and no capture.
         self._adopted: dict[str, str] = {}
@@ -149,7 +153,10 @@ class FleetPusher:
         """Heartbeat, then deliver or poll — whichever the node owes; serialised per node
         so an operator's "probe now" cannot interleave with the loop."""
         async with self._locks.setdefault(node_id, asyncio.Lock()):
-            await self._sync(node_id)
+            # Shared across overlapping ticks and manual probes; waiting on this node's
+            # own lock must not consume a slot needed by another node.
+            async with self._slots:
+                await self._sync(node_id)
 
     async def _sync(self, node_id: str) -> None:
         client = self.links.client_for(node_id)
@@ -192,6 +199,11 @@ class FleetPusher:
             return  # heartbeat done; the re-push waits for its slot
         elif link["config_dirty"] or link["acknowledged_generation"] < latest["generation"]:
             await self._push(client, node_id, latest)
+        elif any(resource.valid_from is not None or resource.valid_until is not None
+                 for resource in latest["document"].resources):
+            # A node enforces deadlines even offline, without changing its generation.
+            # Refresh its readback so the central does not retain the pre-expiry state.
+            await self._poll_observed(client, node_id)
 
     async def _adopt(self, client, node_id: str) -> bool:
         """The node's own users become clients here (auto-import). A failure is this tick's
@@ -508,7 +520,11 @@ class FleetPusher:
                 # `drifted`: the runtime holds the desired on/off state, only an option
                 # could not be applied. `failed`: the last known state stands; the node's
                 # error is in observed_generations and on the operation's step.
-                state = grant.desired_state if item.state == "drifted" else item.state
+                if item.state == "drifted":
+                    person = self.clients.store.client(db, grant.client_id)
+                    state = "enabled" if effective_enabled(grant, person, now) else "disabled"
+                else:
+                    state = item.state
                 if state not in GRANT_STATES:
                     continue
                 if state == "missing" and grant.desired_state == "deleted":

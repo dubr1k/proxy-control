@@ -72,6 +72,42 @@ The cells that shape v0.2 most:
   UDP stays direct, the ingresses do not relay UDP) and `per_client_routing` stays
   `unproven` — [XRAY_ROUTER](XRAY_ROUTER.en.md).
 
+### Control-plane access enforcement
+
+A grant is enabled only while its client is active, its administrative state is
+`enabled`, and `valid_from <= now < valid_until` (an omitted boundary is open).
+Suspension preserves each grant's administrative state, so resuming a client does
+not enable grants that were disabled individually. Protocol-page enable operations
+also obey the client's state and validity window.
+
+Each panel checks local and Fleet-managed grants at startup and on an independent
+timer with a nominal 15-second interval. Fleet nodes enforce the validity window
+from their last accepted generation even while their central is unreachable; a
+new suspension still requires delivery of a generation from the central. Manager
+I/O and outages can extend convergence beyond the timer interval. Keep host clocks
+synchronized. A local grant stays `pending`, or a managed resource reports `failed`,
+until runtime readback confirms the requested state; retries do not rewrite the
+operator's administrative choice. The central refreshes observed timed grants on
+its heartbeat.
+
+The current managers cannot atomically create a disabled user. Creating an access
+outside its window therefore creates, disables and reads it back before provisioning
+can succeed. This prevents a false success report but does **not** guarantee an
+instantaneous, zero-window access cutoff or disabled-at-birth creation. A strict
+data-plane deadline requires native protocol/manager support, which remains
+unsupported in the matrix above.
+
+Панель применяет состояние клиента и интервал `valid_from <= now < valid_until`
+к реальному доступу, сохраняя индивидуальное отключение каждого доступа при
+возобновлении клиента. Проверка выполняется при запуске и периодически (номинально
+раз в 15 секунд); время ответов менеджеров и недоступность могут увеличить задержку.
+Узел Fleet соблюдает уже полученный срок без связи с центром, но новое отключение
+клиента требует доставки поколения. Успех подтверждается чтением состояния runtime;
+при ошибке остаётся `pending`/`failed` и выполняется повторная попытка. Атомарного
+создания отключённого пользователя менеджеры пока не поддерживают: создание,
+отключение и проверка предшествуют успешному завершению операции, но краткое окно
+доступа между этими шагами исключить нельзя.
+
 ## Subscription clients
 
 Auto-refresh means: the client accepts a subscription URL in a format one of our

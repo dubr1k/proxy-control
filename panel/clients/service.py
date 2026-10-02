@@ -6,6 +6,8 @@ change must not leave a bumped generation behind.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import secrets
 import time
 import uuid
@@ -17,11 +19,12 @@ from ..fleet_v2.guard import require_unmanaged
 from ..fleet_v2.managed import ManagedStore
 from ..nodes.models import LOCAL_NODE_ID
 from ..secrets_store import SecretRef, SecretStore
-from .models import AccessGrant, Client
+from .models import AccessGrant, Client, effective_enabled
 from .store import ClientConflict, ClientStore
 
 STATES = ("active", "suspended", "archived")
 CREDENTIAL_PURPOSE = "grant.credential"
+log = logging.getLogger(__name__)
 
 
 class ClientService:
@@ -35,6 +38,7 @@ class ClientService:
         self.on_change: list[Callable[[object, str], None]] = []
         # Filled in by create_app; adoption needs the protocol adapters.
         self.adapters: dict = {}
+        self._access_lock = asyncio.Lock()
 
     def notify(self, db, client_id: str) -> None:
         """Run inside the caller's transaction: a rolled-back change bumps nothing."""
@@ -82,6 +86,10 @@ class ClientService:
                 raise ClientConflict("client still has grants that are not deleted")
             self.store.set_client_state(db, client_id, state, updated_at=now)
             after = self.store.client(db, client_id)
+            if before.state != state:
+                for grant in self.store.grants(db, client_id=client_id):
+                    if effective_enabled(grant, before, now) != effective_enabled(grant, after, now):
+                        self.store.update_grant(db, grant.id, observed_state="pending")
             record(
                 db,
                 actor=actor,
@@ -94,6 +102,68 @@ class ClientService:
             )
             self.notify(db, client_id)
             return after
+
+    async def reconcile_access(self, client_id: str | None = None, *, force: bool = False) -> None:
+        """Confirm local access after state/time changes; failed writes stay pending.
+
+        Administrative intent stays intact: suspending a client must not erase which
+        of its grants were manually disabled. No manager I/O holds a DB transaction.
+        """
+        async with self._access_lock:
+            with self.database.connect() as db:
+                grants = self.store.grants(db, client_id=client_id, node_id=LOCAL_NODE_ID)
+                clients = {client.id: client for client in self.store.clients(db)}
+            now = int(self.clock.time())
+            candidates = [grant for grant in grants if force or grant.observed_state != (
+                "enabled" if effective_enabled(grant, clients[grant.client_id], now) else "disabled")]
+            for protocol in sorted({grant.protocol for grant in candidates}):
+                try:
+                    await self._reconcile_protocol(protocol, [grant for grant in candidates if grant.protocol == protocol])
+                except Exception:  # noqa: BLE001 — one unavailable manager must not skip other protocols
+                    # Deliberately omit manager exception text: it can contain a credential.
+                    log.warning("access enforcement pending for protocol %s", protocol)
+
+    async def _reconcile_protocol(self, protocol: str, grants: list[AccessGrant]) -> None:
+        from ..protocols.base import GrantRef  # noqa: PLC0415
+
+        planned = []
+        with self.database.transaction() as db:
+            for grant in grants:
+                try:
+                    current = self.store.grant(db, grant.id)
+                except KeyError:
+                    continue
+                if current.desired_state == "deleted" or self.managed.is_managed(db, protocol, current.runtime_username):
+                    continue
+                client = self.store.client(db, current.client_id)
+                planned.append((current, effective_enabled(current, client, int(self.clock.time()))))
+                self.store.update_grant(db, grant.id, observed_state="pending")
+        if not planned:
+            return
+        adapter = self._adapter(protocol)
+        inventory = {item.runtime_username: item for item in (await adapter.discover()).items}
+        for grant, wanted in planned:
+            item = inventory.get(grant.runtime_username)
+            if item is None:
+                continue  # provisioning owns creation; a missing account stays pending
+            if item.enabled != wanted:
+                try:
+                    ref = GrantRef(protocol, grant.runtime_username)
+                    await (adapter.enable(ref) if wanted else adapter.disable(ref))
+                except Exception:  # noqa: BLE001 — readback decides even after a lost reply
+                    log.warning("access mutation pending for grant %s", grant.id)
+        confirmed = {item.runtime_username: item for item in (await adapter.discover()).items}
+        with self.database.transaction() as db:
+            for grant, _ in planned:
+                try:
+                    fresh = self.store.grant(db, grant.id)
+                except KeyError:
+                    continue
+                client = self.store.client(db, fresh.client_id)
+                wanted = effective_enabled(fresh, client, int(self.clock.time()))
+                item = confirmed.get(fresh.runtime_username)
+                if fresh.desired_state != "deleted" and item is not None and item.enabled == wanted:
+                    self.store.update_grant(db, grant.id, observed_state="enabled" if wanted else "disabled")
 
     def _adapter(self, protocol: str):
         adapter = self.adapters.get(protocol)

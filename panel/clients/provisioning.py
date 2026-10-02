@@ -334,7 +334,7 @@ class ProvisioningService:
                 grant.id,
                 secret_id=reference.secret_id,
                 secret_version=reference.version,
-                observed_state="enabled",
+                observed_state=self.clients.store.grant(db, grant.id).observed_state,
                 updated_at=int(self.clock.time()),
             )
             self.clients.notify(db, grant.client_id)
@@ -390,6 +390,9 @@ class ProvisioningService:
             self._mark_step(operation_id, grant.id, "escrowed")
             step["status"] = "escrowed"
         if step["status"] == "escrowed":
+            await self.clients.reconcile_access(grant.client_id, force=True)
+            if self._grant(grant.id).observed_state == "pending":
+                raise AdapterError("runtime access could not be confirmed")
             self._activate(grant)
             self._mark_step(operation_id, grant.id, "active")
             step["status"] = "active"

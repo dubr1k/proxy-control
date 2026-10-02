@@ -79,7 +79,7 @@ class TelemtClient:
         """One read of the user table serves every `list_users`/`current_access` inside
         (a reconcile reads the link of each of its resources back), until a call that
         changes a link — create, rotate, delete — drops the snapshot. Enable/disable
-        and option updates leave the link alone and keep it."""
+        and option updates also invalidate the state used by access readback."""
         self._batching, self._inventory = True, None
         try:
             yield
@@ -134,13 +134,17 @@ class TelemtClient:
         self._forget()
         return (await self._request("DELETE", f"/v1/users/{quote(username)}"))[0]
 
-    async def set_enabled(self, username, enabled): return (await self._request("POST", f"/v1/users/{quote(username)}/{'enable' if enabled else 'disable'}"))[0]
+    async def set_enabled(self, username, enabled):
+        self._forget()
+        return (await self._request("POST", f"/v1/users/{quote(username)}/{'enable' if enabled else 'disable'}"))[0]
 
     async def rotate(self, username, secret=None):
         body = {} if secret is None else {"secret": secret}
         self._forget()
         return (await self._request("POST", f"/v1/users/{quote(username)}/rotate-secret", body))[0]
-    async def update_user(self, username, fields): return (await self._request("PATCH", f"/v1/users/{quote(username)}", fields))[0]
+    async def update_user(self, username, fields):
+        self._forget()
+        return (await self._request("PATCH", f"/v1/users/{quote(username)}", fields))[0]
     async def reset_quota(self, username): return (await self._request("POST", f"/v1/users/{quote(username)}/reset-quota", {}))[0]
     async def health(self): return (await self._request("GET", "/v1/health/ready"))[0]
     async def stats(self): return (await self._request("GET", "/v1/stats/summary"))[0]

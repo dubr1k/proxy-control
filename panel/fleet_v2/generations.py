@@ -157,6 +157,7 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
     resources = []
     capabilities = node_capabilities(db, node_id)
     lanes = "egress.lanes.v1" in capabilities
+    clients = {client.id: client for client in clients_store.clients(db)}
     for grant in clients_store.grants(db, node_id=node_id, include_deleted=True):
         if grant.desired_state == "deleted" and grant.observed_state == "missing":
             continue  # the node already confirmed the deletion; the next generation omits it
@@ -166,7 +167,9 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
         options = grant.options.model_dump(exclude_none=True, exclude={"expiration"})
         resources.append(Resource(
             ref=f"grant:{grant.id}", protocol=grant.protocol, runtime_username=grant.runtime_username,
-            desired_state=grant.desired_state, credential_ref=f"grant:{grant.id}:{version}", credential_origin="caller",
+            desired_state=("disabled" if grant.desired_state == "enabled" and clients[grant.client_id].state != "active"
+                           else grant.desired_state),
+            credential_ref=f"grant:{grant.id}:{version}", credential_origin="caller",
             origin=grant.origin, options=options, valid_from=grant.valid_from, valid_until=grant.valid_until,
             lane=grant.routing_lane if lanes and grant.protocol in ("naive", "mieru") else None))
     resources.sort(key=lambda item: item.ref)

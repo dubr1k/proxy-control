@@ -19,7 +19,7 @@ from ..audit import record
 from ..fleet_v2.guard import require_unmanaged
 from ..fleet_v2.managed import ManagedStore
 from ..protocols.base import GrantRef
-from .models import PROTOCOL_OPTIONS, AccessGrant, GrantIntent
+from .models import PROTOCOL_OPTIONS, AccessGrant, GrantIntent, effective_enabled
 from .store import ClientConflict
 
 LOCAL_NODE_ID = "local"
@@ -44,6 +44,16 @@ class DomainFacade:
         """An account the central panel owns is not this façade's to write (ADR 003)."""
         with self.clients.database.connect() as db:
             require_unmanaged(db, self.managed, protocol, username)
+
+    def effective_operation(self, protocol: str, username: str, enabled: bool) -> bool:
+        """Protocol pages may change intent, but cannot bypass a client's access window."""
+        grant = self.grant(protocol, username)
+        if grant is None:
+            return enabled
+        with self.clients.database.connect() as db:
+            client = self.clients.store.client(db, grant.client_id)
+        return effective_enabled(grant.model_copy(update={"desired_state": "enabled" if enabled else "disabled"}),
+                                 client, int(self.clients.clock.time()))
 
     def _client_for(self, db, display_name: str) -> str:
         for existing in self.clients.store.clients(db):
@@ -135,7 +145,7 @@ class DomainFacade:
         state = "enabled" if enabled else "disabled"
         with self.clients.database.transaction() as db:
             self.clients.store.update_grant(
-                db, grant.id, desired_state=state, observed_state=state,
+                db, grant.id, desired_state=state, observed_state="pending",
                 updated_at=int(self.clock.time()),
             )
             # One name per operator action wherever the account lives (`docs/AUDIT_EVENTS.md`):
@@ -152,6 +162,8 @@ class DomainFacade:
                 detail={"protocol": protocol, "runtime_username": username},
             )
             self.clients.notify(db, grant.client_id)
+
+        await self.clients.reconcile_access(grant.client_id, force=True)
 
     async def forget(self, protocol: str, username: str, *, actor, ip, request_id=None):
         """The runtime account is gone; the grant follows it instead of dangling."""

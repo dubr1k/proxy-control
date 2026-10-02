@@ -318,6 +318,7 @@ def register_client_routes(app, context: RequestContext) -> None:
             changed = await asyncio.to_thread(
                 app.state.clients.set_state, client_id, body.state, **_context(request, user)
             )
+            await app.state.clients.reconcile_access(client_id)
         except KeyError as exc:
             raise HTTPException(404, "client not found") from exc
         except ClientConflict as exc:
