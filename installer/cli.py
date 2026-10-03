@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import re
 import secrets
+import subprocess
 import sys
+import tarfile
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +43,7 @@ from installer.transaction import (
     TransactionState,
     TransactionStore,
     import_runtime_v2,
+    PanelOwnershipHandoff,
 )
 from installer.wizard import (
     TerminalIO,
@@ -116,6 +122,13 @@ def _parser() -> argparse.ArgumentParser:
     uninstall = subcommands.add_parser("uninstall", help="remove the owned transaction")
     uninstall.add_argument("--purge-data", action="store_true")
     uninstall.add_argument("--json", action="store_true")
+    reconcile = subcommands.add_parser(
+        "reconcile-panel-update",
+        help="explicitly reconcile Core ownership to a verified release archive",
+    )
+    reconcile.add_argument("--archive", type=Path, required=True)
+    reconcile.add_argument("--sha256", required=True)
+    reconcile.add_argument("--json", action="store_true")
     return parser
 
 
@@ -210,6 +223,10 @@ def run(
                 output=stdout,
             )
             return 0
+        if args.command == "reconcile-panel-update":
+            state = _reconcile_panel_update(args, composed.store, args.root)
+            _write_status(state, json_output=args.json, output=stdout)
+            return 0
         _adopt_legacy_if_needed(composed, args.root)
         if args.command == "resume":
             state = composed.engine.resume()
@@ -240,6 +257,68 @@ def run(
 
 def main(argv: Sequence[str] | None = None) -> int:
     return run(argv)
+
+
+def _running_panel_version() -> str:
+    try:
+        return subprocess.run(
+            ["docker", "exec", "proxy-control-panel", "cat", "/app/VERSION"],
+            capture_output=True, text=True, check=True, timeout=30,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CliError("running panel version could not be verified") from exc
+
+
+def _reconcile_panel_update(args: argparse.Namespace, store: TransactionStore, root: Path) -> TransactionState:
+    from version_agent.service import PANEL_SYNC, UpdateError, VersionAgent
+
+    if not _HEX_64.fullmatch(args.sha256):
+        raise CliError("release archive SHA-256 must be 64 lowercase hex digits")
+    try:
+        payload = args.archive.read_bytes()
+    except OSError as exc:
+        raise CliError("release archive is unreadable") from exc
+    if hashlib.sha256(payload).hexdigest() != args.sha256:
+        raise CliError("release archive SHA-256 mismatch")
+    with store.locked():
+        with tempfile.TemporaryDirectory(prefix="panel-reconcile-") as temporary:
+            staged = Path(temporary)
+            try:
+                with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+                    members = VersionAgent._preflight_panel_archive(archive)
+                    for member in members:
+                        path = staged.joinpath(*member.name.split("/")[1:])
+                        if member.isdir():
+                            path.mkdir(parents=True, exist_ok=True)
+                            continue
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        source = archive.extractfile(member)
+                        if source is None:
+                            raise CliError("release archive has an unreadable member")
+                        with source, path.open("wb") as destination:
+                            destination.write(source.read())
+            except (tarfile.TarError, UpdateError) as exc:
+                raise CliError("release archive is unsafe or unreadable") from exc
+            try:
+                version = (staged / "VERSION").read_text().strip()
+                identity = json.loads((staged / "release/release.json").read_text())
+            except (OSError, ValueError) as exc:
+                raise CliError("release archive identity is missing") from exc
+            if (
+                not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9.]+)?", version)
+                or identity.get("version") != version
+                or identity.get("tag") != f"v{version}"
+                or not re.fullmatch(r"[0-9a-f]{40}", str(identity.get("commit", "")))
+                or not _HEX_64.fullmatch(str(identity.get("manifest_sha256", "")))
+                or _running_panel_version() != version
+            ):
+                raise CliError("archive identity does not match the running panel")
+            project = root / "opt/mtproxy-shared443"
+            names = tuple(name for name in PANEL_SYNC if (staged / name).exists())
+            handoff = PanelOwnershipHandoff(store, project, staged, names, legacy=True)
+            handoff.prepare()
+            handoff.commit()
+            return store.read_state()
 
 
 def _wizard(

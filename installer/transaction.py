@@ -64,6 +64,10 @@ class OwnershipError(TransactionError):
     """Owned state no longer matches the transaction journal."""
 
 
+class OwnershipRecoveryFailed(TransactionError):
+    """A handoff could not restore the previous durable ownership generation."""
+
+
 class TransactionBusyError(TransactionError):
     """Another host mutation currently holds the operation lock."""
 
@@ -473,6 +477,189 @@ class TransactionStore:
         if not isinstance(value, dict):
             raise TransactionError(f"transaction {label} is invalid")
         return value
+
+
+class PanelOwnershipHandoff:
+    """Rebase only Core-owned release paths after a verified panel tree sync.
+
+    The caller holds the installer operation lock from prepare through commit or
+    rollback. A staged tree is the sole authority for the new generation.
+    """
+
+    def __init__(
+        self, store: TransactionStore, project: Path, staged: Path,
+        names: Sequence[str], *, legacy: bool = False,
+    ) -> None:
+        self.store = store
+        self.project = project
+        self.staged = staged
+        self.names = tuple(names)
+        self.legacy = legacy
+        self._state: TransactionState | None = None
+        self._core: TransactionCheckpoint | None = None
+        self._expected: dict[str, dict[str, str]] = {}
+
+    def _in_scope(self, host_path: str) -> bool:
+        try:
+            relative = Path(host_path).relative_to('/opt/mtproxy-shared443')
+        except ValueError:
+            return False
+        return bool(relative.parts) and relative.parts[0] in self.names
+
+    def _stage_files(self) -> dict[str, dict[str, str]]:
+        result: dict[str, dict[str, str]] = {}
+        allowed = {
+            'panel', 'installer', 'scripts', 'docker', 'mieru_manager',
+            'naive_manager', 'xray_router_manager', 'mcp_server', 'release', 'docs',
+            'compose.yaml', 'compose.naive.yaml', 'compose.mieru.yaml',
+            'compose.xray-router.yaml', 'compose.mcp.yaml', 'compose.agent.yaml',
+            'compose.fleet-central.yaml', 'VERSION', 'uninstall.sh', 'install.sh',
+            'install-bootstrap', 'CHANGELOG.md', 'CHANGELOG.ru.md', 'README.md',
+            'README.en.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE',
+        }
+        if any(name not in allowed for name in self.names):
+            raise OwnershipError('panel sync scope is unsafe')
+        for name in self.names:
+            source = self.staged / name
+            if not source.exists() or source.is_symlink():
+                raise OwnershipError("panel archive scope is missing or unsafe")
+            paths = sorted(source.rglob('*')) if source.is_dir() else [source]
+            for path in paths:
+                if path.is_dir():
+                    continue
+                if not path.is_file() or path.is_symlink():
+                    raise OwnershipError("panel archive contains an unsafe path")
+                relative = path.relative_to(self.staged)
+                host = '/opt/mtproxy-shared443/' + relative.as_posix()
+                result[host] = _path_identity(path)
+        return result
+
+    def prepare(self) -> None:
+        engine = TransactionEngine(self.store, {})
+        if not self.store.state_path.exists():
+            return
+        if self.project != _root_path(self.store.root, '/opt/mtproxy-shared443'):
+            raise OwnershipError("panel project path does not match Core ownership")
+        state = self.store.read_state()
+        engine._read_matching_plan(state)
+        if state.status != 'active' or state.origin != 'installer-v1':
+            raise TransactionError("panel ownership requires an active installer transaction")
+        if _thaw(self.store.read_ownership()) != _thaw(engine._ownership_for(state)):
+            raise OwnershipError("ownership journal disagrees with checkpoint")
+        core = [item for item in state.checkpoints if item.adapter == 'core' and item.phase == 'verified']
+        if len(core) != 1 or core[0].action_id != 'core.runtime':
+            raise TransactionError("active Core checkpoint is unavailable")
+        checkpoint = core[0]
+        declaration = checkpoint.data.get('ownership')
+        if not isinstance(declaration, Mapping):
+            raise OwnershipError("Core ownership declaration is invalid")
+        for host, entry in checkpoint.ownership.items():
+            if host not in declaration or entry.get('sha256') != declaration[host].get('sha256'):
+                raise OwnershipError("Core checkpoint ownership disagrees with adapter data")
+        stage = self._stage_files()
+        owned = engine._ownership_for(state)
+        if not self.legacy:
+            engine._assert_owned(owned)
+        else:
+            engine._assert_owned({path: entry for path, entry in owned.items() if not self._in_scope(path)})
+        # A replaced directory must contain only files Core actually owned.
+        for name in self.names:
+            target = self.project / name
+            if not target.exists():
+                continue
+            paths = target.rglob('*') if target.is_dir() else (target,)
+            for path in paths:
+                if path.is_dir():
+                    continue
+                host = '/opt/mtproxy-shared443/' + path.relative_to(self.project).as_posix()
+                relative = path.relative_to(target)
+                # Python writes bytecode into installed source trees at runtime.
+                # These files are never Core-owned and are discarded by the
+                # replacement; never adopt them into the new generation.
+                if ("__pycache__" in relative.parts or path.suffix == ".pyc") and path.is_file() and not path.is_symlink():
+                    continue
+                if host not in checkpoint.ownership and not (
+                    self.legacy and host in stage
+                    and _path_identity(path) == stage[host]
+                ):
+                    raise OwnershipError(f"foreign file in panel sync scope: {host}")
+        if self.legacy:
+            for host, identity in stage.items():
+                if _path_identity(_owned_path(self.store.root, host)[1]) != identity:
+                    raise OwnershipError(f"installed panel file differs from archive: {host}")
+            for host in checkpoint.ownership:
+                if self._in_scope(host) and host not in stage:
+                    path = _owned_path(self.store.root, host)[1]
+                    if path.exists() or path.is_symlink():
+                        raise OwnershipError(f"removed archive file still exists: {host}")
+        self._state, self._core, self._expected = state, checkpoint, stage
+
+    def commit(self) -> None:
+        if self._state is None:
+            return
+        if self._core is None:
+            raise TransactionError("panel handoff was not prepared")
+        engine = TransactionEngine(self.store, {})
+        if self.store.read_state() != self._state:
+            raise TransactionError("installer transaction changed during panel update")
+        engine._assert_owned({
+            path: entry for path, entry in engine._ownership_for(self._state).items()
+            if not self._in_scope(path)
+        })
+        for name in self.names:
+            target = self.project / name
+            if not target.exists():
+                continue
+            paths = target.rglob('*') if target.is_dir() else (target,)
+            for path in paths:
+                if path.is_dir():
+                    continue
+                relative = path.relative_to(target)
+                if (
+                    self.legacy
+                    and ("__pycache__" in relative.parts or path.suffix == ".pyc")
+                    and path.is_file()
+                    and not path.is_symlink()
+                ):
+                    # Bytecode may be regenerated after an old-agent update;
+                    # it is neither archive evidence nor newly owned state.
+                    continue
+                host = '/opt/mtproxy-shared443/' + path.relative_to(self.project).as_posix()
+                if host not in self._expected:
+                    raise OwnershipError(f"removed or foreign panel file remains: {host}")
+        for host, identity in self._expected.items():
+            if _path_identity(_owned_path(self.store.root, host)[1]) != identity:
+                raise OwnershipError(f"panel file differs from verified archive: {host}")
+        ownership = {path: _thaw(entry) for path, entry in self._core.ownership.items()
+                     if not self._in_scope(path)}
+        declaration = {path: _thaw(entry) for path, entry in self._core.data['ownership'].items()
+                       if not self._in_scope(path)}
+        for host, identity in self._expected.items():
+            ownership[host] = {
+                'action_id': self._core.action_id, 'adapter': 'core',
+                'kind': identity['kind'], 'preserve': False,
+                'mutable': False, 'sha256': identity['sha256'],
+            }
+            declaration[host] = {'preserve': False, 'sha256': identity['sha256']}
+        data = _thaw(self._core.data)
+        data['ownership'] = declaration
+        replacement = replace(self._core, data=data, ownership=ownership)
+        updated = engine._with_checkpoint(self._state, replacement)
+        # State is authoritative. A crash after this write leaves a new state
+        # and stale derived journal; `resume` can revalidate the new bytes and
+        # reconstruct the journal. The inverse ordering strands both paths.
+        try:
+            self.store.write_state(updated)
+            self.store.write_ownership(engine._ownership_for(updated))
+        except Exception:
+            try:
+                self.store.write_state(self._state)
+                self.store.write_ownership(engine._ownership_for(self._state))
+            except Exception as restore_exc:
+                raise OwnershipRecoveryFailed(
+                    "panel ownership handoff failed and previous journal could not be restored"
+                ) from restore_exc
+            raise
 
 
 class RuntimeV2Adapter:

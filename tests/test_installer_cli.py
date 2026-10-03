@@ -109,6 +109,18 @@ def _services(
     return services, engine
 
 
+def test_panel_recovery_rejects_wrong_archive_digest_before_mutation(tmp_path):
+    services, _ = _services(load_config(CORE_CONFIG))
+    archive = tmp_path / "release.tar.gz"
+    archive.write_bytes(b"not the approved archive")
+    result, output, error = _run(
+        ["--root", str(tmp_path), "reconcile-panel-update", "--archive", str(archive),
+         "--sha256", "0" * 64], services,
+    )
+    assert result == 2 and not output
+    assert "SHA-256" in error
+
+
 def _run(
     argv: list[str],
     services: cli.CliServices,

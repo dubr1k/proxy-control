@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import importlib
 import io
 import json
 import os
@@ -220,6 +221,7 @@ class VersionAgent:
         panel_container: str = "proxy-control-panel",
         panel_volume: str = "mtproxy_panel-data",
         synchronous: bool = False,
+        installer_root: Path | None = None,
     ):
         self.catalog_path = catalog_path
         self.state_path = state_path
@@ -249,6 +251,7 @@ class VersionAgent:
         self.panel_image = panel_image
         self.panel_container = panel_container
         self.panel_volume = panel_volume
+        self.installer_root = installer_root
         # The panel update restarts the panel, which drops the request that asked for it:
         # it runs in a thread and the request returns first. Tests run it inline.
         self.synchronous = synchronous
@@ -716,8 +719,34 @@ class VersionAgent:
     def _sync_and_restart_panel(
         self, entry: CatalogEntry, previous: str | None, staging: Path
     ) -> tuple[list[str], bool]:
+        # The installer and agent must not mutate the same project generation
+        # concurrently. Keep the host lock until rollback or handoff finishes.
+        if self.installer_root is not None:
+            installer_root = self.installer_root
+        elif self.compose_dir == Path('/opt/mtproxy-shared443'):
+            installer_root = Path('/')
+        else:
+            installer_root = self.compose_dir.parent
+        if str(self.compose_dir) not in sys.path:
+            sys.path.insert(0, str(self.compose_dir))
+        transaction = importlib.import_module('installer.transaction')
+        installer_store = transaction.TransactionStore(installer_root)
+        if self.installer_root is None and installer_store.state_path.exists() and Path(transaction.__file__).resolve() != (self.compose_dir / 'installer/transaction.py').resolve():
+            raise UpdateError("installed installer module could not be loaded from the project tree")
+        with transaction.operation_lock(installer_root, error_type=UpdateError):
+            return self._sync_and_restart_panel_locked(entry, previous, staging, transaction, installer_root)
+
+    def _sync_and_restart_panel_locked(
+        self, entry: CatalogEntry, previous: str | None, staging: Path,
+        transaction: object, installer_root: Path,
+    ) -> tuple[list[str], bool]:
         targets = self._panel_targets()
         present = [name for name in targets if (staging / name).exists()]
+        handoff = transaction.PanelOwnershipHandoff(
+            transaction.TransactionStore(installer_root), self.compose_dir, staging,
+            tuple(name for name in present if name != PANEL_AGENT_DIR),
+        )
+        handoff.prepare()
         for name in present:
             if targets[name].is_symlink():
                 raise UpdateError(f"refusing to replace symlink {targets[name]}")
@@ -771,6 +800,7 @@ class VersionAgent:
             if running != entry.version:
                 raise UpdateError(f"panel container reports {running or 'nothing'}, expected {entry.version}")
             self._start_panel_peers()
+            handoff.commit()
         except Exception as exc:
             try:
                 self._restore_panel(targets, synced, backup_dir, db_backup, db_saved, volume_dir, rollback_tag)
@@ -781,6 +811,10 @@ class VersionAgent:
                 raise RollbackFailedError(
                     f"panel update failed ({exc}); restored generation could not be verified"
                 ) from rollback_exc
+            if isinstance(exc, transaction.OwnershipRecoveryFailed):
+                raise RollbackFailedError(
+                    "panel filesystem was restored but installer ownership recovery failed"
+                ) from exc
             raise RolledBackError(
                 f"panel update failed ({exc}); previous generation was restored and verified"
             ) from exc

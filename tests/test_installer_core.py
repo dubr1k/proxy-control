@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import base64
+import argparse
 import dataclasses
+import hashlib
+import io
 import json
 import stat
+import tarfile
 from pathlib import Path
 
 import subprocess
@@ -38,7 +42,7 @@ from installer.planner import (
     InstallPlan,
     ReleaseIdentity,
 )
-from installer.transaction import TransactionEngine, TransactionStore
+from installer.transaction import TransactionEngine, TransactionStore, PanelOwnershipHandoff, OwnershipError, OwnershipRecoveryFailed
 
 
 ROOT = Path(__file__).parents[1]
@@ -413,6 +417,201 @@ def test_core_runs_through_transaction_apply_repair_and_uninstall(tmp_path):
     assert applied.status == repaired.status == "active"
     assert removed.status == "uninstalled"
     assert runner.cleanup_calls == 2
+
+
+def test_panel_handoff_keeps_core_repair_and_uninstall_owned(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    engine = TransactionEngine(store, {"core": adapter})
+    old = engine.apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    staged = tmp_path / "staged"
+    (staged / "panel").mkdir(parents=True)
+    (staged / "panel/app.py").write_text("new panel\n")
+    (staged / "panel/new.py").write_text("new file\n")
+    (staged / "docs").mkdir()
+    (staged / "docs/README.md").write_text("new docs\n")
+    handoff = PanelOwnershipHandoff(store, project, staged, ("panel", "docs"))
+    handoff.prepare()
+    (project / "panel/app.py").write_text("new panel\n")
+    (project / "panel/new.py").write_text("new file\n")
+    with pytest.raises(OwnershipError, match="removed"):
+        handoff.commit()
+    import shutil
+    shutil.rmtree(project / "panel")
+    shutil.copytree(staged / "panel", project / "panel")
+    shutil.copytree(staged / "docs", project / "docs")
+    handoff.commit()
+    updated = store.read_state()
+    assert updated.plan_digest == old.plan_digest
+    assert "/opt/mtproxy-shared443/panel/new.py" in updated.checkpoints[0].ownership
+    assert "/opt/mtproxy-shared443/docs/README.md" in updated.checkpoints[0].ownership
+    assert engine.repair().status == "active"
+    assert engine.uninstall(purge_data=False).status == "uninstalled"
+
+
+def test_panel_handoff_rejects_foreign_file_before_sync(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    TransactionEngine(store, {"core": adapter}).apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    (project / "panel/foreign.py").write_text("foreign\n")
+    staged = tmp_path / "staged"
+    (staged / "panel").mkdir(parents=True)
+    (staged / "panel/app.py").write_text("new panel\n")
+    with pytest.raises(OwnershipError, match="foreign"):
+        PanelOwnershipHandoff(store, project, staged, ("panel",)).prepare()
+
+
+def test_panel_handoff_ignores_python_bytecode_without_adopting_it(tmp_path):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    TransactionEngine(store, {"core": adapter}).apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    cache = project / "panel/__pycache__"
+    cache.mkdir()
+    (cache / "app.cpython-312.pyc").write_bytes(b"generated cache")
+    staged = tmp_path / "staged"
+    (staged / "panel").mkdir(parents=True)
+    (staged / "panel/app.py").write_text("new panel\n")
+    handoff = PanelOwnershipHandoff(store, project, staged, ("panel",))
+    handoff.prepare()
+    assert all("__pycache__" not in path for path in handoff._expected)
+
+
+def test_panel_handoff_state_is_recoverable_after_crash_before_journal(tmp_path, monkeypatch):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    engine = TransactionEngine(store, {"core": adapter})
+    engine.apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    staged = tmp_path / "staged"
+    (staged / "panel").mkdir(parents=True)
+    (staged / "panel/app.py").write_text("new panel\n")
+    handoff = PanelOwnershipHandoff(store, project, staged, ("panel",))
+    handoff.prepare()
+    import shutil
+    shutil.rmtree(project / "panel")
+    shutil.copytree(staged / "panel", project / "panel")
+    write_ownership = store.write_ownership
+
+    class SimulatedCrash(BaseException):
+        pass
+
+    monkeypatch.setattr(store, "write_ownership", lambda *_: (_ for _ in ()).throw(SimulatedCrash()))
+    with pytest.raises(SimulatedCrash):
+        handoff.commit()
+    monkeypatch.setattr(store, "write_ownership", write_ownership)
+    assert store.read_state().checkpoints[0].data["ownership"]["/opt/mtproxy-shared443/panel/app.py"]["sha256"] == __import__("hashlib").sha256(b"new panel\n").hexdigest()
+    assert engine.resume().status == "active"
+
+
+def test_explicit_legacy_recovery_requires_exact_archive_and_restores_repair(tmp_path, monkeypatch):
+    from installer import cli
+    import shutil
+
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    engine = TransactionEngine(store, {"core": adapter})
+    engine.apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    version = "1.1.2-rc.1"
+    files = {
+        "VERSION": (version + "\n").encode(),
+        "panel/app.py": b"new panel\n",
+        "release/release.json": json.dumps({
+            "version": version, "tag": "v" + version,
+            "commit": "a" * 40, "manifest_sha256": "b" * 64,
+        }).encode(),
+    }
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        for name, body in files.items():
+            member = tarfile.TarInfo("proxy-control/" + name)
+            member.size = len(body)
+            archive.addfile(member, io.BytesIO(body))
+    archive_path = tmp_path / "candidate.tar.gz"
+    archive_path.write_bytes(buffer.getvalue())
+    # Simulate an update by the old agent, which replaced files but left Core's
+    # ownership generation unchanged.
+    shutil.rmtree(project / "panel")
+    (project / "panel").mkdir()
+    for name, body in files.items():
+        path = project / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+    cache = project / "panel/__pycache__"
+    cache.mkdir()
+    (cache / "app.cpython-312.pyc").write_bytes(b"generated after update")
+    monkeypatch.setattr(cli, "_running_panel_version", lambda: version)
+    args = argparse.Namespace(archive=archive_path, sha256="0" * 64)
+    with pytest.raises(cli.CliError, match="SHA-256 mismatch"):
+        cli._reconcile_panel_update(args, store, tmp_path)
+    assert store.read_state().checkpoints[0].data["ownership"]["/opt/mtproxy-shared443/VERSION"]["sha256"] != hashlib.sha256(files["VERSION"]).hexdigest()
+    args.sha256 = hashlib.sha256(buffer.getvalue()).hexdigest()
+    assert cli._reconcile_panel_update(args, store, tmp_path).status == "active"
+    assert engine.repair().status == "active"
+    assert engine.uninstall(purge_data=False).status == "uninstalled"
+
+
+def test_panel_handoff_reports_unverified_journal_recovery(tmp_path, monkeypatch):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    TransactionEngine(store, {"core": adapter}).apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    staged = tmp_path / "staged"
+    (staged / "panel").mkdir(parents=True)
+    (staged / "panel/app.py").write_text("new panel\n")
+    handoff = PanelOwnershipHandoff(store, project, staged, ("panel",))
+    handoff.prepare()
+    import shutil
+    shutil.rmtree(project / "panel")
+    shutil.copytree(staged / "panel", project / "panel")
+    monkeypatch.setattr(store, "write_ownership", lambda *_: (_ for _ in ()).throw(OSError("journal unavailable")))
+    with pytest.raises(OwnershipRecoveryFailed, match="could not be restored"):
+        handoff.commit()
 
 
 def test_automatic_rollback_never_purges_volumes_or_credentials(tmp_path):

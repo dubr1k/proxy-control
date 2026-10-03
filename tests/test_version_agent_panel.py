@@ -11,6 +11,10 @@ import threading
 from pathlib import Path
 
 import pytest
+from installer.adapters.core import CoreAdapter
+from installer.planner import AuditFacts, InstallPlan, ReleaseIdentity
+from installer.transaction import PanelOwnershipHandoff, TransactionEngine, TransactionStore, operation_lock
+from tests.test_installer_core import FakeRunner, ROOT, config, core_action
 
 from tests.test_version_agent import PANEL_URL, _agent
 from tests.test_version_agent_artifacts import _targz
@@ -161,6 +165,64 @@ def test_panel_current_is_the_running_container_and_the_state_carries_the_status
     assert agent.update("panel", NEW_PANEL, expected_current=NEW_PANEL) == {
         "component": "panel", "version": NEW_PANEL, "changed": False}
     assert _mutations(host.commands) == []
+
+
+def test_panel_update_refuses_installer_lock_before_tree_mutation(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    agent = host.agent(_panel_archive())
+    with operation_lock(tmp_path):
+        with pytest.raises(UpdateError, match="operation"):
+            agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
+    assert _mutations(host.commands) == []
+
+
+def test_panel_update_refuses_unrelated_installer_module_before_mutation(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    state = tmp_path / "var/lib/proxy-control/installer/state.json"
+    state.parent.mkdir(parents=True)
+    state.write_text("{}")
+    agent = host.agent(_panel_archive())
+    with pytest.raises(UpdateError, match="installer module"):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
+    assert _mutations(host.commands) == []
+
+
+def test_failed_panel_handoff_restores_tree_and_never_reports_ready(tmp_path: Path, monkeypatch):
+    host = _PanelHost(tmp_path)
+    agent = host.agent(_panel_archive())
+
+    def fail_handoff(self):
+        raise RuntimeError("journal write failed")
+
+    monkeypatch.setattr(PanelOwnershipHandoff, "commit", fail_handoff)
+    with pytest.raises(RolledBackError, match="journal write failed"):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
+    assert host.running.strip() == OLD_PANEL
+    assert _state(tmp_path)["status"] != "ready" or _state(tmp_path)["version"] == OLD_PANEL
+
+
+def test_panel_update_rebases_active_core_for_repair_and_uninstall(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    engine = TransactionEngine(store, {"core": CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner())})
+    old = engine.apply(plan, accepted_digest=plan.digest)
+    host.compose = tmp_path / "opt/mtproxy-shared443"
+    agent = host.agent(_panel_archive(), installer_root=tmp_path)
+    agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    updated = store.read_state()
+    assert updated.plan_digest == old.plan_digest
+    assert updated.checkpoints[0].data["ownership"]["/opt/mtproxy-shared443/VERSION"]["sha256"] == hashlib.sha256(f"{NEW_PANEL}\n".encode()).hexdigest()
+    assert engine.repair().status == "active"
+    assert engine.uninstall(purge_data=False).status == "uninstalled"
 
 
 def test_a_version_file_ahead_of_the_running_panel_does_not_hide_the_update(tmp_path: Path):
