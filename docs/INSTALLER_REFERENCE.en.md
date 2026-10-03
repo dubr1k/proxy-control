@@ -297,6 +297,11 @@ Managed 3x-ui **3.9.0** publishes three reference inbounds: **VLESS Reality TCP*
 freshly generated Reality keys, short IDs, and client credentials; nothing is
 copied from a reference server.
 
+Explicit `uninstall --purge-data` stops managed 3x-ui and removes its `x-ui.db`,
+`x-ui.db-wal`, `x-ui.db-shm` and `system_metrics.gob`. Unknown files are retained;
+a symlink in place of these data files is refused. The database directory is
+removed only when empty, and `managed-new` refuses a leftover directory.
+
 ## Ownership boundaries and order
 
 The plan runs adapters in one documented order, and each owns exactly one

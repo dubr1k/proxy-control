@@ -408,6 +408,15 @@ class _DefaultThreeXuiRunner(_DefaultCoreRunner):
         except Exception:
             return False
 
+    def unit_stopped(self, unit: str) -> bool:
+        output = self._capture_checked((
+            "systemctl", "show", unit,
+            "--property=ActiveState,SubState,MainPID,ControlPID",
+        ))
+        return dict(line.split("=", 1) for line in output.splitlines() if "=" in line) == {
+            "ActiveState": "inactive", "SubState": "dead", "MainPID": "0", "ControlPID": "0",
+        }
+
 
 def _default_api_factory(port: int, base_path: str = "/", *, certificate: Path | None = None):
     """One client against the local panel, under the path it now answers on."""
@@ -1136,6 +1145,7 @@ class ThreeXuiAdapter:
         """Managed-new refuses to adopt any pre-existing 3x-ui footprint."""
         for label, host_path in (
             ("database", self.paths.database),
+            ("database directory", str(Path(self.paths.database).parent)),
             ("binary tree", self.paths.root_dir),
             ("unit", self.paths.unit),
         ):
@@ -1349,6 +1359,22 @@ class ThreeXuiAdapter:
             )
         self._selection(action)
         self._run_best_effort("systemctl", "disable", "--now", _UNIT_NAME)
+        try:
+            stopped = self.runner.unit_stopped(_UNIT_NAME)
+        except Exception as exc:
+            raise ThreeXuiError("3x-ui stop could not be confirmed") from exc
+        if not stopped:
+            raise ThreeXuiError("3x-ui is still active or its stop is unconfirmed")
+        destructive = rollback_target == "uninstalled" and purge_data
+        database = self._host(self.paths.database)
+        data_files = (
+            database,
+            database.with_name(database.name + "-wal"),
+            database.with_name(database.name + "-shm"),
+            database.with_name("system_metrics.gob"),
+        )
+        if destructive and any(path.is_symlink() or (path.exists() and not path.is_file()) for path in data_files):
+            raise ThreeXuiError("3x-ui data path is not a regular file")
         ownership = checkpoint.get("ownership", {})
         if not isinstance(ownership, Mapping):
             raise ThreeXuiError("3x-ui checkpoint is invalid")
@@ -1360,10 +1386,13 @@ class ThreeXuiAdapter:
             path = self._host(host_path)
             if path.exists() or path.is_symlink():
                 durable_remove(path)
-        destructive = rollback_target == "uninstalled" and purge_data
-        database = self._host(self.paths.database)
-        if destructive and (database.exists() or database.is_symlink()):
-            durable_remove(database)
+        if destructive:
+            for path in data_files:
+                durable_remove(path, missing_ok=True)
+            # Never recurse into this directory: foreign files are retained.
+            if database.parent.is_dir() and not any(database.parent.iterdir()):
+                database.parent.rmdir()
+                fsync_directory(database.parent.parent)
         self._run_best_effort("systemctl", "daemon-reload")
         return Evidence(
             action_id=action.id,

@@ -126,8 +126,8 @@ If 3x-ui/Xray exposes no trustworthy denial event, record that evidence as
 unverified rather than converting a curl error into server proof. Do not copy
 credentials, links, full access logs or client configs into the report.
 The operator must remove the staged 3x-ui or rotate every credential used
-after the run. This prepared gate has **not** been run on `ams-test` and is not
-protocol evidence yet. A listener-only `managed-xui-acceptance.sh` success
+after the run. A prepared script alone is not protocol evidence: attach the
+actual run results for the tested archive. A listener-only `managed-xui-acceptance.sh` success
 does not satisfy this gate.
 
 ### Synthetic Fleet capacity measurement

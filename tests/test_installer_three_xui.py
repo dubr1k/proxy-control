@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from installer.adapters.three_xui import (
+    _DefaultThreeXuiRunner,
     _VERSION,
     AcceptanceError,
     ArtifactError,
@@ -198,6 +199,10 @@ class FakeThreeXuiRunner:
     def unit_active(self, unit):
         del unit
         return self._unit_active
+
+    def unit_stopped(self, unit):
+        del unit
+        return not self._unit_active
 
     def bootstrap_session(self, *, namespace, binary, payload_path):
         self.calls.append(("ip", "netns", "add", namespace))
@@ -621,6 +626,104 @@ def test_managed_verify_rejects_an_unpinned_installed_version(tmp_path):
     runner.version = "x-ui 2.0.0"
     with pytest.raises(AcceptanceError, match="pinned version"):
         instance.verify(action)
+
+
+@pytest.mark.parametrize("foreign", [False, True])
+def test_managed_purge_removes_39_sidecars_but_preserves_unknown_data(tmp_path, foreign):
+    archive = build_release(tmp_path)
+    instance = adapter(tmp_path)
+    action = pinned_action(tmp_path, archive)
+    checkpoint = instance.apply(action, instance.prepare(action), archive=archive)
+    directory = tmp_path / "etc/x-ui"
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in ("x-ui.db", "x-ui.db-wal", "x-ui.db-shm", "system_metrics.gob"):
+        (directory / name).write_bytes(b"owned-runtime-data")
+    if foreign:
+        (directory / "foreign.txt").write_bytes(b"preserve")
+
+    instance.rollback(action, checkpoint, purge_data=True, rollback_target="uninstalled")
+
+    if foreign:
+        assert list(directory.iterdir()) == [directory / "foreign.txt"]
+        assert (directory / "foreign.txt").read_bytes() == b"preserve"
+    else:
+        assert not directory.exists()
+
+
+def test_managed_purge_refuses_a_runtime_sidecar_symlink(tmp_path):
+    archive = build_release(tmp_path)
+    instance = adapter(tmp_path)
+    action = pinned_action(tmp_path, archive)
+    checkpoint = instance.apply(action, instance.prepare(action), archive=archive)
+    directory = tmp_path / "etc/x-ui"
+    directory.mkdir(parents=True, exist_ok=True)
+    target = tmp_path / "foreign-data"
+    target.write_bytes(b"preserve")
+    (directory / "system_metrics.gob").symlink_to(target)
+    with pytest.raises(ThreeXuiError, match="data path"):
+        instance.rollback(action, checkpoint, purge_data=True, rollback_target="uninstalled")
+    assert target.read_bytes() == b"preserve"
+    assert (directory / "system_metrics.gob").is_symlink()
+
+
+def test_managed_new_refuses_orphan_database_sidecars(tmp_path):
+    directory = tmp_path / "etc/x-ui"
+    directory.mkdir(parents=True)
+    (directory / "x-ui.db-wal").write_bytes(b"previous database")
+    with pytest.raises(ThreeXuiError, match="pre-existing database"):
+        adapter(tmp_path).assert_absent()
+
+
+def test_managed_purge_refuses_to_delete_data_while_service_still_runs(tmp_path):
+    archive = build_release(tmp_path)
+    runner = FakeThreeXuiRunner()
+    instance = adapter(tmp_path, runner)
+    action = pinned_action(tmp_path, archive)
+    checkpoint = instance.apply(action, instance.prepare(action), archive=archive)
+    database = tmp_path / PATHS.database.lstrip("/")
+    database.parent.mkdir(parents=True, exist_ok=True)
+    database.write_bytes(b"live-data")
+    runner.fail_on = ("systemctl", "disable")
+    with pytest.raises(ThreeXuiError, match="still active"):
+        instance.rollback(action, checkpoint, purge_data=True, rollback_target="uninstalled")
+    assert database.read_bytes() == b"live-data"
+    assert (tmp_path / PATHS.binary.lstrip("/")).exists()
+
+
+@pytest.mark.parametrize("status", [None, "", "ActiveState=deactivating\nSubState=stop-sigterm\nMainPID=123\nControlPID=0\n", "ActiveState=unknown\n"])
+def test_managed_purge_preserves_generation_when_stop_cannot_be_confirmed(tmp_path, status):
+    archive = build_release(tmp_path)
+    runner = FakeThreeXuiRunner()
+    instance = adapter(tmp_path, runner)
+    action = pinned_action(tmp_path, archive)
+    checkpoint = instance.apply(action, instance.prepare(action), archive=archive)
+    database = tmp_path / PATHS.database.lstrip("/")
+    database.parent.mkdir(parents=True, exist_ok=True)
+    database.write_bytes(b"live-data")
+    runner.fail_on = ("systemctl", "disable")
+    runner.unit_active = lambda unit: False  # Old diagnostic masks query errors.
+
+    def capture(argv):
+        if status is None:
+            raise OSError("systemd unavailable")
+        return status
+
+    runner._capture_checked = capture
+    runner.unit_stopped = lambda unit: _DefaultThreeXuiRunner.unit_stopped(runner, unit)
+    with pytest.raises(ThreeXuiError, match="stop"):
+        instance.rollback(action, checkpoint, purge_data=True, rollback_target="uninstalled")
+    assert database.read_bytes() == b"live-data"
+    assert (tmp_path / PATHS.binary.lstrip("/")).exists()
+    assert (tmp_path / PATHS.unit.lstrip("/")).exists()
+
+
+@pytest.mark.parametrize("pid", [0, 42])
+def test_stop_confirmation_requires_inactive_dead_without_processes(pid):
+    runner = _DefaultThreeXuiRunner()
+    runner._capture_checked = lambda argv: (
+        f"ActiveState=inactive\nSubState=dead\nMainPID={pid}\nControlPID=0\n"
+    )
+    assert runner.unit_stopped("x-ui.service") is (pid == 0)
 
 
 # ----------------------------------------------------------------------

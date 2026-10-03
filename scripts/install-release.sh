@@ -170,6 +170,7 @@ Xray-router (необязательно, v0.5): [egress] router = true — вы�
   • Host-службы по профилю: caddy-naive.service (NaiveProxy) и mita.service (Mieru).
   • Правила UFW — только если вы это разрешили и только на свежем хосте.
   • 3x-ui — в режиме `existing` только маршрут, в `managed-new` — свой экземпляр.
+    `managed-new` требует отсутствия прежней базы и её каталога /etc/x-ui.
   • Журнал транзакции, владение и отчёты — /var/lib/proxy-control/.
 Каждый шаг журналируется и откатывается; прерванную установку продолжает
 `python3 -m installer.cli resume`. Ничего не меняется до подтверждения digest плана.
@@ -240,6 +241,7 @@ What the installer does (wizard → plan → digest confirmation → apply):
   • Host services per profile: caddy-naive.service (NaiveProxy), mita.service (Mieru).
   • UFW rules — only when you allow it and only on a fresh host.
   • 3x-ui — a route only in `existing` mode, its own instance in `managed-new`.
+    `managed-new` requires the old database and its /etc/x-ui directory to be absent.
   • The transaction journal, ownership and reports — /var/lib/proxy-control/.
 Every step is journaled and reversible; an interrupted install continues with
 `python3 -m installer.cli resume`. Nothing changes before the plan digest is confirmed.

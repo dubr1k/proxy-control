@@ -624,9 +624,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1791046871.0111704,
-    "seen": 1791046928.6336021,
-    "ast_hash": "716293bd5589ba3eb4d3bd48b3a376d5",
+    "mtime": 1791047600.1978188,
+    "seen": 1791048146.546564,
+    "ast_hash": "3a4b21447007de91eaa79c1373495fa5",
     "semantic_hash": ""
   },
   "CODE_OF_CONDUCT.md": {
@@ -888,9 +888,9 @@
     "semantic_hash": ""
   },
   "tests/lab/README.md": {
-    "mtime": 1791032798.008574,
-    "seen": 1791032869.527046,
-    "ast_hash": "3ade8b47ed30e118fc6c4fe83c4ace7e",
+    "mtime": 1791047600.1989043,
+    "seen": 1791048146.546616,
+    "ast_hash": "84c556ce3fa33c5698b066becf3c092a",
     "semantic_hash": ""
   },
   "assets/proxy-control-cover.png": {
@@ -978,9 +978,9 @@
     "semantic_hash": "cbc00a2279084904c5d31b45506f2841"
   },
   "installer/adapters/three_xui.py": {
-    "mtime": 1791045306.2934422,
-    "seen": 1791045531.965306,
-    "ast_hash": "8e859f356a6d9fce0dc66cfcebbbd423",
+    "mtime": 1791048052.1297207,
+    "seen": 1791048146.546398,
+    "ast_hash": "bd63aad323a5d628a35d46fb8d2e71cd",
     "semantic_hash": ""
   },
   "installer/adapters/warp.py": {
@@ -1290,9 +1290,9 @@
     "semantic_hash": ""
   },
   "tests/test_installer_three_xui.py": {
-    "mtime": 1791045282.9295473,
-    "seen": 1791045531.965441,
-    "ast_hash": "03dca72a5e018f8d015e6a896112340c",
+    "mtime": 1791048012.9663055,
+    "seen": 1791048146.546533,
+    "ast_hash": "b8504152fdce510c1e0157faea21a468",
     "semantic_hash": ""
   },
   "tests/test_installer_transaction.py": {
@@ -1416,15 +1416,15 @@
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.en.md": {
-    "mtime": 1791044749.3605518,
-    "seen": 1791045531.965485,
-    "ast_hash": "936bcaa3ff3d4d6ad138bb544bc1babd",
+    "mtime": 1791047600.198702,
+    "seen": 1791048146.546575,
+    "ast_hash": "66da9c7ce3e9bdd38c7cef24df2c681c",
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.ru.md": {
-    "mtime": 1791044749.3604448,
-    "seen": 1791045531.965485,
-    "ast_hash": "14eddff8e5f35aa7d2c3fbecf7a080c4",
+    "mtime": 1791047600.1984594,
+    "seen": 1791048146.546575,
+    "ast_hash": "02a1438af780d4a7d071bc5f7ed78e6e",
     "semantic_hash": ""
   },
   "docs/plans/2026-09-07-warp-and-final-installation.md": {
@@ -2448,9 +2448,9 @@
     "semantic_hash": ""
   },
   "scripts/install-release.sh": {
-    "mtime": 1791044658.2326515,
-    "seen": 1791045531.965413,
-    "ast_hash": "c44da9487a82880f5d1ff67d07cd17ae",
+    "mtime": 1791048111.155349,
+    "seen": 1791048146.546504,
+    "ast_hash": "f7dd9fc7cac9e97165809f8ce0292819",
     "semantic_hash": ""
   },
   "scripts/lab/xray-spike.py": {
@@ -2556,9 +2556,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.ru.md": {
-    "mtime": 1791046871.0115535,
-    "seen": 1791046928.633603,
-    "ast_hash": "fb56338bab8f2ab3113a39c84cf1a079",
+    "mtime": 1791047600.198168,
+    "seen": 1791048146.546564,
+    "ast_hash": "4e59bf1636ec3df93290e185263d34f0",
     "semantic_hash": ""
   },
   "compose.xray-router.yaml": {

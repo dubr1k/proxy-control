@@ -9,6 +9,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Includes the client lifecycle, bounded Fleet synchronization, update rollback and native installer fixes from the unpublished rc.1–rc.3 candidates below.
 - The native installer pins 3x-ui 3.9.0 and its verified amd64 archive layout (bundled Xray 26.9.30). Managed installation removes its temporary acceptance accounts through the client API; 3x-ui 3.9 no longer changes clients through inbound updates. The wizard, release install script, examples and installation guides name the same pin.
 - Managed Hysteria2 clients are explicitly enabled. Without this field, 3x-ui retains the account in its API but omits it from Xray's running configuration.
+- Explicit managed 3x-ui purge also removes its SQLite sidecars and metrics cache after stopping the service, leaving unknown files untouched. Fresh installation refuses an orphan database directory.
 
 ## [1.1.1-rc.3] - 2026-10-03
 
