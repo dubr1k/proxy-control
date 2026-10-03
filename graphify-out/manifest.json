@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "INSTALL.en.md": {
-    "mtime": 1791032133.02668,
-    "seen": 1791032869.5270028,
-    "ast_hash": "68c45710284515e8410655a39634083b",
+    "mtime": 1791033237.7983055,
+    "seen": 1791036534.414696,
+    "ast_hash": "178d7bc1d5727ed91e5c1c0715c6465a",
     "semantic_hash": ""
   },
   "INSTALL.ru.md": {
-    "mtime": 1791032133.0267828,
-    "seen": 1791032869.5270028,
-    "ast_hash": "071d7be3e8307ec0545d7e44643cf541",
+    "mtime": 1791033237.7980986,
+    "seen": 1791036534.414696,
+    "ast_hash": "0fc8270fdba5435eddd971b39e396da5",
     "semantic_hash": ""
   },
   "INSTALLER_AUDITOR.md": {
@@ -714,15 +714,15 @@
     "semantic_hash": ""
   },
   "README.en.md": {
-    "mtime": 1791032133.0280263,
-    "seen": 1791032869.527005,
-    "ast_hash": "53a3cead84497c51ead021e72f22ce60",
+    "mtime": 1791033298.5914073,
+    "seen": 1791036534.414699,
+    "ast_hash": "1d9a72ca9a0a20363e0e42313bbdcbde",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791032133.02831,
-    "seen": 1791032869.527005,
-    "ast_hash": "7bd3e88c654391521d0beaf23f511a85",
+    "mtime": 1791033237.7986896,
+    "seen": 1791036534.414699,
+    "ast_hash": "fe6a27a5a66f21d58b7d0efdd99227b5",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -942,9 +942,9 @@
     "semantic_hash": "9e7d5b441f34908b67cd243e9ba5b78c"
   },
   "installer/adapters/core.py": {
-    "mtime": 1791032133.0882213,
-    "seen": 1791032869.526857,
-    "ast_hash": "ef83a4363be04b62ae554c9836096e03",
+    "mtime": 1791035265.0863423,
+    "seen": 1791036534.4145238,
+    "ast_hash": "c407d338355bd1aff0dfb1da78d80321",
     "semantic_hash": ""
   },
   "installer/adapters/firewall.py": {
@@ -1188,9 +1188,9 @@
     "semantic_hash": ""
   },
   "tests/test_installer_core.py": {
-    "mtime": 1791032133.1200528,
-    "seen": 1791032869.526966,
-    "ast_hash": "d75ffdde5752ccc9c9c19ba3f782f331",
+    "mtime": 1791035229.8507283,
+    "seen": 1791036534.414654,
+    "ast_hash": "4939da5245f08a0d9fda8ff2fba14c6c",
     "semantic_hash": ""
   },
   "tests/test_installer_credentials.py": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "tests/test_release_build.py": {
-    "mtime": 1791032133.124041,
-    "seen": 1791032869.526981,
-    "ast_hash": "27463c6a29988f65782f4e14e0b5da28",
+    "mtime": 1791033615.298004,
+    "seen": 1791036534.4146712,
+    "ast_hash": "cd8af18402fce757b56db96aa0fc35d7",
     "semantic_hash": ""
   },
   "tests/test_three_xui_api.py": {
@@ -1416,15 +1416,15 @@
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.en.md": {
-    "mtime": 1791032828.4029224,
-    "seen": 1791032869.5270112,
-    "ast_hash": "1a7d903f7cafc8474c87bbc870e4b965",
+    "mtime": 1791035322.743771,
+    "seen": 1791036534.4147048,
+    "ast_hash": "3112fad28dd9ca1ace22fe3717a67f1f",
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.ru.md": {
-    "mtime": 1791032828.4026527,
-    "seen": 1791032869.5270112,
-    "ast_hash": "358732bfea8db5c544bafc4c3b5abddd",
+    "mtime": 1791035322.7440553,
+    "seen": 1791036534.4147048,
+    "ast_hash": "8dca43878a32ed116b8c52edf13a3c53",
     "semantic_hash": ""
   },
   "docs/plans/2026-09-07-warp-and-final-installation.md": {
@@ -2448,9 +2448,9 @@
     "semantic_hash": ""
   },
   "scripts/install-release.sh": {
-    "mtime": 1791032133.114671,
-    "seen": 1791032869.52695,
-    "ast_hash": "53541338f66112332b972eb075c670e5",
+    "mtime": 1791033237.7978344,
+    "seen": 1791036534.414635,
+    "ast_hash": "106f03dcdfa3b572e07c494daa1aefb9",
     "semantic_hash": ""
   },
   "scripts/lab/xray-spike.py": {
@@ -3780,15 +3780,21 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-03-post-rc2-hardening.md": {
-    "mtime": 1791032133.0654173,
-    "seen": 1791032869.5270379,
-    "ast_hash": "8195d6bc074cc91768ef6e09b29cc3a1",
+    "mtime": 1791033237.7992082,
+    "seen": 1791036534.414738,
+    "ast_hash": "0f35adbfae362c0f5f8ab913f608c54a",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-03-post-rc2-hardening-design.md": {
-    "mtime": 1791032133.0668466,
-    "seen": 1791032869.5270422,
-    "ast_hash": "0cbd13a8bfbe3503ae6b45fa87b54195",
+    "mtime": 1791033615.2982492,
+    "seen": 1791036534.414743,
+    "ast_hash": "b0d369c575bf41ef4258055e538a80a9",
+    "semantic_hash": ""
+  },
+  "docs/releases/1.1.1-rc.3-native-acceptance.ru.md": {
+    "mtime": 1791036444.8120863,
+    "seen": 1791036534.4147232,
+    "ast_hash": "76d764529dac272f430930b34b5a9651",
     "semantic_hash": ""
   }
 }
