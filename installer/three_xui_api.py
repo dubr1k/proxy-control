@@ -1,4 +1,4 @@
-"""Pinned local 3x-ui 3.7.0 API client and the managed inbound templates.
+"""Pinned local 3x-ui 3.9.0 API client and the managed inbound templates.
 
 Every request goes to a loopback address, carries its secrets in the request
 body rather than in argv, and is bounded by an explicit timeout and response
@@ -23,11 +23,11 @@ from typing import Protocol
 from installer.model import InstallerConfig
 
 
-_CONTRACT = "tests/fixtures/three_xui/api-contract-3.7.0.json"
+_CONTRACT = "tests/fixtures/three_xui/api-contract-3.9.0.json"
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _TIMEOUT = 30.0
-_VERSION = "3.7.0"
+_VERSION = "3.9.0"
 
 # Managed loopback backends; Nginx keeps the shared 443 listener.
 VLESS_TCP_PORT = 8449
@@ -503,7 +503,7 @@ class _Sanitized(Exception):
 
 
 class ThreeXuiApi:
-    """The pinned 3.7.0 request surface, and nothing else."""
+    """The pinned 3.9.0 request surface, and nothing else."""
 
     def __init__(
         self,
@@ -767,20 +767,17 @@ class ThreeXuiApi:
             )
         return identifier
 
-    def replace_clients(self, inbound_id: int, inbound: ManagedInbound) -> None:
-        """Rewrite one inbound so it carries exactly the clients given.
+    def delete_acceptance_client(self, client: ManagedClient) -> None:
+        """Remove our temporary account through the 3.9 client lifecycle API.
 
-        3x-ui 3.7.0 has no delete-client endpoint -- verified against a running
-        panel, where every spelling of one answers 404. An inbound is updated
-        whole, which is also the only way to remove a client without touching
-        anything else about it.
+        Updating an inbound no longer changes its clients in 3.9. Deletion is
+        deliberately restricted to the generated acceptance accounts.
         """
-        if not isinstance(inbound_id, int) or isinstance(inbound_id, bool):
-            raise ThreeXuiApiError("the 3x-ui inbound id is invalid")
+        if not client.acceptance or not client.email.startswith("acceptance-"):
+            raise ThreeXuiApiError("only an acceptance client may be deleted")
         self._call(
-            "update_inbound",
-            payload=inbound.request_body(),
-            parameters={"inbound_id": inbound_id},
+            "delete_client",
+            parameters={"email": client.email},
         )
 
     def configure_subscription(self, domain: str, *, certificate: str, private_key: str) -> None:

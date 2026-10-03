@@ -227,7 +227,7 @@ class RecordingApi:
         self.logins: list[tuple[str, str]] = []
         self.panel: dict[str, object] | None = None
         self.inbounds: list = []
-        self.deleted: list[tuple[int, str]] = []
+        self.deleted: list[str] = []
         self._next_id = 1
 
     def login(self, username, password):
@@ -246,11 +246,12 @@ class RecordingApi:
         self._next_id += 1
         return identifier
 
-    def replace_clients(self, inbound_id, inbound):
-        self.deleted.append((inbound_id, inbound.tag))
+    def delete_acceptance_client(self, client):
+        self.deleted.append(client.email)
         for index, existing in enumerate(self.inbounds):
-            if existing.tag == inbound.tag:
-                self.inbounds[index] = inbound
+            self.inbounds[index] = existing.with_clients(
+                [item for item in existing.clients if item.email != client.email]
+            )
 
     def effective_config(self):
         return {
@@ -751,7 +752,7 @@ class FakeApi:
 
     def __init__(self, *, keep_acceptance: bool = False) -> None:
         self.added: list[str] = []
-        self.deleted: list[tuple[int, str]] = []
+        self.deleted: list[str] = []
         self.emails: list[str] = []
         self.keep_acceptance = keep_acceptance
         self._next_id = 1
@@ -765,15 +766,10 @@ class FakeApi:
         self._next_id += 1
         return identifier
 
-    def replace_clients(self, inbound_id, inbound):
-        self.deleted.append((inbound_id, inbound.tag))
+    def delete_acceptance_client(self, client):
+        self.deleted.append(client.email)
         if not self.keep_acceptance:
-            surviving = {item.email for item in inbound.clients}
-            self.emails = [
-                email
-                for email in self.emails
-                if not email.startswith("acceptance-") or email in surviving
-            ]
+            self.emails = [email for email in self.emails if email != client.email]
 
     def effective_config(self):
         return {"inbounds": [], "client_emails": sorted(set(self.emails))}
@@ -812,6 +808,7 @@ def test_managed_configuration_removes_every_acceptance_client(tmp_path):
     assert report["acceptance_clients_removed"] == 3
     assert len(api.deleted) == 3
     assert not any(email.startswith("acceptance-") for email in api.emails)
+    assert sorted(api.emails) == ["initial-0", "initial-1", "initial-2"]
 
 
 def test_managed_configuration_fails_closed_on_a_surviving_acceptance_client(tmp_path):

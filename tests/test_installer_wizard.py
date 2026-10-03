@@ -757,6 +757,14 @@ def test_the_router_question_names_the_pinned_xray_version():
     assert f"Xray-core {expected}" in text(Locale.RU, "router", version=pinned_version("xray"))
 
 
+def test_the_managed_xui_help_names_the_pinned_version_in_both_languages():
+    from installer.i18n import text
+    from installer.wizard import pinned_version
+
+    for locale in (Locale.EN, Locale.RU):
+        assert f"3x-ui {pinned_version('three_xui')}" in text(locale, "three_xui_mode_help")
+
+
 def test_warp_domains_take_geosite_lists_and_refuse_a_blank_answer(tmp_path: Path):
     """The managed 3x-ui routes a list through WARP and the plan refuses an empty one, so the
     question says «at least one» and keeps asking on a blank; `geosite:` and `domain:`

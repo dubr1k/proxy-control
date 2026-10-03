@@ -291,7 +291,7 @@ python3 -m installer.cli plan --config examples/installer/core-mieru.toml --json
 python3 -m installer.cli plan --config examples/installer/existing-three-xui.toml --json
 ```
 
-Managed 3x-ui publishes three reference inbounds: **VLESS Reality TCP** and
+Managed 3x-ui **3.9.0** publishes three reference inbounds: **VLESS Reality TCP** and
 **VLESS Reality XHTTP** on loopback backends behind the shared 443 router, and
 **Hysteria2** over TLS on public UDP/443 with its own certificate. Each gets
 freshly generated Reality keys, short IDs, and client credentials; nothing is

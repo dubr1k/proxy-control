@@ -132,6 +132,7 @@ Proxy Control — что нужно для установки
   отказ, файл выбрасывается); файл, положенный вручную в /var/lib/proxy-control/
   (хост без интернета), используется как есть и никогда не заменяется:
   • профили с Mieru: mita_3.36.0_amd64.deb и mieru_3.36.0_amd64.deb;
+  • управляемый 3x-ui 3.9.0: x-ui-linux-amd64.tar.gz;
   • Xray-router: Xray-linux-64.zip (Xray-core 26.3.27).
   URL и SHA-256 — в release/external-artifacts.json распакованного релиза.
 
@@ -202,6 +203,7 @@ Nothing to stage for the pinned external artifacts — the installer fetches the
   is a refusal, the file is discarded); a file staged by hand in
   /var/lib/proxy-control/ (an offline host) is used as it is and never replaced:
   • the Mieru profiles: mita_3.36.0_amd64.deb and mieru_3.36.0_amd64.deb;
+  • managed 3x-ui 3.9.0: x-ui-linux-amd64.tar.gz;
   • the Xray-router: Xray-linux-64.zip (Xray-core 26.3.27).
   URLs and SHA-256 in release/external-artifacts.json of the extracted release.
 

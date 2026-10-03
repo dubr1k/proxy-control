@@ -170,6 +170,7 @@ def test_config_rejects_irrelevant_and_unknown_fields():
         "core-naive.toml",
         "core-mieru.toml",
         "full-three-xui.toml",
+        "managed-three-xui.toml",
         "existing-three-xui.toml",
     ],
 )
@@ -298,6 +299,7 @@ def test_invalid_toml_is_reported_as_config_error():
         "core-naive.toml",
         "core-mieru.toml",
         "full-three-xui.toml",
+        "managed-three-xui.toml",
         "existing-three-xui.toml",
     ],
 )

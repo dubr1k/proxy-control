@@ -26,7 +26,7 @@ def test_managed_provision_actually_applies_warp_and_subscription(tmp_path):
         called = []
         def add_inbound(self, inbound):
             return len(self.called) + 1
-        def replace_clients(self, identifier, inbound):
+        def delete_acceptance_client(self, client):
             pass
         def effective_config(self):
             return {'client_emails': []}

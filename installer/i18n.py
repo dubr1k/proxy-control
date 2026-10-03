@@ -28,7 +28,7 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "three_xui_mode_help": (
             "  none        — no 3x-ui\n"
             "  existing    — 3x-ui is already installed: only routes to its VLESS Reality inbounds are added on 443\n"
-            "  managed-new — the installer sets up its own 3x-ui (VLESS Reality TCP/XHTTP, Hysteria2)"
+            "  managed-new — the installer sets up its own 3x-ui 3.9.0 (VLESS Reality TCP/XHTTP, Hysteria2)"
         ),
         "panel_domain": "Panel domain",
         "mtproxy_domain": "MTProxy Fake-TLS domain",
@@ -107,7 +107,7 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "three_xui_mode_help": (
             "  none        — без 3x-ui\n"
             "  existing    — 3x-ui уже установлен: на 443 добавятся только маршруты к его инбаундам VLESS Reality\n"
-            "  managed-new — установщик поставит свой 3x-ui (VLESS Reality TCP/XHTTP, Hysteria2)"
+            "  managed-new — установщик поставит свой 3x-ui 3.9.0 (VLESS Reality TCP/XHTTP, Hysteria2)"
         ),
         "panel_domain": "Домен панели",
         "mtproxy_domain": "Fake-TLS домен MTProxy",

@@ -129,14 +129,14 @@ def test_external_artifact_is_arch_specific_and_version_pinned():
 
     amd64 = manifest.artifacts.for_platform("three_xui", "amd64")
 
-    assert amd64.version == "3.7.0"
-    assert amd64.tag == "v3.7.0"
+    assert amd64.version == "3.9.0"
+    assert amd64.tag == "v3.9.0"
     assert amd64.sha256 == (
-        "0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5"
+        "d7cbe0bf6358ee0d2117c24fd2efb483502e411d38e2ea59bd0bf5e7a3e39390"
     )
     assert amd64.url == (
         "https://github.com/MHSanaei/3x-ui/releases/download/"
-        "v3.7.0/x-ui-linux-amd64.tar.gz"
+        "v3.9.0/x-ui-linux-amd64.tar.gz"
     )
     assert amd64.architecture == "amd64"
     assert amd64.spdx_license == "GPL-3.0-only"

@@ -60,7 +60,7 @@ _DEFAULT_PANEL_PORT = 2053
 # The certificate lineage the Nginx boundary issues for the 3x-ui panel domain.
 _LINEAGE_ROOT = "/etc/letsencrypt/live"
 _PANEL_LINEAGE = "three-xui-panel"
-_VERSION = "3.7.0"
+_VERSION = "3.9.0"
 _SUPPORTED_ARCHITECTURES = ("amd64",)
 _MAX_CONFIG_BYTES = 4 * 1024 * 1024
 _MAX_INBOUNDS = 256
@@ -165,8 +165,8 @@ class AcceptanceError(ThreeXuiError):
     """The managed 3x-ui runtime failed an acceptance requirement."""
 
 
-# Xray prints the Reality keypair as labelled lines. The pinned 3x-ui 3.7.0
-# carries Xray 26.7.28, which writes "PrivateKey:" and "Password (PublicKey):";
+# Xray prints the Reality keypair as labelled lines. Xray 26.7.28 in the
+# previously pinned 3x-ui 3.7.0 writes "PrivateKey:" and "Password (PublicKey):";
 # older builds wrote "Private key:" and "Public key:". Both are read, and
 # anything else is an error rather than a silently empty key.
 _KEY_VALUE = r"([A-Za-z0-9_-]{43})"
@@ -958,9 +958,8 @@ class ThreeXuiAdapter:
         # acceptance client is then removed and its absence proved, which is
         # what makes it an acceptance client rather than a second account
         # nobody asked for.
-        identifiers: dict[str, int] = {}
         for inbound, extra in zip(persistent, acceptance, strict=True):
-            identifiers[inbound.tag] = api.add_inbound(
+            api.add_inbound(
                 inbound.with_clients([*inbound.clients, *extra.clients])
             )
         routing = warp_routing(config)
@@ -976,8 +975,8 @@ class ThreeXuiAdapter:
             durable_mkdir(path.parent, mode=0o700)
             self._atomic(path, f"https://{config.three_xui.subscription_domain}/sub/{subscription_id}\n".encode(), 0o600)
         removed = 0
-        for inbound in persistent:
-            api.replace_clients(identifiers[inbound.tag], inbound)
+        for inbound in acceptance:
+            api.delete_acceptance_client(inbound.clients[0])
             removed += 1
         effective = api.effective_config()
         emails = set(effective.get("client_emails", []))

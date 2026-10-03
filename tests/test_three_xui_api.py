@@ -398,6 +398,36 @@ def test_add_inbound_rejects_a_response_without_an_identifier():
         api.add_inbound(template(), client())
 
 
+def test_acceptance_client_is_deleted_through_the_39_client_endpoint():
+    api = api_with(lambda _request: ok({"success": True}))
+    temporary = ManagedClient(email="acceptance-0", client_id=UUID_VALUE, acceptance=True)
+
+    api.delete_acceptance_client(temporary)
+
+    method, path, body, _headers = api.recorded.requests[-1]
+    assert (method, path, body) == ("POST", "/panel/api/clients/del/acceptance-0", None)
+
+
+def test_deleting_a_persistent_client_is_refused_before_opening_a_socket():
+    api = api_with(lambda _request: pytest.fail("persistent client must survive"))
+    with pytest.raises(ThreeXuiApiError, match="acceptance"):
+        api.delete_acceptance_client(client())
+    assert api.recorded.requests == []
+
+
+def test_acceptance_marker_without_our_prefix_is_refused():
+    api = api_with(lambda _request: pytest.fail("unowned client must survive"))
+    with pytest.raises(ThreeXuiApiError, match="acceptance"):
+        api.delete_acceptance_client(ManagedClient(email="initial-0", client_id=UUID_VALUE, acceptance=True))
+    assert api.recorded.requests == []
+
+
+def test_acceptance_deletion_refusal_is_not_reported_as_success():
+    api = api_with(lambda _request: ok({"success": False, "msg": "refused"}))
+    with pytest.raises(ThreeXuiApiError, match="rejected"):
+        api.delete_acceptance_client(ManagedClient(email="acceptance-0", client_id=UUID_VALUE, acceptance=True))
+
+
 def test_effective_config_reports_inbounds_without_credentials():
     rows = [
         {

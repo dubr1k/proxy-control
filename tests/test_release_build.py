@@ -25,7 +25,7 @@ from release.sbom import SbomError, build_sbom
 
 ROOT = Path(__file__).parents[1]
 FIXED_EPOCH = 1_767_225_600  # 2026-01-01T00:00:00Z
-VERSION = "1.1.1-rc.3"
+VERSION = "1.1.1"
 
 
 def sha256(path: Path) -> str:
@@ -603,6 +603,7 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions():
     }
     script = (ROOT / "scripts" / "install-release.sh").read_text()
     named = {
+        "three_xui": re.findall(r"3x-ui ([0-9][0-9.]*[0-9])", script),
         "mita": re.findall(r"mita_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
         "mieru": re.findall(r"mieru_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
         "xray": re.findall(r"Xray-core ([0-9][0-9.]*[0-9])", script),

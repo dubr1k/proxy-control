@@ -1,6 +1,6 @@
 {
   "comment": "Reviewed layout of the pinned 3x-ui release archive. Member digests stay unpinned upstream, so only paths, kinds, and modes are asserted; the archive digest itself is pinned in release/external-artifacts.json.",
-  "version": "3.7.0",
+  "version": "3.9.0",
   "entries": [
     {"path": "x-ui", "kind": "directory", "mode": 493},
     {"path": "x-ui/x-ui", "kind": "file", "mode": 493},

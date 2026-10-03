@@ -35,15 +35,15 @@
     },
     {
       "name": "three_xui",
-      "version": "3.7.0",
-      "tag": "v3.7.0",
+      "version": "3.9.0",
+      "tag": "v3.9.0",
       "repository": "MHSanaei/3x-ui",
       "spdx_license": "GPL-3.0-only",
       "platforms": {
         "amd64": {
           "architecture": "amd64",
-          "url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-amd64.tar.gz",
-          "sha256": "0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5"
+          "url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.9.0/x-ui-linux-amd64.tar.gz",
+          "sha256": "d7cbe0bf6358ee0d2117c24fd2efb483502e411d38e2ea59bd0bf5e7a3e39390"
         }
       }
     },

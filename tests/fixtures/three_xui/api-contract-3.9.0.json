@@ -1,0 +1,69 @@
+{
+  "comment": "Pinned 3x-ui 3.9.0 HTTP surface, reviewed against the tagged upstream controllers; live acceptance must verify these requests. Requests outside this table are refused before opening a socket.",
+  "version": "3.9.0",
+  "endpoints": {
+    "xray_settings": {
+      "method": "POST",
+      "path": "/panel/api/xray/",
+      "encoding": "form"
+    },
+    "update_xray_settings": {
+      "method": "POST",
+      "path": "/panel/api/xray/update",
+      "encoding": "form"
+    },
+    "login": {
+      "method": "POST",
+      "path": "/login",
+      "encoding": "form"
+    },
+    "update_user": {
+      "method": "POST",
+      "path": "/panel/api/setting/updateUser",
+      "encoding": "form"
+    },
+    "update_settings": {
+      "method": "POST",
+      "path": "/panel/api/setting/update",
+      "encoding": "form"
+    },
+    "add_inbound": {
+      "method": "POST",
+      "path": "/panel/api/inbounds/add",
+      "encoding": "json"
+    },
+    "list_inbounds": {
+      "method": "GET",
+      "path": "/panel/api/inbounds/list",
+      "encoding": "empty"
+    },
+    "csrf_page": {
+      "method": "GET",
+      "path": "/",
+      "encoding": "empty"
+    },
+    "all_settings": {
+      "method": "POST",
+      "path": "/panel/api/setting/all",
+      "encoding": "empty"
+    },
+    "delete_client": {
+      "method": "POST",
+      "path": "/panel/api/clients/del/{email}",
+      "encoding": "empty"
+    }
+  },
+  "response_schema": {
+    "required": [
+      "success"
+    ],
+    "optional": [
+      "msg",
+      "obj"
+    ]
+  },
+  "limits": {
+    "max_response_bytes": 4194304,
+    "timeout_seconds": 30
+  }
+}

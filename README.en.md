@@ -57,7 +57,7 @@ What you get:
 | **MTProxy / Telemt** | A proxy for Telegram. The panel hands out `tg://` links and QR codes, sets limits and expiry, and reports service state. |
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. Protocols: HTTPS (HTTP/1.1 CONNECT) and HTTP/2 CONNECT over TLS/TCP, one access for both; TCP only — UDP and HTTP/3 are not proxied. Per-user quota and traffic accounting included. |
 | **Mieru** | An obfuscated proxy with its own protocol over TCP. UDP transport does not work for clients on real networks and is not claimed. The panel issues a one-time `mierus://` link and QR. |
-| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.7.0` and creates those inbounds. |
+| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.9.0` and creates those inbounds. |
 | **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. Since v0.11 — «Проверить обновления»: the panel asks the host agent to poll upstream and updates the Xray-router, Mieru, Telemt and NaiveProxy (by rebuilding Caddy) with rollback. |
 | **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
 | **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
@@ -358,7 +358,7 @@ and the installer only adds its own routes to it. The default is `fresh`.
   Reality inbounds and changes none of its files. You create its inbounds yourself.
   The wizard asks only for the VLESS Reality TCP and XHTTP domains — those are the
   ones routed; at least one is needed;
-- `managed-new` — install 3x-ui `3.7.0` itself. The installer issues its
+- `managed-new` — install 3x-ui `3.9.0` itself. The installer issues its
   certificates, moves the panel off its public ports onto `127.0.0.1` under a
   private path, replaces the factory `admin/admin` with your own, and **creates
   the inbounds for you** — VLESS Reality TCP, VLESS Reality XHTTP, and
@@ -679,7 +679,7 @@ which the lab verifies by hashing them before and after the run. You create the
 inbounds yourself, and they must listen on loopback or there is nothing to share
 port 443 with.
 
-**Install it yourself** (`managed-new`). The installer deploys 3x-ui `3.7.0` and
+**Install it yourself** (`managed-new`). The installer deploys 3x-ui `3.9.0` and
 brings it to a working state with no manual step:
 
 1. it moves the panel off the public `*:2053` and `*:2096` onto
@@ -991,7 +991,7 @@ pin; a file staged by hand is used as it is.
 |---|---|---|---|
 | `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The Mieru server. Only the executable and a license notice are installed; the package itself never is. |
 | `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The official Mieru client, used to build the acceptance harness that proves each transport carries traffic. |
-| `three_xui` (`MHSanaei/3x-ui`) | 3.7.0 | GPL-3.0-only | The 3x-ui panel and its Xray core for VLESS Reality TCP, VLESS Reality XHTTP, and Hysteria2. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.9.0 | GPL-3.0-only | The 3x-ui panel and its Xray core for VLESS Reality TCP, VLESS Reality XHTTP, and Hysteria2. |
 | `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | The Xray egress-router (v0.5, `[egress] router = true`): only `xray`, `geoip.dat` and `geosite.dat` are extracted from the pinned `Xray-linux-64.zip`, each against its own digest. |
 
 Caddy `v2.11.4` with the `http.handlers.forward_proxy` module is not downloaded

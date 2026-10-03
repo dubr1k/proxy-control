@@ -624,9 +624,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1791032133.0253985,
-    "seen": 1791032869.527,
-    "ast_hash": "8b424b5e8c4e10c668acd22cf4b91e8a",
+    "mtime": 1791045522.1573768,
+    "seen": 1791045531.965473,
+    "ast_hash": "9b85602c6b58fa8fdc448934d7e69f44",
     "semantic_hash": ""
   },
   "CODE_OF_CONDUCT.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "INSTALL.en.md": {
-    "mtime": 1791033237.7983055,
-    "seen": 1791036534.414696,
-    "ast_hash": "178d7bc1d5727ed91e5c1c0715c6465a",
+    "mtime": 1791044749.3602653,
+    "seen": 1791045531.965476,
+    "ast_hash": "b9656ba43d09744f31d8e617246300a6",
     "semantic_hash": ""
   },
   "INSTALL.ru.md": {
-    "mtime": 1791033237.7980986,
-    "seen": 1791036534.414696,
-    "ast_hash": "0fc8270fdba5435eddd971b39e396da5",
+    "mtime": 1791044749.360154,
+    "seen": 1791045531.965476,
+    "ast_hash": "a89222fe24aa78a2e8185e7261f44a4b",
     "semantic_hash": ""
   },
   "INSTALLER_AUDITOR.md": {
@@ -714,15 +714,15 @@
     "semantic_hash": ""
   },
   "README.en.md": {
-    "mtime": 1791033298.5914073,
-    "seen": 1791036534.414699,
-    "ast_hash": "1d9a72ca9a0a20363e0e42313bbdcbde",
+    "mtime": 1791044749.3593168,
+    "seen": 1791045531.965479,
+    "ast_hash": "b7117dad097b9fb484c4a88a664f3374",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791033237.7986896,
-    "seen": 1791036534.414699,
-    "ast_hash": "fe6a27a5a66f21d58b7d0efdd99227b5",
+    "mtime": 1791044749.3589828,
+    "seen": 1791045531.965479,
+    "ast_hash": "45026d94d550db925996f81b24dfae14",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -978,9 +978,9 @@
     "semantic_hash": "cbc00a2279084904c5d31b45506f2841"
   },
   "installer/adapters/three_xui.py": {
-    "mtime": 1791032133.090106,
-    "seen": 1791032869.52686,
-    "ast_hash": "eabdd62f89a054d324f5bc4f8f2de0bb",
+    "mtime": 1791045306.2934422,
+    "seen": 1791045531.965306,
+    "ast_hash": "8e859f356a6d9fce0dc66cfcebbbd423",
     "semantic_hash": ""
   },
   "installer/adapters/warp.py": {
@@ -1014,9 +1014,9 @@
     "semantic_hash": ""
   },
   "installer/i18n.py": {
-    "mtime": 1791032133.0908368,
-    "seen": 1791032869.526863,
-    "ast_hash": "9f500adeb9e56c07b37dd6f9613f2190",
+    "mtime": 1791044658.232957,
+    "seen": 1791045531.9653099,
+    "ast_hash": "0e7eff3a37480d7b7e5321796aa1dc2d",
     "semantic_hash": ""
   },
   "installer/model.py": {
@@ -1044,9 +1044,9 @@
     "semantic_hash": "bdd4c315b643c57d0ff0e051259ae29a"
   },
   "installer/three_xui_api.py": {
-    "mtime": 1791032133.0914025,
-    "seen": 1791032869.526866,
-    "ast_hash": "a95e7b0bed5e5074944f43b927d418b6",
+    "mtime": 1791044656.9426901,
+    "seen": 1791045531.965313,
+    "ast_hash": "69ed71f9228d0f89a324581fdc86bbbd",
     "semantic_hash": ""
   },
   "installer/transaction.py": {
@@ -1074,9 +1074,9 @@
     "semantic_hash": ""
   },
   "release/external-artifacts.json": {
-    "mtime": 1791032133.1138217,
-    "seen": 1791032869.526946,
-    "ast_hash": "b8cb6e9d8388e10a62d7c5ff33ee8309",
+    "mtime": 1791044657.0428429,
+    "seen": 1791045531.965408,
+    "ast_hash": "3a765e02a9afe8ccc7eb50a9a7ccbf54",
     "semantic_hash": ""
   },
   "release/sbom.py": {
@@ -1086,10 +1086,10 @@
     "semantic_hash": ""
   },
   "release/three-xui-layout-amd64.json": {
-    "mtime": 1791032133.1139429,
-    "seen": 1791032869.526946,
-    "ast_hash": "e40b9d9db543d88d1e627372bedf7e63",
-    "semantic_hash": "e40b9d9db543d88d1e627372bedf7e63"
+    "mtime": 1791044658.2299953,
+    "seen": 1791045531.965408,
+    "ast_hash": "b2337dccc278e68256e271e353c09595",
+    "semantic_hash": ""
   },
   "release/verify.py": {
     "mtime": 1791032133.1139867,
@@ -1122,9 +1122,9 @@
     "semantic_hash": ""
   },
   "tests/fixtures/releases/valid-manifest.json": {
-    "mtime": 1791032133.117821,
-    "seen": 1791032869.5269592,
-    "ast_hash": "b8cb6e9d8388e10a62d7c5ff33ee8309",
+    "mtime": 1791044657.0429914,
+    "seen": 1791045531.965423,
+    "ast_hash": "3a765e02a9afe8ccc7eb50a9a7ccbf54",
     "semantic_hash": ""
   },
   "tests/fixtures/three_xui/api-contract-3.7.0.json": {
@@ -1140,10 +1140,10 @@
     "semantic_hash": "5135e4846821aa4f9cd7bbd2acfca9ae"
   },
   "tests/fixtures/three_xui/release-layout.json": {
-    "mtime": 1791032133.1180027,
-    "seen": 1791032869.5269601,
-    "ast_hash": "183aac666509054ac7e880eb3e37d0c8",
-    "semantic_hash": "183aac666509054ac7e880eb3e37d0c8"
+    "mtime": 1791044749.3606496,
+    "seen": 1791045531.965425,
+    "ast_hash": "1b38ccb6743b5446587d28a08bd458cf",
+    "semantic_hash": ""
   },
   "tests/lab/fixtures/three-xui-existing.sh": {
     "mtime": 1791032133.1186414,
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "tests/test_installer_config.py": {
-    "mtime": 1791032133.1199,
-    "seen": 1791032869.526965,
-    "ast_hash": "0a4952d9a31faa4e54ca9a79f8b7cc31",
+    "mtime": 1791045522.1578484,
+    "seen": 1791045531.9654322,
+    "ast_hash": "23e949a642cf8195d9602e29d149e698",
     "semantic_hash": ""
   },
   "tests/test_installer_core.py": {
@@ -1272,10 +1272,10 @@
     "semantic_hash": ""
   },
   "tests/test_installer_release.py": {
-    "mtime": 1791032133.1213934,
-    "seen": 1791032869.5269709,
-    "ast_hash": "a3be3b0fb3b43e95c262afb332c0e206",
-    "semantic_hash": "a3be3b0fb3b43e95c262afb332c0e206"
+    "mtime": 1791044413.0490243,
+    "seen": 1791045531.965439,
+    "ast_hash": "16f95ad5c2adc1dc2f3748a0f31b5252",
+    "semantic_hash": ""
   },
   "tests/test_installer_reports.py": {
     "mtime": 1791032133.1214762,
@@ -1284,15 +1284,15 @@
     "semantic_hash": "fa5e75f2d01fb3c5de0a0dc1766d3082"
   },
   "tests/test_installer_subscription.py": {
-    "mtime": 1791032133.1215968,
-    "seen": 1791032869.5269718,
-    "ast_hash": "22c5589a109552a9cc528680796087f8",
-    "semantic_hash": "22c5589a109552a9cc528680796087f8"
+    "mtime": 1791045639.1640618,
+    "seen": 1791045824.95471,
+    "ast_hash": "4640698b9b84b522125ec1ca355b42f0",
+    "semantic_hash": ""
   },
   "tests/test_installer_three_xui.py": {
-    "mtime": 1791032133.1216986,
-    "seen": 1791032869.526973,
-    "ast_hash": "b4e2da873b93da1274becb13d61935a8",
+    "mtime": 1791045282.9295473,
+    "seen": 1791045531.965441,
+    "ast_hash": "03dca72a5e018f8d015e6a896112340c",
     "semantic_hash": ""
   },
   "tests/test_installer_transaction.py": {
@@ -1338,21 +1338,21 @@
     "semantic_hash": "333f4e4de2a7098457444282b5ec3186"
   },
   "tests/test_installer_wizard.py": {
-    "mtime": 1791032133.122363,
-    "seen": 1791032869.526975,
-    "ast_hash": "136b6d3dcd93c834239dfd008e2168e1",
+    "mtime": 1791044749.2711318,
+    "seen": 1791045531.965444,
+    "ast_hash": "bff8fbef6a53726108c7156f054a1dd4",
     "semantic_hash": ""
   },
   "tests/test_release_build.py": {
-    "mtime": 1791033615.298004,
-    "seen": 1791036534.4146712,
-    "ast_hash": "cd8af18402fce757b56db96aa0fc35d7",
+    "mtime": 1791045585.7647035,
+    "seen": 1791045824.95472,
+    "ast_hash": "02e32b42f96b131c0f8b876467afcc81",
     "semantic_hash": ""
   },
   "tests/test_three_xui_api.py": {
-    "mtime": 1791032133.1243107,
-    "seen": 1791032869.5269818,
-    "ast_hash": "265adce3eea141f2c43dc4efe97ebfda",
+    "mtime": 1791045282.9292555,
+    "seen": 1791045531.965452,
+    "ast_hash": "b30c44c6b14288006ee8a8f8d5e83cbe",
     "semantic_hash": ""
   },
   "tests/test_three_xui_certificate_lineage.py": {
@@ -1416,15 +1416,15 @@
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.en.md": {
-    "mtime": 1791035322.743771,
-    "seen": 1791036534.4147048,
-    "ast_hash": "3112fad28dd9ca1ace22fe3717a67f1f",
+    "mtime": 1791044749.3605518,
+    "seen": 1791045531.965485,
+    "ast_hash": "936bcaa3ff3d4d6ad138bb544bc1babd",
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.ru.md": {
-    "mtime": 1791035322.7440553,
-    "seen": 1791036534.4147048,
-    "ast_hash": "8dca43878a32ed116b8c52edf13a3c53",
+    "mtime": 1791044749.3604448,
+    "seen": 1791045531.965485,
+    "ast_hash": "14eddff8e5f35aa7d2c3fbecf7a080c4",
     "semantic_hash": ""
   },
   "docs/plans/2026-09-07-warp-and-final-installation.md": {
@@ -2448,9 +2448,9 @@
     "semantic_hash": ""
   },
   "scripts/install-release.sh": {
-    "mtime": 1791033237.7978344,
-    "seen": 1791036534.414635,
-    "ast_hash": "106f03dcdfa3b572e07c494daa1aefb9",
+    "mtime": 1791044658.2326515,
+    "seen": 1791045531.965413,
+    "ast_hash": "c44da9487a82880f5d1ff67d07cd17ae",
     "semantic_hash": ""
   },
   "scripts/lab/xray-spike.py": {
@@ -2556,9 +2556,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.ru.md": {
-    "mtime": 1791032133.025648,
-    "seen": 1791032869.527,
-    "ast_hash": "b51102fda2a1d336a695de48f99882b7",
+    "mtime": 1791045522.157667,
+    "seen": 1791045531.965473,
+    "ast_hash": "e44ace7b791232cc8e24337a916912ef",
     "semantic_hash": ""
   },
   "compose.xray-router.yaml": {
@@ -3120,9 +3120,9 @@
     "semantic_hash": ""
   },
   "docs/releases/v0.6-operator-guide.ru.md": {
-    "mtime": 1791032133.0619068,
-    "seen": 1791032869.527029,
-    "ast_hash": "a2043671be102fbc6ee2c2f593f482d7",
+    "mtime": 1791045306.293111,
+    "seen": 1791045531.965508,
+    "ast_hash": "60863650ffcda343f6e7ef02b6225ca9",
     "semantic_hash": ""
   },
   "docs/releases/v0.7.0-beta.1.md": {
@@ -3780,21 +3780,39 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-03-post-rc2-hardening.md": {
-    "mtime": 1791033237.7992082,
-    "seen": 1791036534.414738,
-    "ast_hash": "0f35adbfae362c0f5f8ab913f608c54a",
+    "mtime": 1791037743.0352952,
+    "seen": 1791045531.965527,
+    "ast_hash": "2239467abe7dbfbf8e75c7abfafc9cfd",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-03-post-rc2-hardening-design.md": {
-    "mtime": 1791033615.2982492,
-    "seen": 1791036534.414743,
-    "ast_hash": "b0d369c575bf41ef4258055e538a80a9",
+    "mtime": 1791037053.0592995,
+    "seen": 1791045531.965533,
+    "ast_hash": "45f025bc9154bae2a69088639c91cfbd",
     "semantic_hash": ""
   },
   "docs/releases/1.1.1-rc.3-native-acceptance.ru.md": {
-    "mtime": 1791036444.8120863,
-    "seen": 1791036534.4147232,
-    "ast_hash": "76d764529dac272f430930b34b5a9651",
+    "mtime": 1791037743.0349407,
+    "seen": 1791045531.965503,
+    "ast_hash": "b10a4b300d647efcbcdf03c3b153d950",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/three_xui/api-contract-3.9.0.json": {
+    "mtime": 1791044657.0431733,
+    "seen": 1791045531.965424,
+    "ast_hash": "337ad45b116bdc07d34c5db2a79dc90e",
+    "semantic_hash": ""
+  },
+  "docs/releases/1.1.1-live-acceptance.ru.md": {
+    "mtime": 1791045522.1580436,
+    "seen": 1791045531.965502,
+    "ast_hash": "2338fde899c3bd5831876381a4beaa9f",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-03-native-fleet-release.md": {
+    "mtime": 1791042053.0838723,
+    "seen": 1791045531.965527,
+    "ast_hash": "3e460fcfa1e2962efa69bd390e173b9f",
     "semantic_hash": ""
   }
 }
