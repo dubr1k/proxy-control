@@ -34,6 +34,18 @@ sudo nginx -t
 systemctl --no-pager --full status nginx
 ```
 
+`/healthz` checks panel liveness only. For an owner/admin readiness snapshot, use
+`GET /api/readiness` with a logged-in session or an admin API key. The response is
+`Cache-Control: no-store` and contains aggregate state only: `database.queryable`,
+`node` (latest managed generation status/number and last actual `applied_at`),
+`central` (enabled linked-node and lagging counts), and `provisioning` (unfinished
+and manual-intervention counts). `status` is `ready`, `pending`, or `failed`;
+`not_applicable` on node or central means no managed generation or links exist.
+A readiness DB query failure after authentication returns HTTP 503 with
+`database.queryable: false`. Pending
+remote work does not make `/healthz` fail or restart the panel. A recent node
+heartbeat is not proof of reconciliation.
+
 For enabled host runtimes:
 
 ```bash
@@ -329,4 +341,3 @@ ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
   access log is off by design. Nothing in the logs, the API, the audit or the reports
   carries an ingress credential; the lab's secret scan fails on the shape.
 - Audit: `routing.target.attach | detach` beside the policy events.
-

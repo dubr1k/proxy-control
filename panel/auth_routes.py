@@ -5,9 +5,10 @@ import secrets
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Query, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .schemas import AdminCreate, AdminUpdate, Login
+from .readiness import snapshot as readiness_snapshot
 from .store import ConflictError
 from .web_context import RequestContext
 
@@ -20,6 +21,12 @@ def register_auth_admin_audit_routes(
     @app.get("/healthz")
     async def healthz():
         return {"status": "ok"}
+
+    @app.get("/api/readiness")
+    async def readiness(_user=Depends(context.read_roles("owner", "admin"))):
+        result = await asyncio.to_thread(readiness_snapshot, app.state.database)
+        return JSONResponse(result, status_code=503 if not result["database"]["queryable"] else 200,
+                            headers={"Cache-Control": "no-store"})
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request):
