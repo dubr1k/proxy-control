@@ -729,7 +729,7 @@ class VersionAgent:
             raise UpdateError("panel database copy could not keep its owner") from exc
 
     def _update_panel(self, entry: CatalogEntry, previous: str | None) -> tuple[list[str], bool]:
-        """Returns (managers whose sources changed, whether the agent's own code changed)."""
+        """Returns changed managers and whether loaded agent code needs a restart."""
         if self.compose_dir is None:
             raise UpdateError("Compose deployment is not configured")
         payload = self.downloader(entry.url)
@@ -773,6 +773,7 @@ class VersionAgent:
         handoff = transaction.PanelOwnershipHandoff(
             transaction.TransactionStore(installer_root), self.compose_dir, staging,
             tuple(name for name in present if name != PANEL_AGENT_DIR),
+            agent_dir=self.agent_dir,
         )
         handoff.prepare()
         for name in present:
@@ -781,7 +782,10 @@ class VersionAgent:
         before = {name: self._tree_hash(targets[name]) for name in present}
         after = {name: self._tree_hash(staging / name) for name in present}
         pending = [name for name in PANEL_MANAGERS if name in present and before[name] != after[name]]
-        agent_changed = PANEL_AGENT_DIR in present and before[PANEL_AGENT_DIR] != after[PANEL_AGENT_DIR]
+        # installer.transaction is imported by this process for ownership handoff.
+        # Reload its dependency tree by restarting, even if agent sources match.
+        agent_changed = any(name in present and before[name] != after[name]
+                            for name in (PANEL_AGENT_DIR, 'installer'))
         # A manual build can move :latest while the old container keeps running.
         # Refuse before changing files if its immutable identity is unavailable.
         running_image = self.runner(

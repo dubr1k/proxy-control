@@ -63,3 +63,29 @@
 
 - [ ] Run repository-required local gates where safe, report exact skips due to deferred stand, and inspect the whole diff with an independent reviewer.
 - [ ] Fix review findings, re-run affected gates, and make a branch ready for `ams-test` with commands and expected evidence. Do not publish a release or modify the installed host.
+
+## Continuation on 3 October
+
+The owner's later instruction authorizes tests through SSH on `ams-test`, using
+the normal installer without QEMU. This supersedes the earlier no-stand
+constraint; it does not authorize a public release or changes to other hosts.
+
+Independent review of `512be74` reproduced a missing ownership handoff for
+`/opt/proxy-control/version_agent`: the Core-only fixture did not include the
+version-agent adapter's immutable code hashes. The fix updates both checkpoints
+in one state write, with regressions for the actual two-adapter installation,
+legacy reconciliation, foreign code/unit drift, and journal-write recovery.
+The second finding was a cached `installer.transaction` import surviving an
+installer-only update. Such a change now schedules the agent restart too.
+Both findings had failing regressions before their fixes.
+
+Local targeted verification passed (200 tests); native validation is running
+from `/root/dev/pc-rc2-20261003-review` on `ams-test`. The pre-mutation audit
+found eight healthy containers, rc.2 runtime, and an active v1.1.0 installer
+journal. Read-only legacy preparation against the exact installed rc.2 archive
+accepted the 32 Core and one agent-code hash differences without writing state.
+These observations do not yet prove update/repair or clean-install acceptance.
+
+Fleet's synthetic latency model still does not measure the real pusher. Native
+Fleet timing, managed-3x-ui client evidence and Telegram application acceptance
+remain separate outstanding requirements.

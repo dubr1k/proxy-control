@@ -152,6 +152,9 @@ Xray-router (необязательно, v0.5): [egress] router = true — вы�
   хоста обновляет панель (с резервными копиями и откатом), изменившиеся менеджеры
   и включённый MCP пересобираются с точками отката образов.
   Telemt, сертификаты, .env и secrets/ не трогаются.
+  После первого обновления старым агентом перед repair выполните
+  `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
+  из нового выпуска с точным архивом и проверенным digest (INSTALLER_REFERENCE).
 
 Что делает установщик (мастер → план → подтверждение digest → применение):
   • Пакеты Ubuntu, которых нет на хосте: ca-certificates certbot curl
@@ -218,6 +221,9 @@ Updating an installed host (since v1.1): download the new release's install-rele
   — the same release verification, then the host's version-agent updates the panel (with
   its backups and rollback); changed managers and enabled MCP are rebuilt with image backups. Telemt, certificates,
   .env and secrets/ are not touched.
+  After the first update by an older agent, before repair run
+  `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
+  from the new release with the exact archive and verified digest (INSTALLER_REFERENCE).
 
 What the installer does (wizard → plan → digest confirmation → apply):
   • Ubuntu packages missing on the host: ca-certificates certbot curl

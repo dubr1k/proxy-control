@@ -480,7 +480,7 @@ class TransactionStore:
 
 
 class PanelOwnershipHandoff:
-    """Rebase only Core-owned release paths after a verified panel tree sync.
+    """Rebase release-owned Core and agent code after a verified panel tree sync.
 
     The caller holds the installer operation lock from prepare through commit or
     rollback. A staged tree is the sole authority for the new generation.
@@ -488,23 +488,33 @@ class PanelOwnershipHandoff:
 
     def __init__(
         self, store: TransactionStore, project: Path, staged: Path,
-        names: Sequence[str], *, legacy: bool = False,
+        names: Sequence[str], *, legacy: bool = False, agent_dir: Path | None = None,
     ) -> None:
         self.store = store
         self.project = project
         self.staged = staged
         self.names = tuple(names)
         self.legacy = legacy
+        self.agent_dir = agent_dir or _root_path(store.root, '/opt/proxy-control')
         self._state: TransactionState | None = None
         self._core: TransactionCheckpoint | None = None
+        self._agent: TransactionCheckpoint | None = None
         self._expected: dict[str, dict[str, str]] = {}
 
     def _in_scope(self, host_path: str) -> bool:
+        if self._agent is not None and Path(host_path).is_relative_to('/opt/proxy-control/version_agent'):
+            return True
         try:
             relative = Path(host_path).relative_to('/opt/mtproxy-shared443')
         except ValueError:
             return False
         return bool(relative.parts) and relative.parts[0] in self.names
+
+    def _targets(self):
+        for name in self.names:
+            yield self.project / name, '/opt/mtproxy-shared443/' + name, self._core
+        if self._agent is not None:
+            yield self.agent_dir / 'version_agent', '/opt/proxy-control/version_agent', self._agent
 
     def _stage_files(self) -> dict[str, dict[str, str]]:
         result: dict[str, dict[str, str]] = {}
@@ -519,7 +529,8 @@ class PanelOwnershipHandoff:
         }
         if any(name not in allowed for name in self.names):
             raise OwnershipError('panel sync scope is unsafe')
-        for name in self.names:
+        names = (*self.names, 'version_agent') if self._agent is not None else self.names
+        for name in names:
             source = self.staged / name
             if not source.exists() or source.is_symlink():
                 raise OwnershipError("panel archive scope is missing or unsafe")
@@ -532,7 +543,8 @@ class PanelOwnershipHandoff:
                 if not path.is_file():
                     raise OwnershipError("panel archive contains an unsafe path")
                 relative = path.relative_to(self.staged)
-                host = '/opt/mtproxy-shared443/' + relative.as_posix()
+                base = '/opt/proxy-control/' if name == 'version_agent' else '/opt/mtproxy-shared443/'
+                host = base + relative.as_posix()
                 result[host] = _path_identity(path)
         return result
 
@@ -552,21 +564,31 @@ class PanelOwnershipHandoff:
         if len(core) != 1 or core[0].action_id != 'core.runtime':
             raise TransactionError("active Core checkpoint is unavailable")
         checkpoint = core[0]
-        declaration = checkpoint.data.get('ownership')
-        if not isinstance(declaration, Mapping):
-            raise OwnershipError("Core ownership declaration is invalid")
-        for host, entry in checkpoint.ownership.items():
-            if host not in declaration or entry.get('sha256') != declaration[host].get('sha256'):
-                raise OwnershipError("Core checkpoint ownership disagrees with adapter data")
+        self._core = checkpoint
+        agents = [item for item in state.checkpoints if item.adapter == 'version_agent']
+        if agents and (self.staged / 'version_agent').exists():
+            if len(agents) != 1 or agents[0].phase != 'verified' or agents[0].action_id != 'version_agent.runtime':
+                raise TransactionError("active version-agent checkpoint is unavailable")
+            if self.agent_dir != _root_path(self.store.root, '/opt/proxy-control'):
+                raise OwnershipError("version-agent path does not match installer ownership")
+            self._agent = agents[0]
+        for item in (checkpoint, *([self._agent] if self._agent else [])):
+            declaration = item.data.get('ownership')
+            if not isinstance(declaration, Mapping):
+                raise OwnershipError("checkpoint ownership declaration is invalid")
+            for host, entry in item.ownership.items():
+                declared = declaration.get(host)
+                digest = declared.get('sha256') if isinstance(declared, Mapping) else declared
+                if entry.get('sha256') != digest:
+                    raise OwnershipError("checkpoint ownership disagrees with adapter data")
         stage = self._stage_files()
         owned = engine._ownership_for(state)
         if not self.legacy:
             engine._assert_owned(owned)
         else:
             engine._assert_owned({path: entry for path, entry in owned.items() if not self._in_scope(path)})
-        # A replaced directory must contain only files Core actually owned.
-        for name in self.names:
-            target = self.project / name
+        # Each replaced directory must contain only files its adapter owned.
+        for target, host_base, checkpoint in self._targets():
             if target.is_symlink():
                 raise OwnershipError("panel sync scope contains an unsafe symlink")
             if not target.exists():
@@ -577,8 +599,8 @@ class PanelOwnershipHandoff:
                     raise OwnershipError("panel sync scope contains an unsafe symlink")
                 if path.is_dir():
                     continue
-                host = '/opt/mtproxy-shared443/' + path.relative_to(self.project).as_posix()
                 relative = path.relative_to(target)
+                host = host_base + ('/' + relative.as_posix() if relative.parts else '')
                 # Python writes bytecode into installed source trees at runtime.
                 # These files are never Core-owned and are discarded by the
                 # replacement; never adopt them into the new generation.
@@ -593,12 +615,12 @@ class PanelOwnershipHandoff:
             for host, identity in stage.items():
                 if _path_identity(_owned_path(self.store.root, host)[1]) != identity:
                     raise OwnershipError(f"installed panel file differs from archive: {host}")
-            for host in checkpoint.ownership:
+            for host in owned:
                 if self._in_scope(host) and host not in stage:
                     path = _owned_path(self.store.root, host)[1]
                     if path.exists() or path.is_symlink():
                         raise OwnershipError(f"removed archive file still exists: {host}")
-        self._state, self._core, self._expected = state, checkpoint, stage
+        self._state, self._expected = state, stage
 
     def commit(self) -> None:
         if self._state is None:
@@ -612,8 +634,7 @@ class PanelOwnershipHandoff:
             path: entry for path, entry in engine._ownership_for(self._state).items()
             if not self._in_scope(path)
         })
-        for name in self.names:
-            target = self.project / name
+        for target, host_base, _checkpoint in self._targets():
             if target.is_symlink():
                 raise OwnershipError("panel sync scope contains an unsafe symlink")
             if not target.exists():
@@ -634,27 +655,32 @@ class PanelOwnershipHandoff:
                     # Bytecode may be regenerated after an old-agent update;
                     # it is neither archive evidence nor newly owned state.
                     continue
-                host = '/opt/mtproxy-shared443/' + path.relative_to(self.project).as_posix()
+                host = host_base + ('/' + relative.as_posix() if relative.parts else '')
                 if host not in self._expected:
                     raise OwnershipError(f"removed or foreign panel file remains: {host}")
         for host, identity in self._expected.items():
             if _path_identity(_owned_path(self.store.root, host)[1]) != identity:
                 raise OwnershipError(f"panel file differs from verified archive: {host}")
-        ownership = {path: _thaw(entry) for path, entry in self._core.ownership.items()
-                     if not self._in_scope(path)}
-        declaration = {path: _thaw(entry) for path, entry in self._core.data['ownership'].items()
-                       if not self._in_scope(path)}
-        for host, identity in self._expected.items():
-            ownership[host] = {
-                'action_id': self._core.action_id, 'adapter': 'core',
-                'kind': identity['kind'], 'preserve': False,
-                'mutable': False, 'sha256': identity['sha256'],
-            }
-            declaration[host] = {'preserve': False, 'sha256': identity['sha256']}
-        data = _thaw(self._core.data)
-        data['ownership'] = declaration
-        replacement = replace(self._core, data=data, ownership=ownership)
-        updated = engine._with_checkpoint(self._state, replacement)
+        updated = self._state
+        for checkpoint in (self._core, *([self._agent] if self._agent else [])):
+            ownership = {path: _thaw(entry) for path, entry in checkpoint.ownership.items()
+                         if not self._in_scope(path)}
+            declaration = {path: _thaw(entry) for path, entry in checkpoint.data['ownership'].items()
+                           if not self._in_scope(path)}
+            base = '/opt/proxy-control/version_agent' if checkpoint == self._agent else '/opt/mtproxy-shared443'
+            for host, identity in self._expected.items():
+                if not Path(host).is_relative_to(base):
+                    continue
+                ownership[host] = {
+                    'action_id': checkpoint.action_id, 'adapter': checkpoint.adapter,
+                    'kind': identity['kind'], 'preserve': False,
+                    'mutable': False, 'sha256': identity['sha256'],
+                }
+                declaration[host] = (identity['sha256'] if checkpoint == self._agent else
+                                     {'preserve': False, 'sha256': identity['sha256']})
+            data = _thaw(checkpoint.data)
+            data['ownership'] = declaration
+            updated = engine._with_checkpoint(updated, replace(checkpoint, data=data, ownership=ownership))
         # State is authoritative. A crash after this write leaves a new state
         # and stale derived journal; `resume` can revalidate the new bytes and
         # reconstruct the journal. The inverse ordering strands both paths.

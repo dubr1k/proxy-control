@@ -90,6 +90,7 @@ host untouched.
 | `status` | Print the sanitized transaction state |
 | `resume` | Continue an interrupted transaction from its durable journal |
 | `repair` | Re-verify owned files and restart the owned runtimes |
+| `reconcile-panel-update --archive PATH --sha256 DIGEST` | Reconcile Core and version-agent code ownership with the exact archive after an old-agent update |
 | `report` | Write the public acceptance report and the root-only credential handoff |
 | `uninstall` | Remove the owned generation; `--purge-data` also removes persistent state |
 
@@ -101,6 +102,15 @@ python3 -m installer.cli report --config examples/installer/full-three-xui.toml 
 
 `plan` is read-only. `install` refuses a digest that does not match the plan it
 just derived, so an approved plan cannot be swapped for another.
+
+After an update performed by an older version-agent, run `reconcile-panel-update`
+from the extracted new release before `repair`. Supply the exact installed
+archive and an independently verified SHA-256. The command verifies the running
+panel version, updated file bytes, and all unrelated ownership; foreign drift
+is refused. New agents hand off both checkpoints under the installer lock.
+Changes to either the agent code or its imported `installer` package schedule
+an agent restart so the next cycle loads the new implementation. See the
+[acceptance sequence](../tests/lab/README.md#first-update-from-an-older-version-agent).
 
 ## Configuration file
 

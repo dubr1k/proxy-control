@@ -12,6 +12,13 @@ The update operation and installer operations share `/run/lock/proxy-control.loc
 
 For hosts already updated by the old agent, offer an explicit recovery command requiring the exact release archive and pinned digest. It verifies archive bytes and current runtime version before making the same bounded ownership handoff. It never refreshes arbitrary hashes. Do not run this command on a live host in this branch.
 
+Review correction: the same sync replaces `/opt/proxy-control/version_agent`,
+whose immutable hashes belong to the version-agent adapter. Include that code
+package in the same atomic checkpoint update; preserve its unit, environment,
+catalog and mutable state. Restart the agent after changes to either its own
+package or its imported installer package. The owner's subsequent instruction
+authorizes native update/repair and clean installation on `ams-test` after backup.
+
 ## 2. Enabled Compose services
 
 The installer declares profile overlays, while version-agent uses a persisted `PROXY_CONTROL_COMPOSE_FILES`. A separately enabled MCP container can be running even when that list omits `compose.mcp.yaml`, as observed on the current host. Before any panel update, the release updater validates that every running Proxy-Control-managed optional service has its overlay in the agent's list. A mismatch fails with a precise operator action before mutation. The version-agent's direct panel-update path applies the same guard. A correctly declared MCP is synced and rebuilt; no orphan removal is used.

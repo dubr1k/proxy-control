@@ -108,6 +108,10 @@ installation safe.
 
 ## Before you install
 
+For an older installation, an update may require reconciling Core and
+version-agent ownership with the exact release archive before `repair`.
+Follow the [installer reference](docs/INSTALLER_REFERENCE.en.md#commands).
+
 - An **x86-64** server, which is what the overwhelming majority of VPS hosts
   are. Any other architecture is refused during the audit rather than part-way
   through an installation: the release is built for x86-64 only, and that is

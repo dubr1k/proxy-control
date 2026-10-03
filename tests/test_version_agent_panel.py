@@ -4,6 +4,7 @@ verifies `/app/VERSION` and rolls everything back otherwise."""
 from __future__ import annotations
 
 import hashlib
+import argparse
 import io
 import json
 import tarfile
@@ -12,9 +13,11 @@ from pathlib import Path
 
 import pytest
 from installer.adapters.core import CoreAdapter
+from installer.adapters.version_agent import VersionAgentAdapter
 from installer.planner import AuditFacts, InstallPlan, ReleaseIdentity
 from installer.transaction import PanelOwnershipHandoff, TransactionEngine, TransactionStore, operation_lock
 from tests.test_installer_core import FakeRunner, ROOT, config, core_action
+from tests.test_installer_version_agent import FakeRunner as AgentRunner
 
 from tests.test_version_agent import PANEL_URL, _agent
 from tests.test_version_agent_artifacts import _targz
@@ -282,6 +285,131 @@ def test_panel_update_rebases_active_core_for_repair_and_uninstall(tmp_path: Pat
     assert engine.uninstall(purge_data=False).status == "uninstalled"
 
 
+def _owned_panel_host(tmp_path, monkeypatch):
+    host = _PanelHost(tmp_path)
+    host.compose = tmp_path / "opt/mtproxy-shared443"
+    host.agent_dir = tmp_path / "opt/proxy-control"
+    runner = AgentRunner()
+    adapter = VersionAgentAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    monkeypatch.setattr(adapter, "_assert_socket", lambda: None)
+    original_capture = runner.capture
+
+    def capture(argv, **kwargs):
+        if argv[-1].endswith("/v1/versions"):
+            return json.dumps({"enabled": True, "components": {
+                name: {"current": version} for name, version in adapter._recorded_versions().items()
+            }})
+        return original_capture(argv, **kwargs)
+
+    runner.capture = capture
+    actions = (core_action(), *adapter.plan(config(), AuditFacts()))
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core", "version_agent"),
+        adapter_dependencies={"core": (), "version_agent": ("core",)}, actions=actions,
+    )
+    store = TransactionStore(tmp_path)
+    engine = TransactionEngine(store, {
+        "core": CoreAdapter(root=tmp_path, source_dir=ROOT, runner=FakeRunner()),
+        "version_agent": adapter,
+    })
+    engine.apply(plan, accepted_digest=plan.digest)
+    return host, store, engine
+
+
+def test_panel_update_hands_off_installed_agent_package_together_with_core(tmp_path, monkeypatch):
+    host, store, engine = _owned_panel_host(tmp_path, monkeypatch)
+    before = store.read_state()
+    agent = host.agent(_panel_archive(), installer_root=tmp_path)
+    agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    after = store.read_state()
+    assert after.plan_digest == before.plan_digest
+    checkpoint = next(item for item in after.checkpoints if item.adapter == "version_agent")
+    code = "/opt/proxy-control/version_agent/service.py"
+    assert checkpoint.ownership[code]["sha256"] == hashlib.sha256(b"new agent\n").hexdigest()
+    assert not any(path.endswith("/catalog.py") for path in checkpoint.ownership)
+    engine._assert_all_owned(after)
+    assert engine.repair().status == "active"
+    assert engine.uninstall(purge_data=False).status == "uninstalled"
+
+
+@pytest.mark.parametrize("path", ["opt/proxy-control/version_agent/service.py",
+                                   "etc/systemd/system/version-agent.service"])
+def test_panel_update_never_adopts_foreign_agent_code_or_unit(tmp_path, monkeypatch, path):
+    host, store, _ = _owned_panel_host(tmp_path, monkeypatch)
+    before = store.read_state()
+    (tmp_path / path).write_text("foreign modification\n")
+    agent = host.agent(_panel_archive(), installer_root=tmp_path)
+    with pytest.raises(UpdateError, match="drift"):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert store.read_state() == before
+    assert not any("build" in command for command in host.commands)
+
+
+@pytest.mark.parametrize("drift", [None, "code", "unit", "journal"])
+def test_legacy_recovery_reconciles_exact_agent_bytes_only(tmp_path, monkeypatch, drift):
+    from installer import cli
+    from installer.transaction import OwnershipError
+
+    host, store, engine = _owned_panel_host(tmp_path, monkeypatch)
+    before = store.read_state()
+    payload = _release_tar({
+        "proxy-control/VERSION": f"{NEW_PANEL}\n".encode(),
+        "proxy-control/version_agent/service.py": b"verified new agent\n",
+        "proxy-control/version_agent/new.py": b"new module\n",
+        "proxy-control/release/release.json": json.dumps({
+            "version": NEW_PANEL, "tag": f"v{NEW_PANEL}", "commit": "b" * 40,
+            "manifest_sha256": "a" * 64,
+        }).encode(),
+    })
+    archive = tmp_path / "candidate.tar.gz"
+    archive.write_bytes(payload)
+    agent = host.agent(payload, installer_root=tmp_path)
+    staged = tmp_path / "candidate"
+    agent._extract_panel_archive(payload, staged)
+    import shutil
+    for name, target in agent._panel_targets().items():
+        if (staged / name).exists():
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+            agent._copy_entry(staged / name, target)
+    if drift == "code":
+        (host.agent_dir / "version_agent/service.py").write_text("foreign code\n")
+    elif drift == "unit":
+        (tmp_path / "etc/systemd/system/version-agent.service").write_text("foreign unit\n")
+    monkeypatch.setattr(cli, "_running_panel_version", lambda: NEW_PANEL)
+    args = argparse.Namespace(archive=archive, sha256=hashlib.sha256(payload).hexdigest())
+    if drift == "journal":
+        original = store.write_ownership
+        calls = 0
+
+        def fail_once(ownership):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise OSError("journal unavailable")
+            original(ownership)
+
+        monkeypatch.setattr(store, "write_ownership", fail_once)
+        with pytest.raises(OSError, match="journal unavailable"):
+            cli._reconcile_panel_update(args, store, tmp_path)
+        assert store.read_state() == before
+        assert store.read_ownership() == engine._ownership_for(before)
+    elif drift:
+        with pytest.raises(OwnershipError):
+            cli._reconcile_panel_update(args, store, tmp_path)
+        assert store.read_state() == before
+    else:
+        updated = cli._reconcile_panel_update(args, store, tmp_path)
+        engine._assert_all_owned(updated)
+        checkpoint = next(item for item in updated.checkpoints if item.adapter == "version_agent")
+        assert checkpoint.ownership["/opt/proxy-control/version_agent/new.py"]["sha256"] == hashlib.sha256(b"new module\n").hexdigest()
+        assert engine.uninstall(purge_data=False).status == "uninstalled"
+
+
 def test_a_version_file_ahead_of_the_running_panel_does_not_hide_the_update(tmp_path: Path):
     """Seen live: a project dir kept in sync from a working copy got the next release's files
     (VERSION included) while the container still ran the previous build. The panel showed the
@@ -360,6 +488,22 @@ def test_panel_update_without_manager_or_agent_changes_neither_flags_nor_restart
     agent = host.agent(_panel_archive(naive=b"old naive\n", agent=b"old agent\n"))
     agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
     assert _state(tmp_path)["pending_rebuild"] == [] and "systemd-run" not in _verbs(host.commands)
+
+
+def test_panel_update_restarts_agent_when_only_loaded_installer_dependency_changes(tmp_path):
+    host = _PanelHost(tmp_path)
+    (host.compose / "installer").mkdir()
+    (host.compose / "installer/transaction.py").write_text("old handoff implementation\n")
+    payload = _release_tar({
+        "proxy-control/VERSION": f"{NEW_PANEL}\n".encode(),
+        "proxy-control/panel/app.py": b"new panel\n",
+        "proxy-control/installer/transaction.py": b"new handoff implementation\n",
+        "proxy-control/version_agent/service.py": b"old agent\n",
+    })
+    agent = host.agent(payload)
+    agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.agent_dir / "version_agent/service.py").read_text() == "old agent\n"
+    assert _verbs(host.commands)[-1] == "systemd-run"
 
 
 def test_panel_update_rolls_back_files_db_and_image_when_the_container_reports_the_old_version(tmp_path: Path):

@@ -189,7 +189,10 @@ python3 -m installer.cli repair
 ```
 
 The reconciliation verifies the archive, release identity, running panel
-version, every unrelated owned file, and the complete replaced file set. A
+version, every unrelated owned file, and the complete replaced file set for
+both Core and `/opt/proxy-control/version_agent`. Their checkpoints change in
+one state write; the agent's unit, environment and state remain outside this
+handoff. A
 wrong digest or foreign drift must fail without rewriting ownership. Record the
 installer status and SQLite integrity before and after repair; also exercise
 uninstall and rollback in a separately reset disposable run. Do not infer this

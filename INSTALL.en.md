@@ -21,6 +21,10 @@ See the [ingress and migration reference](docs/INSTALLER_REFERENCE.en.md).
 
 ## The primary install path: a verified release
 
+After the first update by an older version-agent, run `reconcile-panel-update`
+with the exact archive and SHA-256 before `repair` to reconcile ownership of
+Core and agent code. See [installer commands](docs/INSTALLER_REFERENCE.en.md#commands).
+
 This is the supported way to install Proxy Control. It replaces the manual
 `scripts/proxyctl.py` sequence below, which stays documented for an existing
 deployment and for reviewing what the installer does.

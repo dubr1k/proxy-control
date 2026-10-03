@@ -124,7 +124,7 @@ def _parser() -> argparse.ArgumentParser:
     uninstall.add_argument("--json", action="store_true")
     reconcile = subcommands.add_parser(
         "reconcile-panel-update",
-        help="explicitly reconcile Core ownership to a verified release archive",
+        help="reconcile Core and version-agent code ownership to a verified release archive",
     )
     reconcile.add_argument("--archive", type=Path, required=True)
     reconcile.add_argument("--sha256", required=True)
