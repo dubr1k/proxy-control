@@ -2627,6 +2627,10 @@ class CoreAdapter:
                 raise CoreError(f"Core owned file has drifted: {host_path}")
             durable_remove(path)
         if not preserve_credentials and owned_generation:
+            # The updater can create an empty override directory without owning
+            # a file there. Remove it with rmdir only: foreign contents and
+            # symlinks must survive, but empty residue must not block reinstall.
+            owned_directories.add(project / "version-overrides")
             purge_paths = (
                 *_PRESERVED_CREDENTIALS,
                 self.paths.bootstrap_marker_name,

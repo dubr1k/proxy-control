@@ -464,6 +464,9 @@ removes only the owned generation and preserves credentials, manager state, and
 named volumes; `--purge-data` is the explicit opt-in that also removes them and,
 for Naive and Mieru, the identities the installer itself created.
 
+An explicit purge also removes an empty `version-overrides` directory left by
+the updater. Nonempty directories and symbolic links are preserved.
+
 A finished `uninstall` or rollback does not block the next `install`: that is how
 owned files are re-rendered from a new release, and the preserved data (master
 key, panel database, credentials) is picked up as it is. The exception is

@@ -737,6 +737,35 @@ def test_explicit_uninstall_purge_removes_credentials_marker_and_empty_project(t
     assert not runner.volumes_present
 
 
+@pytest.mark.parametrize("residue", ["empty", "file", "symlink"])
+def test_explicit_purge_removes_only_empty_version_override_directory(tmp_path, residue):
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    project = tmp_path / "opt/mtproxy-shared443"
+    overrides = project / "version-overrides"
+    if residue == "symlink":
+        foreign = tmp_path / "foreign-overrides"
+        foreign.mkdir()
+        overrides.symlink_to(foreign, target_is_directory=True)
+    else:
+        overrides.mkdir(exist_ok=True)
+        if residue == "file":
+            (overrides / "operator.yaml").write_text("keep me\n")
+
+    adapter.rollback(action, applied, purge_data=True, rollback_target="uninstalled")
+
+    if residue == "empty":
+        assert not project.exists()
+        # A native update may create this directory without owning any files.
+        assert adapter.prepare(action)["project_created"] is True
+    elif residue == "file":
+        assert (overrides / "operator.yaml").read_text() == "keep me\n"
+    else:
+        assert overrides.is_symlink() and foreign.is_dir()
+
+
 def test_preexisting_identical_probe_and_image_are_preserved(tmp_path):
     probe = tmp_path / "usr/local/libexec/mtproxy-respq-probe"
     probe.parent.mkdir(parents=True)
