@@ -577,8 +577,11 @@ def test_a_hysteria_client_authenticates_with_auth_not_password():
         prefix="initial",
     )
     settings = inbounds[2].clients[0].settings("hysteria")
-    assert set(settings) == {"email", "auth"}
+    assert set(settings) == {"email", "auth", "enable"}
     assert settings["auth"]
+    # 3x-ui 3.9 defaults an omitted enable to false and drops the client from
+    # Xray's effective config, even though the API still lists that client.
+    assert settings["enable"] is True
 
 
 def test_reality_hides_behind_the_local_panel_site_rather_than_a_foreign_one():

@@ -120,7 +120,7 @@ class ManagedClient:
         # Hysteria2 authenticates with "auth"; a client sent as "password" is
         # stored and then never authenticates anybody.
         if protocol == "hysteria":
-            return {"email": self.email, "auth": self.password or "", **({"subId": self.subscription_id} if self.subscription_id else {})}
+            return {"email": self.email, "auth": self.password or "", "enable": True, **({"subId": self.subscription_id} if self.subscription_id else {})}
         return {
             "id": self.client_id,
             "email": self.email,
