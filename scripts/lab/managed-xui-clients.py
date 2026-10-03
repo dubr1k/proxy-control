@@ -100,7 +100,9 @@ def validate_config_pair(name: str, positive: Path, negative: Path, port: int, c
         if good != bad:
             raise ProbeError("configs are not credential-only variants")
         if name == "hysteria2":
-            if (set(good) != {"server", "auth", "tls", "socks5"} or
+            if good.get("lazy") is not True:
+                raise ProbeError("Hysteria lazy mode required")
+            if (set(good) != {"server", "auth", "lazy", "tls", "socks5"} or
                 good["server"] != f"{TARGETS[name]}:443" or
                 good["tls"] != {"sni": TARGETS[name]}):
                 raise ProbeError("target mismatch")

@@ -92,7 +92,11 @@ assumed property. Pin the exact client build and verify its CLI/config format.
 For a local self-signed lab certificate, issue a SAN for `hy2.lab.test` from a
 lab CA trusted by the Hysteria client; do not set `tls.insecure` or bypass
 verification. The JSON Hysteria config must use that SNI and the trusted
-system roots. A staging-only CN certificate is not sufficient evidence.
+system roots. Both Hysteria config variants must set top-level `"lazy": true`:
+the official client otherwise authenticates eagerly and exits on the wrong
+credential before opening its SOCKS listener, invalidating the negative
+probe's live-listener control. A staging-only CN certificate is not sufficient
+evidence.
 The preflight rejects symlinks, other owners, group/world permissions,
 unrelated routes, unexpected domains/ports, and any positive/negative change
 other than the one supported credential field. Each pair must expose the same

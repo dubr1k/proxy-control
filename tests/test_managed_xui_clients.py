@@ -44,7 +44,7 @@ def _valid_manifest(tmp_path):
     manifest = {**binaries, "cases": {}}
     for name, port in zip(probe.CASES, range(18080, 18083)):
         if name == "hysteria2":
-            config = {"server": "hy2.lab.test:443", "auth": "valid-secret",
+            config = {"server": "hy2.lab.test:443", "auth": "valid-secret", "lazy": True,
                       "tls": {"sni": "hy2.lab.test"}, "socks5": {"listen": f"127.0.0.1:{port}"}}
             credential = "auth"
         else:
@@ -160,6 +160,18 @@ def test_vless_wrong_credential_must_remain_valid_uuid(tmp_path):
     path.write_text(json.dumps(bad))
     path.chmod(0o600)
     with pytest.raises(probe.ProbeError, match="invalid VLESS UUID"):
+        probe.preflight(manifest, tmp_path)
+
+
+def test_hysteria_requires_lazy_auth_in_both_variants(tmp_path):
+    manifest = _valid_manifest(tmp_path)
+    for variant in ("positive", "negative"):
+        path = tmp_path / f"hysteria2-{variant}.json"
+        config = json.loads(path.read_text())
+        config["lazy"] = False
+        path.write_text(json.dumps(config))
+        path.chmod(0o600)
+    with pytest.raises(probe.ProbeError, match="Hysteria lazy mode required"):
         probe.preflight(manifest, tmp_path)
 
 
