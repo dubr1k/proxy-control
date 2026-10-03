@@ -177,7 +177,7 @@ main() {
   wait_for_port "$VLESS_XHTTP_PORT" || fail "the VLESS Reality XHTTP inbound is not listening"
   wait_for_port "$HYSTERIA_PORT" udp || fail "the Hysteria2 inbound is not listening"
 
-  printf 'managed-xui-acceptance: every promised inbound is listening\n'
+  printf 'managed-xui-acceptance: every promised inbound is listening (not a client proof)\n'
 }
 
 main "$@"

@@ -48,12 +48,148 @@ installer owns are proven inside `install-full-xui` by the installer's own
 acceptance, with a real client for each: a TDLib `resPQ` exchange for MTProto,
 an authenticated `CONNECT` with closed-tunnel accounting for NaiveProxy, and the
 official Mieru client over every transport. 3x-ui's own protocols - VLESS
-Reality TCP and XHTTP, Hysteria2 - are **not** client-tested anywhere in this
-repository; in `existing` mode the installer only adopts and routes them.
+Reality TCP and XHTTP, Hysteria2 - are **not** client-tested by this matrix;
+the separate gate below is pending native-stand execution. In `existing`
+mode the installer only adopts and routes them.
 
 That matrix covers coexistence with an existing 3x-ui and an ambiguous multi-map Nginx, real protocol clients for Telemt, Naive and Mieru, Docker build verification, repair, repeated install idempotence, restart recovery, a crash injected into every durable phase, secret scans, DNS/TLS preflight, uninstall twice, a foreign holder of a fixed identity, interrupted install/uninstall recovery, and final coexistence. VLESS TCP/XHTTP and Hysteria2 are not client-tested by this matrix, as described above.
 
+### Pending managed 3x-ui real-client gate
+
+Run this gate only on a **complete disposable managed-new installer topology**:
+the installed shared-443 ingress must route VLESS TCP/XHTTP by SNI to the
+provisioned 3x-ui loopback inbounds, UDP/443 must reach its Hysteria2 inbound,
+`vless.lab.test`, `xhttp.lab.test` and `hy2.lab.test` must resolve to that
+host, and the stand must have valid, trusted TLS material. Verify those facts
+and retain the actual provisioned inbound credentials before preparing client
+configs. `KEEP=1 scripts/lab/managed-xui-acceptance.sh` alone only stages 3x-ui
+and checks listeners: it does **not** install shared ingress, DNS or client
+trust, so it cannot satisfy this probe's prerequisites. On the complete stand,
+run
+`python3 scripts/lab/managed-xui-clients.py --manifest "$CLIENT_MANIFEST" --report "$CLIENT_REPORT"`.
+The manifest is a root-only JSON
+file on the disposable host; it names real Xray and Hysteria client executables
+with full SHA-256 digests, and six root-only client configs. The executables
+must be independently pinned for that run (the server's pinned Xray is not
+automatically a client pin). Its shape is:
+
+```json
+{
+  "xray": {"path": "/path/to/xray", "sha256": "<64 lowercase hex>"},
+  "hysteria": {"path": "/path/to/hysteria", "sha256": "<64 lowercase hex>"},
+  "cases": {
+    "vless-tcp": {"positive": "vless-tcp.json", "negative": "vless-tcp-bad.json", "socks_port": 18080, "credential_path": "outbounds.0.settings.vnext.0.users.0.id"},
+    "xhttp": {"positive": "xhttp.json", "negative": "xhttp-bad.json", "socks_port": 18081, "credential_path": "outbounds.0.settings.vnext.0.users.0.id"},
+    "hysteria2": {"positive": "hysteria2.json", "negative": "hysteria2-bad.json", "socks_port": 18082, "credential_path": "auth"}
+  }
+}
+```
+
+Place root-owned mode-0600 JSON configs beside a root-owned mode-0600 manifest.
+The official Hysteria client is a separate implementation from 3x-ui's bundled
+Xray Hysteria2 server; interoperability is a stand prerequisite, **not** an
+assumed property. Pin the exact client build and verify its CLI/config format.
+For a local self-signed lab certificate, issue a SAN for `hy2.lab.test` from a
+lab CA trusted by the Hysteria client; do not set `tls.insecure` or bypass
+verification. The JSON Hysteria config must use that SNI and the trusted
+system roots. A staging-only CN certificate is not sufficient evidence.
+The preflight rejects symlinks, other owners, group/world permissions,
+unrelated routes, unexpected domains/ports, and any positive/negative change
+other than the one supported credential field. Each pair must expose the same
+loopback SOCKS5 port and target its provisioned `*.lab.test` inbound.
+Xray is run as
+`xray run -config FILE`; Hysteria is run as `hysteria client -c FILE`.
+The gate runs positive → bad credential → positive for each protocol, POSTing
+a fixed harmless payload through the SOCKS port to an ephemeral loopback echo
+server. Both positives must return the exact payload and each must add one
+echo hit; the negative must fail transfer, add no echo hit, and leave its
+client and owned SOCKS listener alive. The SOCKS port must be free before launch
+and its listener must belong to the spawned client process group. It terminates
+the whole process group and echo server, even if the leader exits early. The
+report contains booleans only, never config contents or credentials. Missing
+binary, bad digest, config, curl, `ss`, or manifest is a failure, not a skip.
+The report separates `positive_payload_before`, `negative_attempt`,
+`positive_payload_after`, and `controlled_differential_denial` for each case;
+`pass` means only all three **controlled differential client probes** passed.
+The positive recheck controls for a transient outage, and config comparison
+limits the negative to one syntactically valid wrong credential. It does not
+assert that a server authentication log was observed: `server_auth_log_verified`
+remains false. For full stand acceptance, correlate UTC time and inbound tag
+with a secret-free 3x-ui server-side auth-denial event for each bad credential,
+and show the intended inbound's per-client traffic counter (or equivalent
+server-side trace) increased for the positive payload but not the negative.
+If 3x-ui/Xray exposes no trustworthy denial event, record that evidence as
+unverified rather than converting a curl error into server proof. Do not copy
+credentials, links, full access logs or client configs into the report.
+The operator must remove the staged 3x-ui or rotate every credential used
+after the run. This prepared gate has **not** been run on `ams-test` and is not
+protocol evidence yet. A listener-only `managed-xui-acceptance.sh` success
+does not satisfy this gate.
+
+### Synthetic Fleet capacity measurement
+
+`python3 scripts/lab/fleet-measure.py --nodes 40 --profile wan --seed 1`
+produces a credential-free JSON model and exits nonzero when its policy fails.
+`lan`, `wan` and `degraded` profiles state request/apply/retry latency ranges
+in milliseconds in the report. `--failure-every N` injects a terminal failed
+cycle (after one retry) at every Nth node. The model queues one cycle per node
+at time zero against the Fleet pusher's eight shared slots and reports
+nearest-rank p50/p95/max for cycle, queue, retry and successful convergence,
+plus failure count. Policy inputs are `--max-p95-convergence-ms` (default
+30000) and `--max-failures` (default zero). This is a deterministic sizing
+model, **not** an HTTP/mTLS load test, heartbeat measurement, or proof of live
+Fleet convergence. A native stand run must separately capture real per-node
+enqueue/start/attempt/observed-generation timestamps, retries, failures and
+the same distributions while checking the eight-slot active-cycle ceiling.
+
+### Manual Telegram and coexist evidence
+
+The TDLib `req_pq_multi` → `resPQ` probe proves an MTProto exchange, not that
+the Telegram application can connect and use a proxy. On the disposable stand,
+import one ephemeral `tg://` link into an actual Telegram mobile/desktop
+client, record client/platform version, UTC start/end, whether proxy connection
+shows connected, and whether a message/media request completes. Repeat with a
+revoked link and record refusal. Keep screenshots cropped/redacted so no link,
+secret, QR, account, chat content, or public node address enters the report;
+store only pass/fail and timing in the shared evidence. Cleanup revokes the
+ephemeral grant and removes it from the client.
+
+For a foreign coexist frontend, inventory the actual 443 owner, stream maps,
+trusted PROXY senders and the panel TLS backend before any change. The contract
+is: PROXY is accepted only from a pinned loopback bridge; the bridge preserves
+the original source address for the panel's PROXY-aware Unix TLS listener;
+raw Telemt, Naive and 3x-ui TLS backends receive no PROXY header. Never trust
+arbitrary `X-Forwarded-For` from the public socket. Verify with two distinct
+test source addresses and a forged `X-Forwarded-For`, confirming the panel's
+observed client IP follows the transport source, not the forged header. Check
+each adjacent SNI before/after with a real TLS request and compare the foreign
+route config digest. An unknown frontend or missing PROXY bridge is a manual
+blocker; do not edit a foreign route to satisfy this checklist.
+
 `--scenario NAME` (repeatable, or `LAB_SCENARIOS` through the Makefile) runs a subset. A filtered run is recorded as `filtered_scenarios` in the report and is only valid against what it declared: it can never stand in for a full release report. `qemu_lab.validate_report()` treats any required scenario missing from a full report as a failure even when the guest exits zero.
+
+### First update from an older version-agent
+
+The old agent cannot execute the new installer-ownership handoff during its first
+update. In the disposable acceptance host, test the exact
+`1.1.0 → candidate → reconcile-panel-update → repair` sequence. Keep the
+SHA-256-pinned candidate archive used for the update and a pre-update backup.
+After the panel reports the candidate version, run the candidate's installer
+from its extracted release directory, **before** `repair`:
+
+```bash
+python3 -m installer.cli reconcile-panel-update \
+  --archive /path/to/proxy-control-vX.Y.Z.tar.gz \
+  --sha256 '<independently pinned 64-character archive digest>'
+python3 -m installer.cli repair
+```
+
+The reconciliation verifies the archive, release identity, running panel
+version, every unrelated owned file, and the complete replaced file set. A
+wrong digest or foreign drift must fail without rewriting ownership. Record the
+installer status and SQLite integrity before and after repair; also exercise
+uninstall and rollback in a separately reset disposable run. Do not infer this
+transition passed from a healthy panel or from the old agent's `ready` state.
 
 `report.json` is schema 2 and records the mode, architecture, pinned image, source archive digest, release archive digest, and the plan digest the guest accepted, next to per-scenario results. `report.xml` and the sanitized `guest.log` are written beside it.
 
