@@ -2,7 +2,7 @@
 
 ## Intent and boundaries
 
-Make an installed Proxy Control host safe to update and subsequently repair, and make the next candidate observable and ready for native acceptance. No production repair, foreign frontend edit, public release, or test-stand run is part of this change. The current live `1.1.1-rc.2` deployment is evidence of the MCP-overlay gap, not a disposable test fixture.
+Make an installed Proxy Control host safe to update and subsequently repair, and make the next candidate observable and ready for native acceptance. The owner's later authorization covers native update/repair and clean replacement on `ams-test` after backup, using the stock installer without QEMU. Changes to other hosts, foreign frontend routes and public releases remain outside scope.
 
 ## 1. Installer ownership after a panel update
 

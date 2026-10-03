@@ -4,6 +4,15 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.1-rc.3] - 2026-10-03
+
+Unpublished hardening candidate, checked with the stock installer on a native host.
+
+- Panel updates transfer installer ownership for both Core and version-agent code under the installer lock; exact-archive reconciliation supports the first upgrade with an older agent. Installer-only changes also restart the agent to refresh imported Python modules.
+- Updates refuse an incomplete Compose overlay scope before changing running services. Authenticated readiness diagnostics distinguish pending reconciliation from process liveness.
+- Explicit installer purge removes an empty updater directory and verified optional-manager socket volumes, allowing a clean reinstall. Foreign files, symlinks and volumes remain protected.
+- The release install script and bilingual installation guides describe old-agent reconciliation. Native update/repair, clean install/repair and idempotent install evidence is recorded separately; no public release was published.
+
 ## [1.1.1-rc.2] - 2026-10-02
 
 Unpublished candidate with an additional fix found during installer validation.
