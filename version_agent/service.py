@@ -69,6 +69,15 @@ PANEL_SYNC = (
 PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "mcp_server", "docker")
 PANEL_AGENT_DIR = "version_agent"
 PANEL_DB_FILES = ("panel.sqlite3", "panel.sqlite3-wal", "panel.sqlite3-shm")
+OPTIONAL_COMPOSE_SERVICES = {
+    "mcp": "compose.mcp.yaml",
+    "naive-manager": "compose.naive.yaml",
+    "mieru-manager": "compose.mieru.yaml",
+    "xray-router": "compose.xray-router.yaml",
+    "xray-router-ingress": "compose.xray-router.yaml",
+    "fleet-agent": "compose.agent.yaml",
+    "fleet-ingress": "compose.fleet-central.yaml",
+}
 MAX_PANEL_TREE = 512 * 1024 * 1024
 AGENT_RESTART = [
     "systemd-run", "--on-active=5", "--unit=proxy-control-version-agent-restart",
@@ -507,6 +516,7 @@ class VersionAgent:
             if current is not None and compare_versions(version, current) < 0:
                 # The database only migrates forward: going back is a full restore.
                 raise UpdateError("the panel cannot be downgraded; restore a backup instead")
+            self._preflight_compose_scope()
             marker = {k: v for k, v in data.items() if k not in ("status", "last_error", "pending_rebuild")}
             marker.update({"version": current, "status": "updating", "started_at": int(time.time())})
             state.setdefault("components", {})["panel"] = marker
@@ -519,6 +529,23 @@ class VersionAgent:
             )
             self.panel_thread.start()
         return {"component": "panel", "version": version, "changed": True, "async": True}
+
+    def _preflight_compose_scope(self) -> None:
+        if self.compose_dir is None:
+            raise UpdateError("Compose deployment is not configured")
+        try:
+            running = self.runner(
+                ["docker", "ps", "--filter", "label=com.docker.compose.project=mtproxy",
+                 "--format", '{{.Label "com.docker.compose.service"}}'], timeout=30,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise UpdateError("could not determine running Compose services") from exc
+        for service in running.splitlines():
+            required = OPTIONAL_COMPOSE_SERVICES.get(service.strip())
+            if required and required not in self.compose_files:
+                raise UpdateError(
+                    f"running service {service.strip()} requires {required} in PROXY_CONTROL_COMPOSE_FILES"
+                )
 
     def _panel_worker(self, entry: CatalogEntry, previous: str | None) -> None:
         """Runs the update, persists the verdict, and never lets an exception escape the thread."""

@@ -78,6 +78,7 @@ class _PanelHost:
         self.agent_dir = tmp_path / "agent"
         self.volume = tmp_path / "volume"
         self.commands: list[list[str]] = []
+        self.running_services: list[str] = []
         self.container_version = container_version
         self.migrate = migrate
         for name, text in {
@@ -97,6 +98,9 @@ class _PanelHost:
 
     def run(self, command, *, env=None, cwd=None, timeout=None):
         self.commands.append(list(command))
+        if command == ["docker", "ps", "--filter", "label=com.docker.compose.project=mtproxy",
+                       "--format", '{{.Label "com.docker.compose.service"}}']:
+            return "\n".join(self.running_services)
         if command[:3] == ["docker", "volume", "inspect"]:
             return str(self.volume)
         if command == ["docker", "inspect", "--format", "{{.Image}}", "proxy-control-panel"]:
@@ -142,7 +146,8 @@ def _verbs(commands) -> list[str]:
 
 def _mutations(commands) -> list[list[str]]:
     """Everything but the read-only question «which version is running»."""
-    return [command for command in commands if command != PANEL_EXEC]
+    return [command for command in commands if command != PANEL_EXEC
+            and command[:2] != ["docker", "ps"]]
 
 
 def _state(tmp_path: Path) -> dict:
@@ -165,6 +170,42 @@ def test_panel_current_is_the_running_container_and_the_state_carries_the_status
     assert agent.update("panel", NEW_PANEL, expected_current=NEW_PANEL) == {
         "component": "panel", "version": NEW_PANEL, "changed": False}
     assert _mutations(host.commands) == []
+
+
+@pytest.mark.parametrize("service,overlay", [("mcp", "compose.mcp.yaml"),
+                                            ("mieru-manager", "compose.mieru.yaml")])
+def test_direct_panel_update_refuses_omitted_running_optional_service(tmp_path: Path, service, overlay):
+    host = _PanelHost(tmp_path)
+    host.running_services = [service]
+    agent = host.agent(_panel_archive())
+    with pytest.raises(UpdateError, match=overlay):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
+    assert not any("build" in command for command in host.commands)
+
+
+def test_direct_panel_update_allows_declared_running_mcp(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    host.running_services = ["mcp"]
+    agent = host.agent(_panel_archive())
+    agent.compose_files = ("compose.yaml", "compose.mcp.yaml")
+    assert agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)["changed"]
+
+
+def test_direct_panel_update_fails_closed_when_running_services_cannot_be_listed(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    agent = host.agent(_panel_archive())
+    original = agent.runner
+
+    def fail_ps(command, **kwargs):
+        if command[:2] == ["docker", "ps"]:
+            raise OSError("docker unavailable")
+        return original(command, **kwargs)
+
+    agent.runner = fail_ps
+    with pytest.raises(UpdateError, match="could not determine running Compose services"):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
 
 
 def test_panel_update_refuses_installer_lock_before_tree_mutation(tmp_path: Path):

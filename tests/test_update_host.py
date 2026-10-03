@@ -84,9 +84,12 @@ def host(tmp_path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log = tmp_path / "docker.log"
+    running_services = tmp_path / "running-services"
+    running_services.write_text("")
     (bin_dir / "docker").write_text(f"""#!/bin/sh
 echo "$*" >> {log}
 case "$*" in
+  *"ps --filter label=com.docker.compose.project=mtproxy --format "*) cat {running_services}; exit 0 ;;
   *" ps -a -q "*) echo {CONTAINER}; exit 0 ;;
 esac
 case "$1 $2" in
@@ -99,7 +102,8 @@ esac
 exit 0
 """)
     (bin_dir / "docker").chmod(0o755)
-    return {"tmp": tmp_path, "env_file": env_file, "bin": bin_dir, "log": log, "project": project}
+    return {"tmp": tmp_path, "env_file": env_file, "bin": bin_dir, "log": log, "project": project,
+            "running_services": running_services}
 
 
 def _run(host, agent: Agent, digest=DIGEST):
@@ -132,6 +136,34 @@ def test_a_digest_other_than_the_verified_one_changes_nothing(host):
     result = _run(host, agent)
     assert result.returncode != 0 and "verified" in result.stderr
     assert agent.updates == [] and not host["log"].exists()
+
+
+@pytest.mark.parametrize("service,overlay", [("mcp", "compose.mcp.yaml"),
+                                            ("mieru-manager", "compose.mieru.yaml")])
+def test_running_optional_service_missing_from_scope_refuses_before_panel_update(host, service, overlay):
+    host["running_services"].write_text(service + "\n")
+    agent = Agent()
+    result = _run(host, agent)
+    assert result.returncode != 0 and overlay in result.stderr
+    assert agent.updates == []
+    assert not any(" up -d " in line for line in host["log"].read_text().splitlines())
+
+
+def test_declared_running_mcp_is_allowed(host):
+    host["running_services"].write_text("mcp\n")
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.mcp.yaml\n")
+    result = _run(host, Agent(pending=()))
+    assert result.returncode == 0, result.stderr
+
+
+def test_compose_service_lookup_failure_refuses_before_panel_update(host):
+    docker = host["bin"] / "docker"
+    docker.write_text(docker.read_text().replace(f"cat {host['running_services']}; exit 0", "exit 1"))
+    agent = Agent()
+    result = _run(host, agent)
+    assert result.returncode != 0 and "could not determine running Compose services" in result.stderr
+    assert agent.updates == []
 
 
 def test_a_host_already_on_the_release_only_rebuilds_what_is_missing(host):
