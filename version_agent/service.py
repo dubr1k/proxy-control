@@ -767,6 +767,7 @@ class VersionAgent:
         self, entry: CatalogEntry, previous: str | None, staging: Path,
         transaction: object, installer_root: Path,
     ) -> tuple[list[str], bool]:
+        self._preflight_compose_scope()
         targets = self._panel_targets()
         present = [name for name in targets if (staging / name).exists()]
         handoff = transaction.PanelOwnershipHandoff(

@@ -208,6 +208,22 @@ def test_direct_panel_update_fails_closed_when_running_services_cannot_be_listed
     assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
 
 
+def test_panel_update_rechecks_compose_scope_after_download_before_tree_mutation(tmp_path: Path):
+    host = _PanelHost(tmp_path)
+    payload = _panel_archive()
+    agent = host.agent(payload)
+
+    def download(_url: str) -> bytes:
+        host.running_services = ["mcp"]
+        return payload
+
+    agent.downloader = download
+    with pytest.raises(UpdateError, match="compose.mcp.yaml"):
+        agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    assert (host.compose / "VERSION").read_text() == f"{OLD_PANEL}\n"
+    assert not any("build" in command for command in host.commands)
+
+
 def test_panel_update_refuses_installer_lock_before_tree_mutation(tmp_path: Path):
     host = _PanelHost(tmp_path)
     agent = host.agent(_panel_archive())
