@@ -48,6 +48,7 @@ __pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
+.ruff_cache/
 panel/*.sqlite3*
 .lab-state/
 lab-results/

@@ -50,7 +50,28 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 008 — транспорт панель→панель со scoped API-ключами](adr/008-panel-to-panel-transport.md)
 - [ADR 009 — полосы клиентов и цепи через relay парка (v0.7)](adr/009-lanes-and-chains.md)
 
+### Разработка и продолжение работы
+
+- [Текущее состояние rc.2 и следующие задачи](plans/CONTINUE-HERE.md)
+- [Аудит v1.1.0 и приёмка исправлений rc.2](superpowers/plans/2026-10-02-audit-hardening.md)
+- [Граф проекта](https://github.com/dubr1k/proxy-control/blob/main/graphify-out/GRAPH_REPORT.md) — в Git checkout также доступна карта `graphify-out/graph.html`; граф не включается в архив установки
+- [Архив заметок завершённых этапов](archive/handoffs/README.md) — исторический контекст, не текущие инструкции
+
 ### Выпуски
+
+Последний опубликованный выпуск — **v1.1.0**. `1.1.1-rc.2` принят в `main`,
+но ещё не опубликован.
+
+- [v1.1.0](releases/v1.1.0.md) — маршрутизация MTProxy через Xray-router
+- [v1.0.3](releases/v1.0.3.md) — скрипт установки в каждом выпуске, исправления мастера
+- [v1.0.2](releases/v1.0.2.md) — окно доступа, поиск и фильтры клиентов
+- [v1.0.1](releases/v1.0.1.md) — версии компонентов и региональные geodata
+- [v1.0.0](releases/v1.0.0.md) — первый стабильный выпуск
+- [v0.15.0-beta.1](releases/v0.15.0-beta.1.md) — версия панели и обновления узлов из центра
+- [v0.14.0-beta.1](releases/v0.14.0-beta.1.md) — совместное использование 443 и приёмка Naive
+- [v0.13.0-beta.1](releases/v0.13.0-beta.1.md) — мобильные карточки и быстрые настройки
+- [v0.12.0-beta.1](releases/v0.12.0-beta.1.md) — адрес у каждого раздела, ссылки MTProxy в карточке клиента
+- [v0.11.0-beta.1](releases/v0.11.0-beta.1.md) — обновления компонентов из upstream
 
 - [v0.9.0-beta.1](releases/v0.9.0-beta.1.md) — панель говорит, что узел уже делает (`matches_node`); отказы API словами экрана; правки экрана «Маршрутизация» и карточки узла
 - [v0.8.0-beta.1](releases/v0.8.0-beta.1.md) — свои выходы, таблица правил с быстрыми настройками, обновляемые geodata, автоимпорт пользователей узлов
@@ -111,7 +132,28 @@ This index separates **installation**, **protocol configuration**, **operations*
 - [ADR 008 — panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md)
 - [ADR 009 — lanes per client and chains through the fleet's relays (v0.7)](adr/009-lanes-and-chains.md)
 
+### Development and continuation
+
+- [Current rc.2 status and next tasks (Russian)](plans/CONTINUE-HERE.md)
+- [v1.1.0 audit and rc.2 acceptance evidence (Russian)](superpowers/plans/2026-10-02-audit-hardening.md)
+- [Project graph](https://github.com/dubr1k/proxy-control/blob/main/graphify-out/GRAPH_REPORT.md) — Git checkouts also include `graphify-out/graph.html`; the graph is excluded from installation archives
+- [Archived handoff notes](archive/handoffs/README.md) — historical context, not current instructions
+
 ### Releases
+
+The latest published release is **v1.1.0**. `1.1.1-rc.2` is accepted in `main`
+but has not been published.
+
+- [v1.1.0](releases/v1.1.0.md) — MTProxy routing through the Xray-router
+- [v1.0.3](releases/v1.0.3.md) — installer script in every release and wizard fixes
+- [v1.0.2](releases/v1.0.2.md) — access windows, client search and filters
+- [v1.0.1](releases/v1.0.1.md) — component versions and regional geodata
+- [v1.0.0](releases/v1.0.0.md) — first stable release
+- [v0.15.0-beta.1](releases/v0.15.0-beta.1.md) — panel version and node updates from the central
+- [v0.14.0-beta.1](releases/v0.14.0-beta.1.md) — shared port 443 and Naive acceptance
+- [v0.13.0-beta.1](releases/v0.13.0-beta.1.md) — mobile cards and quick settings
+- [v0.12.0-beta.1](releases/v0.12.0-beta.1.md) — page addresses and MTProxy links in client cards
+- [v0.11.0-beta.1](releases/v0.11.0-beta.1.md) — upstream component updates
 
 - [v0.9.0-beta.1](releases/v0.9.0-beta.1.md) — the panel says what the node already does (`matches_node`); API refusals in the screen's words; fixes on the routing screen and the node card
 - [v0.8.0-beta.1](releases/v0.8.0-beta.1.md) — custom exits, a rule table with quick settings, refreshable geodata, auto-import of node users
