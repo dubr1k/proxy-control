@@ -968,6 +968,49 @@ def test_compose_presence_query_uses_only_fixed_project_labels(monkeypatch):
     assert all("/missing/project" not in call for call in calls)
 
 
+@pytest.mark.parametrize("purge,target,expected", [
+    (True, "uninstalled", True), (False, "uninstalled", False),
+    (True, "rolled_back", False),
+])
+def test_core_purges_runtime_volumes_only_on_explicit_uninstall(tmp_path, monkeypatch, purge, target, expected):
+    runner = FakeRunner()
+    calls = []
+    monkeypatch.setattr(runner, "purge_runtime_volumes", lambda: calls.append(True), raising=False)
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    applied = adapter.apply(action, adapter.prepare(action))
+    adapter.rollback(action, applied, purge_data=purge, rollback_target=target)
+    assert bool(calls) is expected
+
+
+@pytest.mark.parametrize("labels_ok", [True, False])
+def test_runtime_volume_purge_checks_names_and_ownership_labels(monkeypatch, labels_ok):
+    runner = _DefaultCoreRunner()
+    calls = []
+    name = "mtproxy_naive-manager-run"
+
+    def capture(argv):
+        calls.append(tuple(argv))
+        if argv[:3] == ("docker", "volume", "ls"):
+            return name + "\nmtproxy_operator-data\n"
+        if argv[:3] == ("docker", "volume", "inspect"):
+            return json.dumps([{"Name": name, "Labels": {
+                "com.docker.compose.project": "mtproxy" if labels_ok else "foreign",
+                "com.docker.compose.volume": "naive-manager-run",
+            }}])
+        assert argv == ("docker", "volume", "rm", name)
+        return name
+
+    monkeypatch.setattr(runner, "_capture_checked", capture)
+    if labels_ok:
+        runner.purge_runtime_volumes()
+        assert ("docker", "volume", "rm", name) in calls
+    else:
+        with pytest.raises(CoreError, match="ownership"):
+            runner.purge_runtime_volumes()
+        assert not any(call[:3] == ("docker", "volume", "rm") for call in calls)
+
+
 def test_failed_rollback_cleanup_retains_tombstone_until_later_success(tmp_path):
     runner = FakeRunner(cleanup_fails=True)
     adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)

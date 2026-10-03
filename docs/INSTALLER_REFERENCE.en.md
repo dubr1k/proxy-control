@@ -466,6 +466,9 @@ for Naive and Mieru, the identities the installer itself created.
 
 An explicit purge also removes an empty `version-overrides` directory left by
 the updater. Nonempty directories and symbolic links are preserved.
+The three optional-manager socket volumes are removed after their containers,
+with their exact names and Compose ownership labels checked. Other volumes are
+not swept, and Docker must refuse any volume still in use.
 
 A finished `uninstall` or rollback does not block the next `install`: that is how
 owned files are re-rendered from a new release, and the preserved data (master

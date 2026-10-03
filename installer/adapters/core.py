@@ -290,6 +290,33 @@ class _DefaultCoreRunner:
             ).strip()
         )
 
+    def purge_runtime_volumes(self) -> None:
+        """Remove only the fixed optional-manager socket volumes after teardown."""
+        present = set(self._capture_checked((
+            "docker", "volume", "ls", "--quiet", "--filter",
+            "label=com.docker.compose.project=mtproxy",
+        )).split())
+        selected = []
+        for volume in ("naive-manager-run", "mieru-manager-run", "xray-router-run"):
+            name = f"mtproxy_{volume}"
+            if name not in present:
+                continue
+            try:
+                records = json.loads(self._capture_checked(("docker", "volume", "inspect", name)))
+                record, = records
+                labels = record.get("Labels") or {}
+                owned = (record.get("Name") == name
+                         and labels.get("com.docker.compose.project") == "mtproxy"
+                         and labels.get("com.docker.compose.volume") == volume)
+            except (ValueError, TypeError, AttributeError) as exc:
+                raise CoreError("runtime volume ownership could not be verified") from exc
+            if not owned:
+                raise CoreError("runtime volume ownership does not match")
+            selected.append(name)
+        for name in selected:
+            # Docker refuses an in-use volume; never force or prune.
+            self._capture_checked(("docker", "volume", "rm", name))
+
     def probe_image_identity(self, image: str) -> str | None:
         try:
             completed = subprocess.run(
@@ -1427,6 +1454,12 @@ class CoreAdapter:
             self._compose("down", "--remove-orphans")
         if destructive_purge and self._volumes_present():
             self._compose("down", "--remove-orphans", "--volumes")
+        if destructive_purge:
+            # Optional adapters already removed their overlays and containers,
+            # so the remaining Core Compose model no longer declares these.
+            purge_runtime = getattr(self.runner, "purge_runtime_volumes", None)
+            if callable(purge_runtime):
+                purge_runtime()
         self._remove_generation(
             prepared,
             preserve_credentials=not destructive_purge,
