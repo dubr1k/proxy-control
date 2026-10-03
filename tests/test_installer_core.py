@@ -477,6 +477,57 @@ def test_panel_handoff_rejects_foreign_file_before_sync(tmp_path):
         PanelOwnershipHandoff(store, project, staged, ("panel",)).prepare()
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("location", ["staged", "installed"])
+def test_panel_handoff_rejects_nested_symlink_directory(tmp_path, legacy, location):
+    import shutil
+
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    TransactionEngine(store, {"core": adapter}).apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    staged = tmp_path / "staged"
+    shutil.copytree(project / "panel", staged / "panel")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    ((staged if location == "staged" else project) / "panel/escape").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OwnershipError, match="symlink|unsafe"):
+        PanelOwnershipHandoff(store, project, staged, ("panel",), legacy=legacy).prepare()
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_panel_handoff_commit_rejects_symlink_directory_inserted_after_preflight(tmp_path, legacy):
+    import shutil
+
+    runner = FakeRunner()
+    adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)
+    action = core_action()
+    plan = InstallPlan(
+        config=config().canonical_dict(), facts=AuditFacts(),
+        release=ReleaseIdentity(tag="v-test", commit="b" * 40, manifest_sha256="a" * 64),
+        adapter_order=("core",), adapter_dependencies={"core": ()}, actions=(action,),
+    )
+    store = TransactionStore(tmp_path)
+    TransactionEngine(store, {"core": adapter}).apply(plan, accepted_digest=plan.digest)
+    project = tmp_path / "opt/mtproxy-shared443"
+    staged = tmp_path / "staged"
+    shutil.copytree(project / "panel", staged / "panel")
+    handoff = PanelOwnershipHandoff(store, project, staged, ("panel",), legacy=legacy)
+    handoff.prepare()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (project / "panel/escape").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OwnershipError, match="symlink|unsafe"):
+        handoff.commit()
+
+
 def test_panel_handoff_ignores_python_bytecode_without_adopting_it(tmp_path):
     runner = FakeRunner()
     adapter = CoreAdapter(root=tmp_path, source_dir=ROOT, runner=runner)

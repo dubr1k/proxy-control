@@ -525,9 +525,11 @@ class PanelOwnershipHandoff:
                 raise OwnershipError("panel archive scope is missing or unsafe")
             paths = sorted(source.rglob('*')) if source.is_dir() else [source]
             for path in paths:
+                if path.is_symlink():
+                    raise OwnershipError("panel archive contains an unsafe symlink")
                 if path.is_dir():
                     continue
-                if not path.is_file() or path.is_symlink():
+                if not path.is_file():
                     raise OwnershipError("panel archive contains an unsafe path")
                 relative = path.relative_to(self.staged)
                 host = '/opt/mtproxy-shared443/' + relative.as_posix()
@@ -565,10 +567,14 @@ class PanelOwnershipHandoff:
         # A replaced directory must contain only files Core actually owned.
         for name in self.names:
             target = self.project / name
+            if target.is_symlink():
+                raise OwnershipError("panel sync scope contains an unsafe symlink")
             if not target.exists():
                 continue
             paths = target.rglob('*') if target.is_dir() else (target,)
             for path in paths:
+                if path.is_symlink():
+                    raise OwnershipError("panel sync scope contains an unsafe symlink")
                 if path.is_dir():
                     continue
                 host = '/opt/mtproxy-shared443/' + path.relative_to(self.project).as_posix()
@@ -608,10 +614,14 @@ class PanelOwnershipHandoff:
         })
         for name in self.names:
             target = self.project / name
+            if target.is_symlink():
+                raise OwnershipError("panel sync scope contains an unsafe symlink")
             if not target.exists():
                 continue
             paths = target.rglob('*') if target.is_dir() else (target,)
             for path in paths:
+                if path.is_symlink():
+                    raise OwnershipError("panel sync scope contains an unsafe symlink")
                 if path.is_dir():
                     continue
                 relative = path.relative_to(target)
