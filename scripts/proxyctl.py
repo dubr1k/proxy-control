@@ -1166,7 +1166,8 @@ class RuntimeInstaller:
             self._clean_project_preserving_credentials()
             self._checkpoint(state, status="rollback_failed", phase="rollback_packages")
             if state["owned_packages"]:
-                self._run("apt-get", "purge", "-y", *state["owned_packages"])
+                # Remove, never purge: certbot's purge deletes /etc/letsencrypt.
+                self._run("apt-get", "remove", "-y", *state["owned_packages"])
             self._checkpoint(state, status="installing", phase="rollback_complete")
         except BaseException as exc:
             state["status"] = "rollback_failed"
@@ -1476,7 +1477,10 @@ class RuntimeInstaller:
                     if self.runner.package_installed(package)
                 ]
                 if remaining:
-                    self._run("apt-get", "purge", "-y", *remaining)
+                    # A purge runs the packages' maintainer scripts (certbot's deletes
+                    # /etc/letsencrypt): only --purge-data consents to that.
+                    verb = "purge" if state["purge_data"] else "remove"
+                    self._run("apt-get", verb, "-y", *remaining)
                 self._checkpoint(
                     state,
                     status="uninstalling",

@@ -69,7 +69,10 @@ class PackagesAdapter:
                     "supported package manager and package status are observed",
                 ),
                 verification=("every exact requested package is installed",),
-                inverse=("purge only exact packages installed by this action",),
+                inverse=(
+                    "remove only exact packages installed by this action; "
+                    "purge them only on uninstall --purge-data",
+                ),
                 credentials_required=False,
             ),
         )
@@ -164,9 +167,15 @@ class PackagesAdapter:
         purge_data: bool = False,
         rollback_target: str = "rolled_back",
     ) -> Evidence:
-        del purge_data
         if rollback_target not in {"rolled_back", "uninstalled"}:
             raise ValueError("invalid rollback target")
+        # A purge runs the packages' own maintainer scripts: docker.io's deletes
+        # /var/lib/docker with every volume (the panel database among them) and
+        # certbot's deletes /etc/letsencrypt. Only an explicit `uninstall
+        # --purge-data` consents to that; a plain uninstall and the rollback of a
+        # failed installation (which may follow an uninstall that kept that data)
+        # remove the packages and leave their data where it is.
+        purge = rollback_target == "uninstalled" and purge_data
         packages = _action_packages(action)
         preexisting, installer_added = _checkpoint_packages(checkpoint, packages)
         current = self._statuses(packages)
@@ -179,7 +188,7 @@ class PackagesAdapter:
         )
         if present_owned:
             self._run_checked(
-                ("apt-get", "purge", "--yes", *present_owned),
+                ("apt-get", "purge" if purge else "remove", "--yes", *present_owned),
                 "package rollback failed",
             )
         after = self._statuses(packages)
@@ -284,10 +293,15 @@ class PackagesAdapter:
             len(fields) != 3
             or fields[0] != package
             or re.fullmatch(r"[uihrp][ncHUFWti][ R]", status) is None
-            or _VERSION.fullmatch(fields[2]) is None
         ):
             raise PackageError("package status response is malformed")
-        return fields[2] if status[1] == "i" else None
+        if status[1] != "i":
+            # Removed (`rc`, version kept) or purged (`un`, dpkg keeps the record with
+            # an empty version): not installed either way.
+            return None
+        if _VERSION.fullmatch(fields[2]) is None:
+            raise PackageError("package status response is malformed")
+        return fields[2]
 
     def _run_checked(self, argv: tuple[str, ...], message: str) -> None:
         result = self.runner.run(argv)

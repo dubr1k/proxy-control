@@ -4,6 +4,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-04
+
+- `uninstall` without `--purge-data` removes the packages the installer installed with `apt-get remove` instead of `apt-get purge`: Docker's `/var/lib/docker` with every volume (the panel database included) and certbot's `/etc/letsencrypt` stay. A purge runs only on an explicit `uninstall --purge-data`; the rollback of a failed installation removes, never purges. The same rule applies to the `proxyctl` runtime.
+- The package status reader accepts a purged package that dpkg keeps with an empty version; an uninstall used to fail right after purging.
+- Routing refusals in the panel and the API name the missing node capability instead of an old version number; the update script and `install-release.sh --requirements` no longer refer to beta releases.
+- The README is rewritten with separate installation sections for a person and for an AI agent; the documentation describes the current behaviour only, and the history before 1.0.0 is removed.
+
 ## [1.1.1] - 2026-10-03
 
 - Includes the client lifecycle, bounded Fleet synchronization, update rollback and native installer fixes from the unpublished rc.1–rc.3 candidates below.

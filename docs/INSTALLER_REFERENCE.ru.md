@@ -31,7 +31,7 @@ bash install-release.sh
 
 Скачайте четыре файла выпуска — архив, `SHA256SUMS`, `release-manifest.json` и
 `sbom.spdx.json` — из раздела Assets
-[страницы выпуска 1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+[страницы выпуска 1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).
 Релизный workflow публикует GitHub attestation провенанса архива и
 `install-release.sh`. `sha256sum` сверяет три payload-файла из скачанного
 `SHA256SUMS` (архив, `release-manifest.json` и `sbom.spdx.json`);
@@ -41,9 +41,9 @@ bash install-release.sh
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от root. До единственного `exec sudo`
@@ -442,11 +442,12 @@ python3 -m installer.cli uninstall --json
 состояние manager и named volumes; `--purge-data` — явное согласие удалить и их,
 а для Naive и Mieru — также identity, созданные самим установщиком.
 
-Исключение — пакеты адаптера `packages`, которые установщик поставил сам (их не было на хосте
-до установки): `uninstall` удаляет их `apt-get purge` — с `--purge-data` и без него. Purge
-`docker.io` стирает `/var/lib/docker` со всеми томами, включая базу панели, purge `certbot` —
-`/etc/letsencrypt` с сертификатами. Пакеты, стоявшие на хосте до установки, не трогаются. Перед
-`uninstall` на таком хосте сделайте резервную копию и унесите её с сервера.
+Пакеты адаптера `packages`, которые установщик поставил сам (их не было на хосте до установки),
+`uninstall` снимает `apt-get remove`: данные Docker в `/var/lib/docker` и сертификаты в
+`/etc/letsencrypt` остаются. `apt-get purge` выполняется только при `uninstall --purge-data`, и
+тогда purge `docker.io` стирает `/var/lib/docker` со всеми томами, а purge `certbot` —
+`/etc/letsencrypt`. Откат неудачной установки снимает пакеты `apt-get remove`. Пакеты, стоявшие на
+хосте до установки, не трогаются.
 
 Явный purge удаляет также пустой каталог `version-overrides`, оставшийся от
 обновлятора. Непустой каталог и символические ссылки сохраняются.
@@ -456,8 +457,7 @@ python3 -m installer.cli uninstall --json
 
 Завершённые `uninstall` и откат не блокируют следующий `install`: так владеемые
 файлы перерисовываются новым релизом, а сохранённые данные (мастер-ключ, база
-панели, учётные данные) подхватываются как есть — если они пережили удаление пакетов (см.
-выше). Исключение — `three_xui` в режиме
+панели, учётные данные) подхватываются как есть. Исключение — `three_xui` в режиме
 `managed-new`: он отказывается от любой существующей базы `/etc/x-ui/x-ui.db`, в
 том числе сохранённой прошлым `uninstall`; переустановка требует `uninstall
 --purge-data` или явного переноса этой базы оператором.
@@ -491,8 +491,8 @@ identity установки, снимает базу, дерево бинаре�
 боевые учётные данные, DNS или SSH-ключи.
 
 ```bash
-make lab-release RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
-make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256>
+make lab-release RELEASE_ARCHIVE=dist/proxy-control-v1.1.2.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
+make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.2.tar.gz RELEASE_SHA256=<sha256>
 ```
 
 Лаборатория QEMU загружает Ubuntu-образ с зафиксированной контрольной суммой и

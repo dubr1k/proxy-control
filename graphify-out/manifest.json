@@ -300,10 +300,10 @@
     "semantic_hash": "dbbae493887b588153e878fccf0803b7"
   },
   "scripts/proxyctl.py": {
-    "mtime": 1788613886.7764966,
-    "seen": 1791122825.2071471,
-    "ast_hash": "e0e8fd061560a875ac19899d7a0eb97c",
-    "semantic_hash": "e0e8fd061560a875ac19899d7a0eb97c"
+    "mtime": 1791123721.178533,
+    "seen": 1791124392.756137,
+    "ast_hash": "5d4fb8ff0407eabb2204548983955720",
+    "semantic_hash": ""
   },
   "tests/lab/test_qemu_lab.py": {
     "mtime": 1788965135.527542,
@@ -354,10 +354,10 @@
     "semantic_hash": "34b287132c609a3efc7422944d489743"
   },
   "tests/test_proxyctl_runtime.py": {
-    "mtime": 1788613886.7853668,
-    "seen": 1791122825.20717,
-    "ast_hash": "9c9c2bde3545932656376aa920c8bb4c",
-    "semantic_hash": "9c9c2bde3545932656376aa920c8bb4c"
+    "mtime": 1791123754.0133834,
+    "seen": 1791124392.7561631,
+    "ast_hash": "b543be681712faae787a19a94a410305",
+    "semantic_hash": ""
   },
   "tests/test_proxyctl_transactions.py": {
     "mtime": 1788613886.78563,
@@ -624,9 +624,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1791120993.8296607,
-    "seen": 1791122825.207187,
-    "ast_hash": "4936eedc3f224dd93049e18d8b0a5983",
+    "mtime": 1791124193.8346543,
+    "seen": 1791124392.756182,
+    "ast_hash": "d5dca84d02f21edcbadb943df86cb3de",
     "semantic_hash": ""
   },
   "CODE_OF_CONDUCT.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "INSTALL.en.md": {
-    "mtime": 1791121234.4199126,
-    "seen": 1791122825.20719,
-    "ast_hash": "22ff9991d1192cdb7f5fc850d85d0eb2",
+    "mtime": 1791124182.001584,
+    "seen": 1791124392.756185,
+    "ast_hash": "8e55cbe189edfb7171659c535a2de585",
     "semantic_hash": ""
   },
   "INSTALL.ru.md": {
-    "mtime": 1791121601.2183712,
-    "seen": 1791122825.20719,
-    "ast_hash": "d2d1c9ad8f7005e01e912d33605f5386",
+    "mtime": 1791124182.001472,
+    "seen": 1791124392.756185,
+    "ast_hash": "3a27c0ee7737112a528dae73b3906c11",
     "semantic_hash": ""
   },
   "INSTALLER_AUDITOR.md": {
@@ -702,27 +702,27 @@
     "semantic_hash": ""
   },
   "PANEL.en.md": {
-    "mtime": 1791121573.15672,
-    "seen": 1791122825.2071922,
-    "ast_hash": "41826b5039c07bab884f3b82a67e59a4",
+    "mtime": 1791123805.4908335,
+    "seen": 1791124392.756187,
+    "ast_hash": "c364d6cf4f60c88a3de5edb0afdb02df",
     "semantic_hash": ""
   },
   "PANEL.ru.md": {
-    "mtime": 1791121577.0195541,
-    "seen": 1791122825.2071922,
-    "ast_hash": "180f1f0265f981008bf8322ffb8e7f35",
+    "mtime": 1791123805.4906948,
+    "seen": 1791124392.756187,
+    "ast_hash": "e039f9f0532e5512eb43ae6ad2f40ba5",
     "semantic_hash": ""
   },
   "README.en.md": {
-    "mtime": 1791122760.1701863,
-    "seen": 1791122825.2071922,
-    "ast_hash": "a4b7bfc22302b4703afdc11b46ee7c93",
+    "mtime": 1791124182.0013447,
+    "seen": 1791124392.756187,
+    "ast_hash": "f7343814af7064a8b904314b11010f8d",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791121535.8778865,
-    "seen": 1791122825.2071922,
-    "ast_hash": "ef7e155f1621c094ba6d4b220b500520",
+    "mtime": 1791124182.0011458,
+    "seen": 1791124392.756188,
+    "ast_hash": "820602237d6f1141884e900b5a1f3248",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -828,9 +828,9 @@
     "semantic_hash": ""
   },
   "docs/README.md": {
-    "mtime": 1791121584.242483,
-    "seen": 1791122825.2072,
-    "ast_hash": "bdcedbaea4d2037d9f10380cd748f7fb",
+    "mtime": 1791124182.0008721,
+    "seen": 1791124392.756196,
+    "ast_hash": "19897b7b5dad596a1d737f538ee4a8c0",
     "semantic_hash": ""
   },
   "docs/TROUBLESHOOTING.en.md": {
@@ -846,15 +846,15 @@
     "semantic_hash": ""
   },
   "docs/UPGRADING.md": {
-    "mtime": 1791121864.3832858,
-    "seen": 1791122825.207201,
-    "ast_hash": "c1e9837344fbd6f7b7e778c25958d60b",
+    "mtime": 1791124182.0007658,
+    "seen": 1791124392.756198,
+    "ast_hash": "38ec2d565e06204f47ec636fe1dcb731",
     "semantic_hash": ""
   },
   "docs/UPGRADING.ru.md": {
-    "mtime": 1791121897.278869,
-    "seen": 1791122825.207202,
-    "ast_hash": "582d578ce4af7a3a5b41bccc7308e2bf",
+    "mtime": 1791124182.0006244,
+    "seen": 1791124392.756198,
+    "ast_hash": "7e2dc6f53c9e1a684994dea3f212aa27",
     "semantic_hash": ""
   },
   "docs/VALIDATION.md": {
@@ -972,10 +972,10 @@
     "semantic_hash": ""
   },
   "installer/adapters/packages.py": {
-    "mtime": 1788613886.7701235,
-    "seen": 1791122825.207052,
-    "ast_hash": "cbc00a2279084904c5d31b45506f2841",
-    "semantic_hash": "cbc00a2279084904c5d31b45506f2841"
+    "mtime": 1791124051.6770768,
+    "seen": 1791124392.756028,
+    "ast_hash": "ec652579cb11b17790a52c07c62a186f",
+    "semantic_hash": ""
   },
   "installer/adapters/three_xui.py": {
     "mtime": 1791049367.7024744,
@@ -1212,9 +1212,9 @@
     "semantic_hash": "98138a333196e0de5b261813cd6fd426"
   },
   "tests/test_installer_fresh_host.py": {
-    "mtime": 1789736567.141219,
-    "seen": 1791122825.207158,
-    "ast_hash": "573a97ada961232ae903d08c05f27b76",
+    "mtime": 1791124062.684726,
+    "seen": 1791124392.756149,
+    "ast_hash": "50c0ded4049db853f19588f311ec1abc",
     "semantic_hash": ""
   },
   "tests/test_installer_mieru.py": {
@@ -1296,9 +1296,9 @@
     "semantic_hash": ""
   },
   "tests/test_installer_transaction.py": {
-    "mtime": 1791020062.1618662,
-    "seen": 1791122825.2071621,
-    "ast_hash": "9c6130a20a9e01b44881f1cdd5f619cf",
+    "mtime": 1791123754.01356,
+    "seen": 1791124392.756154,
+    "ast_hash": "becf51190272f2d0a496857a3880174a",
     "semantic_hash": ""
   },
   "tests/test_installer_warp.py": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "tests/test_release_build.py": {
-    "mtime": 1791049367.711692,
-    "seen": 1791122825.20717,
-    "ast_hash": "02e32b42f96b131c0f8b876467afcc81",
+    "mtime": 1791124182.002144,
+    "seen": 1791124392.7561631,
+    "ast_hash": "ecd4407f361328374c6315a69f68c4c7",
     "semantic_hash": ""
   },
   "tests/test_three_xui_api.py": {
@@ -1416,15 +1416,15 @@
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.en.md": {
-    "mtime": 1791121319.6539664,
-    "seen": 1791122825.207197,
-    "ast_hash": "220ba681ede8a93a7ba7ac96d91d5cd4",
+    "mtime": 1791124182.0019565,
+    "seen": 1791124392.756193,
+    "ast_hash": "1eeb2bc0fc0b53439c8fa021860dcc96",
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.ru.md": {
-    "mtime": 1791121603.4657836,
-    "seen": 1791122825.207198,
-    "ast_hash": "f23daa7e4ec88b5b63611f0264260355",
+    "mtime": 1791124182.0018036,
+    "seen": 1791124392.756194,
+    "ast_hash": "290a7f2745618646cbdea1ec1e424b59",
     "semantic_hash": ""
   },
   "tests/lab/clients/compose.yaml": {
@@ -2112,9 +2112,9 @@
     "semantic_hash": ""
   },
   "panel/routing/compiler.py": {
-    "mtime": 1790870974.0034645,
-    "seen": 1791122825.207089,
-    "ast_hash": "caf233257f0245e0890172ae681a33e2",
+    "mtime": 1791123805.4909453,
+    "seen": 1791124392.756072,
+    "ast_hash": "6d805a2850765339aae5730e27649c62",
     "semantic_hash": ""
   },
   "panel/routing/document.py": {
@@ -2136,9 +2136,9 @@
     "semantic_hash": ""
   },
   "panel/routing/service.py": {
-    "mtime": 1790871021.8768425,
-    "seen": 1791122825.207092,
-    "ast_hash": "526e048cdb0a5648ba6573e0d2df3554",
+    "mtime": 1791123805.491224,
+    "seen": 1791124392.756074,
+    "ast_hash": "3ffe27f202dfff4815f6281659e065ab",
     "semantic_hash": ""
   },
   "panel/routing/store.py": {
@@ -2148,9 +2148,9 @@
     "semantic_hash": ""
   },
   "panel/static/js/routing.js": {
-    "mtime": 1790871898.6716962,
-    "seen": 1791122825.207099,
-    "ast_hash": "9019334015d74567fcfbc9e139f7cf90",
+    "mtime": 1791123805.4897883,
+    "seen": 1791124392.756084,
+    "ast_hash": "831369a64930655442bfedd9dfad3d39",
     "semantic_hash": ""
   },
   "panel/tests/test_egress_adapters.py": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_routing_ui_contract.py": {
-    "mtime": 1790858503.7578053,
-    "seen": 1791122825.207127,
-    "ast_hash": "6e9463dede2d44b8a61ee7084125c2fd",
+    "mtime": 1791123805.4904816,
+    "seen": 1791124392.756114,
+    "ast_hash": "01381fb78fb1f3141da2480864872525",
     "semantic_hash": ""
   },
   "scripts/lab/routing-spike.py": {
@@ -2286,9 +2286,9 @@
     "semantic_hash": ""
   },
   "panel/routing/adapters/xray_router.py": {
-    "mtime": 1789745067.3834982,
-    "seen": 1791122825.207089,
-    "ast_hash": "04897196ba1d10870e51cd2928cb2f9b",
+    "mtime": 1791123805.4914367,
+    "seen": 1791124392.7560709,
+    "ast_hash": "a6340f20006e96b987b7a57f607795ae",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_fleet_router.py": {
@@ -2328,9 +2328,9 @@
     "semantic_hash": ""
   },
   "scripts/install-release.sh": {
-    "mtime": 1791049367.706551,
-    "seen": 1791122825.2071402,
-    "ast_hash": "f7dd9fc7cac9e97165809f8ce0292819",
+    "mtime": 1791123805.4918003,
+    "seen": 1791124392.756129,
+    "ast_hash": "27ad92c4b2f49c68127b330b6bcf22f3",
     "semantic_hash": ""
   },
   "scripts/lab/xray-spike.py": {
@@ -2436,9 +2436,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.ru.md": {
-    "mtime": 1791120993.8298295,
-    "seen": 1791122825.207188,
-    "ast_hash": "5b55bb5e6f05a847982b2b2755383ef4",
+    "mtime": 1791124193.8348129,
+    "seen": 1791124392.7561831,
+    "ast_hash": "476c180958a3d7d9fb440286b27b3494",
     "semantic_hash": ""
   },
   "compose.xray-router.yaml": {
@@ -2616,9 +2616,9 @@
     "semantic_hash": ""
   },
   "panel/routing/lanes.py": {
-    "mtime": 1789736567.1280859,
-    "seen": 1791122825.20709,
-    "ast_hash": "7e5b34b65eb4a111ef587f93646c0956",
+    "mtime": 1791123805.4913516,
+    "seen": 1791124392.756073,
+    "ast_hash": "c5621f99e6c2a616cc351421680bbbc6",
     "semantic_hash": ""
   },
   "panel/routing/presets.py": {
@@ -2916,9 +2916,9 @@
     "semantic_hash": ""
   },
   "panel/static/i18n/en.json": {
-    "mtime": 1791020062.1571085,
-    "seen": 1791122825.207094,
-    "ast_hash": "dab10d04f0d7804f6d7a946ff774d9e0",
+    "mtime": 1791123805.4903524,
+    "seen": 1791124392.756077,
+    "ast_hash": "487c7fc28a5d3920a17027d83390b165",
     "semantic_hash": ""
   },
   "panel/static/js/i18n.js": {
@@ -3060,9 +3060,9 @@
     "semantic_hash": ""
   },
   "scripts/update-host.sh": {
-    "mtime": 1791049367.707302,
-    "seen": 1791122825.207148,
-    "ast_hash": "f694ab7918b9b1187418cd5aa553499b",
+    "mtime": 1791123805.49155,
+    "seen": 1791124392.756138,
+    "ast_hash": "8c985db0c61ce60501098aa80627bfaf",
     "semantic_hash": ""
   },
   "tests/test_update_host.py": {
@@ -3189,6 +3189,12 @@
     "mtime": 1791049367.7075171,
     "seen": 1791122825.207149,
     "ast_hash": "337ad45b116bdc07d34c5db2a79dc90e",
+    "semantic_hash": ""
+  },
+  "docs/releases/v1.1.2.md": {
+    "mtime": 1791124202.9754436,
+    "seen": 1791124392.756205,
+    "ast_hash": "f99d524958c978ce7d1ce0d1ebc4be5e",
     "semantic_hash": ""
   }
 }

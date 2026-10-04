@@ -30,7 +30,7 @@ By hand:
 
 Download the four release files — the archive, `SHA256SUMS`,
 `release-manifest.json`, and `sbom.spdx.json` — from Assets on the
-[1.1.1 release page](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+[1.1.2 release page](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).
 The release workflow publishes a GitHub provenance attestation of the archive and
 of `install-release.sh`. `sha256sum` checks the three payload files named by the
 downloaded `SHA256SUMS` (the archive, `release-manifest.json` and `sbom.spdx.json`);
@@ -40,9 +40,9 @@ verified archive — all before anything runs with privilege.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as root. Before its single `exec sudo` it
@@ -471,12 +471,13 @@ removes only the owned generation and preserves credentials, manager state, and
 named volumes; `--purge-data` is the explicit opt-in that also removes them and,
 for Naive and Mieru, the identities the installer itself created.
 
-The exception is the `packages` adapter's packages the installer installed itself (absent
-from the host before installation): `uninstall` removes them with `apt-get purge`, with or
-without `--purge-data`. Purging `docker.io` deletes `/var/lib/docker` with every volume, the
-panel database included; purging `certbot` deletes `/etc/letsencrypt` with the certificates.
-Packages that were on the host before installation are not touched. Before `uninstall` on such a
-host, make a backup and copy it off the server.
+The `packages` adapter's packages the installer installed itself (absent from the host before
+installation) are removed by `uninstall` with `apt-get remove`: Docker's data in `/var/lib/docker`
+and the certificates in `/etc/letsencrypt` stay. `apt-get purge` runs only on `uninstall
+--purge-data`, and then the purge of `docker.io` deletes `/var/lib/docker` with every volume and
+the purge of `certbot` deletes `/etc/letsencrypt`. The rollback of a failed installation removes
+the packages with `apt-get remove`. Packages that were on the host before installation are not
+touched.
 
 An explicit purge also removes an empty `version-overrides` directory left by
 the updater. Nonempty directories and symbolic links are preserved.
@@ -486,8 +487,7 @@ not swept, and Docker must refuse any volume still in use.
 
 A finished `uninstall` or rollback does not block the next `install`: that is how
 owned files are re-rendered from a new release, and the preserved data (master
-key, panel database, credentials) is picked up as it is — when it survived the package
-removal described above. The exception is
+key, panel database, credentials) is picked up as it is. The exception is
 `three_xui` in `managed-new` mode: it refuses any existing `/etc/x-ui/x-ui.db`,
 including one a previous `uninstall` preserved; reinstalling needs `uninstall
 --purge-data` or the operator moving that database away first.
@@ -522,8 +522,8 @@ Two disposable labs validate a release candidate. Neither uses production
 credentials, DNS, or SSH keys.
 
 ```bash
-make lab-release RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
-make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256>
+make lab-release RELEASE_ARCHIVE=dist/proxy-control-v1.1.2.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
+make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.2.tar.gz RELEASE_SHA256=<sha256>
 ```
 
 The QEMU lab boots a checksum-pinned Ubuntu image and runs the full release

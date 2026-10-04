@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1)
+> **Current release: [v1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -213,8 +213,8 @@ The script's own origin is proved with
 
 Useful options: `--check-only` downloads and verifies only; `--no-wizard` also extracts
 but does not start the wizard; `--lang ru|en` sets the language of the messages. To
-install exactly 1.1.1, replace `releases/latest/download/` in both URLs with
-`releases/download/v1.1.1/`.
+install exactly 1.1.2, replace `releases/latest/download/` in both URLs with
+`releases/download/v1.1.2/`.
 
 The project deliberately never offers «download and run in one command»: the script is
 verified first, read next, and only then run.
@@ -322,7 +322,7 @@ previous state.
 ### Manual installation from the archive
 
 The same path without the script. Download the four files under Assets of the
-[1.1.1 release](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1): the archive,
+[1.1.2 release](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -330,9 +330,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file
@@ -578,15 +578,15 @@ sudo python3 -m installer.cli uninstall --json
 ```
 
 Uninstalling stops the services and removes only the routes, files and packages the
-installer owns; without `--purge-data`, secrets, volumes and cover-site directories stay.
-Afterwards check `nginx -t`, the public listeners and adjacent SNI routes.
+installer owns. Packages the installer installed itself (on a clean server, for example
+`docker.io` and `certbot`) are removed with `apt-get remove`: the Docker volumes with the panel
+database, secrets, certificates and cover-site directories stay. Afterwards check `nginx -t`, the
+public listeners and adjacent SNI routes.
 
 > [!WARNING]
-> Packages the installer installed itself are removed completely (`apt-get purge`), with or
-> without `--purge-data`. If on a clean server those were `docker.io` and `certbot`, their purge
-> also deletes `/var/lib/docker` — every volume, the panel database included — and
-> `/etc/letsencrypt` with the certificates. Make a [backup](docs/BACKUP_RESTORE.en.md) and copy it
-> off the server before uninstalling.
+> `uninstall --purge-data` removes the data too: volumes, service state and — through
+> `apt-get purge` of the same packages — all of `/var/lib/docker` and `/etc/letsencrypt` with the
+> certificates. Make a [backup](docs/BACKUP_RESTORE.en.md) and copy it off the server first.
 
 ## Features in detail
 

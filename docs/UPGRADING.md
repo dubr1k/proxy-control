@@ -249,6 +249,9 @@ keep serving the generation they last applied.
   ingress credential and re-renders its generation: one Xray restart, NaiveProxy and Mieru sessions
   through the router reconnect once. Until then the routing screen shows `router_lacks_mtproxy` for
   MTProxy, and NaiveProxy and Mieru keep working. A 1.0.x image refuses a schema-21 database.
+- **1.1.2: uninstall.** Without `--purge-data`, `uninstall` removes the packages the installer
+  installed with `apt-get remove` and keeps `/var/lib/docker` and `/etc/letsencrypt`; a purge runs
+  only with `--purge-data`. Run the uninstall from an extracted 1.1.2 release or newer.
 - **1.1.1: client IPs.** The one-command update migrates the owned Nginx ingress templates of a
   `fresh` installation so that the panel sees client IPs; edited templates are refused, and a
   foreign `coexist` frontend stays unchanged and needs an operator-managed PROXY bridge. After an
@@ -507,12 +510,11 @@ agent's environment gets `PROXY_CONTROL_XRAY_ROUTER=on` and the router's overlay
 **On a host installed with the installer.** The installer cannot add the router to an active
 installation yet: `install` with a changed configuration is refused (`an installer transaction
 already exists`) and changes nothing on the host, and running the same configuration again adds
-nothing. Do not work around this with `uninstall` and a new `install`: on a server where the
-installer itself installed Docker or certbot, `uninstall` purges those packages, and the purge of
-`docker.io` deletes `/var/lib/docker` with every volume (the panel database included) while the
-purge of `certbot` deletes `/etc/letsencrypt`; with 3x-ui in `managed-new` mode the new `install`
-also refuses the preserved 3x-ui database ([installer reference](INSTALLER_REFERENCE.en.md),
-«Recovery, repair, rollback, and uninstall»). Decide on the router before the first installation
+nothing. Do not work around this with `uninstall` and a new `install`: that path is not verified, the
+services are down between the steps, with 3x-ui in `managed-new` mode the new `install` refuses
+the preserved 3x-ui database, and the installer of 1.1.1 and earlier purged the Docker and certbot
+it had installed on `uninstall`, deleting `/var/lib/docker` and `/etc/letsencrypt`
+([installer reference](INSTALLER_REFERENCE.en.md), «Recovery, repair, rollback, and uninstall»). Decide on the router before the first installation
 (`[egress] router = true`).
 
 **On a host assembled by hand.** Follow the same steps from the installer reference («The

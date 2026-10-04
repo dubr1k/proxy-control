@@ -53,7 +53,7 @@ class FakeRunner:
             raise self.failure("injected command failure")
         if command[:3] == ("apt-get", "install", "-y"):
             self.installed.update(command[3:])
-        elif command[:3] == ("apt-get", "purge", "-y"):
+        elif command[:3] in {("apt-get", "purge", "-y"), ("apt-get", "remove", "-y")}:
             self.installed.difference_update(command[3:])
         if "up" in command:
             self.compose_present = True
@@ -520,7 +520,10 @@ def test_runtime_uninstall_preserves_credentials_and_named_volumes_by_default(tm
     commands = [call[0] for call in runner.calls]
     assert compose + ("down", "--remove-orphans") in commands
     assert not any(command[-1:] == ("--volumes",) for command in commands)
-    assert any(call[0][:3] == ("apt-get", "purge", "-y") for call in runner.calls)
+    # Without --purge-data the owned packages are removed, never purged: certbot's
+    # purge deletes /etc/letsencrypt.
+    assert any(call[0][:3] == ("apt-get", "remove", "-y") for call in runner.calls)
+    assert not any(call[0][:3] == ("apt-get", "purge", "-y") for call in runner.calls)
 
 
 def test_runtime_uninstall_purges_named_volumes_only_with_explicit_resumable_intent(tmp_path):
@@ -549,6 +552,7 @@ def test_runtime_uninstall_purges_named_volumes_only_with_explicit_resumable_int
     commands = [call[0] for call in runner.calls]
     assert compose + ("down", "--remove-orphans") in commands
     assert commands.count(purge_command) == 2
+    assert any(command[:3] == ("apt-get", "purge", "-y") for command in commands)
     assert not (root / "var/lib/proxy-control/runtime.json").exists()
 
 
@@ -647,7 +651,7 @@ def test_install_resumes_after_crash_at_each_durable_phase_without_rotating_cred
 
 @pytest.mark.parametrize("crash_command", [
     ("docker", "compose", "--project-directory", "/opt/mtproxy-shared443", "down"),
-    ("apt-get", "purge", "-y"),
+    ("apt-get", "remove", "-y"),
     ("systemctl", "reload", "nginx"),
 ])
 def test_uninstall_retries_each_destructive_phase_and_preserves_credentials(tmp_path, crash_command):

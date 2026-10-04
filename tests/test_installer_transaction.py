@@ -218,7 +218,7 @@ class RuntimeRunner:
         self.calls.append(command)
         if command[:3] == ("apt-get", "install", "-y"):
             self.installed.update(command[3:])
-        elif command[:3] == ("apt-get", "purge", "-y"):
+        elif command[:3] in {("apt-get", "purge", "-y"), ("apt-get", "remove", "-y")}:
             self.installed.difference_update(command[3:])
         if "up" in command:
             self.compose_running = True
@@ -821,8 +821,9 @@ def test_runtime_v2_adapter_reverses_the_complete_legacy_lifecycle(
     assert credentials.read_bytes() == credential_bytes
     assert compose_data.exists() is not purge_data
     assert not set(legacy["owned_packages"]) & runner.installed
+    verb = "purge" if purge_data else "remove"
     assert any(
-        command[:3] == ("apt-get", "purge", "-y")
+        command[:3] == ("apt-get", verb, "-y")
         for command in runner.calls
     )
 
@@ -919,7 +920,8 @@ def test_runtime_v2_import_acquires_lock_before_validation(tmp_path: Path) -> No
             True,
             "data_purging",
         ),
-        (("apt-get", "purge", "-y"), False, "packages_purging"),
+        (("apt-get", "remove", "-y"), False, "packages_purging"),
+        (("apt-get", "purge", "-y"), True, "packages_purging"),
     ],
 )
 def test_runtime_v2_resume_does_not_replay_committed_external_mutation(

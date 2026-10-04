@@ -45,7 +45,7 @@ bash install-release.sh
 
 Скачайте четыре файла выпуска — архив, `SHA256SUMS`, `release-manifest.json` и
 `sbom.spdx.json` — из раздела Assets
-[страницы выпуска 1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+[страницы выпуска 1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).
 Релизный workflow публикует GitHub attestation провенанса архива и
 `install-release.sh`. `sha256sum` сверяет три payload-файла из скачанного
 `SHA256SUMS` (архив, `release-manifest.json` и `sbom.spdx.json`);
@@ -55,9 +55,9 @@ bash install-release.sh
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 Порядок важен: сначала сверяются payload-файлы, и только потом что-либо

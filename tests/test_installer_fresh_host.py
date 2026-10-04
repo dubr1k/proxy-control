@@ -90,10 +90,10 @@ class AptRunner:
                     version if separator else "1.0",
                 )
             return subprocess.CompletedProcess(command, 0, "installed details", "")
-        if command[:3] == ("apt-get", "purge", "--yes"):
+        if command[:3] in {("apt-get", "purge", "--yes"), ("apt-get", "remove", "--yes")}:
             for package in command[3:]:
                 self.installed.pop(package, None)
-            return subprocess.CompletedProcess(command, 0, "purged details", "")
+            return subprocess.CompletedProcess(command, 0, "removed details", "")
         raise AssertionError(command)
 
 
@@ -101,7 +101,7 @@ def package_action(adapter: PackagesAdapter, selected: InstallerConfig | None = 
     return adapter.plan(selected or config(), AuditFacts())[0]
 
 
-def test_packages_adapter_purges_only_packages_it_installed() -> None:
+def test_packages_adapter_removes_only_packages_it_installed() -> None:
     runner = AptRunner({"curl": "8.0"})
     adapter = PackagesAdapter(runner=runner, packages=("curl", "nginx-full"))
     action = package_action(adapter)
@@ -111,8 +111,46 @@ def test_packages_adapter_purges_only_packages_it_installed() -> None:
     adapter.rollback(action, applied)
 
     assert runner.installed == {"curl": "8.0"}
-    purge = [call for call in runner.calls if call[:2] == ("apt-get", "purge")]
-    assert purge == [("apt-get", "purge", "--yes", "nginx-full")]
+    removals = [call for call in runner.calls if call[:2] in {("apt-get", "remove"), ("apt-get", "purge")}]
+    assert removals == [("apt-get", "remove", "--yes", "nginx-full")]
+
+
+@pytest.mark.parametrize(
+    ("rollback_target", "purge_data", "verb"),
+    [
+        # a plain uninstall keeps docker.io's /var/lib/docker and certbot's /etc/letsencrypt
+        ("uninstalled", False, "remove"),
+        # only an explicit `uninstall --purge-data` runs the packages' purge scripts
+        ("uninstalled", True, "purge"),
+        # the engine passes purge_data=True for a failed installation; it may follow an
+        # uninstall that kept that data, so a rollback never purges packages
+        ("rolled_back", True, "remove"),
+    ],
+)
+def test_packages_purge_only_on_explicit_uninstall_purge_data(
+    rollback_target: str, purge_data: bool, verb: str
+) -> None:
+    runner = AptRunner({})
+    adapter = PackagesAdapter(runner=runner, packages=("certbot", "docker.io"))
+    action = package_action(adapter)
+    applied = adapter.apply(action, adapter.prepare(action))
+
+    evidence = adapter.rollback(
+        action, applied, purge_data=purge_data, rollback_target=rollback_target
+    )
+
+    assert evidence.success is True
+    assert runner.installed == {}
+    removals = [call for call in runner.calls if call[:2] in {("apt-get", "remove"), ("apt-get", "purge")}]
+    assert removals == [("apt-get", verb, "--yes", "certbot", "docker.io")]
+
+
+def test_the_plan_names_the_package_inverse_it_runs() -> None:
+    adapter = PackagesAdapter(runner=AptRunner({}), packages=("curl",))
+    assert package_action(adapter).inverse == (
+        "remove only exact packages installed by this action; "
+        "purge them only on uninstall --purge-data",
+    )
 
 
 def test_packages_mixed_preexisting_versions_are_preserved() -> None:
@@ -191,6 +229,43 @@ def test_package_status_must_name_exact_installed_package() -> None:
         adapter.prepare(package_action(adapter))
 
 
+@pytest.mark.parametrize(
+    ("line", "installed"),
+    [
+        ("curl\tii \t8.5.0\n", "8.5.0"),
+        # removed with its configuration kept, as `apt-get remove` leaves it
+        ("curl\trc \t8.5.0\n", None),
+        # purged: dpkg keeps the record with an empty version
+        ("curl\tun \t\n", None),
+    ],
+)
+def test_package_status_reads_installed_removed_and_purged(
+    line: str, installed: str | None
+) -> None:
+    class StatusRunner(AptRunner):
+        def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            command = tuple(argv)
+            if command[:2] == ("dpkg-query", "--show"):
+                return subprocess.CompletedProcess(command, 0, line, "")
+            return super().run(argv)
+
+    adapter = PackagesAdapter(runner=StatusRunner({}), packages=("curl",))
+
+    assert adapter._status("curl") == installed
+
+
+def test_an_installed_package_still_needs_a_version() -> None:
+    class StatusRunner(AptRunner):
+        def run(self, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            command = tuple(argv)
+            if command[:2] == ("dpkg-query", "--show"):
+                return subprocess.CompletedProcess(command, 0, "curl\tii \t\n", "")
+            return super().run(argv)
+
+    adapter = PackagesAdapter(runner=StatusRunner({}), packages=("curl",))
+
+    with pytest.raises(PackageError, match="malformed"):
+        adapter._status("curl")
 
 
 def test_default_packages_exist_in_ubuntu_2404_repositories() -> None:

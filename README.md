@@ -19,8 +19,8 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1)
+> **Текущий выпуск — [v1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
@@ -212,8 +212,8 @@ bash install-release.sh
 
 Полезные параметры: `--check-only` только скачивает и проверяет; `--no-wizard` ещё и
 распаковывает, но мастер не запускает; `--lang ru|en` — язык сообщений. Для установки
-именно 1.1.1 замените в обеих ссылках `releases/latest/download/` на
-`releases/download/v1.1.1/`.
+именно 1.1.2 замените в обеих ссылках `releases/latest/download/` на
+`releases/download/v1.1.2/`.
 
 Проект намеренно не предлагает «скачать и сразу выполнить одной командой»: сценарий
 сначала проверяется, потом читается и только потом запускается.
@@ -320,16 +320,16 @@ sudo python3 -m installer.cli install --config examples/installer/full-three-xui
 ### Ручная установка из архива
 
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1): архив,
+[выпуска 1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он
@@ -570,15 +570,15 @@ sudo python3 -m installer.cli uninstall --json
 ```
 
 Удаление останавливает службы и убирает только принадлежащие установщику маршруты, файлы и
-пакеты; секреты, тома и каталоги сайтов-прикрытий без `--purge-data` остаются. После удаления
-проверьте `nginx -t`, публичные слушатели и соседние SNI.
+пакеты. Пакеты, которые установщик поставил сам (на чистом сервере это, например, `docker.io` и
+`certbot`), снимаются `apt-get remove`: тома Docker с базой панели, секреты, сертификаты и
+каталоги сайтов-прикрытий остаются. После удаления проверьте `nginx -t`, публичные слушатели и
+соседние SNI.
 
 > [!WARNING]
-> Пакеты, которые поставил сам установщик, удаляются полностью (`apt-get purge`) — с
-> `--purge-data` и без него. Если на чистом сервере это были `docker.io` и `certbot`, вместе с
-> ними пропадают `/var/lib/docker` — все тома, включая базу панели, — и `/etc/letsencrypt` с
-> сертификатами. Перед удалением сделайте [резервную копию](docs/BACKUP_RESTORE.ru.md) и унесите
-> её с сервера.
+> `uninstall --purge-data` удаляет и данные: тома, состояние служб и — через `apt-get purge` тех же
+> пакетов — `/var/lib/docker` целиком и `/etc/letsencrypt` с сертификатами. Перед ним сделайте
+> [резервную копию](docs/BACKUP_RESTORE.ru.md) и унесите её с сервера.
 
 ## Возможности подробнее
 

@@ -45,7 +45,7 @@ By hand:
 
 Download the four release files — the archive, `SHA256SUMS`,
 `release-manifest.json`, and `sbom.spdx.json` — from Assets on the
-[1.1.1 release page](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+[1.1.2 release page](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).
 The release workflow publishes a GitHub provenance attestation of the archive and
 of `install-release.sh`. `sha256sum` checks the three payload files named by the
 downloaded `SHA256SUMS` (the archive, `release-manifest.json` and `sbom.spdx.json`);
@@ -55,9 +55,9 @@ verified archive — all before anything runs with privilege:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 The order matters: the payload files are checked first, and only then is anything

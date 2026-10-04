@@ -57,7 +57,8 @@ boundary you are changing.
 
 ### Выпуски
 
-- [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1) — текущий выпуск
+- [v1.1.2](releases/v1.1.2.md) — удаление сохраняет данные Docker и сертификаты, новый README
+- [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1) — клиентский жизненный цикл, синхронизация Fleet, 3x-ui 3.9.0
 - [v1.1.0](releases/v1.1.0.md) — маршрутизация MTProxy через Xray-router
 - [v1.0.3](releases/v1.0.3.md) — сценарий установки в каждом выпуске, исправления мастера
 - [v1.0.2](releases/v1.0.2.md) — окно доступа, поиск и фильтры клиентов
@@ -116,7 +117,8 @@ boundary you are changing.
 
 ### Releases
 
-- [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1) — the current release
+- [v1.1.2](releases/v1.1.2.md) — uninstall keeps Docker data and certificates, a new README
+- [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1) — client lifecycle, Fleet synchronization, 3x-ui 3.9.0
 - [v1.1.0](releases/v1.1.0.md) — MTProxy routing through the Xray-router
 - [v1.0.3](releases/v1.0.3.md) — the install script in every release, wizard fixes
 - [v1.0.2](releases/v1.0.2.md) — access windows, client search and filters
