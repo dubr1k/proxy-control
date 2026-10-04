@@ -241,9 +241,16 @@ def test_primary_install_path_verifies_release_assets_before_sudo():
     for path in command_documents:
         joined = path.read_text(encoding="utf-8")
         checksum = joined.index("sha256sum --check SHA256SUMS")
-        extract_bootstrap = joined.index("tar -xOf proxy-control-v0.1.0.tar.gz")
+        extraction = re.search(
+            r"tar -xOf (proxy-control-v[0-9][\w.-]*\.tar\.gz) proxy-control/install-bootstrap",
+            joined,
+        )
+        assert extraction is not None, path
+        extract_bootstrap = extraction.start()
         dispatch = joined.index("./install-bootstrap")
         assert checksum < extract_bootstrap < dispatch, path
+        dispatch_line = joined[dispatch:].splitlines()[0]
+        assert f"--archive {extraction[1]} " in dispatch_line, path
         # v1.0.3: the short path — the install script published beside the archive — is
         # checked against its own published checksum before it runs, never piped to a shell.
         script_checksum = joined.index("sha256sum --check install-release.sh.sha256")
@@ -259,7 +266,7 @@ def test_release_integrity_limit_is_stated_in_every_install_document():
     for path in documents:
         text = path.read_text(encoding="utf-8")
         assert "attestation" in text, path
-        assert "three payload" in text or "три payload" in text, path
+        assert any(phrase in text for phrase in ("three payload", "три payload", "три файла")), path
         assert "checksum file itself" in text or "сам файл контрольных сумм" in text, path
         stale = (
             "the attestation is checked first",
@@ -293,10 +300,7 @@ def test_readmes_document_the_actual_warp_wizard_branches():
         assert "задаётся вручную" not in text, path
 
 
-def test_readmes_and_release_notes_state_one_current_beta_contract():
-    release_path = ROOT / "docs/releases/v0.1.0.md"
-    release_notes = release_path.read_text(encoding="utf-8")
-    documents = (*READMES.values(), release_path)
+def test_readmes_state_the_current_installer_contract():
     stale_claims = (
         "Ставить 3x-ui с нуля он пока не умеет",
         "cannot yet install 3x-ui from scratch",
@@ -305,16 +309,27 @@ def test_readmes_and_release_notes_state_one_current_beta_contract():
         "Если WARP-клиента там нет, отвечайте",
         "If no WARP client is listening there, answer no",
     )
-    for path in documents:
+    for path in READMES.values():
         text = path.read_text(encoding="utf-8")
         assert not any(claim in text for claim in stale_claims), path
         assert "managed-new" in text, path
         assert "127.0.0.1:40000" in text, path
-    assert "**9" in release_notes
-    assert "домен" in release_notes
-    assert "domains" in release_notes
-    assert "SHA256SUMS" in release_notes
-    assert "install-bootstrap" in release_notes
+
+
+def test_readmes_keep_separate_human_and_ai_agent_installation_sections():
+    """A person installs through the wizard; an AI agent follows its own non-interactive
+    section (TOML, plan digest confirmed by the owner). The history before 1.0.0 is gone."""
+    sections = {
+        "ru": ("## Установка человеком", "## Установка ИИ-агентом"),
+        "en": ("## Installation by a human", "## Installation by an AI agent"),
+    }
+    for language, (human, agent) in sections.items():
+        text = readme(language)
+        assert text.index(human) < text.index(agent), language
+        agent_section = text[text.index(agent):].split("\n## ", 1)[0]
+        assert "--accept-plan" in agent_section, language
+        assert "install-release.sh --no-wizard" in agent_section, language
+        assert re.search(r"\bv0\.\d", text) is None, language
 
 
 # ----------------------------------------------------------------------

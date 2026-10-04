@@ -1,5 +1,4 @@
-"""v0.3 post-merge fix-wave, node side and local lifecycle
-(`docs/superpowers/plans/2026-09-14-v0.3-post-merge-issues.md`)."""
+"""v0.3 post-merge fix-wave, node side and local lifecycle."""
 import pytest
 
 from panel.clients.models import GrantIntent, MtproxyOptions, NaiveOptions

@@ -10,7 +10,7 @@ audit → plan → install → repair → uninstall
 
 The installer always deploys Telemt/MTProxy and the panel. Selected profiles add
 NaiveProxy and/or Mieru in the same transaction after core acceptance. Linked
-panels (Fleet v2, since v0.3) are set up from the panel's UI after the install —
+panels (Fleet v2) are set up from the panel's UI after the install —
 [FLEET.en.md](FLEET.en.md); legacy Fleet v1 remains a separate manual
 integration.
 
@@ -43,19 +43,21 @@ bash install-release.sh
 
 By hand:
 
-Download the archive, `SHA256SUMS`, `release-manifest.json`, and
-`sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
-attestation; from v0.2.0-beta.1 on, the release workflow publishes a provenance
-attestation of the archive. `sha256sum` checks the three payload files named by the downloaded
-`SHA256SUMS`; the checksum file itself remains trusted as downloaded from the
-release page. Then extract the bootstrap from the verified archive — all before
-anything runs with privilege:
+Download the four release files — the archive, `SHA256SUMS`,
+`release-manifest.json`, and `sbom.spdx.json` — from Assets on the
+[1.1.1 release page](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+The release workflow publishes a GitHub provenance attestation of the archive and
+of `install-release.sh`. `sha256sum` checks the three payload files named by the
+downloaded `SHA256SUMS` (the archive, `release-manifest.json` and `sbom.spdx.json`);
+the checksum file itself remains trusted as downloaded from the release page and
+has no separate provenance attestation. Then extract the bootstrap from the
+verified archive — all before anything runs with privilege:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 The order matters: the payload files are checked first, and only then is anything
@@ -66,23 +68,17 @@ name the same archive and digest, refuses a version with a prerelease suffix, an
 the archive for absolute or escaping members before its single `exec sudo`.
 Nothing is ever downloaded and executed in one step.
 
-**Beta releases** (`v0.2.0-beta.1`, `v0.3.0-beta.1`, `v0.4.0-beta.1`) are refused by
-`install-bootstrap` because of the pre-release suffix. They are installed
-without it: the same `SHA256SUMS` check, then extract the archive and run the
-wizard from the extracted `proxy-control/` directory — exactly how the release
-gate installs a beta on the lab host:
+**Prereleases** (a version with a prerelease suffix such as `-rc.1`) are refused by
+`install-bootstrap`. Use the `install-release.sh` published with that version instead:
+replace `releases/latest/download/` in the URLs above with `releases/download/v<version>/`.
+It performs the same `SHA256SUMS` and manifest checks, extracts the archive and runs the
+wizard `python3 -m installer.cli wizard` from the extracted `proxy-control/` directory.
 
-```bash installer-check
-sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
-cd proxy-control
-sudo python3 -m installer.cli wizard
-```
-
-The same steps are what [`scripts/install-release.sh`](scripts/install-release.sh) performs
-(`--version 0.4.0-beta.1`, optionally `--sha256 <lab-sha256>` from the release note): it
-fetches the four files, verifies them unprivileged, extracts and starts the wizard through
-one `sudo`; `--requirements` prints what the host needs and what gets installed.
+The repository copy of the script —
+[`scripts/install-release.sh`](scripts/install-release.sh) — takes `--version X.Y.Z` and
+optionally `--sha256 <lab-sha256>` from the tag annotation or the release note: it fetches
+the four files, verifies them unprivileged, extracts and starts the wizard through one
+`sudo`; `--requirements` prints what the host needs and what gets installed.
 
 With no further arguments the installer starts a bilingual wizard that writes a
 configuration file, shows a plan, and applies nothing until you confirm the plan

@@ -13,7 +13,7 @@ A backup is usable only when it is consistent, protected as a credential, checks
 | Telemt | `telemt-config` volume, source secret files, API token |
 | Naive | complete `NAIVE_DATA_DIR`, Caddyfile, user state, transaction/backups, accounting SQLite/WAL/SHM, Caddy binary/unit, log ownership contract |
 | Mieru | complete manager state, `journal.json` + original `journal.key`, backups, manager token, mita config/binary/unit, UDS/tmpfiles contract |
-| Xray-router (v0.5) | `/var/lib/xray-router` (generations, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; the managers' copies `/var/lib/naive-manager/xray-router-ingress` and `/var/lib/mieru-manager/xray-router-ingress` travel with their state directories; the binaries come from the pinned archive, never from a backup |
+| Xray-router | `/var/lib/xray-router` (generations, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; the managers' copies `/var/lib/naive-manager/xray-router-ingress` and `/var/lib/mieru-manager/xray-router-ingress` travel with their state directories; the binaries come from the pinned archive, never from a backup |
 | Fleet central | panel DB, ingress config, public server certificate, client CA certificate; offline CA private key separately |
 | Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests and installer backups |
@@ -23,7 +23,7 @@ Never keep the offline fleet CA key and online node backups in one broadly acces
 
 ### The panel master key
 
-From v0.2 the panel stores client credentials encrypted with AES-256-GCM under the
+The panel stores client credentials encrypted with AES-256-GCM under the
 keyring in `secrets/panel-master-key`. The two artefacts are useless alone and
 dangerous together:
 
@@ -141,7 +141,7 @@ docker compose up -d mieru-manager panel
 
 Verify exact mita status, manager health, and a real Mieru client path.
 
-## Xray-router generation (v0.5)
+## Xray-router generation
 
 Stop the panel and `xray-router` when copying live state. Preserve together, as one
 unit: `/var/lib/xray-router` (0700, owner 10006:10006; the generations under `generations/`,

@@ -1,13 +1,13 @@
-# Xray-router (v0.5): один выделенный egress-роутер на узел
+# Xray-router: один выделенный egress-роутер на узел
 
 [English](XRAY_ROUTER.en.md) · **Русский**
 
 ## Что это
 
-С v0.5 на узле может работать выделенный процесс **Xray**, единственная задача которого —
+На узле может работать выделенный процесс **Xray**, единственная задача которого —
 выпускать трафик NaiveProxy и Mieru по политике маршрутизации панели
 ([ROUTING](ROUTING.ru.md)). Он необязателен (`[egress] router = true` в установщике,
-[INSTALLER_REFERENCE](INSTALLER_REFERENCE.ru.md)); узел без него работает ровно как в v0.4.
+[INSTALLER_REFERENCE](INSTALLER_REFERENCE.ru.md)); узел без него применяет политики нативными backend'ами сервисов.
 Это не Xray из 3x-ui и он его не трогает ([ADR 007](adr/007-routing-enforcement-ownership.md)):
 бинарь и geodata берутся из закреплённого upstream-архива, процесс живёт в своём контейнере
 под своей identity, и ничего из него не лежит в `/usr/local/x-ui`.
@@ -69,8 +69,9 @@ Caddy 2.11.4 + forwardproxy, mita 3.36):
 
 Правила — first-match, в порядке политики; блокировка **рядом** с умолчанием WARP
 работает (в отличие от собственного ACL NaiveProxy). Что **не** заявляется: UDP через
-роутер (UDP mita остаётся напрямую; ingress не ретранслируют UDP), правила per-grant,
-регулярные выражения, селектор `geoip:private` (см. ниже).
+роутер (UDP mita остаётся напрямую; ingress не ретранслируют UDP), регулярные выражения,
+селектор `geoip:private` (см. ниже); маршрутизация отдельного доступа — это полосы (см. «Полосы,
+цепи и relay»).
 
 ### DNS и приватные адреса
 
@@ -108,9 +109,9 @@ link-local, RFC 1918, CGNAT или их IPv6-аналоги, отвергает�
   `/run/secrets/xray-router-ingress-*`.
 - **API** на Unix-сокете, заголовок `X-Xray-Router-Token` (Docker-секрет
   `xray-router-manager-token`): `GET /v1/status`, `GET /v1/health`,
-  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`; с v0.7 —
+  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`,
   `GET | POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`, `GET | POST | DELETE /v1/relay`,
-  `PUT /v1/relay/accounts` (см. ниже); с v0.8 — `GET /v1/geodata`, `GET /v1/geodata/codes`,
+  `PUT /v1/relay/accounts` (см. ниже), `GET /v1/geodata`, `GET /v1/geodata/codes`,
   `PUT /v1/geodata/settings`, `POST /v1/geodata/update | restore`, `POST /v1/exits/test`
   (см. «Geodata и свои выходы»). Панель — единственный клиент; `docker exec
   proxy-control-xray-router python -m xray_router_manager.healthcheck --status` печатает статус
@@ -160,7 +161,7 @@ swap занимает около 50 мс и прерывает открытые 
 - **Статус** на экране «Маршрутизация»: у цели видно `Xray-router: доступен / подключён /
   не установлен`, версию Xray и причины `router_unavailable`, `not_attached`,
   `artifact_mismatch`, `router_unreachable` (менеджер не достучался до ingress),
-  `node_lacks_router` (связанная панель старше v0.5).
+  `node_lacks_router` (связанная панель без `egress.router.v1`).
 - **Логи**: `docker logs proxy-control-xray-router` (менеджер; access-лог дочернего
   процесса выключен, inbound'ов stats/api нет).
 - **Сломанный роутер** (`phase: broken`): каждый apply отвечает 503
@@ -173,14 +174,14 @@ swap занимает около 50 мс и прерывает открытые 
   контейнер и удаляет бинари, helper'ы, env-оверлей; `--purge-data` — ещё состояние и
   секреты) — что сохранять, см. `docs/BACKUP_RESTORE.ru.md`.
 
-## Полосы, цепи и relay (v0.7)
+## Полосы, цепи и relay
 
 Intent **схемы 2** переносит роутер с «одной политики на сервис» на **полосы**: `{"schema": 2,
 "lanes": {"svc:naive": {default, rules}, "grant:<id>": {…}}, "chains": {"c1": {"hops": [...],
 "exit": "direct" | "warp"}}}`. Каждая полоса — учётка SOCKS на том же ingress сервиса; правила
 рендерятся с селектором `user` (`grant-<id>` для полосы доступа, учётка установщика для полосы
 сервиса, которая идёт последней), поэтому один ingress ведёт трафик разных пользователей по
-разным политикам. Схема 1 рендерится байт в байт как в v0.5/v0.6.
+разным политикам. Intent схемы 1 по-прежнему принимается как единственная полоса сервиса.
 
 - **Ключи полос**: `POST /v1/lanes/{svc}` `{"lane": "grant:<id>"}` чеканит (или перевыпускает)
   учётку полосы, тут же кладёт её на ingress новым поколением и возвращает **один раз** —
@@ -208,7 +209,7 @@ Intent **схемы 2** переносит роутер с «одной поли
 
 Пределы: ≤ 32 полос и ≤ 16 цепей на сервис, ≤ 3 хопов в цепи, intent схемы 2 ≤ 64 KiB.
 
-## Geodata и свои выходы (v0.8)
+## Geodata и свои выходы
 
 **Geodata.** Xray читает `geosite.dat`/`geoip.dat` из `<state>/geodata` (`XRAY_LOCATION_ASSET`),
 а не из каталога бинарей: при первом старте менеджер копирует туда закреплённую пару (её
@@ -251,7 +252,6 @@ exit_invalid | exit_test_failed | exit_unreachable}`; рабочий роуте�
 Правил ≤ 128 на политику, ≤ 64 селекторов каждого вида, ≤ 32 портов, ≤ 4 протоколов сниффера,
 ≤ 16 своих выходов на узел, скомпилированный intent ≤ 16 KiB на сервис (схема 2 — 64 KiB);
 токен менеджера — 64 hex. WireGuard как выход не поддерживается намеренно (решение владельца,
-2026-09-18). Отложено за v0.5
-(спека §15): статический мост в Xray 3x-ui, canary-раскатка, ретрансляция UDP, регулярные
-выражения; per-grant маршрутизация пришла в v0.7 полосами. Совместимость с узлами и центрами v0.4 — в [COMPATIBILITY](COMPATIBILITY.md) и
-[FLEET](../FLEET.ru.md).
+2026-09-18). Отложено: статический мост в Xray 3x-ui, canary-раскатка, ретрансляция UDP,
+регулярные выражения; маршрутизация отдельного доступа сделана полосами. Совместимость узлов и
+центров разных выпусков — в [COMPATIBILITY](COMPATIBILITY.md) и [FLEET](../FLEET.ru.md).

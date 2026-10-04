@@ -4,7 +4,7 @@
 
 ## Overview
 
-Since v0.3 one panel — the **central** — manages other panels — the **nodes** — over
+One panel — the **central** — manages other panels — the **nodes** — over
 each node's own HTTPS panel domain, authenticated with a scoped Bearer API key
 ([ADR 008](docs/adr/008-panel-to-panel-transport.md)). Linking a panel is three actions
 in the web UI; nothing is installed on any host beyond the panel image — no ingress, no
@@ -32,8 +32,7 @@ The mTLS pull agent of Fleet v1 is unchanged and still works; it is described in
 
 ## Link a panel
 
-Three actions. Screenshots of the two screens (views `fleet` and `admins`) are
-collected for the release in [docs/releases/v0.3.0-beta.1.md](docs/releases/v0.3.0-beta.1.md).
+Three actions.
 
 ### 1. On the panel that will become a node: create a `node-sync` key
 
@@ -71,7 +70,7 @@ a blocked system resolver thread may finish independently after that deadline.
 stores nothing. The dialog then shows what the panel reported about itself (GUID,
 version, protocols and their daemons, latency) and lists its runtime users with
 checkboxes for the import step below. Refusals are explicit: the panel does not speak
-Fleet API v2 (a v0.2 panel answers 404), it is already managed by another central, it is
+Fleet API v2 (`/api/fleet/v2/*` answers 404), it is already managed by another central, it is
 already linked here, it is this very panel, the key is wrong (401/403 → «the node
 refused the API key»), or it is unreachable.
 
@@ -122,15 +121,15 @@ smaller number (409 `stale_generation`) and the same number with a different dig
 (409 `digest_conflict`); a rollback is a new, higher generation from the central (ADR
 002).
 
-**Egress (v0.4).** A generation may carry an optional `egress` section — per protocol
+**Egress.** A generation may carry an optional `egress` section — per protocol
 (`naive`, `mieru`) an `EgressDocument {backend, policy_id, policy_revision, document,
 digest}`: the routing policy of that node compiled for the node's backend
 ([docs/ROUTING.en.md](docs/ROUTING.en.md)). The central includes it only for a node
-whose `identity.capabilities` lists `egress.v1` (a v0.3 node's strict model would refuse
-the whole document), and only the policies the operator applied (or rolled back): a draft
-is never published. The field is left out of the wire form and of the digest when there
-is nothing to say, so every document without egress keeps the digest it had in v0.3 in
-both directions of a mixed-version link. On the node the section is applied **after the
+whose `identity.capabilities` lists `egress.v1` (the strict model of a node without that
+capability would refuse the whole document), and only the policies the operator applied (or
+rolled back): a draft is never published. The field is left out of the wire form and of the
+digest when there is nothing to say, so a document without egress has the same digest on both
+ends of a link, even when one end does not know the `egress` section. On the node the section is applied **after the
 resources**, through the same manager adapters the local screen uses, idempotently
 (the manager already running that digest is not asked again), with `operation_id =
 <guid>:<generation>:egress:<protocol>`; a failed section fails the generation the way a
@@ -142,14 +141,14 @@ about the generation it currently wants; a section absent from a later generatio
 «leave the egress as it is», and `unlink` never touches the data plane. While a central
 manages a node, the node's own routing screen refuses to apply (`managed_by_central`).
 
-**The Xray-router (v0.5).** A node with the router declares `egress.router.v1` and
+**The Xray-router.** A node with the router declares `egress.router.v1` and
 `identity.router` (`available`, `xray_version`, capabilities, providers, per-service
 revision and digest) beside `identity.protocols[p].egress.router_attached`. An
 `EgressDocument` may then carry `backend: xray_router`, a `companion` — the document the
 *other* manager applies right after (the native attach document beside a router
 pass-through on attach, the router pass-through beside a native `direct` on detach) —
 and `passthrough: true`; all three are left out of the wire form and of the digest when
-absent, so a v0.4 node never sees them and every digest stays. The node applies the
+absent, so a node without `egress.router.v1` never sees them and every digest stays. The node applies the
 router section through its router, then the companion through the native manager (or
 the reverse on detach), and reports `egress[p].router = {revision, digest}` beside the
 native result; the central marks a pass-through with an empty policy as `applied` and
@@ -372,9 +371,9 @@ re-adopted, provisioned ones failing as collisions).
 
 **Rolling a node back** to a previous panel image follows the general rule of
 [UPGRADING](docs/UPGRADING.md): restore the complete previous generation, database
-included. A v0.2 image refuses to start on a database migrated to schema 13
-(«database schema 13 is newer than this code»), so the previous image alone is not a
-rollback. Nothing on the node's runtime was touched by the upgrade itself:
+included. A previous image refuses to start on a database the new version migrated to a
+newer schema («database schema N is newer than this code»), so the previous image alone is
+not a rollback. Nothing on the node's runtime was touched by the upgrade itself:
 `managed_resources` stays empty until a central pushes a generation, so restoring the
 pre-upgrade database loses no fleet state on a node that was never linked. Unlink
 before rolling back a node that was managed; on the central, delete its grants and the
@@ -418,8 +417,8 @@ link first.
 
 ## Legacy transport v1
 
-Fleet v1 is the outbound-only mTLS pull agent that shipped before v0.3. It is frozen,
-byte-compatible and unchanged in v0.3 — `panel/fleet.py`, the `/api/fleet/nodes*`
+Fleet v1 is the outbound-only mTLS pull agent, the earlier way of linking panels. It is
+frozen and byte-compatible — `panel/fleet.py`, the `/api/fleet/nodes*`
 registry routes, the `/agent/v1/*` ingress paths, the `TypedCommand` shape and its
 sequence/outbox semantics — and it remains Telemt-only. New nodes should be linked as
 panels; the text below stays for installations that enrolled v1 nodes and for the

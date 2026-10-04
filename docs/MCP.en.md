@@ -1,10 +1,10 @@
-# The MCP server (v0.11): the panel as tools for Claude Code, Claude Desktop, Codex and OMP
+# The MCP server: the panel as tools for Claude Code, Claude Desktop, Codex and OMP
 
 **English** · [Русский](MCP.ru.md)
 
 ## What it is
 
-Since v0.11 the central panel may run a container **`proxy-control-mcp`** — a
+The central panel may run a container **`proxy-control-mcp`** — a
 [Model Context Protocol](https://modelcontextprotocol.io) server over Streamable HTTP. It turns
 the panel's API into tools a model calls: "create a client on two nodes and give me the
 subscription link", "check for updates", "show what routing would enforce", "what happened in

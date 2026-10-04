@@ -10,7 +10,7 @@ audit → plan → install → repair → uninstall
 
 Установщик всегда разворачивает Telemt/MTProxy и панель, а в выбранных профилях
 в той же транзакции добавляет NaiveProxy и/или Mieru после успешной приёмки
-core. Связанные панели (Fleet v2, с v0.3) настраиваются из интерфейса панели
+core. Связанные панели (Fleet v2) настраиваются из интерфейса панели
 после установки — [FLEET.ru.md](FLEET.ru.md); legacy Fleet v1 остаётся
 отдельной ручной интеграцией.
 
@@ -43,18 +43,21 @@ bash install-release.sh
 
 Вручную — так:
 
-Скачайте архив, `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json` со
-страницы релиза. Для v0.1.0 GitHub attestation не опубликована; начиная с
-v0.2.0-beta.1 релизный workflow публикует attestation провенанса архива. `sha256sum`
-сверяет три payload-файла из скачанного `SHA256SUMS`; сам файл контрольных сумм
-остаётся доверенным как файл со страницы релиза. Затем извлеките bootstrap из
-проверенного архива — всё это до получения привилегий:
+Скачайте четыре файла выпуска — архив, `SHA256SUMS`, `release-manifest.json` и
+`sbom.spdx.json` — из раздела Assets
+[страницы выпуска 1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+Релизный workflow публикует GitHub attestation провенанса архива и
+`install-release.sh`. `sha256sum` сверяет три payload-файла из скачанного
+`SHA256SUMS` (архив, `release-manifest.json` и `sbom.spdx.json`);
+сам файл контрольных сумм остаётся доверенным как файл со страницы выпуска и
+отдельной attestation провенанса не имеет. Затем извлеките bootstrap из проверенного
+архива — всё это до получения привилегий:
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 Порядок важен: сначала сверяются payload-файлы, и только потом что-либо
@@ -66,22 +69,17 @@ chmod 700 install-bootstrap
 перед единственным `exec sudo`. Ничто никогда не скачивается и не исполняется
 одной командой.
 
-**Бета-выпуски** (`v0.2.0-beta.1`, `v0.3.0-beta.1`, `v0.4.0-beta.1`) `install-bootstrap` из-за
-prerelease-суффикса отклоняет. Их ставят без него: та же сверка `SHA256SUMS`,
-затем распаковка архива и мастер из распакованного каталога `proxy-control/` —
-ровно так релизный гейт ставит бету на стенде:
+**Предварительные версии** (с prerelease-суффиксом, например `-rc.1`) `install-bootstrap`
+отклоняет. Для них используйте опубликованный с такой версией `install-release.sh`: в ссылках
+выше замените `releases/latest/download/` на `releases/download/v<версия>/`. Он выполняет
+ту же сверку `SHA256SUMS` и манифеста, распаковывает архив и запускает мастер
+`python3 -m installer.cli wizard` из распакованного каталога `proxy-control/`.
 
-```bash installer-check
-sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.4.0-beta.1.tar.gz
-cd proxy-control
-sudo python3 -m installer.cli wizard
-```
-
-Те же шаги выполняет [`scripts/install-release.sh`](scripts/install-release.sh) (`--version
-0.4.0-beta.1`, при желании `--sha256 <lab-sha256>` из заметки о выпуске): скачивает четыре
-файла, проверяет их без привилегий, распаковывает и одним `sudo` запускает мастер;
-`--requirements` печатает, что нужно хосту и что устанавливается.
+Копия сценария в репозитории — [`scripts/install-release.sh`](scripts/install-release.sh) —
+принимает `--version X.Y.Z` и при желании `--sha256 <lab-sha256>` из аннотации тега или
+заметки о выпуске: скачивает четыре файла, проверяет их без привилегий, распаковывает и
+одним `sudo` запускает мастер; `--requirements` печатает, что нужно хосту и что
+устанавливается.
 
 Без дальнейших аргументов установщик запускает двуязычный мастер: он пишет файл
 конфигурации, показывает план и ничего не применяет, пока вы не подтвердите

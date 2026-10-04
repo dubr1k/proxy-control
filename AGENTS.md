@@ -2,12 +2,14 @@
 
 # Рабочий протокол для AI-агентов
 
-Этот файл — обязательный протокол для AI-агентов, которые ведут разработку,
-проверку, развёртывание или обслуживание Proxy Control. Людям он тоже полезен:
-это те же правила безопасной работы, только записанные как алгоритм.
+Этот файл — обязательный протокол для AI-агентов, которые **разрабатывают** Proxy Control:
+меняют код и документацию, проверяют их на стенде и выпускают. Людям он тоже полезен: это те
+же правила безопасной работы, только записанные как алгоритм. В конце — эксплуатационный
+протокол для работы с уже установленными узлами.
 
-Обычному пользователю, который просто ставит и эксплуатирует Proxy Control,
-этот файл не нужен — начните с [README](README.md).
+**Установить** Proxy Control агенту поможет не этот файл, а раздел README
+[«Установка ИИ-агентом»](README.md#установка-ии-агентом). Обычному пользователю этот файл не
+нужен — начните с [README](README.md).
 
 ## Главное правило
 
@@ -58,6 +60,27 @@
   признаками, подписями, длинами, совпадающими метаданными. Accessibility
   snapshot или DOM dump с паролем, ссылкой, subscription ID или скрытым путём
   запрещён; попавшее в tool output значение немедленно ротируется.
+
+## Документация
+
+- **README.md и README.en.md** — для пользователей. В каждом два раздела установки:
+  «Установка человеком» (мастер) и «Установка ИИ-агентом» — инструкция по установке для
+  агентов, которым владелец дал доступ к серверу (TOML из `examples/installer/` → `plan --json`
+  → digest подтверждает владелец → `install --accept-plan`). Этот файл (AGENTS.md) — протокол
+  **разработки**, а не инструкция по установке. Изменение установщика, его флагов, путей,
+  вопросов мастера или примеров обновляет оба раздела на двух языках в том же коммите; структуру
+  сторожит `tests/test_installer_docs.py`.
+- Proxy Control — отдельная панель (MTProxy, NaiveProxy, Mieru), которую можно поставить рядом
+  с 3x-ui. Не описывайте её как «панель для 3x-ui».
+- **Истории до 1.0.0 нет.** Документы описывают текущее поведение: без «с v0.x», «since v0.x»,
+  ссылок на бета-выпуски и их заметки. Журнал изменений начинается с 1.0.0; новые записи —
+  в `CHANGELOG.md` и `CHANGELOG.ru.md`.
+- **`docs/releases/vX.Y.Z.md`** — заметки о выпуске для пользователей: что изменилось и как
+  обновиться. Таблицы гейта, имена стендов, счётчики живых проверок туда не пишутся.
+- **Рабочие материалы агентов не коммитятся**: планы и спецификации, передачи
+  (`CONTINUE-HERE`), протоколы приёмки на стендах держите в `.superpowers/` (игнорируется
+  Git) или вне дерева. Ссылки из репозитория на них запрещены.
+- После переноса или удаления документа — `python3 scripts/check-doc-links.py`.
 
 ## Установка зависимостей агента
 
@@ -223,14 +246,19 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 
 ---
 
-# Эксплуатационный протокол для ИИ-агентов (v0.6–v0.7): развёртывание, узлы, доступы, маршрутизация, цепи и полосы
+# Эксплуатационный протокол для ИИ-агентов: развёртывание, узлы, доступы, маршрутизация, цепи и полосы
 
 Часть выше — про **разработку** Proxy Control. Эта часть — про **эксплуатацию**: как агент
 разворачивает узел, готовит его к центру, привязывает панели, выдаёт доступы клиентам и
 настраивает маршрутизацию — неинтерактивно, с доказательством каждого шага и без единого
-секрета в выводе. Человеческое описание тех же операций с картинками и примерами доменов —
-[руководство оператора v0.6](docs/releases/v0.6-operator-guide.ru.md); агент обязан прочитать
-его перед первым выполнением любого алгоритма ниже.
+секрета в выводе. Человеческое описание тех же операций с примерами —
+[docs/INSTALLER_REFERENCE.ru.md](docs/INSTALLER_REFERENCE.ru.md) (мастер установки и поля TOML, примеры — в
+`examples/installer/`), [FLEET.ru.md](FLEET.ru.md) (привязка панелей и узлов, ключи node-sync, импорт),
+[docs/ROUTING.ru.md](docs/ROUTING.ru.md) (политики маршрутизации, коды отказов, цепи и полосы),
+[docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md) (подключение и отключение Xray-router),
+[docs/UPGRADING.ru.md](docs/UPGRADING.ru.md) (version-agent и обновления),
+[docs/BACKUP_RESTORE.ru.md](docs/BACKUP_RESTORE.ru.md) (резервные копии) и [docs/MCP.ru.md](docs/MCP.ru.md) (MCP);
+агент обязан прочитать документ своей темы перед первым выполнением любого алгоритма ниже.
 
 ## 0. Режим работы и запреты
 
@@ -290,38 +318,13 @@ Bearer pc_…` (без CSRF; scope `admin` = владелец, `monitor` = чт�
 
 ## 2. Алгоритм A — развернуть узел неинтерактивно
 
-Входные данные от владельца: класс хоста, домены (§3 руководства), профиль, нужны ли WARP /
-Xray-router / 3x-ui, ACME-почта, имя владельца. Пароль владелец вводит сам или его генерирует
-установщик — агент пароль не выбирает и не печатает.
+Порядок установки — **только** по разделу README «Установка ИИ-агентом»
+([README.md](README.md#установка-ии-агентом), [README.en.md](README.en.md#installation-by-an-ai-agent)):
+скачать и проверить `install-release.sh`, `--no-wizard`, TOML из `examples/installer/`,
+`plan --json`, digest подтверждает владелец, `install --accept-plan`. Здесь он не дублируется;
+ниже — расширенная проверка после установки для отчёта.
 
-```bash
-# A1. Скачать и проверить без root (или scripts/install-release.sh --version … --sha256 … --no-wizard)
-ver=0.6.0-beta.1; lab=<lab-sha256 из заметки о выпуске>
-for f in proxy-control-v$ver.tar.gz SHA256SUMS release-manifest.json sbom.spdx.json; do
-  curl -fsSLO "https://github.com/dubr1k/proxy-control/releases/download/v$ver/$f"; done
-sha256sum --check SHA256SUMS && test "$(sha256sum proxy-control-v$ver.tar.gz | cut -d' ' -f1)" = "$lab" && echo ARCHIVE_OK
-tar -xzf proxy-control-v$ver.tar.gz && cd proxy-control
-
-# A2. Конфигурация — TOML по §4.3 руководства (пример полного узла там); пароль — НЕ в TOML.
-#     Пароль владельца, если задан заранее: приватный файл рядом с TOML (installer.credentials), 0600.
-cat > /root/proxy-control.toml <<'TOML'
-… (см. руководство §4.3)
-TOML
-chmod 600 /root/proxy-control.toml
-
-# A3. План: ничего не меняет; digest — из JSON, не из глаз. Жёсткая остановка аудита (DNS/CAA/443/порт/UID/x-ui)
-#     = ненулевой код выхода и текст причины → СТОП, отчёт владельцу: это его решения.
-if sudo python3 -m installer.cli plan --config /root/proxy-control.toml --json > /root/plan.json; then echo PLAN_OK; else echo PLAN_REFUSED; fi
-digest=$(python3 -c 'import json;print(json.load(open("/root/plan.json"))["digest"])')
-python3 -c 'import json;p=json.load(open("/root/plan.json"));print([a["id"] for a in p["actions"]])'   # какие адаптеры и что они сделают
-
-# A4. Установка ровно этого плана; успешная транзакция оставляет поколение в статусе active
-sudo python3 -m installer.cli install --config /root/proxy-control.toml --accept-plan "$digest" --json > /root/install.json
-python3 -c 'import json;r=json.load(open("/root/install.json"));print(r["status"], r.get("error"))'   # ожидается: active None
-sudo python3 -m installer.cli status --json | python3 -c 'import json,sys;s=json.load(sys.stdin);print(s["status"], s["plan_digest"][:12], sum(1 for c in s["checkpoints"] if not c["success"]))'   # active <digest> 0
-```
-
-Проверка (все команды обязаны пройти; иначе — `resume`/`repair` по §4.8 руководства, а не повтор `install` вслепую):
+Проверка (все команды обязаны пройти; иначе — `resume`/`repair` по [docs/INSTALLER_REFERENCE.ru.md](docs/INSTALLER_REFERENCE.ru.md) («Восстановление, repair, откат и удаление»), а не повтор `install` вслепую):
 
 ```bash
 cd /opt/mtproxy-shared443 && sudo docker compose ps --format '{{.Name}} {{.Status}}' | grep -vc healthy   # ожидается 0
@@ -336,7 +339,7 @@ sudo python3 -c 'import json;r=json.load(open("/var/lib/proxy-control/reports/re
 
 Отчёт владельцу: домены, профиль, digest плана, `VERSION`, статус контейнеров/служб,
 где лежат учётные данные (пути `<конфиг>.credentials` / `secrets/panel-bootstrap-password`, не
-содержимое; для managed 3x-ui — путь `/var/lib/proxy-control/three-xui/panel-access`, см. руководство §4.6), какие ручные приёмки остались (реальный клиент
+содержимое; для managed 3x-ui — путь `/var/lib/proxy-control/three-xui/panel-access`, см. [README.md](README.md), «После установки»), какие ручные приёмки остались (реальный клиент
 Telegram, вход в панель человеком).
 
 ## 3. Алгоритм B — подготовить узел к центру
@@ -349,7 +352,7 @@ NODE_SYNC_KEY=$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["plain
 # B2. Идентичность узла, как её увидит центр
 curl -sS -H "Authorization: Bearer $NODE_SYNC_KEY" "$NODE/api/fleet/v2/identity" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["guid"],d["panel_version"],d["master_guid"],sorted(d["capabilities"]))'
 #   master_guid должен быть null (никем не управляется); panel_version — та же сборка, что у центра
-# B3. (по желанию) version-agent — §6.2 руководства; проверка: /v1/health по сокету
+# B3. (по желанию) version-agent — docs/UPGRADING.ru.md («Обновление из панели через version-agent»); проверка: /v1/health по сокету
 ```
 
 ## 4. Алгоритм C — привязать узел на центре
@@ -423,10 +426,10 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/clients/$client/subscription" | python3
 # E1. Что умеет цель (backend, провайдеры, роутер)
 curl -sS "${hdr[@]}" "$PANEL/api/routing/targets" | python3 -c 'import json,sys
 for t in json.load(sys.stdin)["items"]: print(t["node_id"],t["protocol"],t["backend"],t["providers"],t["router"],t["reason"],(t["policy"] or {}).get("state"))'
-# E2. Черновик → предпросмотр (ничего не меняет). Политика — по §8 руководства; backend опускается (текущий цели)
+# E2. Черновик → предпросмотр (ничего не меняет). Политика — по docs/ROUTING.ru.md; backend опускается (текущий цели)
 policy='{"default_action":"egress","default_egress":"warp","fallback":"fail_closed","rules":[{"enabled":true,"action":"block","match":{"domains":["ads.example.com","*.ads.example.com"]},"note":"ads"}]}'
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/preview" -d "$policy" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["status"],[(r["code"],r.get("rule_id")) for r in d["reasons"]],d["warnings"],d["restart_required"],d["backend"])'
-#   status != supported → СТОП; коды и что делать — §8.6 руководства (provider_unavailable, rule_kind_unsupported, not_attached, …)
+#   status != supported → СТОП; коды и что делать — docs/ROUTING.ru.md, «Предпросмотр и применение» (provider_unavailable, rule_kind_unsupported, not_attached, …)
 # E3. Сохранить (revision) → применить ровно эту revision (только owner)
 rev=$(curl -sS "${hdr[@]}" -X PUT "$PANEL/api/routing/policies/$node_id/naive" -d "$policy" | python3 -c 'import json,sys;print(json.load(sys.stdin)["revision"])')
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/apply" -d "{\"expected_revision\":$rev}" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["state"],d.get("applied_revision"),d.get("last_error"))'
@@ -435,14 +438,14 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/apply" 
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/targets/$node_id/naive/attach" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["backend"],d["router"])'
 #   отказ policy_applied → сначала PUT политики "напрямую без правил" + apply, затем attach
 # E5. Откат — предыдущая запись менеджера/предыдущий документ: POST …/rollback {"expected_revision":<rev>}
-# E6 (v0.7). Своя полоса доступа и цепь через другой узел (owner; §8.8 руководства). Предпосылки: сервис подключён к роутеру (E4),
+# E6. Своя полоса доступа и цепь через другой узел (owner; docs/ROUTING.ru.md, «Цепи и полосы»). Предпосылки: сервис подключён к роутеру (E4),
 #     у узла-выхода B relay включён: GET …/targets → exits[] с enabled && !pending; иначе POST $PANEL/api/routing/relay/$b/enable
 #     (связанный узел: pending → ждать heartbeat с публичным ключом). Полоса: mode=own → у Mieru меняется ссылка (порт слота) — предупредить владельца
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/lanes/$grant_id" -d '{"mode":"own"}' | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["mode"],d["lane"],d.get("pending"))'
 lane="grant:$grant_id"   # дальше — E2/E3 с ?lane=$lane; выход: "warp" | "node:$b" | "node:$b:warp" | "node:$b,$c"
 policy='{"default_action":"egress","default_egress":"warp","fallback":"fail_closed","rules":[{"enabled":true,"action":"egress","egress":"node:'$b'","match":{"geosites":["youtube"]},"note":"via B"}]}'
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/preview?lane=$lane" -d "$policy" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["status"],[r["code"] for r in d["reasons"]],d["document"] and d["document"].get("schema"))'
-#   relay_credential_pending после apply → узел B ещё не подтвердил учётку relay: повторить apply после heartbeat; node_lacks_relay/relay_disabled/chain_loop — §8.8
+#   relay_credential_pending после apply → узел B ещё не подтвердил учётку relay: повторить apply после heartbeat; node_lacks_relay/relay_disabled/chain_loop — docs/ROUTING.ru.md, «Цепи и полосы»
 curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain?lane=$lane" -d '{"host":"youtube.com","port":443}'   # {lane, rule_id, action, exit, hops, via, uncertain}
 #   назад: POST …/lanes/$grant_id {"mode":"service"} — политика полосы удаляется, пользователь возвращается в сервис; удаление доступа снимает полосу само
 ```
@@ -453,7 +456,7 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
 `systemctl is-active mita` и секция `egress` в конфиге; `curl --proxy https://<naive-домен> --proxy-user
 <тестовый пользователь>` к заблокированной цели → отказ, к разрешённой → 200 (тестовый пользователь создаётся
 для проверки и удаляется). `GET /api/audit?action=routing.policy.apply` содержит строку с целью политики.
-Для полосы (v0.7): в Caddyfile блок `# BEGIN NAIVE-MANAGER LANES … # END` с `basic_auth <пользователь>` и
+Для полосы: в Caddyfile блок `# BEGIN NAIVE-MANAGER LANES … # END` с `basic_auth <пользователь>` и
 `upstream socks5://grant-<id>:***@127.0.0.1:45101` (ключ **маскировать**); у Mieru `systemctl is-active mita@1` и
 `share_template` доступа с `port=4610N`; на узле-выходе `healthcheck --relay` → `enabled`, `accounts ≥ 1`; в отчёте
 никогда не приводить `uuid` хопов, ключи полос, `relay.json`/`lanes.json`.
@@ -461,9 +464,9 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
 ## 7. Алгоритм F — обновление, откат, резервная копия
 
 - **Обновление узла** (после того как гейт релиза зелёный, а владелец разрешил): точка отката
-  (образы `*:rollback-<UTC>`, online-backup базы, `secrets/`, `.env*`), затем новый релиз по алгоритму A
-  на том же TOML (`install` перерисовывает своё, данные сохраняются), `db-status`, `VERSION`,
-  все проверки §2; порядок парка — **узлы, затем центр**. Панель на старой сборке отвергает
+  (образы `*:rollback-<UTC>`, online-backup базы, `secrets/`, `.env*`), затем
+  `bash install-release.sh --update` по README «Обновление» и [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md),
+  `db-status`, `VERSION`, все проверки §2; порядок парка — **узлы, затем центр**. Панель на старой сборке отвергает
   документ поколения с новыми полями (422) — центр ждёт в backoff.
 - **Обновление компонента** (Telemt/Caddy/mita) — только через version-agent:
   `GET /api/versions` → `POST /api/versions/{component}/update {"version":…, "expected_current":…}`
@@ -477,7 +480,7 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
   (запускается сценарием `backup-restore` `lab-host`; на боевом хосте — только «бэкап» его
   части, никогда «разрушение»).
 
-## 8. Изменение кода: что добавилось в гейт с v0.6
+## 8. Изменение кода: что добавилось в гейт
 
 К набору из части «Обязательные проверки репозитория» добавились:
 
@@ -515,18 +518,18 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
 | | `node_auth_failed` | ключ не `node-sync` этого узла или отозван — новый ключ (алгоритм B) |
 | | `foreign_master` / `already_linked` / `same_panel` | стоп, владельцу |
 | push поколения | `stale_generation` / `digest_conflict` | центр сам переиздаёт; ничего не делать, наблюдать `observed` |
-| | `secret_store_disabled` | на узле нет мастер-ключа — `master-key-init` по UPGRADING v0.2 (владелец) |
+| | `secret_store_disabled` | на узле нет мастер-ключа — `master-key-init` по [docs/UPGRADING.ru.md](docs/UPGRADING.ru.md) (владелец) |
 | | 422 | узел на старой сборке — обновить узел до сборки центра |
 | ресурс поколения | `failed: runtime user exists and is not managed` | коллизия с локальным пользователем — другое имя или импорт вместо выдачи |
 | операция выдачи | `compensated` | причину в `GET /api/operations/{id}`; повторить с новым именем |
 | | `manual_intervention_required` | стоп; владельцу id; `POST …/resume` только после его решения |
 | протокол-API узла | 409 `managed_by_central` | ресурс принадлежит центру — менять на центре |
-| маршрутизация | `unsupported` + причины | §8.6 руководства; ничего не применять |
+| маршрутизация | `unsupported` + причины | [docs/ROUTING.ru.md](docs/ROUTING.ru.md), «Предпросмотр и применение»; ничего не применять |
 | | 409 `policy_conflict` | перечитать `revision`, повторить PUT |
 | | 503 `manual_intervention_required` | стоп; резервные копии менеджера; владельцу |
 | | `artifact_mismatch` | бинарь/geodata роутера не совпадают с пином — не чинить самому, владельцу |
-| цепи и полосы (v0.7) | `relay_credential_pending` | узел-выход ещё не подтвердил учётку relay — повторить apply после heartbeat, не ротировать |
-| | `node_lacks_relay` / `relay_disabled` / `node_lacks_lanes` | узел-выход без relay / relay выключен / узел старше v0.7 — включить relay (`POST …/relay/{node}/enable`) или обновить узел; вопрос владельцу, если это боевой узел |
+| цепи и полосы | `relay_credential_pending` | узел-выход ещё не подтвердил учётку relay — повторить apply после heartbeat, не ротировать |
+| | `node_lacks_relay` / `relay_disabled` / `node_lacks_lanes` | узел-выход без relay / relay выключен / узел без поддержки полос — включить relay (`POST …/relay/{node}/enable`) или обновить узел; вопрос владельцу, если это боевой узел |
 | | `chain_loop` / `node_unknown` / `relay_no_warp` | политика называет сам узел / узел не в парке / у выхода нет WARP — исправить выход, не применять |
 | | 409 `lane_slots_exhausted` / `lanes_invalid` / `lane_requires_router` / `lane_not_attached` | у Mieru кончились слоты (`[mieru] lane_slots`) / менеджер отверг полосы / нет роутера или сервис не подключён — сначала E4, затем повторить |
 | version-agent | 409 `expected_current` | перечитать версии; не форсировать |
@@ -550,18 +553,23 @@ curl -sS "${hdr[@]}" -X POST "$PANEL/api/routing/policies/$node_id/naive/explain
 
 # For AI agents
 
-This file is the mandatory operating protocol for AI agents doing development,
-validation, deployment, or maintenance on Proxy Control. It is useful to people
-too: the same safety rules, written as an algorithm.
+This file is the mandatory protocol for AI agents that **develop** Proxy Control: change
+its code and documentation, validate them on the lab host and release them. It is useful to
+people too: the same safety rules, written as an algorithm. The Russian part ends with an
+operations protocol for nodes that are already installed.
 
-If you are simply installing and operating Proxy Control, you do not need this
-file — start with the [README](README.en.md).
+To **install** Proxy Control, an agent needs the README section
+[«Installation by an AI agent»](README.en.md#installation-by-an-ai-agent), not this file. If
+you are simply installing and operating Proxy Control, start with the [README](README.en.md).
 
-The **operations protocol for agents** (deploying a node non-interactively, preparing
-and linking nodes, issuing grants, routing, upgrades, the v0.6 gate additions and the
+The **operations protocol for agents** (preparing
+and linking nodes, issuing grants, routing, upgrades, the gate additions and the
 refusal-code table) is in the Russian part above, «Эксплуатационный протокол для
-ИИ-агентов (v0.6)»; the human-facing walkthrough is
-[docs/releases/v0.6-operator-guide.ru.md](docs/releases/v0.6-operator-guide.ru.md).
+ИИ-агентов»; the human-facing documents are
+[docs/INSTALLER_REFERENCE.en.md](docs/INSTALLER_REFERENCE.en.md) (the installer wizard and TOML),
+[FLEET.en.md](FLEET.en.md) (linked panels), [docs/ROUTING.en.md](docs/ROUTING.en.md) (routing, chains and
+lanes), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md), [docs/UPGRADING.md](docs/UPGRADING.md) (updates),
+[docs/BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md) and [docs/MCP.en.md](docs/MCP.en.md).
 
 ## The rule that matters
 
@@ -610,6 +618,27 @@ uncertain, stop at a safe boundary and name the missing proof.
   and matching metadata. Never return an accessibility or DOM snapshot
   containing a password, link, subscription ID, or hidden path; rotate any value
   that reaches tool output.
+
+## Documentation
+
+- **README.md and README.en.md** are for users. Each has two installation sections:
+  «Installation by a human» (the wizard) and «Installation by an AI agent» — the installation
+  instruction for agents the owner gave access to a server (TOML from `examples/installer/` →
+  `plan --json` → the owner confirms the digest → `install --accept-plan`). This file (AGENTS.md)
+  is the **development** protocol, not an installation guide. A change to the installer, its
+  flags, paths, wizard questions or examples updates both sections in both languages in the same
+  commit; `tests/test_installer_docs.py` guards the structure.
+- Proxy Control is a separate panel (MTProxy, NaiveProxy, Mieru) that can run next to 3x-ui. Do
+  not describe it as «a panel for 3x-ui».
+- **There is no history before 1.0.0.** Documents describe the current behaviour: no «since
+  v0.x», no links to beta releases or their notes. The changelog starts at 1.0.0; new entries go
+  to `CHANGELOG.md` and `CHANGELOG.ru.md`.
+- **`docs/releases/vX.Y.Z.md`** are release notes for users: what changed and how to upgrade.
+  Gate tables, lab host names and live-check counts do not belong there.
+- **Agent working material is not committed**: plans and specs, handoffs (`CONTINUE-HERE`) and
+  lab acceptance logs stay in `.superpowers/` (ignored by Git) or outside the tree, and nothing in
+  the repository links to them.
+- After moving or deleting a document, run `python3 scripts/check-doc-links.py`.
 
 ## Agent dependency setup
 

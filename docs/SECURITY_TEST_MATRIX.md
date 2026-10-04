@@ -1,15 +1,14 @@
-# Матрица негативных и security-тестов vNext (Task 39)
+# Матрица негативных и security-тестов vNext
 
-Каждая строка Task 39 спеки vNext (`docs/superpowers/specs/2026-09-10-proxy-control-vnext-design.md`)
-сопоставлена с существующим тестом (`файл::имя`) или сценарием лаборатории (`scripts/lab/…`,
+Каждая угроза ниже сопоставлена с существующим тестом (`файл::имя`) или сценарием лаборатории (`scripts/lab/…`,
 имя `check` в `report.json`). Что здесь **не** заявляется: устойчивость к компрометации живого
-процесса центральной панели, у которого есть доступ к БД и мастер-ключ (см. Task 39, «Objective»).
+процесса центральной панели, у которого есть доступ к БД и мастер-ключ.
 
 Гейт: все unit-тесты идут через `scripts/dev/remote-gate.sh quick|full` на `ams-test`; сценарии
 лаборатории — `remote-gate.sh lab-host`, `fleet`, `routing`, `router` на том же стенде
 (`docs/OPERATIONS.*`, «Release acceptance lab»).
 
-| Строка Task 39 | Тест или сценарий |
+| Угроза | Тест или сценарий |
 | --- | --- |
 | Сертификат узла: неизвестный CA, чужой узел | `panel/tests/test_agent_transport.py::test_tls_rejects_unknown_ca_and_route_rejects_certificate_for_other_node` |
 | Ключ узла: неверный, отключённый, истёкший, удалённый | `panel/tests/test_api_keys.py::test_wrong_disabled_expired_and_deleted_keys_do_not_authenticate`; отзыв в лаборатории — `scripts/lab/fleet-acceptance.py` `step_09_key_revoke` |
@@ -31,7 +30,7 @@
 | SIGKILL во время swap / смерть дочернего процесса | `tests/test_xray_router_manager.py::test_recover_after_crash_in_swapping_discards_candidate`, `::test_watchdog_restarts_dead_process`, `::test_apply_lkg_failure_is_manual_intervention_and_broken_phase`; лаборатория `x10_watchdog_restarted_same_generation` |
 | Ротация ключей ingress | `tests/test_xray_router_manager.py::test_credential_files_reread_on_bootstrap`, `::test_malformed_credential_is_manual_intervention`; `tests/test_naive_manager_egress.py::test_bootstrap_rerenders_router_block_after_rotation`, `::test_bootstrap_adopts_the_installer_seed_after_rotation`; `tests/test_mieru_egress.py::test_bootstrap_rerenders_after_rotation`, `::test_bootstrap_refreshes_the_installer_seed_after_rotation`; лаборатория `x14_old_credential_refused`, `x14_new_credential_accepted`, `x14_caddyfile_re_rendered_with_new_key` |
 | Drift нативного блока (upstream роутера убран руками) | `panel/tests/test_routing_router_service.py::test_native_block_drift_shows_detached` |
-| Ручная/параллельная правка маршрутизации 3x-ui, drift статического моста | Вне v0.5: мост 3x-ui не реализован (спека v0.5 §15); роутер не читает и не пишет пути 3x-ui — `tests/test_deploy.py::test_no_reference_to_three_xui_paths_in_router`; лаборатория `x12_xui_untouched` |
+| Ручная/параллельная правка маршрутизации 3x-ui, drift статического моста | Вне объёма: статический мост в Xray 3x-ui не реализован; роутер не читает и не пишет пути 3x-ui — `tests/test_deploy.py::test_no_reference_to_three_xui_paths_in_router`; лаборатория `x12_xui_untouched` |
 | Fail-closed при недоступном провайдере | `panel/tests/test_xray_routing_compiler.py::test_compile_router_provider_unreachable_fail_closed_and_approved_direct`; `tests/test_xray_router_manager.py::test_apply_unreachable_warp_refuses_without_changes`; `tests/test_naive_manager_egress.py::test_apply_router_unreachable_refuses_without_changes`; лаборатория `r08_apply_refused_fail_closed`, `x11_apply_refused_egress_unreachable`, `x11_warp_policy_fails_closed_without_provider` |
 | Bypass private-адресов роутером (DNS rebinding) | `tests/test_xray_router_render.py::test_render_bypass_private_precedes_every_rule_per_tag`; `tests/test_xray_router_intent.py::test_validate_document_rejects_private_geoip_and_empty_rule`; spike §«IPOnDemand» (`localtest.me` → 403 при AsIs, refused при IPOnDemand) |
 | Замороженные идентификаторы роутера, никаких путей 3x-ui | `tests/test_deploy.py::test_xray_router_frozen_identifiers`, `::test_no_reference_to_three_xui_paths_in_router`, `::test_backup_docs_list_router_state` |

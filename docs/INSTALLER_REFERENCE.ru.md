@@ -29,17 +29,21 @@ bash install-release.sh
 
 Вручную — так:
 
-Скачайте архив, `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json` со
-страницы релиза. Для v0.1.0 GitHub attestation не опубликована. `sha256sum`
-сверяет три payload-файла из скачанного `SHA256SUMS`; сам файл контрольных сумм
-остаётся доверенным как файл со страницы релиза. Затем извлеките bootstrap из
-проверенного архива — всё это до получения привилегий.
+Скачайте четыре файла выпуска — архив, `SHA256SUMS`, `release-manifest.json` и
+`sbom.spdx.json` — из раздела Assets
+[страницы выпуска 1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+Релизный workflow публикует GitHub attestation провенанса архива и
+`install-release.sh`. `sha256sum` сверяет три payload-файла из скачанного
+`SHA256SUMS` (архив, `release-manifest.json` и `sbom.spdx.json`);
+сам файл контрольных сумм остаётся доверенным как файл со страницы выпуска и
+отдельной attestation провенанса не имеет. Затем извлеките bootstrap из проверенного
+архива — всё это до получения привилегий.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от root. До единственного `exec sudo`
@@ -59,8 +63,8 @@ chmod 700 install-bootstrap
 uid/gid 0, режим берётся из бита исполняемости git, а время — из коммита.
 Gzip-обёртку вокруг архива делает локальный zlib, поэтому система с другой
 версией zlib даст другой digest `.tar.gz` при полностью совпадающем содержимом —
-именно поэтому скачанный архив проверяется по `SHA256SUMS`; для v0.1.0
-независимая attestation не опубликована.
+именно поэтому скачанный архив проверяется по `SHA256SUMS` (и, при наличии `gh`, по
+его attestation провенанса), а не сравнением с локальной пересборкой.
 
 ## Интерактивный мастер
 
@@ -89,7 +93,7 @@ python3 -m installer.cli wizard --lang ru --config-output proxy-control.toml
 | `repair` | Перепроверяет владеемые файлы и перезапускает владеемые runtime |
 | `reconcile-panel-update --archive PATH --sha256 DIGEST` | Согласует владение файлами Core и кодом version-agent с точным архивом после обновления старым агентом |
 | `report` | Пишет публичный отчёт приёмки и root-only передачу учётных данных |
-| `uninstall` | Удаляет владеемое поколение; `--purge-data` удаляет и持persistent-состояние |
+| `uninstall` | Удаляет владеемое поколение; `--purge-data` удаляет и persistent-состояние |
 
 ```bash installer-check
 python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
@@ -129,18 +133,18 @@ subscription = "sub.example.com"  # необязательно: ссылки п�
 [mieru]                        # только с профилем Mieru
 tcp_ports = [46001]
 udp_ports = [46001]
-lane_slots = 4                 # v0.7: слоты полос mita@1…4 (порты 46101…), только с router = true
+lane_slots = 4                 # слоты полос mita@1…4 (порты 46101…), только с router = true
 
 [ingress]                      # только для чужого stream, который отправляет PROXY protocol
 proxy_protocol_bridge = "127.0.0.1:10443"  # заранее поднятый loopback TLS/SNI bridge
 panel_tls_port = 10446                       # если чужой Nginx уже владеет штатным 8443
 skip_renewal_dry_run = true                  # только для уже валидных проверенных lineage при временном ACME limit
 
-[egress]                       # необязательно (v0.4): WARP как самостоятельный провайдер
+[egress]                       # необязательно: WARP как самостоятельный провайдер
 warp = true                    # поставить и проверить закреплённый клиент Cloudflare
 warp_port = 40000              # его loopback-порт SOCKS5 (по умолчанию 40000)
-router = true                  # v0.5: поставить Xray-router из заранее положенного архива
-relay_port = 45443             # v0.7: публичный порт relay роутера (по умолчанию 45443 при router = true)
+router = true                  # поставить Xray-router из закреплённого архива
+relay_port = 45443             # публичный порт relay роутера (по умолчанию 45443 при router = true)
 naive = "router"               # direct | warp | router — начальный egress NaiveProxy
 mieru = "direct"               # direct | warp | router — начальный egress Mieru
 
@@ -167,15 +171,15 @@ VLESS Reality TCP и XHTTP), а `managed-new`
 требует все четыре домена плюс `warp` и `warp_domains` и работает только на
 чистом сервере. `warp_domains` без `warp = true` отклоняется. `manage_ufw` действует только на свежем хосте.
 
-`[egress]` необязателен. Без него установщик читает `[three_xui].warp` и `warp_port` ровно так, как до
-v0.4 (см. «WARP и egress»); с ним секция канонична: `warp`/`warp_port` решают, ставится ли клиент
+`[egress]` необязателен. Без него установщик берёт WARP из `[three_xui].warp` и `warp_port` (правило
+без секции — в «WARP и egress»); с ним секция канонична: `warp`/`warp_port` решают, ставится ли клиент
 Cloudflare, а `naive`/`mieru` выбирают **начальный** egress каждого сервиса (`direct`, `warp` или
 `router`; называть можно только сервисы профиля, `warp` требует `warp = true`, `router` —
 `router = true`). Если `[three_xui]` тоже задаёт `warp`/`warp_port`, значения должны совпадать. Это
 семя: после установки egress-конфигурацией владеют менеджеры, а меняет её экран «Маршрутизация»
 панели (`docs/ROUTING.ru.md`); repair и обновление её не переписывают.
 
-`router = true` (v0.5) ставит выделенный Xray egress-router (`docs/XRAY_ROUTER.ru.md`) и требует NaiveProxy
+`router = true` ставит выделенный Xray egress-router (`docs/XRAY_ROUTER.ru.md`) и требует NaiveProxy
 или Mieru в профиле. Закреплённый архив `/var/lib/proxy-control/Xray-linux-64.zip` установщик скачивает
 сам по закреплённому HTTPS-URL, если его там нет (как пакет mita), и сверяет SHA-256 до любого использования
 (URL и SHA-256 — в `release/external-artifacts.json`; несовпавший файл выбрасывается, а при другом дайджесте
@@ -184,7 +188,7 @@ Cloudflare, а `naive`/`mieru` выбирают **начальный** egress к
 (naive `127.0.0.1:45101`, mieru `45102`, SOCKS5 с посервисным ключом), а роутер пропускает его напрямую, пока
 экран «Маршрутизация» не даст ему политику.
 
-С v0.7 роутер приходит вместе с **relay** и **слотами полос** (`docs/ROUTING.ru.md`, «Цепи и полосы»):
+Роутер приходит вместе с **relay** и **слотами полос** (`docs/ROUTING.ru.md`, «Цепи и полосы»):
 `[egress].relay_port` (по умолчанию 45443; `0` — без relay; без `router = true` ключ отвергается,
 порты 80/443 и ingress роутера — тоже) — публичный TCP-порт входа vless+reality, через который другие
 узлы парка выходят через этот; UFW открывает его. `[mieru].lane_slots` (0…8, по умолчанию 4 при
@@ -228,9 +232,7 @@ TCP-портов нет. Не включайте PROXY глобально на �
 конфигурацию. Изменённые шаблоны отвергаются; чужой coexist-конфиг получает статус
 `coexist_manual` и остаётся без изменений. Приватные копии лежат в
 `/var/lib/proxy-control/ingress-backups`. Обновление только панели через UI требует этого шага на хосте.
-Этот opt-in появился после v0.13.0-beta.1 и отсутствует в опубликованном
-архиве того тега: нужен проверенный архив v0.14.0-beta.1 (или более поздней
-версии) со своей контрольной суммой. На узле с существующим Nginx прошли
+На узле с существующим Nginx прошли
 проверки установщика и внешних клиентов Naive, Mieru TCP/UDP и MTProxy; чужой bridge и
 проброс портов на роутере остаются под управлением оператора и должны быть
 сохранены отдельно.
@@ -243,7 +245,7 @@ TCP-портов нет. Не включайте PROXY глобально на �
 панели этот путь не обслуживает, поэтому подписчик не узнаёт, где живёт панель. Без ключа
 публичный endpoint остаётся выключенным.
 
-`domains.mcp` (v0.11) необязателен, отличается от всех остальных имён и задаётся только на
+`domains.mcp` необязателен, отличается от всех остальных имён и задаётся только на
 центральной панели — узлам MCP-сервер не нужен, центр управляет ими своим API. Если он задан,
 установщик добавляет имя в сертификат Core как SAN, маршрутизирует его на TLS-слушатель панели
 отдельным блоком `server` Nginx, который обслуживает только `/mcp` (`access_log off`, HTTP/1.1
@@ -300,8 +302,8 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
 | `naive` | Зафиксированной сборкой Caddy, разделёнными identity, состоянием и токеном manager, границей лога учёта и маршрутом Naive |
 | `mieru` | Зафиксированным исполняемым mita, identity mita и стабильным UDS, токеном и состоянием manager, выбранными слушателями |
 | `three_xui` | В режиме `existing` — ничем, кроме владеемого маршрута; в `managed-new` — одним staged-поколением, его панелью и созданными им инбаундами |
-| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (bearer клиентов MCP, 32 случайных байта), `secrets/mcp-panel-key` (ключ API панели области `admin` с именем `mcp`, выпущенный через `panel.cli api-key-create`), Compose-сервисом `mcp` (контейнер `proxy-control-mcp`, overlay `compose.mcp.yaml`) и маркером `/etc/proxy-control/mcp-owned`; verify — контейнер healthy, `https://<mcp>` через SNI отвечает 401 без токена и 200 на `initialize` с ним; откат снимает сервис, отзывает ключ (`api-key-revoke`) и убирает env, секреты и маркер (v0.11) |
-| `version_agent` | Кодом агента в `/opt/proxy-control/version_agent`, `version-agent.service`, его tmpfiles-фрагментом, `/etc/proxy-control/version-agent.env` и маркером владения; каталог `versions.json` и state в `/var/lib/proxy-control/version-agent` создаются только при отсутствии и сохраняются без явного purge (v0.11) |
+| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (bearer клиентов MCP, 32 случайных байта), `secrets/mcp-panel-key` (ключ API панели области `admin` с именем `mcp`, выпущенный через `panel.cli api-key-create`), Compose-сервисом `mcp` (контейнер `proxy-control-mcp`, overlay `compose.mcp.yaml`) и маркером `/etc/proxy-control/mcp-owned`; verify — контейнер healthy, `https://<mcp>` через SNI отвечает 401 без токена и 200 на `initialize` с ним; откат снимает сервис, отзывает ключ (`api-key-revoke`) и убирает env, секреты и маркер |
+| `version_agent` | Кодом агента в `/opt/proxy-control/version_agent`, `version-agent.service`, его tmpfiles-фрагментом, `/etc/proxy-control/version-agent.env` и маркером владения; каталог `versions.json` и state в `/var/lib/proxy-control/version-agent` создаются только при отсутствии и сохраняются без явного purge |
 
 Каждое действие применяется через durable-журнал: prepare, apply, verify.
 Прерванный шаг возобновляем, а инверсия каждого адаптера восстанавливает то, что
@@ -350,7 +352,7 @@ WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000` (
   egress-правилом на все домены и все IP, называющим прокси WARP.
 
 Какой сервис стартует через WARP, задают `[egress].naive`/`[egress].mieru`. Без секции `[egress]`
-действует правило до v0.4: оба сервиса идут через WARP при `warp = true`, кроме случая непустого
+действует правило по умолчанию: оба сервиса идут через WARP при `warp = true`, кроме случая непустого
 `warp_domains` (доменный WARP для 3x-ui) — тогда оба остаются напрямую. При `warp = false` нигде не
 появляется ни outbound, ни upstream, ни правило WARP, а egress-правило Mieru остаётся `DIRECT`.
 
@@ -358,7 +360,7 @@ WARP — это одна loopback-точка **SOCKS5** на `127.0.0.1:40000` (
 (`socks5://127.0.0.1:<warp_port>`, пусто без WARP): их читает egress API менеджеров, и экран
 «Маршрутизация» панели предлагает провайдер `warp` на этом узле только когда они заданы.
 
-### Xray-router (v0.5)
+### Xray-router
 
 С `router = true` адаптер `xray_router` работает после `warp` и до сервисов, которые он кормит. Он
 проверяет положенный архив, извлекает ровно `xray`, `geoip.dat` и `geosite.dat` (их дайджесты
@@ -373,13 +375,13 @@ identity `xray-router` (10006), готовит `/var/lib/xray-router`, пише�
 ingress слушают только loopback, пропускает один аутентифицированный CONNECT через ingress NaiveProxy в
 Интернет (три попытки: сеть до цели — не роутера) и что мост отвечает на SOCKS5-приветствие.
 
-С `relay_port` (v0.7) адаптер после подъёма контейнера включает relay через менеджер
+С `relay_port` адаптер после подъёма контейнера включает relay через менеджер
 (`healthcheck --relay-enable <домен панели> <порт>`: ключевую пару Reality менеджер чеканит один раз и
 хранит в `/var/lib/xray-router/relay.json`, 0600), а проверка требует `enabled` на нужном порту за доменом
 панели, публичный ключ в ответе и listener на всех адресах; в отчёт попадает только публичная часть.
 `repair` включает relay повторно (идемпотентно); `uninstall` без purge сохраняет `relay.json`.
 
-Адаптер `mieru` с `lane_slots` (v0.7) ставит шаблон `/etc/systemd/system/mita@.service` (свой сокет
+Адаптер `mieru` с `lane_slots` ставит шаблон `/etc/systemd/system/mita@.service` (свой сокет
 `/run/mita/lane-<n>.sock`, своё состояние `/var/lib/mita/lanes/<n>`, подмонтированное поверх
 `/var/lib/mita` в namespace юнита — `metrics.pb` и конфиг mita не делятся между демонами), включает
 `mita@1…N` после основного демона и ждёт от каждого слота ответ `IDLE` (или `RUNNING`, если слот уже несёт
@@ -482,8 +484,8 @@ identity установки, снимает базу, дерево бинаре�
 боевые учётные данные, DNS или SSH-ключи.
 
 ```bash
-make lab-release RELEASE_ARCHIVE=dist/proxy-control-v0.1.0.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
-make lab-container RELEASE_ARCHIVE=dist/proxy-control-v0.1.0.tar.gz RELEASE_SHA256=<sha256>
+make lab-release RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
+make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256>
 ```
 
 Лаборатория QEMU загружает Ubuntu-образ с зафиксированной контрольной суммой и

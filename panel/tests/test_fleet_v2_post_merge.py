@@ -1,4 +1,4 @@
-"""v0.3 post-merge fix-wave, central side (`docs/superpowers/plans/2026-09-14-v0.3-post-merge-issues.md`).
+"""v0.3 post-merge fix-wave, central side.
 
 Each test names the review item it closes. All run against the in-process `pair`
 (node panel + central panel) from `conftest.py`; nothing here sleeps.

@@ -133,7 +133,7 @@ A client subscription URL (`https://<subscription domain>/s/<token>`) is a beare
 credential: whoever holds it receives every access of that client. By design it
 never reaches a log — the panel runs uvicorn without an access log, the Nginx
 `server` block for the subscription domain has `access_log off`, and the panel
-stores the token's hash plus (since v0.10) a copy encrypted under the panel master
+stores the token's hash plus a copy encrypted under the panel master
 key — no key, no copy. Showing the URL in the panel («Показать» in the client
 window) is an owner/admin action through a one-time reveal, audited as
 `subscription.reveal`. Do not add request logging to that path, and do not paste
@@ -200,22 +200,22 @@ See [Troubleshooting](TROUBLESHOOTING.en.md).
 
 ## 11. Central panel and linked panels (Fleet v2)
 
-Since v0.3 a panel can manage other panels over HTTPS with a `node-sync` API key; the
+A panel can manage other panels over HTTPS with a `node-sync` API key; the
 model is in [FLEET.en.md](../FLEET.en.md). What the runbook adds is the order of
 operations on a fleet of hosts.
 
 ### Rollout order
 
-The central and its nodes must run the **same v0.3 build**. A node validates the
+The central and its nodes must run the **same build**. A node validates the
 generation document strictly (`extra = forbid`), so a node on an older build refuses a
 document with a field it does not know (for example `origin`) with 422; the central then
 records `last_error: push 422: rejected` for that node and backs off (30 s → 10 min) until
-something changes. A v0.2 panel has no `/api/fleet/v2/*` at all and cannot be added
+something changes. A panel that does not answer `/api/fleet/v2/*` cannot be added
 («the node answered 404»). Therefore:
 
 1. **Upgrade the nodes first, then the central.** On every host, in the project
    directory: `docker compose up -d --build --wait panel` with the persisted overlay set.
-   Migrations 9–13 apply at start; `panel_guid` is created on first start
+   Database migrations apply at start; `panel_guid` is created on first start
    ([UPGRADING](UPGRADING.md)).
 2. On each node create a `node-sync` key («Администраторы → API-ключи → Создать ключ»).
 3. On the central add the panels («Узлы → + Панель → Проверить → Добавить») and import
@@ -265,15 +265,15 @@ changes; subscribers are unaffected.
 ### Rollback
 
 Rolling a **node** back to the previous panel image follows the general rule: restore the
-complete previous generation, database included ([UPGRADING](UPGRADING.md)). A v0.2 image
-refuses to start on a database at schema 13 («database schema 13 is newer than this
-code»), so the previous image alone is not a rollback. On a node that was never linked the
+complete previous generation, database included ([UPGRADING](UPGRADING.md)). A previous image
+refuses to start on a database migrated to a newer schema («database schema N is newer than
+this code»), so the previous image alone is not a rollback. On a node that was never linked the
 upgrade touched no runtime user and `managed_resources` is empty, so the pre-upgrade
 database loses no fleet state. A node that was managed: unlink it first (its users become
 local and keep working), then roll back. A **central**: pause or delete its links first;
 its nodes keep serving whatever generation they last applied.
 
-## 12. Routing (v0.4)
+## 12. Routing
 
 An egress policy is applied by a service's **manager**, never by editing a config by
 hand: the naive-manager owns `# BEGIN NAIVE-MANAGER EGRESS … # END` inside
@@ -301,7 +301,7 @@ brings it back verbatim — [ROUTING](ROUTING.en.md).
   (`managed_by_central`). Unlinking leaves the egress as it is.
 - Audit: `routing.policy.update | apply | rollback | delete` on the panel that applied.
 
-## 13. The Xray-router (v0.5)
+## 13. The Xray-router
 
 A node with `[egress] router = true` runs `proxy-control-xray-router`
 ([XRAY_ROUTER](XRAY_ROUTER.en.md)). Its health is part of the daily check:

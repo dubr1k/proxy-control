@@ -34,7 +34,7 @@ Passwords require at least 12 characters and are stored with Argon2id. SQLite st
 
 `GET /api/audit` remains a read-only `items` response and supports `limit` (1–200), `before_id`, and equality filters for `actor`, `action`, and `target` (`actor` is case-insensitive). When more matching rows exist, `next_cursor` is the `before_id` value for the next page.
 
-Since v0.3 a panel can manage other panels: the central adds a panel by URL and a `node-sync` API key, imports its users and issues, rotates and revokes accesses on it; the linked panel keeps its own owner and UI. The whole model — linked panels, generations, heartbeat, the legacy mTLS transport v1 — is documented in [FLEET.en.md](FLEET.en.md).
+A panel can manage other panels: the central adds a panel by URL and a `node-sync` API key, imports its users and issues, rotates and revokes accesses on it; the linked panel keeps its own owner and UI. The whole model — linked panels, generations, heartbeat, the legacy mTLS transport v1 — is documented in [FLEET.en.md](FLEET.en.md).
 
 ## API keys and Bearer authentication
 
@@ -168,10 +168,10 @@ Karing's current source accepts `karing://install-config?url=...` and imports si
 
 ## Switching the writer: `PANEL_VNEXT_WRITER`
 
-Since v0.2 the protocol endpoints have two writers, selected by
+The protocol endpoints have two writers, selected by
 `PANEL_VNEXT_WRITER`:
 
-- `legacy` (default) — the panel calls the managers directly, exactly as v0.1.0 did;
+- `legacy` (default) — the panel calls the managers directly, bypassing clients and grants;
 - `domain` — the same requests go through clients and grants, so the panel **owns the
   credential** and can render a subscription.
 
@@ -205,7 +205,7 @@ answers **only** on that host: on the panel's own domain `/s/` is a 404, the sam
 an unknown or revoked token, so a subscription reveals nothing about where the panel
 lives. With the variable empty the endpoint is switched off.
 
-Since v0.12 the client window renders the subscription block only when the subscription
+The client window renders the subscription block only when the subscription
 has something to serve: MTProxy never takes part in it — Telegram opens a `tg://proxy`
 link and polls no subscription URL. A client holding MTProxy alone gets a line pointing at
 the links instead, while a subscription issued earlier stays on screen so it can be
@@ -250,8 +250,8 @@ would hand one subscriber somebody else's access. Merge deliberately by picking 
 existing client in the "Where" column.
 
 An imported grant carries no secret: the panel never saw the password the manager
-issued earlier. Such a grant is marked "no stored secret" and stays out of the
-subscription until it is adopted with the "Adopt" button.
+issued earlier. Such a grant is marked "no stored secret"; it does not block issuing a
+subscription — it appears there as `unsupported` until it is adopted with the "Adopt" button.
 
 Adoption differs by protocol, and the difference is not cosmetic:
 
@@ -339,7 +339,7 @@ Raw Telemt v1 typed commands live in the card's "Advanced: transport v1" drawer.
 
 Details of both transports: [FLEET.en.md](FLEET.en.md).
 
-## The Routing screen (v0.4)
+## The Routing screen
 
 **«Маршрутизация»** sets, per node and per service, where the clients' traffic leaves:
 a node selector (this server and the linked panels), the tabs NaiveProxy / Mieru / MTProxy
@@ -354,23 +354,25 @@ runs, whether a restart is needed and the rollback target. **«Применит�
 for a saved, supported policy; **«Откатить»** once something was applied; **«История»**
 lists `routing_applies`; **«Удалить политику»** only after «Сбросить» + «Применить». The
 card's badge reads «применено (rev N)», «есть неприменённые изменения», «применяется…» or
-«ошибка: …»; a linked panel older than v0.4 shows «узел нужно обновить до v0.4», and on a
-node a central manages the screen says so and keeps the pen with the central. The node
+«ошибка: …»; a linked panel that does not declare egress-policy support shows
+«узел нужно обновить до v0.4», and on a node a central manages the screen says so and
+keeps the pen with the central. The node
 card on «Узлы» carries the line «Маршрутизация: naive → WARP, 2 блокир.; mieru →
 напрямую». Every role may read and preview; the owner applies. What each backend can
 enforce, the API (`/api/routing/*`) and the audit events: [docs/ROUTING.en.md](docs/ROUTING.en.md).
 
-Since v0.5 the card also shows the node's **Xray-router** ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)):
+The card also shows the node's **Xray-router** ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)):
 the backend badge reads Caddy, mita or Xray-router, and the router line says
 «Xray-router: не установлен / сервис не подключён / сервис подключён» with the Xray version and
 the owner-only buttons **«Подключить к Xray-router»** / **«Отключить от Xray-router»** (confirmed:
 the service's sessions are interrupted). A rule gains the fields geosite, geoip and ports;
 on a native backend they preview as «not applicable» naming the router. A linked panel
-older than v0.5 shows «узел нужно обновить до v0.5 и установить Xray-router» for a router policy.
+that does not declare the Xray-router shows for a router policy
+«узел нужно обновить до v0.5 и установить Xray-router».
 
 ## Master key and rotation
 
-Since v0.2 the panel can store a client credential so that a subscription still
+The panel can store a client credential so that a subscription still
 renders tomorrow. Those values are encrypted with AES-256-GCM under the keyring
 in `secrets/panel-master-key`, staged read-only into the container at
 `/run/panel/master-key`. Encryption is bound to each row's identity, so a

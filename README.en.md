@@ -4,77 +4,92 @@
 
 # Proxy Control
 
-**A proxy control panel that shares a server with 3x-ui instead of replacing it**
+**A proxy control panel that can run on the same server as 3x-ui**
 
-MTProxy, NaiveProxy, and Mieru behind one panel, with a transactional installer
-that either finishes the job or puts the server back the way it was.
+MTProxy, NaiveProxy and Mieru under one panel — with a transactional installer that
+either finishes the installation or returns the server to the state it was in.
 
 [![CI](https://github.com/dubr1k/proxy-control/actions/workflows/test.yml/badge.svg)](https://github.com/dubr1k/proxy-control/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[What it is](#what-this-is) · [Port 443](#how-it-shares-port-443-with-3x-ui) · [Install](#installation) · [Protocols](#the-protocols) · [Operations](#day-to-day-operation) · [Security](SECURITY.md)
+[What it is](#what-it-is) · [Requirements](#requirements) · [Installation by a human](#installation-by-a-human) · [Installation by an AI agent](#installation-by-an-ai-agent) · [Updating](#updating) · [Documentation](#documentation)
 
 </div>
 
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
+> [!NOTE]
+> **Current release: [v1.1.1](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1)
+> and the [changelog](CHANGELOG.md).
+
+> [!IMPORTANT]
+> This project is for people who know what DNS, TLS, Nginx and Docker are. The installer
+> takes care of the routine and refuses to take a dangerous step silently, but it does not
+> replace understanding your own server.
+
+## Contents
+
+- [What it is](#what-it-is)
+- [Interface](#interface)
+- [How the shared port 443 works](#how-the-shared-port-443-works)
+- [Requirements](#requirements)
+- [Domains and certificates](#domains-and-certificates)
+- [Installation by a human](#installation-by-a-human)
+- [Installation by an AI agent](#installation-by-an-ai-agent)
+- [After installation](#after-installation)
+- [Updating](#updating)
+- [Day-to-day operation](#day-to-day-operation)
+- [Features in detail](#features-in-detail)
+- [When something does not work](#when-something-does-not-work)
+- [What is inside](#what-is-inside)
+- [Documentation](#documentation)
+- [Security](#security)
+- [Development](#development)
+- [License and acknowledgements](#license-and-acknowledgements)
+
+## What it is
+
+Proxy Control is a separate control panel for MTProxy, NaiveProxy and Mieru proxies, their
+users and accesses. It is neither an add-on nor a fork of 3x-ui: install it on a clean server
+or next to a running 3x-ui — then both panels share port 443 without getting in each other's
+way. The installer can also install 3x-ui for you.
+
+| Component | What it gives you |
+|---|---|
+| **MTProxy / Telemt** | A Telegram proxy: `tg://` links and QR codes, limits, expiry, service health. |
+| **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from outside. HTTP/1.1 CONNECT and HTTP/2 CONNECT over TLS/TCP with one access for both; per-user quota and traffic accounting. |
+| **Mieru** | A traffic-obfuscating proxy with its own protocol over TCP; a one-time `mierus://` link and QR. |
+| **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.9.0` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
+| **Clients and subscriptions** | One client holds grants to every protocol and one revocable link `https://<subscription domain>/s/<token>` for sing-box/Karing, Clash/mihomo and others. Credentials are stored under a master key (AES-256-GCM). |
+| **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
+| **Routing** | Outbound traffic rules per node and service: direct, through WARP, your own exit or another node; blocks by domain, CIDR, geosite and geoip through the optional Xray-router. |
+| **Updates** | The «Versions» screen updates Telemt, NaiveProxy, Mieru, the Xray-router and the panel itself with a backup and rollback; the whole server updates with one command. |
+| **MCP and AI skills** | An optional MCP server on the central panel: the panel API as tools for Claude Code and Claude Desktop, irreversible actions only with `confirm`. |
+| **Panel** | Owner, admin and viewer roles; API keys scoped `admin \| monitor \| node-sync`; a secret-free audit; Russian and English interface. |
+
+Traffic accounting differs between protocols and the panel does not hide it: Telemt
+separates the process counter from quota usage, NaiveProxy counts bytes only after a
+tunnel closes, and Mieru shows `unavailable` when there is no safe per-user counter.
+
 ## Interface
 
-Real **v1.0.0** and **v1.0.2** (clients) panel captures from an isolated lab with synthetic data. The gallery contains no keys, QR codes, or production node addresses.
+Panel captures from an isolated lab with test data — no keys, QR codes or production
+node addresses.
 
 | Overview | Step-by-step routing |
 |---|---|
-| [![Three proxy services and server resources](docs/releases/assets/v1.0.0/dashboard-en.png)](docs/releases/assets/v1.0.0/dashboard-en.png) | [![Four NaiveProxy routing steps](docs/releases/assets/v1.0.0/routing-en.png)](docs/releases/assets/v1.0.0/routing-en.png) |
+| [![Overview of the three proxy services and host resources](docs/releases/assets/v1.0.0/dashboard-en.png)](docs/releases/assets/v1.0.0/dashboard-en.png) | [![The four routing steps for NaiveProxy](docs/releases/assets/v1.0.0/routing-en.png)](docs/releases/assets/v1.0.0/routing-en.png) |
 
 [Mobile overview](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Clients with search](docs/releases/assets/v1.0.2/clients.png) · [Access window](docs/releases/assets/v1.0.2/grant-window.png) · [Clients on a phone](docs/releases/assets/v1.0.2/clients-phone.png) · [Built-in guide](docs/releases/assets/v1.0.0/routing-guide.png) · [Russian overview](docs/releases/assets/v1.0.0/dashboard.png) · [Russian routing](docs/releases/assets/v1.0.0/routing.png) · [Sign-in](docs/releases/assets/v1.0.0/login.png)
 
-> [!WARNING]
-> **Current release: [v1.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.0)**: MTProxy routing through the Xray-router — WARP, your own exit or another node of the fleet. [Release notes](docs/releases/v1.1.0.md).
+## How the shared port 443 works
 
-> [!IMPORTANT]
-> This project is for people who know what DNS, TLS, Nginx, and Docker are. The
-> installer takes care of the routine and refuses to take a dangerous step
-> silently, but it does not replace understanding your own server.
-
-## What this is
-
-Proxy Control is a standalone companion panel for 3x-ui that manages **other**
-protocols and credentials. It is not a fork of 3x-ui and does not attempt to
-replace its interface.
-
-The central idea: **you do not have to choose between Proxy Control and 3x-ui**.
-Both run on one server, behind one shared port 443, without fighting each other.
-
-Fresh installs preserve the panel client's IP through the shared Nginx ingress.
-For an existing foreign router, configure its PROXY bridge as described in the
-[installer reference](docs/INSTALLER_REFERENCE.en.md); raw TLS forwarding alone
-cannot preserve client IPs. The host updater migrates exact older fresh templates.
-
-What you get:
-
-| Boundary | What it is for |
-|---|---|
-| **MTProxy / Telemt** | A proxy for Telegram. The panel hands out `tg://` links and QR codes, sets limits and expiry, and reports service state. |
-| **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from the outside. Protocols: HTTPS (HTTP/1.1 CONNECT) and HTTP/2 CONNECT over TLS/TCP, one access for both; TCP only — UDP and HTTP/3 are not proxied. Per-user quota and traffic accounting included. |
-| **Mieru** | An obfuscated proxy with its own protocol over TCP. UDP transport does not work for clients on real networks and is not claimed. The panel issues a one-time `mierus://` link and QR. |
-| **3x-ui** | VLESS Reality (TCP and XHTTP) and Hysteria2. In `existing` mode the installer adopts an installed 3x-ui, shares port 443 with it, and leaves its files unchanged. In `managed-new` mode on a clean server it installs 3x-ui `3.9.0` and creates those inbounds. |
-| **Panel** | Owner, administrator, and viewer roles; API keys scoped `admin \| monitor \| node-sync` (v0.3). Secret-free audit written in the transaction of the change, one-time credential reveal, quota management, versioned database migrations. Since v0.11 — «Проверить обновления»: the panel asks the host agent to poll upstream and updates the Xray-router, Mieru, Telemt and NaiveProxy (by rebuilding Caddy) with rollback. |
-| **Clients and subscriptions** | Since v0.2 the panel owns the accounts of all three protocols: import of existing ones, "adopt access", new accesses issued by one journaled operation with an honest outcome. Credentials live under a master key (AES-256-GCM). Each client gets one revocable link `https://<subscription domain>/s/<token>` for all of their accesses: `raw`, sing-box/Karing, Clash/mihomo, `manifest`, `html`; no access log anywhere on the path. |
-| **Fleet** *(optional)* | Since v0.3 — linked panels: a central panel manages other panels over HTTPS with a `node-sync` API key (issue, rotate and revoke accesses, import users), three actions in the UI. Legacy v1 — Telemt inventory and limits over mTLS, installed by hand. |
-| **Routing** | Since v0.4 — an egress policy per node and service: NaiveProxy and Mieru direct or through WARP, block by domain and CIDR, selective rules on Mieru; the preview tells exactly what the node's backend will enforce, and apply is transactional with a rollback — locally and on linked panels ([docs/ROUTING.en.md](docs/ROUTING.en.md)). Since v0.5 — an optional **Xray-router** on the node: a service attached to it gets geosite, geoip, ports and blocks beside WARP through a dedicated, pinned Xray with an authenticated ingress ([docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md)). |
-| **MCP** *(optional, central)* | Since v0.11 — the `proxy-control-mcp` container on the central panel: the panel's API as Model Context Protocol tools for Claude Code and Claude Desktop over `https://<mcp domain>/mcp` with a bearer token; irreversible actions require `confirm`, every call goes through the `mcp` API key and shows in the audit log ([docs/MCP.en.md](docs/MCP.en.md)). Skills for the operator's routine tasks live in [`skills/`](skills/). |
-
-Traffic accounting differs per protocol, and the panel does not hide that:
-Telemt separates the process counter from quota consumption, Naive counts
-payload bytes only after a tunnel closes successfully, and Mieru honestly
-reports `unavailable` when no safe per-user counter exists.
-
-## How it shares port 443 with 3x-ui
-
-Public port 443 stays with Nginx. Nginx looks only at the domain name in the TLS
-greeting (SNI) and hands each connection to the right service. Proxy Control
-does not take 443 for itself — it asks Nginx for a couple of routes and nothing
-more.
+Public port 443 stays with Nginx. Nginx looks only at the domain name in the TLS hello
+(SNI) and hands the connection to the right service. Proxy Control does not take 443 for
+itself: the installer adds only its own lines to the SNI map and never rewrites it as a
+whole. If the Nginx configuration cannot be understood unambiguously, it stops instead
+of guessing.
 
 ```text
 Client ── TCP/443 ──► Nginx stream + SNI
@@ -85,262 +100,133 @@ Client ── TCP/443 ──► Nginx stream + SNI
                          └──► the Proxy Control panel
 ```
 
-So the installer adds only its own lines to your SNI map and never rewrites it
-wholesale. If it cannot understand your Nginx configuration unambiguously, it
-stops instead of guessing.
-
-Where everything listens:
-
 | Boundary | Address | Who can reach it |
 |---|---|---|
-| Public entry point | TCP/443 | Only your Nginx `stream`, routed by SNI |
+| Public entry | TCP/443 | Only Nginx `stream`, routing by SNI |
 | Telemt / MTProxy | `127.0.0.1:8445` | Only Nginx and the local system |
-| Panel | `127.0.0.1:8787` (HTTP) | Locally; published through a TLS vhost on `127.0.0.1:8443` |
+| Panel | `127.0.0.1:8787` (HTTP) | Local; outside through the HTTPS virtual host on `127.0.0.1:8443` |
 | NaiveProxy (Caddy) | `127.0.0.1:4443` | Only Nginx |
-| Telemt API | `mtproxy:9091` | Only inside the Compose network, never published |
-| Mieru | Your chosen TCP ports (the server listens on UDP there too, but it is not claimed) | Public; port 443 is not used |
-| Mieru management | `/run/mita/mita.sock` | Local Unix socket only |
-| Fleet ingress | TCP/8790 | HTTPS with mTLS only, when the boundary is enabled |
+| Telemt API | `mtproxy:9091` | Only inside the Compose network |
+| Mieru | TCP ports you choose | Public; port 443 is not used |
+| Mieru control | `/run/mita/mita.sock` | Only a local Unix socket |
+| Fleet v1 ingress | TCP/8790 | Only HTTPS with mTLS, when this optional component is enabled |
 
-Containers are named `proxy-control-*`. The Compose project name (`mtproxy`) and
-existing volumes are preserved, which is what makes upgrading a running
-installation safe.
+A fresh installation preserves the panel client IP through the shared Nginx entry. If
+your own Nginx configuration owns incoming connections, pass the address with the PROXY
+protocol — see the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
-## Before you install
+Containers are named `proxy-control-*`; the Compose project is `mtproxy`.
 
-For an older installation, an update may require reconciling Core and
-version-agent ownership with the exact release archive before `repair`.
-Follow the [installer reference](docs/INSTALLER_REFERENCE.en.md#commands).
+## Requirements
 
-- An **x86-64** server, which is what the overwhelming majority of VPS hosts
-  are. Any other architecture is refused during the audit rather than part-way
-  through an installation: the release is built for x86-64 only, and that is
-  the only architecture the lab proves.
-- Ubuntu 24.04 with `systemd`, and `root` or `sudo` access.
-- DNS A/AAAA records for every name point **directly** at the server. For
-  MTProto, CDN proxying must be off — DNS-only mode.
+- An **x86-64** server with Ubuntu 24.04 LTS and `systemd`. Other architectures are
+  refused during the host audit, before any change.
+- Python 3.11 or newer and a regular user with `sudo` access. Do not start the installer
+  directly as `root`.
+- DNS A/AAAA records of every name point **directly** at the server. For MTProto, CDN
+  proxying is off — DNS-only mode.
 - TCP/80 free: this is how Let's Encrypt validates your domains.
-- In `coexist` mode, a working Nginx with `stream` owning public 443 and
-  **exactly one** understandable `$ssl_preread_server_name` map in the route
-  file. In `fresh` mode the installer installs and configures Nginx itself;
-  no foreign process may own port 443.
-- The local ports from the table above, free.
-- Your own separate backup of Nginx, services, routes, and Docker state.
+- `fresh` mode — the server is yours entirely, the installer installs and configures
+  Nginx itself; nothing else may own port 443. `coexist` mode — a running Nginx with
+  `stream` owns port 443, and its routes file has **exactly one** clear
+  `$ssl_preread_server_name` map.
+- The local ports in the table above are free.
+- Your own backup of Nginx, services, routes and Docker state.
 
-The installer stops and touches nothing when it sees: DNS that does not match
-the server, NAT, a CDN in front of raw MTProto, an ambiguous Nginx map, a busy
-port, an owner of 443 that is not Nginx, or a failing `nginx -t`. That is not a
-reason to "continue anyway" — it is a reason to fix the cause first.
+The installer stops and touches nothing when it sees DNS not matching the server address,
+NAT, a CDN in front of MTProto, an ambiguous Nginx map, a port in use, a non-Nginx owner
+of 443, or an `nginx -t` failure. That is a reason to investigate first, not to «continue
+anyway».
 
-Nothing to stage for the pinned external artifacts: the installer fetches them
-from their pinned HTTPS URLs into `/var/lib/proxy-control/` and proves the SHA-256
-before anything uses them (a mismatch is a refusal, the file is discarded). An
-offline host stages them there in advance — a file staged by hand is used as it
-is and never replaced. For a profile with **Mieru** these are two packages:
-
-- `mita_3.36.0_<arch>.deb` — the server;
-- `mieru_3.36.0_<arch>.deb` — the official client the installer uses to prove
-  traffic actually flows.
-
-With `[egress] router = true` (v0.5) `Xray-linux-64.zip` arrives the same way: the
-Xray egress-router is extracted from it. All URLs and checksums are in
-[`release/external-artifacts.json`](release/external-artifacts.json). The
-installer verifies them and refuses to continue on a mismatch.
+You do not prepare the external files of third-party components: the installer downloads
+them from pinned HTTPS URLs into `/var/lib/proxy-control/` and checks SHA-256 before any
+use. For a server without internet access, put them there in advance — a file placed by
+hand is used as it is. The list, URLs and checksums are in
+[`release/external-artifacts.json`](release/external-artifacts.json).
 
 ## Domains and certificates
 
-This is where installation stops most often, so here it is in detail.
+This is where installations stop most often. The complete set — profile `full`, 3x-ui in
+`managed-new` mode, a client subscription domain and the MCP server — needs **11 different
+domains**. Not all of them need a certificate:
 
-### How many domains you need
-
-**The complete beta package** — the `full` profile, `managed-new` 3x-ui mode, a separate client subscription domain and the MCP server domain — requires **11 distinct domains**: the Proxy Control panel, MTProxy Fake-TLS, NaiveProxy, Mieru, the 3x-ui panel, VLESS Reality TCP, VLESS Reality XHTTP, Hysteria2, the 3x-ui subscription, the Proxy Control client subscription (the tenth) and the MCP server (the eleventh, on the central panel only — nodes do not need it). All must resolve correctly to the VPS; not all require certificates.
-
-It depends on the profile. Not every protocol needs one:
-
-| Domain | When it is needed | Certificate required |
+| Domain | When it is needed | Certificate |
 |---|---|---|
 | `panel` — the panel | Always | Yes |
-| `mtproxy` — MTProxy | Always | Yes |
-| `naive` — NaiveProxy | Profiles with Naive | Yes |
+| `mtproxy` — MTProxy (Fake-TLS) | Always | Yes |
+| `naive` — NaiveProxy | Profiles with NaiveProxy | Yes |
 | `mieru` — Mieru | Profiles with Mieru | **No** |
-| `three_xui.panel_domain` | In a 3x-ui mode | Yes |
-| `three_xui.hysteria_domain` | In a 3x-ui mode | Yes |
-| `three_xui.vless_tcp_domain` | In a 3x-ui mode | **No** |
-| `three_xui.vless_xhttp_domain` | In a 3x-ui mode | **No** |
-| `three_xui.subscription_domain` | `managed-new`, when a separate subscription is wanted | Yes |
-| `subscription` — client subscriptions | When subscription links `https://<subscription>/s/<token>` are wanted | Yes |
-| `mcp` — the MCP server | On the central panel only, when wanted | Yes |
+| `three_xui.panel_domain` — the 3x-ui panel | `managed-new` | Yes |
+| `three_xui.hysteria_domain` — Hysteria2 | `managed-new` | Yes |
+| `three_xui.vless_tcp_domain` — VLESS Reality TCP | `existing` and `managed-new` | **No** |
+| `three_xui.vless_xhttp_domain` — VLESS Reality XHTTP | `existing` and `managed-new` | **No** |
+| `three_xui.subscription_domain` — the 3x-ui subscription | `managed-new`, when wanted | Yes |
+| `subscription` — client subscriptions | When you want `https://<domain>/s/<token>` links | Yes |
+| `mcp` — the MCP server | Only on the central panel, when wanted | Yes |
 
-Mieru and VLESS Reality need no Let's Encrypt certificate: Mieru speaks its own
-protocol, and Reality borrows the certificate of the site it imitates. They
-still need a domain — it goes into the client configuration.
+Mieru and VLESS Reality need no Let's Encrypt certificate: Mieru runs its own protocol, and
+Reality uses the certificate of its cover site. They still need the domain — it goes into
+client configurations.
 
-### What the installer checks before issuing
+Before issuing a certificate, the installer checks every name itself:
 
-For every name that needs a certificate, the installer resolves DNS itself and
-requires four things:
+1. an A record exists and at least one of its addresses belongs to this server;
+2. there is no AAAA record, or all its addresses belong to the server too (a forgotten AAAA
+   pointing at an old server is the most common reason for «the certificate was issued but
+   the protocol does not work»);
+3. CAA of the domain and its parents does not forbid Let's Encrypt;
+4. an existing certificate covers this name — a foreign certificate is never touched.
 
-1. **An A record exists** and at least one of its addresses is an address of
-   this server. A domain pointing somewhere else is a hard stop.
-2. **Either there is no AAAA record, or all of its addresses belong to this
-   server too.** A forgotten AAAA pointing at an old host is the most common
-   reason a certificate is issued and the protocol still does not work.
-3. **CAA does not forbid Let's Encrypt.** The domain and its parents are both
-   checked.
-4. **If a certificate already exists**, it must cover this name. The installer
-   never touches a certificate that is not its own.
+Certificates are issued with `certbot certonly --webroot` over TCP/80, with no DNS-01 and
+no registrar API. Names are grouped into lines (`--cert-name`): `proxy-control` — the panel
+and MTProxy in one certificate, `naive`, `three-xui-panel`, `three-xui-hysteria`,
+`three-xui-subscription`. Right after issuance the installer runs `certbot renew --dry-run`,
+so renewal is proved at installation time rather than three months later.
 
-CDN proxying (the orange cloud) must be off for the MTProxy domain: it needs
-DNS-only mode. Otherwise the A record points at the CDN rather than the server,
-and the check stops the installation — correctly.
-
-### How certificates are issued
-
-The installer groups domains by service, and each group gets its own lineage
-(`--cert-name`):
-
-| Lineage | Names it covers |
-|---|---|
-| `proxy-control` | The panel domain and the MTProxy domain — **one certificate for both** |
-| `naive` | The NaiveProxy domain |
-| `three-xui-panel` | The 3x-ui panel domain |
-| `three-xui-hysteria` | The Hysteria2 domain |
-| `three-xui-subscription` | The separate 3x-ui subscription domain |
-
-Issuance runs through `certbot certonly --webroot`: each name uses its own
-`/var/www/<domain>` directory, where Let's Encrypt drops the validation file
-over TCP/80. No DNS-01 and no registrar API is involved — which is exactly why
-port 80 must be free.
-
-Immediately after issuance the installer runs `certbot renew --dry-run` for that
-lineage. The point is simple: renewal is proven **at install time**, not three
-months later when the certificate quietly expires.
-
-### Check your domains in advance
-
-You do not have to wait for the installation: the plan checks all of this and
-changes nothing. Run it from the unpacked release — it does not work from a Git
-clone, which has no `release/release.json`, and the installer refuses to run
-without a release identity.
-
-```bash installer-check
-python3 -m installer.cli plan --config examples/installer/core.toml --json
-```
-
-If the plan succeeds, your domains and DNS are fine. If it stops, the output
-names exactly which domain failed which check.
-
-## The full guide and the protocol for AI agents
-
-- **[Operator guide v0.6–v0.7 (Russian)](docs/releases/v0.6-operator-guide.ru.md)** — one document for everything:
-  the node's final architecture (what runs where, ports, the shared 443), which domains are needed and how
-  to spread them over a fleet of several hosts (with fictitious examples), unattended deployment through
-  the wizard or a TOML (exactly what every adapter installs, 3x-ui included), linking nodes to the central,
-  issuing grants and subscriptions from the central panel onto other panels, egress routing and the
-  Xray-router with policy examples, chains and client lanes (§8.8, v0.7), upgrades and backups,
-  end-to-end checklists.
-- **[AGENTS.md → «Эксплуатационный протокол для ИИ-агентов (v0.6–v0.7)»](AGENTS.md)** — the same operations as
-  algorithms for an agent: unattended install (`plan --json` → digest → `install`), preparing and linking a
-  node through the API, grants and subscriptions, routing and the Xray-router, upgrade and rollback — each
-  with its verification command, a «refusal code → action» table, the production-host prohibitions, the
-  «no secret ever in the output» rule and a report template (Russian; the development protocol in the same
-  file is bilingual).
-
-## Installation
+## Installation by a human
 
 ### Step 1. Download the release and verify it
 
-**The short path (from v1.0.3).** Beside every release archive lies `install-release.sh` —
-the same [`scripts/install-release.sh`](scripts/install-release.sh) with that release's version and
-archive SHA-256 written in by the build. Download it with its checksum, check it, read it and
-run it as a regular user:
+Work **as a regular user with `sudo` access**. Downloading and verification need no
+administrator privileges:
 
 ```bash
-curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
-curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh &&
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256 &&
 sha256sum --check install-release.sh.sha256
+```
+
+If the checksum matches, read the script and the requirements, then start the wizard:
+
+```bash
 less install-release.sh
 bash install-release.sh --requirements
 bash install-release.sh
 ```
 
-`releases/latest` is the latest stable release; a given one comes from
-`releases/download/vX.Y.Z/`. The script downloads the four release files to disk, checks
-`SHA256SUMS`, the manifest and the archive digest written into it — a swapped archive is not
-extracted even when `SHA256SUMS` was swapped along with it — verifies the attestation when `gh`
-is present, extracts and starts the wizard through one `sudo`. The script's own origin is proved
-by `gh attestation verify install-release.sh --repo dubr1k/proxy-control`. `--check-only`
-downloads and verifies only, `--no-wizard` also extracts but does not start the wizard.
+The script downloads the archive, `SHA256SUMS`, `release-manifest.json` and
+`sbom.spdx.json`, and checks the checksums, the manifest and the archive SHA-256 written
+into the script itself: a swapped archive is not extracted even when `SHA256SUMS` was
+swapped along with it. When `gh` is available, it also verifies the artifact attestation.
+The script's own origin is proved with
+`gh attestation verify install-release.sh --repo dubr1k/proxy-control`.
 
-**The same path by hand.** Download all four files under Assets: the archive, `SHA256SUMS`,
-`release-manifest.json`, and `sbom.spdx.json`. v0.1.0 has no published GitHub
-attestation; from v0.2.0-beta.1 on, the release workflow publishes a provenance
-attestation of the archive in the repository. The command below checks the three payload files named by the
-downloaded `SHA256SUMS`; the checksum file itself remains trusted as downloaded
-from the release page, with no independent provenance proof. After that check,
-extract the bootstrap from the verified archive before allowing any root step:
+Useful options: `--check-only` downloads and verifies only; `--no-wizard` also extracts
+but does not start the wizard; `--lang ru|en` sets the language of the messages. To
+install exactly 1.1.1, replace `releases/latest/download/` in both URLs with
+`releases/download/v1.1.1/`.
 
-```bash installer-check
-sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
-chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
-```
-
-The order matters. `install-bootstrap` refuses to run as root, and before its
-single `exec sudo` it checks that every file belongs to you and is not writable
-by anyone else, that the archive matches the published checksum, that the
-manifest names the same archive, that the manifest version has no prerelease
-suffix, and that no member inside the archive escapes it.
-
-This project deliberately never offers "download and run in one command".
-
-**Beta releases (v0.2.0-beta.1 … v0.11.0-beta.1).** `install-bootstrap` refuses a
-version with a pre-release suffix, so a beta is installed without it: the same
-four files from the release page, the same `SHA256SUMS` check, then extract the
-archive and run the wizard from the extracted directory — it writes the
-configuration, shows the plan and applies nothing until you confirm the plan
-digest. This is the path the release gate takes on the lab host
-(`scripts/lab/guest-runner.sh host` installs the beta from the extracted
-archive), and it is how every beta from v0.2 to v0.11 was installed:
-
-```bash installer-check
-sha256sum --check SHA256SUMS
-tar -xzf proxy-control-v0.11.0-beta.1.tar.gz
-cd proxy-control
-sudo python3 -m installer.cli wizard
-```
-
-The same four steps are what [`scripts/install-release.sh`](scripts/install-release.sh)
-does (from a clone of the repository, or downloaded on its own and read before it runs): it
-fetches the four release files to disk, checks `SHA256SUMS` and the manifest, with `--sha256`
-also the pinned archive digest (the `lab-sha256` of the tag annotation), with `gh` present the
-attestation, extracts and hands over to the wizard through one `sudo`. Like
-`install-bootstrap` it refuses to run as root; `--requirements` prints what the host needs and
-what gets installed, `--check-only` downloads and verifies only:
-
-```bash
-scripts/install-release.sh --requirements
-scripts/install-release.sh --version 0.11.0-beta.1 --sha256 <lab-sha256 from the release note>
-```
-
-The installer does not run from a Git clone: there is no `release/release.json`.
+The project deliberately never offers «download and run in one command»: the script is
+verified first, read next, and only then run.
 
 ### Step 2. Answer the wizard
 
-There is no separate command to run: once the archive checks out,
-`install-bootstrap` hands over to the installer, which opens a bilingual wizard
-when given no arguments. It writes a configuration file — ordinary TOML you can
-read and edit by hand.
+The wizard speaks Russian or English, briefly explains the options before every choice
+and saves the answers to a TOML file you can read and edit by hand. The default is in
+square brackets; Enter accepts it.
 
-Here is everything it asks, in order. Before each choice the wizard explains the options in
-a line; the answer in square brackets is the default, Enter takes it.
-
-**Language.** English or Russian.
-
-**Host mode.** `fresh` — the server is yours entirely and the installer sets up
-Nginx itself. `coexist` — the server already runs an Nginx that owns port 443,
-and the installer only adds its own routes to it. The default is `fresh`.
+**Server mode.** `fresh` (the default) — the installer installs and configures Nginx
+itself. `coexist` — Nginx already holds port 443 and the installer only adds its routes.
 
 **Profile.**
 
@@ -353,464 +239,289 @@ and the installer only adds its own routes to it. The default is `fresh`.
 
 **3x-ui mode.**
 
-- `none` — leave 3x-ui alone entirely (the default);
-- `existing` — adopt an installed one: the installer adds routes to its VLESS
-  Reality inbounds and changes none of its files. You create its inbounds yourself.
-  The wizard asks only for the VLESS Reality TCP and XHTTP domains — those are the
-  ones routed; at least one is needed;
-- `managed-new` — install 3x-ui `3.9.0` itself. The installer issues its
-  certificates, moves the panel off its public ports onto `127.0.0.1` under a
-  private path, replaces the factory `admin/admin` with your own, and **creates
-  the inbounds for you** — VLESS Reality TCP, VLESS Reality XHTTP, and
-  Hysteria2. It requires `fresh` mode: installing 3x-ui means owning Nginx and
-  the certificates too, and on a host that already runs Nginx those have an
-  owner already. In `coexist` mode the wizard does not offer it.
+- `none` — 3x-ui is not touched at all (the default);
+- `existing` — adopt an installed one: the installer adds routes to its VLESS Reality TCP
+  and XHTTP inbounds and does not change a single file of it. You create the inbounds in
+  3x-ui yourself;
+- `managed-new` — install 3x-ui `3.9.0`: the installer issues the certificates, moves the
+  3x-ui panel from public ports to `127.0.0.1` under a private path, replaces the factory
+  `admin/admin` with yours and creates VLESS Reality TCP, VLESS Reality XHTTP and Hysteria2
+  itself. Only in `fresh` mode.
 
-**Domains.** Only the ones the chosen profile actually needs:
+**Domains.** The wizard asks only for those the chosen profile and 3x-ui mode need (see
+the [domain table](#domains-and-certificates)). The client subscription domain and the MCP
+domain may stay empty — those features are then off. MCP is needed only on the central
+panel. The default Mieru port is `46001`; the wizard refuses a port the installer itself
+uses and says what holds it.
 
-| Question | When it is asked | What it is for |
-|---|---|---|
-| Panel domain | always | the Proxy Control panel |
-| MTProxy Fake-TLS domain | always | MTProxy |
-| NaiveProxy domain | profiles with Naive | NaiveProxy |
-| Mieru hostname | profiles with Mieru | Mieru (needs no certificate) |
-| Mieru TCP and UDP ports | profiles with Mieru; default `46001`, from 1024 | the Mieru listeners. A TCP port cannot be one the installer binds itself: `8443` (the panel TLS), `8445`, `8787`, `4443`, `8793`, `40000` (WARP), `45101`–`45102` and `45443` (Xray-router), `46101`+ (lane slots), the managed 3x-ui ports — the wizard names the one taken and by what |
-| 3x-ui panel domain | `managed-new` | the 3x-ui panel |
-| VLESS Reality TCP domain | `existing` and `managed-new` | the VLESS Reality TCP inbound |
-| VLESS Reality XHTTP domain | `existing` and `managed-new` | the VLESS Reality XHTTP inbound |
-| Hysteria2 domain | `managed-new` | the Hysteria2 inbound |
-| 3x-ui subscription domain | Not asked by the wizard; add `subscription_domain` to the `managed-new` TOML | serving the 3x-ui subscription over HTTPS |
-| Client subscription domain | always; blank keeps subscriptions off | the panel's client links `https://<domain>/s/<token>` |
-| MCP server domain | always; blank keeps MCP off. **Central panel only** — nodes leave it blank | MCP for Claude Code and Claude Desktop (v0.11) |
+**WARP.** In `managed-new` mode the wizard asks whether to enable WARP for Xray and, on
+«yes», requires a non-empty comma-separated list of domains and `geosite:` lists (for
+example `example.com, geosite:openai`); NaiveProxy and Mieru then stay on the direct exit.
+In the 3x-ui modes `none` and `existing` the question is asked when the profile includes
+NaiveProxy or Mieru: «yes» sends all their traffic through WARP. The installer installs the
+pinned official Cloudflare client and brings up its own SOCKS5 endpoint `127.0.0.1:40000`;
+a WARP started beforehand is not needed and is treated as foreign state.
 
-**WARP.** In `managed-new` mode the wizard asks whether to enable WARP for Xray
-and, on yes, requires a non-empty comma-separated list of domains and `geosite:` lists
-(for example `example.com, geosite:openai`); NaiveProxy and Mieru
-keep direct egress in that case. In 3x-ui modes `none` and `existing`, the wizard
-asks when the profile includes NaiveProxy or Mieru: yes routes all of their
-traffic through WARP and does not change an existing 3x-ui. The installer deploys
-the pinned official Cloudflare client itself and creates a Proxy Control-owned
-SOCKS5 endpoint at `127.0.0.1:40000`; no pre-existing WARP client is needed, and
-foreign WARP state is instead a hard stop. Inspect the resulting plan first.
+**Certificate email.** The address for Let's Encrypt.
 
-**ACME email.** The address Let's Encrypt will use.
-
-**Panel credentials.**
-
-- the name of the first MTProxy and Mieru user — the installer creates their first
-  accesses under it. The Proxy Control panel login is always `owner`;
-- the password to sign in to the panel as `owner`;
-- the 3x-ui panel username and password — in `managed-new` mode only.
-
-A password is typed twice and never echoed. **A blank answer means "generate
-one"** — the installer then creates a random password and you read it after the
-installation. The only requirement is at least 12 characters.
+**Credentials.** The first MTProxy and Mieru user name; the panel owner's password (the
+login name is always `owner`); the 3x-ui panel name and password in `managed-new` mode. A
+password is entered twice and is not shown. **An empty answer means «generate one»** — the
+installer creates a random password. The only requirement: at least 12 characters.
 
 > [!IMPORTANT]
-> Passwords never enter the configuration file: it is read to build the plan,
-> the plan is printed on screen, and reports are derived from the same values.
-> The wizard writes them beside it instead, to `<configuration-name>.credentials`
-> with mode `0600`, only when you choose «save»: it is there for a later
-> `install --config`. **Delete that file once the installation has finished.** On
-> «apply» the wizard hands the passwords to the installation directly, in a private
-> temporary copy the installer erases as soon as the installation ends, successfully or not.
+> Passwords never go into the configuration file. When you choose «save» (`save`), the
+> wizard puts them next to it, in `<configuration-name>.credentials` with mode `0600` —
+> **delete that file right after installation**. When you choose «apply» (`apply`), the
+> passwords go to the installation directly and are wiped as soon as it ends.
 
-**Ports in UFW.** On a fresh host only: whether the installer may open the ports
-it needs in the firewall itself (yes by default). It adds only its own rules,
-commented `proxy-control:firewall`; an inactive UFW is enabled with the SSH rule first.
+**UFW ports.** Only in `fresh` mode: whether the installer may open the needed ports (yes
+by default). It adds only its own rules marked `proxy-control:firewall`, and enables a
+disabled UFW with SSH allowed as the first rule.
 
-At the end the wizard shows everything you answered and offers to correct any
-field, save the configuration, or go ahead with the installation.
-
-Ready-made configuration examples live in
+At the end the wizard shows every answer and offers to correct any field, save the
+configuration or continue. Ready configurations for every profile and 3x-ui mode are in
 [`examples/installer/`](examples/installer).
 
-### Step 3. Read the plan and approve it
+### Step 3. Review the plan and confirm it
+
+The plan is the complete list of what will happen: packages, files, Nginx routes,
+certificates, services. It holds no secrets. The plan changes nothing, so you can run it
+in advance to check the domains and DNS:
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
+sudo python3 -m installer.cli plan --config examples/installer/full-three-xui.toml --json
 ```
 
-The plan is the complete list of what will happen: which packages get installed,
-which files are created, which Nginx routes are added, which certificates are
-issued, which services are started. It contains no secrets and cannot.
-
-The plan has a digest, and installation does not start until you approve that
-exact digest:
+The installation starts only after you confirm the digest of exactly this plan. If the
+server changed between the plan and the installation, the digest does not match and the
+installation does not run:
 
 ```bash installer-check
 sudo python3 -m installer.cli install --config examples/installer/full-three-xui.toml --accept-plan DIGEST
 ```
 
-This is the guard against "I ran the wrong thing": if the server changed between
-the plan and the install, the digest no longer matches and nothing runs.
+The wizard does the same on its own: it shows the plan and asks for the first 12 digest
+characters.
 
 ### Step 4. Wait for acceptance
 
-The installer does not treat "the container started" as success. It proves each
-protocol with a real client:
+The installer does not consider the job done because «the container started» — it checks
+every protocol with a real client:
 
-- **MTProxy** — Fake-TLS, Obfuscated2, `req_pq_multi`, and a validated `resPQ`;
-- **NaiveProxy** — the cover site answers without credentials, then an
-  authenticated `CONNECT`, a known payload, a closed tunnel, and an accounting
-  record that appears;
-- **Mieru** — the exact `RUNNING` status and the official client actually
-  reaching the internet over every transport;
+- **MTProxy** — Fake-TLS, Obfuscated2, `req_pq_multi` and a verified `resPQ` reply;
+- **NaiveProxy** — the cover site without a password, then an authenticated `CONNECT`, a
+  known payload and an accounting record;
+- **Mieru** — the `RUNNING` status and the official client actually reaching the internet;
 - **the panel** — login, roles, creating and revoking a temporary access;
-- **adjacent routes** — every foreign SNI still works.
+- **adjacent routes** — every foreign SNI keeps working.
 
-If any check fails, the installer rolls back and returns the server to its
+If any check fails, the installer rolls back what it did and returns the server to its
 previous state.
 
-### What the installer owns, and what it does not
+### Manual installation from the archive
 
-It owns: the Ubuntu packages from its list, certificates and their renewal,
-Nginx and the panel's TLS vhost, containers and volumes, NaiveProxy and Mieru
-host services, UFW rules if you allow them, 3x-ui in its selected mode, its
-own pinned WARP boundary when `warp = true` and, since v0.11, the version-agent
-(code, unit, env for the profile, catalog and a state recording the installed versions) and
-the MCP server when `domains.mcp` is set (the `proxy-control-mcp` container, the panel API key
-it uses, the clients' bearer token, the vhost and SNI route, the certificate on the panel's lineage).
+The same path without the script. Download the four files under Assets of the
+[1.1.1 release](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1): the archive,
+`SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
+the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
+checksum file itself is trusted as downloaded from the release page and has no separate
+provenance attestation.
 
-It does not own: DNS, Fleet, your own websites, foreign containers, foreign
-WARP, or foreign Nginx routes. The journal and ownership files live under
-`/var/lib/proxy-control/` — do not delete them by hand.
+```bash installer-check
+sha256sum --check SHA256SUMS &&
+tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+chmod 700 install-bootstrap &&
+./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+```
 
-The complete surface — every command, every configuration field, ownership
-boundaries, hard stops, and recovery — is in the
-[installer reference](docs/INSTALLER_REFERENCE.en.md).
+`install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file
+ownership and permissions, the archive checksum, manifest consistency, the absence of a
+prerelease suffix and of paths escaping the archive. The installer does not run from a Git
+checkout: it needs `release/release.json`, which is generated when the release archive is
+built.
 
-### Installing without the installer
+If you run Nginx, certificates and the environment yourself, the base stack can be brought
+up directly with Compose: [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md); manual installation of
+NaiveProxy and Mieru is in [PANEL.en.md](PANEL.en.md) and [MIERU.en.md](MIERU.en.md).
 
-If you manage certificates, Nginx, and the whole environment yourself, the core
-boundary can be brought up directly with Compose:
-[DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md). Manual host-service setup is
-described in [PANEL.en.md](PANEL.en.md) (NaiveProxy) and
-[MIERU.en.md](MIERU.en.md) (Mieru).
+## Installation by an AI agent
 
-## First sign-in to the panels
+This section is an instruction for an AI agent (Claude Code, Codex and the like) that you
+gave SSH access to the server. The agent installs Proxy Control **without the wizard**: it
+writes the TOML configuration, gets the plan and installs exactly that plan after your
+confirmation.
 
-**The Proxy Control panel.** If you chose a password in the wizard, sign in with
-it at `https://panel.example.com/login`. If you left the field blank, the
-installer generated one and put it in
-`/opt/mtproxy-shared443/secrets/panel-bootstrap-password` with mode `0600`: read
-it through a secure console, sign in, and change it immediately.
+### What to tell the agent
 
-**The MCP server (v0.11, when `domains.mcp` is set).** The address `https://<mcp domain>/mcp`
-and the bearer token are in the root-only `credentials/handoff.json` (mode `0600`) next to the
-`report` output; the token also lives in `/opt/mtproxy-shared443/secrets/mcp-token`. Connecting
-from Claude Code in one command and the tool list: [docs/MCP.en.md](docs/MCP.en.md).
+Copy and fill in:
 
-Never copy that file into `.env`, Git, tickets, logs, or shared backups.
+```text
+Install Proxy Control on this server following the «Installation by an AI agent»
+section of https://github.com/dubr1k/proxy-control (README.en.md). Follow its rules.
+Server mode: fresh. Profile: full. 3x-ui: none.
+Domains: panel panel.example.com, MTProxy relay.example.com,
+NaiveProxy edge.example.com, Mieru mieru.example.com,
+client subscriptions sub.example.com.
+Let's Encrypt email: admin@example.com.
+WARP: no.
+Do not invent or show passwords — let the installer generate them.
+Show me the plan before installing and wait for my confirmation.
+```
 
-**The 3x-ui panel** (`managed-new` mode only). It does not listen on a public
-port: it answers on `127.0.0.1:8451` under a private path of the form
-`/<random-characters>/`, and the factory `admin/admin` no longer works. From
-outside it is reachable through its own domain over the shared 443. The full address
-with its private path, the username and the password (given in the wizard or generated)
-are in a root-only file with mode `0600`:
+### Rules for the agent
+
+1. **Only the named server.** Do not touch adjacent sites, containers, Nginx routes or
+   other servers. Work as a regular user with `sudo`; the install script does not run as
+   `root`.
+2. **Not a single secret in the output.** Do not choose, print or store passwords, access
+   keys, access links or QR codes. Passwords are generated by the installer (empty values),
+   or the owner puts them into `<configuration>.credentials` with mode `0600` themselves.
+   The report names only the paths of credential files, never their content.
+3. **A failed check means stop.** If `plan` exits non-zero (DNS, CAA, a port in use, NAT, a
+   CDN, a foreign owner of 443, an ambiguous Nginx), do not work around the check and do not
+   change the server «so that it passes»: stop and give the owner the reason verbatim.
+4. **Install only a confirmed plan.** The digest is taken from the JSON output of `plan`,
+   never retyped, and confirmed by the owner.
+5. **Never repeat the installation blindly.** After an interruption run `status`, then
+   `resume` or `repair`. Do not delete the journal and state files in `/var/lib/proxy-control/`.
+
+### Step 1. Download and verify the release
+
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
+sha256sum --check install-release.sh.sha256      # expected: install-release.sh: OK
+bash install-release.sh --requirements           # what the server needs and what gets installed
+bash install-release.sh --no-wizard              # download, verify and extract without the wizard
+cd proxy-control-v*/proxy-control
+```
+
+Any checksum or release verification error means stop and report to the owner.
+
+### Step 2. Write the configuration
+
+Take the closest example from `examples/installer/` and replace the values with the
+owner's data:
+
+| Example | Server mode | 3x-ui |
+|---|---|---|
+| `core.toml`, `core-naive.toml`, `core-mieru.toml` | `fresh` | `none` |
+| `managed-three-xui.toml` | `fresh` | `managed-new` |
+| `existing-three-xui.toml`, `full-three-xui.toml` | `coexist` | `existing` |
+
+```bash
+cp examples/installer/core.toml ~/proxy-control.toml
+chmod 600 ~/proxy-control.toml
+# edit: host_mode, profile, acme_email, [domains], [mieru], [three_xui], [firewall]
+```
+
+Optional parts: `domains.subscription` (client subscriptions), `domains.mcp` (the MCP
+server, central panel only), the `[egress]` section (WARP and the Xray-router). Every field
+is described in the [installer reference](docs/INSTALLER_REFERENCE.en.md). Passwords never
+go into the TOML.
+
+### Step 3. Get the plan and show it to the owner
+
+```bash
+sudo python3 -m installer.cli plan --config ~/proxy-control.toml --json > ~/plan.json
+echo "exit=$?"                                   # not 0 — stop, give the reason to the owner
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["digest"])' ~/plan.json
+sudo python3 -m installer.cli plan --config ~/proxy-control.toml   # the readable plan for the owner
+```
+
+Show the owner the readable plan and the digest and wait for an explicit confirmation.
+
+### Step 4. Install exactly this plan
+
+```bash
+digest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["digest"])' ~/plan.json)
+sudo python3 -m installer.cli install --config ~/proxy-control.toml --accept-plan "$digest" --json > ~/install.json
+sudo python3 -m installer.cli status --json      # expected: "status": "active"
+```
+
+The installation takes a few minutes and runs the protocol acceptance itself. An SSH drop
+with code `255` says only that the connection was lost: run `status` first, then `resume`
+or `repair`.
+
+### Step 5. Verify and report
+
+```bash
+cd /opt/mtproxy-shared443 && sudo docker compose ps
+curl -fsS -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz   # {"status":"ok"}
+sudo nginx -t
+systemctl is-active nginx docker
+```
+
+The report to the owner: domains, profile, plan digest, the version from the `VERSION`
+file, the state of containers and services, the **paths** of the credentials
+(`/opt/mtproxy-shared443/secrets/panel-bootstrap-password`, for `managed-new`
+`/var/lib/proxy-control/three-xui/panel-access`) and what a human still has to check:
+signing in to the panel and connecting with a real client. If the owner saved
+`<configuration>.credentials`, remind them to delete that file.
+
+After installation an agent works with the panel through the [MCP server](docs/MCP.en.md)
+rather than SSH: granting access, routing, updates and diagnostics are described in the
+[skills](skills/) for everyday tasks.
+
+## After installation
+
+**The Proxy Control panel.** Open `https://<panel domain>/login` and sign in as `owner`. If
+you left the password empty, the installer put it into
+`/opt/mtproxy-shared443/secrets/panel-bootstrap-password` (`0600`): read it through a secure
+console, sign in and change it at once.
+
+**The 3x-ui panel** (`managed-new`). It listens on `127.0.0.1:8451` under a private path
+and is reachable from outside by its own domain through the shared 443. The address, name
+and password:
 
 ```bash
 sudo cat /var/lib/proxy-control/three-xui/panel-access
 ```
 
-If the wizard wrote a `<configuration-name>.credentials` file (you chose «save»),
-delete it: it is no longer needed.
+**The MCP server** (when `domains.mcp` is set). The address `https://<mcp domain>/mcp` and
+the access key are written to `credentials/handoff.json` next to the installation report
+(`0600`, root only). Connecting Claude Code is described in [docs/MCP.en.md](docs/MCP.en.md).
 
-Roles:
+Do not copy these files into Git, bug reports, logs or shared backups. Delete the
+`<configuration-name>.credentials` file if the wizard created it.
 
-- **owner** — administrators, API keys, clients and accesses, rotation, linked
-  panels and the Fleet registry;
-- **admin** — protocol users and audit within allowed boundaries;
-- **viewer** — read only.
+**Roles.** The owner (`owner`) manages admins, API keys, clients and linked panels; an admin
+(`admin`) manages protocol users and the audit; a viewer (`viewer`) only reads. The last
+owner cannot be deleted or demoted; every change requires CSRF and enters the audit without
+passwords, keys, links or QR codes.
 
-The last active owner cannot be deleted or demoted. Every change requires CSRF
-and lands in the audit trail — without passwords, tokens, links, or QR codes.
+## Updating
 
-Naive and Mieru credentials are revealed **once**, with `Cache-Control:
-no-store`. User lists contain no secrets. The panel keeps every Mieru key it
-issues in its encrypted store: **Configuration** shows it again without a
-rotation. **New key** rotates the access and revokes the old one — needed only
-when a key is compromised or predates kept keys.
+Make a [backup](docs/BACKUP_RESTORE.en.md) first. In a fleet of linked panels, update the
+nodes first, then the central panel. A server updates with the same script that installs a
+new one, in `--update` mode, as a regular user with `sudo`:
 
-## Clients, accesses and subscriptions
+```bash
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh &&
+curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256 &&
+sha256sum --check install-release.sh.sha256 &&
+bash install-release.sh --update
+```
 
-Since v0.2 the panel is not just a window onto three managers — it owns the
-accounts. The "Clients" screen keeps a person and their accesses to MTProxy,
-NaiveProxy and Mieru together, while the protocol screens keep working as
-before.
+The script verifies the release exactly as during installation and asks the server's
+`version-agent` to update the panel to exactly the verified archive — with a backup of the
+files, image and database and a rollback on failure; then it rebuilds the changed managers.
+Telemt, certificates, `.env` and `secrets/` are left alone.
 
-The list shows 50 clients per page. Name, account and node-name search and filters
-apply to all clients on the server; import still offers every existing client.
-The API keeps the full `GET /api/clients` response for compatibility. For pages,
-add `limit=1..200`, then send the returned `next_cursor` as `cursor` with the same
-filters: `query`, `state`, `protocol`, `node`, `issue`. Reset the cursor whenever
-filters change. Responses include `matched`, `total` and global state `counts`.
+Individual components — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, the **Xray-router**
+and the panel itself — can be updated from the «Versions» screen. «Check for updates» shows
+new releases of these projects with their published checksum; a release without a published
+checksum is visible but not installable. The checksum detects changes against the published
+value; it does not by itself establish authorship or mean that Proxy Control has verified
+the version. Updating is owner-only, and on an error the agent restores the previous
+version. An installed 3x-ui is updated with its own tools.
 
-- **Import and adoption.** Existing manager users are imported read-only —
-  nothing changes on the server. "Adopt access" takes the credentials into the
-  panel: MTProxy and NaiveProxy by reading them, Mieru only through an explicit
-  rotation, because `mita` never hands a password back.
-- **Issuing.** A new access is one journaled operation that ends in exactly one
-  of `succeeded`, `compensated` (everything done so far rolled back) or
-  `manual_intervention_required` (the panel says plainly that it could neither
-  finish nor undo; `operations-resume` in the CLI continues after a lost
-  manager reply).
-- **Encrypted store.** Credentials live in the database under a master key
-  (AES-256-GCM, a separate AAD per row). The installer creates and preserves
-  the key (`secrets/panel-master-key`); without it, while secrets exist, the
-  panel refuses to start — protection, not a bug. `master-key-init | rotate |
-  verify` in the CLI; **the key's backup lives apart from the database** —
-  [BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md).
-- **Subscription.** Each client gets one link
-  `https://<subscription domain>/s/<token>` for all of their accesses: `raw`
-  (plain text, no base64), `singbox` (Karing; `&client=singbox` for the
-  official sing-box), `clash` (mihomo, Mieru over TCP only), `manifest`, `html`. The
-  token is stored as a hash and shown once; the `ETag` changes with the set of
-  accesses, `304` on `If-None-Match`, `Profile-Update-Interval`, a per-address
-  rate limit; no access log anywhere on the path — uvicorn or Nginx. The
-  compatibility matrix names what a client cannot consume instead of shipping
-  a link it cannot parse. Revocation is immediate; the old link stops
-  answering.
-- **Subscription domain.** A separate name (`domains.subscription` in
-  `install.toml`; the wizard asks for it): a SAN on the certificate, its own
-  SNI route and its own Nginx `server` with `access_log off`; on the panel's
-  own domain the path `/s/` does not exist.
-- **Database and audit.** One database boundary, versioned migrations
-  (`db-migrate`, `db-status`), a v0.1.0 database upgrades in place; every audit
-  row is written in the transaction of the change and carries `X-Request-Id`,
-  so a response and its trail match.
-- **Writer flag** `PANEL_VNEXT_WRITER=legacy|domain`: the old protocol APIs are
-  indistinguishable from the outside in both modes; the switch to `domain` is
-  described in [PANEL.en.md](PANEL.en.md).
-
-Details: [PANEL.en.md](PANEL.en.md); the architecture —
-[docs/VNEXT_ARCHITECTURE.md](docs/VNEXT_ARCHITECTURE.md); what each client can
-consume — [docs/VNEXT_CAPABILITIES.md](docs/VNEXT_CAPABILITIES.md).
-
-## The protocols
-
-### MTProxy / Telemt
-
-A proxy for Telegram. The panel creates users, hands out `tg://` links and QR
-codes, and sets limits and expiry.
-
-After the first start the `telemt-config` volume becomes the source of truth:
-every later change goes through the internal API and survives container
-recreation. `secrets/users.conf` is only used for the first import. Deleting the
-volume is a destructive reset: the entrypoint imports the original file again.
-
-Quota and the current process counter are different quantities. Resetting a
-quota by hand does not zero the process counter, and a crash can lose usage
-recorded after the last save. There is no automatic calendar reset.
-
-More: [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md).
-
-### NaiveProxy
-
-From the outside the NaiveProxy domain looks like an ordinary website: a request
-without credentials gets a cover page, not "407 Proxy Authentication Required".
-The proxy answers only someone who knows the credentials.
-
-The same access works as HTTPS (HTTP/1.1) and as HTTP/2 — the panel issues a URL
-of the form `https://<user>:<pass>@<domain>`, and the protocol is chosen during
-the TLS handshake. Clients that list "HTTPS" and "HTTP2" as separate options
-take the same URL; there is no need to create one access per variant.
-
-HTTP/3 is not published: the Nginx `stream` router routes TCP by SNI and does
-not parse QUIC, and no public UDP port is allocated to the project. Caddy's
-private listener keeps HTTP/3 enabled, but nothing outside can reach it.
-
-**Which protocols and clients NaiveProxy works with.** The transport is TLS over
-TCP on 443; inside it, HTTP/1.1 CONNECT ("HTTPS") or HTTP/2 CONNECT ("HTTP2").
-Only application TCP traffic goes through the proxy; UDP (QUIC, games, VoIP) is
-not proxied by NaiveProxy. Clients the project verifies: the official `naive`,
-Karing and sing-box (a `naive` outbound from the `singbox` subscription).
-mihomo/Clash cannot speak NaiveProxy — the `clash` subscription does not offer
-it to them. The NekoBox family, v2rayN, Hiddify and Shadowrocket import a
-`naive+https://` link but are unverified against our subscription
-([compatibility matrix](docs/VNEXT_ARCHITECTURE.md#subscription-client-compatibility)).
-
-Accounting counts payload bytes of completed tunnels, without TLS and IP
-overhead. A per-user quota disables the access once the observed limit is
-reached, but it is not a byte-exact hard cap: an active tunnel can overshoot.
-
-More: [PANEL.en.md](PANEL.en.md).
-
-### Mieru
-
-An obfuscated proxy with its own protocol over TCP. It does not take
-port 443 — you choose the ports explicitly and open them in both the cloud and
-the local firewall.
-
-**UDP is not claimed.** The mita server listens on the chosen port over UDP as
-well, but UDP profiles do not work for clients on real networks: mobile carriers
-and some Wi-Fi networks drop or throttle non-QUIC UDP, and forked clients expand
-one `mierus://` link into two entries and stall on the second. The project
-verifies and promises TCP only; if a client shows a TCP and a UDP variant, use
-TCP.
-
-Creating a user produces a one-time `mierus://` link, a QR code, and an import
-command. Rotation, disabling, and deletion require a controlled restart so the
-access is genuinely revoked.
-
-The quota is an approximate admission check on application bytes, not a billing
-counter. There is no safe per-user traffic counter, so the interface may show
-`unavailable` — that is an honest answer, not a failure.
-
-If a mobile path loses large segments on the return flow, there is an optional
-`deploy/mieru-mss-clamp.service`: it pins the measured TCP MSS for the Mieru
-listener only and touches no unrelated firewall rules. Install it only after you
-have seen the characteristic `Send-Q`/retransmission/RTO signature.
-
-When restoring, always bring back `journal.json` together with its original
-`journal.key`. Never delete or regenerate the key to "fix" the journal.
-
-More: [MIERU.en.md](MIERU.en.md) and
-[credential sharing](docs/MIERU_SHARING.en.md).
-
-### 3x-ui
-
-VLESS Reality (TCP and XHTTP) and Hysteria2 come from here. There are two paths.
-
-**Adopt an installed one** (`existing`). The installer only adds routes for its
-domains; 3x-ui's own files, database, and unit stay byte for byte identical,
-which the lab verifies by hashing them before and after the run. You create the
-inbounds yourself, and they must listen on loopback or there is nothing to share
-port 443 with.
-
-**Install it yourself** (`managed-new`). The installer deploys 3x-ui `3.9.0` and
-brings it to a working state with no manual step:
-
-1. it moves the panel off the public `*:2053` and `*:2096` onto
-   `127.0.0.1:8451` under a private path;
-2. it replaces the factory `admin/admin` with your credentials, and does so
-   inside an isolated network namespace, so the panel is never reachable from
-   outside with a known password;
-3. it creates three inbounds: VLESS Reality TCP (`127.0.0.1:8449`), VLESS
-   Reality XHTTP (`127.0.0.1:8450`), and Hysteria2 (`0.0.0.0:443/UDP`);
-4. it checks the pinned version, the panel's private listener, and a listener for
-   each created inbound. This proves that Xray accepted the configuration; it is
-   not a full VLESS/Hysteria2 client acceptance.
-5. it records how to reach the panel — its URL with the random base path, the
-   username and the password (the wizard's or a generated one) — in the root-only
-   file `/var/lib/proxy-control/three-xui/panel-access` (0600), beside the
-   subscription URL.
-
-The Reality keypair is minted by the very Xray that will serve it, and the cover
-site is the panel's own local TLS listener: a foreign site can change its
-certificate or disappear, and Reality then fails for every client at once.
-
-> [!NOTE]
-> The 3x-ui subscription is published only when the `managed-new` TOML contains
-> a separate `subscription_domain`. The installer issues its certificate, routes
-> that SNI through shared TCP/443 to the loopback listener on `127.0.0.1:2096`,
-> and stores the subscription URL in root-only state. Entries in the subscription
-> advertise public protocol names on port `443`, never private backend ports.
-> Without `subscription_domain`, the subscription is not published externally.
-
-Upgrading an already installed 3x-ui is prepared in the adapter as its own
-transaction, but no command exposes it yet — upgrade it with 3x-ui's own
-tooling.
-
-3x-ui stays a separate panel with its own interface — Proxy Control does not
-duplicate its management, it makes sure you can both live on one 443 without
-conflict.
-
-### Fleet: linked panels and the legacy mTLS transport
-
-Since v0.3 one panel becomes the **central panel** and manages other panels over
-their own HTTPS domains. Three actions in the UI: on the node panel the owner
-creates an API key scoped `node-sync` («Администраторы → API-ключи»), on the
-central «Узлы → + Панель» takes the URL and the key, then "Import" the existing
-users. Nothing beyond the panel image appears on a host — no agent, no
-certificates, no open ports.
-
-- **Keys.** `admin | monitor | node-sync`, an optional expiry; only the SHA-256
-  is stored, the plaintext `pc_<prefix>_<secret>` is shown once; `node-sync`
-  opens `/api/fleet/v2/*` only; 120 requests per minute per key; audited as
-  `key:<name>`. Disabling or deleting a key takes effect on the next request.
-- **Trust.** TLS `verify` (WebPKI) or `pin` — the SHA-256 of the leaf
-  certificate («Получить отпечаток»), checked inside the handshake before
-  anything is sent; private addresses only behind an explicit checkbox;
-  «Проверить» saves nothing. The node's key is stored on the central encrypted
-  under the master key.
-- **Generations.** The desired state of a node is an immutable, numbered,
-  digested document compiled from the accesses. The node refuses a lower
-  number, a digest conflict and a foreign central (one master per node),
-  applies the document through its own adapters, deletes orphans, never touches
-  local users, reports a name collision with a local user as `failed`, and
-  answers 409 `managed_by_central` to a local mutation of a central-owned
-  resource. A heartbeat every 15 s, `node.up`/`node.down` events, a redelivery
-  backoff of 30 s → 10 min.
-- **Accesses on the node.** Issue, enable, disable, rotate and delete are
-  declarative ("waiting for the node"); a secret the runtime chose itself
-  (Telemt's Fake-TLS form) is captured by the central and kept under the same
-  version; a confirmed deletion purges the access, and the name can be granted
-  again. A client's subscription merges the accesses of every node with each
-  node's public hosts.
-- **Unlinking.** «Отвязать» on the card «Этот сервер» releases the central's
-  ownership; the users on the node stay as they are.
-- **Upgrade order** — nodes first, then the central
-  ([docs/UPGRADING.md](docs/UPGRADING.md)); the panel-to-panel contract is
-  frozen in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). All of it is
-  checked on the lab host by a dedicated `fleet` tier — from the key to the
-  unlink, with the real sing-box, mihomo and the `resPQ` probe — and was
-  checked live against a production node
-  ([release note](docs/releases/v0.3.0-beta.1.md)).
-
-Full description: [FLEET.en.md](FLEET.en.md).
-
-Legacy Fleet v1 is an optional boundary: inventory and limited management of remote
-nodes over outbound mTLS connections. The installer does **not** deploy it.
-
-Creating a node record in the panel with status `unenrolled` is not enrollment.
-Enrollment needs a local key and CSR on the node, an offline CA signature, a
-certificate bound centrally, mTLS authorization, and a successful inventory
-command.
-
-Fleet v1 works with Telemt only: inventory refresh, enable, disable, limit
-changes, and quota reset are allowed. Mieru operations, remote
-create/delete/rotate/reveal, and secret-bearing configuration apply are refused.
-
-Full procedure: [FLEET.en.md](FLEET.en.md).
-
-## Egress: WARP as one SOCKS5 endpoint
-
-WARP is one loopback **SOCKS5** endpoint, defaulting to `127.0.0.1:40000`.
-With `warp = true`, the installer downloads the pinned official Cloudflare
-client, verifies SHA-256, registers it, enables `warp-svc`, and selects proxy
-mode. This is an optional proprietary external dependency: it is not covered
-by the project's MIT licence and is not bundled in the release archive.
-
-Since v0.4 the settings live under `[egress]` (`warp`, `warp_port`, and the
-initial choice per service — `naive`, `mieru` = `direct | warp | router`; `router = true`
-since v0.5 installs the Xray-router from the pinned `Xray-linux-64.zip`, fetched by itself); the old
-`[three_xui].warp` / `warp_port` are still read, with one warning. `warp_port`
-defaults to `40000` and is passed to every consumer; an explicitly configured
-alternative is preserved. An existing foreign WARP installation is never adopted
-or reconfigured: it requires a separate, explicit migration.
-
-| Protocol | What goes through WARP |
-|---|---|
-| **Xray / managed 3x-ui** | Domains in `warp_domains`, with the rule following blocking rules. Adopted (`existing`) routing is not changed. |
-| **NaiveProxy** | The installer seeds `[egress].naive` once (`warp` = `upstream socks5://127.0.0.1:40000` for the whole service); from then on the panel's **routing policy** decides — whole service direct or through WARP, plus block rules — [docs/ROUTING.en.md](docs/ROUTING.en.md). |
-| **Mieru** | The installer seeds `[egress].mieru` once; from then on the routing policy decides — whole service, block rules, and selective rules by domain and CIDR. |
-
-The managers learn the endpoint through `NAIVE_EGRESS_WARP` / `MIERU_EGRESS_WARP`
-in `.env`; the panel never sends an address, only `warp` by name, and the
-routing screen previews exactly what each backend will enforce.
-
-With `warp = false`, WARP is not installed. Acceptance requires a fully
-configured pinned package, an active and boot-enabled service, a loopback
-listener owned by `warp-svc`, and an actual HTTPS request through SOCKS5 showing
-`warp=on/plus` and an external IP different from direct egress. An open port
-alone is not success. Ownership drift blocks mutations; `resume` handles
-interrupted operations and `repair` restores a stopped service.
+The full procedure and rollback: [docs/UPGRADING.md](docs/UPGRADING.md).
 
 ## Day-to-day operation
 
-### Health checks
+### Health check
 
 ```bash
 cd /opt/mtproxy-shared443
@@ -822,25 +533,15 @@ systemctl is-active nginx docker
 systemctl is-active caddy-naive mita
 ```
 
-The `Host` header is required: the panel accepts only its own public name and
-rejects a request with `Host: 127.0.0.1`. Expect `{"status":"ok"}`.
+The `Host` header is required: the panel accepts only its own public name. Expect
+`{"status":"ok"}`. Before showing this output to anyone, remove passwords, access URLs, QR
+codes, keys and certificates.
 
-Before showing this output to anyone, strip passwords, full access URLs, QR
-payloads, tokens, cookies, certificates, and private keys.
+### Backup
 
-### What to back up
-
-| Boundary | Complete generation |
-|---|---|
-| Panel | SQLite through an online backup, or the database with `-wal`/`-shm` while the writer is stopped; the **master key** `secrets/panel-master-key` apart from the database — without it the encrypted credentials and node keys cannot be restored |
-| Telemt | The `telemt-config` volume, `secrets/users.conf`, the API token, and the exact image version |
-| Naive | The whole data directory, the Caddyfile, `users.json`, paired backups, `transaction.json`, the accounting database with WAL/SHM, the binary, the unit, and log permissions |
-| Mieru | The state directory, `journal.json` together with its original `journal.key`, backups, the token, the binary, the unit, and the `mita` configuration |
-| Fleet | v2 — the central's database together with the master key (node keys are encrypted in it); legacy v1 — the ingress configuration, the offline CA key stored separately |
-| Nginx | stream/http configuration, certificates, owners, modes, and the ownership manifest |
-| Deployment | The Git revision, the complete `COMPOSE_FILE`, image digests, binary versions, and unit files |
-
-A safe online backup of the panel database:
+What matters most is the panel database and the **master key** `secrets/panel-master-key`,
+kept apart from the database: without it the encrypted credentials cannot be restored. A
+database copy without stopping the service:
 
 ```bash
 docker exec -i proxy-control-panel python - <<'PY'
@@ -854,64 +555,10 @@ dst.close(); src.close()
 PY
 ```
 
-It must print exactly `ok`. Never copy the single SQLite file while a WAL writer
-is running.
+Expect exactly `ok`. What else to back up for Telemt, NaiveProxy, Mieru, Nginx and Fleet and
+how to restore it: [docs/BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md).
 
-More: [backup and restore](docs/BACKUP_RESTORE.en.md).
-
-### Updating Proxy Control with one command (since v1.1)
-
-An installed server updates with the same script that installs a new one, in `--update` mode:
-
-```bash
-curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh
-curl -fsSLO https://github.com/dubr1k/proxy-control/releases/latest/download/install-release.sh.sha256
-sha256sum --check install-release.sh.sha256
-bash install-release.sh --update
-```
-
-The script verifies the release exactly as for an install, extracts it and, through one `sudo`,
-runs `scripts/update-host.sh` from the verified tree. That asks the host's version-agent to update
-the panel (with a backup of the tree, image and database and a rollback on failure) — only if the
-agent is about to install exactly the verified archive — then rebuilds the changed managers with
-the agent's own Compose call and, on a server with the Xray-router, starts the
-`xray-router-ingress` bridge. Telemt, certificates, `.env` and `secrets/` are not touched. It needs
-the version-agent (installed by the installer since v0.11).
-
-### Upgrading versions from the panel
-
-The panel can safely upgrade four boundaries — **Telemt**, **NaiveProxy/Caddy**,
-**Mieru/mita** and, when installed, **Xray-router/Xray-core** — through a
-separate root-owned `version-agent`. The panel itself never gets a Docker
-socket, never downloads binaries, and never accepts a URL from the browser.
-
-Since v0.11, «Проверить обновления» on the Versions screen asks the agent to
-poll the projects themselves: GitHub Releases for Xray-core, mieru and Caddy,
-the image registry for Telemt — over a host list fixed in the agent. Versions
-newer than the installed one appear marked "upstream" with the release's digest
-(`.dgst`, `.sha256.txt`, the manifest digest); a release without a published
-digest is visible but not installable. The digest proves the download is intact
-and authored by the project, not that this project verified the version — the
-UI says so. The root-owned `versions.json` catalogue stays and wins
-("catalog"); the poll is switched off with one variable.
-
-Installing: the agent verifies the digest, replaces files atomically, rewrites
-the pins in the Compose environment (the manager's pin for Mieru, the three
-files and their digests for the router), restarts only the service concerned
-and restores the previous version on failure. NaiveProxy is updated by
-rebuilding Caddy with forwardproxy on the host (builder image by digest, up to
-15 minutes). The operation is available to the `owner` role only and requires
-naming the current version; the installer accepts such an update as its own.
-
-The panel itself updates from the same screen: the «Proxy Control / панель»
-card lists the project's releases, the agent copies the release's files,
-rebuilds and restarts the panel with a rollback copy of the files, the database
-and the image, and the page reloads by itself once the panel answers with the
-new version.
-
-Full protocol and rollback: [docs/UPGRADING.md](docs/UPGRADING.md).
-
-### If an installation was interrupted
+### If the installation was interrupted
 
 ```bash installer-check
 sudo python3 -m installer.cli status --json
@@ -919,13 +566,10 @@ sudo python3 -m installer.cli resume --json
 sudo python3 -m installer.cli repair --json
 ```
 
-`resume` continues an interrupted installation from its recorded phase. `repair`
-checks that everything the installer owns is present and unmodified by foreign
-hands, and restarts only its own services.
-
-Never delete `journal.json`, `journal.key`, `transaction.json`, WAL/SHM files,
-or backups to "fix" a start-up. When in doubt, restore the complete previous
-generation rather than one file.
+`resume` continues an interrupted installation from the saved phase. `repair` checks that
+everything the installer owns is in place and unmodified and restarts only its own services.
+Do not delete `journal.json`, `journal.key`, `transaction.json`, WAL/SHM files or backups to
+«fix» a start.
 
 ### Uninstalling
 
@@ -933,41 +577,98 @@ generation rather than one file.
 sudo python3 -m installer.cli uninstall --json
 ```
 
-Uninstall stops Compose and removes only installer-owned routes, files, and
-packages, while secrets, certificates, and cover roots are preserved until a
-separate ownership review. Afterwards check `nginx -t`, the public listeners,
-and adjacent SNI routes.
+Uninstalling stops the services and removes only the routes, files and packages the
+installer owns; secrets, certificates and cover-site directories stay until the owner
+decides separately. Afterwards check `nginx -t`, the public listeners and adjacent SNI
+routes.
 
-If SSH ended with code `255`, that proves only that the transport dropped. Check
-`status`, the phase, the services, and Nginx first; do not blindly re-run the
-installation.
+## Features in detail
+
+### Clients, grants and subscriptions
+
+The «Clients» screen keeps a person and all their grants to MTProxy, NaiveProxy and Mieru
+together: search and filters over the whole list, a read-only import of existing service
+users, and a grant issued as one journalled operation with an honest outcome — `succeeded`,
+`compensated` or `manual_intervention_required`. Every client gets one link
+`https://<subscription domain>/s/<token>` to all their grants in the `raw`, `singbox` (Karing
+and sing-box), `clash` (mihomo), `manifest` and `html` formats. The link key is shown once,
+the database stores only its hash, revocation is immediate, and subscription requests are
+not logged. Details: [PANEL.en.md](PANEL.en.md).
+
+### Protocols
+
+- **MTProxy / Telemt.** After the first start the `telemt-config` volume is the source of
+  truth; quota and the process counter are different values.
+  [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+- **NaiveProxy.** Without a password the domain shows a cover page, not a «407». One URL
+  `https://<user>:<pass>@<domain>` works as both HTTPS and HTTP/2. Only TCP goes through the
+  proxy; HTTP/3 is not published. Verified clients are `naive`, Karing and sing-box.
+  [PANEL.en.md](PANEL.en.md)
+- **Mieru.** Its own TCP ports; port 443 is not used. The project verifies and promises TCP
+  only: UDP profiles do not work for clients on real networks. The quota is an approximate
+  admission check, not a billing counter. [MIERU.en.md](MIERU.en.md),
+  [sharing access](docs/MIERU_SHARING.en.md)
+- **3x-ui.** Stays a separate panel with its own interface; Proxy Control makes sure both
+  live on one 443. In `managed-new` the inbounds listen on `127.0.0.1:8449` (VLESS Reality
+  TCP), `127.0.0.1:8450` (XHTTP) and `0.0.0.0:443/UDP` (Hysteria2); the 3x-ui subscription is
+  published only when `subscription_domain` is set.
+
+### Linked panels (Fleet)
+
+One panel becomes the central one and manages others through their own HTTPS domains: on a
+node the owner creates a `node-sync` API key, on the central «Nodes → + Panel» takes the URL
+and the key, then «Import» adopts the existing users. Nothing appears on the servers except
+the panel image. Trust is WebPKI or a pinned certificate fingerprint; a node's desired state
+is a numbered generation with a digest; a node that was offline catches up when it returns.
+Details: [FLEET.en.md](FLEET.en.md).
+
+### Routing and WARP
+
+Every node and service gets an outbound traffic policy: everything direct or through WARP,
+your own exit, another node of the fleet (a chain of up to three nodes), blocks by domain
+and CIDR. The optional **Xray-router** on a node adds geosite, geoip and ports; MTProxy is
+routed through it too. The preview shows exactly what the node's service will apply; applying
+is transactional with a rollback, locally and on linked panels.
+
+WARP is one local **SOCKS5** endpoint on `127.0.0.1:40000`. The installer installs the pinned
+official Cloudflare client, verifies its SHA-256 and accepts WARP only after a real HTTPS
+request through SOCKS5 with an external IP different from the direct exit. The WARP client is
+a proprietary external dependency: it is not covered by the project's MIT license and not
+included in the release archive.
+
+| Protocol | What goes through WARP |
+|---|---|
+| **Xray / managed 3x-ui** | The domains in `warp_domains`. Routing of an adopted 3x-ui (`existing`) is not changed. |
+| **NaiveProxy** | The initial `[egress].naive` value; after that the panel's routing policy decides. |
+| **Mieru** | The initial `[egress].mieru` value; after that the routing policy decides, including selective rules. |
+
+Details: [docs/ROUTING.en.md](docs/ROUTING.en.md) and [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md).
+
+### The MCP server and AI skills
+
+The `proxy-control-mcp` container on the central panel exposes the panel API as Model Context
+Protocol tools at `https://<mcp domain>/mcp`. Every call goes through an `mcp` API key and is
+visible in the audit; irreversible actions require `confirm: true`. [`skills/`](skills/) holds
+ready AI instructions for everyday tasks: the morning overview, granting access, diagnosing,
+routing and updates. Connecting: [docs/MCP.en.md](docs/MCP.en.md).
+
+### Not supported yet
+
+Managing 3x-ui grants from Proxy Control, gradual policy rollout to a part of the nodes, UDP
+through the Xray-router, metrics history and updating a node's panel from the central panel.
+Only TCP is supported for Mieru clients. Traffic accounting is not intended for billing.
 
 ## When something does not work
 
-- **The panel does not open.** Check `127.0.0.1:8787`, `PANEL_ALLOWED_HOSTS`,
-  `PANEL_COOKIE_SECURE`, the TLS vhost on `8443`, the SQLite database, and the
-  volume owner.
-- **MTProxy is healthy but clients cannot connect.** Check A/AAAA, the absence
-  of a CDN in front of raw TCP, the SNI map, the Fake-TLS name, every secret,
-  and a real `resPQ`. A healthy container and an open port prove nothing by
-  themselves.
-- **The Naive manager is unhealthy.** Check the token, the Unix socket, the
-  pinned Caddy build, `caddy adapt --validate`, `transaction.json`, and the
-  identities `10002:101` and `10003:10004`.
-- **Naive accounting does not grow.** A record appears only after a
-  successfully **closed** `CONNECT`; an active or aborted tunnel yields nothing.
-- **The Mieru manager is unhealthy.** Check the exact `mita` digest and version,
-  `/run/mita/mita.sock`, the socket GID, and the token and state metadata. Do
-  not apply a recursive `chown` blindly.
-- **No QR for an existing Mieru user.** Press **Configuration** — the panel
-  shows the kept key. If the row says «Key not kept» (a user older than this
-  feature), press **New key** once: the old configuration is revoked and the
-  new one is kept.
-- **Orphan containers appeared.** Restore the complete saved `COMPOSE_FILE`; do
-  not confirm orphan removal with an incomplete model.
-- **Fleet stays `unenrolled`.** A registry record is not enrollment. Repeat the
-  CSR, the offline signature, the certificate binding, the node installation,
-  mTLS authorization, and the inventory result.
+- **The panel does not open.** Check `127.0.0.1:8787`, `PANEL_ALLOWED_HOSTS`, the HTTPS
+  virtual host on `8443`, the SQLite database and the volume owner.
+- **MTProxy runs but a client does not connect.** Check A/AAAA, that no CDN is in front, the
+  SNI map, the Fake-TLS name and a real `resPQ` reply — an open port proves nothing.
+- **NaiveProxy accounting does not grow.** A record appears only after a closed `CONNECT`.
+- **The Mieru manager does not answer.** Check the `mita` version, `/run/mita/mita.sock` and
+  the socket GID. Never run a recursive `chown` blindly.
+- **No QR for an older Mieru user.** «Configuration» shows the kept key; if the key was not
+  kept, press «New key» once.
 
 More cases: [troubleshooting](docs/TROUBLESHOOTING.en.md) and the
 [operations runbook](docs/OPERATIONS.en.md).
@@ -976,82 +677,95 @@ More cases: [troubleshooting](docs/TROUBLESHOOTING.en.md) and the
 
 ### Host packages
 
-The `packages` adapter installs exactly these and nothing else:
-`ca-certificates`, `certbot`, `curl`, `docker-compose-v2`, `docker.io`,
-`nginx-full`, `openssl`, `python3`.
+The `packages` adapter installs exactly these packages: `ca-certificates`, `certbot`, `curl`,
+`docker-compose-v2`, `docker.io`, `nginx-full`, `openssl`, `python3`.
 
-### Pinned external artifacts
+### Pinned third-party components
 
-These are published by other projects under their own licenses. The installer
-fetches them from their pinned HTTPS URLs when the file is absent from
-`/var/lib/proxy-control/` and refuses to continue unless the digest matches the
-pin; a file staged by hand is used as it is.
+The installer downloads them from pinned HTTPS URLs and refuses to continue when a checksum
+does not match.
 
-| Artifact | Version | License | Purpose |
+| Component | Version | License | Purpose |
 |---|---|---|---|
-| `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The Mieru server. Only the executable and a license notice are installed; the package itself never is. |
-| `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The official Mieru client, used to build the acceptance harness that proves each transport carries traffic. |
-| `three_xui` (`MHSanaei/3x-ui`) | 3.9.0 | GPL-3.0-only | The 3x-ui panel and its Xray core for VLESS Reality TCP, VLESS Reality XHTTP, and Hysteria2. |
-| `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | The Xray egress-router (v0.5, `[egress] router = true`): only `xray`, `geoip.dat` and `geosite.dat` are extracted from the pinned `Xray-linux-64.zip`, each against its own digest. |
+| `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The Mieru server; only the executable and the license notice are installed. |
+| `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The official Mieru client for traffic acceptance. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.9.0 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
+| `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
 
-Caddy `v2.11.4` with the `http.handlers.forward_proxy` module is not downloaded
-as a binary; it is built from the pinned recipe in
-`docker/Dockerfile.caddy-naive`. Every URL, digest, and SPDX identifier lives in
-[`release/external-artifacts.json`](release/external-artifacts.json), which the
-release build embeds in the SBOM.
+Caddy `v2.11.4` with the `http.handlers.forward_proxy` module is built from
+`docker/Dockerfile.caddy-naive`. URLs, checksums and SPDX identifiers are in
+[`release/external-artifacts.json`](release/external-artifacts.json), which the release build
+embeds into the SBOM.
 
 ### Container images
 
 | Dockerfile | Image | Base |
 |---|---|---|
-| `panel/Dockerfile` | The panel API and UI | `python:3.13.5-slim` |
-| `naive_manager/Dockerfile` | The NaiveProxy credential and accounting manager | `python:3.13.5-slim` |
-| `mieru_manager/Dockerfile` | The Mieru credential and quota manager | `python:3.13.5-slim` |
-| `xray_router_manager/Dockerfile` | The Xray egress-router and its manager (v0.5) | `python:3.13.5-slim` |
-| `mcp_server/Dockerfile` | The MCP server for Claude Code and Claude Desktop (v0.11, central only) | `python:3.13.5-slim` |
-| `deploy/Dockerfile.agent` | The Fleet node agent | `python:3.13.5-slim` |
-| `deploy/Dockerfile.ingress` | The Fleet mTLS ingress | `python:3.13.5-slim` |
-| `deploy/mieru-client/Dockerfile` | The official Mieru client used by the acceptance | `python:3.13.5-slim` |
-| `probe/Dockerfile` | The MTProto acceptance probe on TDLib | `node` |
-| `docker/Dockerfile.caddy-naive` | The Caddy build carrying `forward_proxy` | `caddy:2.11.4-builder` → `scratch` |
-| `scripts/lab/Dockerfile.acceptance` | The disposable systemd container the lab installs into | `ubuntu` |
+| `panel/Dockerfile` | Panel API and interface | `python:3.13.5-slim` |
+| `naive_manager/Dockerfile` | NaiveProxy access and accounting management | `python:3.13.5-slim` |
+| `mieru_manager/Dockerfile` | Mieru access and quota management | `python:3.13.5-slim` |
+| `xray_router_manager/Dockerfile` | The Xray-router and its manager | `python:3.13.5-slim` |
+| `mcp_server/Dockerfile` | The MCP server (central panel only) | `python:3.13.5-slim` |
+| `deploy/Dockerfile.agent` | Fleet v1 node agent | `python:3.13.5-slim` |
+| `deploy/Dockerfile.ingress` | Fleet v1 mTLS ingress | `python:3.13.5-slim` |
+| `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |
+| `probe/Dockerfile` | MTProto probe on TDLib | `node` |
+| `docker/Dockerfile.caddy-naive` | Caddy with `forward_proxy` | `caddy:2.11.4-builder` → `scratch` |
+| `scripts/lab/Dockerfile.acceptance` | Disposable systemd lab container | `ubuntu` |
 
-Every base image is pinned by digest.
+Every base is pinned by digest.
 
 ### Python dependencies
 
-Runtime (`panel/requirements.txt`): `fastapi`, `starlette`, `pydantic`,
-`pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
-`httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`, `MarkupSafe`,
-`argon2-cffi`, `argon2-cffi-bindings`, `cffi`, `pycparser`, `uvicorn`, `click`,
-`qrcode`, `annotated-doc`, `opentelemetry-api`.
+The panel (`panel/requirements.txt`): `fastapi`, `starlette`, `annotated-doc`,
+`opentelemetry-api`, `pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`,
+`typing_extensions`, `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`,
+`MarkupSafe`, `argon2-cffi`, `argon2-cffi-bindings`, `cryptography`, `cffi`, `pycparser`,
+`uvicorn`, `click`, `qrcode`.
 
-The MCP server (`mcp_server/requirements.txt`, its own image): `mcp`, `mcp-types`,
-`starlette`, `sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`,
-`anyio`, `pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`,
-`typing_extensions`, `jsonschema`, `jsonschema-specifications`, `referencing`, `rpds-py`,
-`attrs`, `PyJWT`, `cryptography`, `cffi`, `pycparser`, `python-multipart`,
-`opentelemetry-api`, `truststore`, `certifi`, `idna`, `click`.
+The MCP server (`mcp_server/requirements.txt`): `mcp`, `mcp-types`, `starlette`,
+`sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`, `anyio`,
+`pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
+`jsonschema`, `jsonschema-specifications`, `referencing`, `rpds-py`, `attrs`, `PyJWT`,
+`cryptography`, `cffi`, `pycparser`, `python-multipart`, `opentelemetry-api`, `truststore`,
+`certifi`, `idna`, `click`.
 
-Development only (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`,
-`iniconfig`, `packaging`, `pluggy`, `Pygments`, `ruff`.
+Development (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`, `iniconfig`,
+`packaging`, `pluggy`, `Pygments`, `ruff` and the MCP server dependencies.
 
-Every version is pinned exactly. The installer itself and both managers use only
+Every version is pinned exactly. The installer and the NaiveProxy and Mieru managers use only
 the Python standard library.
+
+## Documentation
+
+| Topic | Document |
+|---|---|
+| Map of all documentation | [docs/README.md](docs/README.md) |
+| Installing on Ubuntu 24.04 | [INSTALL.en.md](INSTALL.en.md) |
+| Every installer command and field | [docs/INSTALLER_REFERENCE.en.md](docs/INSTALLER_REFERENCE.en.md) |
+| Panel, roles, API keys, NaiveProxy | [PANEL.en.md](PANEL.en.md) |
+| MTProto behind Nginx | [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) |
+| Mieru | [MIERU.en.md](MIERU.en.md), [sharing access](docs/MIERU_SHARING.en.md) |
+| Linked panels | [FLEET.en.md](FLEET.en.md) |
+| Routing and the Xray-router | [docs/ROUTING.en.md](docs/ROUTING.en.md), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md) |
+| The MCP server | [docs/MCP.en.md](docs/MCP.en.md) |
+| Operations | [docs/OPERATIONS.en.md](docs/OPERATIONS.en.md) |
+| Backup and restore | [docs/BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md) |
+| Upgrade and rollback | [docs/UPGRADING.md](docs/UPGRADING.md) |
+| Troubleshooting | [docs/TROUBLESHOOTING.en.md](docs/TROUBLESHOOTING.en.md) |
+| Development protocol for AI agents | [AGENTS.md](AGENTS.md) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
 
 ## Security
 
-- Never publish `.env`, `secrets/`, access URLs, QR codes, tokens, databases,
-  logs, or PKI keys.
-- Never publish the Telemt API, the management Unix sockets, or the Caddy Admin
-  API.
-- Never give project services a Docker socket.
-- Never change the pinned Telemt, Caddy, or `mita` without checking provenance,
-  digest, and a rollback plan.
-- A hidden button in the interface is not a substitute for a server-side role
-  check.
-- Read [SECURITY.md](SECURITY.md) and the
-  [compatibility policy](docs/COMPATIBILITY.md) before a production deployment.
+- Do not publish `.env`, `secrets/`, access URLs, QR codes, access keys, databases, journals
+  or PKI keys.
+- Do not expose the Telemt API, the control Unix sockets or the Caddy Admin API.
+- Do not mount the Docker socket into project services.
+- Do not change the pinned Telemt, Caddy or `mita` without checking provenance, checksums
+  and a rollback plan.
+- Before a production deployment read [SECURITY.md](SECURITY.md) and the
+  [compatibility policy](docs/COMPATIBILITY.md).
 
 ## Development
 
@@ -1066,92 +780,29 @@ git ls-files -z '*.sh' | xargs -0 -r shellcheck
 git diff --check
 ```
 
-The installer is verified against a real release archive in two labs, described
-in [tests/lab/README.md](tests/lab/README.md). The mode that installs 3x-ui
-itself has its own run, against a real 3x-ui on a disposable server:
+The installer is validated against a release archive in two labs:
+[tests/lab/README.md](tests/lab/README.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md);
+the development protocol for AI agents: [AGENTS.md](AGENTS.md).
 
-```bash
-sudo bash scripts/lab/managed-xui-acceptance.sh
-```
+## License and acknowledgements
 
-It refuses to run where a 3x-ui already exists and removes what it created;
-`KEEP=1` leaves the staged panel in place for inspection.
+The code is available under the [MIT license](LICENSE). Third-party components keep their own
+licenses; their list, provenance and copyright notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Contribution rules are in [CONTRIBUTING.md](CONTRIBUTING.md). The mandatory
-operating protocol for AI agents is in [AGENTS.md](AGENTS.md).
-
-Detailed boundary guides: [documentation map](docs/README.md),
-[installation](INSTALL.en.md), [installer reference](docs/INSTALLER_REFERENCE.en.md),
-[complete installer/auditor](INSTALLER_AUDITOR.md), [panel](PANEL.en.md),
-[MTProto behind Nginx](DOCKER_DEPLOYMENT.md), [Mieru](MIERU.en.md),
-[Mieru sharing](docs/MIERU_SHARING.en.md), [Fleet](FLEET.en.md),
-[operations](docs/OPERATIONS.en.md), [backup and restore](docs/BACKUP_RESTORE.en.md),
-[upgrades](docs/UPGRADING.md), [troubleshooting](docs/TROUBLESHOOTING.en.md),
-[accounting](docs/ACCOUNTING.md), and [validation](docs/VALIDATION.md).
-
-## Status and license
-
-Python tests, quality checks, Compose rendering, image builds, the
-MTProxy/NaiveProxy/Mieru panel integrations, and the responsive interface are
-validated.
-
-The complete release lifecycle — install, a repeated install, `repair`, reboot
-recovery, an interrupted phase, reporting, uninstall, and shared-443
-coexistence — runs against a real release archive in two labs: a disposable
-systemd container and a disposable bare-metal host. Each protocol is accepted
-with a real client.
-
-Also validated: the 3x-ui subscription public contract (public SNI endpoints on
-443 only), the live WARP lifecycle with real egress and rollback, and
-`managed-new` against real 3x-ui `3.7.0`: the installer creates VLESS Reality
-TCP, VLESS Reality XHTTP, and Hysteria2, and issues SSL certificates for the
-3x-ui panel, Hysteria2, and the separate subscription.
-
-Since v0.2 the lab host also runs the live subscription acceptance — the
-official sing-box carries traffic through NaiveProxy and mihomo through Mieru
-over TCP, a canary scan of the logs and of a database dump finds no
-token and no password — and a restore drill of the "database + master key"
-pair. Since v0.3 — the `fleet` tier: the installed node is linked to a central,
-users imported, accesses on all three protocols, disable, rotation, deletion,
-convergence after being offline, a node restart mid-apply, key revocation and
-unlink; v0.3 was also checked live against a production node.
-
-Routing (v0.4) and the Xray-router (v0.5) are beta, checked on the lab host and live
-on a production node to the extent of their release notes. v0.6 verifies everything promised
-in v0.2–v0.5: the [function → proof matrix](docs/VERIFICATION_MATRIX.md) under a guard test, a
-route audit, every screen in a real browser (`remote-gate.sh ui`), the managed 3x-ui against the
-real 3x-ui, a backup/restore drill — and the fixes for what that found (see the release note).
-v0.7 — [chains and lanes](docs/releases/v0.7.0-beta.1.md): a policy's exit through the relays of
-other nodes of the fleet (a chain of up to three hops), a grant's own lane and policy, the `chains`
-tier on the stand and a live «central → exit node» check. v0.8 — custom exits and the rule
-table, v0.9 — the seam between screen and backend, v0.10 — a client on several nodes and the
-subscription at hand, v0.11 — [updates from upstream](docs/releases/v0.11.0-beta.1.md): release
-and registry polling with digests, the Xray-router component, a Caddy rebuild from the panel.
-Not claimed as completed: a 3x-ui bridge, canary rollouts of policies, UDP through the router
-and through Mieru for clients, metric history and updating a node's own panel from the
-central, and billing-grade traffic accounting.
-
-## Acknowledgements
-
-Proxy Control relies on the work of upstream authors and maintainers:
+Proxy Control builds on the work of the authors and maintainers of these projects:
 
 | Component | What we thank it for | Link |
 |---|---|---|
-| Telemt | Rust MTProto/MTProxy runtime | [telemt/telemt](https://github.com/telemt/telemt) |
-| Mieru and mita | TCP/UDP proxy runtime and manager | [enfein/mieru](https://github.com/enfein/mieru) |
-| 3x-ui | Xray/3x-ui control plane | [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) |
-| Caddy | HTTPS reverse proxy and TLS automation | [caddyserver/caddy](https://github.com/caddyserver/caddy) |
-| forwardproxy | Caddy HTTP CONNECT module | [klzgrad/forwardproxy](https://github.com/klzgrad/forwardproxy) |
-| Nginx | shared-443 SNI routing | [nginx.org](https://nginx.org/) |
-| Certbot and Let's Encrypt | ACME HTTP-01 and certificate issuance/renewal | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
-| Docker and Compose | isolated service execution | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
-| Python web stack | FastAPI, Starlette, Pydantic, HTTPX, Uvicorn, Argon2, cryptography, and qrcode | [requirements](panel/requirements.txt) |
+| Telemt | The MTProto/MTProxy service in Rust | [telemt/telemt](https://github.com/telemt/telemt) |
+| Mieru and mita | The proxy and its control tools | [enfein/mieru](https://github.com/enfein/mieru) |
+| 3x-ui | The Xray control panel | [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) |
+| Xray-core | The outbound traffic router | [XTLS/Xray-core](https://github.com/XTLS/Xray-core) |
+| Caddy | HTTPS reverse proxy and TLS management | [caddyserver/caddy](https://github.com/caddyserver/caddy) |
+| forwardproxy | The HTTP CONNECT module for Caddy | [klzgrad/forwardproxy](https://github.com/klzgrad/forwardproxy) |
+| Nginx | SNI routing on the shared port 443 | [nginx.org](https://nginx.org/) |
+| Certbot and Let's Encrypt | Issuing and renewing certificates | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
+| Docker and Compose | Isolated service execution | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
+| Python libraries | FastAPI, Starlette, Pydantic, HTTPX, Uvicorn, Argon2, cryptography, qrcode | [dependencies](panel/requirements.txt) |
 
-Thank you to every developer, maintainer, and contributor to these projects.
-Exact versions, licences, provenance, and separate notices are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
-[`release/external-artifacts.json`](release/external-artifacts.json), and
-`panel/requirements*.txt`.
-
-Repository code is released under the [MIT License](LICENSE); external
-components retain their own licences.
+Thanks to all developers, maintainers and contributors of these projects.

@@ -13,7 +13,7 @@ Backup считается пригодным только если он согл
 | Telemt | `telemt-config` volume, исходные secret files, API token |
 | Naive | полный `NAIVE_DATA_DIR`, Caddyfile, users state, transaction/backups, accounting SQLite/WAL/SHM, Caddy binary/unit, log ownership contract |
 | Mieru | manager state целиком, `journal.json` + исходный `journal.key`, backups, manager token, `mita` config/binary/unit, UDS/tmpfiles contract |
-| Xray-router (v0.5) | `/var/lib/xray-router` (поколения, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; копии менеджеров `/var/lib/naive-manager/xray-router-ingress` и `/var/lib/mieru-manager/xray-router-ingress` едут вместе с их каталогами состояния; бинари берутся из закреплённого архива, никогда из резервной копии |
+| Xray-router | `/var/lib/xray-router` (поколения, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; копии менеджеров `/var/lib/naive-manager/xray-router-ingress` и `/var/lib/mieru-manager/xray-router-ingress` едут вместе с их каталогами состояния; бинари берутся из закреплённого архива, никогда из резервной копии |
 | Fleet central | panel DB, ingress config, public server cert, client CA certificate; offline CA private key отдельно |
 | Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests и installer backups |
@@ -23,7 +23,7 @@ Backup считается пригодным только если он согл
 
 ### Мастер-ключ панели
 
-С v0.2 панель хранит учётные данные клиентов зашифрованными (AES-256-GCM) под
+Панель хранит учётные данные клиентов зашифрованными (AES-256-GCM) под
 ключом из `secrets/panel-master-key`. По отдельности эти два артефакта бесполезны,
 а вместе — опасны:
 
@@ -145,7 +145,7 @@ docker compose up -d mieru-manager panel
 
 Проверяйте exact `mita` status, manager health и реальный Mieru client path.
 
-## Xray-router generation (v0.5)
+## Xray-router generation
 
 Остановите panel и `xray-router`, если копируется live state. Сохраняйте вместе, как одну единицу:
 `/var/lib/xray-router` (0700, владелец 10006:10006; поколения в `generations/`, `current.json`,

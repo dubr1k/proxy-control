@@ -1,10 +1,10 @@
-# Proxy Control routing (v0.4–v1.1): where each service lets its clients' traffic out
+# Proxy Control routing: where each service lets its clients' traffic out
 
 **English** · [Русский](ROUTING.ru.md)
 
 ## Overview
 
-Since v0.4 the operator sets, per node and per proxy service, an **egress policy**:
+The operator sets, per node and per proxy service, an **egress policy**:
 the whole service goes **directly** or **through the host's WARP**, and ordered
 first-match **rules** block destinations or (where the backend can) send some of them
 the other way. The policy is engine-neutral ([ADR 006](adr/006-routing-policy-ir.md)):
@@ -13,7 +13,7 @@ address, a config path or a raw directive. The panel **compiles** it for the bac
 node actually runs, shows the compiled result and every limitation as a **preview**, and
 applies it **transactionally** through the service's manager, with a rollback.
 
-Since v0.5 a node may run the dedicated **Xray-router** ([XRAY_ROUTER](XRAY_ROUTER.en.md)):
+A node may run the dedicated **Xray-router** ([XRAY_ROUTER](XRAY_ROUTER.en.md)):
 a service the operator **attaches** to it sends its whole traffic through the router's
 private ingress, and its policy is then enforced by Xray — with `geosite`, `geoip` and
 port selectors, and a block rule **beside** a WARP default, which the native backends
@@ -28,7 +28,7 @@ documentation promises. Where a backend cannot honour a rule, the preview says
 | --- | --- | --- | --- |
 | NaiveProxy | `naive_native` — Caddy forwardproxy `upstream` + `acl` | the whole service direct or through WARP; block by domain (`example.com`, `*.example.com`) and by CIDR | selective `direct`/`egress` rules (one upstream per service); a block **beside** a WARP default — forwardproxy skips its ACL when an upstream is set; block by port, geosite, geoip |
 | Mieru | `mieru_native` — mita `egress` | the whole service direct or through WARP; block by domain and by CIDR; selective `direct`/`egress` by domain and by CIDR, in order | block by port, geosite, geoip; `*.example.com` and `example.com` are the same selector (mita matches domain suffixes) |
-| NaiveProxy or Mieru **attached to the Xray-router** (v0.5) | `xray_router` — Xray `routing` rules per ingress | the whole service direct or through WARP; `block`, `direct` and `egress` rules by domain, `geosite:`, CIDR, `geoip:` and port, in order, any of them beside a WARP default; from v0.7 **exits through other nodes of the fleet** (chains) and a client's **own lane** with its own policy | UDP (mita's UDP stays direct) |
+| NaiveProxy or Mieru **attached to the Xray-router** | `xray_router` — Xray `routing` rules per ingress | the whole service direct or through WARP; `block`, `direct` and `egress` rules by domain, `geosite:`, CIDR, `geoip:` and port, in order, any of them beside a WARP default; **exits through other nodes of the fleet** (chains) and a client's **own lane** with its own policy | UDP (mita's UDP stays direct) |
 | MTProxy (Telemt), v1.1 | `mtproxy_native` — Telemt's upstream; **attached to the Xray-router** — `xray_router` | on its own — direct only; on the router — the whole service direct, through WARP, your own exit or **another node of the fleet** (a chain), rules by CIDR, `geoip:` and port | rules by domain, `geosite:` and protocol (Telemt reaches Telegram's data centres by IP and no sniffer names MTProto) — `rule_kind_unsupported`; client lanes; UDP |
 
 Private destinations — loopback, link-local, RFC 1918, CGNAT and their IPv6
@@ -46,16 +46,16 @@ default_action   direct | egress          default_egress  an exit (with egress):
 fallback         fail_closed | approved_direct
 rules[]          enabled, action: direct | block | egress, egress: an exit (with egress),
                  match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32,
-                         protocols[] ≤ 4 (v0.8: http | tls | quic | bittorrent — what the sniffer saw)},
-                 note ≤ 120, preset (v0.8: the quick setting's mark, cleared once edited)
-backend          naive_native | mieru_native | xray_router (v0.5; the target's current one)
-lane             svc (the service's policy) | grant:<id> (v0.7: a grant's own lane, xray_router only)
+                         protocols[] ≤ 4 (http | tls | quic | bittorrent — what the sniffer saw)},
+                 note ≤ 120, preset (the quick setting's mark, cleared once edited)
+backend          naive_native | mieru_native | xray_router (the target's current one)
+lane             svc (the service's policy) | grant:<id> (a grant's own lane, xray_router only)
 ```
 
 - domains are lower-cased IDNA; `*.example.com` means «any subdomain», `example.com`
   the host itself (on Mieru both are the suffix `example.com`); CIDRs are normalised
   (`10.1.2.3` → `10.1.2.3/32`); a rule needs at least one selector; `geosites` and
-  `geoips` (v0.5) are Xray geodata codes (`category-ads-all`, `cn`, `cloudflare`, …;
+  `geoips` are Xray geodata codes (`category-ads-all`, `cn`, `cloudflare`, …;
   `geoip:private` is never accepted — the router blocks it by itself) and `ports`
   (`443`, `1000-2000`) are enforced only by the `xray_router` backend; on a native
   backend they preview as `rule_kind_unsupported`;
@@ -68,7 +68,7 @@ lane             svc (the service's policy) | grant:<id> (v0.7: a grant's own la
   when somebody saved in between); `applied_revision`/`applied_digest` say what the node
   runs — `state = applied` **and** `applied_revision = revision` is «applied», otherwise
   the card says «есть неприменённые изменения»;
-- `matches_node` (v0.9, `GET /api/routing/targets` only) — whether the node runs right now
+- `matches_node` (`GET /api/routing/targets` only) — whether the node runs right now
   exactly what the policy compiles to (the preview's diff is empty), whether or not the panel
   ever applied it: `true` on a draft means «the node already works this way» (say, a WARP
   `upstream` written into the Caddyfile by hand before policies existed) — «Apply» takes the
@@ -92,25 +92,25 @@ reasons:
 | --- | --- |
 | `backend_capability_missing` | the node's manager does not declare the capability this rule needs (e.g. `selective_domain` on NaiveProxy), or the policy is native while the service is attached to the router |
 | `rule_kind_unsupported` | a native backend cannot enforce this (block by port, `geosite`, `geoip`; a block beside a WARP default on NaiveProxy) — the reason names the router |
-| `router_unavailable` | the policy is for the router, but the node runs none or it does not answer (v0.5) |
-| `not_attached` | the policy is for the router, but the service is not attached to it — attach first (v0.5) |
-| `node_lacks_router` | a linked panel without `egress.router.v1`: update it to v0.5 and install the router (v0.5) |
-| `artifact_mismatch` | the router refuses to run: its binary or geodata do not match the pinned release (v0.5, 503) |
-| `geosite_unknown` / `geoip_unknown` | Xray does not know that geodata code (v0.5, from the router's own test run) |
+| `router_unavailable` | the policy is for the router, but the node runs none or it does not answer |
+| `not_attached` | the policy is for the router, but the service is not attached to it — attach first |
+| `node_lacks_router` | a linked panel without `egress.router.v1`: update it and install the router |
+| `artifact_mismatch` | the router refuses to run: its binary or geodata do not match the pinned release (503) |
+| `geosite_unknown` / `geoip_unknown` | Xray does not know that geodata code (from the router's own test run) |
 | `private_destination` | a `direct`/`egress` rule names loopback or a private network |
 | `provider_unavailable` | the node has no WARP configured (`NAIVE_EGRESS_WARP` / `MIERU_EGRESS_WARP` empty) |
 | `provider_unreachable` | WARP is configured but does not answer; `fallback = approved_direct` turns this into a warning |
 | `protocol_disabled_on_node` | the service is not enabled on that node |
-| `node_lacks_egress_v1` | a linked panel older than v0.4 |
+| `node_lacks_egress_v1` | a linked panel without `egress.v1`: update it |
 | `protocol_out_of_scope` | a client lane for a protocol that has none (MTProxy) |
 | `document_too_large` | over 16 KiB |
 | `manager_unavailable` | the local manager did not answer |
-| `lane_requires_router` / `lane_not_attached` | a grant lane's policy while the node has no Xray-router or the service is not attached to it (v0.7) |
-| `node_unknown` / `node_lacks_relay` / `relay_disabled` | an exit `node:<guid>` names a node not in the fleet, one without a relay (update it to v0.7 and enable the relay) or one whose relay is off (v0.7) |
-| `relay_credential_pending` | the exit node has not confirmed the relay account the central issued on apply — retry after a heartbeat (v0.7) |
-| `relay_no_warp` | the chain ends in «the exit node's WARP» and that node has none (v0.7) |
-| `chain_loop` | the chain passes through this very node (v0.7) |
-| `node_lacks_lanes` | a linked panel without `egress.lanes.v1`: update it to v0.7 (v0.7) |
+| `lane_requires_router` / `lane_not_attached` | a grant lane's policy while the node has no Xray-router or the service is not attached to it |
+| `node_unknown` / `node_lacks_relay` / `relay_disabled` | an exit `node:<guid>` names a node not in the fleet, one without a relay (update it and enable the relay) or one whose relay is off |
+| `relay_credential_pending` | the exit node has not confirmed the relay account the central issued on apply — retry after a heartbeat |
+| `relay_no_warp` | the chain ends in «the exit node's WARP» and that node has none |
+| `chain_loop` | the chain passes through this very node |
+| `node_lacks_lanes` | a linked panel without `egress.lanes.v1`: update it |
 | `router_lacks_mtproxy` | the node's Xray-router manager predates v1.1: rebuild `xray-router` and start `xray-router-ingress` (v1.1) |
 | `node_lacks_mtproxy_egress` | a linked panel without `egress.mtproxy.v1`: update it to v1.1 (v1.1) |
 | `ingress_unreachable` | the `xray-router-ingress` bridge did not take Telemt's login (v1.1) |
@@ -120,7 +120,7 @@ reasons:
 Warnings: `adopts_unmanaged_upstream` / `adopts_unmanaged_egress` (the node carries an
 `upstream` or an `egress` section somebody wrote by hand — the first apply moves it under
 the manager's ownership and keeps the original for a rollback), `policy_empty` (direct,
-no rules: what «reset» applies), `router_credential_stale` (v0.5: the ingress key on the
+no rules: what «reset» applies), `router_credential_stale` (the ingress key on the
 node was rotated while the manager was down; it re-renders its block at its next start).
 
 `POST …/apply` with `expected_revision`:
@@ -139,7 +139,7 @@ node was rotated while the manager was down; it re-renders its block at its next
   A router policy travels the same way with `backend: xray_router`; the node applies it
   through its router and reports the router's revision beside the native one.
 
-### Attach and detach (v0.5)
+### Attach and detach
 
 `POST /api/routing/targets/{node}/{protocol}/attach` hands a service to the node's
 Xray-router: the router first gets the service's section as pass-through (direct, no
@@ -193,18 +193,18 @@ Xray — the same router routes it.
 - A node updated to v1.1 without rebuilding its router keeps working for Naive and Mieru, and
   MTProxy shows `router_lacks_mtproxy`.
 
-## Chains and lanes (v0.7)
+## Chains and lanes
 
-From v0.7 a policy may let traffic out **through another node of the fleet**, and one client's
-grant may get **its own lane** with its own policy on the same node ([ADR 009](adr/009-lanes-and-chains.md),
-spec `superpowers/specs/2026-09-17-v0.7-chains-design.md`). Both exist only on a service attached
+A policy may let traffic out **through another node of the fleet**, and one client's
+grant may get **its own lane** with its own policy on the same node ([ADR 009](adr/009-lanes-and-chains.md)).
+Both exist only on a service attached
 to the node's Xray-router: the native backends know neither chains nor lanes.
 
 An **exit** (`default_egress` and a rule's `egress`) is one of:
 
 | Exit | Meaning |
 | --- | --- |
-| `warp` | this node's WARP (as in v0.4–v0.6) |
+| `warp` | this node's WARP |
 | `node:<guid>` | through the relay of node `<guid>`, then direct from it |
 | `node:<guid>:warp` | through the node's relay, then through **its** WARP |
 | `node:<a>,<b>[,<c>][:warp]` | a chain of up to three hops: this node → relay `a` → relay `b` → … → the last hop's exit |
@@ -233,11 +233,11 @@ heartbeat. The compiler puts **chains** into the router's intent: per hop the ad
 panel domain), the relay port, `serverName`, the public key, the `shortId` and the account's
 UUID; middle hops carry the `direct` account, the last one the account of its exit. The API
 (`preview`, `apply`, history) masks hop UUIDs (`***`); the panel's database keeps the compiled
-document as is — like any router intent on a node (a deliberate v0.7 limit, see ADR 009).
+document as is — like any router intent on a node (a deliberate limit, see ADR 009).
 
 A **lane** is a SOCKS account on the router's existing ingress behind which a group of users'
 traffic follows its own policy. `svc:<protocol>` is the service's lane (the installer's ingress
-account, the service's policy as before); `grant:<id>` a single grant's. It is switched on with
+account and the service's policy); `grant:<id>` a single grant's. It is switched on with
 `POST /api/routing/lanes/{grant_id}` `{"mode": "own"}` (owner; `{"mode": "service"}` brings it
 back): the node's router mints the lane's key and puts it on the ingress at once (shown to the
 service's manager once, stored by the panel never), and the manager moves the user:
@@ -250,7 +250,7 @@ service's manager once, stored by the panel never), and the manager moves the us
   mirrors the lane's users from the main daemon and exits through the lane's account; such a
   grant's link and subscription carry the **slot's port** (the client needs a new link; the
   subscription updates itself), back with the service the main port again. A lane user is still
-  accepted on the main port (then their traffic follows the service's policy) — a v0.7 limit.
+  accepted on the main port (then their traffic follows the service's policy) — a known limit.
 
 A lane's policy is its own record `(node, protocol, lane)`: `?lane=grant:<id>` on
 `GET | PUT | DELETE /api/routing/policies/{node}/{protocol}` and on `preview | apply | rollback |
@@ -272,7 +272,7 @@ node's own `relay`. On the «Маршрутизация» screen these are the �
 line, the lane tabs, the «Куда» column of the rules and «Куда пойдёт…»; on «Клиенты» a grant
 shows «маршрут: как у сервиса / своя полоса».
 
-## Custom exits, quick settings and geodata (v0.8)
+## Custom exits, quick settings and geodata
 
 What 3x-ui calls an outbound is a node's **custom exit** here: a server the node's Xray-router
 leaves through — somebody's VPN, your own proxy, a second host. An exit belongs to one node (it
@@ -295,7 +295,7 @@ POST   /api/routing/exits/{id}/enable | disable | delete    delete — 409 exit_
 ```
 
 The compiler answers `exit_unknown`, `exit_other_node`, `exit_disabled`, `exit_secret_pending`,
-`backend_capability_missing` (a node's router without `custom_exits` — before v0.8); on a linked
+`backend_capability_missing` (a node's router does not declare `custom_exits`); on a linked
 panel the probe runs through `POST /api/fleet/v2/exits/test` of its Fleet API (the credential
 travels the channel the generations use). Audit: `routing.exit.create | import | update | enable
 | disable | delete | test`, on the node `fleet.exit.test` — never a secret, never a link.
@@ -323,7 +323,7 @@ the automatic refresh: `GET /api/routing/geodata?node=`, `GET …/geodata/codes`
 `POST …/geodata/update | restore`; on a linked panel through `/api/fleet/v2/geodata*`. Audit
 `routing.geodata.settings | update | restore`, on the node `fleet.geodata.*`.
 
-The «Маршрутизация» screen (v0.8): rules as a «what / where / note» table with a rule modal and
+The «Маршрутизация» screen: rules as a «what / where / note» table with a rule modal and
 drag-and-drop; the quick settings above it; on the node's card — «Свои выходы» (a form per
 protocol or a share-link import, a test, on/off) and the Geodata block.
 
@@ -358,7 +358,7 @@ provider that does not answer a TCP connect and a SOCKS5 greeting (`egress_unrea
 The WARP endpoint itself refuses loopback and RFC 1918 destinations (Cloudflare's proxy
 mode does), which is one more reason the compiler refuses to open them.
 
-- **The Xray-router** (v0.5) owns only its own generations under `/var/lib/xray-router`:
+- **The Xray-router** owns only its own generations under `/var/lib/xray-router`:
   one Xray configuration rendered from the two services' typed intents, tested with
   `xray run -test`, swapped, read back and committed; the previous generation stays for
   a rollback. Its second provider is the same host WARP (`XRAY_ROUTER_EGRESS_WARP`), and
@@ -390,7 +390,7 @@ and every WARP policy previews as `provider_unavailable`.
   heartbeat do not pass through `forward_proxy` or mita's egress.
 - Owner for every mutation; any role may read and preview. Audit:
   `routing.policy.update | apply | rollback | delete`, `routing.target.attach | detach`,
-  from v0.7 `grant.lane.enable | disable`, `routing.relay.enable | rotate`
+  `grant.lane.enable | disable`, `routing.relay.enable | rotate`
   ([AUDIT_EVENTS](AUDIT_EVENTS.md)).
 - Lane keys and relay account UUIDs are secrets: they live with the managers (0600) and in
   the central's escrow, masked in the API, diffs, audit and reports; the relay accepts only
@@ -415,7 +415,7 @@ the router scenarios router-01…14 (`--router`): attach, whole-WARP and a block
 it through the router, port/geosite/geoip rules, the ingress refusing a missing or a
 cross-service credential, rollback with Caddy untouched, the watchdog after a SIGKILL,
 fail-closed without the provider, key rotation, detach and the untouched host;
-`remote-gate.sh chains` (v0.7, `--chains`) starts a second node on the stand from the tree
+`remote-gate.sh chains` (`--chains`) starts a second node on the stand from the tree
 (a router with its own stub-WARP and a panel over TLS), links it, enables its relay through a
 generation, gives the probe grant its own lane with the chain «→ node B → WARP B» and a
 `geoip:cloudflare → direct` rule, proves the traffic with both stubs, the Mieru slot, account

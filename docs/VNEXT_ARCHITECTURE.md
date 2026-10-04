@@ -1,13 +1,13 @@
-# vNext architecture (v0.2 and v0.3)
+# vNext architecture
 
-This document is the architectural record for the v0.2 line: a local control
+This document is the architectural record of the vNext control plane: a local control
 plane with a reserved local node identity, a `Client`/`AccessGrant` domain model,
 encrypted secret storage and a stable, revocable subscription URL. Decisions are
-recorded one per file in [ADR 001–007](#decision-records); this page is the map
-between them. The v0.2 text below is kept as written; the section [v0.3 — Fleet
-v2](#v03--fleet-v2) records what the next release added on top of it.
+recorded one per file in [ADR 001–009](#decision-records); this page is the map
+between them. The section [Fleet v2](#fleet-v2) describes the fleet of linked panels
+built on top of it.
 
-## Goal of v0.2
+## Goal
 
 Turn "a panel that calls three protocol managers" into a control plane that owns
 subscribers:
@@ -19,12 +19,12 @@ subscribers:
   or audit;
 - every subscriber gets one stable URL that always renders the current set of
   grants, with `ETag`/`304` semantics and honest per-client compatibility;
-- Fleet v1 keeps working byte-for-byte. Fleet v2, routing and a dedicated Xray
-  router are later releases with their own gates.
+- Fleet v1 keeps working byte-for-byte. Fleet v2, routing and the dedicated Xray
+  router build on this model with their own gates.
 
 ## Target model
 
-The v0.2 entities, verbatim from the design document:
+The core entities:
 
 ```text
 Client
@@ -72,15 +72,14 @@ SecretVersion
   state: pending | active | retiring | revoked
 ```
 
-`DesiredGeneration`, `ObservedGeneration`, `RoutingPolicy`, `EgressProvider`,
-`EnforcementBackend` and `CompiledRoutingGeneration` belong to v0.3–v0.5 and are
-described in the design document; v0.2 does not implement them (v0.3 implements the
-first two — see below).
+`DesiredGeneration` and `ObservedGeneration` belong to Fleet v2 (see below); routing
+policies, egress providers and enforcement backends are described in
+[ROUTING](ROUTING.en.md), [XRAY_ROUTER](XRAY_ROUTER.en.md) and ADR 006–007.
 
 Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
 `drifted`, `tombstoned` (see ADR 003).
 
-## What does not change in v0.2
+## What does not change
 
 - **Fleet v1 is frozen and byte-compatible**: the `OPERATIONS` set, the
   `TypedCommand` shape, sequence/outbox semantics, mTLS enrollment and the
@@ -138,17 +137,16 @@ with a reason — never as a plausible-looking link.
 The public endpoint lives on its own domain (`PANEL_SUBSCRIPTION_HOST`), not on
 the panel domain, and that vhost logs no access lines.
 
-## v0.3 — Fleet v2
+## Fleet v2
 
-v0.3 turns the v0.2 control plane into a fleet: one panel (the central) manages other
+Fleet v2 turns the control plane into a fleet: one panel (the central) manages other
 panels (the nodes) over their own HTTPS panel domains with scoped Bearer API keys. The
 decision is [ADR 008](adr/008-panel-to-panel-transport.md), which supersedes the
 transport direction of ADR 001 (pull-only mTLS) while keeping its typed-payload rule and
 applying ADR 002 (immutable generations) and ADR 003 (one writer per resource) unchanged.
-Design: `superpowers/specs/2026-09-11-v0.3-central-panel-design.md`; operator
-documentation: [FLEET.en.md](../FLEET.en.md).
+Operator documentation: [FLEET.en.md](../FLEET.en.md).
 
-What v0.3 adds, and what it deliberately does not:
+What it adds, and what it deliberately does not:
 
 - Enrollment is three UI actions (a `node-sync` key on the node, «Добавить панель» on the
   central, import); nothing is installed on a host beyond the panel image.
@@ -160,12 +158,12 @@ What v0.3 adds, and what it deliberately does not:
 - Ownership on the node follows ADR 003: `central` vs `local` runtime users, adoption
   only for explicitly imported users, collisions reported `failed`, orphans deleted,
   local users never touched.
-- Fleet v1 stays frozen and byte-compatible; routing shipped in v0.4 as capability-limited
-  native egress policies (`docs/ROUTING.en.md`, ADR 006 accepted, ADR 007 for the native
-  backends) and in v0.5 with the optional dedicated Xray-router (`docs/XRAY_ROUTER.en.md`,
-  ADR 007 accepted for the router: a separate pinned runtime with its own generations,
-  authenticated per-service ingresses, attach/detach as explicit actions, `companion`
-  documents in a generation). There are no transitive nodes, no metric history, no
+- Fleet v1 stays frozen and byte-compatible; routing is capability-limited native egress
+  policies (`docs/ROUTING.en.md`, ADR 006, ADR 007 for the native backends) plus the
+  optional dedicated Xray-router (`docs/XRAY_ROUTER.en.md`, ADR 007 for the router: a
+  separate pinned runtime with its own generations, authenticated per-service ingresses,
+  attach/detach as explicit actions, `companion` documents in a generation). There are
+  no transitive nodes, no metric history, no
   panel-to-panel mTLS, no 3x-ui bridge and no canary rollouts.
 
 Components (all under `panel/` unless stated):
@@ -202,10 +200,9 @@ Components (all under `panel/` unless stated):
 - GitHub Actions no longer gates: it rebuilds the release twice, verifies the
   bytes match the archive that passed `ams-test` (`expected_sha256`), attests
   provenance and publishes after a human approval.
-- Tags: `v0.2.0-alpha.1` → `v0.2.0-beta.1` → `v0.2.0`; the workflow accepts
-  pre-release suffixes. v0.3 follows the same train: `v0.3.0-beta.1` → `v0.3.0`; its
-  gate gains a `fleet` lab tier (two panels on the lab host) before the tag, tracked in
-  `releases/v0.3.0-beta.1.md`.
+- Tags are `vX.Y.Z`; the workflow accepts pre-release suffixes (`vX.Y.Z-<suffix>`) and
+  publishes them as pre-releases. The gate includes a `fleet` lab tier (two panels on the
+  lab host) before the tag.
 - Graphify is rerun after each architecture-scale change and before final review.
 
 ## Decision records
@@ -217,7 +214,8 @@ Components (all under `panel/` unless stated):
 - [ADR 005 — Secrets travel as references](adr/005-secret-references.md)
 - [ADR 006 — Engine-neutral routing policy IR](adr/006-routing-policy-ir.md)
 - [ADR 007 — Routing enforcement ownership](adr/007-routing-enforcement-ownership.md)
-- [ADR 008 — Panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md) (v0.3)
+- [ADR 008 — Panel-to-panel transport with scoped API keys](adr/008-panel-to-panel-transport.md)
+- [ADR 009 — Lanes per client and chains through the fleet's relays](adr/009-lanes-and-chains.md)
 
 See also the [capability matrix](VNEXT_CAPABILITIES.md) (machine-readable source:
 `tests/fixtures/vnext-capabilities.json`), [compatibility

@@ -41,7 +41,7 @@ but not demonstrated on the lab host, **n/a** = `out_of_scope` for that row.
 | `binary_hot_upgrade` | n/a | no | no | no |
 | `exact_geodata_version` | n/a | n/a | n/a | n/a |
 
-The cells that shape v0.2 most:
+The cells that shape the control plane most:
 
 - **`credential_capture_without_rotation`.** MTProxy keeps `links.tls` in
   `list_users`, and the Naive manager keeps the password in its own state, so an
@@ -54,9 +54,9 @@ The cells that shape v0.2 most:
   invented.
 - **`expiry` is `no` everywhere.** No protocol has a validity window;
   `AccessGrant.valid_until` is a control-plane concept enforced by disabling.
-- **`rollback` is `no` everywhere.** There is no generation history in v0.2
-  (ADR 002 lands with Fleet v2).
-- **Routing (v0.4).** `domain_routing` and `cidr_routing` are `supported` on both
+- **`rollback` is `no` everywhere.** A protocol keeps no history of its users to
+  return to; immutable generations (ADR 002) belong to Fleet v2.
+- **Routing.** `domain_routing` and `cidr_routing` are `supported` on both
   native backends within what the spike proved (`spikes/VNEXT_ROUTING_ENGINE.md`):
   NaiveProxy blocks by domain and CIDR beside a direct default and has no
   selective rule (one upstream per service; forwardproxy skips its ACL when an
@@ -64,7 +64,7 @@ The cells that shape v0.2 most:
   CIDR, applied by a restart of mita. `per_client_routing` stays `unproven`; MTProxy
   was outside routing scope until v1.1 and now routes only through the Xray-router
   (ADR 006, amended) — [ROUTING](ROUTING.en.md).
-- **The Xray-router (v0.5).** A service attached to the node's dedicated router
+- **The Xray-router.** A service attached to the node's dedicated router
   gets `domain_routing`, `cidr_routing`, `geosite_routing`, `geoip_routing` and
   `port_routing` as `supported` for `direct`, `block` and `egress: warp`, in order and
   beside a WARP default, within what `spikes/XRAY_EGRESS_ROUTER.md` proved (Xray-core

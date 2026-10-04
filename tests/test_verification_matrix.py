@@ -1,5 +1,5 @@
 """The verification matrix (v0.6): every function promised in v0.2–v0.5 names the proof
-that it works — a test, a lab scenario, a browser scenario or a live check — and the
+that it works — a test, a lab scenario or a browser scenario — and the
 guard keeps the names honest: a proof that does not exist in the tree is a lie, a route
 or a screen without a row is a hole, and the rendered document is the fixture, not prose."""
 from __future__ import annotations

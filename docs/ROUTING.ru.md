@@ -1,10 +1,10 @@
-# Маршрутизация Proxy Control (v0.4–v1.1): куда сервис выпускает трафик клиентов
+# Маршрутизация Proxy Control: куда сервис выпускает трафик клиентов
 
 [English](ROUTING.en.md) · **Русский**
 
 ## Обзор
 
-С v0.4 оператор задаёт для каждого узла и каждого прокси-сервиса **политику egress**:
+Оператор задаёт для каждого узла и каждого прокси-сервиса **политику egress**:
 весь сервис идёт **напрямую** или **через WARP хоста**, а упорядоченные first-match
 **правила** блокируют назначения или (где backend умеет) отправляют часть из них иначе.
 Политика нейтральна к движку ([ADR 006](adr/006-routing-policy-ir.md)): в ней домены,
@@ -13,7 +13,7 @@
 показывает результат и каждое ограничение как **предпросмотр** и применяет
 **транзакционно** через менеджер сервиса, с откатом.
 
-С v0.5 на узле может работать выделенный **Xray-router** ([XRAY_ROUTER](XRAY_ROUTER.ru.md)): сервис,
+На узле может работать выделенный **Xray-router** ([XRAY_ROUTER](XRAY_ROUTER.ru.md)): сервис,
 который оператор к нему **подключил**, отправляет весь трафик через приватный ingress роутера, и
 его политику применяет уже Xray — с селекторами `geosite`, `geoip` и портами и с блокировкой
 **рядом** с WARP по умолчанию, чего нативные backend'ы не умеют. Подключение — явное действие,
@@ -28,7 +28,7 @@
 | --- | --- | --- | --- |
 | NaiveProxy | `naive_native` — Caddy forwardproxy `upstream` + `acl` | весь сервис напрямую или через WARP; блокировка по домену (`example.com`, `*.example.com`) и по CIDR | выборочные правила `direct`/`egress` (один upstream на сервис); блокировку **рядом** с WARP по умолчанию — forwardproxy не применяет ACL при заданном upstream; блокировку по порту, geosite, geoip |
 | Mieru | `mieru_native` — mita `egress` | весь сервис напрямую или через WARP; блокировку по домену и по CIDR; выборочные `direct`/`egress` по домену и по CIDR, по порядку | блокировку по порту, geosite, geoip; `*.example.com` и `example.com` — один селектор (mita матчит суффикс домена) |
-| NaiveProxy или Mieru, **подключённые к Xray-router** (v0.5) | `xray_router` — правила `routing` Xray по ingress | весь сервис напрямую или через WARP; правила `block`, `direct` и `egress` по домену, `geosite:`, CIDR, `geoip:` и порту, по порядку, любое из них рядом с WARP по умолчанию; с v0.7 — **выходы через другие узлы парка** (цепи) и **своя полоса** у отдельного доступа со своей политикой | UDP (UDP mita остаётся напрямую) |
+| NaiveProxy или Mieru, **подключённые к Xray-router** | `xray_router` — правила `routing` Xray по ingress | весь сервис напрямую или через WARP; правила `block`, `direct` и `egress` по домену, `geosite:`, CIDR, `geoip:` и порту, по порядку, любое из них рядом с WARP по умолчанию; **выходы через другие узлы парка** (цепи) и **своя полоса** у отдельного доступа со своей политикой | UDP (UDP mita остаётся напрямую) |
 | MTProxy (Telemt), v1.1 | `mtproxy_native` — upstream Telemt; **подключённый к Xray-router** — `xray_router` | сам — только напрямую; на роутере — весь сервис напрямую, через WARP, свой выход или **другой узел парка** (цепь), правила по CIDR, `geoip:` и порту | правила по домену, `geosite:` и протоколу (Telemt ходит к DC Telegram по IP, MTProto сниффер не распознаёт) — `rule_kind_unsupported`; свои полосы клиентов; UDP |
 
 Приватные назначения — loopback, link-local, RFC 1918, CGNAT и их IPv6-аналоги, плюс
@@ -46,16 +46,16 @@ default_action   direct | egress          default_egress  выход (при egr
 fallback         fail_closed | approved_direct
 rules[]          enabled, action: direct | block | egress, egress: выход (при egress),
                  match: {domains[] ≤ 64, geosites[] ≤ 64, cidrs[] ≤ 64, geoips[] ≤ 64, ports[] ≤ 32,
-                         protocols[] ≤ 4 (v0.8: http | tls | quic | bittorrent — что увидел сниффер)},
-                 note ≤ 120, preset (v0.8: метка быстрой настройки, снимается при правке)
-backend          naive_native | mieru_native | xray_router (v0.5; текущий backend цели)
-lane             svc (политика сервиса) | grant:<id> (v0.7: своя полоса доступа, только xray_router)
+                         protocols[] ≤ 4 (http | tls | quic | bittorrent — что увидел сниффер)},
+                 note ≤ 120, preset (метка быстрой настройки, снимается при правке)
+backend          naive_native | mieru_native | xray_router (текущий backend цели)
+lane             svc (политика сервиса) | grant:<id> (своя полоса доступа, только xray_router)
 ```
 
 - домены приводятся к нижнему регистру IDNA; `*.example.com` — «любой поддомен»,
   `example.com` — сам хост (у Mieru оба — суффикс `example.com`); CIDR нормализуются
   (`10.1.2.3` → `10.1.2.3/32`); правилу нужен хотя бы один селектор; `geosites` и `geoips`
-  (v0.5) — коды geodata Xray (`category-ads-all`, `cn`, `cloudflare`, …; `geoip:private`
+  — коды geodata Xray (`category-ads-all`, `cn`, `cloudflare`, …; `geoip:private`
   не принимается никогда — роутер блокирует его сам), а `ports` (`443`, `1000-2000`)
   применяет только backend `xray_router`; на нативном backend'е они дают в предпросмотре
   `rule_kind_unsupported`;
@@ -68,7 +68,7 @@ lane             svc (политика сервиса) | grant:<id> (v0.7: св�
   `policy_conflict`, если кто-то сохранил параллельно); `applied_revision`/`applied_digest`
   говорят, что стоит на узле — `state = applied` **и** `applied_revision = revision` —
   «применено», иначе карточка показывает «есть неприменённые изменения»;
-- `matches_node` (v0.9, только в `GET /api/routing/targets`) — работает ли узел сейчас ровно так, как
+- `matches_node` (только в `GET /api/routing/targets`) — работает ли узел сейчас ровно так, как
   компилируется политика (дифф предпросмотра пуст), независимо от того, применяла ли её панель: `true` у
   черновика значит «узел уже так работает» (например, `upstream` WARP, вписанный в Caddyfile вручную до
   появления политик) — «Применить» заберёт настройку в управляемый блок и даст откат; `false` у применённой
@@ -91,25 +91,25 @@ lane             svc (политика сервиса) | grant:<id> (v0.7: св�
 | --- | --- |
 | `backend_capability_missing` | менеджер узла не объявляет возможность, нужную правилу (например, `selective_domain` у NaiveProxy), или политика нативная, а сервис подключён к роутеру |
 | `rule_kind_unsupported` | нативный backend этого не применяет (блокировка по порту, `geosite`, `geoip`; блокировка рядом с WARP по умолчанию у NaiveProxy) — причина называет роутер |
-| `router_unavailable` | политика для роутера, но на узле его нет или он не отвечает (v0.5) |
-| `not_attached` | политика для роутера, но сервис к нему не подключён — сначала «Подключить» (v0.5) |
-| `node_lacks_router` | связанная панель без `egress.router.v1`: обновите её до v0.5 и поставьте роутер (v0.5) |
-| `artifact_mismatch` | роутер отказывается работать: бинарь или geodata не совпадают с закреплённым релизом (v0.5, 503) |
-| `geosite_unknown` / `geoip_unknown` | Xray не знает такого кода geodata (v0.5, из собственного тестового запуска роутера) |
+| `router_unavailable` | политика для роутера, но на узле его нет или он не отвечает |
+| `not_attached` | политика для роутера, но сервис к нему не подключён — сначала «Подключить» |
+| `node_lacks_router` | связанная панель без `egress.router.v1`: обновите её и поставьте роутер |
+| `artifact_mismatch` | роутер отказывается работать: бинарь или geodata не совпадают с закреплённым релизом (503) |
+| `geosite_unknown` / `geoip_unknown` | Xray не знает такого кода geodata (из собственного тестового запуска роутера) |
 | `private_destination` | правило `direct`/`egress` называет loopback или приватную сеть |
 | `provider_unavailable` | на узле не настроен WARP (`NAIVE_EGRESS_WARP` / `MIERU_EGRESS_WARP` пусты) |
 | `provider_unreachable` | WARP настроен, но не отвечает; `fallback = approved_direct` превращает это в предупреждение |
 | `protocol_disabled_on_node` | сервис на узле выключен |
-| `node_lacks_egress_v1` | связанная панель старше v0.4 |
+| `node_lacks_egress_v1` | связанная панель без `egress.v1`: обновите её |
 | `protocol_out_of_scope` | полоса доступа для протокола, у которого полос нет (MTProxy) |
 | `document_too_large` | больше 16 КиБ |
 | `manager_unavailable` | локальный менеджер не ответил |
-| `lane_requires_router` / `lane_not_attached` | политика полосы доступа, а на узле нет Xray-router или сервис к нему не подключён (v0.7) |
-| `node_unknown` / `node_lacks_relay` / `relay_disabled` | выход `node:<guid>` называет узел, которого нет в парке, у которого нет relay (обновите до v0.7 и включите relay) или relay выключен (v0.7) |
-| `relay_credential_pending` | узел-выход ещё не подтвердил учётку relay, которую центр выдал при apply — повторите после heartbeat (v0.7) |
-| `relay_no_warp` | цепь заканчивается «WARP узла-выхода», а у него нет WARP (v0.7) |
-| `chain_loop` | цепь проходит через этот же узел (v0.7) |
-| `node_lacks_lanes` | связанная панель без `egress.lanes.v1`: обновите её до v0.7 (v0.7) |
+| `lane_requires_router` / `lane_not_attached` | политика полосы доступа, а на узле нет Xray-router или сервис к нему не подключён |
+| `node_unknown` / `node_lacks_relay` / `relay_disabled` | выход `node:<guid>` называет узел, которого нет в парке, у которого нет relay (обновите его и включите relay) или relay выключен |
+| `relay_credential_pending` | узел-выход ещё не подтвердил учётку relay, которую центр выдал при apply — повторите после heartbeat |
+| `relay_no_warp` | цепь заканчивается «WARP узла-выхода», а у него нет WARP |
+| `chain_loop` | цепь проходит через этот же узел |
+| `node_lacks_lanes` | связанная панель без `egress.lanes.v1`: обновите её |
 | `router_lacks_mtproxy` | менеджер Xray-router узла старше v1.1: пересоберите `xray-router` и запустите `xray-router-ingress` (v1.1) |
 | `node_lacks_mtproxy_egress` | связанная панель без `egress.mtproxy.v1`: обновите её до v1.1 (v1.1) |
 | `ingress_unreachable` | мост `xray-router-ingress` не принял логин Telemt (v1.1) |
@@ -119,7 +119,7 @@ lane             svc (политика сервиса) | grant:<id> (v0.7: св�
 Предупреждения: `adopts_unmanaged_upstream` / `adopts_unmanaged_egress` (на узле есть
 `upstream` или секция `egress`, написанные вручную — первое применение переносит их под
 владение менеджера и сохраняет оригинал для отката), `policy_empty` (напрямую, без правил —
-то, что применяет «Сбросить»), `router_credential_stale` (v0.5: ключ ingress на узле
+то, что применяет «Сбросить»), `router_credential_stale` (ключ ingress на узле
 ротировали, пока менеджер лежал; он перерисует свой блок при следующем старте).
 
 `POST …/apply` с `expected_revision`:
@@ -138,7 +138,7 @@ lane             svc (политика сервиса) | grant:<id> (v0.7: св�
   Политика роутера едет тем же путём с `backend: xray_router`; узел применяет её через свой
   роутер и отчитывается ревизией роутера рядом с нативной.
 
-### Подключение и отключение (v0.5)
+### Подключение и отключение
 
 `POST /api/routing/targets/{node}/{protocol}/attach` отдаёт сервис Xray-router узла: сначала
 роутер получает секцию сервиса как pass-through (напрямую, без правил), затем блок нативного
@@ -189,18 +189,18 @@ Telemt SOCKS5 с логином на `xray-router-ingress:45103` и переда
 - Узел, обновлённый до v1.1 без пересборки роутера, продолжает работать для Naive и Mieru, а
   MTProxy показывает `router_lacks_mtproxy`.
 
-## Цепи и полосы (v0.7)
+## Цепи и полосы
 
-С v0.7 политика может выпускать трафик **через другой узел парка**, а отдельный доступ клиента —
-получить **свою полосу** со своей политикой на том же узле ([ADR 009](adr/009-lanes-and-chains.md),
-спека `superpowers/specs/2026-09-17-v0.7-chains-design.md`). Всё это работает только на сервисе,
+Политика может выпускать трафик **через другой узел парка**, а отдельный доступ клиента —
+получить **свою полосу** со своей политикой на том же узле ([ADR 009](adr/009-lanes-and-chains.md)).
+Всё это работает только на сервисе,
 подключённом к Xray-router узла: нативные backend'ы не умеют ни цепей, ни полос.
 
 **Выход** (`default_egress` и `egress` правила) — одно из:
 
 | Выход | Значение |
 | --- | --- |
-| `warp` | WARP этого узла (как в v0.4–v0.6) |
+| `warp` | WARP этого узла |
 | `node:<guid>` | через relay узла `<guid>` и дальше напрямую с него |
 | `node:<guid>:warp` | через relay узла и дальше через **его** WARP |
 | `node:<a>,<b>[,<c>][:warp]` | цепь до трёх хопов: этот узел → relay `a` → relay `b` → … → выход последнего |
@@ -229,11 +229,11 @@ Telemt SOCKS5 с логином на `xray-router-ingress:45103` и переда
 узла), порт relay, `serverName`, публичный ключ, `shortId` и UUID учётки; средние хопы идут с
 учёткой `direct`, последний — с учёткой своего выхода. В API (`preview`, `apply`, история)
 UUID хопов маскируются (`***`); в базе панели скомпилированный документ хранится как есть —
-как и любой intent роутера на узле (это осознанное ограничение v0.7, см. ADR 009).
+как и любой intent роутера на узле (это осознанное ограничение, см. ADR 009).
 
 **Полоса** — учётка SOCKS на существующем ingress роутера, за которой трафик группы
 пользователей идёт по своей политике. `svc:<protocol>` — полоса сервиса (учётка ingress
-установщика, политика сервиса, как раньше); `grant:<id>` — полоса одного доступа. Включается
+установщика и политика сервиса); `grant:<id>` — полоса одного доступа. Включается
 `POST /api/routing/lanes/{grant_id}` `{"mode": "own"}` (owner; `{"mode": "service"}` —
 обратно): роутер узла выпускает ключ полосы и сразу кладёт его на ingress (ключ показывается
 менеджеру сервиса один раз и нигде не хранится панелью), менеджер переносит пользователя:
@@ -247,7 +247,7 @@ UUID хопов маскируются (`***`); в базе панели ско�
   подписка такого доступа получают **порт слота** (клиенту нужна новая ссылка; подписка
   обновляется сама), при возврате в сервис — снова основной порт. Пользователь полосы
   по-прежнему принимается и на основном порту (тогда его трафик идёт по политике сервиса) —
-  ограничение v0.7.
+  известное ограничение.
 
 Политика полосы — отдельная запись `(узел, протокол, lane)`: `?lane=grant:<id>` у
 `GET | PUT | DELETE /api/routing/policies/{node}/{protocol}` и у `preview | apply | rollback |
@@ -269,7 +269,7 @@ uncertain[]}` — `uncertain` перечисляет правила `geosite`/`g
 колонка «Куда» у правил и «Куда пойдёт…»; на «Клиентах» у доступа — «маршрут: как у сервиса /
 своя полоса».
 
-## Свои выходы, быстрые настройки и geodata (v0.8)
+## Свои выходы, быстрые настройки и geodata
 
 Что в 3x-ui называется «аутбаунд», здесь — **свой выход** узла: сервер, через который Xray-router
 узла выпускает трафик, — чужой VPN, свой прокси, второй хостер. Выход принадлежит одному узлу
@@ -292,7 +292,7 @@ POST   /api/routing/exits/{id}/enable | disable | delete    delete — 409 exit_
 ```
 
 Компилятор отвечает `exit_unknown`, `exit_other_node`, `exit_disabled`, `exit_secret_pending`,
-`backend_capability_missing` (роутер узла без `custom_exits` — до v0.8); на связанной панели
+`backend_capability_missing` (роутер узла не объявляет `custom_exits`); на связанной панели
 проба идёт через `POST /api/fleet/v2/exits/test` её Fleet API (секрет едет тем же каналом, что и
 поколения). Аудит: `routing.exit.create | import | update | enable | disable | delete | test`,
 на узле — `fleet.exit.test` — без секретов и без ссылок.
@@ -320,7 +320,7 @@ IP → напрямую» (`cn`) и «Иранские домены и IP → н
 связанной панели — через `/api/fleet/v2/geodata*`. Аудит `routing.geodata.settings | update |
 restore`, на узле `fleet.geodata.*`.
 
-Экран «Маршрутизация» (v0.8): правила — таблица «что / куда / заметка» с модалкой правила и
+Экран «Маршрутизация»: правила — таблица «что / куда / заметка» с модалкой правила и
 перетаскиванием; над ней быстрые настройки; на карточке узла — «Свои выходы» (форма по
 протоколу или импорт ссылки, проверка, вкл/выкл) и блок Geodata.
 
@@ -355,7 +355,7 @@ restore`, на узле `fleet.geodata.*`.
 отказывает loopback- и RFC 1918-назначениям (так делает proxy-режим Cloudflare) — ещё одна
 причина, по которой компилятор отказывается их открывать.
 
-- **Xray-router** (v0.5) владеет только своими поколениями в `/var/lib/xray-router`: одним
+- **Xray-router** владеет только своими поколениями в `/var/lib/xray-router`: одним
   конфигом Xray, отрендеренным из типизированных intent'ов обоих сервисов, проверенным
   `xray run -test`, подменённым, прочитанным обратно и закоммиченным; предыдущее поколение
   остаётся для отката. Его второй провайдер — тот же WARP хоста (`XRAY_ROUTER_EGRESS_WARP`), а
@@ -385,7 +385,7 @@ WARP-политика в предпросмотре — `provider_unavailable`.
   heartbeat не проходят через `forward_proxy` или egress mita.
 - Owner — для любых изменений; любая роль читает и делает предпросмотр. Аудит:
   `routing.policy.update | apply | rollback | delete`, `routing.target.attach | detach`,
-  с v0.7 — `grant.lane.enable | disable`, `routing.relay.enable | rotate`
+  `grant.lane.enable | disable`, `routing.relay.enable | rotate`
   ([AUDIT_EVENTS](AUDIT_EVENTS.md)).
 - Ключи полос и UUID учёток relay — секреты: живут у менеджеров (0600) и в эскроу центра,
   маскируются в API, diff, аудите и отчётах; relay принимает только известные UUID, Reality
@@ -407,7 +407,7 @@ fail-closed и нетронутые nginx и nftables; `remote-gate.sh router` �
 router-01…14 (`--router`): подключение, весь сервис через WARP и блокировка рядом через
 роутер, правила по порту/geosite/geoip, отказ ingress без ключа и с чужим ключом, откат при
 нетронутом Caddy, watchdog после SIGKILL, fail-closed без провайдера, ротация ключей,
-отключение и нетронутый хост; `remote-gate.sh chains` (v0.7, `--chains`) поднимает из дерева
+отключение и нетронутый хост; `remote-gate.sh chains` (`--chains`) поднимает из дерева
 второй узел на стенде (роутер со своим stub-WARP и панель по TLS), связывает его, включает его
 relay через поколение, даёт пробному доступу свою полосу с цепью «→ узел B → WARP B» и правилом
 `geoip:cloudflare → напрямую`, проверяет трафик обоими stub'ами, слот Mieru, ротацию учёток,

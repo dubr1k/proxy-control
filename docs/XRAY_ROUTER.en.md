@@ -1,14 +1,14 @@
-# The Xray-router (v0.5): one dedicated egress router per node
+# The Xray-router: one dedicated egress router per node
 
 **English** · [Русский](XRAY_ROUTER.ru.md)
 
 ## What it is
 
-Since v0.5 a node may run a dedicated **Xray** process whose only job is to let NaiveProxy
+A node may run a dedicated **Xray** process whose only job is to let NaiveProxy
 and Mieru traffic out according to the panel's routing policy ([ROUTING](ROUTING.en.md)).
 It is optional (`[egress] router = true` in the installer,
-[INSTALLER_REFERENCE](INSTALLER_REFERENCE.en.md)); a node without it works exactly as in
-v0.4. It is not 3x-ui's Xray and never touches it ([ADR 007](adr/007-routing-enforcement-ownership.md)):
+[INSTALLER_REFERENCE](INSTALLER_REFERENCE.en.md)); a node without it enforces policies
+through the services' native backends. It is not 3x-ui's Xray and never touches it ([ADR 007](adr/007-routing-enforcement-ownership.md)):
 its binary and geodata come from the pinned upstream archive, it runs in its own
 container under its own identity, and nothing of it lives under `/usr/local/x-ui`.
 
@@ -71,8 +71,9 @@ Every cell below was proved on the stand (`spikes/XRAY_EGRESS_ROUTER.md`, Xray-c
 
 Rules are first-match, in the order of the policy; a block **beside** a WARP default
 works (unlike NaiveProxy's own ACL). What is **not** claimed: UDP through the router
-(mita's UDP stays direct; the ingresses do not relay UDP), per-grant rules, regular
-expressions, a `geoip:private` selector (see below).
+(mita's UDP stays direct; the ingresses do not relay UDP), regular expressions, a
+`geoip:private` selector (see below); routing for a single grant is a lane (see «Lanes, chains
+and the relay»).
 
 ### DNS and private destinations
 
@@ -110,9 +111,9 @@ the connection.
   `/run/secrets/xray-router-ingress-*`.
 - **API** on the Unix socket, header `X-Xray-Router-Token` (Docker secret
   `xray-router-manager-token`): `GET /v1/status`, `GET /v1/health`,
-  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`; from v0.7
+  `GET /v1/egress/{naive|mieru}`, `POST /v1/egress/{svc}/plan | apply | rollback`,
   `GET | POST /v1/lanes/{svc}`, `DELETE /v1/lanes/{svc}/{lane}`, `GET | POST | DELETE /v1/relay`,
-  `PUT /v1/relay/accounts` (below); from v0.8 `GET /v1/geodata`, `GET /v1/geodata/codes`,
+  `PUT /v1/relay/accounts` (below), `GET /v1/geodata`, `GET /v1/geodata/codes`,
   `PUT /v1/geodata/settings`, `POST /v1/geodata/update | restore`, `POST /v1/exits/test`
   («Geodata and custom exits» below). The panel is its only client; `docker exec
   proxy-control-xray-router python -m xray_router_manager.healthcheck --status` prints the
@@ -164,7 +165,7 @@ other service unchanged) and applies it as a new generation.
 - **Status** on the «Routing» screen: the target shows `Xray-router: available /
   attached / not installed`, its Xray version, and the reasons `router_unavailable`,
   `not_attached`, `artifact_mismatch`, `router_unreachable` (the manager could not reach
-  the ingress), `node_lacks_router` (a linked panel older than v0.5).
+  the ingress), `node_lacks_router` (a linked panel without `egress.router.v1`).
 - **Logs**: `docker logs proxy-control-xray-router` (the manager; the child's access log
   is off, no stats/api inbound).
 - **Broken router** (`phase: broken`): every apply answers 503
@@ -177,14 +178,14 @@ other service unchanged) and applies it as a new generation.
   container and removes the binaries, helpers, env overlay; `--purge-data` also the state
   and the secrets) — see `docs/BACKUP_RESTORE.en.md` for what to keep.
 
-## Lanes, chains and the relay (v0.7)
+## Lanes, chains and the relay
 
 A **schema 2** intent moves the router from «one policy per service» to **lanes**: `{"schema": 2,
 "lanes": {"svc:naive": {default, rules}, "grant:<id>": {…}}, "chains": {"c1": {"hops": [...],
 "exit": "direct" | "warp"}}}`. Every lane is a SOCKS account on the service's own ingress; the
 rules render with a `user` selector (`grant-<id>` for a grant's lane, the installer's account for
 the service's lane, which comes last), so one ingress carries different users along different
-policies. Schema 1 renders byte for byte as in v0.5/v0.6.
+policies. A schema-1 intent is still accepted as the service's only lane.
 
 - **Lane keys**: `POST /v1/lanes/{svc}` `{"lane": "grant:<id>"}` mints (or re-mints) the lane's
   account, puts it on the ingress in a new generation at once and returns it **once** — the panel
@@ -213,7 +214,7 @@ policies. Schema 1 renders byte for byte as in v0.5/v0.6.
 
 Limits: ≤ 32 lanes and ≤ 16 chains per service, ≤ 3 hops per chain, a schema-2 intent ≤ 64 KiB.
 
-## Geodata and custom exits (v0.8)
+## Geodata and custom exits
 
 **Geodata.** Xray reads `geosite.dat`/`geoip.dat` from `<state>/geodata` (`XRAY_LOCATION_ASSET`),
 not from the binary directory: on first start the manager copies the pinned pair there (their
@@ -254,7 +255,7 @@ exit_unreachable}`; the running router is untouched, one probe at a time.
 ## Limits and what is deferred
 
 Rules ≤ 128 per policy, ≤ 64 selectors of each kind, ≤ 32 ports, the compiled intent
-≤ 16 KiB per service (schema 2: 64 KiB); the manager token 64 hex. Deferred beyond v0.5
-(spec §15): a static bridge into 3x-ui's Xray, canary rollouts, UDP relay, regular
-expressions; per-grant routing arrived in v0.7 as lanes. Compatibility with v0.4 nodes and centrals is in
+≤ 16 KiB per service (schema 2: 64 KiB); the manager token 64 hex. Deferred: a static
+bridge into 3x-ui's Xray, canary rollouts, UDP relay, regular expressions; routing for a single
+grant is done with lanes. Compatibility between nodes and centrals of different releases is in
 [COMPATIBILITY](COMPATIBILITY.md) and [FLEET](../FLEET.en.md).

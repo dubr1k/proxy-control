@@ -39,7 +39,7 @@ SERVICES = ("naive", "mieru", "mtproxy")
 PORTS = {"naive": 45101, "mieru": 45102}
 # v1.1: MTProxy (Telemt) lives on the Compose bridge network and cannot reach the host
 # loopback, so its ingress is a `vless` inbound on a Unix socket in the volume it shares with
-# the `xray-router-ingress` bridge (docs/superpowers/specs/2026-10-01-v1.1-mtproxy-routing-design.md).
+# the `xray-router-ingress` bridge (docs/XRAY_ROUTER.en.md).
 SOCKET_SERVICES = ("mtproxy",)
 MTPROXY_SOCKET = "/run/xray-router/ingress-mtproxy.sock"
 # What Telemt dials: the bridge's name and port on the Compose network.

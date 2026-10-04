@@ -12,7 +12,6 @@ Proof forms:
     fleet::<prefix>                 a `check("<prefix>_…` of scripts/lab/fleet-acceptance.py
     ui::<view>.<scenario>           a `check("<view>.<scenario>` of scripts/lab/ui-acceptance.py
     script::<path>                  a lab script that exists (its own report is the proof)
-    live::<version>                 the «Живая проверка» section of docs/releases/v<version>.md
     doc::<path>                     a document that exists (a policy, a matrix)
 """
 from __future__ import annotations
@@ -52,11 +51,6 @@ def proof_problem(proof: str, root: Path) -> str | None:
         return None if f'"{rest}' in path.read_text(encoding="utf-8") else "no such ui scenario"
     if kind == "script":
         return None if (root / rest).is_file() else "no such script"
-    if kind == "live":
-        path = root / f"docs/releases/v{rest}.md"
-        if not path.is_file():
-            return "no such release note"
-        return None if "### Живая проверка" in path.read_text(encoding="utf-8") else "no live-check section"
     if kind == "doc":
         return None if (root / rest).is_file() else "no such document"
     return f"unknown proof kind {kind!r}"
@@ -73,7 +67,7 @@ def render(rows: list[dict]) -> str:
         "Generated from `tests/fixtures/verification-matrix.json` by `scripts/dev/verification-matrix.py --render`;",
         "`tests/test_verification_matrix.py` keeps every proof pointing at something that exists and refuses a",
         "`gap` on the release tree (`VERIFICATION_STRICT=1`). One row per promised function: what it claims, which",
-        "test, lab scenario, browser scenario or live check proves it, and the routes it covers.",
+        "test, lab scenario or browser scenario proves it, and the routes it covers.",
         "",
     ]
     total = len(rows)

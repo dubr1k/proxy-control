@@ -1,10 +1,10 @@
-# MCP-сервер (v0.11): панель как инструменты Claude Code, Claude Desktop, Codex и OMP
+# MCP-сервер: панель как инструменты Claude Code, Claude Desktop, Codex и OMP
 
 [English](MCP.en.md) · **Русский**
 
 ## Что это
 
-С v0.11 рядом с центральной панелью может работать контейнер **`proxy-control-mcp`** —
+Рядом с центральной панелью может работать контейнер **`proxy-control-mcp`** —
 сервер [Model Context Protocol](https://modelcontextprotocol.io) по Streamable HTTP. Он
 превращает API панели в инструменты, которые вызывает модель: «создай клиента на двух узлах и
 дай ссылку подписки», «проверь обновления», «покажи, что применит маршрутизация», «что было в

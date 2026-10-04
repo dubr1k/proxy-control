@@ -28,18 +28,21 @@ bash install-release.sh
 
 By hand:
 
-Download the archive, `SHA256SUMS`, `release-manifest.json`, and
-`sbom.spdx.json` from the release page. v0.1.0 has no published GitHub
-attestation. `sha256sum` checks the three payload files named by the downloaded
-`SHA256SUMS`; the checksum file itself remains trusted as downloaded from the
-release page. Then extract the bootstrap from the verified archive — all before
-anything runs with privilege.
+Download the four release files — the archive, `SHA256SUMS`,
+`release-manifest.json`, and `sbom.spdx.json` — from Assets on the
+[1.1.1 release page](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.1).
+The release workflow publishes a GitHub provenance attestation of the archive and
+of `install-release.sh`. `sha256sum` checks the three payload files named by the
+downloaded `SHA256SUMS` (the archive, `release-manifest.json` and `sbom.spdx.json`);
+the checksum file itself remains trusted as downloaded from the release page and
+has no separate provenance attestation. Then extract the bootstrap from the
+verified archive — all before anything runs with privilege.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS
-tar -xOf proxy-control-v0.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap
+tar -xOf proxy-control-v1.1.1.tar.gz proxy-control/install-bootstrap > install-bootstrap
 chmod 700 install-bootstrap
-./install-bootstrap --archive proxy-control-v0.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as root. Before its single `exec sudo` it
@@ -62,7 +65,8 @@ carries uid/gid 0, the mode from the git executable bit, and the commit
 timestamp. The gzip container around the archive is produced by the local zlib,
 so a system with a different zlib version yields a different `.tar.gz` digest
 even though the archive contents are identical - which is why a download is
-verified against `SHA256SUMS`; v0.1.0 has no independent published attestation.
+verified against `SHA256SUMS` (and, when `gh` is available, against its provenance
+attestation) rather than against a local rebuild.
 
 ## Interactive wizard
 
@@ -131,18 +135,18 @@ subscription = "sub.example.com"  # optional: client subscription URLs
 [mieru]                        # only with a Mieru profile
 tcp_ports = [46001]
 udp_ports = [46001]
-lane_slots = 4                 # v0.7: lane slots mita@1…4 (ports 46101…), only with router = true
+lane_slots = 4                 # lane slots mita@1…4 (ports 46101…), only with router = true
 
 [ingress]                      # optional: foreign stream sends PROXY protocol
 proxy_protocol_bridge = "127.0.0.1:10443"  # pre-provisioned, loopback-only Nginx stream bridge
 panel_tls_port = 10446                       # if the foreign Nginx owns 8443
 skip_renewal_dry_run = false                 # exceptional, preverified existing lineage only
 
-[egress]                       # optional (v0.4): WARP as a provider of its own
+[egress]                       # optional: WARP as a provider of its own
 warp = true                    # install and verify the pinned Cloudflare client
 warp_port = 40000              # its loopback SOCKS5 port (default 40000)
-router = true                  # v0.5: install the Xray-router from the staged archive
-relay_port = 45443             # v0.7: the router's public relay port (default 45443 with router = true)
+router = true                  # install the Xray-router from the pinned archive
+relay_port = 45443             # the router's public relay port (default 45443 with router = true)
 naive = "router"               # direct | warp | router — the initial egress of NaiveProxy
 mieru = "direct"               # direct | warp | router — the initial egress of Mieru
 
@@ -214,16 +218,14 @@ transient ACME rate limit can set `skip_renewal_dry_run = true`. This defers
 installer still checks certificates locally and must issue/renew invalid or
 missing certificates. Remove the exception when ACME is available again and
 run a renewal dry run while the HTTP-01 vhost is present. Never use this to
-silence a broken challenge route. This opt-in was introduced after
-v0.13.0-beta.1; it is not available in that published tag. Use a verified
-v0.14.0-beta.1 (or later) release archive and its own SHA-256. A coexistence
+silence a broken challenge route. A coexistence
 installation passed installer verification and external client probes
 (Naive, Mieru TCP/UDP and MTProxy), but a pre-provisioned bridge and
 router forwarding remain operator-owned: the installer does not configure or
 persist those external boundaries.
 
-`[egress]` is optional. Without it the installer reads `[three_xui].warp` and
-`warp_port` exactly as before v0.4 (see «WARP and egress»); with it the section is
+`[egress]` is optional. Without it the installer takes WARP from `[three_xui].warp` and
+`warp_port` (the rule without the section is in «WARP and egress»); with it the section is
 canonical: `warp`/`warp_port` decide whether the Cloudflare client is provisioned, and
 `naive`/`mieru` choose each service's **initial** egress (`direct`, `warp` or `router`;
 only services of the profile may be named, `warp` needs `warp = true` and `router`
@@ -232,7 +234,7 @@ agree. The value is a seed: after the installation the managers own the egress
 configuration and the panel's «Routing» screen changes it (`docs/ROUTING.en.md`); a
 repair or an upgrade never rewrites it.
 
-`router = true` (v0.5) installs the dedicated Xray egress-router (`docs/XRAY_ROUTER.en.md`)
+`router = true` installs the dedicated Xray egress-router (`docs/XRAY_ROUTER.en.md`)
 and needs NaiveProxy or Mieru in the profile. The pinned archive
 `/var/lib/proxy-control/Xray-linux-64.zip` is fetched by the installer from its pinned
 HTTPS URL when absent (as the mita package is) and its SHA-256 is proven before anything
@@ -244,7 +246,7 @@ traffic goes through the router's loopback ingress (naive `127.0.0.1:45101`, mie
 `45102`, SOCKS5 with a per-service credential), and the router passes it straight out
 until the «Routing» screen gives it a policy.
 
-From v0.7 the router comes with a **relay** and **lane slots** (`docs/ROUTING.en.md`, «Chains and
+The router comes with a **relay** and **lane slots** (`docs/ROUTING.en.md`, «Chains and
 lanes»): `[egress].relay_port` (45443 by default; `0` — no relay; refused without `router = true`,
 and on 80/443 or the router's ingress ports) is the public TCP port of the vless+reality inbound
 other nodes of the fleet exit through; UFW opens it. `[mieru].lane_slots` (0…8, 4 by default with
@@ -261,7 +263,7 @@ subscription URLs are `https://<subscription>/s/<token>`; the panel's own domain
 never serves that path, so a subscriber cannot learn where the panel lives.
 Without the key the public endpoint stays switched off.
 
-`domains.mcp` (v0.11) is optional, must differ from every other name and is set on
+`domains.mcp` is optional, must differ from every other name and is set on
 the central panel only — a node needs no MCP server, the central manages it through
 its own API. When it is set, the installer adds the name to the Core certificate as
 a SAN, routes it to the panel's TLS listener with its own Nginx `server` block that
@@ -319,8 +321,8 @@ boundary:
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
-| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (the bearer MCP clients present, 32 random bytes), `secrets/mcp-panel-key` (a panel API key of scope `admin` named `mcp`, issued through `panel.cli api-key-create`), the `mcp` Compose service (container `proxy-control-mcp`, overlay `compose.mcp.yaml`) and the marker `/etc/proxy-control/mcp-owned`; verify — the container is healthy, `https://<mcp>` over SNI answers 401 without a token and 200 to `initialize` with it; rollback removes the service, revokes the key (`api-key-revoke`) and removes the env, secrets and marker (v0.11) |
-| `version_agent` | The agent's code under `/opt/proxy-control/version_agent`, `version-agent.service`, its tmpfiles fragment, `/etc/proxy-control/version-agent.env` and the ownership marker; the catalog `versions.json` and the state under `/var/lib/proxy-control/version-agent` are seeded only when absent and kept unless the purge is explicit (v0.11) |
+| `mcp` | `.env.mcp` (`MCP_DOMAIN`, `MCP_PANEL_HOST`), `secrets/mcp-token` (the bearer MCP clients present, 32 random bytes), `secrets/mcp-panel-key` (a panel API key of scope `admin` named `mcp`, issued through `panel.cli api-key-create`), the `mcp` Compose service (container `proxy-control-mcp`, overlay `compose.mcp.yaml`) and the marker `/etc/proxy-control/mcp-owned`; verify — the container is healthy, `https://<mcp>` over SNI answers 401 without a token and 200 to `initialize` with it; rollback removes the service, revokes the key (`api-key-revoke`) and removes the env, secrets and marker |
+| `version_agent` | The agent's code under `/opt/proxy-control/version_agent`, `version-agent.service`, its tmpfiles fragment, `/etc/proxy-control/version-agent.env` and the ownership marker; the catalog `versions.json` and the state under `/var/lib/proxy-control/version-agent` are seeded only when absent and kept unless the purge is explicit |
 
 Each action is applied through a durable journal: prepare, apply, verify. An
 interrupted step is resumable, and every adapter's inverse restores what it
@@ -368,7 +370,7 @@ The split is deliberate and differs per protocol:
   single all-domain/all-IP egress rule that names the WARP proxy.
 
 Which service starts on WARP is `[egress].naive`/`[egress].mieru`. Without an
-`[egress]` section the pre-v0.4 rule applies: both services go through WARP when
+`[egress]` section the default rule applies: both services go through WARP when
 `warp = true`, unless `warp_domains` is non-empty (a domain-scoped WARP for 3x-ui) —
 then both stay direct. With `warp = false` no WARP outbound, upstream, or rule is
 emitted anywhere, and Mieru's egress rule stays `DIRECT`.
@@ -378,7 +380,7 @@ The installer also writes `NAIVE_EGRESS_WARP` and `MIERU_EGRESS_WARP` to the hos
 reads them, and the panel's «Routing» screen offers the `warp` provider on this node
 only when they are set.
 
-### The Xray-router (v0.5)
+### The Xray-router
 
 With `router = true` the `xray_router` adapter runs after `warp` and before the
 services it feeds. It verifies the staged archive, extracts exactly `xray`,
@@ -397,14 +399,14 @@ loopback only, sends one authenticated CONNECT through the NaiveProxy ingress to
 Internet (three tries: the Internet to the target is not the router's) and checks that the
 bridge answers a SOCKS5 greeting.
 
-With `relay_port` (v0.7) the adapter enables the relay through the manager once the container is
+With `relay_port` the adapter enables the relay through the manager once the container is
 up (`healthcheck --relay-enable <panel domain> <port>`: the manager mints the Reality keypair once
 and keeps it in `/var/lib/xray-router/relay.json`, 0600), and verification wants it `enabled` on that
 port behind the panel's name, a public key in the answer and a listener on every address; only the
 public part reaches the report. `repair` enables it again (idempotently); `uninstall` without purge
 keeps `relay.json`.
 
-The `mieru` adapter with `lane_slots` (v0.7) installs the `/etc/systemd/system/mita@.service`
+The `mieru` adapter with `lane_slots` installs the `/etc/systemd/system/mita@.service`
 template (its own socket `/run/mita/lane-<n>.sock`, its own state `/var/lib/mita/lanes/<n>` bound
 over `/var/lib/mita` in the unit's namespace — mita's `metrics.pb` and config are never shared
 between daemons), enables `mita@1…N` after the main daemon and waits for every slot to answer `IDLE`
@@ -512,8 +514,8 @@ Two disposable labs validate a release candidate. Neither uses production
 credentials, DNS, or SSH keys.
 
 ```bash
-make lab-release RELEASE_ARCHIVE=dist/proxy-control-v0.1.0.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
-make lab-container RELEASE_ARCHIVE=dist/proxy-control-v0.1.0.tar.gz RELEASE_SHA256=<sha256>
+make lab-release RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256> LAB_ARCH=amd64
+make lab-container RELEASE_ARCHIVE=dist/proxy-control-v1.1.1.tar.gz RELEASE_SHA256=<sha256>
 ```
 
 The QEMU lab boots a checksum-pinned Ubuntu image and runs the full release

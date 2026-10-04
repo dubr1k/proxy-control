@@ -30,7 +30,7 @@ default; production hosts are refused) and runs one tier there:
 | `lab-host` (`LAB_RESET=1`) | the release archive installs the full profile on the bare host: audit, plan, install, repair, idempotence, reboot recovery, crash-every-phase, report, fleet, secrets scan, uninstall, coexistence | `scripts/lab/guest-runner.sh host` from the extracted archive |
 | `fleet` | Fleet v2 end to end against the node `lab-host` left installed | `scripts/lab/fleet-acceptance.py` |
 
-The `fleet` scenario (`scripts/lab/fleet-acceptance.py`, v0.3 spec §10) links the installed
+The `fleet` scenario (`scripts/lab/fleet-acceptance.py`) links the installed
 node panel (`https://panel.lab.test`, lab-issued certificate → `tls_verify=pin`) to a second,
 in-process central panel started on the host from the tree under test (`--python` chooses
 the interpreter, `--source` the tree whose `panel` package it imports; `--central-dir`,
@@ -56,8 +56,8 @@ scripts/dev/remote-gate.sh fleet                                     # FLEET_ACC
 
 `LAB_KEEP_INSTALL=1` makes `lab-host` report `uninstall` and `coexistence` as `skipped`
 (exit code unaffected) and leaves the installed node running, so the `fleet` tier — and a
-live central for the next task — have a node to link. Without it the host ends uninstalled
-as before. The lab certificates are valid for two days; a kept install older than that
+live central for the next task — have a node to link. Without it the host ends
+uninstalled. The lab certificates are valid for two days; a kept install older than that
 needs a fresh `LAB_RESET=1 … lab-host`. Runtime usernames the scenario creates carry a
 per-run suffix because the Naive and Mieru managers retire deleted names for good.
 
