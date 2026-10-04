@@ -471,6 +471,13 @@ removes only the owned generation and preserves credentials, manager state, and
 named volumes; `--purge-data` is the explicit opt-in that also removes them and,
 for Naive and Mieru, the identities the installer itself created.
 
+The exception is the `packages` adapter's packages the installer installed itself (absent
+from the host before installation): `uninstall` removes them with `apt-get purge`, with or
+without `--purge-data`. Purging `docker.io` deletes `/var/lib/docker` with every volume, the
+panel database included; purging `certbot` deletes `/etc/letsencrypt` with the certificates.
+Packages that were on the host before installation are not touched. Before `uninstall` on such a
+host, make a backup and copy it off the server.
+
 An explicit purge also removes an empty `version-overrides` directory left by
 the updater. Nonempty directories and symbolic links are preserved.
 The three optional-manager socket volumes are removed after their containers,
@@ -479,7 +486,8 @@ not swept, and Docker must refuse any volume still in use.
 
 A finished `uninstall` or rollback does not block the next `install`: that is how
 owned files are re-rendered from a new release, and the preserved data (master
-key, panel database, credentials) is picked up as it is. The exception is
+key, panel database, credentials) is picked up as it is — when it survived the package
+removal described above. The exception is
 `three_xui` in `managed-new` mode: it refuses any existing `/etc/x-ui/x-ui.db`,
 including one a previous `uninstall` preserved; reinstalling needs `uninstall
 --purge-data` or the operator moving that database away first.

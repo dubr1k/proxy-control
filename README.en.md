@@ -578,9 +578,15 @@ sudo python3 -m installer.cli uninstall --json
 ```
 
 Uninstalling stops the services and removes only the routes, files and packages the
-installer owns; secrets, certificates and cover-site directories stay until the owner
-decides separately. Afterwards check `nginx -t`, the public listeners and adjacent SNI
-routes.
+installer owns; without `--purge-data`, secrets, volumes and cover-site directories stay.
+Afterwards check `nginx -t`, the public listeners and adjacent SNI routes.
+
+> [!WARNING]
+> Packages the installer installed itself are removed completely (`apt-get purge`), with or
+> without `--purge-data`. If on a clean server those were `docker.io` and `certbot`, their purge
+> also deletes `/var/lib/docker` — every volume, the panel database included — and
+> `/etc/letsencrypt` with the certificates. Make a [backup](docs/BACKUP_RESTORE.en.md) and copy it
+> off the server before uninstalling.
 
 ## Features in detail
 

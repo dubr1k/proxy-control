@@ -504,13 +504,16 @@ and `.env.xray-router` and starts `xray-router` and the `xray-router-ingress` br
 `mieru` then re-apply with the router's environment and their own credential copies, and the
 agent's environment gets `PROXY_CONTROL_XRAY_ROUTER=on` and the router's overlay.
 
-**On a host installed with the installer.** The installer applies a configuration as one
-installation: on a host whose installation is active, a plan from a changed configuration is
-refused (`an installer transaction already exists`), and running the same configuration again
-changes nothing. A finished `uninstall` without `--purge-data` does not block the next `install`,
-which picks up the preserved data — the master key, the panel database, credentials, manager state
-and named volumes ([installer reference](INSTALLER_REFERENCE.en.md), «Recovery, repair, rollback,
-and uninstall»). The services are down between the two steps: take a backup and plan a window.
+**On a host installed with the installer.** The installer cannot add the router to an active
+installation yet: `install` with a changed configuration is refused (`an installer transaction
+already exists`) and changes nothing on the host, and running the same configuration again adds
+nothing. Do not work around this with `uninstall` and a new `install`: on a server where the
+installer itself installed Docker or certbot, `uninstall` purges those packages, and the purge of
+`docker.io` deletes `/var/lib/docker` with every volume (the panel database included) while the
+purge of `certbot` deletes `/etc/letsencrypt`; with 3x-ui in `managed-new` mode the new `install`
+also refuses the preserved 3x-ui database ([installer reference](INSTALLER_REFERENCE.en.md),
+«Recovery, repair, rollback, and uninstall»). Decide on the router before the first installation
+(`[egress] router = true`).
 
 **On a host assembled by hand.** Follow the same steps from the installer reference («The
 Xray-router») with `COMPOSE_FILE` extended by `compose.xray-router.yaml`. The managers learn the
