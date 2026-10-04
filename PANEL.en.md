@@ -355,7 +355,7 @@ for a saved, supported policy; **«Откатить»** once something was appli
 lists `routing_applies`; **«Удалить политику»** only after «Сбросить» + «Применить». The
 card's badge reads «применено (rev N)», «есть неприменённые изменения», «применяется…» or
 «ошибка: …»; a linked panel that does not declare egress-policy support shows
-«узел нужно обновить до v0.4», and on a node a central manages the screen says so and
+«панель узла не поддерживает маршрутизацию — обновите её», and on a node a central manages the screen says so and
 keeps the pen with the central. The node
 card on «Узлы» carries the line «Маршрутизация: naive → WARP, 2 блокир.; mieru →
 напрямую». Every role may read and preview; the owner applies. What each backend can
@@ -368,7 +368,7 @@ the owner-only buttons **«Подключить к Xray-router»** / **«Отк�
 the service's sessions are interrupted). A rule gains the fields geosite, geoip and ports;
 on a native backend they preview as «not applicable» naming the router. A linked panel
 that does not declare the Xray-router shows for a router policy
-«узел нужно обновить до v0.5 и установить Xray-router».
+«на узле нет Xray-router — обновите панель узла и установите роутер».
 
 ## Master key and rotation
 

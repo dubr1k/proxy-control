@@ -179,7 +179,7 @@ def _check_lane(policy: RoutingPolicy, router: RouterTarget, *, private, reasons
                 continue
             if exits_resolver is None or "custom_exits" not in router.capabilities:
                 reasons.append(Reason(code="backend_capability_missing", rule_id=rule_id,
-                                      message="the node's router does not run custom exits (update it to v0.8)"))
+                                      message="the node's router does not run custom exits (update the node)"))
                 continue
             spec, reason = exits_resolver(value[5:])
             if reason is not None:

@@ -146,7 +146,7 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
         unsupported.reasons.append(Reason(code="protocol_out_of_scope", message=f"{policy.protocol} has no egress"))
         return unsupported
     if not node_egress_v1:
-        unsupported.reasons.append(Reason(code="node_lacks_egress_v1", message="the node must be updated to v0.4"))
+        unsupported.reasons.append(Reason(code="node_lacks_egress_v1", message="the node's panel does not support egress policies — update it"))
         return unsupported
     if target is None:
         unsupported.reasons.append(Reason(code="protocol_disabled_on_node",

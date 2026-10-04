@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Fetch, verify and unpack one Proxy Control release, then hand it to the installer.
 #
-# `install-bootstrap` (inside every archive) refuses a pre-release suffix, so a beta is
-# installed by the four documented steps (README, «Бета-выпуски» / «Beta releases»):
-# download the four release files, `sha256sum --check SHA256SUMS`, extract, and run
-# `sudo python3 -m installer.cli wizard` from the extracted tree. This script performs
+# `install-bootstrap` (inside every archive) refuses a pre-release suffix (`-rc.N`), so a
+# pre-release is installed by the same steps without it: download the four release files,
+# `sha256sum --check SHA256SUMS`, extract, and run `sudo python3 -m installer.cli wizard`
+# from the extracted tree. This script performs
 # exactly those steps for any tag and stops at the first failed check. It never pipes a
 # download into a shell: the files land on disk, the payload is checked against
 # SHA256SUMS, the manifest must name the same archive and digest, the digest may be pinned
@@ -16,9 +16,9 @@
 #   scripts/install-release.sh --requirements            # what is needed and what gets installed
 #   bash install-release.sh                              # the copy published beside a release:
 #                                                        # that release, its digest pinned
-#   scripts/install-release.sh --version 0.4.0-beta.1 --sha256 <lab-sha256>
-#   scripts/install-release.sh --version 0.4.0-beta.1 --no-wizard
-#   scripts/install-release.sh --version 0.4.0-beta.1 -- plan --config install.toml --json
+#   scripts/install-release.sh --version 1.1.2 --sha256 <lab-sha256>
+#   scripts/install-release.sh --version 1.1.2 --no-wizard
+#   scripts/install-release.sh --version 1.1.2 -- plan --config install.toml --json
 #   bash install-release.sh --update                     # v1.1: update an installed host to that
 #                                                        # release (scripts/update-host.sh, as root)
 set -Eeuo pipefail
@@ -40,7 +40,7 @@ STAMPED_SHA256=""
 
 usage() {
     cat >&2 <<'USAGE'
-usage: scripts/install-release.sh [--version X.Y.Z[-beta.N]] [--sha256 DIGEST] [--dir DIR]
+usage: scripts/install-release.sh [--version X.Y.Z[-rc.N]] [--sha256 DIGEST] [--dir DIR]
                                   [--from-dir VERIFIED_DIST] [--lang ru|en] [--requirements | --check-only | --no-wizard]
                                   [--attest] [--update] [-- INSTALLER ARGS...]
 
@@ -139,12 +139,12 @@ Proxy Control — что нужно для установки
 WARP (необязательно): секция [egress] в install.toml или вопросы мастера —
   установщик ставит закреплённый клиент Cloudflare WARP в proxy-режиме на
   127.0.0.1:40000 и задаёт начальный egress NaiveProxy/Mieru; дальше им владеет
-  экран «Маршрутизация» панели (v0.4).
+  экран «Маршрутизация» панели.
 
-Xray-router (необязательно, v0.5): [egress] router = true — выделенный Xray для
+Xray-router (необязательно): [egress] router = true — выделенный Xray для
   политик с geosite/geoip/портами и блокировками рядом с WARP; мастер предлагает его
-  каждому профилю с NaiveProxy или Mieru, архив приезжает сам (см. выше). С v1.1 через
-  него же можно направить MTProxy (WARP, свой выход, другой узел): рядом встаёт мост
+  каждому профилю с NaiveProxy или Mieru, архив приезжает сам (см. выше). Через него
+  же можно направить MTProxy (WARP, свой выход, другой узел): рядом встаёт мост
   xray-router-ingress в сети Compose, новых портов хоста нет.
 
 Обновление уже установленного хоста (с v1.1): скачайте install-release.sh и .sha256
@@ -211,12 +211,12 @@ Nothing to stage for the pinned external artifacts — the installer fetches the
 WARP (optional): the [egress] section of install.toml or the wizard's questions —
   the installer sets up the pinned Cloudflare WARP client in proxy mode on
   127.0.0.1:40000 and seeds the initial egress of NaiveProxy/Mieru; from then on
-  the panel's «Routing» screen owns it (v0.4).
+  the panel's «Routing» screen owns it.
 
-Xray-router (optional, v0.5): [egress] router = true — a dedicated Xray for
+Xray-router (optional): [egress] router = true — a dedicated Xray for
   policies with geosite/geoip/ports and blocks beside WARP; the wizard offers it to
   every profile with NaiveProxy or Mieru, the archive arrives by itself (see above).
-  Since v1.1 MTProxy can be sent through it too (WARP, your own exit, another node):
+  MTProxy can be sent through it too (WARP, your own exit, another node):
   the xray-router-ingress bridge runs beside it on the Compose network, no new host ports.
 
 Updating an installed host (since v1.1): download the new release's install-release.sh

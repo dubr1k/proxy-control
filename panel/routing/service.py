@@ -452,7 +452,7 @@ class RoutingService:
                 raise RoutingError(404, "router_unavailable", "no client for linked panels")
             identity = row["link"].get("identity") or {}
             if "geodata.v1" not in (identity.get("capabilities") or []):
-                raise RoutingError(409, "node_lacks_exits", "the node's panel does not test exits yet (update it to v0.8)")
+                raise RoutingError(409, "node_lacks_exits", "the node's panel does not test exits yet (update it)")
             try:
                 result = await self.node_client(found["node_id"]).exit_test(spec)
             except NodeRejected as exc:
@@ -490,7 +490,7 @@ class RoutingService:
                 raise RoutingError(404, "router_unavailable", "no client for linked panels")
             identity = row["link"].get("identity") or {}
             if "geodata.v1" not in (identity.get("capabilities") or []):
-                raise RoutingError(409, "node_lacks_geodata", "the node's panel does not manage geodata yet (upgrade it to v0.8)")
+                raise RoutingError(409, "node_lacks_geodata", "the node's panel does not manage geodata yet (update it)")
             try:
                 result = await self.node_client(node_id).geodata(action, body)
             except NodeRejected as exc:
@@ -700,13 +700,13 @@ class RoutingService:
         if self._kind(row) == "local" and master is not None:
             raise RoutingError(409, "managed_by_central", "a central panel manages this node's egress")
         if self._kind(row) == "v1":
-            raise RoutingError(409, "node_lacks_egress_v1", "the node must be updated to v0.4")
+            raise RoutingError(409, "node_lacks_egress_v1", "the node's panel does not support egress policies — update it")
         try:
             target, egress_v1 = await self._target(row, protocol)
         except AdapterError as exc:
             raise RoutingError(ERROR_STATUS.get(exc.code, 409), exc.code or "manager_unavailable", str(exc)) from exc
         if not egress_v1:
-            raise RoutingError(409, "node_lacks_egress_v1", "the node must be updated to v0.4")
+            raise RoutingError(409, "node_lacks_egress_v1", "the node's panel does not support egress policies — update it")
         if target is None:
             raise RoutingError(422, "protocol_disabled_on_node", f"{protocol} reports no egress target")
         router = await self._router_target(row, protocol)
@@ -876,12 +876,12 @@ class RoutingService:
                 raise RoutingError(409, "not_attached", f"{protocol} is not attached to the node's Xray-router",
                                    compiled=compiled)
             if (self._kind(row) == "remote" and router is None and policy.backend == ROUTER_BACKEND):
-                raise RoutingError(422, "node_lacks_router", "the node must be updated to v0.5 and run an Xray-router",
+                raise RoutingError(422, "node_lacks_router", "the node has no Xray-router — update its panel and install the router",
                                    compiled=compiled)
             raise RoutingError(422, "unsupported", "the policy cannot be enforced on this node", compiled=compiled)
         if self._kind(row) != "local":
             if compiled.document.get("schema") == 2 and "egress.lanes.v1" not in self._capabilities(row):
-                raise RoutingError(422, "node_lacks_lanes", "the node must be updated to v0.7 for lanes and chains",
+                raise RoutingError(422, "node_lacks_lanes", "the node's panel does not support lanes and chains — update it",
                                    compiled=compiled)
             return await self._apply_remote(policy, compiled, actor=actor, ip=ip, request_id=request_id)
         try:
@@ -992,7 +992,7 @@ class RoutingService:
         names the port and the node's own panel name as the cover; the node's report brings
         the public key, and `pending` says it has not yet."""
         if "relay.v1" not in self._capabilities(row):
-            raise RoutingError(422, "node_lacks_relay", "the node must be updated to v0.7 and run an Xray-router")
+            raise RoutingError(422, "node_lacks_relay", "the node needs an up-to-date panel and an Xray-router")
         if self.publisher is None:
             raise RoutingError(409, "node_not_local", "this panel applies routing locally only")
         server_name = urlsplit((row.get("link") or {}).get("panel_url") or "").hostname

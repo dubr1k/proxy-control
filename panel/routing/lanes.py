@@ -191,7 +191,7 @@ class ChainResolver:
             return Reason(code="node_unknown", message=f"no node {guid} on this panel")
         relay = self.registry.relay(self.db, node_id)
         if relay is None or not relay.get("public_key"):
-            return Reason(code="node_lacks_relay", message=f"node {guid} has no relay (update it to v0.7 and enable the relay)")
+            return Reason(code="node_lacks_relay", message=f"node {guid} has no relay (update its panel and enable the relay)")
         if not relay.get("enabled"):
             return Reason(code="relay_disabled", message=f"the relay of node {guid} is disabled")
         address = self._address(node_id, row)
@@ -371,7 +371,7 @@ class LaneService:
             row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (grant.node_id,)).fetchone()
         identity = json.loads(row["identity_json"]) if row is not None and row["identity_json"] else {}
         if "egress.lanes.v1" not in (identity.get("capabilities") or []):
-            raise LaneError(422, "node_lacks_lanes", "the node must be updated to v0.7 and run an Xray-router")
+            raise LaneError(422, "node_lacks_lanes", "the node needs an up-to-date panel and an Xray-router")
         now = int(self.clock.time())
         with self.database.transaction() as db:
             if mode == "own":

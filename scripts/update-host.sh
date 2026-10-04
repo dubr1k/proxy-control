@@ -35,8 +35,8 @@ done
 [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || fail "неверная версия" "malformed version"
 [[ $EXPECTED =~ ^[0-9a-f]{64}$ ]] || fail "нужен проверенный --sha256" "a verified --sha256 is required"
 [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "нужен root (запускается через sudo из install-release.sh)" "root is required (started through sudo by install-release.sh)"
-[[ -S $SOCK ]] || fail "version-agent не найден ($SOCK): хост установлен до v0.11 или агент выключен — обновите по docs/UPGRADING.ru.md" \
-    "version-agent not found ($SOCK): the host predates v0.11 or the agent is off — update per docs/UPGRADING.md"
+[[ -S $SOCK ]] || fail "version-agent не найден ($SOCK): агент не установлен или выключен — см. docs/UPGRADING.ru.md, «Установка version-agent вручную»" \
+    "version-agent not found ($SOCK): the agent is not installed or is off — see docs/UPGRADING.md, «Installing the version-agent by hand»"
 
 agent() { curl -fsS --max-time 60 --unix-socket "$SOCK" "$@"; }
 json() { python3 -c "$1" "${@:2}"; }
