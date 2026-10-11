@@ -119,3 +119,23 @@ def test_status_words_match_the_card():
     javascript = (ROOT / "static/js/placement.js").read_text()
     for word in ("ожидает узел", "выключен", "без секрета", "ошибка", "панель на паузе"):
         assert word in javascript, word
+
+
+def test_the_client_list_polls_while_a_node_has_not_confirmed():
+    """«Все протоколы на всех узлах» открывает список сразу после выдачи, пока узлы ещё не
+    подтвердили; без опроса «ожидает узел» оставалось на экране до перезагрузки страницы."""
+    javascript = (ROOT / "static/js/clients.js").read_text()
+    assert "settling" in javascript and "SETTLE_DELAYS" in javascript
+    assert javascript.count("void settleList(context);") == 2  # first render and every page load
+
+
+def test_a_request_may_carry_any_number_of_grants():
+    """Протоколы × узлы растут вместе с флотом: верхней границы на один запрос нет."""
+    from pydantic import ValidationError
+
+    from panel.schemas import GrantsCreate
+
+    item = {"protocol": "naive", "node_id": "local", "runtime_username": "samsung"}
+    assert len(GrantsCreate(grants=[item] * 40).grants) == 40
+    with pytest.raises(ValidationError):
+        GrantsCreate(grants=[])

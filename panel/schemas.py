@@ -190,7 +190,7 @@ class GrantRequest(BaseModel):
 
 
 class GrantsCreate(BaseModel):
-    grants: list[GrantRequest] = Field(min_length=1, max_length=8)
+    grants: list[GrantRequest] = Field(min_length=1)
 
 
 class ApiKeyCreate(BaseModel):

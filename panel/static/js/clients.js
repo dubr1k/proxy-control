@@ -1,6 +1,6 @@
 import { esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, query, queryAll } from "./common.js";
 import { grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
-import { placementDiff, placementRows, readPlacement, renderPlacement } from "./placement.js";
+import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { isCurrent } from "./state.js";
 
 const CLIENT_STATE = {
@@ -288,12 +288,49 @@ async function loadPage(context, cursor = null, history = []) {
     const data = await context.api(pageUrl(context, cursor));
     if (!isCurrent(state, generation, "clients") || sequence !== state.clientRequest) return;
     acceptPage(context, data, cursor, history);
+    void settleList(context);
   } catch (error) {
     if (!isCurrent(state, generation, "clients") || sequence !== state.clientRequest) return;
     state.clientLoading = false;
     state.clientPageError = error.message;
   }
   paintList(context);
+}
+
+// Доступ на узле центр записывает сразу, а узел подтверждает на такте pusher'а. Список
+// рисуется один раз на загрузку, поэтому «ожидает узел» оставалось на экране, хотя узел уже
+// подтвердил. Пока в видимой странице есть такие доступы, она тихо перечитывается с
+// растущими паузами (всего около двух минут); уход с экрана или новая загрузка списка
+// останавливают опрос.
+const SETTLE_DELAYS = [3000, 5000, 8000, 12000, 20000, 30000, 45000];
+
+function pending(context) {
+  return (context.state.clients || []).some((entry) => settling(entry.grants || []));
+}
+
+async function settleList(context) {
+  const state = context.state;
+  if (state.clientSettling || !pending(context)) return;
+  const generation = state.navigationGeneration;
+  state.clientSettling = true;
+  try {
+    for (const delay of SETTLE_DELAYS) {
+      if (!isCurrent(state, generation, "clients") || !pending(context)) return;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      const sequence = state.clientRequest;
+      if (!isCurrent(state, generation, "clients") || state.clientLoading || sequence !== state.clientRequest) return;
+      const cursor = state.clientPageCursor;
+      const history = state.clientPageHistory || [];
+      const data = await context.api(pageUrl(context, cursor));
+      if (!isCurrent(state, generation, "clients") || sequence !== state.clientRequest) return;
+      acceptPage(context, data, cursor, history);
+      paintList(context);
+    }
+  } catch {
+    // Перечитать не удалось: на экране остаётся последнее, что знала панель.
+  } finally {
+    state.clientSettling = false;
+  }
 }
 
 function refreshFilters(context, debounce = false) {
@@ -321,6 +358,7 @@ export async function renderClients(context, generation) {
   acceptPage(context, data);
   context.state.nodes = nodes.items || [];
   context.ui.view.innerHTML = `${toolbar(context)}<section class="client-list">${listHtml(context)}</section>`;
+  void settleList(context);
 }
 
 const FILTER_FIELDS = {
