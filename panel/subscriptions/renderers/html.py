@@ -11,7 +11,8 @@ from html import escape
 from ...reveals import qr_data
 from ..compatibility import CLIENTS, MATRIX, NOTES
 from ..models import Manifest, ManifestGrant
-from .base import check, credential_reason, finish, naive_share_url
+from ..names import grant_names
+from .base import check, credential_reason, finish, named_share_url
 
 PROTOCOL_TITLES = {"mtproxy": "MTProxy", "naive": "NaiveProxy", "mieru": "Mieru"}
 STATUS_TITLES = {"supported": "да", "unsupported": "нет", "unproven": "не проверено"}
@@ -25,8 +26,8 @@ table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:.2
 """
 
 
-def _grant_section(grant: ManifestGrant, artifacts: dict) -> str:
-    title = escape(f"{PROTOCOL_TITLES.get(grant.protocol, grant.protocol)} · {grant.runtime_username}")
+def _grant_section(grant: ManifestGrant, artifacts: dict, name: str) -> str:
+    title = escape(f"{name} · {grant.runtime_username}")
     if not grant.enabled:
         return f"<section><h2>{title}</h2><p class=\"muted\">Доступ отключён.</p></section>"
     reason = credential_reason(grant, artifacts)
@@ -35,8 +36,8 @@ def _grant_section(grant: ManifestGrant, artifacts: dict) -> str:
     parts = [f"<section><h2>{title}</h2>"]
     for artifact in artifacts[grant.grant_id]:
         value = artifact.value
-        if grant.protocol == "naive" and artifact.media_type == "text/uri-list":
-            value = naive_share_url(value, grant.runtime_username)
+        if artifact.media_type == "text/uri-list":
+            value = named_share_url(grant, value, name)
         shown = escape(value)
         parts.append(f"<p><a href=\"{shown}\">{escape(artifact.label)}</a></p><code>{shown}</code>")
         if artifact.media_type == "text/uri-list":
@@ -64,12 +65,13 @@ def _matrix() -> str:
 class HtmlRenderer:
     name = "html"
     media_type = "text/html; charset=utf-8"
-    version = 1
+    version = 2
 
     def render(self, manifest: Manifest, artifacts: dict) -> bytes:
         check(manifest)
         name = escape(manifest.client_name)
-        sections = "".join(_grant_section(grant, artifacts) for grant in manifest.grants)
+        names = grant_names(manifest)
+        sections = "".join(_grant_section(grant, artifacts, names[grant.grant_id]) for grant in manifest.grants)
         page = (
             "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"

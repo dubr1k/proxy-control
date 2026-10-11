@@ -156,6 +156,42 @@ async def test_public_subscription_serves_formats_with_etag_and_304(public, toke
     assert head.status_code == 200 and head.headers["etag"] == etag and not head.content
 
 
+async def test_node_rename_refreshes_subscription_with_the_same_url(public, token, app):
+    from panel.nodes.registry import NodeRegistry
+
+    params = {"format": "singbox"}
+    before = await public.get(f"/s/{token}", params=params)
+    assert before.status_code == 200
+    with app.state.database.transaction() as db:
+        NodeRegistry.rename(db, "local", "Amsterdam")
+    after = await public.get(f"/s/{token}", params=params, headers={"If-None-Match": before.headers["etag"]})
+    assert after.status_code == 200 and after.headers["etag"] != before.headers["etag"]
+    assert all(out["tag"].startswith("Amsterdam · ") for out in after.json()["outbounds"])
+    # A display rename does not provision/rotate anything or change transport fields.
+    assert [{k: v for k, v in out.items() if k != "tag"} for out in before.json()["outbounds"]] == [
+        {k: v for k, v in out.items() if k != "tag"} for out in after.json()["outbounds"]
+    ]
+    again = await public.get(f"/s/{token}", params=params, headers={"If-None-Match": after.headers["etag"]})
+    assert again.status_code == 304
+
+
+async def test_disabled_grants_rename_invalidates_html_conditional_get(public, token, app, client_id):
+    from panel.nodes.registry import NodeRegistry
+
+    with app.state.database.transaction() as db:
+        db.execute("UPDATE access_grants SET desired_state='disabled' WHERE client_id=?", (client_id,))
+    before = await public.get(f"/s/{token}", params={"format": "html"})
+    assert before.status_code == 200
+    with app.state.database.transaction() as db:
+        NodeRegistry.rename(db, "local", "Renamed disabled node")
+    after = await public.get(
+        f"/s/{token}", params={"format": "html"}, headers={"If-None-Match": before.headers["etag"]},
+    )
+    assert after.status_code == 200
+    assert after.headers["etag"] != before.headers["etag"]
+    assert "Renamed disabled node" in after.text
+
+
 async def test_the_panel_host_does_not_serve_subscriptions_at_all(public, token):
     on_panel = await public.get(f"/s/{token}", headers={"host": PANEL_HOST})
     missing = await public.get("/s/" + "A" * 43)

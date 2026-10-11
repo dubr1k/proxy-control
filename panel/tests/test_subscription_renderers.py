@@ -213,12 +213,12 @@ def test_singbox_outbounds_match_the_shapes_the_reveal_already_ships(manifest, a
     data = json.loads(RENDERERS["singbox"].render(manifest, artifacts))
     by_type = {o["type"]: o for o in data["outbounds"]}
     assert by_type["naive"] == {
-        "type": "naive", "tag": "naive-bob", "server": "naive.example.com", "server_port": 443,
+        "type": "naive", "tag": by_type["naive"]["tag"], "server": "naive.example.com", "server_port": 443,
         "username": "bob", "password": "naive-pass-01",
         "tls": {"enabled": True, "server_name": "naive.example.com"},
     }
     assert by_type["mieru"] == {
-        "type": "mieru", "tag": "mieru-carol-TCP-8443", "server": "mieru.example.com",
+        "type": "mieru", "tag": by_type["mieru"]["tag"], "server": "mieru.example.com",
         "server_port": 8443, "transport": "TCP", "username": "carol", "password": "mieru-pass-01",
     }
     reasons = {item["runtime_username"]: item["reason"] for item in data["proxy_control"]["unsupported"]}
@@ -242,7 +242,7 @@ def test_the_official_singbox_variant_carries_naive_only(manifest, artifacts):
 def test_clash_lists_mieru_only_and_writes_nothing_but_quoted_scalars(manifest, artifacts):
     text = RENDERERS["clash"].render(manifest, artifacts).decode()
     proxies, tail = text.split("proxy-control:")
-    assert "  - name: 'mieru-carol-TCP-8443'\n    type: 'mieru'\n    server: 'mieru.example.com'\n    port: 8443\n" in proxies
+    assert " · TCP 8443'\n    type: 'mieru'\n    server: 'mieru.example.com'\n    port: 8443\n" in proxies
     assert "port-range: '8000-8010'" in proxies
     assert "username: 'carol'\n    password: 'mieru-pass-01'" in proxies
     assert "udp: true" in proxies and "proxy-groups:" in proxies

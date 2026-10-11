@@ -24,17 +24,18 @@ from urllib.parse import unquote, urlsplit
 from ...protocols.mieru import parse_share_url, singbox_outbounds
 from ..compatibility import MATRIX, NOTES
 from ..models import Manifest, ManifestGrant
+from ..names import grant_names
 from .base import RenderError, check, credential_reason, finish, link_of
 
 RANGE_REASON = "the sing-box mieru outbound has no field for a port range"
 CLIENTS = ("karing", "singbox")
 
 
-def _naive_outbound(grant: ManifestGrant, proxy_url: str) -> dict:
+def _naive_outbound(grant: ManifestGrant, proxy_url: str, name: str) -> dict:
     parts = urlsplit(proxy_url)
     return {
         "type": "naive",
-        "tag": f"naive-{grant.runtime_username}",
+        "tag": name,
         "server": parts.hostname,
         "server_port": parts.port or 443,
         "username": unquote(parts.username or ""),
@@ -43,18 +44,18 @@ def _naive_outbound(grant: ManifestGrant, proxy_url: str) -> dict:
     }
 
 
-def _mieru_outbounds(grant: ManifestGrant, share_link: str) -> list[dict] | None:
+def _mieru_outbounds(grant: ManifestGrant, share_link: str, name: str) -> list[dict] | None:
     try:
         share = parse_share_url(share_link)
     except ValueError as exc:
         # The message names the grant, never the link: the link carries the password.
         raise RenderError(f"mieru {grant.runtime_username}: share link is not renderable") from exc
     return singbox_outbounds(
-        share, tag=lambda port, protocol: f"mieru-{grant.runtime_username}-{protocol}-{port}"
+        share, tag=lambda port, protocol: f"{name} · {protocol} {port}"
     )
 
 
-def _place(grant: ManifestGrant, artifacts: dict, client: str) -> tuple[list[dict], str | None]:
+def _place(grant: ManifestGrant, artifacts: dict, client: str, name: str) -> tuple[list[dict], str | None]:
     """Either outbounds for the grant or the reason it has none — never both, never neither."""
     reason = credential_reason(grant, artifacts)
     if reason is not None:
@@ -63,9 +64,9 @@ def _place(grant: ManifestGrant, artifacts: dict, client: str) -> tuple[list[dic
         # The matrix is the source: what this client cannot load is named, not shipped.
         return [], NOTES.get(grant.protocol, {}).get(client, f"{client} cannot consume {grant.protocol}")
     if grant.protocol == "naive":
-        return [_naive_outbound(grant, link_of(grant, artifacts))], None
+        return [_naive_outbound(grant, link_of(grant, artifacts), name)], None
     if grant.protocol == "mieru":
-        outbounds = _mieru_outbounds(grant, link_of(grant, artifacts))
+        outbounds = _mieru_outbounds(grant, link_of(grant, artifacts), name)
         return (outbounds, None) if outbounds is not None else ([], RANGE_REASON)
     return [], f"no sing-box outbound for {grant.protocol}"
 
@@ -73,18 +74,19 @@ def _place(grant: ManifestGrant, artifacts: dict, client: str) -> tuple[list[dic
 class SingboxRenderer:
     name = "singbox"
     media_type = "application/json"
-    version = 1
+    version = 2
 
     def render(self, manifest: Manifest, artifacts: dict, *, client: str = "karing") -> bytes:
         if client not in CLIENTS:
             raise RenderError(f"unknown sing-box client: {client}")
         check(manifest)
+        names = grant_names(manifest)
         outbounds: list[dict] = []
         unsupported: list[dict] = []
         for grant in manifest.grants:
             if not grant.enabled:
                 continue
-            placed, reason = _place(grant, artifacts, client)
+            placed, reason = _place(grant, artifacts, client, names[grant.grant_id])
             outbounds.extend(placed)
             if reason is not None:
                 unsupported.append(

@@ -19,8 +19,8 @@ MTProxy, NaiveProxy и Mieru под одной панелью — с транз�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2)
+> **Текущий выпуск — [v1.1.3](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.3).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.3)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
@@ -213,7 +213,7 @@ bash install-release.sh
 Полезные параметры: `--check-only` только скачивает и проверяет; `--no-wizard` ещё и
 распаковывает, но мастер не запускает; `--lang ru|en` — язык сообщений. Для установки
 именно 1.1.2 замените в обеих ссылках `releases/latest/download/` на
-`releases/download/v1.1.2/`.
+`releases/download/v1.1.3/`.
 
 Проект намеренно не предлагает «скачать и сразу выполнить одной командой»: сценарий
 сначала проверяется, потом читается и только потом запускается.
@@ -320,16 +320,16 @@ sudo python3 -m installer.cli install --config examples/installer/full-three-xui
 ### Ручная установка из архива
 
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.2): архив,
+[выпуска 1.1.2](https://github.com/dubr1k/proxy-control/releases/tag/v1.1.3): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v1.1.2.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v1.1.3.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v1.1.2.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v1.1.3.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он
@@ -592,6 +592,13 @@ sudo python3 -m installer.cli uninstall --json
 (Karing и sing-box), `clash` (mihomo), `manifest` и `html`. Ключ ссылки показывается один раз,
 в базе хранится только его контрольная сумма, отзыв действует мгновенно, запросы подписки
 не пишутся в журналы. Подробно — [PANEL.ru.md](PANEL.ru.md).
+
+Имена подключений в подписке начинаются с имени узла: `AMS · Naive`,
+`AMS · Mieru · TCP 8443`. Имя берётся из экрана «Узлы», в том числе для локального
+сервера. При совпадении имён добавляется стабильный короткий суффикс доступа.
+После переименования узла обновите подписку в приложении — URL, логины и пароли
+не меняются. Throne использует формат `singbox` (вариант Karing). В `raw` имя
+передаётся в подписи Naive и поле `profile` Mieru; ссылка Telegram MTProxy не меняется.
 
 ### Протоколы
 

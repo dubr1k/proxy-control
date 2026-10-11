@@ -9,16 +9,18 @@ that says why, never a link that does not work.
 from __future__ import annotations
 
 from ..models import Manifest
-from .base import check, credential_reason, finish, link_of, naive_share_url
+from ..names import grant_names
+from .base import check, credential_reason, finish, link_of, named_share_url
 
 
 class RawRenderer:
     name = "raw"
     media_type = "text/plain; charset=utf-8"
-    version = 1
+    version = 2
 
     def render(self, manifest: Manifest, artifacts: dict) -> bytes:
         check(manifest)
+        names = grant_names(manifest)
         lines = []
         for grant in manifest.grants:
             if not grant.enabled:
@@ -29,7 +31,6 @@ class RawRenderer:
                 lines.append(f"# unsupported {grant.protocol} {grant.runtime_username}: {reason}")
                 continue
             link = link_of(grant, artifacts)
-            if grant.protocol == "naive":
-                link = naive_share_url(link, grant.runtime_username)
+            link = named_share_url(grant, link, names[grant.grant_id])
             lines.append(link)
         return finish(("\n".join(lines) + "\n").encode())

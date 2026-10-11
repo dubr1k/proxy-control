@@ -19,7 +19,7 @@ from .base import MEDIA_TYPE_MANIFEST, check, credential_reason, finish
 class ManifestRenderer:
     name = "manifest"
     media_type = MEDIA_TYPE_MANIFEST
-    version = 1
+    version = 2
 
     def render(self, manifest: Manifest, artifacts: dict) -> bytes:
         check(manifest)
@@ -27,7 +27,8 @@ class ManifestRenderer:
         for grant in manifest.grants:
             reason = credential_reason(grant, artifacts) if grant.enabled else None
             grants.append({
-                **dataclasses.asdict(grant),
+                # node_name is internal presentation metadata, not a v1 wire field.
+                **{key: value for key, value in dataclasses.asdict(grant).items() if key != "node_name"},
                 "artifacts": [
                     dataclasses.asdict(artifact) for artifact in artifacts.get(grant.grant_id, [])
                 ] if grant.enabled else [],

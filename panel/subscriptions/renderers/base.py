@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Protocol
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote_plus, urlsplit
 
 from ...clients.store import ClientStore
 from ...protocols.base import AccessArtifact
@@ -139,7 +139,24 @@ def link_of(grant: ManifestGrant, artifacts: dict[str, list[AccessArtifact]]) ->
     raise RenderError(f"{grant.protocol} {grant.runtime_username}: no link artifact")
 
 
-def naive_share_url(proxy_url: str, username: str) -> str:
+def named_share_url(grant: ManifestGrant, link: str, name: str) -> str:
+    """Rename only the display field; keep Mieru bindings/credentials byte-for-byte.
+
+    Telegram MTProxy has no supported display-name field: leave its URI alone.
+    """
+    if grant.protocol == "naive":
+        return naive_share_url(link, grant.runtime_username, name=name)
+    if grant.protocol == "mieru":
+        parts = urlsplit(link)
+        query = "&".join(
+            f"profile={quote(name, safe='')}" if unquote_plus(item.partition("=")[0]) == "profile" else item
+            for item in parts.query.split("&")
+        )
+        return parts._replace(query=query).geturl()
+    return link
+
+
+def naive_share_url(proxy_url: str, username: str, *, name: str | None = None) -> str:
     """`naive+https://…` — what NekoBox-family clients and QR scanners actually import.
 
     The adapter's artifact is NaiveProxy's own `https://user:pass@host`; the share form
@@ -148,5 +165,5 @@ def naive_share_url(proxy_url: str, username: str) -> str:
     parts = urlsplit(proxy_url)
     return (
         f"naive+https://{parts.username}:{parts.password}@{parts.hostname}:{parts.port or 443}"
-        f"#{quote(f'Naive · {username}', safe='')}"
+        f"#{quote(name if name is not None else f'Naive · {username}', safe='')}"
     )

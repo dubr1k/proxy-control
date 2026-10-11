@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-10-11
+
+- Subscriptions distinguish connections by node name and protocol instead of username alone. Duplicate names receive a stable suffix; Mieru retains transport and port distinctions. Shared naming applies to sing-box/Throne, Clash, HTML and Naive/Mieru raw labels. Node renames invalidate the ETag without changing subscription URLs or credentials.
+
 ## [1.1.2] - 2026-10-04
 
 - `uninstall` without `--purge-data` removes the packages the installer installed with `apt-get remove` instead of `apt-get purge`: Docker's `/var/lib/docker` with every volume (the panel database included) and certbot's `/etc/letsencrypt` stay. A purge runs only on an explicit `uninstall --purge-data`; the rollback of a failed installation removes, never purges. The same rule applies to the `proxyctl` runtime.

@@ -16,6 +16,7 @@ from __future__ import annotations
 from ...protocols.mieru import MieruShare, parse_share_url
 from ..compatibility import NOTES
 from ..models import Manifest, ManifestGrant
+from ..names import grant_names
 from .base import RenderError, check, credential_reason, finish, link_of
 
 
@@ -30,13 +31,13 @@ def scalar(value) -> str:
     return f"'{value}'"
 
 
-def _proxies(grant: ManifestGrant, share: MieruShare) -> list[list[tuple[str, object]]]:
+def _proxies(grant: ManifestGrant, share: MieruShare, label: str) -> list[list[tuple[str, object]]]:
     """One mihomo proxy per port binding, as ordered key/value pairs."""
     proxies = []
     for binding in share.bindings:
         port = binding.get("port")
         port_key, port_value = ("port", port) if port is not None else ("port-range", binding["portRange"])
-        name = f"mieru-{grant.runtime_username}-{binding['protocol']}-{port_value}"
+        name = f"{label} · {binding['protocol']} {port_value}"
         proxies.append([
             ("name", name),
             ("type", "mieru"),
@@ -60,10 +61,11 @@ def _mapping_item(pairs: list[tuple[str, object]], indent: str) -> str:
 class ClashRenderer:
     name = "clash"
     media_type = "text/yaml; charset=utf-8"
-    version = 1
+    version = 2
 
     def render(self, manifest: Manifest, artifacts: dict) -> bytes:
         check(manifest)
+        names = grant_names(manifest)
         proxies: list[list[tuple[str, object]]] = []
         unsupported: list[tuple[str, str, str]] = []
         for grant in manifest.grants:
@@ -75,7 +77,7 @@ class ClashRenderer:
                     share = parse_share_url(link_of(grant, artifacts))
                 except ValueError as exc:
                     raise RenderError(f"mieru {grant.runtime_username}: share link is not renderable") from exc
-                proxies.extend(_proxies(grant, share))
+                proxies.extend(_proxies(grant, share, names[grant.grant_id]))
                 continue
             if reason is None:
                 reason = NOTES.get(grant.protocol, {}).get("mihomo", f"no mihomo proxy type for {grant.protocol}")

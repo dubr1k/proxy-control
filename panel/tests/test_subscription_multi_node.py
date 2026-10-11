@@ -13,8 +13,8 @@ async def test_subscription_lists_grants_of_every_node_with_node_public_hosts(pa
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
     client = central.state.clients.create_client("A", actor=ACTOR, ip="x")
     operation_id = await central.state.provisioning.start(client.id, [
-        GrantIntent(protocol="naive", node_id="local", runtime_username="a-local", options=NaiveOptions()),
-        GrantIntent(protocol="naive", node_id=node_id, runtime_username="a-edge", options=NaiveOptions()),
+        GrantIntent(protocol="naive", node_id="local", runtime_username="same-user", options=NaiveOptions()),
+        GrantIntent(protocol="naive", node_id=node_id, runtime_username="same-user", options=NaiveOptions()),
     ], actor=ACTOR, ip="x")
     await central.state.provisioning.run(operation_id)  # the local step is applied here; the node's by the pusher
     await central.state.pusher.tick()
@@ -25,5 +25,10 @@ async def test_subscription_lists_grants_of_every_node_with_node_public_hosts(pa
     with central.state.database.connect() as db:
         artifacts = resolve_artifacts(manifest, central.state.secrets, central.state.adapters, db,
                                       public_hosts=lambda nid: public_hosts_for(central.state, nid))
-    links = {g.runtime_username: artifacts[g.grant_id][0].value for g in manifest.grants}
-    assert "central.example" in links["a-local"] and "node.example" in links["a-edge"]
+    links = {g.node_id: artifacts[g.grant_id][0].value for g in manifest.grants}
+    assert "central.example" in links["local"] and "node.example" in links[node_id]
+    import json
+    from panel.subscriptions.renderers import RENDERERS
+    outbounds = json.loads(RENDERERS["singbox"].render(manifest, artifacts))["outbounds"]
+    assert len({out["tag"] for out in outbounds}) == 2
+    assert next(out for out in outbounds if out["server"] == "node.example")["tag"] == "Edge · Naive"

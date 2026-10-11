@@ -37,6 +37,7 @@ class ManifestGrant:
     enabled: bool
     valid_from: int | None = None
     valid_until: int | None = None
+    node_name: str = ""
 
 
 @dataclass(frozen=True)

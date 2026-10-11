@@ -30,6 +30,7 @@ from ..clients.models import effective_enabled
 from ..clients.store import ClientConflict
 from ..secrets_store import SecretError, SecretRef
 from .models import Manifest, ManifestGrant, Subscription
+from .names import grant_names
 from .store import SubscriptionStore
 
 TOKEN_BYTES = 32
@@ -227,6 +228,9 @@ class SubscriptionService:
             client = self.clients.store.client(db, subscription.client_id)
             grants = self.clients.store.grants(db, client_id=subscription.client_id)
             current = self.store.active(db, subscription.client_id) or subscription
+            node_names = {row["node_id"]: row["display_name"] for row in db.execute(
+                "SELECT node_id, display_name FROM fleet_nodes"
+            )}
         return Manifest(
             client_id=client.id,
             client_name=client.display_name,
@@ -236,6 +240,7 @@ class SubscriptionService:
                     grant_id=grant.id,
                     protocol=grant.protocol,
                     node_id=grant.node_id,
+                    node_name=node_names.get(grant.node_id, ""),
                     endpoint_id=grant.endpoint_id,
                     runtime_username=grant.runtime_username,
                     secret_version=grant.secret_ref.version if grant.secret_ref else 0,
@@ -258,13 +263,21 @@ class SubscriptionService:
         rendering of the same format (the sing-box feed without mieru, for one), so
         two bodies that differ never share a tag.
         """
+        names = grant_names(manifest)
+        # Display metadata also covers disabled grants shown on the HTML page.
+        # Generation still stays out: a fetch/event alone is not a visible change.
         payload = {
+            "client_name": manifest.client_name,
+            # HTML shows disabled grants too; renaming their node changes its body.
+            "display_names": names,
             "grants": sorted(
                 (
                     {
                         "grant_id": item.grant_id,
                         "protocol": item.protocol,
                         "node_id": item.node_id,
+                        "node_name": item.node_name,
+                        "display_name": names[item.grant_id],
                         "endpoint_id": item.endpoint_id,
                         "runtime_username": item.runtime_username,
                         "secret_version": item.secret_version,
