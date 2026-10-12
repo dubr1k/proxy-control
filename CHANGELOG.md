@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-10-12
+
+- One request may issue any number of accesses: the cap of 8 grants per request is gone, so «all protocols on all nodes» no longer fails with 422 and leaves a client without accesses.
+- The client list re-reads itself while any access waits for its node, so «ожидает узел» disappears once the node confirms instead of staying until the page is reloaded.
+
 ## [1.1.3] - 2026-10-11
 
 - Subscriptions distinguish connections by node name and protocol instead of username alone. Duplicate names receive a stable suffix; Mieru retains transport and port distinctions. Shared naming applies to sing-box/Throne, Clash, HTML and Naive/Mieru raw labels. Node renames invalidate the ETag without changing subscription URLs or credentials.
