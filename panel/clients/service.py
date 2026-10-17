@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import secrets
 import time
 import uuid
 from collections.abc import Callable
@@ -304,7 +303,9 @@ class ClientService:
             )
         from ..protocols.base import CredentialPlan, GrantRef  # noqa: PLC0415
 
-        password = secrets.token_urlsafe(24).encode()
+        from .provisioning import new_credential  # noqa: PLC0415 - one rule for every credential the panel chooses
+
+        password = new_credential(grant.protocol)
         applied = await adapter.rotate(
             f"adopt:{grant_id}",
             GrantRef(grant.protocol, grant.runtime_username),

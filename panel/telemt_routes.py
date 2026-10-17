@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 from fastapi import Depends, HTTPException, Request
 
 from .fleet_v2.guard import require_unmanaged
+from .amneziawg import AmneziawgError
 from .mieru import MieruError
 from .naive import NaiveError
 from .naive_routes import safe_naive_traffic
@@ -393,6 +394,31 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
                 }
         else:
             protocols["mieru"] = {"available": False, "status": "disabled"}
+        if settings.amneziawg_enabled:
+            try:
+                awg_health, awg_peers = await asyncio.gather(
+                    app.state.amneziawg.health(), app.state.amneziawg.peers()
+                )
+            except AmneziawgError:
+                protocols["amneziawg"] = {"available": True, "status": "degraded", "ready": False,
+                                          "credentials": {"available": False}, "traffic": {"available": False}}
+            else:
+                rows = [item for item in awg_peers if isinstance(item, dict)]
+                active = sum(item.get("enabled") is True for item in rows)
+                versions: dict[str, int] = {}
+                for item in rows:
+                    versions[str(item.get("version"))] = versions.get(str(item.get("version")), 0) + 1
+                ready = awg_health.get("status") == "ok"
+                protocols["amneziawg"] = {
+                    "available": True, "status": "ready" if ready else "degraded", "ready": ready,
+                    "versions": versions,
+                    "credentials": {"active": active, "disabled": len(rows) - active, "total": len(rows)},
+                    "traffic": {"available": True,
+                                "upload_bytes": sum(int(item.get("rx") or 0) for item in rows),
+                                "download_bytes": sum(int(item.get("tx") or 0) for item in rows)},
+                }
+        else:
+            protocols["amneziawg"] = {"available": False, "status": "disabled"}
         host = await host_resources()
         return {
             "health": health,

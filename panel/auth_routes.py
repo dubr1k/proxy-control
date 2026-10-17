@@ -141,6 +141,7 @@ def register_auth_admin_audit_routes(
             "features": {
                 "naive": settings.naive_enabled,
                 "mieru": settings.mieru_enabled,
+                "amneziawg": settings.amneziawg_enabled,
             },
         }
 

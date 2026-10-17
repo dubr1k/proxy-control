@@ -71,6 +71,10 @@ What it does:
 4. It migrates the owned Nginx ingress templates (with their own backup and rollback) and finally
    requires every `proxy-control-*` container to be healthy or running.
 
+**AmneziaWG:** when it is installed and `awg_manager/` changed, `awg-manager` is rebuilt with the
+other managers; the tunnels drop for a few seconds and the peers reconnect by themselves.
+`/var/lib/awg-manager` (the server keys) is never touched.
+
 **Not touched:** Telemt and `mask`, certificates, `.env*` and `secrets/`. When `docker/` changed,
 restart Telemt and `mask` yourself ([below](#restarting-telemt-and-mask-after-docker-changed)).
 

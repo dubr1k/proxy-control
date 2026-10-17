@@ -1,0 +1,79 @@
+name: mtproxy
+
+services:
+  awg-manager:
+    container_name: proxy-control-awg-manager
+    build:
+      context: .
+      dockerfile: awg_manager/Dockerfile
+    restart: unless-stopped
+    # Host network: the amneziawg-go interfaces (awg15/awg20/awg31) and the UDP ports live on
+    # the host. The manager API itself is a Unix socket only.
+    network_mode: host
+    # Root inside the container, but with no capability except what TUN/netlink/nft need.
+    user: "0:0"
+    environment:
+      AWG_MANAGER_TOKEN_FILE: /run/secrets/awg-manager-token
+      AWG_MANAGER_SOCKET: /run/awg-manager/manager.sock
+      AWG_MANAGER_SOCKET_MODE: "660"
+      AWG_STATE_DIR: /var/lib/awg-manager
+      AWG_VERSIONS: ${AWG_VERSIONS:-1.5,2.0,3.1}
+      AWG_PORTS: ${AWG_PORTS:-1.5=51820,2.0=51821,3.1=51822}
+      AWG_SUBNETS: ${AWG_SUBNETS:-1.5=10.66.15.0/24,2.0=10.66.20.0/24,3.1=10.66.31.0/24}
+      AWG_MTU: ${AWG_MTU:-1280}
+      AWG_DNS: ${AWG_DNS:-1.1.1.1,1.0.0.1}
+      AWG_NAT: ${AWG_NAT:-true}
+      AWG_LOG_LEVEL: ${AWG_LOG_LEVEL:-error}
+    secrets: [awg-manager-token]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      # The installer creates the directory (0700) and sets net.ipv4.ip_forward=1 on the host.
+      - type: bind
+        source: ${AWG_MANAGER_STATE_DIR:-/var/lib/awg-manager}
+        target: /var/lib/awg-manager
+        bind:
+          create_host_path: false
+      - awg-manager-run:/run/awg-manager
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+      # amneziawg-go control sockets (/var/run is /run).
+      - /run/amneziawg:size=1m,mode=0755
+    pids_limit: 128
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN, NET_RAW]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-m", "awg_manager.healthcheck"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  panel:
+    depends_on:
+      awg-manager:
+        condition: service_healthy
+    group_add:
+      - "${AWG_MANAGER_SOCKET_GID:-10007}"
+    environment:
+      AMNEZIAWG_ENABLED: "true"
+      AMNEZIAWG_PUBLIC_HOST: ${AMNEZIAWG_PUBLIC_HOST:?set the public host of AmneziaWG}
+      PANEL_SUPPLEMENTARY_GROUPS: "10001,10007"
+      AWG_MANAGER_TOKEN_SOURCE: /run/secrets/awg-manager-token
+      AWG_MANAGER_SOCKET: /run/awg-manager/manager.sock
+    secrets: [awg-manager-token]
+    volumes:
+      - awg-manager-run:/run/awg-manager:ro
+
+secrets:
+  awg-manager-token:
+    file: ${AWG_MANAGER_TOKEN_FILE:?set the prepared host AmneziaWG manager token path}
+volumes:
+  awg-manager-run:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      # setgid directory: the socket is created in the panel's group without CAP_CHOWN.
+      o: uid=0,gid=${AWG_MANAGER_SOCKET_GID:-10007},mode=2750

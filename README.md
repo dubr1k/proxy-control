@@ -60,6 +60,7 @@ Proxy Control — отдельная панель управления прок�
 | **MTProxy / Telemt** | Прокси для Telegram: `tg://`-ссылки и QR-коды, лимиты, срок действия, состояние службы. |
 | **NaiveProxy** | HTTPS-прокси, который снаружи выглядит обычным сайтом. HTTP/1.1 CONNECT и HTTP/2 CONNECT поверх TLS/TCP, один доступ на оба; квота и учёт трафика на пользователя. |
 | **Mieru** | Прокси с маскировкой трафика на собственном протоколе поверх TCP; одноразовая `mierus://`-ссылка и QR. |
+| **AmneziaWG** | VPN поверх UDP — WireGuard с маскировкой трафика. Версии 1.5, 2.0 и 3.1 работают каждая на своём порту; у клиента может быть доступ к нескольким, конфиг выдаётся файлом `.conf` и QR. Включается необязательно. |
 | **Рядом с 3x-ui** | Режим `existing` принимает уже установленный 3x-ui: делит с ним порт 443 и не меняет его файлы. Режим `managed-new` на чистом сервере ставит 3x-ui `3.10.2` и создаёт VLESS Reality (TCP и XHTTP) и Hysteria2. Управление 3x-ui остаётся в его собственной панели. |
 | **Клиенты и подписки** | Один клиент — доступы ко всем протоколам и одна отзываемая ссылка `https://<домен подписки>/s/<token>` для sing-box/Karing, Clash/mihomo и других. Учётные данные хранятся под мастер-ключом (AES-256-GCM). |
 | **Связанные панели (Fleet)** | Центральная панель выдаёт доступы на другие серверы с Proxy Control по HTTPS и API-ключу `node-sync`. |
@@ -109,6 +110,7 @@ TLS-приветствии (SNI) и передаёт соединение нуж
 | Telemt API | `mtproxy:9091` | Только внутри сети Compose |
 | Mieru | Выбранные вами TCP-порты | Публично; порт 443 не используется |
 | Управление Mieru | `/run/mita/mita.sock` | Только локальный Unix-сокет |
+| AmneziaWG (необязательно) | UDP 51820, 51821, 51822 по умолчанию | Публично, напрямую по UDP; управление — Unix-сокет контейнера `awg-manager` |
 | Вход Fleet v1 | TCP/8790 | Только HTTPS с mTLS, если этот необязательный контур включён |
 
 Свежая установка сохраняет IP клиента панели через общий вход Nginx. Если входящими
@@ -131,6 +133,9 @@ TLS-приветствии (SNI) и передаёт соединение нуж
   владеет портом 443, и в файле маршрутов есть **ровно одна** понятная карта
   `$ssl_preread_server_name`.
 - Свободные локальные порты из таблицы выше.
+- Для необязательного AmneziaWG: устройство `/dev/net/tun` на сервере, свободные UDP-порты
+  (по умолчанию 51820, 51821, 51822) и имя, которое доходит до сервера напрямую по UDP, без
+  CDN. Нового домена не нужно — подойдёт домен панели.
 - Своя резервная копия Nginx, служб, маршрутов и состояния Docker.
 
 Установщик остановится и ничего не тронет, если увидит несовпадение DNS с адресом
@@ -260,6 +265,15 @@ bash install-release.sh
 Mieru: ответ «да» направляет весь их трафик через WARP. Установщик сам ставит закреплённый
 официальный клиент Cloudflare и поднимает собственную точку SOCKS5 `127.0.0.1:40000`;
 заранее запущенный WARP не нужен и считается чужим состоянием.
+
+**AmneziaWG.** Необязательный VPN для любого профиля: «да/нет», затем версии (по умолчанию
+все три — `1.5`, `2.0`, `3.1`) и имя или IPv4-адрес, по которому клиенты подключаются (по
+умолчанию домен панели; он должен указывать прямо на сервер и не проксироваться). Новый домен не
+нужен. Порты (51820/51821/51822), MTU и DNS задаются только в TOML (секция `[amneziawg]`).
+Установщик собирает образ `awg-manager` из закреплённого коммита amneziawg-go, создаёт
+`/var/lib/awg-manager` (ключи сервера) и sysctl-файл пересылки IPv4. В режиме `fresh` с UFW он
+открывает UDP-порты и маршрутизацию на интерфейсах `awg15`, `awg20`, `awg31`; в остальных случаях
+откройте эти UDP-порты и разрешите пересылку на интерфейсах `awg*` сами.
 
 **Почта для сертификатов.** Адрес для Let's Encrypt.
 
@@ -404,6 +418,7 @@ cd proxy-control-v*/proxy-control
 | `core.toml`, `core-naive.toml`, `core-mieru.toml` | `fresh` | `none` |
 | `managed-three-xui.toml` | `fresh` | `managed-new` |
 | `existing-three-xui.toml`, `full-three-xui.toml` | `coexist` | `existing` |
+| `core-amneziawg.toml` | `fresh` | `none`, с необязательным `[amneziawg]` |
 
 ```bash
 cp examples/installer/core.toml ~/proxy-control.toml
@@ -412,7 +427,8 @@ chmod 600 ~/proxy-control.toml
 ```
 
 Необязательные части: `domains.subscription` (подписки клиентов), `domains.mcp` (MCP-сервер,
-только на центральной панели), секция `[egress]` (WARP и Xray-router). Каждое поле описано в
+только на центральной панели), секция `[egress]` (WARP и Xray-router), секция `[amneziawg]`
+(AmneziaWG: `enabled`, `versions`, `host`, `ports`, `mtu`, `dns`; новый домен не нужен). Каждое поле описано в
 [справочнике установщика](docs/INSTALLER_REFERENCE.ru.md). Пароли в TOML не пишутся.
 
 ### Шаг 3. Получить план и показать его владельцу
@@ -498,7 +514,9 @@ bash install-release.sh --update
 Сценарий проверяет выпуск так же, как при установке, и просит `version-agent` сервера
 обновить панель ровно до проверенного архива — с резервной копией файлов, образа и базы и
 откатом при неудаче; затем пересобирает изменившиеся службы управления. Telemt,
-сертификаты, `.env` и `secrets/` не трогаются.
+сертификаты, `.env` и `secrets/` не трогаются. Если на сервере включён AmneziaWG и его
+исходники изменились, `awg-manager` пересобирается: туннели на секунды рвутся и клиенты
+переподключаются сами; `/var/lib/awg-manager` с ключами сервера не трогается.
 
 Отдельные компоненты — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, **Xray-router** и
 саму панель — можно обновить с экрана «Версии». Кнопка «Проверить обновления» показывает
@@ -614,6 +632,11 @@ sudo python3 -m installer.cli uninstall --json
 - **Mieru.** Свои TCP-порты, порт 443 не занимает. Проект проверяет и обещает только TCP:
   UDP-профили в реальных сетях у клиентов не работают. Квота — приблизительная проверка, не
   платёжный счётчик. [MIERU.ru.md](MIERU.ru.md), [выдача доступов](docs/MIERU_SHARING.ru.md)
+- **AmneziaWG.** Необязательный VPN поверх UDP. Три несовместимые версии — 1.5, 2.0 и 3.1 — работают
+  одновременно, каждая на своём интерфейсе и UDP-порту; доступ всегда одной версии. Закрытый ключ
+  клиента хранит панель, узел знает только открытый. Конфиг выдаётся файлом и QR, в подписки он не
+  входит. Нужно DNS-имя, доходящее до сервера напрямую по UDP; новый домен не нужен.
+  [AMNEZIAWG.ru.md](AMNEZIAWG.ru.md)
 - **3x-ui.** Остаётся отдельной панелью со своим интерфейсом; Proxy Control следит, чтобы оба
   жили на одном 443. В `managed-new` входящие подключения слушают `127.0.0.1:8449` (VLESS
   Reality TCP), `127.0.0.1:8450` (XHTTP) и `0.0.0.0:443/UDP` (Hysteria2); подписка 3x-ui
@@ -697,7 +720,9 @@ Mieru заявлен только TCP. Учёт трафика не предна
 | `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | Панель 3x-ui и её Xray для VLESS Reality и Hysteria2 в режиме `managed-new`. |
 | `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | Xray-router: из `Xray-linux-64.zip` берутся только `xray`, `geoip.dat` и `geosite.dat`, каждый по своей контрольной сумме. |
 
-Caddy `v2.11.7` с модулем `http.handlers.forward_proxy` собирается по
+`amneziawg-go` (лицензия MIT, проект Amnezia VPN) собирается в образ `awg-manager` по
+`awg_manager/Dockerfile` из закреплённого коммита, на сервере; готового бинарного файла в
+выпуске нет. Caddy `v2.11.7` с модулем `http.handlers.forward_proxy` собирается по
 `docker/Dockerfile.caddy-naive`. Адреса, контрольные суммы и идентификаторы SPDX — в
 [`release/external-artifacts.json`](release/external-artifacts.json), который сборка
 выпуска встраивает в SBOM.
@@ -711,6 +736,7 @@ Caddy `v2.11.7` с модулем `http.handlers.forward_proxy` собирает
 | `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru | `python:3.13.5-slim` |
 | `xray_router_manager/Dockerfile` | Xray-router и его служба управления | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | MCP-сервер (только центральная панель) | `python:3.13.5-slim` |
+| `awg_manager/Dockerfile` | AmneziaWG: служба управления и `amneziawg-go` (необязательно) | `golang:1.25.12` → `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | Агент узла Fleet v1 | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | Вход Fleet v1 с mTLS | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Клиент Mieru для приёмки | `python:3.13.5-slim` |
@@ -751,6 +777,7 @@ MCP-сервер (`mcp_server/requirements.txt`): `mcp`, `mcp-types`, `starlette
 | Панель, роли, API-ключи, NaiveProxy | [PANEL.ru.md](PANEL.ru.md) |
 | MTProto за Nginx | [DOCKER_DEPLOYMENT.ru.md](DOCKER_DEPLOYMENT.ru.md) |
 | Mieru | [MIERU.ru.md](MIERU.ru.md), [выдача доступов](docs/MIERU_SHARING.ru.md) |
+| AmneziaWG | [AMNEZIAWG.ru.md](AMNEZIAWG.ru.md) |
 | Связанные панели | [FLEET.ru.md](FLEET.ru.md) |
 | Маршрутизация и Xray-router | [docs/ROUTING.ru.md](docs/ROUTING.ru.md), [docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md) |
 | MCP-сервер | [docs/MCP.ru.md](docs/MCP.ru.md) |

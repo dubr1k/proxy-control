@@ -43,7 +43,7 @@ class _Report(BaseModel):
 
 class Resource(_Strict):
     ref: str = Field(min_length=1, max_length=128)
-    protocol: Literal["mtproxy", "naive", "mieru"]
+    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg"]
     runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
     desired_state: Literal["enabled", "disabled", "deleted"]
     credential_ref: str = Field(min_length=1, max_length=160)
@@ -197,7 +197,10 @@ class ObservedResource(_Report):
     # What the runtime taught the node about this resource and the central cannot know
     # otherwise — Telemt's public host and port, mita's share template: the options the
     # protocol model has a field for (`Reconciler.LEARNED_OPTIONS`). Never a credential.
-    learned: dict[str, str | int] = Field(default_factory=dict, max_length=8)
+    # AmneziaWG (v1.3) also teaches two structured facts: the tunnel DNS list and the
+    # obfuscation parameters. Only a node that serves AmneziaWG reports them, and only for
+    # a resource a v1.3 central sent, so an older central never sees one.
+    learned: dict[str, str | int | list[str] | dict[str, str]] = Field(default_factory=dict, max_length=8)
 
 
 class ObservedEgress(_Report):

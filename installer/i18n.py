@@ -49,6 +49,12 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "router": "Install the Xray-router (pinned Xray-core {version}; the archive is fetched unless staged in /var/lib/proxy-control; MTProxy can be routed through it from the panel too)",
         "router_naive": "Send all NaiveProxy traffic through the Xray-router",
         "router_mieru": "Send all Mieru traffic through the Xray-router",
+        "amneziawg": (
+            "Install AmneziaWG (obfuscated WireGuard 1.5 / 2.0 / 3.1; clients connect over UDP straight to this server, "
+            "so it needs no new domain — the panel domain works if it points at this server and is not proxied)"
+        ),
+        "amneziawg_versions": "AmneziaWG versions (comma-separated from 1.5, 2.0, 3.1)",
+        "amneziawg_host": "Name or IPv4 address clients dial for AmneziaWG (not proxied)",
         "acme_email": "ACME email",
         "initial_user": "Name of the first MTProxy and Mieru user (the panel login is always owner)",
         "panel_password": "Password of the panel login owner (blank to generate one)",
@@ -84,6 +90,8 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "invalid_domain": "Enter a fully-qualified domain name.",
         "invalid_email": "Enter a valid email address.",
         "invalid_name": "Use only letters, digits, underscore, or hyphen.",
+        "invalid_awg_versions": "Enter one or more of 1.5, 2.0, 3.1, comma-separated, without repeats.",
+        "invalid_awg_host": "Enter a DNS name or an IPv4 address.",
         "invalid_domains": "Enter one or more comma-separated domains or geosite:name lists.",
         "duplicate_domains": "Enter unique domains.",
         "invalid_config": "The configuration is invalid: {reason}. Choose the field to fix.",
@@ -128,6 +136,12 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "router": "Установить Xray-router (закреплённый Xray-core {version}; архив скачивается сам, если не положен в /var/lib/proxy-control; через него из панели можно направить и MTProxy)",
         "router_naive": "Направлять весь трафик NaiveProxy через Xray-router",
         "router_mieru": "Направлять весь трафик Mieru через Xray-router",
+        "amneziawg": (
+            "Установить AmneziaWG (обфусцированный WireGuard 1.5 / 2.0 / 3.1; клиенты подключаются по UDP прямо к этому серверу, "
+            "поэтому новый домен не нужен — подойдёт домен панели, если он указывает на этот сервер и не проксируется)"
+        ),
+        "amneziawg_versions": "Версии AmneziaWG (через запятую из 1.5, 2.0, 3.1)",
+        "amneziawg_host": "Имя или IPv4-адрес, по которому клиенты подключаются к AmneziaWG (без прокси)",
         "acme_email": "Email для ACME",
         "initial_user": "Имя первого пользователя MTProxy и Mieru (логин в панель всегда owner)",
         "panel_password": "Пароль для входа в панель под owner (пусто — создать автоматически)",
@@ -163,6 +177,8 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "invalid_domain": "Введите полное доменное имя.",
         "invalid_email": "Введите корректный адрес электронной почты.",
         "invalid_name": "Используйте только буквы, цифры, подчёркивание или дефис.",
+        "invalid_awg_versions": "Введите одну или несколько версий из 1.5, 2.0, 3.1 через запятую, без повторов.",
+        "invalid_awg_host": "Введите DNS-имя или IPv4-адрес.",
         "invalid_domains": "Введите один или несколько доменов или geosite-списков через запятую.",
         "duplicate_domains": "Введите неповторяющиеся домены.",
         "invalid_config": "Конфигурация недопустима: {reason}. Выберите поле, которое нужно исправить.",

@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-17
+
+- **AmneziaWG** protocol (optional): a VPN over UDP — WireGuard with traffic obfuscation. Versions **1.5, 2.0 and 3.1** run at the same time, each on its own interface, UDP port and subnet of the node (51820, 51821, 51822 by default), because the versions are not compatible with one another. The version is chosen per client: the «Nodes and accesses» matrix has «AmneziaWG 1.5 / 2.0 / 3.1» columns, and a client can hold several versions at once. The config is given as a `.conf` file and a QR from the access window and is not part of subscriptions. The panel keeps the client's private key, the node receives only the public one; rotation issues a new key pair. How it works, how to enable it and how to diagnose it: `AMNEZIAWG.en.md`.
+- The node manager `awg-manager` (a container with `amneziawg-go` built from a pinned commit) and an `[amneziawg]` installer section: `enabled`, `versions`, `host`, ports, MTU, DNS. The installer turns on IPv4 forwarding, opens the UDP ports and allows forwarding for the tunnel interfaces in the firewall it manages. No new domain is needed: the panel's name works if it points straight at the server.
+- Panel: an AmneziaWG card on the overview, its state in the node list, the MCP tools and the skill take the version (`options.version`), and the panel refuses at once if the node does not serve the chosen version.
+- Database migration 23 widens the protocol list of `access_grants`; nodes get it with the same update. Nodes older than 1.3 receive no AmneziaWG resources (capability `protocol.amneziawg.v1`).
+- Fixed: the version agent can update NaiveProxy (Caddy) again — its sandbox lacked write access to `/var/log/caddy`, so the configuration check and the rollback both failed.
+
 ## [1.2.1] - 2026-10-17
 
 - Pinned components are updated: Xray 26.10.17 (the latest beta), Mieru/mita 3.38.1, Caddy 2.11.7 (the Naive build and the edge Caddy), 3x-ui 3.10.2 for `managed-new`, the MTProto (Telemt) image 3.5.9. The installer, `install-release.sh` and the examples use the same pins, so a fresh install and an update give the same set.

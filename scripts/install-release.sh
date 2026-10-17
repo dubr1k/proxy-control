@@ -147,12 +147,26 @@ Xray-router (необязательно): [egress] router = true — выдел�
   же можно направить MTProxy (WARP, свой выход, другой узел): рядом встаёт мост
   xray-router-ingress в сети Compose, новых портов хоста нет.
 
+AmneziaWG (необязательно): секция [amneziawg] в install.toml или вопрос мастера —
+  обфусцированный WireGuard версий 1.5, 2.0 и 3.1 в контейнере awg-manager (сеть
+  хоста, /dev/net/tun, права NET_ADMIN и NET_RAW). Образ собирается на хосте из
+  закреплённого коммита amneziawg-go (лицензия MIT, проект Amnezia VPN; нужен доступ
+  к GitHub и Docker Hub на время сборки). Новый домен не нужен: клиенты подключаются
+  по UDP напрямую к серверу по имени (по умолчанию — домен панели; он должен указывать
+  на сервер и не проксироваться) или по IPv4. Установщик создаёт каталог
+  /var/lib/awg-manager (ключи сервера), файл /etc/sysctl.d/99-proxy-control-amneziawg.conf
+  (net.ipv4.ip_forward = 1) и открывает в UFW UDP-порты 51820, 51821, 51822 (можно
+  изменить) и маршрутизацию на интерфейсах awg15, awg20, awg31; без управляемого UFW
+  откройте эти порты и разрешите пересылку сами. Нужен /dev/net/tun на хосте.
+
 Обновление уже установленного хоста (с v1.1): скачайте install-release.sh и .sha256
   нового выпуска так же, как для установки, сверьте сумму и запустите
   `bash install-release.sh --update` — та же проверка выпуска, затем version-agent
   хоста обновляет панель (с резервными копиями и откатом), изменившиеся менеджеры
   и включённый MCP пересобираются с точками отката образов.
-  Telemt, сертификаты, .env и secrets/ не трогаются.
+  Telemt, сертификаты, .env и secrets/ не трогаются. Если на хосте AmneziaWG и его
+  исходники изменились, awg-manager пересобирается: туннели на секунды рвутся,
+  клиенты переподключаются сами, /var/lib/awg-manager с ключами не трогается.
   После первого обновления старым агентом перед repair выполните
   `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
   из нового выпуска с точным архивом и проверенным digest (INSTALLER_REFERENCE).
@@ -168,7 +182,11 @@ Xray-router (необязательно): [egress] router = true — выдел�
     proxy-control-panel, -mtproxy (Telemt), -mask, а по профилю -naive-manager и
     -mieru-manager; тома, секреты (secrets/), мастер-ключ панели.
   • Host-службы по профилю: caddy-naive.service (NaiveProxy) и mita.service (Mieru).
-  • Правила UFW — только если вы это разрешили и только на свежем хосте.
+  • AmneziaWG (если включён): контейнер proxy-control-awg-manager, секрет
+    secrets/awg-manager-token, .env.amneziawg, /var/lib/awg-manager и sysctl-файл
+    пересылки IPv4.
+  • Правила UFW — только если вы это разрешили и только на свежем хосте
+    (порты 80 и 443, порты профиля, UDP-порты и маршрутизация AmneziaWG).
   • 3x-ui — в режиме `existing` только маршрут, в `managed-new` — свой экземпляр.
     `managed-new` требует отсутствия прежней базы и её каталога /etc/x-ui.
   • Журнал транзакции, владение и отчёты — /var/lib/proxy-control/.
@@ -219,11 +237,25 @@ Xray-router (optional): [egress] router = true — a dedicated Xray for
   MTProxy can be sent through it too (WARP, your own exit, another node):
   the xray-router-ingress bridge runs beside it on the Compose network, no new host ports.
 
+AmneziaWG (optional): the [amneziawg] section of install.toml or the wizard's question —
+  obfuscated WireGuard versions 1.5, 2.0 and 3.1 in the awg-manager container (host
+  network, /dev/net/tun, NET_ADMIN and NET_RAW). The image is built on the host from
+  the pinned amneziawg-go commit (MIT licence, the Amnezia VPN project; GitHub and Docker
+  Hub must be reachable during the build). No new domain is needed: clients connect over
+  UDP straight to the server by name (the panel domain by default; it must point at the
+  server and not be proxied) or by IPv4. The installer creates /var/lib/awg-manager (the
+  server keys), /etc/sysctl.d/99-proxy-control-amneziawg.conf (net.ipv4.ip_forward = 1) and
+  opens UDP 51820, 51821 and 51822 (changeable) plus forwarding on the awg15, awg20 and
+  awg31 interfaces in UFW; without a UFW the installer manages, open the ports and allow
+  forwarding yourself. /dev/net/tun must exist on the host.
+
 Updating an installed host (since v1.1): download the new release's install-release.sh
   and .sha256 as for an install, check the sum and run `bash install-release.sh --update`
   — the same release verification, then the host's version-agent updates the panel (with
   its backups and rollback); changed managers and enabled MCP are rebuilt with image backups. Telemt, certificates,
-  .env and secrets/ are not touched.
+  .env and secrets/ are not touched. On a host with AmneziaWG whose sources changed,
+  awg-manager is rebuilt: the tunnels drop for a few seconds and the clients reconnect
+  by themselves; /var/lib/awg-manager with the keys is not touched.
   After the first update by an older agent, before repair run
   `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
   from the new release with the exact archive and verified digest (INSTALLER_REFERENCE).
@@ -239,7 +271,11 @@ What the installer does (wizard → plan → digest confirmation → apply):
     proxy-control-panel, -mtproxy (Telemt), -mask and, per profile, -naive-manager
     and -mieru-manager; volumes, secrets (secrets/), the panel's master key.
   • Host services per profile: caddy-naive.service (NaiveProxy), mita.service (Mieru).
-  • UFW rules — only when you allow it and only on a fresh host.
+  • AmneziaWG (when enabled): the proxy-control-awg-manager container, the
+    secrets/awg-manager-token secret, .env.amneziawg, /var/lib/awg-manager and the
+    IPv4 forwarding sysctl file.
+  • UFW rules — only when you allow it and only on a fresh host
+    (ports 80 and 443, the profile's ports, AmneziaWG's UDP ports and forwarding).
   • 3x-ui — a route only in `existing` mode, its own instance in `managed-new`.
     `managed-new` requires the old database and its /etc/x-ui directory to be absent.
   • The transaction journal, ownership and reports — /var/lib/proxy-control/.

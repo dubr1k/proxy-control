@@ -197,12 +197,12 @@ class DomainFacade:
         )
         adapter = self.adapters[protocol]
         from ..protocols.base import CredentialPlan  # noqa: PLC0415 - avoids an import cycle
-        import secrets as secret_tokens  # noqa: PLC0415
+        from .provisioning import new_credential  # noqa: PLC0415 - one rule for every credential the panel chooses
 
         plan = (
             CredentialPlan("manager", None)
             if adapter.credential_origin == "manager"
-            else CredentialPlan("caller", secret_tokens.token_urlsafe(24).encode())
+            else CredentialPlan("caller", new_credential(protocol))
         )
         applied = await adapter.rotate(
             f"rotate:{grant.id}:{int(self.clock.time())}",

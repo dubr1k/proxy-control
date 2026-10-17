@@ -32,13 +32,14 @@ from .fleet_v2.node_routes import register_fleet_v2_node_routes
 from .fleet_v2.pusher import FleetPusher
 from .fleet_v2.reconcile import Reconciler
 from .keyring import Keyring
+from .amneziawg import AmneziawgClient, AmneziawgError
 from .mieru import MieruClient, MieruError
 from .mieru_routes import register_mieru_routes
 from .naive import NaiveClient, NaiveError
 from .naive_routes import register_naive_routes
 from .node_routes import register_node_routes
 from .openapi_routes import register_openapi_routes
-from .protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
+from .protocols import AmneziawgAdapter, MieruAdapter, NaiveAdapter, TelemtAdapter
 from .protocols.xray_router import RouterAdapter
 from .nodes.service import NodeLifecycleService
 from .routing.lanes import LaneService, RelayRegistry
@@ -85,6 +86,7 @@ def create_app(
     telemt=None,
     naive=None,
     mieru=None,
+    amneziawg=None,
     router=None,
     version_client=None,
 ):
@@ -126,6 +128,9 @@ def create_app(
     app.state.mieru = mieru or MieruClient(
         settings.mieru_socket, settings.mieru_token
     )
+    app.state.amneziawg = amneziawg or AmneziawgClient(
+        settings.amneziawg_socket, settings.amneziawg_token
+    )
     # NaiveProxy's public host is panel configuration; Telemt and mita report theirs
     # inside the link they return — `MTPROXY_DOMAIN` is only the fallback for a grant
     # that has not learned its endpoint yet.
@@ -135,6 +140,8 @@ def create_app(
                                  journal_path=settings.database_path.parent / "telemt-egress.json"),
         "naive": NaiveAdapter(app.state.naive, public_host=settings.naive_public_host),
         "mieru": MieruAdapter(app.state.mieru),
+        "amneziawg": AmneziawgAdapter(app.state.amneziawg,
+                                      public_host=settings.amneziawg_public_host or settings.naive_public_host),
     }
     # The node's Xray-router (v0.5): present only when its overlay is part of the stack.
     if router is not None:
@@ -212,7 +219,8 @@ def create_app(
     app.state.relays = RelayRegistry(app.state.database, app.state.secrets)
     app.state.routing = RoutingService(
         app.state.database, routing_store, app.state.adapters, app.state.nodes.nodes,
-        enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled}.get(protocol, True),
+        enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled,
+                                  "amneziawg": settings.amneziawg_enabled}.get(protocol, True),
         publisher=lambda db, node_id: publish(db, app.state.clients.store, app.state.desired, node_id=node_id,
                                               master_guid=app.state.panel_guid, routing=routing_store),
         managed=app.state.managed, router=app.state.router, relays=app.state.relays, own_guid=app.state.panel_guid,
@@ -253,6 +261,12 @@ def create_app(
     async def mieru_error(_request, exc):
         return JSONResponse(
             {"detail": "Mieru manager unavailable"}, exc.status_code
+        )
+
+    @app.exception_handler(AmneziawgError)
+    async def amneziawg_error(_request, exc):
+        return JSONResponse(
+            {"detail": "AmneziaWG manager unavailable"}, exc.status_code
         )
 
     @app.exception_handler(VersionAgentError)

@@ -236,6 +236,36 @@ def test_reference_documents_recovery_and_report_boundaries(language):
     assert "0600" in text
 
 
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_reference_documents_the_optional_amneziawg_addon(language):
+    """The add-on is an optional section of any profile: every TOML key, the adapter and its
+    owned paths, the firewall rules, the fixed ports, the no-new-domain rule and the update note."""
+    text = reference(language)
+    for needle in (
+        "[amneziawg]", "versions", "ports", "mtu", "dns", "host", "`amneziawg`", "/var/lib/awg-manager",
+        "secrets/awg-manager-token", ".env.amneziawg", "99-proxy-control-amneziawg.conf", "compose.amneziawg.yaml",
+        "ufw route allow in on awg15|awg20|awg31", "/dev/net/tun", "51820", "51821", "51822", "10.66.15.0/24",
+        "AMNEZIAWG.", "--purge-data",
+    ):
+        assert needle in text, needle
+    assert "no domain of its own" in text or "своего домена" in text.lower()
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_readmes_describe_the_amneziawg_addon_and_its_installer_pieces(language):
+    text = readme(language)
+    for needle in ("[amneziawg]", "/dev/net/tun", "awg_manager/Dockerfile", "amneziawg-go", "core-amneziawg.toml",
+                   "/var/lib/awg-manager", "51820"):
+        assert needle in text, needle
+    assert re.search(r"\bv0\.\d", text) is None
+
+
+def test_the_amneziawg_example_is_listed_with_the_other_examples():
+    for language in LANGUAGES:
+        assert "core-amneziawg.toml" in readme(language)
+    assert (ROOT / "examples/installer/core-amneziawg.toml").is_file()
+
+
 def test_primary_install_path_verifies_release_assets_before_sudo():
     command_documents = (*INSTALL_GUIDES.values(), *READMES.values(), *REFERENCES.values())
     for path in command_documents:

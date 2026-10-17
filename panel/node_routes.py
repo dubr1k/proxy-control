@@ -6,10 +6,12 @@ from dataclasses import asdict
 
 from fastapi import Depends, HTTPException, Request
 
+from .amneziawg import AmneziawgError
 from .fleet import ProtocolError
 from .mieru import MieruError
 from .naive import NaiveError
 from .nodes.service import NodeConflict
+from .protocols import AdapterError
 from .schemas import NodeCreate, NodeRename, NodeRevokeAll
 from .telemt import TelemtError
 from .web_context import RequestContext
@@ -48,12 +50,22 @@ async def _probe(health, error) -> str:
 
 async def _local_services(app, settings) -> dict[str, str]:
     """The local node has no transport, so its health is the health of the three managers."""
-    telemt, naive, mieru = await asyncio.gather(
+    telemt, naive, mieru, amneziawg = await asyncio.gather(
         _probe(app.state.telemt.health, TelemtError),
         _probe(app.state.naive.health, NaiveError) if settings.naive_enabled else _switched_off(),
         _probe(app.state.mieru.health, MieruError) if settings.mieru_enabled else _switched_off(),
+        _probe(app.state.amneziawg.health, AmneziawgError) if settings.amneziawg_enabled else _switched_off(),
     )
-    return {"telemt": telemt, "naive": naive, "mieru": mieru}
+    return {"telemt": telemt, "naive": naive, "mieru": mieru, "amneziawg": amneziawg}
+
+
+async def _local_awg_versions(app, settings) -> list[str]:
+    if not settings.amneziawg_enabled:
+        return []
+    try:
+        return await app.state.adapters["amneziawg"].versions()
+    except AdapterError:
+        return []
 
 
 def _local_identity(app) -> dict:
@@ -77,6 +89,9 @@ def register_node_routes(app, context: RequestContext) -> None:
         if node.kind == "local":
             view["services"] = await _local_services(app, context.settings)
             view["identity"] = await asyncio.to_thread(_local_identity, app)
+            # The AmneziaWG versions this server's manager runs: a linked node says the same in
+            # `identity.protocols.amneziawg.versions`, the local one has no `protocols` table.
+            view["identity"]["awg_versions"] = await _local_awg_versions(app, context.settings)
         return view
 
     @app.get("/api/nodes")

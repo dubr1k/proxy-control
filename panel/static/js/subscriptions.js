@@ -4,7 +4,7 @@ import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
 import { grantRowHtml } from "./grant.js";
 
-const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
+const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
 
 // Что подписка действительно умеет отдавать. MTProxy сюда не входит и не может войти:
 // Telegram открывает ссылку `tg://proxy` и никогда не опрашивает URL подписки.
@@ -72,7 +72,9 @@ function grantRow(grant, matrix, nodes) {
       const status = matrix[grant.protocol]?.[client] || "unsupported";
       return `<small class="refresh-${esc(status)}" title="${esc(client)}: ${esc(AUTO_REFRESH[status] || status)}">${esc(client)}</small>`;
     }).join("")
-    : '<small class="refresh-unsupported" title="Telegram не читает подписку: только ссылка tg://proxy">только ссылка</small>';
+    : (grant.protocol === "amneziawg"
+      ? '<small class="refresh-unsupported" title="AmneziaWG выдаётся файлом конфигурации и QR, а не подпиской">только конфиг</small>'
+      : '<small class="refresh-unsupported" title="Telegram не читает подписку: только ссылка tg://proxy">только ссылка</small>');
   return grantRowHtml(grant, { nodes, extra: `<span class="auto-refresh" data-auto-refresh>${marks}</span>` });
 }
 
@@ -113,9 +115,16 @@ export function createSubscriptionDialog(context) {
     query("#subscription-box", root).hidden = hide;
     unavailable.hidden = serves.length > 0;
     if (!serves.length) {
-      unavailable.textContent = liveGrants().length
-        ? "Подписка этому клиенту не нужна: Telegram её не читает. Раздайте ссылки MTProxy ниже."
-        : "Подписке пока нечего отдавать — у клиента нет доступов.";
+      const live = liveGrants();
+      const telegram = live.some((grant) => grant.protocol === "mtproxy");
+      const tunnel = live.some((grant) => grant.protocol === "amneziawg");
+      unavailable.textContent = !live.length
+        ? "Подписке пока нечего отдавать — у клиента нет доступов."
+        : telegram && tunnel
+          ? "Подписка этому клиенту не нужна: Telegram её не читает, а AmneziaWG выдаётся файлом и QR. Откройте нужный доступ ниже."
+          : tunnel
+            ? "Подписка этому клиенту не нужна: AmneziaWG выдаётся файлом конфигурации и QR. Откройте нужный доступ ниже."
+            : "Подписка этому клиенту не нужна: Telegram её не читает. Раздайте ссылки MTProxy ниже.";
       if (hide) return;
     }
     if (!overview.configured) {

@@ -60,6 +60,7 @@ way. The installer can also install 3x-ui for you.
 | **MTProxy / Telemt** | A Telegram proxy: `tg://` links and QR codes, limits, expiry, service health. |
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from outside. HTTP/1.1 CONNECT and HTTP/2 CONNECT over TLS/TCP with one access for both; per-user quota and traffic accounting. |
 | **Mieru** | A traffic-obfuscating proxy with its own protocol over TCP; a one-time `mierus://` link and QR. |
+| **AmneziaWG** | A VPN over UDP — WireGuard with traffic obfuscation. Versions 1.5, 2.0 and 3.1 each run on their own port; a client can hold several, and the config is given as a `.conf` file and a QR. Optional. |
 | **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.10.2` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
 | **Clients and subscriptions** | One client holds grants to every protocol and one revocable link `https://<subscription domain>/s/<token>` for sing-box/Karing, Clash/mihomo and others. Credentials are stored under a master key (AES-256-GCM). |
 | **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
@@ -109,6 +110,7 @@ Client ── TCP/443 ──► Nginx stream + SNI
 | Telemt API | `mtproxy:9091` | Only inside the Compose network |
 | Mieru | TCP ports you choose | Public; port 443 is not used |
 | Mieru control | `/run/mita/mita.sock` | Only a local Unix socket |
+| AmneziaWG (optional) | UDP 51820, 51821, 51822 by default | Public, straight over UDP; management is the `awg-manager` container's Unix socket |
 | Fleet v1 ingress | TCP/8790 | Only HTTPS with mTLS, when this optional component is enabled |
 
 A fresh installation preserves the panel client IP through the shared Nginx entry. If
@@ -131,6 +133,9 @@ Containers are named `proxy-control-*`; the Compose project is `mtproxy`.
   `stream` owns port 443, and its routes file has **exactly one** clear
   `$ssl_preread_server_name` map.
 - The local ports in the table above are free.
+- For the optional AmneziaWG: the `/dev/net/tun` device on the server, free UDP ports
+  (51820, 51821, 51822 by default) and a name that reaches the server directly over UDP,
+  without a CDN. No new domain is needed — the panel domain will do.
 - Your own backup of Nginx, services, routes and Docker state.
 
 The installer stops and touches nothing when it sees DNS not matching the server address,
@@ -279,6 +284,16 @@ installer creates a random password. The only requirement: at least 12 character
 by default). It adds only its own rules marked `proxy-control:firewall`, and enables a
 disabled UFW with SSH allowed as the first rule.
 
+**AmneziaWG.** An optional VPN for any profile: yes/no, then the versions (all three by
+default — `1.5`, `2.0`, `3.1`) and the name or IPv4 address clients connect to (the panel
+domain by default; it must point straight at the server and not be proxied). No new domain
+is needed. The ports (51820/51821/51822), MTU and DNS are set in the TOML only (the
+`[amneziawg]` section). The installer builds the `awg-manager` image from the pinned
+amneziawg-go commit, creates `/var/lib/awg-manager` (the server keys) and the IPv4 forwarding
+sysctl file. In `fresh` mode with UFW it opens the UDP ports and forwarding on the `awg15`,
+`awg20` and `awg31` interfaces; otherwise open those UDP ports and allow forwarding on the
+`awg*` interfaces yourself.
+
 At the end the wizard shows every answer and offers to correct any field, save the
 configuration or continue. Ready configurations for every profile and 3x-ui mode are in
 [`examples/installer/`](examples/installer).
@@ -409,6 +424,7 @@ owner's data:
 | `core.toml`, `core-naive.toml`, `core-mieru.toml` | `fresh` | `none` |
 | `managed-three-xui.toml` | `fresh` | `managed-new` |
 | `existing-three-xui.toml`, `full-three-xui.toml` | `coexist` | `existing` |
+| `core-amneziawg.toml` | `fresh` | `none`, with the optional `[amneziawg]` |
 
 ```bash
 cp examples/installer/core.toml ~/proxy-control.toml
@@ -417,7 +433,9 @@ chmod 600 ~/proxy-control.toml
 ```
 
 Optional parts: `domains.subscription` (client subscriptions), `domains.mcp` (the MCP
-server, central panel only), the `[egress]` section (WARP and the Xray-router). Every field
+server, central panel only), the `[egress]` section (WARP and the Xray-router), the
+`[amneziawg]` section (AmneziaWG: `enabled`, `versions`, `host`, `ports`, `mtu`, `dns`; no
+new domain). Every field
 is described in the [installer reference](docs/INSTALLER_REFERENCE.en.md). Passwords never
 go into the TOML.
 
@@ -507,7 +525,9 @@ bash install-release.sh --update
 The script verifies the release exactly as during installation and asks the server's
 `version-agent` to update the panel to exactly the verified archive — with a backup of the
 files, image and database and a rollback on failure; then it rebuilds the changed managers.
-Telemt, certificates, `.env` and `secrets/` are left alone.
+Telemt, certificates, `.env` and `secrets/` are left alone. If AmneziaWG is enabled and its
+sources changed, `awg-manager` is rebuilt: the tunnels drop for a few seconds and the clients
+reconnect by themselves; `/var/lib/awg-manager` with the server keys is not touched.
 
 Individual components — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, the **Xray-router**
 and the panel itself — can be updated from the «Versions» screen. «Check for updates» shows
@@ -624,6 +644,11 @@ in the Naive label and Mieru `profile`; Telegram MTProxy links stay unchanged.
   only: UDP profiles do not work for clients on real networks. The quota is an approximate
   admission check, not a billing counter. [MIERU.en.md](MIERU.en.md),
   [sharing access](docs/MIERU_SHARING.en.md)
+- **AmneziaWG.** An optional VPN over UDP. Three incompatible versions — 1.5, 2.0 and 3.1 — run at the
+  same time, each on its own interface and UDP port; an access is always one version. The panel keeps
+  the client's private key, the node knows only the public one. The config is given as a file and a
+  QR and is not part of subscriptions. It needs a DNS name that reaches the server directly over UDP;
+  no new domain is required. [AMNEZIAWG.en.md](AMNEZIAWG.en.md)
 - **3x-ui.** Stays a separate panel with its own interface; Proxy Control makes sure both
   live on one 443. In `managed-new` the inbounds listen on `127.0.0.1:8449` (VLESS Reality
   TCP), `127.0.0.1:8450` (XHTTP) and `0.0.0.0:443/UDP` (Hysteria2); the 3x-ui subscription is
@@ -708,7 +733,9 @@ does not match.
 | `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
 | `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
 
-Caddy `v2.11.7` with the `http.handlers.forward_proxy` module is built from
+`amneziawg-go` (MIT license, the Amnezia VPN project) is built on the server into the
+`awg-manager` image by `awg_manager/Dockerfile` from a pinned commit; the release ships no
+prebuilt binary. Caddy `v2.11.7` with the `http.handlers.forward_proxy` module is built from
 `docker/Dockerfile.caddy-naive`. URLs, checksums and SPDX identifiers are in
 [`release/external-artifacts.json`](release/external-artifacts.json), which the release build
 embeds into the SBOM.
@@ -722,6 +749,7 @@ embeds into the SBOM.
 | `mieru_manager/Dockerfile` | Mieru access and quota management | `python:3.13.5-slim` |
 | `xray_router_manager/Dockerfile` | The Xray-router and its manager | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | The MCP server (central panel only) | `python:3.13.5-slim` |
+| `awg_manager/Dockerfile` | AmneziaWG: the manager and `amneziawg-go` (optional) | `golang:1.25.12` → `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | Fleet v1 node agent | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | Fleet v1 mTLS ingress | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |
@@ -762,6 +790,7 @@ the Python standard library.
 | Panel, roles, API keys, NaiveProxy | [PANEL.en.md](PANEL.en.md) |
 | MTProto behind Nginx | [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) |
 | Mieru | [MIERU.en.md](MIERU.en.md), [sharing access](docs/MIERU_SHARING.en.md) |
+| AmneziaWG | [AMNEZIAWG.en.md](AMNEZIAWG.en.md) |
 | Linked panels | [FLEET.en.md](FLEET.en.md) |
 | Routing and the Xray-router | [docs/ROUTING.en.md](docs/ROUTING.en.md), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md) |
 | The MCP server | [docs/MCP.en.md](docs/MCP.en.md) |

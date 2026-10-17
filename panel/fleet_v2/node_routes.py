@@ -9,6 +9,7 @@ from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..amneziawg import AmneziawgError
 from ..mieru import MieruError
 from ..naive import NaiveError
 from ..naive_routes import safe_naive_traffic
@@ -40,7 +41,7 @@ APPLY_DEADLINE = 25.0
 # `egress.mtproxy.v1` (v1.1): this node applies an `mtproxy` egress section (Telemt's upstream,
 # and the MTProxy section of its router) and reports its MTProxy egress target.
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1",
-                "egress.mtproxy.v1")
+                "egress.mtproxy.v1", "protocol.amneziawg.v1")
 ROUTER_CAPABILITY = "egress.router.v1"
 # v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
 # and applies the `relay` section, reporting both in `identity.router`.
@@ -52,7 +53,7 @@ log = logging.getLogger(__name__)
 
 class CaptureItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    protocol: Literal["mtproxy", "naive", "mieru"]
+    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg"]
     runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
 
 
@@ -115,7 +116,8 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
     background: set[asyncio.Task] = set()
 
     def _enabled(protocol: str) -> bool:
-        return {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled}.get(protocol, True)
+        return {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled,
+                "amneziawg": settings.amneziawg_enabled}.get(protocol, True)
 
     async def _daemon(client, error) -> str:
         try:
@@ -175,11 +177,18 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                 "providers": providers, "services": sections, "relay": relay_view, "lanes": lanes}
 
     async def _protocol_table(*, egress: bool = False) -> dict:
-        telemt, naive, mieru = await asyncio.gather(
+        telemt, naive, mieru, amneziawg = await asyncio.gather(
             _daemon(app.state.telemt, TelemtError),
             _daemon(app.state.naive, NaiveError) if settings.naive_enabled else asyncio.sleep(0, "off"),
             _daemon(app.state.mieru, MieruError) if settings.mieru_enabled else asyncio.sleep(0, "off"),
+            _daemon(app.state.amneziawg, AmneziawgError) if settings.amneziawg_enabled else asyncio.sleep(0, "off"),
         )
+        awg_versions: list[str] = []
+        if settings.amneziawg_enabled and amneziawg == "ok":
+            try:
+                awg_versions = await app.state.adapters["amneziawg"].versions()
+            except AdapterError:
+                awg_versions = []
         # The public hosts are the ones this node's own subscription renderer assumes; a
         # grant's own `host`/`port`, learned from the link Telemt served, win over these.
         table = {
@@ -188,6 +197,9 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                       "public_port": 443, "daemon": naive},
             "mieru": {"enabled": settings.mieru_enabled, "public_host": settings.naive_public_host,
                       "public_port": 8443, "daemon": mieru},
+            "amneziawg": {"enabled": settings.amneziawg_enabled,
+                          "public_host": settings.amneziawg_public_host or settings.naive_public_host,
+                          "public_port": 0, "daemon": amneziawg, "versions": awg_versions},
         }
         if egress:
             targets = await asyncio.gather(*(_egress_entry(protocol) for protocol in table))
@@ -197,7 +209,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
 
     async def _inventory() -> dict[str, list[dict]]:
         """Runtime users per protocol and who owns each; a dead manager contributes no rows."""
-        table: dict[str, list] = {"mtproxy": [], "naive": [], "mieru": []}
+        table: dict[str, list] = {"mtproxy": [], "naive": [], "mieru": [], "amneziawg": []}
         with app.state.database.connect() as db:
             managed = app.state.managed.owned(db)
         for protocol, adapter in app.state.adapters.items():
@@ -243,7 +255,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             return {key: aggregate[key] for key in ("upload_bytes", "download_bytes", "total_bytes")}
 
         telemt, naive_counters = await asyncio.gather(mtproxy(), naive())
-        return {"mtproxy": telemt, "naive": naive_counters, "mieru": None}
+        return {"mtproxy": telemt, "naive": naive_counters, "mieru": None, "amneziawg": None}
 
     async def _unlink(actor: dict, request: Request) -> dict:
         released = await app.state.reconciler.unlink()

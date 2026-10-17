@@ -54,6 +54,10 @@ def new_credential(protocol: str) -> bytes:
     """Telemt wants 32 hex characters; a runtime handed anything else falls back to a
     secret of its own choosing and the panel has to escrow that instead. One rule for
     every credential the central chooses — at provisioning and at every rotation."""
+    if protocol == "amneziawg":
+        from ..protocols.amneziawg import new_credential as new_key_pair
+
+        return new_key_pair()
     return (secret_tokens.token_hex(16) if protocol == "mtproxy" else secret_tokens.token_urlsafe(24)).encode()
 
 
@@ -140,6 +144,20 @@ class ProvisioningService:
             raise ClientConflict(f"no adapter is configured for {protocol}")
         return adapter
 
+    @staticmethod
+    def _require_awg_version(db, intent: GrantIntent) -> None:
+        """A linked panel applies an AmneziaWG grant only if it declared the capability, runs the
+        protocol and serves the chosen version; otherwise the grant would wait for it forever."""
+        row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (intent.node_id,)).fetchone()
+        identity = json.loads(row["identity_json"]) if row is not None and row["identity_json"] else {}
+        if "protocol.amneziawg.v1" not in (identity.get("capabilities") or []):
+            raise ClientConflict("amneziawg: the node runs a panel version without AmneziaWG")
+        entry = (identity.get("protocols") or {}).get("amneziawg") or {}
+        if not entry.get("enabled"):
+            raise ClientConflict("amneziawg: AmneziaWG is not enabled on this node")
+        if intent.options.version not in (entry.get("versions") or []):
+            raise ClientConflict(f"amneziawg: version {intent.options.version} is not served by this node")
+
     async def start(
         self, client_id: str, intents: list[GrantIntent], *, actor: dict, ip: str, request_id: str | None = None
     ) -> str:
@@ -161,6 +179,8 @@ class ProvisioningService:
                     raise ClientConflict(f"node {intent.node_id} is not a linked panel")
                 if intent.node_id == "local" and self.managed.is_managed(db, intent.protocol, intent.runtime_username):
                     raise ClientConflict(f"{intent.protocol}: runtime_username is managed by central")
+                if intent.protocol == "amneziawg" and intent.node_id in remote:
+                    self._require_awg_version(db, intent)
         for intent in intents:
             if intent.node_id in remote:
                 continue  # no manager to ask here: the node's own reconcile reports a taken name

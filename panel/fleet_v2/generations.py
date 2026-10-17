@@ -161,6 +161,8 @@ def compile(db, clients_store, *, node_id, node_guid, master_guid, previous, gen
     for grant in clients_store.grants(db, node_id=node_id, include_deleted=True):
         if grant.desired_state == "deleted" and grant.observed_state == "missing":
             continue  # the node already confirmed the deletion; the next generation omits it
+        if grant.protocol == "amneziawg" and "protocol.amneziawg.v1" not in capabilities:
+            continue  # a node before v1.3: its strict model has no `amneziawg` resource (the issue was refused earlier)
         version = grant.secret_ref.version if grant.secret_ref else 1
         # MtproxyOptions.expiration is not an option any adapter applies, so it never
         # travels: a resource carrying it would sit `drifted` on the node forever.

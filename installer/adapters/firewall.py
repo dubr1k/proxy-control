@@ -25,6 +25,16 @@ _RULE = re.compile(
     r"(?P<action>ALLOW IN)\s+"
     r"(?P<source>[^#]+?)(?:\s+#\s+(?P<comment>[^\r\n]+))?\s*$"
 )
+# `ufw route allow in on awgNN` (AmneziaWG): the forwarding rule the manager's own nft rules
+# need next to a default-deny FORWARD policy. `ufw status` prints it as an ALLOW FWD line.
+_ROUTE_RULE = re.compile(
+    r"^\[\s*(?P<number>[1-9][0-9]*)\]\s+"
+    r"Anywhere(?P<to_v6> \(v6\))?\s+"
+    r"(?P<action>ALLOW FWD)\s+"
+    r"Anywhere(?P<from_v6> \(v6\))? on (?P<interface>awg[0-9]{2})"
+    r"(?:\s+#\s+(?P<comment>[^\r\n]+))?\s*$"
+)
+_ROUTE_KEY = re.compile(r"route:(awg[0-9]{2})\Z")
 _COMMENT = re.compile(r"[A-Za-z0-9_.:+-]{1,128}\Z")
 
 
@@ -40,6 +50,8 @@ class UfwRule:
     source: str
     ipv6: bool
     comment: str | None = None
+    # Set on forwarding rules only (port is 0 then).
+    interface: str = ""
 
     @property
     def logical_key(self) -> str:
@@ -158,7 +170,7 @@ class FirewallAdapter:
         preexisting = tuple(
             key
             for key in desired
-            if _is_covered(rules, *_split_key(key), ipv6_enabled)
+            if _key_covered(rules, key, ipv6_enabled)
         )
         return {
             "initial_fingerprints": _fingerprints(rules),
@@ -192,26 +204,9 @@ class FirewallAdapter:
         )
         _assert_owned_rules_recognized(current)
         for key in desired:
-            protocol, port = _split_key(key)
-            if _is_covered(current, protocol, port, ipv6_enabled):
+            if _key_covered(current, key, ipv6_enabled):
                 continue
-            self._run_checked(
-                (
-                    "ufw",
-                    "allow",
-                    "proto",
-                    protocol,
-                    "from",
-                    "any",
-                    "to",
-                    "any",
-                    "port",
-                    str(port),
-                    "comment",
-                    _owned_comment(key),
-                ),
-                "UFW rule creation failed",
-            )
+            self._run_checked(_allow_argv(key), "UFW rule creation failed")
             current = self._status()
             _assert_foreign_preserved(initial, current)
             if not _has_exact_owned(current, key):
@@ -225,10 +220,7 @@ class FirewallAdapter:
         )
         if recorded_added and not set(recorded_added) <= set(installer_added):
             raise FirewallError("owned UFW rule has drifted")
-        if any(
-            not _is_covered(after, *_split_key(key), ipv6_enabled)
-            for key in desired
-        ):
+        if any(not _key_covered(after, key, ipv6_enabled) for key in desired):
             raise FirewallError("selected-profile UFW rule is absent")
         return {
             "initial_fingerprints": initial,
@@ -267,39 +259,14 @@ class FirewallAdapter:
             ipv6_enabled,
         )
         for key in installer_added:
-            protocol, port = _split_key(key)
-            if _is_covered(current, protocol, port, ipv6_enabled):
+            if _key_covered(current, key, ipv6_enabled):
                 continue
-            self._run_checked(
-                (
-                    "ufw",
-                    "allow",
-                    "proto",
-                    protocol,
-                    "from",
-                    "any",
-                    "to",
-                    "any",
-                    "port",
-                    str(port),
-                    "comment",
-                    _owned_comment(key),
-                ),
-                "UFW rule repair failed",
-            )
+            self._run_checked(_allow_argv(key), "UFW rule repair failed")
             current = self._status()
             _assert_foreign_preserved(initial, current)
-            if not _has_exact_owned(current, key) or not _is_covered(
-                current,
-                protocol,
-                port,
-                ipv6_enabled,
-            ):
+            if not _has_exact_owned(current, key) or not _key_covered(current, key, ipv6_enabled):
                 raise FirewallError("owned UFW rule was not repaired exactly")
-        if any(
-            not _is_covered(current, *_split_key(key), ipv6_enabled)
-            for key in desired
-        ):
+        if any(not _key_covered(current, key, ipv6_enabled) for key in desired):
             raise FirewallError("selected-profile UFW rule is absent")
         return {
             "initial_fingerprints": initial,
@@ -322,10 +289,7 @@ class FirewallAdapter:
                 _action_ssh_port(action),
                 ipv6_enabled,
             )
-            success = all(
-                _is_covered(current, *_split_key(key), ipv6_enabled)
-                for key in desired
-            )
+            success = all(_key_covered(current, key, ipv6_enabled) for key in desired)
         except FirewallError:
             success = False
         return Evidence(
@@ -374,26 +338,7 @@ class FirewallAdapter:
         for key in reversed(installer_added):
             if not _has_exact_owned(current, key):
                 continue
-            protocol, port = _split_key(key)
-            self._run_checked(
-                (
-                    "ufw",
-                    "--force",
-                    "delete",
-                    "allow",
-                    "proto",
-                    protocol,
-                    "from",
-                    "any",
-                    "to",
-                    "any",
-                    "port",
-                    str(port),
-                    "comment",
-                    _owned_comment(key),
-                ),
-                "UFW rule rollback failed",
-            )
+            self._run_checked(_delete_argv(key), "UFW rule rollback failed")
             current = self._status()
             _assert_foreign_preserved(initial, current)
             if _has_exact_owned(current, key):
@@ -572,6 +517,28 @@ def parse_ufw_status(text: str) -> tuple[UfwRule, ...]:
     for line in lines[cursor:]:
         if not line.strip():
             continue
+        route = _ROUTE_RULE.fullmatch(line)
+        if route is not None:
+            if int(route.group("number")) != expected_number or bool(route.group("to_v6")) != bool(route.group("from_v6")):
+                raise FirewallError("UFW status output is nonstandard")
+            expected_number += 1
+            comment = route.group("comment")
+            if comment is not None:
+                comment = comment.strip()
+                if not comment or len(comment) > 256 or any(ord(char) < 32 for char in comment):
+                    raise FirewallError("UFW status output is nonstandard")
+            rules.append(
+                UfwRule(
+                    port=0,
+                    protocol="",
+                    action="ALLOW FWD",
+                    source="Anywhere",
+                    ipv6=route.group("to_v6") is not None,
+                    comment=comment,
+                    interface=route.group("interface"),
+                )
+            )
+            continue
         match = _RULE.fullmatch(line)
         if match is None or int(match.group("number")) != expected_number:
             raise FirewallError("UFW status output is nonstandard")
@@ -631,9 +598,16 @@ def _selected_ports(config: InstallerConfig) -> tuple[str, ...]:
         and config.three_xui.hysteria_domain is not None
     ):
         selected.add(("udp", 443))
+    # AmneziaWG (optional): its UDP ports, and the forwarding rule of each interface (ufw's
+    # FORWARD policy would otherwise drop what the manager's own nft rules accept).
+    routes: list[str] = []
+    if config.amneziawg is not None:
+        selected.update(("udp", port) for port in config.amneziawg.ports)
+        routes = [f"route:{interface}" for interface in config.amneziawg.interfaces()]
     for _protocol, port in selected:
         _validate_ports({port})
-    return tuple(f"{protocol}:{port}" for protocol, port in sorted(selected))
+    keys = [f"{protocol}:{port}" for protocol, port in sorted(selected)]
+    return tuple(sorted([*keys, *routes], key=_key_order))
 
 
 def _validate_ports(ports: set[int] | frozenset[int]) -> None:
@@ -713,11 +687,11 @@ def _action_rules(action: Action) -> tuple[str, ...]:
             continue
         if key != "rule":
             raise FirewallError("firewall action is invalid")
-        _split_key(value)
+        _validate_key(value)
         values.append(value)
     if not ssh_seen or not ipv6_seen:
         raise FirewallError("firewall action is invalid")
-    normalized = tuple(sorted(set(values), key=lambda item: _split_key(item)))
+    normalized = tuple(sorted(set(values), key=_key_order))
     if tuple(values) != normalized:
         raise FirewallError("firewall action is invalid")
     return normalized
@@ -771,6 +745,64 @@ def _split_key(key: str) -> tuple[str, int]:
     return match.group(1), int(match.group(2))
 
 
+def _is_route(key: str) -> bool:
+    return key.startswith("route:")
+
+
+def _route_interface(key: str) -> str:
+    match = _ROUTE_KEY.fullmatch(key)
+    if match is None:
+        raise FirewallError("firewall rule is invalid")
+    return match.group(1)
+
+
+def _validate_key(key: str) -> None:
+    if _is_route(key):
+        _route_interface(key)
+    else:
+        _split_key(key)
+
+
+def _key_order(key: str) -> tuple[str, int, str]:
+    if _is_route(key):
+        return ("route", 0, _route_interface(key))
+    protocol, port = _split_key(key)
+    return (protocol, port, "")
+
+
+def _allow_argv(key: str) -> tuple[str, ...]:
+    if _is_route(key):
+        return ("ufw", "route", "allow", "in", "on", _route_interface(key), "comment", _owned_comment(key))
+    protocol, port = _split_key(key)
+    return (
+        "ufw", "allow", "proto", protocol, "from", "any", "to", "any", "port", str(port),
+        "comment", _owned_comment(key),
+    )
+
+
+def _delete_argv(key: str) -> tuple[str, ...]:
+    if _is_route(key):
+        return ("ufw", "--force", "route", "delete", "allow", "in", "on", _route_interface(key),
+                "comment", _owned_comment(key))
+    protocol, port = _split_key(key)
+    return (
+        "ufw", "--force", "delete", "allow", "proto", protocol, "from", "any", "to", "any",
+        "port", str(port), "comment", _owned_comment(key),
+    )
+
+
+def _key_covered(rules: tuple[UfwRule, ...], key: str, ipv6_enabled: bool) -> bool:
+    if _is_route(key):
+        interface = _route_interface(key)
+        families = {
+            rule.ipv6
+            for rule in rules
+            if rule.action == "ALLOW FWD" and rule.interface == interface and rule.source == "Anywhere"
+        }
+        return False in families and (not ipv6_enabled or True in families)
+    return _is_covered(rules, *_split_key(key), ipv6_enabled)
+
+
 def _owned_comment(key: str) -> str:
     comment = f"proxy-control:firewall:{key}"
     if _COMMENT.fullmatch(comment) is None:
@@ -796,14 +828,19 @@ def _is_covered(
 
 
 def _has_exact_owned(rules: tuple[UfwRule, ...], key: str) -> bool:
-    protocol, port = _split_key(key)
+    if _is_route(key):
+        port, protocol, action, interface = 0, "", "ALLOW FWD", _route_interface(key)
+    else:
+        protocol, port = _split_key(key)
+        action, interface = "ALLOW IN", ""
     expected = _owned_comment(key)
     matches = [rule for rule in rules if rule.comment == expected]
     if any(
         rule.port != port
         or rule.protocol != protocol
-        or rule.action != "ALLOW IN"
+        or rule.action != action
         or rule.source != "Anywhere"
+        or rule.interface != interface
         for rule in matches
     ):
         raise FirewallError("owned UFW rule has drifted")
@@ -819,7 +856,7 @@ def _assert_owned_rules_recognized(rules: tuple[UfwRule, ...]) -> None:
         if rule.comment is None or not rule.comment.startswith(prefix):
             continue
         key = rule.comment.removeprefix(prefix)
-        _split_key(key)
+        _validate_key(key)
         _has_exact_owned(rules, key)
 
 
@@ -832,6 +869,8 @@ def _rule_fingerprint(rule: UfwRule) -> str:
             rule.source,
             "v6" if rule.ipv6 else "v4",
             rule.comment or "",
+            # Only forwarding rules carry one: every older fingerprint stays what it was.
+            *((rule.interface,) if rule.interface else ()),
         )
     )
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -887,7 +926,7 @@ def _firewall_checkpoint(
     ):
         raise FirewallError("firewall checkpoint is invalid")
     for key in (*preexisting, *installer_added):
-        _split_key(key)
+        _validate_key(key)
     return initial, preexisting, installer_added
 
 

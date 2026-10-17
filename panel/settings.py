@@ -45,6 +45,16 @@ class Settings:
         )
     )
     mieru_enabled: bool = os.getenv("MIERU_ENABLED", "false").lower() == "true"
+    # AmneziaWG (v1.3): the node manager's socket and token. The public host is the node's own
+    # (`NAIVE_PUBLIC_HOST`, the name that reaches this server); the ports are per version.
+    amneziawg_socket: str = os.getenv("AWG_MANAGER_SOCKET", "/run/awg-manager/manager.sock")
+    amneziawg_token: str = field(
+        default_factory=lambda: _secret_setting("AWG_MANAGER_TOKEN", "AWG_MANAGER_TOKEN_FILE")
+    )
+    amneziawg_enabled: bool = os.getenv("AMNEZIAWG_ENABLED", "false").lower() == "true"
+    # The DNS name (or address) clients put in `Endpoint =`: UDP goes straight to the server, so it
+    # must not be a proxied name. Empty falls back to `NAIVE_PUBLIC_HOST`.
+    amneziawg_public_host: str = os.getenv("AMNEZIAWG_PUBLIC_HOST", "")
     # The node's Xray-router (v0.5, compose.xray-router.yaml): its manager socket and token.
     xray_router_enabled: bool = os.getenv("XRAY_ROUTER_ENABLED", "false").lower() == "true"
     xray_router_socket: str = os.getenv("XRAY_ROUTER_MANAGER_SOCKET", "/run/xray-router/manager.sock")

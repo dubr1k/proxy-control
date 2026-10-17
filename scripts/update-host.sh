@@ -9,6 +9,8 @@
 # rollback); then the managers the agent names in `pending_rebuild` are rebuilt with exactly the
 # Compose call the agent uses, and on a host with the Xray-router its MTProxy bridge is started.
 # The owned Nginx ingress templates then migrate transactionally to preserve client IP.
+# On a host with AmneziaWG the awg-manager is rebuilt when its sources changed (the tunnels drop for a
+# moment and the peers reconnect; /var/lib/awg-manager with the server keys is never touched).
 # Telemt, mask, certificates, `.env*` and `secrets/` are never touched. The digest the agent is
 # about to install must be the one this release's script verified, or nothing happens.
 set -Eeuo pipefail
@@ -63,6 +65,7 @@ while IFS= read -r service; do
         naive-manager) required=compose.naive.yaml ;;
         mieru-manager) required=compose.mieru.yaml ;;
         xray-router|xray-router-ingress) required=compose.xray-router.yaml ;;
+        awg-manager) required=compose.amneziawg.yaml ;;
         fleet-agent) required=compose.agent.yaml ;;
         fleet-ingress) required=compose.fleet-central.yaml ;;
         *) continue ;;
@@ -110,7 +113,7 @@ pending=$(agent http://agent/v1/versions | python3 -c 'import json,sys; print(" 
 cd -- "$DIR" || fail "нет каталога проекта $DIR" "no project directory $DIR"
 compose=(docker compose --project-name mtproxy --env-file .env)
 [[ -f .optional.env ]] && compose+=(--env-file .optional.env)
-for sibling in naive mieru xray-router mcp; do [[ -f .env.$sibling ]] && compose+=(--env-file ".env.$sibling"); done
+for sibling in naive mieru xray-router amneziawg mcp; do [[ -f .env.$sibling ]] && compose+=(--env-file ".env.$sibling"); done
 IFS=: read -r -a overlays <<< "$FILES"
 for file in "${overlays[@]}"; do compose+=(-f "$DIR/$file"); done
 [[ -f version-overrides/compose.versions.yaml ]] && compose+=(-f "$DIR/version-overrides/compose.versions.yaml")
@@ -121,6 +124,9 @@ for manager in $pending; do
         mieru_manager) has compose.mieru.yaml && services+=(mieru-manager) ;;
         naive_manager) has compose.naive.yaml && services+=(naive-manager) ;;
         xray_router_manager) has compose.xray-router.yaml && services+=(xray-router) ;;
+        # Restarting the manager briefly drops the AmneziaWG tunnels (peers reconnect by themselves);
+        # its state directory with the server keys is never touched.
+        awg_manager) has compose.amneziawg.yaml && services+=(awg-manager) ;;
         mcp_server) has compose.mcp.yaml && services+=(mcp) ;;
     esac
 done

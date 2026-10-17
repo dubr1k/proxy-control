@@ -536,11 +536,43 @@ GRANT_LABELS_V22 = Migration(22, "grant-labels", (
     "ALTER TABLE access_grants ADD COLUMN label TEXT",
 ))
 
+# AmneziaWG (v1.3): the protocol list in the grants table is a CHECK constraint, which SQLite
+# cannot widen in place, so the table is rebuilt with the same columns (routing_lane and label
+# came later by ALTER). Nothing references access_grants, so a plain copy is enough.
+AMNEZIAWG_V23 = Migration(23, "amneziawg-grants", (
+    "ALTER TABLE access_grants RENAME TO access_grants_old",
+    """CREATE TABLE access_grants (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+      protocol TEXT NOT NULL CHECK(protocol IN ('mtproxy','naive','mieru','amneziawg')),
+      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,
+      endpoint_id TEXT NOT NULL DEFAULT 'default',
+      runtime_username TEXT NOT NULL,
+      secret_id TEXT, secret_version INTEGER,
+      desired_state TEXT NOT NULL CHECK(desired_state IN ('enabled','disabled','deleted')),
+      observed_state TEXT NOT NULL DEFAULT 'unknown'
+        CHECK(observed_state IN ('unknown','pending','enabled','disabled','missing')),
+      valid_from INTEGER, valid_until INTEGER,
+      protocol_options_json TEXT NOT NULL DEFAULT '{}',
+      origin TEXT NOT NULL CHECK(origin IN ('imported','provisioned')),
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      routing_lane TEXT, label TEXT,
+      UNIQUE(protocol,node_id,endpoint_id,runtime_username))""",
+    """INSERT INTO access_grants(id,client_id,protocol,node_id,endpoint_id,runtime_username,secret_id,secret_version,
+       desired_state,observed_state,valid_from,valid_until,protocol_options_json,origin,created_at,updated_at,
+       routing_lane,label)
+       SELECT id,client_id,protocol,node_id,endpoint_id,runtime_username,secret_id,secret_version,
+       desired_state,observed_state,valid_from,valid_until,protocol_options_json,origin,created_at,updated_at,
+       routing_lane,label FROM access_grants_old""",
+    "DROP TABLE access_grants_old",
+    "CREATE INDEX IF NOT EXISTS access_grants_client ON access_grants(client_id)",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
     ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19, SUBSCRIPTION_ESCROW_V20,
-    ROUTING_V21, GRANT_LABELS_V22,
+    ROUTING_V21, GRANT_LABELS_V22, AMNEZIAWG_V23,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

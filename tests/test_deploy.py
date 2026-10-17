@@ -726,6 +726,7 @@ class DeployCliTests(unittest.TestCase):
             "compose.naive.yaml",
             "compose.mieru.yaml",
             "compose.xray-router.yaml",
+            "compose.amneziawg.yaml",
             "compose.agent.yaml",
             "compose.fleet-central.yaml",
             "compose.mcp.yaml",
@@ -772,6 +773,9 @@ class DeployCliTests(unittest.TestCase):
                 "XRAY_ROUTER_GEOSITE_SHA256": "adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9",
                 "MCP_DOMAIN": "mcp.example.com",
                 "MCP_PANEL_HOST": "panel.example.com",
+                "AWG_MANAGER_TOKEN_FILE": str(temp / "token"),
+                "AWG_MANAGER_STATE_DIR": str(temp / "state"),
+                "AMNEZIAWG_PUBLIC_HOST": "panel.example.com",
             }
             (temp / "xray").mkdir()
             command = ["docker", "compose"]
@@ -788,7 +792,7 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(
                 set(model["services"]),
                 {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "xray-router-ingress", "fleet-agent",
-                 "fleet-ingress", "mcp"},
+                 "fleet-ingress", "mcp", "awg-manager"},
             )
             expected_container_names = {
                 "mask": "proxy-control-mask",
@@ -801,6 +805,7 @@ class DeployCliTests(unittest.TestCase):
                 "fleet-agent": "proxy-control-fleet-agent",
                 "fleet-ingress": "proxy-control-fleet-ingress",
                 "mcp": "proxy-control-mcp",
+                "awg-manager": "proxy-control-awg-manager",
             }
             for service, container_name in expected_container_names.items():
                 self.assertEqual(model["services"][service]["container_name"], container_name)
@@ -818,6 +823,38 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(mcp["environment"]["MCP_PUBLIC_URL"], "https://mcp.example.com/mcp")
             self.assertEqual(mcp["ports"][0]["host_ip"], "127.0.0.1")
             self.assertEqual(mcp["depends_on"]["panel"]["condition"], "service_healthy")
+            # AmneziaWG (optional): the manager runs on the host network with only the two
+            # capabilities it needs, and the panel joins the socket group next to the other
+            # managers' groups instead of replacing them.
+            awg = model["services"]["awg-manager"]
+            self.assertEqual(awg["network_mode"], "host")
+            self.assertEqual(sorted(awg["cap_add"]), ["NET_ADMIN", "NET_RAW"])
+            self.assertEqual(awg["cap_drop"], ["ALL"])
+            self.assertTrue(awg["read_only"])
+            self.assertEqual(awg["environment"]["AWG_PORTS"], "1.5=51820,2.0=51821,3.1=51822")
+            panel_groups = {str(value) for value in model["services"]["panel"].get("group_add", [])}
+            self.assertTrue({"10001", "10005", "10006", "10007"} <= panel_groups, panel_groups)
+            self.assertEqual(model["services"]["panel"]["environment"]["AMNEZIAWG_PUBLIC_HOST"], "panel.example.com")
+            self.assertEqual(model["services"]["panel"]["environment"]["AMNEZIAWG_ENABLED"], "true")
+
+    def test_amneziawg_overlay_is_installed_with_its_sources_and_documented_variables(self):
+        """The installer copies the overlay and `awg_manager/` into the project, the env overlay it
+        writes names exactly the variables the overlay interpolates, and the entrypoint accepts
+        the socket group the panel joins."""
+        from installer.adapters import core
+
+        self.assertIn("compose.amneziawg.yaml", core._COPY_FILES)
+        self.assertIn("awg_manager", core._COPY_DIRECTORIES)
+        compose = (ROOT / "compose.amneziawg.yaml").read_text()
+        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertIn("container_name: proxy-control-awg-manager", compose)
+        self.assertIn("dockerfile: awg_manager/Dockerfile", compose)
+        self.assertIn("awg-manager-run:", compose)
+        for variable in ("AWG_MANAGER_TOKEN_FILE", "AWG_MANAGER_STATE_DIR", "AWG_VERSIONS", "AWG_PORTS", "AWG_SUBNETS",
+                         "AWG_MTU", "AWG_DNS", "AWG_MANAGER_SOCKET_GID", "AMNEZIAWG_PUBLIC_HOST"):
+            self.assertIn(variable, compose)
+        self.assertIn("10007", (ROOT / "panel/entrypoint.sh").read_text())
+        self.assertNotIn("awg_manager", (ROOT / ".dockerignore").read_text())
 
     def test_host_fleet_ingress_root_stages_certbot_key_for_panel(self):
         env_file = ROOT / "deploy/fleet-ingress.env.example"

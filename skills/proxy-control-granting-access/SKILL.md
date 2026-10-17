@@ -38,6 +38,19 @@ the name one access carries in the subscription (an empty `label` puts «node ·
 `post_nodes_by_node_id_rename` renames a node. The app shows the new names after it refreshes the
 subscription.
 
+## AmneziaWG (UDP VPN, a config file instead of a subscription)
+
+AmneziaWG is handed out as a `.conf` file and a QR, never through the subscription. The protocol
+has **versions 1.5, 2.0 and 3.1**, they are not compatible with one another, and each runs on its own
+port of the node; one access = one version, and a person can hold several. Put it in the placement
+as `{node_id, protocol: "amneziawg", options: {"version": "1.5"|"2.0"|"3.1"}}` (default 2.0); the
+account is named `<name>-awg<ver>` unless you pass `runtime_username`. Ask the node first: `overview` →
+`nodes` → `identity` shows the versions a node serves (`awg_versions` for `local`,
+`identity.protocols.amneziawg.versions` for a linked panel); a version the node does not serve is
+refused. The config holds the client's private key, so it is never returned through MCP: the owner opens the access in the panel (client → the access → «Показать конфиг») and downloads the `.conf` or scans the QR; the reveal is one-time and audited. 
+Newer versions hide traffic better but need a client that supports them: per Amnezia's announcements
+AmneziaWG 2.0 needs AmneziaVPN 4.8.12.9 or later and 3.1 needs 5.0.1.5 or later. Rotation issues a new key pair: the old file stops working.
+
 ## Link variants (`subscription.variants`)
 
 | Key | For whom | What it carries |

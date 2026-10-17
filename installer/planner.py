@@ -327,6 +327,9 @@ _PROFILE_ORDER = (
     "naive",
     "mieru",
     "three_xui",
+    # AmneziaWG (optional, any profile) rides the panel's Compose project like the
+    # managers above and needs nothing from them.
+    "amneziawg",
     # The MCP server (v0.11 §9a) needs the panel it talks to and the overlays it rides
     # with; it comes after every service and before the agent that records them all.
     "mcp",
@@ -341,6 +344,7 @@ def adapter_factories() -> dict[str, type]:
 
     Imported lazily: the adapters import the planner for their action types.
     """
+    from installer.adapters.amneziawg import AmneziaWgAdapter
     from installer.adapters.core import CoreAdapter
     from installer.adapters.firewall import FirewallAdapter
     from installer.adapters.mcp import McpAdapter
@@ -365,6 +369,7 @@ def adapter_factories() -> dict[str, type]:
         "warp": WarpAdapter,
         "xray_router": XrayRouterAdapter,
         "mcp": McpAdapter,
+        "amneziawg": AmneziaWgAdapter,
         "version_agent": VersionAgentAdapter,
     }
 
@@ -404,6 +409,8 @@ def adapters_for(
         selected.append("mieru")
     if config.three_xui.mode.value != "none":
         selected.append("three_xui")
+    if config.amneziawg is not None:
+        selected.append("amneziawg")
     # The MCP server (v0.11 §9a) runs only where its name is given: the central panel.
     if config.domains.mcp is not None:
         selected.append("mcp")
@@ -425,6 +432,8 @@ def compose_file_list(config: InstallerConfig) -> tuple[str, ...]:
         files.append("compose.mieru.yaml")
     if config.effective_egress.router:
         files.append("compose.xray-router.yaml")
+    if config.amneziawg is not None:
+        files.append("compose.amneziawg.yaml")
     if config.domains.mcp is not None:
         files.append("compose.mcp.yaml")
     return tuple(files)

@@ -139,7 +139,8 @@ def test_a_digest_other_than_the_verified_one_changes_nothing(host):
 
 
 @pytest.mark.parametrize("service,overlay", [("mcp", "compose.mcp.yaml"),
-                                            ("mieru-manager", "compose.mieru.yaml")])
+                                            ("mieru-manager", "compose.mieru.yaml"),
+                                            ("awg-manager", "compose.amneziawg.yaml")])
 def test_running_optional_service_missing_from_scope_refuses_before_panel_update(host, service, overlay):
     host["running_services"].write_text(service + "\n")
     agent = Agent()
@@ -295,3 +296,26 @@ exec /usr/bin/python3 "$@"
     assert calls[1] == f"-m installer.ingress_upgrade --project-dir {host['project']} --apply"
     assert (result.returncode == 0) == (migration_exit == 0)
     assert ("done: Proxy Control" in result.stdout) == (migration_exit == 0)
+
+
+def test_amneziawg_manager_changes_are_rebuilt_with_the_installed_overlay(host):
+    """The tunnels drop while the manager restarts and the peers reconnect; its state directory is
+    never named by the script. The overlay's env file rides along like the other overlays'."""
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.amneziawg.yaml\n")
+    (host["project"] / ".env.amneziawg").write_text("AWG_VERSIONS=1.5\n")
+    (host["project"] / "compose.amneziawg.yaml").write_text("services:\n  awg-manager:\n    image: x\n")
+    result = _run(host, Agent(pending=("awg_manager",)))
+    assert result.returncode == 0, result.stderr
+    calls = host["log"].read_text().splitlines()
+    up = next(line for line in calls if " up -d --build --no-deps --wait " in line)
+    assert up.endswith("--wait awg-manager") and "--env-file .env.amneziawg" in up
+    assert f"-f {host['project']}/compose.amneziawg.yaml" in up
+    assert any(line.startswith(f"tag {RUNNING_IMAGE} mtproxy-awg-manager:rollback-") for line in calls)
+    assert not any("/var/lib/awg-manager" in line for line in calls)
+
+
+def test_a_host_without_amneziawg_does_not_rebuild_the_manager(host):
+    result = _run(host, Agent(pending=("awg_manager",)))
+    assert result.returncode == 0, result.stderr
+    assert not any("awg-manager" in line for line in host["log"].read_text().splitlines())

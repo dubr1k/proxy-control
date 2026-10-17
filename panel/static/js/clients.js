@@ -10,10 +10,11 @@ const CLIENT_STATE = {
 };
 
 // One order on every card, whatever order the grants were issued in.
-const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2 };
+const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2, amneziawg: 3 };
 
 function byProtocol(left, right) {
   return (PROTOCOL_ORDER[left.protocol] ?? 9) - (PROTOCOL_ORDER[right.protocol] ?? 9)
+    || String(left.options?.version || "").localeCompare(String(right.options?.version || ""))
     || String(left.node_id || "").localeCompare(String(right.node_id || ""))
     || String(left.runtime_username).localeCompare(String(right.runtime_username));
 }

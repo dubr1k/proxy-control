@@ -36,6 +36,16 @@ def _client(client, grants) -> dict:
     return {"client": client.model_dump(), "grants": [_grant(grant) for grant in grants]}
 
 
+def _qr_of(artifact: dict) -> str | None:
+    """A QR for what a phone can scan; a config too large for a code simply has none."""
+    if artifact["media_type"] not in ("text/uri-list", "text/x-amneziawg-conf"):
+        return None
+    try:
+        return qr_data(artifact["value"])
+    except (ValueError, OverflowError):
+        return None
+
+
 def register_client_routes(app, context: RequestContext) -> None:
     def _context(request: Request, user: dict) -> dict:
         return {
@@ -75,7 +85,7 @@ def register_client_routes(app, context: RequestContext) -> None:
         cursor: Annotated[str | None, Query(max_length=512)] = None,
         query: Annotated[str, Query(max_length=256)] = "",
         state: Literal["all", "active", "suspended", "archived"] = "all",
-        protocol: Literal["", "mtproxy", "naive", "mieru"] = "",
+        protocol: Literal["", "mtproxy", "naive", "mieru", "amneziawg"] = "",
         node: Annotated[str, Query(max_length=128)] = "",
         issue: Literal["", "problem", "pending", "failed", "orphan", "disabled", "lane", "empty"] = "",
         _user=Depends(context.current),
@@ -300,6 +310,12 @@ def register_client_routes(app, context: RequestContext) -> None:
             raise HTTPException(404, "operation not found") from exc
         except ClientConflict as exc:
             raise HTTPException(409, str(exc)) from exc
+        for grant in payload["grants"]:
+            # An AmneziaWG config is scanned, not typed: the other artifacts are one-line links.
+            grant["artifacts"] = [
+                {**artifact, "qr": _qr_of(artifact)} if artifact["media_type"] == "text/x-amneziawg-conf" else artifact
+                for artifact in grant["artifacts"]
+            ]
         return {"reveal_token": context.create_reveal(payload, user)}
 
     @app.post("/api/clients/{client_id}/links")
@@ -327,10 +343,10 @@ def register_client_routes(app, context: RequestContext) -> None:
         payload["grants"] = [
             {
                 **grant,
-                # QR только для того, что вообще сканируется — ссылки (`tg://`, `naive+https://`,
-                # `mierus://`); конфиг целиком в код не лезет.
+                # QR только для того, что вообще сканируется: ссылки (`tg://`, `naive+https://`,
+                # `mierus://`) и конфиг AmneziaWG (его читают приложения AmneziaWG и AmneziaVPN).
                 "artifacts": [
-                    {**artifact, "qr": qr_data(artifact["value"]) if artifact["media_type"] == "text/uri-list" else None}
+                    {**artifact, "qr": _qr_of(artifact)}
                     for artifact in grant["artifacts"]
                 ],
             }

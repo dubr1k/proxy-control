@@ -137,10 +137,11 @@ def main():
 
         from .clients.provisioning import ProvisioningService
         from .clients.service import ClientService
-        from .protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
+        from .protocols import AmneziawgAdapter, MieruAdapter, NaiveAdapter, TelemtAdapter
         from .telemt import TelemtClient
         from .naive import NaiveClient
         from .mieru import MieruClient
+        from .amneziawg import AmneziawgClient
 
         settings = Settings()
         database_boundary = Database(database)
@@ -153,6 +154,10 @@ def main():
                 public_host=settings.naive_public_host,
             ),
             "mieru": MieruAdapter(MieruClient(settings.mieru_socket, settings.mieru_token)),
+            "amneziawg": AmneziawgAdapter(
+                AmneziawgClient(settings.amneziawg_socket, settings.amneziawg_token),
+                public_host=settings.amneziawg_public_host or settings.naive_public_host,
+            ),
         }
         clients = ClientService(database_boundary, secrets)
         clients.adapters = adapters

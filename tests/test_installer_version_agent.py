@@ -3,6 +3,7 @@ an empty catalog and a state that records what the installer just installed — 
 «Версии» screen is not empty after a real install."""
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -22,6 +23,7 @@ from installer.adapters.version_agent import (
 )
 from installer.adapters.xray_router import _XRAY_PINS, _XRAY_VERSION
 from installer.model import (
+    AmneziaWgConfig,
     DomainConfig,
     EgressChoice,
     EgressConfig,
@@ -190,6 +192,15 @@ def test_plan_reflects_the_profile_and_is_secret_free(tmp_path):
     assert values["socket"] == "/run/proxy-control/version-agent.sock" and values["socket-gid"] == "10001"
     assert values["compose-files"] == "compose.yaml:compose.naive.yaml:compose.mieru.yaml:compose.xray-router.yaml"
     assert values["router"] == "on" and values["naive"] == "on" and values["mieru"] == "on" and values["upstream"] == "on"
+
+    # AmneziaWG is not a version-agent component, but its overlay belongs to the agent's Compose set.
+    with_awg = dataclasses.replace(config(), amneziawg=AmneziaWgConfig(host="panel.example.com"))
+    (action,) = adapter(tmp_path).plan(with_awg, AuditFacts())
+    values = dict(item.split("=", 1) for item in action.mutations)
+    assert values["compose-files"] == (
+        "compose.yaml:compose.naive.yaml:compose.mieru.yaml:compose.xray-router.yaml:compose.amneziawg.yaml"
+    )
+    assert adapter(tmp_path)._selection(action)["compose_files"][-1] == "compose.amneziawg.yaml"
 
     (core,) = adapter(tmp_path).plan(config(profile=Profile.CORE, router=False), AuditFacts())
     values = dict(item.split("=", 1) for item in core.mutations)

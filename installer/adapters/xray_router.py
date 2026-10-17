@@ -896,7 +896,7 @@ class XrayRouterAdapter:
         project = self.paths.project_dir
         env_files = [f"{project}/.env"]
         compose_files = [f"{project}/compose.yaml"]
-        for sibling in ("naive", "mieru"):
+        for sibling in ("naive", "mieru", "amneziawg"):
             env = f"{project}/.env.{sibling}"
             if self._host(env).is_file():
                 env_files.append(env)

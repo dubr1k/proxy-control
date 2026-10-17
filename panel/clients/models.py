@@ -6,14 +6,24 @@ can be logged, diffed and rendered without a credential ever passing through it.
 """
 from __future__ import annotations
 
+import ipaddress
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..fleet import LIMIT_FIELDS
 from ..secrets_store import SecretRef
 
-PROTOCOLS = ("mtproxy", "naive", "mieru")
+PROTOCOLS = ("mtproxy", "naive", "mieru", "amneziawg")
+# The AmneziaWG protocol versions a node can serve, oldest first. They are not compatible with
+# one another (server-side parameters differ), so a grant names exactly one.
+AWG_VERSIONS = ("1.5", "2.0", "3.1")
+# Client-config keys a node's manager may publish as obfuscation parameters.
+AWG_OBFUSCATION_KEYS = frozenset({
+    "Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4",
+    "I1", "I2", "I3", "I4", "I5", "HeaderProtectionKey", "ContentPaddingAddition",
+})
 USERNAME_RE = r"^[A-Za-z0-9_.-]{1,64}$"
 # A share template is a shape, not a link: the credential is substituted at render time.
 _TEMPLATE_CREDENTIALS = re.compile(r"^[a-z][a-z0-9+.-]*://(?P<credentials>[^@/]*)@")
@@ -74,11 +84,55 @@ class MieruOptions(BaseModel):
         return value
 
 
-Options = MtproxyOptions | NaiveOptions | MieruOptions
+class AmneziawgOptions(BaseModel):
+    """One AmneziaWG access. `version` is the operator's choice; everything else is learned from
+    the node's manager at issue time (its address in the tunnel, the port of that version's
+    interface, the server key and the obfuscation parameters the client must repeat), so a config
+    rebuilt from escrow needs no call to the node."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal["1.5", "2.0", "3.1"] = "2.0"
+    address: str | None = Field(default=None, max_length=15)
+    port: int | None = Field(default=None, strict=True, ge=1, le=65535)
+    server_public_key: str | None = Field(default=None, min_length=44, max_length=44)
+    mtu: int | None = Field(default=None, strict=True, ge=576, le=1500)
+    dns: list[str] = Field(default_factory=list, max_length=4)
+    obfuscation: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("address")
+    @classmethod
+    def address_is_ipv4(cls, value):
+        if value is not None:
+            ipaddress.IPv4Address(value)
+        return value
+
+    @field_validator("dns")
+    @classmethod
+    def dns_are_addresses(cls, value):
+        for item in value:
+            ipaddress.ip_address(item)
+        return value
+
+    @field_validator("obfuscation")
+    @classmethod
+    def obfuscation_is_bounded(cls, value):
+        if len(value) > len(AWG_OBFUSCATION_KEYS):
+            raise ValueError("too many obfuscation parameters")
+        for key, item in value.items():
+            if key not in AWG_OBFUSCATION_KEYS:
+                raise ValueError(f"unknown obfuscation parameter {key}")
+            if not isinstance(item, str) or len(item) > 2048 or "\n" in item or "\r" in item:
+                raise ValueError(f"invalid obfuscation parameter {key}")
+        return value
+
+
+Options = MtproxyOptions | NaiveOptions | MieruOptions | AmneziawgOptions
 PROTOCOL_OPTIONS: dict[str, type[Options]] = {
     "mtproxy": MtproxyOptions,
     "naive": NaiveOptions,
     "mieru": MieruOptions,
+    "amneziawg": AmneziawgOptions,
 }
 
 
@@ -89,7 +143,7 @@ class _ProtocolOptions(BaseModel):
     protocol's options into another's; this validator rejects what is left.
     """
 
-    protocol: str = Field(pattern=r"^(mtproxy|naive|mieru)$")
+    protocol: str = Field(pattern=r"^(mtproxy|naive|mieru|amneziawg)$")
     options: Options
 
     @model_validator(mode="after")

@@ -1,4 +1,4 @@
-"""Protocol adapters: one contract, three data planes, differences named not hidden."""
+"""Protocol adapters: one contract, four data planes, differences named not hidden."""
 from .base import (
     EGRESS_ERROR_CODES,
     AccessArtifact,
@@ -15,6 +15,7 @@ from .base import (
     ProtocolAdapter,
     RouterTarget,
 )
+from .amneziawg import AmneziawgAdapter
 from .mieru import MieruAdapter
 from .naive import NaiveAdapter
 from .telemt import TelemtAdapter
@@ -24,6 +25,7 @@ __all__ = [
     "EGRESS_ERROR_CODES",
     "AccessArtifact",
     "AdapterError",
+    "AmneziawgAdapter",
     "AppliedEgress",
     "AppliedGrant",
     "CredentialPlan",

@@ -100,7 +100,8 @@ def test_a_label_is_not_a_wire_field_of_the_public_manifest():
 
 
 def test_the_grant_label_column_is_a_migration_of_its_own():
-    assert MIGRATIONS[-1].name == "grant-labels" and MIGRATIONS[-1].statements == (
+    migration = next(item for item in MIGRATIONS if item.version == 22)
+    assert migration.name == "grant-labels" and migration.statements == (
         "ALTER TABLE access_grants ADD COLUMN label TEXT",)
 
 
@@ -116,4 +117,4 @@ def test_the_screens_offer_the_renames_with_the_dialog_they_need():
     assert 'data-grant-action="label"' in grant and "/label`" in grant
     assert "askText" in ui and 'id="ask-text"' in index
     # An MTProxy access has no subscription entry, so it offers no subscription name.
-    assert 'grant.protocol === "mtproxy" ? ""' in grant
+    assert '["mtproxy", "amneziawg"].includes(grant.protocol) ? ""' in grant

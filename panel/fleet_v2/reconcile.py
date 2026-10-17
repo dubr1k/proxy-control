@@ -47,7 +47,8 @@ RELAY_KEY = "fleet_relay_json"
 LANE_PROTOCOLS = ("naive", "mieru")
 # Options the runtime teaches the panel (Telemt's endpoint, mita's share link): they are
 # never pushed back, so they never count as drift.
-LEARNED_OPTIONS = frozenset({"host", "port", "share_template"})
+LEARNED_OPTIONS = frozenset({"host", "port", "share_template", "address", "server_public_key", "mtu", "dns",
+                             "obfuscation"})
 log = logging.getLogger(__name__)
 
 

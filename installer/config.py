@@ -3,15 +3,21 @@ from __future__ import annotations
 import json
 import re
 import tomllib
+import ipaddress
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, TypeVar
 
 from installer.model import (
+    AWG_DEFAULT_DNS,
+    AWG_DEFAULT_MTU,
+    AWG_DEFAULT_PORTS,
+    AWG_VERSIONS,
     DEFAULT_LANE_SLOTS,
     DEFAULT_RELAY_PORT,
     MAX_LANE_SLOTS,
     ROUTER_PORTS,
+    AmneziaWgConfig,
     DomainConfig,
     EgressChoice,
     EgressConfig,
@@ -63,7 +69,7 @@ def parse_config(text: str) -> InstallerConfig:
             "three_xui",
             "firewall",
         },
-        optional={"mieru", "egress", "ingress"},
+        optional={"mieru", "egress", "ingress", "amneziawg"},
     )
 
     schema = _integer(root["schema"], "schema")
@@ -95,6 +101,7 @@ def parse_config(text: str) -> InstallerConfig:
         three_xui = ThreeXuiConfig(**{**_as_dict(three_xui), "warp": egress.warp, "warp_port": egress.warp_port})
     firewall = _parse_firewall(root["firewall"])
     ingress = _parse_ingress(root.get("ingress"))
+    amneziawg = _parse_amneziawg(root.get("amneziawg"), domains)
 
     if host_mode is HostMode.COEXIST and firewall.manage_ufw:
         raise ConfigError("UFW can be managed only in fresh mode")
@@ -113,9 +120,11 @@ def parse_config(text: str) -> InstallerConfig:
         firewall=firewall,
         egress=egress,
         ingress=ingress,
+        amneziawg=amneziawg,
     )
     _reject_duplicate_tcp_sni_domains(config)
     _reject_mieru_port_collisions(config)
+    _reject_amneziawg_port_collisions(config)
     return config
 
 
@@ -171,6 +180,20 @@ def render_config(config: InstallerConfig) -> str:
             f"proxy_protocol_bridge = {_toml_string(config.ingress.proxy_protocol_bridge or '')}",
             f"panel_tls_port = {config.ingress.panel_tls_port}",
             f"skip_renewal_dry_run = {'true' if config.ingress.skip_renewal_dry_run else 'false'}",
+        ])
+
+    if config.amneziawg is not None:
+        awg = config.amneziawg
+        ports = ", ".join(f"{_toml_string(version)} = {port}" for version, port in awg.port_map().items())
+        lines.extend([
+            "",
+            "[amneziawg]",
+            "enabled = true",
+            f"versions = {_toml_array(awg.versions)}",
+            f"host = {_toml_string(awg.host)}",
+            f"ports = {{ {ports} }}",
+            f"mtu = {awg.mtu}",
+            f"dns = {_toml_array(awg.dns)}",
         ])
 
     lines.extend(["", "[three_xui]", f"mode = {_toml_string(config.three_xui.mode.value)}"])
@@ -409,6 +432,77 @@ def _parse_ingress(value: object) -> IngressConfig | None:
     )
 
 
+def _parse_amneziawg(value: object, domains: DomainConfig) -> AmneziaWgConfig | None:
+    """`[amneziawg]` when enabled, None otherwise. It needs no domain of its own: the
+    clients dial `host` (default: the panel name) straight over UDP."""
+    if value is None:
+        return None
+    raw = _table(value, "amneziawg")
+    _keys(raw, path="amneziawg", required=set(), optional={"enabled", "versions", "host", "ports", "mtu", "dns"})
+    if not _boolean(raw.get("enabled", False), "amneziawg.enabled"):
+        # A disabled section carries no settings: they would be silently ignored otherwise.
+        if set(raw) - {"enabled"}:
+            raise ConfigError("amneziawg settings are given while amneziawg.enabled is false")
+        return None
+    versions_raw = raw.get("versions", list(AWG_VERSIONS))
+    if not isinstance(versions_raw, list) or not versions_raw:
+        raise ConfigError("amneziawg.versions must be a non-empty array")
+    versions: list[str] = []
+    for item in versions_raw:
+        version = _string(item, "amneziawg.versions")
+        if version not in AWG_VERSIONS:
+            raise ConfigError(f"unknown amneziawg version: {version}")
+        if version in versions:
+            raise ConfigError("amneziawg.versions must not contain duplicates")
+        versions.append(version)
+    # Canonical order, so one selection always plans the same.
+    selected = tuple(version for version in AWG_VERSIONS if version in versions)
+    host = _awg_host(raw["host"], "amneziawg.host") if "host" in raw else domains.panel
+    ports_raw = raw.get("ports", {})
+    if not isinstance(ports_raw, dict):
+        raise ConfigError("amneziawg.ports must be a table")
+    for version in ports_raw:
+        if version not in AWG_VERSIONS:
+            raise ConfigError(f"unknown amneziawg version in amneziawg.ports: {version}")
+        if version not in selected:
+            raise ConfigError(f"amneziawg.ports names version {version}, which is not enabled")
+    ports: list[int] = []
+    for version in selected:
+        port = _integer(ports_raw.get(version, AWG_DEFAULT_PORTS[version]), f"amneziawg.ports.{version}")
+        if not 1024 <= port <= 65535:
+            raise ConfigError(f"amneziawg.ports.{version} must be between 1024 and 65535")
+        ports.append(port)
+    if len(set(ports)) != len(ports):
+        raise ConfigError("amneziawg.ports must be distinct")
+    mtu = _integer(raw.get("mtu", AWG_DEFAULT_MTU), "amneziawg.mtu")
+    if not 1280 <= mtu <= 1420:
+        raise ConfigError("amneziawg.mtu must be between 1280 and 1420")
+    dns_raw = raw.get("dns", list(AWG_DEFAULT_DNS))
+    if not isinstance(dns_raw, list) or not 1 <= len(dns_raw) <= 4:
+        raise ConfigError("amneziawg.dns must list one to four addresses")
+    dns: list[str] = []
+    for item in dns_raw:
+        try:
+            dns.append(str(ipaddress.ip_address(_string(item, "amneziawg.dns"))))
+        except ValueError:
+            raise ConfigError("amneziawg.dns contains an invalid address") from None
+    if len(set(dns)) != len(dns):
+        raise ConfigError("amneziawg.dns must not contain duplicates")
+    return AmneziaWgConfig(host=host, versions=selected, ports=tuple(ports), mtu=mtu, dns=tuple(dns))
+
+
+def _awg_host(value: object, path: str) -> str:
+    """A DNS name or an IPv4 address: what a client puts in its `Endpoint`."""
+    text = _string(value, path).strip().lower().rstrip(".")
+    try:
+        return str(ipaddress.IPv4Address(text))
+    except ValueError:
+        pass
+    if not _DOMAIN_RE.fullmatch(text):
+        raise ConfigError(f"{path} must be a DNS name or an IPv4 address")
+    return text
+
+
 def _parse_firewall(value: object) -> FirewallConfig:
     raw = _table(value, "firewall")
     _keys(raw, path="firewall", required={"manage_ufw"})
@@ -485,6 +579,25 @@ def _reject_mieru_port_collisions(config: InstallerConfig) -> None:
     for port in config.mieru.tcp_ports:
         if port in reserved:
             raise ConfigError(f"mieru.tcp_ports: {port} is taken by {reserved[port]}")
+
+
+def planned_ports(config: InstallerConfig) -> dict[int, str]:
+    """Every port (TCP or UDP) the installer binds on the host except AmneziaWG's own."""
+    planned = dict(reserved_tcp_ports(config))
+    planned.update({80: "HTTP (ACME)", 443: "the shared TLS router"})
+    if config.mieru is not None:
+        planned.update({port: "a Mieru TCP port" for port in config.mieru.tcp_ports})
+        planned.update({port: "a Mieru UDP port" for port in config.mieru.udp_ports})
+    return planned
+
+
+def _reject_amneziawg_port_collisions(config: InstallerConfig) -> None:
+    if config.amneziawg is None:
+        return
+    planned = planned_ports(config)
+    for version, port in config.amneziawg.port_map().items():
+        if port in planned:
+            raise ConfigError(f"amneziawg.ports.{version}: {port} is taken by {planned[port]}")
 
 
 def _keys(

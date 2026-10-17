@@ -14,7 +14,7 @@ from ..models import Manifest, ManifestGrant
 from ..names import grant_names
 from .base import check, credential_reason, finish, named_share_url
 
-PROTOCOL_TITLES = {"mtproxy": "MTProxy", "naive": "NaiveProxy", "mieru": "Mieru"}
+PROTOCOL_TITLES = {"mtproxy": "MTProxy", "naive": "NaiveProxy", "mieru": "Mieru", "amneziawg": "AmneziaWG"}
 STATUS_TITLES = {"supported": "да", "unsupported": "нет", "unproven": "не проверено"}
 STYLE = """
 body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;max-width:44rem;padding:1rem;color:#1a1a1a;background:#fff}

@@ -79,7 +79,7 @@ python3 -m installer.cli wizard --lang en --config-output proxy-control.toml
 The wizard asks, in order: language, host mode, profile, every required domain,
 the ACME e-mail, the initial panel user, Mieru listeners when the profile
 includes Mieru, the 3x-ui mode and its domains, whether WARP is enabled and for
-which domains, and whether the installer manages UFW. It writes the answers to a
+which domains, whether to install AmneziaWG (and then its versions and public name), and whether the installer manages UFW. It writes the answers to a
 TOML file, renders the plan, and asks you to confirm the first twelve characters
 of the plan digest before anything is mutated. Quitting at any prompt leaves the
 host untouched.
@@ -150,6 +150,14 @@ relay_port = 45443             # the router's public relay port (default 45443 w
 naive = "router"               # direct | warp | router — the initial egress of NaiveProxy
 mieru = "direct"               # direct | warp | router — the initial egress of Mieru
 
+[amneziawg]                    # optional add-on to any profile; disabled when absent
+enabled = true
+versions = ["1.5", "2.0", "3.1"]   # a subset; default all three
+host = "panel.example.com"         # DNS name or IPv4 the clients dial; default: domains.panel
+ports = { "1.5" = 51820, "2.0" = 51821, "3.1" = 51822 }   # UDP, 1024-65535, distinct
+mtu = 1280                         # 1280-1420
+dns = ["1.1.1.1", "1.0.0.1"]       # one to four addresses handed to clients
+
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
 panel_domain = "xui.example.com"
@@ -172,6 +180,14 @@ domains you want routed (the routes go to the VLESS Reality TCP and XHTTP domain
 and `warp_domains` and runs on a fresh host only. `warp_domains` without
 `warp = true` is rejected.
 `manage_ufw` only takes effect on a fresh host.
+
+`[amneziawg]` is optional and works with every profile (there is no profile for it).
+`enabled = false` accepts no other key. It needs **no domain of its own**: clients dial `host`
+over UDP straight to this server, so the panel domain works as long as it points at the server
+and is not proxied by a CDN; `host` may also be an IPv4 address. Each selected version needs a
+distinct UDP port that collides with no port the installer plans (80, 443, Mieru's ports, the
+managers' and router's ports, the panel's private TLS port), and `ports` may name selected
+versions only. The tunnel subnets (`10.66.15.0/24`, `10.66.20.0/24`, `10.66.31.0/24`) are fixed.
 
 ### Shared 443 with a foreign PROXY-protocol frontend
 
@@ -318,6 +334,7 @@ boundary:
 | `core` | The `mtproxy` Compose project, its secrets, and the pinned TDLib probe |
 | `warp` | The pinned Cloudflare client package, its registration and loopback proxy |
 | `xray_router` | The three extracted Xray members under `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, the manager token and the two ingress credentials, `.env.xray-router` and the `xray-router` and `xray-router-ingress` (v1.1) Compose services |
+| `amneziawg` | `.env.amneziawg`, `secrets/awg-manager-token` (0600, root), `/var/lib/awg-manager` (0700, the server keys), `/etc/sysctl.d/99-proxy-control-amneziawg.conf` (`net.ipv4.ip_forward = 1`), the ownership marker `/etc/proxy-control/amneziawg-owned` and the `awg-manager` Compose service (container `proxy-control-awg-manager`, overlay `compose.amneziawg.yaml`, built from `awg_manager/`) |
 | `naive` | The pinned Caddy build, split identities, manager state and token, the accounting log boundary, and the Naive route |
 | `mieru` | The pinned mita executable, the mita identity and stable UDS, manager token and state, and the selected listeners |
 | `three_xui` | Nothing in `existing` mode beyond the owned route; in `managed-new`, one staged generation, its panel, and the inbounds it created |
@@ -429,6 +446,39 @@ recreates the router with them and then each manager, which re-renders its block
 bootstrap (Caddy reload; mita restart). The credentials never appear in the API, the
 panel, audit or reports.
 
+### AmneziaWG
+
+The `amneziawg` adapter runs after `three_xui` (it needs only Core). It refuses to plan when
+`/dev/net/tun` is missing (load it with `modprobe tun`) or when a selected UDP port is held by
+another listener. In `apply` it writes the sysctl file and applies it with `sysctl -p`, creates
+`/var/lib/awg-manager` (0700) and `secrets/awg-manager-token` (32 random bytes; an existing token
+is kept), writes `.env.amneziawg` (`AWG_MANAGER_TOKEN_FILE`, `AWG_MANAGER_STATE_DIR`,
+`AWG_VERSIONS`, `AWG_PORTS`, `AWG_SUBNETS`, `AWG_MTU`, `AWG_DNS`, `AWG_MANAGER_SOCKET_GID=10007`,
+`AMNEZIAWG_PUBLIC_HOST`) and runs `docker compose up -d --build --wait` over every overlay of the
+project, which also recreates the panel so that it joins the manager's socket group. The image is
+built on the host from the pinned amneziawg-go commit; GitHub and Docker Hub must be reachable
+during the build.
+
+Verification wants the container `healthy`, `GET /v1/health` (asked inside the container over
+its Unix socket, with its own token file: the token never reaches the plan, the logs or the
+report) answering `ok` with IPv4 forwarding on and every selected version `running` on its
+planned port, and every selected UDP port bound on the host.
+
+With `manage_ufw` on a fresh host the `firewall` adapter opens the selected UDP ports and adds
+`ufw route allow in on awg15|awg20|awg31` for each selected version, each with the usual
+`proxy-control:firewall:…` comment (`…:route:awg15`), and removes them again on rollback and
+uninstall. The forwarding rules are needed because UFW's default FORWARD policy drops what the
+manager's own nftables rules accept. Where the installer does not manage UFW (coexist mode or
+`manage_ufw = false`) you must open the UDP ports and allow forwarding on the `awg*` interfaces
+yourself; the plan and the report say so.
+
+`uninstall` stops and removes the service and the owned env, marker and sysctl file but keeps
+`/var/lib/awg-manager` (the server keys; without them every issued client config stops working)
+and the manager token; `--purge-data` removes both. Updating the host (`install-release.sh --update`)
+rebuilds `awg-manager` when `awg_manager/` changed: the tunnels drop for a few seconds and the
+peers reconnect by themselves; the state directory is never touched. How AmneziaWG is used from
+the panel is in [AMNEZIAWG.en.md](../AMNEZIAWG.en.md).
+
 ## Hard stops
 
 The audit refuses to plan rather than guess. A hard stop is reported and nothing
@@ -481,7 +531,7 @@ touched.
 
 An explicit purge also removes an empty `version-overrides` directory left by
 the updater. Nonempty directories and symbolic links are preserved.
-The three optional-manager socket volumes are removed after their containers,
+The optional-manager socket volumes (Naive, Mieru, the Xray-router and AmneziaWG) are removed after their containers,
 with their exact names and Compose ownership labels checked. Other volumes are
 not swept, and Docker must refuse any volume still in use.
 

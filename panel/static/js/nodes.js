@@ -19,8 +19,8 @@ const CONNECTIVITY = {
 
 const EXPIRY_WARNING_SECONDS = 14 * 86400;
 
-// The local node is managed directly, so its health is the health of the three managers.
-const SERVICES = [["telemt", "Telemt"], ["naive", "NaiveProxy"], ["mieru", "Mieru"]];
+// The local node is managed directly, so its health is the health of its managers.
+const SERVICES = [["telemt", "Telemt"], ["naive", "NaiveProxy"], ["mieru", "Mieru"], ["amneziawg", "AmneziaWG"]];
 const SERVICE_STATE = {
   ok: ["", "работает"],
   unavailable: ["blocked", "недоступен"],
@@ -34,13 +34,13 @@ const LINK_STATUS = {
   offline: ["blocked", "Не отвечает"],
   unknown: ["muted", "Ещё не опрашивалась"],
 };
-const DAEMONS = [["mtproxy", "Telemt"], ["naive", "NaiveProxy"], ["mieru", "Mieru"]];
+const DAEMONS = [["mtproxy", "Telemt"], ["naive", "NaiveProxy"], ["mieru", "Mieru"], ["amneziawg", "AmneziaWG"]];
 const DAEMON_STATE = {
   ok: ["", "работает"],
   down: ["blocked", "недоступен"],
   off: ["muted", "выключен"],
 };
-const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
+const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
 const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core" };
 // Те же компоненты одним словом: строка «Компоненты» в обзоре узла должна помещаться.
 const COMPONENT_SHORT = { telemt: "Telemt", naive: "Caddy", mita: "mita", xray: "Xray", panel: "панель" };

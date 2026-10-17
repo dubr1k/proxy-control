@@ -20,6 +20,7 @@ boundary you are changing.
 - [Панель, роли, API-ключи, Telemt и NaiveProxy](../PANEL.ru.md)
 - [MTProto за Nginx SNI](../DOCKER_DEPLOYMENT.ru.md)
 - [Mieru/mita](../MIERU.ru.md) и [выдача ссылок, QR и конфигураций Mieru](MIERU_SHARING.ru.md)
+- [AmneziaWG: версии 1.5, 2.0 и 3.1, конфиг и QR](../AMNEZIAWG.ru.md)
 - [Связанные панели (Fleet v2) и транспорт mTLS (Fleet v1)](../FLEET.ru.md)
 - [Маршрутизация: политики исходящего трафика, выходы, цепи и полосы](ROUTING.ru.md)
 - [Xray-router](XRAY_ROUTER.ru.md)
@@ -57,6 +58,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v1.3.0](releases/v1.3.0.md) — протокол AmneziaWG: версии 1.5, 2.0 и 3.1
 - [v1.2.1](releases/v1.2.1.md) — обновление Xray, Mieru, Caddy, 3x-ui и MTProto
 - [v1.2.0](releases/v1.2.0.md) — переименование клиентов и названий доступов в подписке
 - [v1.1.4](releases/v1.1.4.md) — выдача любого числа доступов за раз, список клиентов обновляет статус узлов
@@ -84,6 +86,7 @@ boundary you are changing.
 - [Panel, roles, API keys, Telemt and NaiveProxy](../PANEL.en.md)
 - [MTProto behind Nginx SNI](../DOCKER_DEPLOYMENT.md)
 - [Mieru/mita](../MIERU.en.md) and [sharing Mieru links, QR codes and configurations](MIERU_SHARING.en.md)
+- [AmneziaWG: versions 1.5, 2.0 and 3.1, config and QR](../AMNEZIAWG.en.md)
 - [Linked panels (Fleet v2) and the mTLS transport (Fleet v1)](../FLEET.en.md)
 - [Routing: outbound policies, exits, chains and lanes](ROUTING.en.md)
 - [The Xray-router](XRAY_ROUTER.en.md)
@@ -121,6 +124,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v1.3.0](releases/v1.3.0.md) — the AmneziaWG protocol: versions 1.5, 2.0 and 3.1
 - [v1.2.1](releases/v1.2.1.md) — Xray, Mieru, Caddy, 3x-ui and MTProto updates
 - [v1.2.0](releases/v1.2.0.md) — rename clients and access names in the subscription
 - [v1.1.4](releases/v1.1.4.md) — any number of accesses in one request, the client list refreshes node statuses

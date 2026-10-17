@@ -2083,7 +2083,7 @@ class MieruAdapter:
         env_files = [f"{project}/.env"]
         compose_files = [f"{project}/compose.yaml"]
         # The router overlay (v0.5) extends `panel` too, so it rides along the same way.
-        for sibling in ("naive", "xray-router"):
+        for sibling in ("naive", "xray-router", "amneziawg"):
             sibling_env = f"{project}/.env.{sibling}"
             if self._host(sibling_env).is_file():
                 env_files.append(sibling_env)

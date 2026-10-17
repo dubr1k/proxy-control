@@ -447,3 +447,21 @@ async def test_a_host_outside_the_allowlist_is_refused(config, fake):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://evil.example.com") as client:
             headers = {**MCP_HEADERS, "Authorization": f"Bearer {TOKEN}"}
             assert (await client.post("/mcp", json=INITIALIZE, headers=headers)).status_code == 421
+
+
+async def test_amneziawg_versions_are_separate_accesses_in_a_placement(registry, fake):
+    await registry.call("create_client", {"display_name": "Eve", "subscription": False, "placement": [
+        {"node_id": "local", "protocol": "amneziawg", "options": {"version": "1.5"}},
+        {"node_id": "local", "protocol": "amneziawg", "options": {"version": "3.1"}},
+        {"node_id": "local", "protocol": "amneziawg"},
+    ]})
+    grants = fake.calls[2][2]["grants"]
+    assert [g["runtime_username"] for g in grants] == ["eve-awg15", "eve-awg31", "eve-awg20"]
+    assert [g["options"].get("version") for g in grants] == ["1.5", "3.1", None]
+    desired = [{"node_id": "local", "protocol": "amneziawg", "options": {"version": "3.1"}},
+               {"node_id": "local", "protocol": "amneziawg", "options": {"version": "2.0"}}]
+    plan = _text(await registry.call("set_client_placement", {"client_id": "c1", "placement": desired}))["plan"]
+    assert plan["keep"] == [{"grant_id": "g2", "node_id": "local", "protocol": "amneziawg:3.1"},
+                            {"grant_id": "g3", "node_id": "local", "protocol": "amneziawg:2.0"}]
+    assert plan["disable"] == [{"grant_id": "g1", "node_id": "local", "protocol": "amneziawg:1.5"}]
+    assert plan["issue"] == []

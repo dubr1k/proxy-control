@@ -131,6 +131,45 @@ class EgressConfig:
         return cls(warp=three_xui.warp, warp_port=three_xui.warp_port, naive=choice, mieru=choice)
 
 
+# AmneziaWG (the optional `[amneziawg]` add-on): one amneziawg-go process per enabled
+# version, each on its own UDP port, host interface and tunnel subnet. These are the
+# defaults `awg_manager.config` and `compose.amneziawg.yaml` carry as well.
+AWG_VERSIONS = ("1.5", "2.0", "3.1")
+AWG_DEFAULT_PORTS: dict[str, int] = {"1.5": 51820, "2.0": 51821, "3.1": 51822}
+AWG_DEFAULT_SUBNETS: dict[str, str] = {
+    "1.5": "10.66.15.0/24",
+    "2.0": "10.66.20.0/24",
+    "3.1": "10.66.31.0/24",
+}
+AWG_DEFAULT_DNS = ("1.1.1.1", "1.0.0.1")
+AWG_DEFAULT_MTU = 1280
+
+
+def awg_interface(version: str) -> str:
+    """The host interface name of one AmneziaWG version: `awg15`, `awg20`, `awg31`."""
+    return "awg" + version.replace(".", "")
+
+
+@dataclass(frozen=True)
+class AmneziaWgConfig:
+    """The optional AmneziaWG add-on (`[amneziawg]`), any profile.
+
+    `ports` runs parallel to `versions`. `host` is the name or IPv4 address clients dial;
+    UDP goes straight to the server, so it must not be proxied."""
+
+    host: str
+    versions: tuple[str, ...] = AWG_VERSIONS
+    ports: tuple[int, ...] = tuple(AWG_DEFAULT_PORTS[version] for version in AWG_VERSIONS)
+    mtu: int = AWG_DEFAULT_MTU
+    dns: tuple[str, ...] = AWG_DEFAULT_DNS
+
+    def port_map(self) -> dict[str, int]:
+        return dict(zip(self.versions, self.ports, strict=True))
+
+    def interfaces(self) -> tuple[str, ...]:
+        return tuple(awg_interface(version) for version in self.versions)
+
+
 @dataclass(frozen=True)
 class FirewallConfig:
     manage_ufw: bool
@@ -165,6 +204,8 @@ class InstallerConfig:
     # An opt-in loopback bridge is required only when a foreign shared-443 frontend
     # emits PROXY protocol but the selected private backends do not consume it.
     ingress: IngressConfig | None = None
+    # The optional AmneziaWG add-on; None means it is not installed.
+    amneziawg: AmneziaWgConfig | None = None
 
     @property
     def effective_egress(self) -> EgressConfig:

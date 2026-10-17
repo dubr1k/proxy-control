@@ -427,6 +427,18 @@ def _write_reports(
         # The public report only says MCP is on; the address and the bearer go to the
         # root-only handoff next to it (v0.11 §9a).
         operator_notes.append(f"MCP server: enabled on {config.domains.mcp}")
+    if config.amneziawg is not None:
+        awg = config.amneziawg
+        operator_notes.append(
+            "AmneziaWG: enabled, versions "
+            + ", ".join(f"{version} (udp/{port}, {interface})"
+                        for (version, port), interface in zip(awg.port_map().items(), awg.interfaces(), strict=True))
+        )
+        if not (config.host_mode.value == "fresh" and config.firewall.manage_ufw):
+            operator_notes.append(
+                "AmneziaWG: the installer does not manage the firewall here; keep these UDP ports open "
+                "and forwarding allowed on the awg interfaces"
+            )
     report = AcceptanceReport.from_evidence(
         profile=config.profile.value,
         release_tag=state.origin,

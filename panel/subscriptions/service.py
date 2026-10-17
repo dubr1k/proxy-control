@@ -250,7 +250,10 @@ class SubscriptionService:
                     valid_from=grant.valid_from,
                     valid_until=grant.valid_until,
                 )
+                # AmneziaWG is handed out as a config file and a QR, never as a feed entry: no
+                # subscription client consumes it, and its keys must not travel through a renderer.
                 for grant in grants
+                if grant.protocol != "amneziawg"
             ],
         )
 

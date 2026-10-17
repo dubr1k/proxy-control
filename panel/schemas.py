@@ -163,7 +163,7 @@ class ImportDecision(BaseModel):
     display_name: str = Field(min_length=1, max_length=128)
     client_id: str | None = Field(default=None, max_length=64)
     # (protocol, runtime username) pairs; the panel checks both against live inventory.
-    items: list[tuple[Literal["mtproxy", "naive", "mieru"], str]] = Field(min_length=1, max_length=64)
+    items: list[tuple[Literal["mtproxy", "naive", "mieru", "amneziawg"], str]] = Field(min_length=1, max_length=64)
 
     @field_validator("items")
     @classmethod
@@ -184,11 +184,11 @@ class GrantAdopt(BaseModel):
 
 
 class GrantAdoptBatch(GrantAdopt):
-    protocol: Literal["mtproxy", "naive", "mieru"]
+    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg"]
 
 
 class GrantRequest(BaseModel):
-    protocol: Literal["mtproxy", "naive", "mieru"]
+    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg"]
     # This panel's own runtime, or a linked panel (spec §6); anything else is refused.
     node_id: str = Field(default="local", pattern=NODE_RE)
     runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
@@ -250,7 +250,7 @@ class NodeLinkUpdate(BaseModel):
 
 
 class NodeImportItem(BaseModel):
-    protocol: Literal["mtproxy", "naive", "mieru"]
+    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg"]
     runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
     # `new` creates a client named after the runtime user; anything else is an existing client id.
     client: str = Field(min_length=1, max_length=64)

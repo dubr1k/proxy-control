@@ -1,0 +1,26 @@
+schema = 1
+host_mode = "fresh"
+profile = "core"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+
+# AmneziaWG is an optional add-on to any profile. It needs no domain of its own:
+# clients dial `host` over UDP straight to this server (default: the panel domain,
+# which must point at the server and must not be proxied by a CDN).
+[amneziawg]
+enabled = true
+versions = ["1.5", "2.0", "3.1"]
+host = "panel.example.com"
+ports = { "1.5" = 51820, "2.0" = 51821, "3.1" = 51822 }
+mtu = 1280
+dns = ["1.1.1.1", "1.0.0.1"]
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

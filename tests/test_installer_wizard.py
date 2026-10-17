@@ -124,6 +124,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "xhttp.example.com",
             "no",  # WARP: asked for Naive and Mieru profiles
             "no",  # Xray-router: offered whenever a proxy service could feed it (v0.5)
+            "",  # AmneziaWG: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -174,6 +175,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "46001",
             "no",  # WARP: asked for the Mieru profile
             "no",  # Xray-router
+            "",  # AmneziaWG: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -241,6 +243,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "hy2.example.com",
         "no",  # WARP: asked for Naive and Mieru profiles
         "no",  # Xray-router
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password: blank keeps it generated
@@ -270,6 +273,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
             "relay.example.com",
             "",  # subscription domain: blank keeps subscriptions off
             "",  # MCP domain: blank keeps MCP off
+            "",  # AmneziaWG: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -299,6 +303,7 @@ def test_wizard_writes_the_subscription_domain_when_one_is_given(tmp_path: Path)
             "relay.example.com",
             "sub.example.com",
             "",  # MCP domain: blank keeps MCP off
+            "",  # AmneziaWG: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -330,6 +335,7 @@ def test_wizard_writes_the_mcp_domain_when_one_is_given(tmp_path: Path):
             "relay.example.com",
             "",  # subscription domain
             "mcp.example.com",
+            "",  # AmneziaWG: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -368,6 +374,7 @@ def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
         "no",  # Xray-router
         "no",  # NaiveProxy through WARP? — direct
         "yes",  # Mieru through WARP
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password
@@ -402,6 +409,7 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
             "relay.example.com",
             "",  # subscription domain: blank keeps subscriptions off
             "",  # MCP domain: blank keeps MCP off
+            "",  # AmneziaWG: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -444,6 +452,7 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         "",  # VLESS XHTTP: blank — refused, both asked again
         "vless.example.com",
         "",
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password: blank keeps it generated
@@ -550,6 +559,7 @@ def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_p
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "correct-horse-battery",
@@ -583,6 +593,7 @@ def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "",
@@ -611,6 +622,7 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
         "relay.example.com",
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "first-attempt-password",
@@ -655,6 +667,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
         "yes",  # NaiveProxy through the router
         "no",  # Mieru through the router
         "yes",  # Mieru through WARP (the only service still asked)
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password
@@ -686,7 +699,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
 
     # A core-only profile has nothing to feed a router: the question is not asked.
     core = tmp_path / "core.toml"
-    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "admin@example.com",
+    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "admin@example.com",
                     "owner", "", "yes", "save"]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers_core) + "\n"), transcript)
@@ -724,6 +737,7 @@ def test_enter_takes_the_explained_defaults_and_the_example_mieru_ports(tmp_path
         "",  # Mieru UDP → 46001
         "no",  # WARP
         "no",  # router
+        "",  # AmneziaWG: blank keeps it off
         "admin@example.com",
         "owner",
         "",
@@ -777,7 +791,7 @@ def test_warp_domains_take_geosite_lists_and_refuse_a_blank_answer(tmp_path: Pat
         "yes",  # WARP for 3x-ui
         "",  # blank: refused, asked again
         "geosite:openai, domain:Claude.AI, chatgpt.com",
-        "admin@example.com", "owner", "",
+        "", "admin@example.com", "owner", "",
         "xuiadmin", "",  # 3x-ui username, generated password
         "yes", "save",
     ]
@@ -800,7 +814,7 @@ def test_an_invalid_configuration_says_why(tmp_path: Path):
         "8443",  # the panel's private TLS listener: refused with the reason
         "8443",
         "no", "no",
-        "admin@example.com", "owner", "", "yes",
+        "", "admin@example.com", "owner", "", "yes",
         "mieru.tcp_ports", "46001",  # the field to fix and its new value
         "save",
     ]
@@ -808,3 +822,95 @@ def test_an_invalid_configuration_says_why(tmp_path: Path):
     reason = transcript.split("The configuration is invalid: ", 1)[1].splitlines()[0]
     assert "8443 is taken by the panel's private TLS listener" in reason
     assert load_config(output).mieru.tcp_ports == (46001,)
+
+
+def _core_answers(*awg: str) -> list[str]:
+    return ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", *awg,
+            "admin@example.com", "owner", "", "yes", "save"]
+
+
+def test_the_wizard_offers_amneziawg_with_versions_and_a_public_name(tmp_path: Path):
+    """One yes/no, then the versions (default all three) and the name clients dial (default the
+    panel domain); no new domain is asked. Ports, MTU and DNS stay in the TOML."""
+    output = tmp_path / "awg.toml"
+    transcript, written = _scripted(_core_answers("yes", "3.1, 1.5", "vpn.example.com"), output)
+    awg = load_config(output).amneziawg
+    assert awg is not None
+    assert awg.versions == ("1.5", "3.1") and awg.host == "vpn.example.com"
+    assert awg.port_map() == {"1.5": 51820, "3.1": 51822}
+    assert "[amneziawg]" in written and 'versions = ["1.5", "3.1"]' in written
+    assert "Install AmneziaWG" in transcript and "needs no new domain" in transcript
+    assert "amneziawg.versions | 1.5,3.1" in transcript.split("Configuration review", 1)[1]
+
+
+def test_amneziawg_defaults_are_all_versions_and_the_panel_domain(tmp_path: Path):
+    output = tmp_path / "awg-defaults.toml"
+    _scripted(_core_answers("yes", "", ""), output)
+    awg = load_config(output).amneziawg
+    assert awg.versions == ("1.5", "2.0", "3.1") and awg.host == "panel.example.com"
+
+
+def test_declining_amneziawg_writes_no_section(tmp_path: Path):
+    output = tmp_path / "no-awg.toml"
+    transcript, written = _scripted(_core_answers("no"), output)
+    assert load_config(output).amneziawg is None
+    assert "[amneziawg]" not in written and "amneziawg." not in transcript.split("Configuration review", 1)[1]
+
+
+def test_amneziawg_answers_are_validated_with_localized_feedback(tmp_path: Path):
+    output = tmp_path / "awg-bad.toml"
+    transcript, _ = _scripted(_core_answers("yes", "4.0", "2.0, 2.0", "2.0", "bad_host", "198.51.100.4"), output)
+    assert transcript.count("Enter one or more of 1.5, 2.0, 3.1") == 2
+    assert "Enter a DNS name or an IPv4 address." in transcript
+    awg = load_config(output).amneziawg
+    assert awg.versions == ("2.0",) and awg.host == "198.51.100.4"
+    ru_output = tmp_path / "awg-bad-ru.toml"
+    ru_transcript, _ = _scripted(_core_answers("да", "9", "1.5", "x_y", ""), ru_output, Locale.RU)
+    assert "Введите одну или несколько версий из 1.5, 2.0, 3.1" in ru_transcript
+    assert "Введите DNS-имя или IPv4-адрес." in ru_transcript
+    assert "новый домен не нужен" in ru_transcript
+    assert load_config(ru_output).amneziawg.host == "panel.example.com"
+
+
+def test_the_review_can_edit_amneziawg(tmp_path: Path):
+    output = tmp_path / "awg-edit.toml"
+    answers = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
+               "no",  # AmneziaWG off at first
+               "admin@example.com", "owner", "", "yes",
+               "edit", "amneziawg", "yes", "2.0", "vpn.example.com",
+               "save"]
+    _scripted(answers, output)
+    awg = load_config(output).amneziawg
+    assert awg.versions == ("2.0",) and awg.host == "vpn.example.com"
+
+
+def test_an_amneziawg_port_that_collides_is_reported_by_the_review_loop(tmp_path: Path):
+    """The wizard never asks for ports, but a colliding Mieru port is caught on the
+    config round trip (`invalid_config`), so the operator is sent back to the field."""
+    output = tmp_path / "awg-collision.toml"
+    answers = ["", "fresh", "core-mieru", "none", "panel.example.com", "relay.example.com", "", "",
+               "mieru.example.com", "51820", "46001", "no", "no",
+               "yes", "", "",  # AmneziaWG: all versions, the panel name
+               "admin@example.com", "owner", "", "yes",
+               "mieru.tcp_ports", "46001",
+               "save"]
+    transcript, _ = _scripted(answers, output)
+    assert "amneziawg.ports.1.5: 51820 is taken by a Mieru" in transcript
+    assert load_config(output).mieru.tcp_ports == (46001,)
+
+
+def test_installer_catalog_has_the_same_keys_and_placeholders_in_both_languages():
+    """Every wizard text exists in English and Russian with the same `{placeholders}`."""
+    import string
+
+    from installer.i18n import _CATALOG
+
+    english, russian = _CATALOG[Locale.EN], _CATALOG[Locale.RU]
+    assert set(english) == set(russian), sorted(set(english) ^ set(russian))
+
+    def fields(message: str) -> set[str]:
+        return {name for _, name, _, _ in string.Formatter().parse(message) if name}
+
+    assert {key for key in english if fields(english[key]) != fields(russian[key])} == set()
+    for key in ("amneziawg", "amneziawg_versions", "amneziawg_host", "invalid_awg_versions", "invalid_awg_host"):
+        assert key in english and key in russian

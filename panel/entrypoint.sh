@@ -2,9 +2,9 @@
 set -eu
 
 case ${PANEL_SUPPLEMENTARY_GROUPS-} in
-  ""|10001|10005|10001,10005|10001,10006|10001,10005,10006) ;;
+  ""|10001|10005|10007|10001,10005|10001,10006|10001,10007|10001,10005,10006|10001,10005,10007|10001,10006,10007|10001,10005,10006,10007) ;;
   *)
-    echo "PANEL_SUPPLEMENTARY_GROUPS must be empty, 10001, 10005, 10001,10005, 10001,10006 or 10001,10005,10006" >&2
+    echo "PANEL_SUPPLEMENTARY_GROUPS must be empty or a combination of 10001, 10005, 10006 and 10007" >&2
     exit 64
     ;;
 esac
@@ -14,7 +14,7 @@ esac
 wanted=
 for gid in $(id -G) $(printf '%s' "${PANEL_SUPPLEMENTARY_GROUPS-}" | tr ',' ' '); do
   case $gid in
-    10001|10005|10006)
+    10001|10005|10006|10007)
       case ",$wanted," in
         *,"$gid",*) ;;
         *) wanted=${wanted:+$wanted,}$gid ;;
@@ -43,11 +43,13 @@ TELEMT_SOURCE=${TELEMT_API_TOKEN_SOURCE:-/run/secrets/telemt-api-token}
 NAIVE_SOURCE=${NAIVE_MANAGER_TOKEN_SOURCE:-/run/secrets/naive-manager-token}
 MIERU_SOURCE=${MIERU_MANAGER_TOKEN_SOURCE:-/run/secrets/mieru-manager-token}
 ROUTER_SOURCE=${XRAY_ROUTER_MANAGER_TOKEN_SOURCE:-/run/secrets/xray-router-manager-token}
+AWG_SOURCE=${AWG_MANAGER_TOKEN_SOURCE:-/run/secrets/awg-manager-token}
 PANEL_RUNTIME_DIR=/run/panel
 TELEMT_TARGET=/run/panel/telemt-api-token
 NAIVE_TARGET=/run/panel/naive-manager-token
 MIERU_TARGET=/run/panel/mieru-manager-token
 ROUTER_TARGET=/run/panel/xray-router-manager-token
+AWG_TARGET=/run/panel/awg-manager-token
 MASTER_KEY_SOURCE=${PANEL_MASTER_KEY_SOURCE:-/run/secrets/panel-master-key}
 MASTER_KEY_TARGET=/run/panel/master-key
 
@@ -73,6 +75,11 @@ fi
 if [ -r "$ROUTER_SOURCE" ]; then
   install -m 0400 -o panel -g panel "$ROUTER_SOURCE" "$ROUTER_TARGET"
   export XRAY_ROUTER_MANAGER_TOKEN_FILE="$ROUTER_TARGET"
+fi
+# The AmneziaWG manager token (v1.3) is staged the same way: present only with its overlay.
+if [ -r "$AWG_SOURCE" ]; then
+  install -m 0400 -o panel -g panel "$AWG_SOURCE" "$AWG_TARGET"
+  export AWG_MANAGER_TOKEN_FILE="$AWG_TARGET"
 fi
 # The master keyring is optional at startup: a panel that has never stored a secret
 # runs without it. The application itself fails closed if encrypted rows exist.

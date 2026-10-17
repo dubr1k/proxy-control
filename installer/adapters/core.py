@@ -59,6 +59,8 @@ _COPY_FILES = (
     "compose.mieru.yaml",
     "compose.naive.yaml",
     "compose.xray-router.yaml",
+    # The AmneziaWG overlay: the `amneziawg` adapter runs Compose from this directory.
+    "compose.amneziawg.yaml",
     # The MCP overlay (v0.11) builds its container from `mcp_server/` in this same
     # directory; the `mcp` adapter runs Compose here (found live: a lab install without
     # the file died on `open compose.mcp.yaml: no such file`).
@@ -78,6 +80,8 @@ _COPY_DIRECTORIES = (
     "naive_manager",
     "panel",
     "xray_router_manager",
+    # The AmneziaWG manager image is built from this directory by the `amneziawg` adapter.
+    "awg_manager",
 )
 # Credentials a project Core adopts must already have. The master key is deliberately
 # not here: a v0.1.0 project has none, and demanding it would refuse the upgrade.
@@ -102,11 +106,13 @@ _ADJACENT_CREDENTIALS = (
     # them (found live: `repair` on a lab install with MCP refused the secrets dir).
     "secrets/mcp-token",
     "secrets/mcp-panel-key",
+    # The AmneziaWG manager token; the `amneziawg` adapter owns it.
+    "secrets/awg-manager-token",
 )
 # Compose services other adapters add to the shared project.
 # `mcp` is the MCP server (v0.11); it runs in this project on the central only (found
 # live: `repair` on a lab install with MCP failed its health-check roll call).
-_ADJACENT_SERVICES = ("naive-manager", "mieru-manager", "xray-router", "xray-router-ingress", "mcp")
+_ADJACENT_SERVICES = ("naive-manager", "mieru-manager", "xray-router", "xray-router-ingress", "awg-manager", "mcp")
 _PANEL_VHOST = "/etc/nginx/conf.d/proxy-control-panel.conf"
 # The shared 443 router forwards raw TLS, so the panel needs a TLS listener of
 # its own: the panel application itself speaks plain HTTP on its app port.
@@ -297,7 +303,7 @@ class _DefaultCoreRunner:
             "label=com.docker.compose.project=mtproxy",
         )).split())
         selected = []
-        for volume in ("naive-manager-run", "mieru-manager-run", "xray-router-run"):
+        for volume in ("naive-manager-run", "mieru-manager-run", "xray-router-run", "awg-manager-run"):
             name = f"mtproxy_{volume}"
             if name not in present:
                 continue

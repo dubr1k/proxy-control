@@ -172,6 +172,7 @@ def test_config_rejects_irrelevant_and_unknown_fields():
         "full-three-xui.toml",
         "managed-three-xui.toml",
         "existing-three-xui.toml",
+        "core-amneziawg.toml",
     ],
 )
 def test_example_configs_load_and_round_trip(name: str):
@@ -208,6 +209,7 @@ def test_generated_model_and_canonical_form_have_no_secret_fields():
         "firewall",
         "egress",
         "ingress",
+        "amneziawg",
     }
 
 
@@ -301,6 +303,7 @@ def test_invalid_toml_is_reported_as_config_error():
         "full-three-xui.toml",
         "managed-three-xui.toml",
         "existing-three-xui.toml",
+        "core-amneziawg.toml",
     ],
 )
 def test_every_example_configuration_selects_adapters(name: str):

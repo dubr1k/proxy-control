@@ -19,9 +19,9 @@ PLACEMENT_ITEM = {
     "type": "object",
     "properties": {
         "node_id": {"type": "string", "description": "The node: `local` for this panel, or a linked panel's id."},
-        "protocol": {"type": "string", "enum": ["mtproxy", "naive", "mieru"]},
+        "protocol": {"type": "string", "enum": ["mtproxy", "naive", "mieru", "amneziawg"]},
         "runtime_username": {"type": "string", "description": "Account name on the runtime; derived from the display name when omitted."},
-        "options": {"type": "object", "description": "Protocol options (quota, limits…); the panel validates them."},
+        "options": {"type": "object", "description": "Protocol options (quota, limits…); the panel validates them. For `amneziawg` set `{\"version\": \"1.5\"|\"2.0\"|\"3.1\"}` (default 2.0); each version is its own access, the account is named `<name>-awg<ver>`."},
     },
     "required": ["node_id", "protocol"],
     "additionalProperties": False,
@@ -96,10 +96,27 @@ async def nodes_data(panel: PanelClient) -> Any:
 # --- clients ---------------------------------------------------------------------------
 
 
+def _awg_version(options: dict[str, Any] | None) -> str:
+    return str((options or {}).get("version") or "2.0")
+
+
+def _placement_key(node_id: str, protocol: str, options: dict[str, Any] | None = None) -> tuple[str, str]:
+    """AmneziaWG versions are different accesses on one node, so the version is part of the key."""
+    return (node_id, f"amneziawg:{_awg_version(options)}" if protocol == "amneziawg" else protocol)
+
+
+def _account(item: dict[str, Any], username: str) -> str:
+    if item.get("runtime_username"):
+        return item["runtime_username"]
+    if item["protocol"] == "amneziawg":
+        return f"{username[:56]}-awg{_awg_version(item.get('options')).replace('.', '')}"
+    return username
+
+
 def _grants_body(placement: list[dict[str, Any]], username: str) -> dict[str, Any]:
     return {"grants": [
         {"protocol": item["protocol"], "node_id": item.get("node_id", "local"),
-         "runtime_username": item.get("runtime_username") or username, "options": item.get("options") or {}}
+         "runtime_username": _account(item, username), "options": item.get("options") or {}}
         for item in placement
     ]}
 
@@ -133,10 +150,10 @@ async def client_subscription(panel: PanelClient, arguments: dict[str, Any]) -> 
 
 async def set_client_placement(panel: PanelClient, arguments: dict[str, Any]) -> CallToolResult:
     client_id = str(arguments.get("client_id", ""))
-    desired = [(item["node_id"], item["protocol"]) for item in arguments.get("placement") or []]
+    desired = [_placement_key(item["node_id"], item["protocol"], item.get("options")) for item in arguments.get("placement") or []]
     current = await panel.get(encode_path("/api/clients/{client_id}", {"client_id": client_id}))
     grants = [g for g in current.get("grants", []) if g.get("desired_state") != "deleted"]
-    by_key = {(g["node_id"], g["protocol"]): g for g in grants}
+    by_key = {_placement_key(g["node_id"], g["protocol"], g.get("options")): g for g in grants}
     plan: dict[str, list[dict[str, Any]]] = {"issue": [], "enable": [], "disable": [], "keep": []}
     for key in desired:
         grant = by_key.get(key)
@@ -162,7 +179,8 @@ async def set_client_placement(panel: PanelClient, arguments: dict[str, Any]) ->
         await panel.post(encode_path("/api/clients/grants/{grant_id}/enable", {"grant_id": step["grant_id"]}))
         results["enabled"].append(step["grant_id"])
     if plan["issue"]:
-        wanted = {(item["node_id"], item["protocol"]): item for item in arguments.get("placement") or []}
+        wanted = {_placement_key(item["node_id"], item["protocol"], item.get("options")): item
+                  for item in arguments.get("placement") or []}
         results["issued"] = await panel.post(encode_path("/api/clients/{client_id}/grants", {"client_id": client_id}),
                                              _grants_body([wanted[(s["node_id"], s["protocol"])] for s in plan["issue"]], username))
     return text_result({"refused": False, "plan": plan, "results": results})

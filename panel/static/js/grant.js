@@ -4,7 +4,13 @@
 import { bytes, esc, locale, query } from "./common.js";
 import { proxyLink, qrSource } from "./access.js";
 
-export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru" };
+export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
+
+// AmneziaWG versions are different protocols on the wire, so the version is part of the name.
+export function protocolTitle(grant) {
+  const name = PROTOCOL_NAMES[grant.protocol] || grant.protocol;
+  return grant.protocol === "amneziawg" && grant.options?.version ? `${name} ${grant.options.version}` : name;
+}
 
 const CLIENT_STATE = { active: "активен", suspended: "приостановлен", archived: "в архиве" };
 const DESIRED = { enabled: "включён", disabled: "выключен", deleted: "удалён" };
@@ -50,8 +56,8 @@ export function grantRowHtml(grant, { nodes = [], extra = "" } = {}) {
     ? `<small class="grant-route-label">${grant.routing_lane === "own" ? "своя полоса" : "маршрут сервиса"}</small>`
     : '<small class="grant-route-label"></small>';
   return `<li class="grant-item" data-grant-id="${esc(grant.id)}" data-grant-protocol="${esc(grant.protocol)}">
-    <button type="button" class="grant-row" data-grant-open="${esc(grant.id)}" data-grant-state="${esc(grantTone(grant))}" aria-label="Доступ ${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)} · ${esc(grant.runtime_username)}: подробности и ссылка">
-      <b class="grant-proto">${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}</b>
+    <button type="button" class="grant-row" data-grant-open="${esc(grant.id)}" data-grant-state="${esc(grantTone(grant))}" aria-label="Доступ ${esc(protocolTitle(grant))} · ${esc(grant.runtime_username)}: подробности и ссылка">
+      <b class="grant-proto">${esc(protocolTitle(grant))}</b>
       <span class="grant-account"><span>${esc(grant.runtime_username)}</span><small class="grant-node">${esc(nodeName(nodes, grant.node_id))}</small></span>
       <span class="grant-state"><small>${esc(grantStatus(grant))}</small>${orphan}</span>
       ${lane}
@@ -104,6 +110,13 @@ function fact(label, value, { html = false, wide = false } = {}) {
 // `href`, and it passes the same check as everywhere else in the panel.
 function checkedLink(protocol, value) {
   if (protocol === "mtproxy") return proxyLink(value);
+  if (protocol === "amneziawg") {
+    // A config file, shown as text and offered as a download; it is never markup or a URL.
+    if (typeof value !== "string" || value.length > 16384 || !value.startsWith("[Interface]\n") || !value.includes("\n[Peer]\n")) {
+      throw new Error("Панель вернула некорректный конфиг AmneziaWG");
+    }
+    return value;
+  }
   const scheme = protocol === "naive" ? /^(naive\+)?https:\/\/[^\s]+$/ : /^mierus?:\/\/[^\s]+$/;
   if (typeof value !== "string" || value.length > 4096 || !scheme.test(value)) {
     throw new Error("Панель вернула некорректную ссылку доступа");
@@ -134,6 +147,7 @@ export function createGrantDialog(context) {
 
   function subscriptionFact(grant) {
     if (grant.protocol === "mtproxy") return fact("Подписка", "не входит: Telegram открывает только ссылку tg://proxy");
+    if (grant.protocol === "amneziawg") return fact("Подписка", "не входит: конфиг и QR открывает приложение AmneziaWG или AmneziaVPN");
     if (!state.matrix) return fact("Подписка", "…");
     const marks = APPS.map((app) => {
       const status = state.matrix[grant.protocol]?.[app] || "unsupported";
@@ -150,7 +164,7 @@ export function createGrantDialog(context) {
     const error = grant.observed_state === "failed" && grant.last_error ? `: ${grant.last_error}` : "";
     const rows = [
       fact("Клиент", `${client.display_name} · ${CLIENT_STATE[client.state] || client.state}`, { wide: true }),
-      fact("Протокол", PROTOCOL_NAMES[grant.protocol] || grant.protocol),
+      fact("Протокол", protocolTitle(grant)),
       fact("Учётная запись", `<code>${esc(grant.runtime_username)}</code>`, { html: true }),
       fact("Узел", nodeName(context.state.nodes, grant.node_id)),
       fact("Состояние", `<span class="grant-state-word" data-grant-state="${esc(grantTone(grant))}">${esc(DESIRED[grant.desired_state] || grant.desired_state)}</span>`, { html: true }),
@@ -159,11 +173,16 @@ export function createGrantDialog(context) {
     if (LANE_PROTOCOLS.has(grant.protocol)) {
       rows.push(fact("Маршрут", grant.routing_lane === "own" ? "своя полоса (правила — на «Маршрутизации»)" : "как у сервиса"));
     }
+    if (grant.protocol === "amneziawg") {
+      const options = grant.options || {};
+      rows.push(fact("Адрес в туннеле", options.address || "ещё не выдан узлом"));
+      rows.push(fact("Порт версии", options.port ? `${options.port}/udp` : "—"));
+    }
     rows.push(fact("Ограничения", limits(grant)));
     const period = validity(grant);
     if (period) rows.push(fact("Срок действия", period));
     rows.push(subscriptionFact(grant));
-    if (grant.protocol !== "mtproxy") {
+    if (!["mtproxy", "amneziawg"].includes(grant.protocol)) {
       rows.push(fact("Название в подписке", grant.label ? esc(grant.label) : `по умолчанию: ${esc(nodeName(context.state.nodes, grant.node_id))} · ${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}`, { html: true }));
     }
     rows.push(fact("Секрет", grant.secret_ref === null ? "панель его не хранит" : "хранится в панели"));
@@ -200,14 +219,27 @@ export function createGrantDialog(context) {
       return;
     }
     hint.textContent = grant.desired_state === "enabled"
-      ? "Ссылка собирается из хранилища панели по запросу и в окне не остаётся."
+      ? (grant.protocol === "amneziawg"
+        ? "Конфиг собирается из хранилища панели по запросу и в окне не остаётся: он содержит ключ клиента."
+        : "Ссылка собирается из хранилища панели по запросу и в окне не остаётся.")
       : "Доступ выключен: ссылка заработает, когда его включат.";
-    actions.innerHTML = `<button type="button" class="primary" data-grant-action="show">${state.link ? "Показать заново" : "Показать ссылку"}</button>${apps}`;
+    actions.innerHTML = `<button type="button" class="primary" data-grant-action="show">${state.link ? "Показать заново" : (grant.protocol === "amneziawg" ? "Показать конфиг" : "Показать ссылку")}</button>${apps}`;
     if (!state.link) {
       body.innerHTML = "";
       return;
     }
     const { value, qr, label } = state.link;
+    if (grant.protocol === "amneziawg") {
+      const file = `${grant.runtime_username}.conf`;
+      body.innerHTML = `<label class="grant-link-field">${esc(label)}
+          <textarea class="awg-conf" readonly rows="12" spellcheck="false" aria-label="${esc(label)}">${esc(value)}</textarea>
+        </label>
+        ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код конфига: ${esc(grant.runtime_username)}">` : ""}
+        <span class="link-card-actions"><button type="button" class="copy" data-copy="${esc(value)}">Копировать</button>
+          <a class="primary button" href="data:text/plain;charset=utf-8,${encodeURIComponent(value)}" download="${esc(file)}">Скачать .conf</a>
+          ${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>`;
+      return;
+    }
     const telegram = grant.protocol === "mtproxy"
       ? `<a class="primary button" href="${esc(value)}">Открыть в Telegram</a>`
       : "";
@@ -231,7 +263,7 @@ export function createGrantDialog(context) {
     const lane = owner && LANE_PROTOCOLS.has(grant.protocol)
       ? `<button type="button" class="secondary" data-grant-action="lane" data-lane-mode="${grant.routing_lane === "own" ? "service" : "own"}">${grant.routing_lane === "own" ? "Вернуть общий маршрут" : "Выделить полосу"}</button>`
       : "";
-    const label = grant.protocol === "mtproxy" ? "" : '<button type="button" class="secondary" data-grant-action="label">Название в подписке</button>';
+    const label = ["mtproxy", "amneziawg"].includes(grant.protocol) ? "" : '<button type="button" class="secondary" data-grant-action="label">Название в подписке</button>';
     box.innerHTML = `${toggle}${label}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>`;
   }
 
@@ -239,7 +271,7 @@ export function createGrantDialog(context) {
     const found = current();
     if (!found) return false;
     const { client, grant } = found;
-    query("#grant-title", root).textContent = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
+    query("#grant-title", root).textContent = `${protocolTitle(grant)} · ${grant.runtime_username}`;
     renderFacts(client, grant);
     renderLink(client, grant);
     renderActions(client, grant);
@@ -304,7 +336,7 @@ export function createGrantDialog(context) {
       state.link = {
         value: checkedLink(found.grant.protocol, artifact.value),
         qr: artifact.qr ? qrSource(artifact.qr) : null,
-        label: artifact.label || "Ссылка",
+        label: artifact.label || (found.grant.protocol === "amneziawg" ? "Конфиг AmneziaWG" : "Ссылка"),
       };
     } catch (exception) {
       if (generation !== state.generation) return;
@@ -352,11 +384,13 @@ export function createGrantDialog(context) {
     const found = current();
     if (!found) return;
     const { grant } = found;
-    const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
+    const label = `${protocolTitle(grant)} · ${grant.runtime_username}`;
     const error = query("#grant-error", root);
     error.textContent = "";
     if (CONFIRM[action]) {
-      const [title, text, ok] = CONFIRM[action];
+      const [title, text, ok] = grant.protocol === "amneziawg" && action === "rotate"
+        ? ["Ротировать ключи?", "получит новую пару ключей: старый конфиг перестанет работать, клиенту понадобится новый файл или QR.", "Ротировать"]
+        : CONFIRM[action];
       if (!await ui.confirmed(title, `${label} ${text}`, ok)) return;
     }
     try {
@@ -377,7 +411,7 @@ export function createGrantDialog(context) {
     if (!found) return;
     const { grant } = found;
     const mode = button.dataset.laneMode;
-    const label = `${PROTOCOL_NAMES[grant.protocol] || grant.protocol} · ${grant.runtime_username}`;
+    const label = `${protocolTitle(grant)} · ${grant.runtime_username}`;
     const link = grant.protocol === "mieru" ? " Ссылка Mieru изменится (другой порт); подписка обновится сама." : "";
     const [title, text, ok] = mode === "own"
       ? ["Своя полоса для доступа?", `${label} получит собственный маршрут на узле: его правила — на экране «Маршрутизация», вкладка полосы.${link}`, "Создать полосу"]

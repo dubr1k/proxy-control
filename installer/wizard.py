@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -13,8 +14,11 @@ from typing import Protocol, TextIO, TypeVar
 from installer.config import ConfigError, parse_config, render_config
 from installer.i18n import Locale, locale_from_environment, parse_locale, text
 from installer.model import (
+    AWG_DEFAULT_PORTS,
+    AWG_VERSIONS,
     DEFAULT_LANE_SLOTS,
     DEFAULT_RELAY_PORT,
+    AmneziaWgConfig,
     DomainConfig,
     EgressChoice,
     EgressConfig,
@@ -346,6 +350,7 @@ class EditField(StrEnum):
     XUI_TCP = "three_xui.vless_tcp_domain"
     XUI_XHTTP = "three_xui.vless_xhttp_domain"
     XUI_HYSTERIA = "three_xui.hysteria_domain"
+    AMNEZIAWG = "amneziawg"
     WARP = "three_xui.warp"
     FIREWALL = "firewall.manage_ufw"
 
@@ -476,6 +481,7 @@ class TerminalWizard:
             # question belongs to those profiles rather than to 3x-ui.
             values["warp"] = self.io.yes_no(text(self.locale, "warp"), default=False)
         self._egress_choices(values)
+        self._amneziawg_choices(values)
         values["acme_email"] = self.io.validated(
             text(self.locale, "acme_email"), _email
         )
@@ -550,6 +556,27 @@ class TerminalWizard:
                 self.io.write(text(self.locale, "invalid_password"))
                 continue
             return first
+
+    def _amneziawg_choices(self, values: dict[str, object]) -> None:
+        """The optional AmneziaWG add-on (any profile): a yes/no, then the versions and the
+        public name. It needs no domain of its own; ports, MTU and DNS are TOML-only."""
+        assert self.locale is not None
+        if not self.io.yes_no(text(self.locale, "amneziawg"), default=False):
+            for key in ("awg_versions", "awg_host"):
+                values.pop(key, None)
+            values["awg"] = False
+            return
+        values["awg"] = True
+        values["awg_versions"] = self.io.validated(
+            text(self.locale, "amneziawg_versions"),
+            _awg_versions,
+            default=str(values.get("awg_versions") or ",".join(AWG_VERSIONS)),
+        )
+        values["awg_host"] = self.io.validated(
+            text(self.locale, "amneziawg_host"),
+            _awg_host,
+            default=str(values.get("awg_host") or values["panel"]),
+        )
 
     def _egress_choices(self, values: dict[str, object]) -> None:
         """Each proxy service chooses its initial egress (`[egress]`, v0.4). The router is
@@ -673,6 +700,15 @@ class TerminalWizard:
                 warp_domains=values.get("warp_domains", ()),
             ),
             firewall=FirewallConfig(manage_ufw=bool(values["manage_ufw"])),
+            amneziawg=(
+                AmneziaWgConfig(
+                    host=str(values["awg_host"]),
+                    versions=tuple(str(values["awg_versions"]).split(",")),
+                    ports=tuple(AWG_DEFAULT_PORTS[v] for v in str(values["awg_versions"]).split(",")),
+                )
+                if values.get("awg")
+                else None
+            ),
             egress=EgressConfig(
                 warp=bool(values.get("warp", False)),
                 router=bool(values.get("router", False)),
@@ -708,6 +744,8 @@ class TerminalWizard:
             EditField.MCP,
             EditField.ACME_EMAIL,
             EditField.INITIAL_USER,
+            # Before the profile-specific fields, so «back» still lands on the last of those.
+            EditField.AMNEZIAWG,
         ]
         if isinstance(profile, Profile) and profile.includes_naive:
             fields.append(EditField.NAIVE)
@@ -803,6 +841,8 @@ class TerminalWizard:
                 else ()
             )
             self._egress_choices(values)
+        elif field is EditField.AMNEZIAWG:
+            self._amneziawg_choices(values)
         else:
             values["manage_ufw"] = self.io.yes_no(
                 text(self.locale, "manage_ufw"), default=bool(values["manage_ufw"])
@@ -813,6 +853,26 @@ def _domain(value: str) -> str:
     normalized = value.strip().lower().rstrip(".")
     if not _DOMAIN_RE.fullmatch(normalized):
         raise PromptValidationError("invalid_domain")
+    return normalized
+
+
+def _awg_versions(value: str) -> str:
+    """A comma-separated subset of the AmneziaWG versions, in their canonical order."""
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    if not parts or len(parts) != len(set(parts)) or any(part not in AWG_VERSIONS for part in parts):
+        raise PromptValidationError("invalid_awg_versions")
+    return ",".join(version for version in AWG_VERSIONS if version in parts)
+
+
+def _awg_host(value: str) -> str:
+    """A DNS name or an IPv4 address (what a client puts in its `Endpoint`)."""
+    normalized = value.strip().lower().rstrip(".")
+    try:
+        return str(ipaddress.IPv4Address(normalized))
+    except ValueError:
+        pass
+    if not _DOMAIN_RE.fullmatch(normalized):
+        raise PromptValidationError("invalid_awg_host")
     return normalized
 
 
