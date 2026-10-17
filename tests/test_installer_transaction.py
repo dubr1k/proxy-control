@@ -720,6 +720,24 @@ def test_a_service_rewritten_owned_file_is_not_foreign_drift(tmp_path: Path) -> 
         engine.repair()
 
 
+def test_a_file_the_version_agent_manages_is_not_foreign_drift(tmp_path: Path, monkeypatch) -> None:
+    """The version agent replaces the Caddy build, the mita binary and their pins after the installer
+    recorded them; a later update must go on, while the same edit to any other file still refuses."""
+    import installer.transaction as transaction
+
+    adapter = RecordingAdapter("core", tmp_path, preserve_data=True)
+    plan = plan_for("core")
+    engine = engine_for(tmp_path, adapter)
+    engine.apply(plan, accepted_digest=plan.digest)
+    adapter.data_path.write_text("replaced by the version agent")
+
+    with pytest.raises(OwnershipError, match="owned file drifted"):
+        engine.uninstall(purge_data=False)
+
+    monkeypatch.setattr(transaction, "AGENT_MANAGED_PATHS", frozenset({f"/{adapter.data_path.name}"}))
+    assert engine.uninstall(purge_data=False).status == "uninstalled"
+
+
 def test_repair_refuses_owned_file_drift_before_adapter_verification(tmp_path: Path) -> None:
     adapter = RecordingAdapter("core", tmp_path)
     plan = plan_for("core")

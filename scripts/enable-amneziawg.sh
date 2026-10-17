@@ -49,6 +49,8 @@ echo "== files"
 cd "$DIR"
 rm -rf "$DIR/awg_manager.new" && cp -a "$SRC/awg_manager" "$DIR/awg_manager.new"
 rm -rf "$DIR/awg_manager" && mv "$DIR/awg_manager.new" "$DIR/awg_manager"
+# a release unpacked by an ordinary user must not leave that user as the owner of root-run code
+chown -R root:root "$DIR/awg_manager"
 install -m 0644 "$SRC/compose.amneziawg.yaml" "$DIR/compose.amneziawg.yaml"
 install -d -m 0700 "$DIR/secrets" /var/lib/awg-manager
 if [[ ! -s secrets/awg-manager-token ]]; then

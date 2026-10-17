@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Any
 
 from installer.adapters.base import Adapter
+from installer.runtime_state import AGENT_MANAGED_PATHS
 from installer.planner import (
     Action,
     AuditFacts,
@@ -1291,6 +1292,7 @@ class TransactionEngine:
                 raise OwnershipError(f"owned file drifted: {host_path}") from exc
             if actual["kind"] != expected.get("kind") or (
                 expected.get("mutable") is not True
+                and host_path not in AGENT_MANAGED_PATHS
                 and actual["sha256"] != expected.get("sha256")
             ):
                 raise OwnershipError(f"owned file drifted: {host_path}")
@@ -1312,6 +1314,7 @@ class TransactionEngine:
             actual = _path_identity(path)
             if actual["kind"] != expected.get("kind") or (
                 expected.get("mutable") is not True
+                and host_path not in AGENT_MANAGED_PATHS
                 and actual["sha256"] != expected.get("sha256")
             ):
                 raise OwnershipError(f"owned file drifted: {host_path}")

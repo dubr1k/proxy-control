@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-17
+
+- Installer: files the version agent is meant to manage (the Caddy build and its pin, the mita binary and the digest in `.env.mieru`, the router's Xray files) are no longer read as foreign edits. Before, on a host set up by the installer, updating Caddy or mita from the panel made the next panel update refuse with «owned file drifted». Ownership still requires the file to exist and to be of the same kind; only its digest is not compared.
+- The script `scripts/enable-amneziawg.sh` leaves the copied code owned by root even if the release was unpacked by an ordinary user.
+
 ## [1.3.3] - 2026-10-17
 
 - The script `scripts/enable-amneziawg.sh` enables AmneziaWG on a host the installer did not set up: it copies the manager and the overlay, creates the token and the state directory, writes `.env.amneziawg`, turns on IPv4 forwarding, opens the ports and forwarding rules (`ufw` or `awg-forward.service`), adds the overlay to the version agent's list, rebuilds the manager and the panel and checks every version. It is safe to repeat and never touches the server keys. Described in `AMNEZIAWG.en.md`.

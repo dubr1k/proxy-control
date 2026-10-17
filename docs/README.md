@@ -58,6 +58,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v1.3.4](releases/v1.3.4.md) — обновление хоста после обновления компонентов из панели
 - [v1.3.3](releases/v1.3.3.md) — включение AmneziaWG на хосте без установщика
 - [v1.3.2](releases/v1.3.2.md) — AmneziaWG на сервере без ufw
 - [v1.3.1](releases/v1.3.1.md) — Telemt из выпусков апстрима
@@ -127,6 +128,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v1.3.4](releases/v1.3.4.md) — updating a host after components were updated from the panel
 - [v1.3.3](releases/v1.3.3.md) — enabling AmneziaWG on a host without the installer
 - [v1.3.2](releases/v1.3.2.md) — AmneziaWG on a server without ufw
 - [v1.3.1](releases/v1.3.1.md) — Telemt from upstream releases

@@ -38,3 +38,20 @@ def accepted_caddy_pins(root: Path, pinned: str) -> set[str]:
     entry = agent_component(root, "naive") or {}
     recorded = entry.get("runtime_version")
     return {pinned} | ({recorded} if isinstance(recorded, str) and recorded else set())
+
+
+# Files the version agent (or a release it applies) legitimately rewrites after the installer
+# recorded them: the Caddy build and its pin, the mita binary and the digest in `.env.mieru`, the
+# router's Xray files and the agent's own unit. A later `--update` must not read them as foreign
+# drift: ownership still requires the file to exist and to be the same kind, only its digest is not
+# compared. (`verify` separately accepts the pinned or the agent-recorded artifact.)
+AGENT_MANAGED_PATHS = frozenset({
+    "/etc/proxy-control/caddy-naive.pin",
+    "/usr/local/bin/caddy",
+    "/usr/bin/mita",
+    "/opt/mtproxy-shared443/.env.mieru",
+    "/opt/mtproxy-shared443/.env.xray-router",
+    "/usr/local/lib/proxy-control/xray-router/xray",
+    "/usr/local/lib/proxy-control/xray-router/geoip.dat",
+    "/usr/local/lib/proxy-control/xray-router/geosite.dat",
+})
