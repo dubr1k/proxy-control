@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-17
+
+- AmneziaWG on a server without `ufw`: the systemd service `deploy/awg-forward.service` adds forwarding allowances for the tunnel interfaces to Docker's `DOCKER-USER` chain after every start of Docker (Docker's forwarding policy is `DROP`). The case is described in `AMNEZIAWG.en.md`; with `ufw` the installer still adds the rules itself.
+
 ## [1.3.1] - 2026-10-17
 
 - Telemt (MTProto) can be updated from the panel beyond the image: the Versions screen offers upstream releases (`telemt/telemt`) that the `mtproxymax-telemt` image does not carry yet. The version agent downloads the binary, checks the SHA-256 from the GitHub release metadata, builds an image on the host on top of the pinned base image and switches `mtproxy` to it; on a failure the previous state is restored. Version 3.5.14 is available this way now.
