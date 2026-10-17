@@ -974,3 +974,202 @@ def test_telemt_rollback_verifies_restored_image_and_health(tmp_path: Path):
     assert override.read_text(encoding="utf-8") == old_override
     assert health_reads == [TELEMT_IMAGE, old_image]
     assert json.loads(state.read_text())["components"]["telemt"]["version"] == "3.4.24"
+
+
+# --- Telemt `build` kind: pinned registry image + sha256-pinned upstream binary ---------
+
+BUILD_BASE = "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:" + "d" * 64
+BUILD_BINARY = b"\x7fELF-telemt-3.5.14"
+BUILD_SHA = hashlib.sha256(BUILD_BINARY).hexdigest()
+BUILD_URL = "https://github.com/telemt/telemt/releases/download/3.5.14/telemt"
+BUILD_TAG = f"proxy-control-telemt:3.5.14-{BUILD_SHA[:12]}"
+
+
+def _build_entry(**changes) -> dict:
+    entry = {"version": "3.5.14", "kind": "build", "base_image": BUILD_BASE, "url": BUILD_URL, "sha256": BUILD_SHA}
+    entry.update(changes)
+    return entry
+
+
+def _telemt_catalog(path: Path, *entries: dict) -> None:
+    path.write_text(json.dumps({"schema": 1, "components": {"telemt": list(entries)}}), encoding="utf-8")
+
+
+def test_catalog_accepts_a_telemt_build_and_publishes_its_fields(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    _telemt_catalog(catalog, _build_entry(), {"version": "3.4.25", "kind": "image", "image": TELEMT_IMAGE})
+    loaded = load_catalog(catalog)
+    assert loaded.entry("telemt", "3.5.14").public() == {
+        "version": "3.5.14", "kind": "build", "source": "catalog",
+        "base_image": BUILD_BASE, "url": BUILD_URL, "sha256": BUILD_SHA,
+    }
+    assert loaded.entry("telemt", "3.4.25").public()["image"] == TELEMT_IMAGE
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"base_image": "ghcr.io/other/telemt@sha256:" + "d" * 64},
+        {"base_image": "ghcr.io/samnet-dev/mtproxymax-telemt:3.5.9"},
+        {"base_image": "docker.io/ghcr.io/samnet-dev/mtproxymax-telemt@sha256:" + "d" * 64},
+        {"url": "https://example.com/telemt/telemt/releases/download/3.5.14/telemt"},
+        {"url": "https://github.com/telemt/telemt/releases/download/3.5.13/telemt"},
+        {"url": "https://github.com/telemt/telemt/releases/download/3.5.14/telemt?x=1"},
+        {"url": "http://github.com/telemt/telemt/releases/download/3.5.14/telemt"},
+        {"sha256": "A" * 64},
+        {"sha256": "abc"},
+        {"version": "latest"},
+        {"image": TELEMT_IMAGE},
+    ],
+)
+def test_catalog_rejects_a_malformed_telemt_build(tmp_path: Path, bad: dict):
+    catalog = tmp_path / "catalog.json"
+    entry = _build_entry(**bad)
+    if "version" in bad:
+        entry["url"] = "https://github.com/telemt/telemt/releases/download/latest/telemt"
+    _telemt_catalog(catalog, entry)
+    with pytest.raises(CatalogError):
+        load_catalog(catalog)
+
+
+def _build_agent(tmp_path: Path, monkeypatch, *, downloader=None, fail_on=None, previous_override=None):
+    monkeypatch.setattr("version_agent.service.sys.platform", "linux")
+    monkeypatch.setattr("version_agent.service.platform.machine", lambda: "x86_64")
+    catalog = tmp_path / "catalog.json"
+    _telemt_catalog(catalog, _build_entry())
+    state = tmp_path / "agent" / "state.json"
+    state.parent.mkdir()
+    state.write_text(json.dumps({"components": {"telemt": {"version": "3.5.9"}}}))
+    compose_dir = tmp_path / "deployment"
+    compose_dir.mkdir()
+    (compose_dir / "compose.yaml").write_text("name: mtproxy\nservices: {}\n", encoding="utf-8")
+    override = compose_dir / "version-overrides" / "compose.versions.yaml"
+    old_image = "proxy-control-telemt:3.5.9-aaaaaaaaaaaa"
+    if previous_override is not None:
+        override.parent.mkdir()
+        override.write_text(previous_override, encoding="utf-8")
+    commands: list[list[str]] = []
+    built: dict = {}
+
+    def current_image() -> str:
+        text = override.read_text(encoding="utf-8") if override.exists() else ""
+        return BUILD_TAG if BUILD_TAG in text else old_image
+
+    def run(command, *, env=None, cwd=None, timeout=None):
+        commands.append(command)
+        if command[:2] == ["docker", "build"]:
+            directory = Path(command[-1])
+            built["dockerfile"] = (directory / "Dockerfile").read_text(encoding="utf-8")
+            built["binary"] = (directory / "telemt").read_bytes()
+            built["dir_mode"] = directory.stat().st_mode & 0o777
+            built["bin_mode"] = (directory / "telemt").stat().st_mode & 0o777
+            built["command"] = command
+            if fail_on == "build":
+                raise RuntimeError("build failed")
+        if "{{.Config.Image}}" in command:
+            return current_image()
+        if "{{.State.Health.Status}}" in command:
+            return "unhealthy" if fail_on == "health" and current_image() == BUILD_TAG else "healthy"
+        if command[:3] == ["docker", "image", "ls"]:
+            return f"{BUILD_TAG}\nproxy-control-telemt:3.5.9-aaaaaaaaaaaa\nproxy-control-telemt:3.5.7-bbbbbbbbbbbb\n"
+        return "ok\n"
+
+    agent = VersionAgent(
+        catalog_path=catalog,
+        state_path=state,
+        compose_dir=compose_dir,
+        compose_files=("compose.yaml",),
+        telemt_container="telemt-test",
+        downloader=downloader or (lambda url: BUILD_BINARY),
+        runner=run,
+        health_timeout=0,
+    )
+    return agent, override, commands, built, state
+
+
+def test_telemt_build_update_builds_the_local_image_and_never_pulls(tmp_path: Path, monkeypatch):
+    agent, override, commands, built, state = _build_agent(tmp_path, monkeypatch)
+
+    result = agent.update("telemt", "3.5.14", expected_current="3.5.9")
+
+    assert result == {"component": "telemt", "version": "3.5.14", "changed": True}
+    assert built["dockerfile"] == (
+        f"FROM {BUILD_BASE}\n"
+        "COPY telemt /usr/local/bin/telemt\n"
+        "RUN chmod 0755 /usr/local/bin/telemt\n"
+        f'LABEL org.proxy-control.telemt.version="3.5.14" org.proxy-control.telemt.sha256="{BUILD_SHA}"\n'
+    )
+    assert built["binary"] == BUILD_BINARY
+    assert built["dir_mode"] == 0o700 and built["bin_mode"] == 0o755
+    assert built["command"][:4] == ["docker", "build", "-t", BUILD_TAG]
+    assert f"image: {BUILD_TAG}\n" in override.read_text(encoding="utf-8")
+    assert not any("pull" in command for command in commands)
+    assert any("up" in command and "mtproxy" in command for command in commands)
+    saved = json.loads(state.read_text())["components"]["telemt"]
+    assert saved["version"] == "3.5.14" and saved["kind"] == "build" and saved["base_image"] == BUILD_BASE
+    # Only the image now in use and the previous generation survive (best effort).
+    removed = [c[-1] for c in commands if c[:3] == ["docker", "image", "rm"]]
+    assert removed == ["proxy-control-telemt:3.5.7-bbbbbbbbbbbb"]
+
+
+def test_telemt_build_with_a_wrong_sha256_refuses_before_anything_changes(tmp_path: Path, monkeypatch):
+    agent, override, commands, built, state = _build_agent(
+        tmp_path, monkeypatch, downloader=lambda url: b"tampered"
+    )
+    with pytest.raises(UpdateError, match="SHA-256 mismatch"):
+        agent.update("telemt", "3.5.14", expected_current="3.5.9")
+    assert commands == [] and not override.exists()
+    assert not (state.parent / "telemt-build").exists()
+    assert json.loads(state.read_text())["components"]["telemt"]["version"] == "3.5.9"
+
+
+def test_telemt_build_refuses_a_host_that_is_not_x86_64(tmp_path: Path, monkeypatch):
+    agent, override, commands, built, state = _build_agent(tmp_path, monkeypatch)
+    monkeypatch.setattr("version_agent.service.platform.machine", lambda: "aarch64")
+    with pytest.raises(UpdateError, match="x86_64"):
+        agent.update("telemt", "3.5.14", expected_current="3.5.9")
+    assert commands == []
+
+
+def test_telemt_build_refuses_an_oversized_binary(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("version_agent.service.TELEMT_BINARY_MAX", 8)
+    agent, override, commands, built, state = _build_agent(tmp_path, monkeypatch)
+    with pytest.raises(UpdateError, match="too large"):
+        agent.update("telemt", "3.5.14", expected_current="3.5.9")
+    assert commands == []
+
+
+@pytest.mark.parametrize("fail_on", ["build", "health"])
+def test_telemt_build_failure_restores_the_previous_override(tmp_path: Path, monkeypatch, fail_on: str):
+    old_image = "proxy-control-telemt:3.5.9-aaaaaaaaaaaa"
+    old_override = f"services:\n  mtproxy:\n    image: {old_image}\n"
+    agent, override, commands, built, state = _build_agent(
+        tmp_path, monkeypatch, fail_on=fail_on, previous_override=old_override
+    )
+    with pytest.raises(RolledBackError, match="restored and verified"):
+        agent.update("telemt", "3.5.14", expected_current="3.5.9")
+    assert override.read_text(encoding="utf-8") == old_override
+    assert not any("pull" in command for command in commands)
+    assert json.loads(state.read_text())["components"]["telemt"]["version"] == "3.5.9"
+
+
+def test_telemt_build_failure_without_a_previous_override_removes_it(tmp_path: Path, monkeypatch):
+    agent, override, commands, built, state = _build_agent(tmp_path, monkeypatch, fail_on="build")
+    with pytest.raises(RolledBackError):
+        agent.update("telemt", "3.5.14", expected_current="3.5.9")
+    assert not override.exists()
+
+
+def test_cached_upstream_telemt_build_candidate_is_installable_and_listed(tmp_path: Path, monkeypatch):
+    agent, override, commands, built, state = _build_agent(tmp_path, monkeypatch)
+    agent.catalog_path.write_text(json.dumps({"schema": 1, "components": {}}), encoding="utf-8")
+    candidate = {
+        "version": "3.5.14", "tag": "3.5.14", "kind": "build", "source": "upstream",
+        "base_image": BUILD_BASE, "url": BUILD_URL, "sha256": BUILD_SHA, "published_at": "2026-10-05T15:39:55Z",
+    }
+    state.write_text(json.dumps({"components": {"telemt": {"version": "3.5.9"}}, "upstream": {
+        "checked_at": 1, "components": {"telemt": {"latest": "3.5.14", "installable": True, "reason": None, "candidates": [candidate]}},
+    }}))
+    listed = agent.list_versions()["components"]["telemt"]["available"]
+    assert listed[0]["kind"] == "build" and listed[0]["base_image"] == BUILD_BASE and listed[0]["newer"] is True
+    assert agent.update("telemt", "3.5.14", expected_current="3.5.9")["changed"] is True

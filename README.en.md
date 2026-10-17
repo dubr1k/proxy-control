@@ -724,7 +724,9 @@ The `packages` adapter installs exactly these packages: `ca-certificates`, `cert
 ### Pinned third-party components
 
 The installer downloads them from pinned HTTPS URLs and refuses to continue when a checksum
-does not match.
+does not match. The compose file pins the Telemt image; the panel can update Telemt beyond that
+image from the `telemt/telemt` release binary with a verified SHA-256 (a locally built image on
+top of the pinned registry image).
 
 | Component | Version | License | Purpose |
 |---|---|---|---|

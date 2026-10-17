@@ -299,6 +299,15 @@ readback или health восстанавливает прежний override и
 успешным только после проверки прежнего image reference и container health теми же gates.
 `down -v` не вызывается.
 
+Если upstream `telemt/telemt` новее образа в реестре, агент предлагает ещё и кандидата `build`
+(запись каталога `kind: "build"`: `base_image` = `ghcr.io/samnet-dev/mtproxymax-telemt@sha256:…`,
+`url` — asset `telemt` релиза, `sha256`). Только Linux x86_64: агент скачивает бинарник (не более
+64 МиБ), сверяет SHA-256 с digest, который GitHub опубликовал для asset, и только потом выполняет
+`docker build` образа `proxy-control-telemt:<версия>-<sha256[:12]>` (базовый образ плюс бинарник;
+скачанное не запускается). Этот тег попадает в override, `compose pull` не выполняется. Ошибка
+сборки, запуска или health откатывается так же, как для образа; старые образы
+`proxy-control-telemt:*` удаляются, кроме текущего и предыдущего.
+
 ### NaiveProxy/Caddy и Mieru/mita
 
 Агент скачивает не более 256 MiB с HTTPS-host, записанного для версии, проверяет SHA-256, размещает
@@ -328,7 +337,7 @@ URL невозможен ни из браузера, ни из конфигур�
 |---|---|---|---|
 | Xray-router (`xray`) | GitHub Releases `XTLS/Xray-core` | `xray`, `geoip.dat`, `geosite.dat` из `Xray-linux-64.zip` | `.dgst` релиза |
 | Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` из `mita_<v>_linux_amd64.tar.gz` | `.sha256.txt` релиза |
-| Telemt | реестр `ghcr.io/samnet-dev/mtproxymax-telemt` | образ по digest манифеста | digest реестра |
+| Telemt | реестр `ghcr.io/samnet-dev/mtproxymax-telemt`; GitHub Releases `telemt/telemt` | образ по digest манифеста либо (`build`) бинарник `telemt` в локальном образе на новейшем образе реестра | digest реестра; опубликованный `sha256` asset релиза |
 | NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + ветка `naive` `klzgrad/forwardproxy` | Caddy собирается на хосте (`docker build`, builder-образ по digest, до 15 минут) | пин собранного бинарника |
 | Панель | GitHub Releases `dubr1k/proxy-control` | архив выпуска | строка архива в `SHA256SUMS` |
 
@@ -432,8 +441,9 @@ sudo systemd-tmpfiles --create /etc/tmpfiles.d/proxy-control-version-agent.conf
 sudo systemctl daemon-reload
 ```
 
-Замените все example entries на проверенные оператором артефакты. Для Telemt допустимы только
-immutable image references (`@sha256:...`). Для NaiveProxy/Caddy и mita — только HTTPS-артефакты с
+Замените все example entries на проверенные оператором артефакты. Для Telemt допустимы
+immutable image references (`@sha256:...`) или записи `kind: "build"` (образ `mtproxymax-telemt`
+по digest, URL релиза `telemt/telemt` и его SHA-256). Для NaiveProxy/Caddy и mita — только HTTPS-артефакты с
 lowercase SHA-256. Каталог является allowlist, а не механизмом discovery; браузер не может его
 расширить.
 

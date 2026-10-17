@@ -118,9 +118,12 @@ async function versionAction(context, component, button) {
   const version = select?.value;
   const current = button.dataset.current;
   if (!version) return;
-  // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min).
-  const building = component === "naive" && select.selectedOptions[0]?.dataset.kind === "build";
-  const warning = building ? " Caddy будет пересобран на хосте, это занимает до 15 минут." : "";
+  // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min); a `telemt`
+  // one builds a local image from the upstream release binary.
+  const building = (component === "naive" || component === "telemt") && select.selectedOptions[0]?.dataset.kind === "build";
+  const warning = !building ? "" : component === "naive"
+    ? " Caddy будет пересобран на хосте, это занимает до 15 минут."
+    : " Образ Telemt будет собран на хосте из бинарника релиза, это занимает несколько минут.";
   const panel = component === "panel";
   const back = select.selectedOptions[0]?.dataset.newer === "0";
   const text = panel ? `Панель: ${current} → ${version}. ${PANEL_CONFIRM}` : `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`;

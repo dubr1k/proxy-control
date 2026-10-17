@@ -1529,5 +1529,6 @@
  "Подписка этому клиенту не нужна: AmneziaWG выдаётся файлом конфигурации и QR. Откройте нужный доступ ниже.": "This client needs no subscription: AmneziaWG is given as a config file and a QR. Open the access below.",
  "Подписка этому клиенту не нужна: Telegram её не читает, а AmneziaWG выдаётся файлом и QR. Откройте нужный доступ ниже.": "This client needs no subscription: Telegram does not read one, and AmneziaWG is given as a file and a QR. Open the access below.",
  "только конфиг": "config only",
- "AmneziaWG выдаётся файлом конфигурации и QR, а не подпиской": "AmneziaWG is given as a config file and a QR, not as a subscription"
+ "AmneziaWG выдаётся файлом конфигурации и QR, а не подпиской": "AmneziaWG is given as a config file and a QR, not as a subscription",
+ "Образ Telemt будет собран на хосте из бинарника релиза, это занимает несколько минут.": "The Telemt image will be built on the host from the release binary; this takes a few minutes."
 }

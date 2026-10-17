@@ -12,6 +12,9 @@ _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _RUNTIME_VERSION = re.compile(r"^[^\r\n]{1,160}$")
 _IMAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@:-]*@sha256:[0-9a-f]{64}$")
+# A Telemt `build` entry: the registry image pinned by digest plus the upstream release binary.
+TELEMT_BASE_IMAGE = re.compile(r"^ghcr\.io/samnet-dev/mtproxymax-telemt@sha256:[0-9a-f]{64}$")
+TELEMT_RELEASE_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
 _ARCHIVE_FORMATS = ("zip", "tar.gz")
 _MEMBER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$")
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -35,11 +38,14 @@ class CatalogEntry:
     archive: dict | None = None
     source: str = "catalog"
     build: dict | None = None
+    base_image: str | None = None
 
     def public(self) -> dict:
         result = {"version": self.version, "kind": self.kind, "source": self.source}
         if self.image:
             result["image"] = self.image
+        if self.base_image:
+            result["base_image"] = self.base_image
         if self.url:
             # The URL is intentionally visible: it is an operator-approved source,
             # not a secret. The panel never accepts a URL from the browser.
@@ -145,7 +151,10 @@ def _entry(component: str, raw: object) -> CatalogEntry:
         raise CatalogError(f"{component} catalog entry must be an object")
     _reject_unknown(
         raw,
-        {"version", "kind", "image", "url", "sha256", "runtime_version", "archive", "source", "build"},
+        {
+            "version", "kind", "image", "url", "sha256", "runtime_version", "archive", "source", "build",
+            "base_image",
+        },
         "catalog",
     )
     version = raw.get("version")
@@ -197,6 +206,20 @@ def _entry(component: str, raw: object) -> CatalogEntry:
             runtime_version=runtime_version,
             source=source,
             build=_build(raw.get("build")),
+        )
+    if kind == "build" and component == "telemt":
+        # A locally built image: the pinned registry image plus the upstream release binary.
+        _reject_unknown(raw, {"version", "kind", "base_image", "url", "sha256", "source"}, "telemt build")
+        base_image = raw.get("base_image")
+        if not TELEMT_RELEASE_VERSION.fullmatch(version):
+            raise CatalogError("telemt build version must be dotted digits")
+        if type(base_image) is not str or not TELEMT_BASE_IMAGE.fullmatch(base_image):
+            raise CatalogError("telemt build must use the mtproxymax-telemt image by digest")
+        url, digest = _https_artifact(raw, "telemt build")
+        if url != f"https://github.com/telemt/telemt/releases/download/{version}/telemt":
+            raise CatalogError("telemt build must download the telemt/telemt release binary")
+        return CatalogEntry(
+            component, version, kind, url=url, sha256=digest, source=source, base_image=base_image
         )
     raise CatalogError(f"unsupported artifact kind for {component}")
 

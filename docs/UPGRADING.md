@@ -301,6 +301,15 @@ readback, or health check restores the previous override and starts the previous
 rollback is successful only after the previous image reference and container health pass the same
 gates. It never calls `down -v`.
 
+When upstream `telemt/telemt` is newer than the registry image, the agent also offers a `build`
+candidate (catalog entry `kind: "build"`: `base_image` = `ghcr.io/samnet-dev/mtproxymax-telemt@sha256:…`,
+`url` = the release's `telemt` asset, `sha256`). Linux x86_64 only: the agent downloads the binary
+(at most 64 MiB), checks its SHA-256 against the digest GitHub published for the asset, and only then
+runs `docker build` of `proxy-control-telemt:<version>-<sha256[:12]>` (the base image plus the binary,
+nothing downloaded is executed). That tag goes into the override; there is no `compose pull`. A failed
+build, start or health check is rolled back exactly as for an image, and older
+`proxy-control-telemt:*` images are removed except the current and the previous one.
+
 ### NaiveProxy/Caddy and Mieru/mita
 
 The agent downloads at most 256 MiB from the HTTPS host recorded for the version, verifies SHA-256,
@@ -330,7 +339,7 @@ URL is impossible from the browser and from the configuration alike.
 |---|---|---|---|
 | Xray-router (`xray`) | GitHub Releases `XTLS/Xray-core` | `xray`, `geoip.dat`, `geosite.dat` from `Xray-linux-64.zip` | the release's `.dgst` |
 | Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` from `mita_<v>_linux_amd64.tar.gz` | the release's `.sha256.txt` |
-| Telemt | registry `ghcr.io/samnet-dev/mtproxymax-telemt` | the image by manifest digest | registry digest |
+| Telemt | registry `ghcr.io/samnet-dev/mtproxymax-telemt`; GitHub Releases `telemt/telemt` | the image by manifest digest, or (`build`) the `telemt` binary baked into a local image on the newest registry image | registry digest; the release asset's published `sha256` |
 | NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + the `naive` branch of `klzgrad/forwardproxy` | Caddy is built on the host (`docker build`, builder image by digest, up to 15 minutes) | the pin of the built binary |
 | The panel | GitHub Releases `dubr1k/proxy-control` | the release archive | the archive's line in `SHA256SUMS` |
 
@@ -435,7 +444,8 @@ sudo systemctl daemon-reload
 ```
 
 Replace every example catalog entry with an operator-verified artifact. Telemt entries must be
-immutable image references (`@sha256:...`). NaiveProxy/Caddy and mita entries must be HTTPS
+immutable image references (`@sha256:...`) or `kind: "build"` entries (the digest-pinned
+`mtproxymax-telemt` image, the `telemt/telemt` release URL and its SHA-256). NaiveProxy/Caddy and mita entries must be HTTPS
 artifacts with lowercase SHA-256. The catalog is an allowlist, not a discovery mechanism; the
 browser cannot extend it.
 

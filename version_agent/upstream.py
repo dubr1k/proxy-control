@@ -37,6 +37,12 @@ MAX_CANDIDATES = 6
 NAIVE_CANDIDATES = 3
 XRAY_MEMBERS = {"xray": "xray", "geoip.dat": "geoip.dat", "geosite.dat": "geosite.dat"}
 TELEMT_REPOSITORY = "samnet-dev/mtproxymax-telemt"
+# Telemt's own releases: a raw Linux x86_64 binary, which the agent bakes into a local
+# image on top of the newest registry image (kind `build`).
+TELEMT_UPSTREAM_REPOSITORY = "telemt/telemt"
+TELEMT_BINARY_ASSET = "telemt"
+MAX_TELEMT_BINARY = 64 * 1024 * 1024
+_RELEASE_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
 # The panel itself (v0.11): this project's releases; every one of them is a pre-release.
 PANEL_REPOSITORY = "dubr1k/proxy-control"
 PANEL_SUMS_ASSET = "SHA256SUMS"
@@ -324,6 +330,56 @@ def _registry_digest(fetcher: Fetcher, registry: str, repository: str, tag: str,
     return digest
 
 
+def _telemt_builds(fetcher: Fetcher) -> list[dict]:
+    """Telemt releases that ship the binary with a published SHA-256 (drafts and pre-releases never)."""
+    repository = TELEMT_UPSTREAM_REPOSITORY
+    items = _json(fetcher, f"https://api.github.com/repos/{repository}/releases?per_page=10")
+    if not isinstance(items, list):
+        raise UpstreamError("releases answer is not a list")
+    result = []
+    for item in items:
+        if not isinstance(item, dict) or item.get("draft") or item.get("prerelease"):
+            continue
+        tag = item.get("tag_name")
+        if not isinstance(tag, str) or not _RELEASE_VERSION.fullmatch(tag):
+            continue
+        asset = next(
+            (
+                a
+                for a in (item.get("assets") if isinstance(item.get("assets"), list) else [])
+                if isinstance(a, dict) and a.get("name") == TELEMT_BINARY_ASSET
+            ),
+            None,
+        )
+        if asset is None:
+            continue
+        digest = asset.get("digest")
+        size = asset.get("size")
+        if (
+            not isinstance(digest, str)
+            or not _DIGEST.fullmatch(digest)
+            or type(size) is not int
+            or not 0 < size <= MAX_TELEMT_BINARY
+        ):
+            continue
+        url = _asset_url({TELEMT_BINARY_ASSET: asset.get("browser_download_url")}, TELEMT_BINARY_ASSET, repository)
+        if url != f"https://github.com/{repository}/releases/download/{tag}/{TELEMT_BINARY_ASSET}":
+            raise UpstreamError("asset URL is not the release download of its repository")
+        published = item.get("published_at")
+        result.append(
+            {
+                "version": tag,
+                "tag": tag,
+                "kind": "build",
+                "source": "upstream",
+                "url": url,
+                "sha256": digest.split(":", 1)[1],
+                "published_at": published if isinstance(published, str) else None,
+            }
+        )
+    return result
+
+
 def _telemt(fetcher: Fetcher, current: str | None) -> dict:
     repository = TELEMT_REPOSITORY
     token = _token(fetcher, f"https://ghcr.io/token?scope=repository:{repository}:pull")
@@ -343,11 +399,12 @@ def _telemt(fetcher: Fetcher, current: str | None) -> dict:
     if not versions:
         return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
     candidates = []
+    newest_image: str | None = None
     for version in versions:
         if len(candidates) >= MAX_CANDIDATES:
             break
         order = 1 if current is None else compare_versions(version, current)
-        if order == 0:
+        if order == 0 and version != versions[0]:
             continue
         try:
             digest = _registry_digest(fetcher, "ghcr.io", repository, by_version[version], token)
@@ -355,6 +412,10 @@ def _telemt(fetcher: Fetcher, current: str | None) -> dict:
             if order > 0:
                 raise
             continue  # an older image the registry no longer answers for is just not offered
+        if version == versions[0]:
+            newest_image = f"ghcr.io/{repository}@{digest}"
+        if order == 0:
+            continue
         candidates.append(
             {
                 "version": version,
@@ -365,7 +426,27 @@ def _telemt(fetcher: Fetcher, current: str | None) -> dict:
                 "published_at": None,
             }
         )
-    return _probe(versions[0], current, candidates, None)
+    latest = versions[0]
+    last_error = None
+    if newest_image is not None:
+        try:
+            builds = _telemt_builds(fetcher)
+        except UpstreamError as exc:
+            builds, last_error = [], str(exc)
+        for build in builds:
+            if compare_versions(build["version"], latest) > 0:
+                latest = build["version"]
+            order = 1 if current is None else compare_versions(build["version"], current)
+            # The registry image of the same version wins over a build of it.
+            if order == 0 or build["version"] in by_version:
+                continue
+            candidates.append({**build, "base_image": newest_image})
+        candidates.sort(key=lambda c: _parts(c["version"]), reverse=True)
+        del candidates[MAX_CANDIDATES:]
+    result = _probe(latest, current, candidates, None)
+    if last_error:
+        result["last_error"] = last_error
+    return result
 
 
 def _naive(fetcher: Fetcher, current: str | None) -> dict:

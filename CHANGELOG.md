@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-17
+
+- Telemt (MTProto) can be updated from the panel beyond the image: the Versions screen offers upstream releases (`telemt/telemt`) that the `mtproxymax-telemt` image does not carry yet. The version agent downloads the binary, checks the SHA-256 from the GitHub release metadata, builds an image on the host on top of the pinned base image and switches `mtproxy` to it; on a failure the previous state is restored. Version 3.5.14 is available this way now.
+
 ## [1.3.0] - 2026-10-17
 
 - **AmneziaWG** protocol (optional): a VPN over UDP — WireGuard with traffic obfuscation. Versions **1.5, 2.0 and 3.1** run at the same time, each on its own interface, UDP port and subnet of the node (51820, 51821, 51822 by default), because the versions are not compatible with one another. The version is chosen per client: the «Nodes and accesses» matrix has «AmneziaWG 1.5 / 2.0 / 3.1» columns, and a client can hold several versions at once. The config is given as a `.conf` file and a QR from the access window and is not part of subscriptions. The panel keeps the client's private key, the node receives only the public one; rotation issues a new key pair. How it works, how to enable it and how to diagnose it: `AMNEZIAWG.en.md`.

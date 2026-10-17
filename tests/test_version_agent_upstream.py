@@ -318,3 +318,98 @@ def test_an_older_image_the_registry_does_not_answer_for_is_skipped():
     })
     result = check_component("telemt", "3.4.25", fetcher=fetch, router_enabled=False)
     assert [c["version"] for c in result["candidates"]] == ["3.4.23"]
+
+
+# --- Telemt `build` candidates: upstream release binary on the newest registry image -----
+
+_TELEMT_REG = "https://ghcr.io/v2/samnet-dev/mtproxymax-telemt"
+_TELEMT_RELEASES_URL = "https://api.github.com/repos/telemt/telemt/releases?per_page=10"
+_TELEMT_DOWNLOAD = "https://github.com/telemt/telemt/releases/download"
+
+
+def _telemt_release(tag, *, digest="auto", size=16810696, draft=False, prerelease=False, name="telemt"):
+    if digest == "auto":
+        digest = "sha256:" + ("feb1d8779de0b86c6c43d1b871020ec94b11fad9fec5612b07b278edfd2181ff" if tag == "3.5.14" else "e" * 64)
+    asset = {"name": name, "size": size, "browser_download_url": f"{_TELEMT_DOWNLOAD}/{tag}/{name}"}
+    if digest is not None:
+        asset["digest"] = digest
+    return {"tag_name": tag, "draft": draft, "prerelease": prerelease, "published_at": "2026-10-05T15:39:55Z", "assets": [asset]}
+
+
+def _telemt_table(releases, tags=("3.5.8-aaaaaaa", "3.5.9-bbbbbbb"), *, manifests=None):
+    table = {
+        "https://ghcr.io/token?scope=repository:samnet-dev/mtproxymax-telemt:pull": (200, {}, b'{"token": "t"}'),
+        f"{_TELEMT_REG}/tags/list?n=100": (200, {}, json.dumps({"tags": list(tags)}).encode()),
+        _TELEMT_RELEASES_URL: (200, {}, json.dumps(releases).encode()),
+    }
+    for tag in tags:
+        digest = (manifests or {}).get(tag, "sha256:" + ("9" if tag.startswith("3.5.9") else "8") * 64)
+        table[f"{_TELEMT_REG}/manifests/{tag}"] = (200, {"Docker-Content-Digest": digest}, b"{}")
+    return table
+
+
+def test_telemt_build_candidate_from_the_real_github_payload_shape():
+    fetch = fetcher_from(_telemt_table([_telemt_release("3.5.14")]))
+    result = check_component("telemt", "3.5.9", fetcher=fetch, router_enabled=False)
+    build = [c for c in result["candidates"] if c["kind"] == "build"]
+    assert build == [{
+        "version": "3.5.14", "tag": "3.5.14", "kind": "build", "source": "upstream",
+        "base_image": "ghcr.io/samnet-dev/mtproxymax-telemt@sha256:" + "9" * 64,
+        "url": f"{_TELEMT_DOWNLOAD}/3.5.14/telemt",
+        "sha256": "feb1d8779de0b86c6c43d1b871020ec94b11fad9fec5612b07b278edfd2181ff",
+        "published_at": "2026-10-05T15:39:55Z",
+    }]
+    assert result["latest"] == "3.5.14" and result["installable"] is True and "last_error" not in result
+    # The registry image of the installed version is not a candidate, the older one still is.
+    assert [c["version"] for c in result["candidates"]] == ["3.5.14", "3.5.8"]
+
+
+def test_telemt_build_skips_missing_digest_prerelease_draft_oversize_and_wrong_asset():
+    releases = [
+        _telemt_release("3.5.20", digest=None),
+        _telemt_release("3.5.19", digest="md5:abc"),
+        _telemt_release("3.5.18", prerelease=True),
+        _telemt_release("3.5.17", draft=True),
+        _telemt_release("3.5.16", size=64 * 1024 * 1024 + 1),
+        _telemt_release("3.5.15", name="telemt-arm"),
+        _telemt_release("v3.5.13"),
+        _telemt_release("3.5.12"),
+    ]
+    fetch = fetcher_from(_telemt_table(releases))
+    result = check_component("telemt", "3.5.9", fetcher=fetch, router_enabled=False)
+    assert [c["version"] for c in result["candidates"] if c["kind"] == "build"] == ["3.5.12"]
+    assert result["latest"] == "3.5.12"
+
+
+def test_telemt_build_is_not_offered_when_the_registry_has_the_same_version():
+    fetch = fetcher_from(_telemt_table([_telemt_release("3.5.9"), _telemt_release("3.5.10")]))
+    result = check_component("telemt", "3.5.8", fetcher=fetch, router_enabled=False)
+    kinds = {c["version"]: c["kind"] for c in result["candidates"]}
+    assert kinds == {"3.5.10": "build", "3.5.9": "image"}
+
+
+def test_telemt_build_base_is_the_newest_registry_image_even_when_it_is_installed():
+    fetch = fetcher_from(_telemt_table([_telemt_release("3.5.14")]))
+    result = check_component("telemt", "3.5.9", fetcher=fetch, router_enabled=False)
+    assert result["candidates"][0]["base_image"].endswith("9" * 64)
+
+
+def test_telemt_build_offers_nothing_when_the_registry_is_unreadable():
+    table = _telemt_table([_telemt_release("3.5.14")])
+    del table["https://ghcr.io/token?scope=repository:samnet-dev/mtproxymax-telemt:pull"]
+    result = check_all({"telemt": "3.5.9"}, fetcher=fetcher_from(table), router_enabled=False)["telemt"]
+    assert result["candidates"] == [] and result["last_error"]
+
+
+def test_telemt_build_failure_of_github_keeps_the_registry_candidates():
+    table = _telemt_table([])
+    del table[_TELEMT_RELEASES_URL]
+    result = check_component("telemt", "3.5.8", fetcher=fetcher_from(table), router_enabled=False)
+    assert [c["kind"] for c in result["candidates"]] == ["image"] and result["last_error"]
+
+
+def test_telemt_build_asset_outside_the_repository_download_path_is_reported():
+    release = _telemt_release("3.5.14")
+    release["assets"][0]["browser_download_url"] = "https://github.com/evil/telemt/releases/download/3.5.14/telemt"
+    result = check_component("telemt", "3.5.8", fetcher=fetcher_from(_telemt_table([release])), router_enabled=False)
+    assert all(c["kind"] == "image" for c in result["candidates"]) and "release download" in result["last_error"]
