@@ -63,6 +63,7 @@ host     = "vpn.example.com"   # defaults to the panel domain
 The installer turns on IPv4 forwarding, opens the UDP ports and allows forwarding for the tunnel
 interfaces in the firewall it manages (on a server whose firewall it does not manage, open the ports
 and allow forwarding yourself), builds the container and checks that every version answers.
+On a server whose firewall the installer does not manage (no `ufw`, Docker's forwarding policy is `DROP`), open the UDP ports and install `deploy/awg-forward.service` as a systemd unit: it lets the tunnel interfaces through Docker's forwarding chain after every start of Docker.
 Restarting `awg-manager` (an update) briefly drops the tunnels; clients reconnect on their own.
 
 ## Giving access

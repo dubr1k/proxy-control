@@ -1,0 +1,18 @@
+[Unit]
+Description=Proxy Control AmneziaWG: allow forwarding of the tunnel interfaces past Docker's FORWARD DROP
+Documentation=https://github.com/dubr1k/proxy-control/blob/main/AMNEZIAWG.en.md
+# Only for a host whose firewall the installer does not manage (no ufw): ufw hosts get the
+# equivalent `route allow in on awgNN` rules from the installer.
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Idempotent: a rule is added only when it is not there yet. DOCKER-USER is walked first by FORWARD.
+ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -i awg+ -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER -i awg+ -j ACCEPT'
+ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -o awg+ -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER -o awg+ -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
+ExecStop=/bin/sh -c 'iptables -D DOCKER-USER -i awg+ -j ACCEPT 2>/dev/null; iptables -D DOCKER-USER -o awg+ -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; true'
+
+[Install]
+WantedBy=multi-user.target
