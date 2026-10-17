@@ -11,7 +11,6 @@ creates (client, accesses, namespaces, veths, the temporary admin) is removed at
 """
 from __future__ import annotations
 
-import json
 import os
 import secrets
 import socket
