@@ -66,6 +66,22 @@ and allow forwarding yourself), builds the container and checks that every versi
 On a server whose firewall the installer does not manage (no `ufw`, Docker's forwarding policy is `DROP`), open the UDP ports and install `deploy/awg-forward.service` as a systemd unit: it lets the tunnel interfaces through Docker's forwarding chain after every start of Docker.
 Restarting `awg-manager` (an update) briefly drops the tunnels; clients reconnect on their own.
 
+### A server the installer did not set up
+
+For a host that was installed by hand (no installer state), run the supported script from the unpacked
+release; it does what the installer's AmneziaWG step does and is safe to repeat:
+
+```bash
+sudo scripts/enable-amneziawg.sh --host vpn.example.com
+```
+
+It copies the manager and its Compose overlay, creates the token and the state directory (the server keys
+are never touched), writes `.env.amneziawg`, turns on IPv4 forwarding, opens the UDP ports and the forwarding
+rules in `ufw` (or installs `awg-forward.service` when there is no `ufw`), adds the overlay to the version
+agent's list, rebuilds the manager and the panel and checks that every version answers. `--versions`,
+`--mtu` and `--dns` narrow the defaults. A host behind a home router also needs UDP 51820–51822 forwarded to
+it.
+
 ## Giving access
 
 1. Open the client → **Nodes and accesses**. The matrix has an «AmneziaWG 1.5 / 2.0 / 3.1» column for

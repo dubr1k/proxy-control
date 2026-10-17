@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-17
+
+- The script `scripts/enable-amneziawg.sh` enables AmneziaWG on a host the installer did not set up: it copies the manager and the overlay, creates the token and the state directory, writes `.env.amneziawg`, turns on IPv4 forwarding, opens the ports and forwarding rules (`ufw` or `awg-forward.service`), adds the overlay to the version agent's list, rebuilds the manager and the panel and checks every version. It is safe to repeat and never touches the server keys. Described in `AMNEZIAWG.en.md`.
+
 ## [1.3.2] - 2026-10-17
 
 - AmneziaWG on a server without `ufw`: the systemd service `deploy/awg-forward.service` adds forwarding allowances for the tunnel interfaces to Docker's `DOCKER-USER` chain after every start of Docker (Docker's forwarding policy is `DROP`). The case is described in `AMNEZIAWG.en.md`; with `ufw` the installer still adds the rules itself.

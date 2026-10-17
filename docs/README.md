@@ -58,6 +58,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v1.3.3](releases/v1.3.3.md) — включение AmneziaWG на хосте без установщика
 - [v1.3.2](releases/v1.3.2.md) — AmneziaWG на сервере без ufw
 - [v1.3.1](releases/v1.3.1.md) — Telemt из выпусков апстрима
 - [v1.3.0](releases/v1.3.0.md) — протокол AmneziaWG: версии 1.5, 2.0 и 3.1
@@ -126,6 +127,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v1.3.3](releases/v1.3.3.md) — enabling AmneziaWG on a host without the installer
 - [v1.3.2](releases/v1.3.2.md) — AmneziaWG on a server without ufw
 - [v1.3.1](releases/v1.3.1.md) — Telemt from upstream releases
 - [v1.3.0](releases/v1.3.0.md) — the AmneziaWG protocol: versions 1.5, 2.0 and 3.1
