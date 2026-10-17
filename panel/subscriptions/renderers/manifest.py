@@ -27,8 +27,8 @@ class ManifestRenderer:
         for grant in manifest.grants:
             reason = credential_reason(grant, artifacts) if grant.enabled else None
             grants.append({
-                # node_name is internal presentation metadata, not a v1 wire field.
-                **{key: value for key, value in dataclasses.asdict(grant).items() if key != "node_name"},
+                # node_name and label are internal presentation metadata, not v1 wire fields.
+                **{key: value for key, value in dataclasses.asdict(grant).items() if key not in ("node_name", "label")},
                 "artifacts": [
                     dataclasses.asdict(artifact) for artifact in artifacts.get(grant.grant_id, [])
                 ] if grant.enabled else [],

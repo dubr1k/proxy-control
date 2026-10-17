@@ -163,6 +163,9 @@ export function createGrantDialog(context) {
     const period = validity(grant);
     if (period) rows.push(fact("Срок действия", period));
     rows.push(subscriptionFact(grant));
+    if (grant.protocol !== "mtproxy") {
+      rows.push(fact("Название в подписке", grant.label ? esc(grant.label) : `по умолчанию: ${esc(nodeName(context.state.nodes, grant.node_id))} · ${esc(PROTOCOL_NAMES[grant.protocol] || grant.protocol)}`, { html: true }));
+    }
     rows.push(fact("Секрет", grant.secret_ref === null ? "панель его не хранит" : "хранится в панели"));
     rows.push(fact("Происхождение", grant.origin === "imported" ? "импортирован из менеджера" : "выдан панелью"));
     rows.push(fact("Выдан", formatDate(grant.created_at)));
@@ -228,7 +231,8 @@ export function createGrantDialog(context) {
     const lane = owner && LANE_PROTOCOLS.has(grant.protocol)
       ? `<button type="button" class="secondary" data-grant-action="lane" data-lane-mode="${grant.routing_lane === "own" ? "service" : "own"}">${grant.routing_lane === "own" ? "Вернуть общий маршрут" : "Выделить полосу"}</button>`
       : "";
-    box.innerHTML = `${toggle}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>`;
+    const label = grant.protocol === "mtproxy" ? "" : '<button type="button" class="secondary" data-grant-action="label">Название в подписке</button>';
+    box.innerHTML = `${toggle}${label}<button type="button" class="secondary" data-grant-action="rotate">Ротировать секрет</button>${lane}<button type="button" class="danger ghost" data-grant-action="delete">Удалить доступ</button>`;
   }
 
   function render() {
@@ -394,6 +398,30 @@ export function createGrantDialog(context) {
     }
   }
 
+  // The name this access carries in subscriptions; presentation only. Empty puts the
+  // default «node · protocol» back.
+  async function rename(button) {
+    const found = current();
+    if (!found) return;
+    const { grant } = found;
+    const name = await ui.askText("Название в подписке", "Так подключение называется в приложении клиента. Учётная запись и секрет не меняются; пустое название вернёт «узел · протокол».", {
+      label: "Название", value: grant.label || "", maxLength: 64, required: false,
+    });
+    if (name === null) return;
+    const error = query("#grant-error", root);
+    error.textContent = "";
+    try {
+      ui.setBusy(button, true);
+      await api(`/api/clients/grants/${encodeURIComponent(grant.id)}/label`, { method: "POST", body: JSON.stringify({ label: name }) });
+      ui.toast(name ? "Название сохранено" : "Название сброшено");
+      await refresh();
+    } catch (exception) {
+      error.textContent = exception.message;
+    } finally {
+      ui.setBusy(button, false);
+    }
+  }
+
   async function adopt(button) {
     const found = current();
     if (!found) return;
@@ -429,6 +457,7 @@ export function createGrantDialog(context) {
       else if (action === "profiles") void profiles(button);
       else if (action === "lane") void lane(button);
       else if (action === "adopt") void adopt(button);
+      else if (action === "label") void rename(button);
       else void change(button, action);
     });
     // Nothing of the link survives the window.

@@ -139,6 +139,8 @@ class AccessGrant(_ProtocolOptions):
     origin: str = Field(pattern=r"^(imported|provisioned)$")
     # `own` when the grant has its own routing lane on its node (v0.7); None = the service's.
     routing_lane: str | None = Field(default=None, pattern=r"^own$")
+    # The name this access carries in subscriptions; None = «node · protocol».
+    label: str | None = Field(default=None, min_length=1, max_length=64)
     created_at: int
     updated_at: int
 

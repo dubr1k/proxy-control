@@ -241,6 +241,7 @@ class SubscriptionService:
                     protocol=grant.protocol,
                     node_id=grant.node_id,
                     node_name=node_names.get(grant.node_id, ""),
+                    label=grant.label or "",
                     endpoint_id=grant.endpoint_id,
                     runtime_username=grant.runtime_username,
                     secret_version=grant.secret_ref.version if grant.secret_ref else 0,

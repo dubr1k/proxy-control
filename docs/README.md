@@ -57,6 +57,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v1.2.0](releases/v1.2.0.md) — переименование клиентов и названий доступов в подписке
 - [v1.1.4](releases/v1.1.4.md) — выдача любого числа доступов за раз, список клиентов обновляет статус узлов
 - [v1.1.3](releases/v1.1.3.md) — различимые имена подключений в подписках
 - [v1.1.2](releases/v1.1.2.md) — удаление сохраняет данные Docker и сертификаты, новый README
@@ -119,6 +120,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v1.2.0](releases/v1.2.0.md) — rename clients and access names in the subscription
 - [v1.1.4](releases/v1.1.4.md) — any number of accesses in one request, the client list refreshes node statuses
 - [v1.1.3](releases/v1.1.3.md) — distinct connection names in subscriptions
 - [v1.1.2](releases/v1.1.2.md) — uninstall keeps Docker data and certificates, a new README

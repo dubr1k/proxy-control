@@ -146,6 +146,15 @@ class ClientCreate(BaseModel):
     subscription: bool = True
 
 
+class ClientRename(BaseModel):
+    display_name: str = Field(min_length=1, max_length=128)
+
+
+class GrantLabel(BaseModel):
+    # Empty puts the default «node · protocol» back.
+    label: str = Field(default="", max_length=64)
+
+
 class ClientState(BaseModel):
     state: Literal["active", "suspended", "archived"]
 

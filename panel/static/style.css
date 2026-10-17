@@ -148,7 +148,7 @@
 .routing-explain input[name=port]{width:90px}
 .routing-explain-answer{flex-basis:100%;margin:4px 0 0;font-size:.95rem}
 .choose-field{display:block;margin:8px 0 4px}
-.choose-field select{width:100%}
+.choose-field select,.choose-field input{width:100%}
 @media(max-width:560px){
   .routing-presets{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
   .routing-presets b{margin:0 0 2px}

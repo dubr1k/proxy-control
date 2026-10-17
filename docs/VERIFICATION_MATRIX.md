@@ -5,7 +5,7 @@ Generated from `tests/fixtures/verification-matrix.json` by `scripts/dev/verific
 `gap` on the release tree (`VERIFICATION_STRICT=1`). One row per promised function: what it claims, which
 test, lab scenario or browser scenario proves it, and the routes it covers.
 
-**90 rows** — ✅ proven: 80, 🔧 fixed in 0.6: 10, ⛔ gap: 0.
+**91 rows** — ✅ proven: 81, 🔧 fixed in 0.6: 10, ⛔ gap: 0.
 
 ## backend
 
@@ -43,6 +43,7 @@ test, lab scenario or browser scenario proves it, and the routes it covers.
 | `subscription-events` | 0.2 | Subscription and node events are emitted inside the transaction, carry no token or link, and page by id through one endpoint every role may read. | `pytest::panel/tests/test_subscription_events.py::test_generation_change_emits_inside_the_transaction_or_not_at_all`<br>`pytest::panel/tests/test_subscription_events.py::test_no_event_carries_a_token_a_link_or_a_delivery_claim`<br>`pytest::panel/tests/test_subscription_events.py::test_the_events_endpoint_pages_by_id_and_serves_only_subscription_events` | `GET /api/events` | ✅ proven |
 | `real-clients` | 0.2 | Real clients prove the artifacts: sing-box through NaiveProxy, mihomo through Mieru (TCP and UDP), the official mieru client, Telegram's resPQ through MTProxy — live against the lab node. | `fleet::s05`<br>`script::scripts/lab/subscription-acceptance.py`<br>`lab-host::install` | — | ✅ proven |
 | `client-links` | 0.12 | MTProxy is handed out as links, not a subscription: a one-time audited reveal rebuilds a tg://proxy link and its QR from escrow for every live grant, and the client window hides the subscription block when nothing subscribable is left. | `pytest::panel/tests/test_client_links.py::test_a_clients_mtproxy_grants_come_back_as_links_with_a_qr`<br>`pytest::panel/tests/test_client_links.py::test_only_the_protocol_the_screen_shows_is_decrypted`<br>`pytest::panel/tests/test_client_links.py::test_the_links_reveal_is_one_time`<br>`pytest::panel/tests/test_client_links.py::test_a_deleted_grant_is_not_handed_out_again`<br>`pytest::panel/tests/test_client_links.py::test_showing_the_links_is_audited_without_the_secret`<br>`pytest::panel/tests/test_subscription_ui_contract.py::test_mtproxy_is_handed_out_as_links_and_a_qr_never_as_a_subscription`<br>`ui::clients.mtproxy_only_hides_the_subscription`<br>`ui::clients.mtproxy_links_show_link_and_qr` | `POST /api/clients/{client_id}/links` | ✅ proven |
+| `client-and-access-rename` | 1.2 | A client is renamed and one access gets its own name in the subscription; accounts, endpoints and credentials stay, the URL does not move, the ETag follows the new name, an empty name restores the default. | `pytest::panel/tests/test_renaming.py::test_a_client_is_renamed_and_the_rename_is_audited`<br>`pytest::panel/tests/test_renaming.py::test_renaming_a_client_refuses_blank_missing_and_needs_csrf`<br>`pytest::panel/tests/test_renaming.py::test_a_grant_label_is_set_shown_and_reset`<br>`pytest::panel/tests/test_renaming.py::test_a_grant_label_refuses_too_long_unknown_and_deleted`<br>`pytest::panel/tests/test_subscription_http.py::test_client_rename_and_access_label_refresh_the_subscription_on_the_same_url` | `POST /api/clients/{client_id}/rename`<br>`POST /api/clients/grants/{grant_id}/label` | ✅ proven |
 
 ## fleet
 

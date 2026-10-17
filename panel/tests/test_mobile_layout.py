@@ -823,3 +823,46 @@ def test_host_resource_card_stacks_and_stays_inside_the_phone_viewport(tmp_path:
     errors = json.loads(rendered["errors"])
     assert rendered["innerWidth"] == 390
     assert rendered["result"] == "pass", errors
+
+
+def test_name_dialog_fits_the_phone_viewport(tmp_path: Path) -> None:
+    """The rename dialog (v1.2) is the real markup from index.html with the longest texts it
+    carries: the title, the explanation, a full-width field and both buttons stay in the box."""
+    import re
+
+    css = (ROOT / "static" / "style.css").read_text()
+    html = (ROOT / "static" / "index.html").read_text()
+    dialog = re.search(r'<dialog id="ask-text".*?</dialog>', html, re.DOTALL).group(0)
+    script = """
+      addEventListener("load", () => {
+        const errors = [];
+        const tolerance = 1;
+        if (innerWidth !== 390) errors.push(`viewport is ${innerWidth}px instead of 390px`);
+        const dialog = document.querySelector("#ask-text");
+        document.querySelector("#ask-text-title").textContent = "Название в подписке";
+        document.querySelector("#ask-text-text").textContent = "Так подключение называется в приложении клиента. Учётная запись и секрет не меняются; пустое название вернёт «узел · протокол».";
+        document.querySelector("#ask-text-input").value = "Очень длинное название подключения для проверки переноса и ширины поля";
+        dialog.showModal();
+        const form = dialog.querySelector("form");
+        const formBox = form.getBoundingClientRect();
+        if (formBox.right > innerWidth + tolerance || formBox.left < -tolerance) errors.push("dialog wider than the viewport");
+        if (form.scrollWidth > form.clientWidth + tolerance) errors.push("dialog scrolls horizontally");
+        for (const node of form.querySelectorAll("input, button, p, h2")) {
+          const box = node.getBoundingClientRect();
+          if (box.right > formBox.right + tolerance || box.left < formBox.left - tolerance) errors.push(`${node.id || node.tagName} escapes the dialog`);
+        }
+        document.body.dataset.result = errors.length ? "fail" : "pass";
+        document.body.dataset.errors = JSON.stringify(errors);
+      });
+    """
+    page = tmp_path / "name-dialog.html"
+    page.write_text(
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<style>{css}</style></head><body><main></main>{dialog}<script>{script}</script></body></html>"
+    )
+
+    rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")
+    errors = json.loads(rendered["errors"])
+    assert rendered["innerWidth"] == 390
+    assert rendered["result"] == "pass", errors

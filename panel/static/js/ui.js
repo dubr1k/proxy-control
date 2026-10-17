@@ -106,5 +106,25 @@ export function createUi(root) {
     }
   }
 
-  return { view, toast, setBusy, renderSkeleton, renderError, openModal, confirmed, choose, copyText };
+  // One line of text (a new name): the trimmed value, or null when dismissed. `required`
+  // keeps an empty value out; without it an empty answer means «put the default back».
+  function askText(title, text, { label = "Название", value = "", maxLength = 128, required = true, button = "Сохранить" } = {}) {
+    const dialog = query("#ask-text", root);
+    const input = query("#ask-text-input", root);
+    query("#ask-text-title", root).textContent = title;
+    query("#ask-text-text", root).textContent = text;
+    query("#ask-text-label", root).textContent = label;
+    query("#ask-text-ok", root).textContent = button;
+    query("#ask-text-error", root).textContent = "";
+    input.maxLength = maxLength;
+    input.required = required;
+    input.value = value;
+    dialog.showModal();
+    input.select();
+    return new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "default" ? input.value.trim() : null), { once: true });
+    });
+  }
+
+  return { view, toast, setBusy, renderSkeleton, renderError, openModal, confirmed, choose, askText, copyText };
 }

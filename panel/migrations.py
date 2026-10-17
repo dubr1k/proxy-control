@@ -530,11 +530,17 @@ ROUTING_V21 = Migration(21, "routing-mtproxy", (
     "DROP TABLE managed_egress_old",
 ))
 
+# A name an operator gives one access for the subscription (presentation only: the
+# account name, endpoint and credential never change). NULL = the node · protocol default.
+GRANT_LABELS_V22 = Migration(22, "grant-labels", (
+    "ALTER TABLE access_grants ADD COLUMN label TEXT",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
     ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19, SUBSCRIPTION_ESCROW_V20,
-    ROUTING_V21,
+    ROUTING_V21, GRANT_LABELS_V22,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

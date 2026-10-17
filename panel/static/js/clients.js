@@ -55,6 +55,7 @@ function actions(context, client) {
   return `<div class="client-actions">
     ${open}
     ${placement}
+    <button class="secondary" data-client-action="rename">Переименовать</button>
     ${toggle}
     <button class="danger ghost" data-client-action="archive">Архивировать</button>
   </div>`;
@@ -630,6 +631,24 @@ export function bindClients(context) {
   });
 }
 
+// The name the panel and the subscription page show for the client. Accounts, endpoints
+// and credentials keep their own names, so nothing has to be re-issued.
+async function renameClient(context, clientId) {
+  const entry = context.state.clients.find((item) => item.client.id === clientId);
+  if (!entry) return;
+  const name = await context.ui.askText("Переименовать клиента", "Учётные записи на узлах и ссылка подписки не меняются: обновится только название.", {
+    label: "Имя клиента", value: entry.client.display_name, maxLength: 128,
+  });
+  if (!name || name === entry.client.display_name) return;
+  try {
+    await context.api(`/api/clients/${encodeURIComponent(clientId)}/rename`, { method: "POST", body: JSON.stringify({ display_name: name }) });
+    context.ui.toast("Клиент переименован");
+    await context.navigate("clients");
+  } catch (exception) {
+    context.ui.toast(exception.message, "error");
+  }
+}
+
 async function lifecycle(context, clientId, action) {
   const entry = context.state.clients.find((item) => item.client.id === clientId);
   if (!entry) return;
@@ -735,6 +754,10 @@ export function handleClientsClick(context, button) {
   }
   const card = button.closest("[data-client-id]");
   if (!card) return false;
+  if (action === "rename") {
+    void renameClient(context, card.dataset.clientId);
+    return true;
+  }
   void lifecycle(context, card.dataset.clientId, action);
   return true;
 }

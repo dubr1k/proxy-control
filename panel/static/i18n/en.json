@@ -1501,5 +1501,14 @@
  "Далее": "Next",
  "Назад": "Previous",
  "Страницы клиентов": "Client pages",
- "Не удалось загрузить клиентов": "Could not load clients"
+ "Не удалось загрузить клиентов": "Could not load clients",
+ "Имя клиента": "Client name",
+ "Клиент переименован": "Client renamed",
+ "Название в подписке": "Name in the subscription",
+ "Название сброшено": "Name reset",
+ "Название сохранено": "Name saved",
+ "Переименовать клиента": "Rename client",
+ "Так подключение называется в приложении клиента. Учётная запись и секрет не меняются; пустое название вернёт «узел · протокол».": "This is what the connection is called in the client's app. The account and secret do not change; an empty name puts «node · protocol» back.",
+ "Учётные записи на узлах и ссылка подписки не меняются: обновится только название.": "Accounts on the nodes and the subscription link do not change: only the name is updated.",
+ "Изменено название доступа в подписке": "Access name in the subscription changed"
 }

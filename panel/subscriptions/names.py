@@ -27,8 +27,11 @@ def display_text(value: str) -> str:
 def grant_names(manifest: Manifest) -> dict[str, str]:
     bases = {}
     for grant in manifest.grants:
+        # A name the operator gave this access wins over «node · protocol»; two accesses
+        # with the same name still get the stable suffix below.
+        custom = display_text(grant.label)
         node = display_text(grant.node_name) or display_text(grant.node_id) or "Local"
-        bases[grant.grant_id] = f"{node} · {PROTOCOL_TITLES.get(grant.protocol, grant.protocol)}"
+        bases[grant.grant_id] = custom or f"{node} · {PROTOCOL_TITLES.get(grant.protocol, grant.protocol)}"
     counts = Counter(bases.values())
     # Reserve all literal names first, including names that look like a suffix.
     used = set(bases.values())

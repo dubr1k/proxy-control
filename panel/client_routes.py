@@ -18,9 +18,11 @@ from .subscription_routes import subscription_reveal_payload
 from .schemas import (
     ClientCreate,
     ClientImport,
+    ClientRename,
     ClientState,
     GrantAdopt,
     GrantAdoptBatch,
+    GrantLabel,
     GrantsCreate,
 )
 from .web_context import RequestContext
@@ -194,6 +196,21 @@ def register_client_routes(app, context: RequestContext) -> None:
                 adopted.append(result)
         return {"adopted": adopted, "refused": refused}
 
+    @app.post("/api/clients/grants/{grant_id}/label")
+    async def grant_label(
+        grant_id: str, body: GrantLabel, request: Request, user=Depends(context.roles("owner", "admin"))
+    ):
+        """The name one access carries in subscriptions (presentation only)."""
+        try:
+            grant = await asyncio.to_thread(
+                app.state.clients.set_grant_label, grant_id, body.label, **_context(request, user)
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "grant not found") from exc
+        except ClientConflict as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return _grant(grant)
+
     @app.post("/api/clients/grants/{grant_id}/{action}")
     async def grant_action(
         grant_id: str,
@@ -342,4 +359,19 @@ def register_client_routes(app, context: RequestContext) -> None:
             raise HTTPException(404, "client not found") from exc
         except ClientConflict as exc:
             raise HTTPException(409, str(exc)) from exc
+        return changed.model_dump()
+
+    @app.post("/api/clients/{client_id}/rename")
+    async def rename(
+        client_id: str, body: ClientRename, request: Request, user=Depends(context.roles("owner", "admin"))
+    ):
+        """The client's display name; accounts and credentials keep their own names."""
+        try:
+            changed = await asyncio.to_thread(
+                app.state.clients.rename_client, client_id, body.display_name, **_context(request, user)
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "client not found") from exc
+        except ClientConflict as exc:
+            raise HTTPException(422, str(exc)) from exc
         return changed.model_dump()

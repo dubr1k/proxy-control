@@ -74,6 +74,46 @@ class ClientService:
             self.notify(db, client.id)
         return client
 
+    def rename_client(self, client_id: str, display_name: str, *, actor: dict, ip: str, request_id: str | None = None) -> Client:
+        """Presentation only: the name the panel and the subscription page show. Accounts,
+        endpoints and credentials keep their own names."""
+        name = " ".join(display_name.split())
+        if not name or len(name) > 128:
+            raise ClientConflict("display_name must be 1-128 characters")
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            before = self.store.client(db, client_id)
+            self.store.rename_client(db, client_id, name, updated_at=now)
+            after = self.store.client(db, client_id)
+            record(
+                db, actor=actor, action="client.rename", target=client_id, ip=ip, request_id=request_id,
+                before_digest=digest(before.model_dump()), after_digest=digest(after.model_dump()),
+                detail={"display_name": name},
+            )
+            self.notify(db, client_id)
+            return after
+
+    def set_grant_label(
+        self, grant_id: str, label: str | None, *, actor: dict, ip: str, request_id: str | None = None
+    ) -> AccessGrant:
+        """The name one access carries in the subscription; empty puts the default back."""
+        text = " ".join((label or "").split()) or None
+        if text is not None and len(text) > 64:
+            raise ClientConflict("label must be at most 64 characters")
+        now = int(self.clock.time())
+        with self.database.transaction() as db:
+            before = self.store.grant(db, grant_id)
+            if before.desired_state == "deleted":
+                raise KeyError(grant_id)
+            self.store.set_grant_label(db, grant_id, text, updated_at=now)
+            after = self.store.grant(db, grant_id)
+            record(
+                db, actor=actor, action="grant.label", target=grant_id, ip=ip, request_id=request_id,
+                detail={"client_id": before.client_id, "protocol": before.protocol, "label": text},
+            )
+            self.notify(db, before.client_id)
+            return after
+
     def set_state(self, client_id: str, state: str, *, actor: dict, ip: str, request_id: str | None = None) -> Client:
         if state not in STATES:
             raise ClientConflict(f"state must be one of {STATES}")

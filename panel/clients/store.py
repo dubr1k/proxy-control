@@ -47,6 +47,7 @@ def _grant(row) -> AccessGrant:
         options=options,
         origin=row["origin"],
         routing_lane=row["routing_lane"] if "routing_lane" in row.keys() else None,
+        label=row["label"] if "label" in row.keys() else None,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -195,6 +196,22 @@ class ClientStore:
         ).rowcount
         if changed != 1:
             raise KeyError(client_id)
+
+    @staticmethod
+    def rename_client(db, client_id: str, display_name: str, *, updated_at: int) -> None:
+        changed = db.execute(
+            "UPDATE clients SET display_name=?,updated_at=? WHERE id=?", (display_name, updated_at, client_id)
+        ).rowcount
+        if changed != 1:
+            raise KeyError(client_id)
+
+    @staticmethod
+    def set_grant_label(db, grant_id: str, label: str | None, *, updated_at: int) -> None:
+        changed = db.execute(
+            "UPDATE access_grants SET label=?,updated_at=? WHERE id=?", (label, updated_at, grant_id)
+        ).rowcount
+        if changed != 1:
+            raise KeyError(grant_id)
 
     def insert_grant(self, db, grant: AccessGrant) -> None:
         # The UNIQUE index would raise too, but a failed statement aborts the caller's

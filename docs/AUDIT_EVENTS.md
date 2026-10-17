@@ -37,12 +37,14 @@ checks the fleet and grant names against this file.
 | --- | --- | --- |
 | `client.create` | client id | clients |
 | `client.active` / `client.suspended` / `client.archived` | client id | client state |
+| `client.rename` | client id | the operator changed the client's display name (presentation only) |
 | `client.import` | client id | on-device import of existing users |
 | `grant.provision.start` | operation id | provisioning saga |
 | `grant.provision.succeeded` / `grant.provision.compensated` / `grant.provision.manual_intervention_required` | operation id | provisioning saga outcome |
 | `grant.enable` / `grant.disable` | grant id | the grant lifecycle (local: recorded by the domain façade when the runtime is mirrored; remote: when the desired state is declared) |
 | `grant.rotate` | grant id | the grant lifecycle (local: a new active version; remote: a `pending` version the next generation names) |
 | `grant.delete` | grant id | the grant lifecycle (local: the account is gone and the row purged; remote: declared `deleted`, purged once the node confirms) |
+| `grant.label` | grant id | the operator set or cleared the name this access carries in the subscription (presentation only) |
 | `grant.adopt_on_write` | grant id | a protocol route touched a runtime user the panel had not imported yet |
 | `grant.credential.capture` | grant id | «Принять доступ» without rotation |
 | `grant.credential.adopt` | grant id | «Принять доступ» with rotation (Mieru) |

@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-17
+
+- A client can be renamed (`POST /api/clients/{client_id}/rename`, the «Rename» button on the client card), and one access can carry its own name in subscriptions (`POST /api/clients/grants/{grant_id}/label`, access window → «Name in the subscription»; an empty name puts «node · protocol» back). The custom name applies to sing-box/Throne, Clash, HTML and `raw`; accounts, endpoints, credentials and the subscription URL do not change, and conditional fetches see the new names at once. Node renaming, already on the Nodes screen, is unchanged.
+- Database migration 22 adds `access_grants.label`; nodes get it with the same update, and the Fleet protocol and the public manifest v1 are unchanged. Audit records `client.rename` and `grant.label`.
+
 ## [1.1.4] - 2026-10-12
 
 - One request may issue any number of accesses: the cap of 8 grants per request is gone, so «all protocols on all nodes» no longer fails with 422 and leaves a client without accesses.

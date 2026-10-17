@@ -32,6 +32,12 @@ An existing client: `set_client_placement` without `confirm` shows the plan (`is
 `client_subscription` (the reveal lands in the audit log); a lost or leaked link —
 `post_clients_by_client_id_subscription_rotate` with `confirm` (the old link stops working).
 
+Renaming is presentation only (accounts, endpoints and secrets never change, the link stays the
+same): `post_clients_by_client_id_rename` renames a client; `post_clients_grants_by_grant_id_label` sets
+the name one access carries in the subscription (an empty `label` puts «node · protocol» back);
+`post_nodes_by_node_id_rename` renames a node. The app shows the new names after it refreshes the
+subscription.
+
 ## Link variants (`subscription.variants`)
 
 | Key | For whom | What it carries |

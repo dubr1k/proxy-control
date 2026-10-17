@@ -419,3 +419,22 @@ async def test_post_clients_hands_back_a_subscription_reveal(owner, public):
 
     without = await owner.post("/api/clients", json={"display_name": "Card only", "subscription": False})
     assert without.status_code == 201 and without.json()["subscription_reveal_token"] is None
+
+
+async def test_client_rename_and_access_label_refresh_the_subscription_on_the_same_url(public, token, app, client_id):
+    actor = {"id": 1, "username": "owner"}
+    params = {"format": "singbox"}
+    before = await public.get(f"/s/{token}", params=params)
+    with app.state.database.connect() as db:
+        grant_id = next(g.id for g in app.state.clients.store.grants(db, client_id=client_id) if g.protocol == "naive")
+    app.state.clients.set_grant_label(grant_id, "Дом", actor=actor, ip="x")
+    labelled = await public.get(f"/s/{token}", params=params, headers={"If-None-Match": before.headers["etag"]})
+    assert labelled.status_code == 200 and labelled.headers["etag"] != before.headers["etag"]
+    assert "Дом" in [out["tag"] for out in labelled.json()["outbounds"]]
+    app.state.clients.set_grant_label(grant_id, None, actor=actor, ip="x")
+    reset = await public.get(f"/s/{token}", params=params)
+    assert reset.headers["etag"] == before.headers["etag"]
+    html = await public.get(f"/s/{token}", params={"format": "html"})
+    app.state.clients.rename_client(client_id, "Мама Samsung", actor=actor, ip="x")
+    renamed = await public.get(f"/s/{token}", params={"format": "html"}, headers={"If-None-Match": html.headers["etag"]})
+    assert renamed.status_code == 200 and "Мама Samsung" in renamed.text

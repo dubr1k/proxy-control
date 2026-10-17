@@ -603,8 +603,11 @@ not logged. Details: [PANEL.en.md](PANEL.en.md).
 
 Subscription connection names start with the node name: `AMS · Naive`,
 `AMS · Mieru · TCP 8443`. Rename nodes on the Nodes screen, including the local
-server. Duplicate names receive a stable short grant suffix. Refresh the subscription
-in your client after renaming; its URL, usernames and passwords do not change.
+server. Duplicate names receive a stable short grant suffix. A client is renamed with the
+«Rename» button on its card, and any access can carry its own name in the subscription:
+access window → «Name in the subscription» (an empty name puts «node · protocol» back).
+Renaming changes only what is displayed: accounts, addresses and secrets stay as they were.
+Refresh the subscription in your client after renaming; its URL, usernames and passwords do not change.
 Throne uses the `singbox` format (Karing variant). The `raw` feed carries the name
 in the Naive label and Mieru `profile`; Telegram MTProxy links stay unchanged.
 
