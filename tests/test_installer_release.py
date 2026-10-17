@@ -129,14 +129,14 @@ def test_external_artifact_is_arch_specific_and_version_pinned():
 
     amd64 = manifest.artifacts.for_platform("three_xui", "amd64")
 
-    assert amd64.version == "3.9.0"
-    assert amd64.tag == "v3.9.0"
+    assert amd64.version == "3.10.2"
+    assert amd64.tag == "v3.10.2"
     assert amd64.sha256 == (
-        "d7cbe0bf6358ee0d2117c24fd2efb483502e411d38e2ea59bd0bf5e7a3e39390"
+        "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0"
     )
     assert amd64.url == (
         "https://github.com/MHSanaei/3x-ui/releases/download/"
-        "v3.9.0/x-ui-linux-amd64.tar.gz"
+        "v3.10.2/x-ui-linux-amd64.tar.gz"
     )
     assert amd64.architecture == "amd64"
     assert amd64.spdx_license == "GPL-3.0-only"
@@ -158,20 +158,20 @@ def test_mita_pins_include_package_and_executable_hashes():
     manifest = ReleaseManifest.from_bytes(VALID_MANIFEST.read_bytes())
     expected = {
         "amd64": (
-            "44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a",
-            "38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170",
+            "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+            "991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207",
         ),
     }
 
     for arch, (package_hash, executable_hash) in expected.items():
         pin = manifest.external_artifact("mita", arch)
-        assert pin.version == "3.36.0"
+        assert pin.version == "3.38.1"
         assert pin.sha256 == package_hash
         assert pin.executable_path == "usr/bin/mita"
         assert pin.executable_sha256 == executable_hash
         assert pin.spdx_license == "GPL-3.0-or-later"
-        assert pin.url.endswith(f"mita_3.36.0_{arch}.deb")
-        assert "/download/v3.36.0/" in pin.url
+        assert pin.url.endswith(f"mita_3.38.1_{arch}.deb")
+        assert "/download/v3.38.1/" in pin.url
 
 
 @pytest.mark.parametrize(
@@ -210,7 +210,7 @@ def test_mita_pins_include_package_and_executable_hashes():
             "http URL",
             lambda data: data["artifacts"][0]["platforms"]["amd64"].update(
                 {"url": "http://github.com/enfein/mieru/releases/download/"
-                "v3.36.0/mita_3.36.0_amd64.deb"}
+                "v3.38.1/mita_3.38.1_amd64.deb"}
             ),
             "HTTPS",
         ),
@@ -218,7 +218,7 @@ def test_mita_pins_include_package_and_executable_hashes():
             "wrong host",
             lambda data: data["artifacts"][0]["platforms"]["amd64"].update(
                 {"url": "https://example.com/enfein/mieru/releases/download/"
-                "v3.36.0/mita_3.36.0_amd64.deb"}
+                "v3.38.1/mita_3.38.1_amd64.deb"}
             ),
             "GitHub host",
         ),
@@ -226,7 +226,7 @@ def test_mita_pins_include_package_and_executable_hashes():
             "mutable latest URL",
             lambda data: data["artifacts"][0]["platforms"]["amd64"].update(
                 {"url": "https://github.com/enfein/mieru/releases/latest/"
-                "download/mita_3.36.0_amd64.deb"}
+                "download/mita_3.38.1_amd64.deb"}
             ),
             "immutable release URL",
         ),
@@ -234,7 +234,7 @@ def test_mita_pins_include_package_and_executable_hashes():
             "URL query",
             lambda data: data["artifacts"][0]["platforms"]["amd64"].update(
                 {"url": "https://github.com/enfein/mieru/releases/download/"
-                "v3.36.0/mita_3.36.0_amd64.deb?raw=1"}
+                "v3.38.1/mita_3.38.1_amd64.deb?raw=1"}
             ),
             "query or fragment",
         ),
@@ -247,7 +247,7 @@ def test_mita_pins_include_package_and_executable_hashes():
             "URL repository mismatch",
             lambda data: data["artifacts"][0]["platforms"]["amd64"].update(
                 {"url": "https://github.com/attacker/mieru/releases/download/"
-                "v3.36.0/mita_3.36.0_amd64.deb"}
+                "v3.38.1/mita_3.38.1_amd64.deb"}
             ),
             "repository",
         ),
@@ -262,7 +262,7 @@ def test_mita_pins_include_package_and_executable_hashes():
             "filename architecture mismatch",
             lambda data: data["artifacts"][0]["platforms"]["amd64"].update(
                 {"url": "https://github.com/enfein/mieru/releases/download/"
-                "v3.36.0/mita_3.36.0_arm64.deb"}
+                "v3.38.1/mita_3.38.1_arm64.deb"}
             ),
             "architecture",
         ),
@@ -842,13 +842,13 @@ def test_payload_bearing_nonregular_tar_entry_is_rejected(tmp_path):
     "url",
     [
         " https://github.com/enfein/mieru/releases/download/"
-        "v3.36.0/mita_3.36.0_amd64.deb",
+        "v3.38.1/mita_3.38.1_amd64.deb",
         "https://github.com/enfein/mieru/releases/download/"
-        "v3.36.0/mita_3.36.0_amd64.deb ",
+        "v3.38.1/mita_3.38.1_amd64.deb ",
         "https://github.com/enfein/mieru/releases/download/"
-        "v3.36.0/mita_3.36.0_amd64.deb\n",
+        "v3.38.1/mita_3.38.1_amd64.deb\n",
         "HTTPS://github.com/enfein/mieru/releases/download/"
-        "v3.36.0/mita_3.36.0_amd64.deb",
+        "v3.38.1/mita_3.38.1_amd64.deb",
     ],
 )
 def test_manifest_rejects_noncanonical_or_control_bearing_url(url):

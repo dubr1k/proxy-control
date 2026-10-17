@@ -1,6 +1,6 @@
 {
-  "comment": "Pinned 3x-ui 3.9.0 HTTP surface, reviewed against the tagged upstream controllers; live acceptance must verify these requests. Requests outside this table are refused before opening a socket.",
-  "version": "3.9.0",
+  "comment": "Pinned 3x-ui 3.10.2 HTTP surface, reviewed against the tagged upstream controllers; live acceptance must verify these requests. Requests outside this table are refused before opening a socket.",
+  "version": "3.10.2",
   "endpoints": {
     "xray_settings": {
       "method": "POST",

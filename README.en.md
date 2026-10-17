@@ -60,7 +60,7 @@ way. The installer can also install 3x-ui for you.
 | **MTProxy / Telemt** | A Telegram proxy: `tg://` links and QR codes, limits, expiry, service health. |
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from outside. HTTP/1.1 CONNECT and HTTP/2 CONNECT over TLS/TCP with one access for both; per-user quota and traffic accounting. |
 | **Mieru** | A traffic-obfuscating proxy with its own protocol over TCP; a one-time `mierus://` link and QR. |
-| **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.9.0` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
+| **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.10.2` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
 | **Clients and subscriptions** | One client holds grants to every protocol and one revocable link `https://<subscription domain>/s/<token>` for sing-box/Karing, Clash/mihomo and others. Credentials are stored under a master key (AES-256-GCM). |
 | **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
 | **Routing** | Outbound traffic rules per node and service: direct, through WARP, your own exit or another node; blocks by domain, CIDR, geosite and geoip through the optional Xray-router. |
@@ -243,7 +243,7 @@ itself. `coexist` — Nginx already holds port 443 and the installer only adds i
 - `existing` — adopt an installed one: the installer adds routes to its VLESS Reality TCP
   and XHTTP inbounds and does not change a single file of it. You create the inbounds in
   3x-ui yourself;
-- `managed-new` — install 3x-ui `3.9.0`: the installer issues the certificates, moves the
+- `managed-new` — install 3x-ui `3.10.2`: the installer issues the certificates, moves the
   3x-ui panel from public ports to `127.0.0.1` under a private path, replaces the factory
   `admin/admin` with yours and creates VLESS Reality TCP, VLESS Reality XHTTP and Hysteria2
   itself. Only in `fresh` mode.
@@ -703,12 +703,12 @@ does not match.
 
 | Component | Version | License | Purpose |
 |---|---|---|---|
-| `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The Mieru server; only the executable and the license notice are installed. |
-| `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | The official Mieru client for traffic acceptance. |
-| `three_xui` (`MHSanaei/3x-ui`) | 3.9.0 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
-| `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
+| `mita` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The Mieru server; only the executable and the license notice are installed. |
+| `mieru` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The official Mieru client for traffic acceptance. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
+| `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
 
-Caddy `v2.11.4` with the `http.handlers.forward_proxy` module is built from
+Caddy `v2.11.7` with the `http.handlers.forward_proxy` module is built from
 `docker/Dockerfile.caddy-naive`. URLs, checksums and SPDX identifiers are in
 [`release/external-artifacts.json`](release/external-artifacts.json), which the release build
 embeds into the SBOM.
@@ -726,7 +726,7 @@ embeds into the SBOM.
 | `deploy/Dockerfile.ingress` | Fleet v1 mTLS ingress | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |
 | `probe/Dockerfile` | MTProto probe on TDLib | `node` |
-| `docker/Dockerfile.caddy-naive` | Caddy with `forward_proxy` | `caddy:2.11.4-builder` → `scratch` |
+| `docker/Dockerfile.caddy-naive` | Caddy with `forward_proxy` | `caddy:2.11.7-builder` → `scratch` |
 | `scripts/lab/Dockerfile.acceptance` | Disposable systemd lab container | `ubuntu` |
 
 Every base is pinned by digest.

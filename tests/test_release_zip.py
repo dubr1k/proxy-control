@@ -15,11 +15,11 @@ from installer.release import MemberPin, ReleaseError, ReleaseManifest, safe_ext
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_MANIFEST = ROOT / "release" / "external-artifacts.json"
-XRAY_SHA256 = "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae"
+XRAY_SHA256 = "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158"
 MEMBERS = {
-    "xray": ("8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed", 36577406, 0o755),
-    "geoip.dat": ("744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354", 19768301, 0o644),
-    "geosite.dat": ("adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9", 10491954, 0o644),
+    "xray": ("6771b2b2700dee175357024738ad579de1c3f2c49eec0257e737d5aa38d12fed", 34971772, 0o755),
+    "geoip.dat": ("010bfc2e353c5e34e23156004944444ca260bae999e73171bdd7974056557959", 16587403, 0o644),
+    "geosite.dat": ("8474140bc89940897ee2b629be8fc92f34a496bd32e45829605d17715f4340d6", 11205406, 0o644),
 }
 
 
@@ -120,8 +120,8 @@ def test_safe_extract_zip_refuses_symlinked_destination(tmp_path):
 def test_xray_pin_includes_archive_and_member_digests():
     manifest = ReleaseManifest.from_bytes(RELEASE_MANIFEST.read_bytes())
     pin = manifest.external_artifact("xray", "amd64")
-    assert pin.version == "26.3.27" and pin.tag == "v26.3.27"
-    assert pin.url == "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip"
+    assert pin.version == "26.10.17" and pin.tag == "v26.10.17"
+    assert pin.url == "https://github.com/XTLS/Xray-core/releases/download/v26.10.17/Xray-linux-64.zip"
     assert pin.sha256 == XRAY_SHA256
     assert pin.spdx_license == "MPL-2.0"
     assert pin.executable_path is None

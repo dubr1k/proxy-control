@@ -1,7 +1,7 @@
-FROM caddy:2.11.4-builder@sha256:c7ae80243a530d532d20062d56d6198b3ab161eb6971d28716ef7ec55599fea4 AS builder
+FROM caddy:2.11.7-builder@sha256:d842facfd63b960922e57444ff76fd8f0793a66dfdcf481af8026e1f4e6a39b4 AS builder
 
 # Keep the Naive forward-proxy module immutable; never build from a moving branch.
-RUN xcaddy build v2.11.4 \
+RUN xcaddy build v2.11.7 \
     --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@d62c80d3dd2c706b6b87579844d2397bddd18317
 
 FROM scratch

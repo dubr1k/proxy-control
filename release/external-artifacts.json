@@ -3,76 +3,76 @@
   "artifacts": [
     {
       "name": "mieru",
-      "version": "3.36.0",
-      "tag": "v3.36.0",
+      "version": "3.38.1",
+      "tag": "v3.38.1",
       "repository": "enfein/mieru",
       "spdx_license": "GPL-3.0-or-later",
       "platforms": {
         "amd64": {
           "architecture": "amd64",
-          "url": "https://github.com/enfein/mieru/releases/download/v3.36.0/mieru_3.36.0_amd64.deb",
-          "sha256": "49da700a7ce80aa46486313d61ecb83825a99e27a1dab9dda726241cbb85cb90",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.38.1/mieru_3.38.1_amd64.deb",
+          "sha256": "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
           "executable_path": "usr/bin/mieru",
-          "executable_sha256": "acbf1b6ea9d48a6f88af9397fa9f1897cdb0f5f6ec456608b55307d7f1dcbdfc"
+          "executable_sha256": "3529fc7190e073d89da1ea9bbf08aa481edca59866c466725b8231325b0b6577"
         }
       }
     },
     {
       "name": "mita",
-      "version": "3.36.0",
-      "tag": "v3.36.0",
+      "version": "3.38.1",
+      "tag": "v3.38.1",
       "repository": "enfein/mieru",
       "spdx_license": "GPL-3.0-or-later",
       "platforms": {
         "amd64": {
           "architecture": "amd64",
-          "url": "https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb",
-          "sha256": "44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a",
+          "url": "https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb",
+          "sha256": "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
           "executable_path": "usr/bin/mita",
-          "executable_sha256": "38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170"
+          "executable_sha256": "991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207"
         }
       }
     },
     {
       "name": "three_xui",
-      "version": "3.9.0",
-      "tag": "v3.9.0",
+      "version": "3.10.2",
+      "tag": "v3.10.2",
       "repository": "MHSanaei/3x-ui",
       "spdx_license": "GPL-3.0-only",
       "platforms": {
         "amd64": {
           "architecture": "amd64",
-          "url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.9.0/x-ui-linux-amd64.tar.gz",
-          "sha256": "d7cbe0bf6358ee0d2117c24fd2efb483502e411d38e2ea59bd0bf5e7a3e39390"
+          "url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.10.2/x-ui-linux-amd64.tar.gz",
+          "sha256": "bfda7921984e7a72555c38d4e861c7a8b67b3686b658608937de99682f1452d0"
         }
       }
     },
     {
       "name": "xray",
-      "version": "26.3.27",
-      "tag": "v26.3.27",
+      "version": "26.10.17",
+      "tag": "v26.10.17",
       "repository": "XTLS/Xray-core",
       "spdx_license": "MPL-2.0",
       "platforms": {
         "amd64": {
           "architecture": "amd64",
           "filename_architecture": "64",
-          "url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip",
-          "sha256": "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
+          "url": "https://github.com/XTLS/Xray-core/releases/download/v26.10.17/Xray-linux-64.zip",
+          "sha256": "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158",
           "members": {
             "xray": {
-              "sha256": "8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed",
-              "size": 36577406,
+              "sha256": "6771b2b2700dee175357024738ad579de1c3f2c49eec0257e737d5aa38d12fed",
+              "size": 34971772,
               "mode": "0755"
             },
             "geoip.dat": {
-              "sha256": "744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354",
-              "size": 19768301,
+              "sha256": "010bfc2e353c5e34e23156004944444ca260bae999e73171bdd7974056557959",
+              "size": 16587403,
               "mode": "0644"
             },
             "geosite.dat": {
-              "sha256": "adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9",
-              "size": 10491954,
+              "sha256": "8474140bc89940897ee2b629be8fc92f34a496bd32e45829605d17715f4340d6",
+              "size": 11205406,
               "mode": "0644"
             }
           }

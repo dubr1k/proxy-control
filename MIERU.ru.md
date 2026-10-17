@@ -9,17 +9,17 @@ Proxy Control управляет `mita` через отдельный authentica
 | Архитектура | Upstream package | SHA-256 package | SHA-256 `usr/bin/mita` |
 |---|---|---|---|
 | amd64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb` | `cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342` | `4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31` |
-| amd64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb` | `44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a` | `38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170` |
+| amd64 | `https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb` | `2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9` | `991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207` |
 
-Не устанавливайте package только ради binary: скачайте, проверьте package digest, распакуйте и отдельно проверьте executable digest. Пример для v3.36.0 amd64:
+Не устанавливайте package только ради binary: скачайте, проверьте package digest, распакуйте и отдельно проверьте executable digest. Пример для v3.38.1 amd64:
 
 ```bash
 curl -fL --proto '=https' --tlsv1.2 \
-  https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb \
-  -o mita_3.36.0_amd64.deb
-printf '%s  %s\n' 44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a mita_3.36.0_amd64.deb | sha256sum -c -
-dpkg-deb -x mita_3.36.0_amd64.deb mita-root
-printf '%s  %s\n' 38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170 mita-root/usr/bin/mita | sha256sum -c -
+  https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb \
+  -o mita_3.38.1_amd64.deb
+printf '%s  %s\n' 2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9 mita_3.38.1_amd64.deb | sha256sum -c -
+dpkg-deb -x mita_3.38.1_amd64.deb mita-root
+printf '%s  %s\n' 991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207 mita-root/usr/bin/mita | sha256sum -c -
 ```
 
 Для другой поддерживаемой версии или архитектуры используйте целиком соответствующую pinned строку.
@@ -93,7 +93,7 @@ sudo env MIERU_MITA_GID="$MIERU_MITA_GID" ./scripts/prepare-mieru-state.sh prepa
 ```bash
 export MIERU_PUBLIC_HOST=mieru.example.com
 export MIERU_MITA_BIN=/usr/bin/mita
-export MIERU_MITA_SHA256=38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170
+export MIERU_MITA_SHA256=991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207
 export MIERU_MITA_GID="$(stat -c %g /run/mita/mita.sock)"
 export MIERU_MANAGER_STATE_DIR=/var/lib/mieru-manager
 export MIERU_MANAGER_TOKEN_FILE=/etc/mieru-manager/token

@@ -88,7 +88,7 @@ class FakeRunner:
     def __init__(self, *, status: dict | None = None, listener: bool = True, probe: bool = True,
                  identities: dict[tuple[str, int], str] | None = None, fail_on: tuple[str, ...] | None = None):
         self.status = status if status is not None else {
-            "xray_version": "Xray 26.3.27", "phase": "idle",
+            "xray_version": "Xray 26.10.17", "phase": "idle",
             "artifacts": {name: {"verified": True} for name in ("xray", "geoip", "geosite")},
             "running": {"generation": 1, "digest": "a" * 64},
         }

@@ -1538,7 +1538,7 @@ def test_exact_local_caddy_accepts_managed_accounting_config_when_forwardproxy_m
     version = subprocess.run(
         ["/usr/local/bin/caddy", "version"], check=True, capture_output=True, text=True,
     ).stdout
-    assert version.startswith("v2.11.4 ")
+    assert version.startswith("v2.11.7 ")
 
 
 def test_cover_probe_accepts_a_locally_untrusted_cover_certificate(tmp_path):

@@ -86,8 +86,8 @@ digest. The complete surface - profiles, every configuration field, ownership
 boundaries, per-protocol acceptance, WARP and egress, recovery, and reports -
 is in the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
-The pinned upstream artifacts — `mita_3.36.0_<arch>.deb` (the server) and
-`mieru_3.36.0_<arch>.deb` (the official client the acceptance runs) for a profile
+The pinned upstream artifacts — `mita_3.38.1_<arch>.deb` (the server) and
+`mieru_3.38.1_<arch>.deb` (the official client the acceptance runs) for a profile
 with Mieru, `Xray-linux-64.zip` for the Xray-router — need no staging: the installer
 fetches them from their pinned HTTPS URLs into `/var/lib/proxy-control/` and refuses
 to continue unless each digest matches its pin (a mismatching file is discarded).
@@ -187,7 +187,7 @@ The installer:
 7. waits for services to be ready and runs the acceptance for every protocol.
 
 It does not touch DNS, WARP, Fleet, foreign containers, or foreign Nginx routes.
-The `managed-new` mode pins 3x-ui **3.9.0**, verifies the archive SHA-256,
+The `managed-new` mode pins 3x-ui **3.10.2**, verifies the archive SHA-256,
 and removes temporary acceptance accounts through the client API.
 
 It manages UFW rules and 3x-ui only when your configuration says so.

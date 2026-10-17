@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 CADDY=${CADDY_BIN:-/usr/local/bin/caddy}
-DEFAULT_EXPECTED='v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0='
+DEFAULT_EXPECTED='v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4='
 # The unit runs this from ExecStartPre without the version-agent's environment,
 # so an updated build records its pin in a root-owned file the check reads here.
 PIN_FILE=${CADDY_VERSION_PIN_FILE:-/etc/proxy-control/caddy-naive.pin}

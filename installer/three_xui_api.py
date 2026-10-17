@@ -1,4 +1,4 @@
-"""Pinned local 3x-ui 3.9.0 API client and the managed inbound templates.
+"""Pinned local 3x-ui 3.10.2 API client and the managed inbound templates.
 
 Every request goes to a loopback address, carries its secrets in the request
 body rather than in argv, and is bounded by an explicit timeout and response
@@ -23,11 +23,11 @@ from typing import Protocol
 from installer.model import InstallerConfig
 
 
-_CONTRACT = "tests/fixtures/three_xui/api-contract-3.9.0.json"
+_CONTRACT = "tests/fixtures/three_xui/api-contract-3.10.2.json"
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _TIMEOUT = 30.0
-_VERSION = "3.9.0"
+_VERSION = "3.10.2"
 
 # Managed loopback backends; Nginx keeps the shared 443 listener.
 VLESS_TCP_PORT = 8449
@@ -503,7 +503,7 @@ class _Sanitized(Exception):
 
 
 class ThreeXuiApi:
-    """The pinned 3.9.0 request surface, and nothing else."""
+    """The pinned 3.10.2 request surface, and nothing else."""
 
     def __init__(
         self,

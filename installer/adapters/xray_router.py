@@ -52,7 +52,7 @@ _CONTAINER = "proxy-control-xray-router"
 # v1.1: the MTProxy ingress bridge — Telemt's way to the router from the Compose network.
 _BRIDGE_SERVICE = "xray-router-ingress"
 _BRIDGE_CONTAINER = "proxy-control-xray-router-ingress"
-_XRAY_VERSION = "26.3.27"
+_XRAY_VERSION = "26.10.17"
 _ARCHIVE = "Xray-linux-64.zip"
 _MEMBERS = ("xray", "geoip.dat", "geosite.dat")
 _SERVICES = ("naive", "mieru")
@@ -66,18 +66,18 @@ _CREDENTIAL = re.compile(r"[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._~-]{16,128}\Z")
 _TRACE = "https://www.cloudflare.com/cdn-cgi/trace"
 _PROBE_RETRY_SECONDS = 3.0
 
-# Pinned upstream Xray-core 26.3.27: the archive and the only members the installer
+# Pinned upstream Xray-core 26.10.17: the archive and the only members the installer
 # writes. The same numbers live in `release/external-artifacts.json`; a test keeps them equal.
 _XRAY_PINS: Mapping[str, tuple[str, str, Mapping[str, MemberPin]]] = MappingProxyType(
     {
         "amd64": (
-            "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip",
-            "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
+            "https://github.com/XTLS/Xray-core/releases/download/v26.10.17/Xray-linux-64.zip",
+            "ecdd54eccd24c4c21a8f00968e7dbf7f5996da92383d2321170b560dc4a95158",
             MappingProxyType(
                 {
-                    "xray": MemberPin("8255dd939c34cf966cc91517b6324dd3c8d0bcf49ffac8beca049a38c46845ed", 36577406, 0o755),
-                    "geoip.dat": MemberPin("744c97b74c52bae2ac8664fef6ac481d7765cb8432a0df54f0368a88b9b4a354", 19768301, 0o644),
-                    "geosite.dat": MemberPin("adf92de0cfc70e458b399f04c5f912bf42d115ed7e37281b30e2f1c68605e4e9", 10491954, 0o644),
+                    "xray": MemberPin("6771b2b2700dee175357024738ad579de1c3f2c49eec0257e737d5aa38d12fed", 34971772, 0o755),
+                    "geoip.dat": MemberPin("010bfc2e353c5e34e23156004944444ca260bae999e73171bdd7974056557959", 16587403, 0o644),
+                    "geosite.dat": MemberPin("8474140bc89940897ee2b629be8fc92f34a496bd32e45829605d17715f4340d6", 11205406, 0o644),
                 }
             ),
         ),

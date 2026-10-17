@@ -92,33 +92,33 @@ _ROUTER_CREDENTIAL_SHAPE = re.compile(r"[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._~-]{16,
 _EGRESS_SEED = {EgressChoice.DIRECT: "direct", EgressChoice.WARP: "proxy", EgressChoice.ROUTER: "router"}
 _RUNNING = 'mita server status is "RUNNING"'
 _MITA_PROCESS = "mita"
-_MITA_VERSION = "3.36.0"
+_MITA_VERSION = "3.38.1"
 _SUPPORTED_ARCHITECTURES = ("amd64",)
 
-# Pinned upstream mita 3.36.0 packages and the executable each one must carry.
+# Pinned upstream mita 3.38.1 packages and the executable each one must carry.
 # mita stays an external GPLv3+ artifact: only the binary and its license text
 # are installed, never the package itself.
 _MITA_PINS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
     {
         "amd64": (
-            "https://github.com/enfein/mieru/releases/download/v3.36.0/"
-            "mita_3.36.0_amd64.deb",
-            "44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a",
-            "38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170",
+            "https://github.com/enfein/mieru/releases/download/v3.38.1/"
+            "mita_3.38.1_amd64.deb",
+            "2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9",
+            "991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207",
         ),
     }
 )
 
-# Pinned upstream mieru 3.36.0 client packages and the executable each carries.
+# Pinned upstream mieru 3.38.1 client packages and the executable each carries.
 # The acceptance runs the official client, so the client is pinned exactly like
 # the server: the operator stages the package and the installer proves it.
 _MIERU_CLIENT_PINS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
     {
         "amd64": (
-            "https://github.com/enfein/mieru/releases/download/v3.36.0/"
-            "mieru_3.36.0_amd64.deb",
-            "49da700a7ce80aa46486313d61ecb83825a99e27a1dab9dda726241cbb85cb90",
-            "acbf1b6ea9d48a6f88af9397fa9f1897cdb0f5f6ec456608b55307d7f1dcbdfc",
+            "https://github.com/enfein/mieru/releases/download/v3.38.1/"
+            "mieru_3.38.1_amd64.deb",
+            "f758f886039efcceb6aa9e88c6393ad1d7326e533e0e9a01d378e49bedaa5563",
+            "3529fc7190e073d89da1ea9bbf08aa481edca59866c466725b8231325b0b6577",
         ),
     }
 )

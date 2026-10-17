@@ -69,8 +69,8 @@ _MANAGER_UID = 10002
 _MANAGER_GID = 101
 _CADDY_USER = "naive-caddy"
 _ACCOUNTING_GROUP = "naive-accounting"
-_CADDY_VERSION = "v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0="
-_CADDY_IMAGE = "proxy-control-caddy-naive:v2.11.4"
+_CADDY_VERSION = "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4="
+_CADDY_IMAGE = "proxy-control-caddy-naive:v2.11.7"
 _FORWARD_PROXY_MODULE = "http.handlers.forward_proxy"
 _ADMIN_PORT = 2019
 _PRIVATE_PORT = 4443

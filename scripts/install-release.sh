@@ -131,9 +131,9 @@ Proxy Control — что нужно для установки
   закреплённым HTTPS-URL и сверяет SHA-256 до любого использования (несовпадение —
   отказ, файл выбрасывается); файл, положенный вручную в /var/lib/proxy-control/
   (хост без интернета), используется как есть и никогда не заменяется:
-  • профили с Mieru: mita_3.36.0_amd64.deb и mieru_3.36.0_amd64.deb;
-  • управляемый 3x-ui 3.9.0: x-ui-linux-amd64.tar.gz;
-  • Xray-router: Xray-linux-64.zip (Xray-core 26.3.27).
+  • профили с Mieru: mita_3.38.1_amd64.deb и mieru_3.38.1_amd64.deb;
+  • управляемый 3x-ui 3.10.2: x-ui-linux-amd64.tar.gz;
+  • Xray-router: Xray-linux-64.zip (Xray-core 26.10.17).
   URL и SHA-256 — в release/external-artifacts.json распакованного релиза.
 
 WARP (необязательно): секция [egress] в install.toml или вопросы мастера —
@@ -203,9 +203,9 @@ Nothing to stage for the pinned external artifacts — the installer fetches the
   their pinned HTTPS URLs and proves the SHA-256 before anything uses them (a mismatch
   is a refusal, the file is discarded); a file staged by hand in
   /var/lib/proxy-control/ (an offline host) is used as it is and never replaced:
-  • the Mieru profiles: mita_3.36.0_amd64.deb and mieru_3.36.0_amd64.deb;
-  • managed 3x-ui 3.9.0: x-ui-linux-amd64.tar.gz;
-  • the Xray-router: Xray-linux-64.zip (Xray-core 26.3.27).
+  • the Mieru profiles: mita_3.38.1_amd64.deb and mieru_3.38.1_amd64.deb;
+  • managed 3x-ui 3.10.2: x-ui-linux-amd64.tar.gz;
+  • the Xray-router: Xray-linux-64.zip (Xray-core 26.10.17).
   URLs and SHA-256 in release/external-artifacts.json of the extracted release.
 
 WARP (optional): the [egress] section of install.toml or the wizard's questions —

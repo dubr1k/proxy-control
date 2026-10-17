@@ -60,7 +60,7 @@ _DEFAULT_PANEL_PORT = 2053
 # The certificate lineage the Nginx boundary issues for the 3x-ui panel domain.
 _LINEAGE_ROOT = "/etc/letsencrypt/live"
 _PANEL_LINEAGE = "three-xui-panel"
-_VERSION = "3.9.0"
+_VERSION = "3.10.2"
 _SUPPORTED_ARCHITECTURES = ("amd64",)
 _MAX_CONFIG_BYTES = 4 * 1024 * 1024
 _MAX_INBOUNDS = 256

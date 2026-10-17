@@ -1,4 +1,4 @@
-# Fresh full installation with the SHA-256-pinned 3x-ui 3.9.0.
+# Fresh full installation with the SHA-256-pinned 3x-ui 3.10.2.
 # Existing 3x-ui installations require the separate existing mode instead.
 schema = 1
 host_mode = "fresh"

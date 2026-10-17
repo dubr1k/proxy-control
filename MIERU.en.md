@@ -8,31 +8,31 @@ Proxy Control manages mita through a local, authenticated Unix-socket manager. S
 
 ## Pinned upstream artifacts
 
-Only download the pinned v3.35.0 or v3.36.0 Debian packages from the exact upstream release URLs below. Verify the **package** digest before extraction; do not install the package merely to obtain the binary. Then extract with `dpkg-deb -x` and verify the separate **`/usr/bin/mita` executable** digest. The manager's `MIERU_MITA_SHA256` runtime gate always uses the executable digest, never the package digest.
+Only download the pinned v3.35.0 or v3.38.1 Debian packages from the exact upstream release URLs below. Verify the **package** digest before extraction; do not install the package merely to obtain the binary. Then extract with `dpkg-deb -x` and verify the separate **`/usr/bin/mita` executable** digest. The manager's `MIERU_MITA_SHA256` runtime gate always uses the executable digest, never the package digest.
 
 | Architecture | Pinned upstream `.deb` URL | Debian package SHA-256 | Extracted `usr/bin/mita` SHA-256 |
 |---|---|---|---|
 | amd64 | `https://github.com/enfein/mieru/releases/download/v3.35.0/mita_3.35.0_amd64.deb` | `cca7a31e7be692bf10dd5c72f8862b92695a8b06e2a3abcb22ede936e74b2342` | `4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31` |
-| amd64 | `https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb` | `44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a` | `38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170` |
+| amd64 | `https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb` | `2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9` | `991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207` |
 
-Example for v3.36.0 amd64 (substitute one complete pinned row when using another supported version or architecture):
+Example for v3.38.1 amd64 (substitute one complete pinned row when using another supported version or architecture):
 
 ```sh
 curl -fL --proto '=https' --tlsv1.2 \
-  https://github.com/enfein/mieru/releases/download/v3.36.0/mita_3.36.0_amd64.deb \
-  -o mita_3.36.0_amd64.deb
-printf '%s  %s\n' 44622bea7fac732984ac6cf1189e555fd9add1969001e9b2d7cdea9416b5919a mita_3.36.0_amd64.deb | sha256sum -c -
-dpkg-deb -x mita_3.36.0_amd64.deb mita-root
-printf '%s  %s\n' 38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170 mita-root/usr/bin/mita | sha256sum -c -
+  https://github.com/enfein/mieru/releases/download/v3.38.1/mita_3.38.1_amd64.deb \
+  -o mita_3.38.1_amd64.deb
+printf '%s  %s\n' 2c7c0be33d34cf126187d97c17484a34b5c62b764c96b0a88ec4cbc7660d72c9 mita_3.38.1_amd64.deb | sha256sum -c -
+dpkg-deb -x mita_3.38.1_amd64.deb mita-root
+printf '%s  %s\n' 991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207 mita-root/usr/bin/mita | sha256sum -c -
 ```
 
-The pinned v3.35.0 and v3.36.0 Debian executables are statically linked. Reserve numeric UID/GID `10005:10005` for the non-login `mieru-manager` identity (fail closed if either number belongs to another principal), add that user to the distinct `mita` socket group, and add the panel service user only to group `10005`. Install `deploy/mieru-manager.service`. Put a random 32–512 character ASCII token in `/etc/mieru-manager/token`, then run `sudo ./scripts/prepare-mieru-token.sh prepare /etc/mieru-manager/token`; the resulting metadata is exactly `root:10005` mode `0440`.
+The pinned v3.35.0 and v3.38.1 Debian executables are statically linked. Reserve numeric UID/GID `10005:10005` for the non-login `mieru-manager` identity (fail closed if either number belongs to another principal), add that user to the distinct `mita` socket group, and add the panel service user only to group `10005`. Install `deploy/mieru-manager.service`. Put a random 32–512 character ASCII token in `/etc/mieru-manager/token`, then run `sudo ./scripts/prepare-mieru-token.sh prepare /etc/mieru-manager/token`; the resulting metadata is exactly `root:10005` mode `0440`.
 
 ```text
 MIERU_PUBLIC_HOST=mieru.example.com
 MIERU_MANAGER_TOKEN_FILE=/etc/mieru-manager/token
 MIERU_MANAGER_STATE=/var/lib/mieru-manager
-MIERU_MITA_SHA256=38835a88e9b7fb09de0a3b6b5110e3a98719bffd9471aa07ddb7e03dc678a170
+MIERU_MITA_SHA256=991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207
 ```
 
 The helper verifies the pinned executable SHA-256 before every invocation and accepts any mita that reports a version at bootstrap. It invokes only fixed `/usr/bin/mita` argv commands with in-memory bounded stdout/stderr. Each invocation runs in a new process group; timeout, output-limit, exceptional, and successful completion paths kill remaining same-group descendants before returning. A malicious child can escape that boundary by double-forking and calling `setsid()`, so this containment is not a sandbox and depends on the executable remaining pinned and trusted. Complete secret-bearing JSON is inherited through an anonymous FD and never a named tempfile, command line, log, audit, or HTTP list response. Keep `/run/mita/mita.sock` mode 0770; do not enable `MITA_INSECURE_UDS` in production.

@@ -279,9 +279,9 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn('user: "10002:101"', compose)
         self.assertIn("group_add:\n      - \"10004\"", compose)
         self.assertIn("/var/log/naive-proxy:/logs:ro", compose)
-        self.assertIn("v2.11.4", checker)
+        self.assertIn("v2.11.7", checker)
         self.assertIn("http.handlers.forward_proxy", checker)
-        self.assertIn("h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=", checker)
+        self.assertIn("h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=", checker)
         self.assertTrue(os.access(ROOT / "scripts/check-naive-caddy-build.sh", os.X_OK))
 
     def test_mask_healthcheck_has_init_reaper_for_repeated_wget_checks(self):

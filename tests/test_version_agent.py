@@ -20,7 +20,7 @@ from version_agent.service import (
 TELEMT_IMAGE = "ghcr.io/example/telemt@sha256:" + "a" * 64
 BINARY = b"verified-runtime-binary\n"
 BINARY_SHA256 = hashlib.sha256(BINARY).hexdigest()
-PINNED_CADDY = "v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0="
+PINNED_CADDY = "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4="
 
 
 def write_catalog(path: Path, *, naive_runtime_version: str | None = None) -> None:

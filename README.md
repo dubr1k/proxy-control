@@ -60,7 +60,7 @@ Proxy Control — отдельная панель управления прок�
 | **MTProxy / Telemt** | Прокси для Telegram: `tg://`-ссылки и QR-коды, лимиты, срок действия, состояние службы. |
 | **NaiveProxy** | HTTPS-прокси, который снаружи выглядит обычным сайтом. HTTP/1.1 CONNECT и HTTP/2 CONNECT поверх TLS/TCP, один доступ на оба; квота и учёт трафика на пользователя. |
 | **Mieru** | Прокси с маскировкой трафика на собственном протоколе поверх TCP; одноразовая `mierus://`-ссылка и QR. |
-| **Рядом с 3x-ui** | Режим `existing` принимает уже установленный 3x-ui: делит с ним порт 443 и не меняет его файлы. Режим `managed-new` на чистом сервере ставит 3x-ui `3.9.0` и создаёт VLESS Reality (TCP и XHTTP) и Hysteria2. Управление 3x-ui остаётся в его собственной панели. |
+| **Рядом с 3x-ui** | Режим `existing` принимает уже установленный 3x-ui: делит с ним порт 443 и не меняет его файлы. Режим `managed-new` на чистом сервере ставит 3x-ui `3.10.2` и создаёт VLESS Reality (TCP и XHTTP) и Hysteria2. Управление 3x-ui остаётся в его собственной панели. |
 | **Клиенты и подписки** | Один клиент — доступы ко всем протоколам и одна отзываемая ссылка `https://<домен подписки>/s/<token>` для sing-box/Karing, Clash/mihomo и других. Учётные данные хранятся под мастер-ключом (AES-256-GCM). |
 | **Связанные панели (Fleet)** | Центральная панель выдаёт доступы на другие серверы с Proxy Control по HTTPS и API-ключу `node-sync`. |
 | **Маршрутизация** | Правила исходящего трафика для каждого узла и службы: напрямую, через WARP, через свой выход или другой узел; блокировки по домену, CIDR, geosite и geoip через необязательный Xray-router. |
@@ -242,7 +242,7 @@ bash install-release.sh
 - `existing` — принять уже установленный: установщик добавит маршруты к его входящим
   подключениям VLESS Reality TCP и XHTTP и не изменит ни одного его файла. Входящие
   подключения вы заводите в 3x-ui сами;
-- `managed-new` — поставить 3x-ui `3.9.0`: установщик выпишет сертификаты, уведёт панель
+- `managed-new` — поставить 3x-ui `3.10.2`: установщик выпишет сертификаты, уведёт панель
   3x-ui с публичных портов на `127.0.0.1` под приватный адрес, сменит заводские
   `admin/admin` на ваши и сам создаст VLESS Reality TCP, VLESS Reality XHTTP и Hysteria2.
   Только в режиме `fresh`.
@@ -692,12 +692,12 @@ Mieru заявлен только TCP. Учёт трафика не предна
 
 | Компонент | Версия | Лицензия | Назначение |
 |---|---|---|---|
-| `mita` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | Сервер Mieru; ставится только исполняемый файл и уведомление о лицензии. |
-| `mieru` (`enfein/mieru`) | 3.36.0 | GPL-3.0-or-later | Официальный клиент Mieru для приёмки трафика. |
-| `three_xui` (`MHSanaei/3x-ui`) | 3.9.0 | GPL-3.0-only | Панель 3x-ui и её Xray для VLESS Reality и Hysteria2 в режиме `managed-new`. |
-| `xray` (`XTLS/Xray-core`) | 26.3.27 | MPL-2.0 | Xray-router: из `Xray-linux-64.zip` берутся только `xray`, `geoip.dat` и `geosite.dat`, каждый по своей контрольной сумме. |
+| `mita` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | Сервер Mieru; ставится только исполняемый файл и уведомление о лицензии. |
+| `mieru` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | Официальный клиент Mieru для приёмки трафика. |
+| `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | Панель 3x-ui и её Xray для VLESS Reality и Hysteria2 в режиме `managed-new`. |
+| `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | Xray-router: из `Xray-linux-64.zip` берутся только `xray`, `geoip.dat` и `geosite.dat`, каждый по своей контрольной сумме. |
 
-Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` собирается по
+Caddy `v2.11.7` с модулем `http.handlers.forward_proxy` собирается по
 `docker/Dockerfile.caddy-naive`. Адреса, контрольные суммы и идентификаторы SPDX — в
 [`release/external-artifacts.json`](release/external-artifacts.json), который сборка
 выпуска встраивает в SBOM.
@@ -715,7 +715,7 @@ Caddy `v2.11.4` с модулем `http.handlers.forward_proxy` собирает
 | `deploy/Dockerfile.ingress` | Вход Fleet v1 с mTLS | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Клиент Mieru для приёмки | `python:3.13.5-slim` |
 | `probe/Dockerfile` | Проба MTProto на TDLib | `node` |
-| `docker/Dockerfile.caddy-naive` | Caddy с `forward_proxy` | `caddy:2.11.4-builder` → `scratch` |
+| `docker/Dockerfile.caddy-naive` | Caddy с `forward_proxy` | `caddy:2.11.7-builder` → `scratch` |
 | `scripts/lab/Dockerfile.acceptance` | Одноразовый systemd-контейнер стенда | `ubuntu` |
 
 Каждая база закреплена по контрольной сумме.

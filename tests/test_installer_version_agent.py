@@ -40,7 +40,7 @@ PATHS = VersionAgentPaths()
 MEMBER_BYTES = {"xray": b"#!/bin/sh\nexit 0\n", "geoip.dat": b"geoip\n", "geosite.dat": b"geosite\n"}
 CADDY_BYTES = b"#!/bin/sh\necho caddy\n"
 MITA_BYTES = b"#!/bin/sh\necho mita\n"
-TELEMT_DIGEST = "ab27edbceb9f8c042911a7d9a44835318d1db5943ff50f276792fa29601ff856"
+TELEMT_DIGEST = "7c843f370ec519cd30e98c686f7fe409c76272f8865ba29a64f6f7099877bc81"
 
 
 def _sha(data: bytes) -> str:
@@ -267,7 +267,7 @@ def test_apply_installs_code_unit_env_catalog_state_and_starts_the_agent(tmp_pat
     mita = state["components"]["mita"]
     assert mita == {**mita, "version": _MITA_VERSION, "kind": "binary", "sha256": _sha(MITA_BYTES)}
     naive = state["components"]["naive"]
-    assert naive["version"] == "2.11.4" and naive["kind"] == "build" and naive["sha256"] == _sha(CADDY_BYTES)
+    assert naive["version"] == "2.11.7" and naive["kind"] == "build" and naive["sha256"] == _sha(CADDY_BYTES)
     assert naive["runtime_version"] == _CADDY_VERSION
     telemt = state["components"]["telemt"]
     assert telemt["kind"] == "image" and telemt["image"] == f"ghcr.io/samnet-dev/mtproxymax-telemt@sha256:{TELEMT_DIGEST}"
@@ -380,7 +380,7 @@ def test_verify_passes_on_a_healthy_agent_that_lists_the_profile(short_root):
     finally:
         listener.close()
     assert evidence.success
-    assert evidence.details["components"] == {"telemt": f"sha256:{TELEMT_DIGEST[:12]}", "naive": "2.11.4",
+    assert evidence.details["components"] == {"telemt": f"sha256:{TELEMT_DIGEST[:12]}", "naive": "2.11.7",
                                                "mita": _MITA_VERSION, "xray": _XRAY_VERSION}
     assert ("systemctl", "is-active", "version-agent") in runner.calls
     assert ("systemctl", "is-enabled", "version-agent") in runner.calls
