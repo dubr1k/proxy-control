@@ -121,7 +121,9 @@ def connect(repo, issue_json, binary):
             conf.write_text(grant["conf"])
             conf.chmod(0o600)
             host = next(line.split(" = ", 1)[1].rsplit(":", 1)[0] for line in grant["conf"].splitlines() if line.startswith("Endpoint"))
-            ip = socket.gethostbyname(host)
+            # AWG_ENDPOINT_IP: dial this address instead of resolving the name (a host behind NAT is
+            # tested on its own LAN address, from a namespace on the same machine).
+            ip = os.environ.get("AWG_ENDPOINT_IP") or socket.gethostbyname(host)
             ns, hv, nv, iface = f"rm{s}", f"vm{s}", f"vn{s}", f"rm{s}t"
             sh("ip", "netns", "add", ns)
             sh("ip", "link", "add", hv, "type", "veth", "peer", "name", nv, check=True)
