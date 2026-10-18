@@ -43,6 +43,15 @@ costly: `telemt` → `mita` → `xray` → `naive` → `panel`.
 | `naive` | Caddy is built on the host (`docker build`), up to 15 minutes, «Собираем…»; a custom build (`-custom.N`) never updates from upstream, a 422 on its check is normal | `daemon: ok`, version |
 | `panel` | the release archive, rebuild, restart; the answer is `async: true` | poll `get_versions` until `status` leaves `updating`; `pending_rebuild` names managers to rebuild by hand; then `reload_tools` |
 
+**TrustTunnel is not a separate component.** The endpoint binary is pinned in the `trusttunnel-manager` image (its version
+and SHA-256 are in `release/external-artifacts.json`), so it never appears in the `components` list or on the «Versions» screen:
+a new endpoint arrives with the release: the owner's one-command host update (`install-release.sh --update`) rebuilds
+`trusttunnel-manager`, while a `panel` update from the UI does not rebuild managers — `get_versions` then says `pending_rebuild`
+and names `trusttunnel_manager`, and the owner rebuilds it by hand. The rebuild restarts the endpoint — active TrustTunnel
+sessions drop for seconds and the apps reconnect; the accesses' passwords and counters (`/var/lib/trusttunnel-manager`)
+are not touched. Check afterwards: the dashboard's
+`protocols.trusttunnel.status: ready` and the node's `protocols.trusttunnel.daemon: ok`.
+
 ## Stop rules
 
 - `status: rollback_failed` — install nothing more; `last_error`, `audit_tail`,

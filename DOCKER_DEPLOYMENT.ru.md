@@ -2,7 +2,7 @@
 
 [English](DOCKER_DEPLOYMENT.md) · **Русский**
 
-Это руководство относится только к Telemt/MTProto data plane. Панель, NaiveProxy, Mieru и fleet описаны отдельно в [карте документации](docs/README.md).
+Это руководство относится только к Telemt/MTProto data plane. Панель, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (своё SNI-имя, направленное на его loopback-порт, — [TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md)) и fleet описаны отдельно в [карте документации](docs/README.md).
 
 ```text
 Internet TCP/443 → host Nginx stream/SNI → 127.0.0.1:8445 → Telemt

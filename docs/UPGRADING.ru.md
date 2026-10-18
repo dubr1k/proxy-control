@@ -64,7 +64,7 @@ bash install-release.sh --update
    дерева, образа и базы и при сбое откатывает всё обратно ([обновление самой
    панели](#обновление-самой-панели-из-ui)).
 3. Пересобирает менеджеры, которые агент назвал в `pending_rebuild` (`mieru-manager`,
-   `naive-manager`, `xray-router`), включённый MCP-сервер и, на хосте с Xray-router, мост
+   `naive-manager`, `xray-router`, `trusttunnel-manager`), включённый MCP-сервер и, на хосте с Xray-router, мост
    `xray-router-ingress` — тем же вызовом Compose, что и агент. Образ каждой работающей службы
    сначала получает тег `mtproxy-<служба>:rollback-<время>`; неудачная пересборка возвращает
    прежние образы, проверяет их здоровье и всё равно сообщает об ошибке обновления.
@@ -74,6 +74,9 @@ bash install-release.sh --update
 **AmneziaWG:** если он установлен и изменился `awg_manager/`, `awg-manager` пересобирается вместе
 с остальными менеджерами; туннели на несколько секунд рвутся, пиры переподключаются сами.
 `/var/lib/awg-manager` (ключи сервера) не трогается.
+
+**TrustTunnel:** если он установлен и изменился `trusttunnel_manager/`, `trusttunnel-manager` пересобирается так же;
+endpoint перезапускается, сессии на несколько секунд обрываются. `/var/lib/trusttunnel-manager` не трогается.
 
 **Не трогаются:** Telemt и `mask`, сертификаты, `.env*` и `secrets/`. Если изменился `docker/`,
 перезапустите Telemt и `mask` сами ([ниже](#перезапуск-telemt-и-mask-после-изменения-docker)).
@@ -106,7 +109,7 @@ digest, а экран маршрутизации называет его код�
 ## Пересборка изменившихся менеджеров вручную
 
 Обновление панели с экрана «Версии» менеджеры не пересобирает. Если между двумя выпусками
-изменились `mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `mcp_server/` или `docker/`,
+изменились `mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `trusttunnel_manager/`, `mcp_server/` или `docker/`,
 агент называет их в `pending_rebuild`, а карточка панели говорит «Изменились менеджеры: …».
 Обновление одной командой пересобирает их само. После обновления из панели пересоберите их с
 env-файлами и overlays самой установки — тем набором, что использует агент
@@ -121,7 +124,7 @@ docker compose --env-file .env --env-file .env.mieru --env-file .env.xray-router
 
 Оставьте только те `--env-file` и `-f`, что есть у вашей установки (добавьте
 `--env-file .optional.env`, `--env-file .env.mcp` и `-f compose.mcp.yaml`, где они есть), и назовите
-только изменившиеся службы: `mieru-manager`, `naive-manager`, `xray-router` вместе с
+только изменившиеся службы: `mieru-manager`, `naive-manager`, `trusttunnel-manager`, `xray-router` вместе с
 `xray-router-ingress`, `mcp`. Перед этим пометьте работающий образ каждой тегом, как это делает
 обновление одной командой (`docker tag <ID образа> mtproxy-<служба>:rollback-<время>`, ID — из
 `docker inspect --format '{{.Image}}' proxy-control-<служба>`).
@@ -624,3 +627,21 @@ docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck 
 ```bash
 docker inspect --format '{{.State.Health.Status}}' proxy-control-xray-router-ingress   # healthy
 ```
+
+## Включение TrustTunnel на установленном узле
+
+TrustTunnel (VPN от AdGuard, HTTP/2 поверх TLS, только TCP) необязателен и обновлением **не** включается. На хосте,
+установленном установщиком, добавьте в его TOML секцию `[trusttunnel]` и `domains.trusttunnel` и запустите установщик
+снова (`plan`, затем `install --accept-plan`); на хосте, установленном вручную, запустите
+`scripts/enable-trusttunnel.sh --host <имя>` из распакованного выпуска ([TRUSTTUNNEL](../TRUSTTUNNEL.ru.md)). В обоих
+случаях имени нужны A-запись на сервер (только DNS, без CDN-proxy) и сертификат; правила брандмауэра и UDP-порты не
+добавляются.
+
+- Обновление одной командой пересобирает `trusttunnel-manager`, если он установлен и изменился `trusttunnel_manager/`:
+  endpoint перезапускается, сессии на несколько секунд обрываются, приложения переподключаются сами;
+  `/var/lib/trusttunnel-manager` (пароли доступов и счётчики) не трогается.
+- Чтобы направить TrustTunnel через Xray-router, роутер должен быть пересобран на текущем выпуске (обновление делает
+  это); до тех пор экран маршрутизации говорит `router_lacks_trusttunnel`. Связанный узел старше 1.6 не объявляет
+  возможность `egress.trusttunnel.v1` — центр говорит `node_lacks_trusttunnel_egress` и никогда не отправляет
+  TrustTunnel-доступ узлу без `protocol.trusttunnel.v1`. Обновляйте сначала узлы, потом центральную панель.
+- У TrustTunnel нет полос для отдельных клиентов: маршрутизируется только вся служба (`lanes_unsupported`).

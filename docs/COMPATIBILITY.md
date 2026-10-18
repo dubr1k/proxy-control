@@ -75,6 +75,37 @@ and container `xray-router-ingress` / `proxy-control-xray-router-ingress` (port 
 never published), socket `/run/xray-router/ingress-mtproxy.sock` in the `xray-router-run` volume; the panel's
 journal `/data/telemt-egress.json`.
 
+## TrustTunnel (v1.6)
+
+AdGuard's HTTP/2-over-TLS VPN as a fifth protocol, TCP only. Additive: `schema_version` and `api_version` do not change, an older
+node simply does not declare the capabilities below.
+
+- **Protocol id** `trusttunnel` (`Resource.protocol`, `identity.protocols.trusttunnel`, placement and routing enums of the MCP
+  tools). `credential_origin = caller` (the password is made by the panel and kept in its escrow), capture is not supported, and
+  the options are `{hostname, port, certificate_der_b64, name}` (all learned at issue time, `name` optional).
+- **Capabilities** in `identity.capabilities`: `protocol.trusttunnel.v1` (the node serves TrustTunnel grants; a central skips a
+  node without it and refuses the grant at once) and `egress.trusttunnel.v1` (the node routes TrustTunnel: backend
+  `trusttunnel_native`, direct only, or attached to the Xray-router). `GenerationDocument.egress` may carry a `trusttunnel`
+  entry only for a node that declared the latter. Routing refusals: `router_lacks_trusttunnel`, `node_lacks_trusttunnel_egress`,
+  `lanes_unsupported` (TrustTunnel has no per-client lanes).
+- **Manager API** on its own UDS (`/run/trusttunnel-manager/manager.sock`, Docker secret `trusttunnel-manager-token`, header
+  `X-Trusttunnel-Token`): `GET /v1/health`, `GET /v1/endpoint`, `GET /v1/clients`, `POST /v1/clients`,
+  `POST /v1/clients/{user}/enable | disable | rotate`, `DELETE /v1/clients/{user}`, `GET /v1/egress`,
+  `POST /v1/egress/plan | apply | rollback`. Health reports `degraded` with code `certificate_missing` or `endpoint_down`.
+- **Host identifiers**: container `proxy-control-trusttunnel-manager` (Compose service `trusttunnel-manager`, overlay
+  `compose.trusttunnel.yaml`, image context `trusttunnel_manager/`), state `/var/lib/trusttunnel-manager` (0700), secret
+  `secrets/trusttunnel-manager-token`, volume `trusttunnel-manager-run`, marker `/etc/proxy-control/trusttunnel-owned`,
+  env `.env.trusttunnel` (`TRUSTTUNNEL_MANAGER_TOKEN_FILE`, `TT_MANAGER_STATE_DIR`, `TT_CERT_DIR`, `TT_HOSTNAME`, `TT_LISTEN`,
+  `TT_VERSION`, `TT_SHA256_X86_64`, `TT_SHA256_AARCH64`, `TRUSTTUNNEL_MANAGER_SOCKET_GID`, `TRUSTTUNNEL_PUBLIC_HOST`), the panel's
+  `TRUSTTUNNEL_ENABLED`, loopback `127.0.0.1:4453` (the endpoint, `[trusttunnel] listen_port`) and `127.0.0.1:1987` (metrics),
+  the Xray-router's no-password SOCKS5 ingress `127.0.0.1:45104` (`XRAY_ROUTER_PORT_TRUSTTUNNEL`), the installer section
+  `[trusttunnel]` with `domains.trusttunnel`, and the pinned artifact `trusttunnel` 1.1.0 in `release/external-artifacts.json`.
+- **Access artifacts**: `trusttunnel_link` (`text/uri-list`, `tt://?` + base64url without padding of TLV records) and
+  `trusttunnel_toml` (`application/toml`); the Clash/mihomo feed carries `type: trusttunnel`.
+- **Subscription compatibility matrix** (`panel/subscriptions/compatibility.py`, vocabulary `supported | unproven | unsupported`),
+  row `trusttunnel`: `mihomo` supported; `karing`, `shadowrocket`, `nekobox`, `v2rayn` unproven; `singbox`, `throne`, `hiddify`,
+  `mieru_cli`, `telegram` unsupported. sing-box has no TrustTunnel outbound, so the sing-box feed leaves it out with a note.
+
 ## Verification: nothing new on the wire
 
 `schema_version`, `api_version`, the Fleet v2 documents and every identifier above are unchanged. Two additive

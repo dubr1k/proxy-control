@@ -51,14 +51,35 @@ refused. The config holds the client's private key, so it is never returned thro
 Newer versions hide traffic better but need a client that supports them: per Amnezia's announcements
 AmneziaWG 2.0 needs AmneziaVPN 4.8.12.9 or later and 3.1 needs 5.0.1.5 or later. Rotation issues a new key pair: the old file stops working.
 
+## TrustTunnel (TCP VPN, a link and a config file)
+
+TrustTunnel (AdGuard's HTTP/2-over-TLS VPN) is TCP only and shares port 443 with the other services; the node needs its
+own TrustTunnel domain (an A record, DNS only), so ask the owner first whether the node serves it: `overview` → `nodes` →
+`identity.protocols.trusttunnel.enabled` (a node without the capability `protocol.trusttunnel.v1` is refused at once, nothing is
+written). Put it in the placement as `{node_id, protocol: "trusttunnel"}`; `options` is optional, `{"name": "<profile name shown in
+the app>"}`. The account is named like the others (`runtime_username`).
+
+- **What the person gets**: a `tt://?…` deep link (also a QR) and a client TOML for the official **AdGuard TrustTunnel** app
+  (iOS, Android) and the command-line client; the Clash/mihomo feed carries a `type: trusttunnel` proxy, and the `raw`
+  feed carries the `tt://` line. The password is inside the link and the TOML, so the owner opens the access in the panel (client
+  → the access → the access window) to copy them; the reveal is audited. The panel is the only copy of the password:
+  capture and import of existing runtime users are not supported, and rotation (`post_clients_grants_by_grant_id_by_action`)
+  issues a new password, so the old link stops working.
+- **Tell the owner about the restart**: the endpoint reads credentials only at start, so every new, changed or disabled access
+  restarts it; changes within about two seconds are merged, active TrustTunnel sessions drop and the apps reconnect by
+  themselves. Do not batch dozens of single grants at peak time.
+- **Not in every app**: sing-box, Karing's sing-box cut, Hiddify and Throne have no TrustTunnel outbound (the `singbox` feeds name
+  the gap, nothing breaks); mihomo is the one verified subscription client; Surge needs its `trust-tunnel` policy set up by hand.
+  `get_subscriptions_compatibility` gives the app × protocol matrix.
+
 ## Link variants (`subscription.variants`)
 
 | Key | For whom | What it carries |
 |---|---|---|
-| `singbox` | Karing (iPhone, Android, Windows) | NaiveProxy + Mieru; no MTProxy |
-| `singbox-official` | official sing-box ≥ 1.13 | NaiveProxy only |
-| `clash` | mihomo, Clash-compatible apps | Mieru only |
-| `raw` | manual import, QR, Telegram | `tg://proxy`, `naive+https://`, `mierus://` one per line; no auto-refresh |
+| `singbox` | Karing (iPhone, Android, Windows) | NaiveProxy + Mieru; no MTProxy, no TrustTunnel |
+| `singbox-official` | official sing-box ≥ 1.13 | NaiveProxy only (no TrustTunnel) |
+| `clash` | mihomo, Clash-compatible apps | Mieru and TrustTunnel |
+| `raw` | manual import, QR, Telegram | `tg://proxy`, `naive+https://`, `mierus://`, `tt://` one per line; no auto-refresh |
 
 In doubt, `get_subscriptions_compatibility` gives the app × protocol matrix. Karing: «Add profile →
 from link»; a Telegram proxy is `raw`, the `tg://proxy` link opens inside Telegram itself.

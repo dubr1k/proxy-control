@@ -88,7 +88,8 @@ is in the [installer reference](docs/INSTALLER_REFERENCE.en.md).
 
 The pinned upstream artifacts — `mita_3.38.1_<arch>.deb` (the server) and
 `mieru_3.38.1_<arch>.deb` (the official client the acceptance runs) for a profile
-with Mieru, `Xray-linux-64.zip` for the Xray-router — need no staging: the installer
+with Mieru, `Xray-linux-64.zip` for the Xray-router — need no staging (the `trusttunnel-v1.1.0-linux-x86_64.tar.gz`
+archive of the optional TrustTunnel is downloaded by Docker itself while the image is built): the installer
 fetches them from their pinned HTTPS URLs into `/var/lib/proxy-control/` and refuses
 to continue unless each digest matches its pin (a mismatching file is discarded).
 An offline host stages them there in advance: a file staged by hand is used as it
@@ -99,7 +100,8 @@ is and never replaced. The URLs and digests are in
 
 - Ubuntu 24.04 with systemd;
 - root/sudo;
-- DNS A/AAAA for proxy and panel names points directly to the host;
+- DNS A/AAAA for proxy and panel names points directly to the host; for the optional TrustTunnel also its own name
+  (a separate domain, an A record to the host, DNS only, no CDN proxy);
 - TCP/80 available for ACME HTTP-01;
 - in `coexist` mode, public TCP/443 owned by an existing Nginx `stream` listener
   with exactly one understandable `$ssl_preread_server_name` map in the selected
@@ -250,6 +252,7 @@ re-run the installation.
 
 - [Panel and NaiveProxy](PANEL.en.md)
 - [Mieru/mita](MIERU.en.md)
+- [TrustTunnel](TRUSTTUNNEL.en.md)
 - [Fleet mTLS](FLEET.en.md)
 
 See [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md), [operations](docs/OPERATIONS.en.md), [backup](docs/BACKUP_RESTORE.en.md), and [validation](docs/VALIDATION.md).

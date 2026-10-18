@@ -127,23 +127,24 @@ Auto-refresh means: the client accepts a subscription URL in a format one of our
 renderers emits, and refreshes it on its own schedule. It never means the panel
 pushes an update.
 
-| Client | MTProxy | Naive | Mieru |
-| --- | --- | --- | --- |
-| Karing | no | yes | yes |
-| sing-box (≥ 1.13) | no | yes | no |
-| mihomo / Clash.Meta | no | no | yes |
-| Official mieru client | no | no | no |
-| Telegram | no | no | no |
-| Shadowrocket | no | unproven | no |
-| NekoBox and forks | no | unproven | no |
-| v2rayN | no | unproven | unproven |
-| Hiddify | no | unproven | no |
+| Client | MTProxy | Naive | Mieru | TrustTunnel |
+| --- | --- | --- | --- | --- |
+| Karing | no | yes | yes | unproven |
+| sing-box (≥ 1.13) | no | yes | no | no |
+| mihomo / Clash.Meta | no | no | yes | yes |
+| Official mieru client | no | no | no | no |
+| Telegram | no | no | no | no |
+| Shadowrocket | no | unproven | no | unproven |
+| NekoBox and forks | no | unproven | no | unproven |
+| v2rayN | no | unproven | unproven | unproven |
+| Hiddify | no | unproven | no | no |
 
 Sources, in short: sing-box gained the `naive` outbound in 1.13.0 and has no
 `mieru` outbound; mihomo has `type: mieru` and an open request for naive
 (`MetaCubeX/mihomo#273`); Karing runs its own sing-box fork and lists Mieru
 support for both cores; the official mieru client has no subscription mechanism
-at all. Per-cell notes live in the fixture.
+at all; mihomo has `type: trusttunnel` (the TrustTunnel column), sing-box has no TrustTunnel outbound, and Surge's
+`trust-tunnel` policy is set up by hand. Per-cell notes live in the fixture.
 
 ## Spike plan before any routing claim
 

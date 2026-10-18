@@ -89,7 +89,8 @@ digest плана. Полная поверхность — профили, вс�
 
 Пинованные upstream-артефакты — `mita_3.38.1_<arch>.deb` (сервер) и
 `mieru_3.38.1_<arch>.deb` (официальный клиент, который запускает приёмка) для
-профиля с Mieru, `Xray-linux-64.zip` для Xray-router — класть не нужно: установщик
+профиля с Mieru, `Xray-linux-64.zip` для Xray-router — класть не нужно (архив `trusttunnel-v1.1.0-linux-x86_64.tar.gz` для
+необязательного TrustTunnel скачивает при сборке образа сам Docker): установщик
 скачивает их по закреплённым HTTPS-URL в `/var/lib/proxy-control/` и отказывается
 продолжать, если digest не совпадает с пином (несовпавший файл выбрасывается).
 Хост без интернета кладёт их туда заранее: положенный вручную файл используется
@@ -100,7 +101,8 @@ digest плана. Полная поверхность — профили, вс�
 
 - Ubuntu 24.04 + systemd;
 - root/sudo;
-- DNS A/AAAA для proxy и panel names указывает напрямую на host;
+- DNS A/AAAA для proxy и panel names указывает напрямую на host; для необязательного TrustTunnel — ещё и его
+  собственное имя (отдельный домен, A-запись на host, только DNS, без CDN-proxy);
 - TCP/80 доступен для ACME HTTP-01;
 - в режиме `coexist` public TCP/443 принадлежит существующему Nginx `stream`, а
   в route file есть ровно одна понятная `$ssl_preread_server_name` map;
@@ -248,6 +250,7 @@ sudo python3 -m installer.cli uninstall --purge-data --json
 
 - [Panel и NaiveProxy](PANEL.ru.md)
 - [Mieru/mita](MIERU.ru.md)
+- [TrustTunnel](TRUSTTUNNEL.ru.md)
 - [Fleet mTLS](FLEET.ru.md)
 
 Подробности transactions и hard stops: [INSTALLER_AUDITOR.md](INSTALLER_AUDITOR.md). Эксплуатация: [docs/OPERATIONS.ru.md](docs/OPERATIONS.ru.md), [backup](docs/BACKUP_RESTORE.ru.md), [validation](docs/VALIDATION.md).

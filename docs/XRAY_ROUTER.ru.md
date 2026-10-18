@@ -53,6 +53,17 @@ Telemt ──socks5 telemt:…@xray-router-ingress:45103──> мост ──V
 Полос у MTProxy нет. Почему не SOCKS на сокете и не второй Xray: вход `socks` Xray 26.3.27
 путь сокета молча игнорирует, а выход Xray в сокет не звонит — это проверено на стенде.
 
+### Четвёртый вход: TrustTunnel (v1.6)
+
+Endpoint TrustTunnel работает в сети хоста, поэтому его вход `trusttunnel` — SOCKS5 на loopback хоста,
+`127.0.0.1:45104` (переменная `XRAY_ROUTER_PORT_TRUSTTUNNEL` контейнера роутера). **Логина у него нет**: SOCKS5-клиент
+endpoint не передаёт роутеру имя пользователя (`extended_auth` endpoint остаётся выключенным, а Xray не понимает метод
+SOCKS5 0x80), поэтому роутер видит одного анонимного клиента и применяет к службе одну секцию целиком, но никогда по
+клиентам. Любой локальный процесс или контейнер с сетью хоста на узле может использовать этот loopback-порт как прокси с
+политикой службы TrustTunnel; снаружи сервера он недоступен. Адрес в блок forward protocol endpoint записывает
+`trusttunnel-manager` при «Подключить» ([ROUTING](ROUTING.ru.md)). Роутер до v1.6 не отдаёт службу `trusttunnel`, и
+панель говорит `router_lacks_trusttunnel`.
+
 ## Что он умеет
 
 Каждая ячейка ниже доказана на стенде (`spikes/XRAY_EGRESS_ROUTER.md`, Xray-core 26.3.27,

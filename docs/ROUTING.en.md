@@ -30,6 +30,7 @@ documentation promises. Where a backend cannot honour a rule, the preview says
 | Mieru | `mieru_native` — mita `egress` | the whole service direct or through WARP; block by domain and by CIDR; selective `direct`/`egress` by domain and by CIDR, in order | block by port, geosite, geoip; `*.example.com` and `example.com` are the same selector (mita matches domain suffixes) |
 | NaiveProxy or Mieru **attached to the Xray-router** | `xray_router` — Xray `routing` rules per ingress | the whole service direct or through WARP; `block`, `direct` and `egress` rules by domain, `geosite:`, CIDR, `geoip:` and port, in order, any of them beside a WARP default; **exits through other nodes of the fleet** (chains) and a client's **own lane** with its own policy | UDP (mita's UDP stays direct) |
 | MTProxy (Telemt), v1.1 | `mtproxy_native` — Telemt's upstream; **attached to the Xray-router** — `xray_router` | on its own — direct only; on the router — the whole service direct, through WARP, your own exit or **another node of the fleet** (a chain), rules by CIDR, `geoip:` and port | rules by domain, `geosite:` and protocol (Telemt reaches Telegram's data centres by IP and no sniffer names MTProto) — `rule_kind_unsupported`; client lanes; UDP |
+| TrustTunnel, v1.6 | `trusttunnel_native` — the endpoint's forward protocol; **attached to the Xray-router** — `xray_router` | on its own — direct only; on the router — the whole service direct, through WARP, your own exit or **another node of the fleet** (a chain), and rules as for Naive and Mieru | client lanes (`lanes_unsupported`); UDP (TrustTunnel is TCP only) |
 
 Private destinations — loopback, link-local, RFC 1918, CGNAT and their IPv6
 counterparts, plus `localhost` — may be **blocked** but never opened by a `direct` or
@@ -193,6 +194,25 @@ Xray — the same router routes it.
 - A node updated to v1.1 without rebuilding its router keeps working for Naive and Mieru, and
   MTProxy shows `router_lacks_mtproxy`.
 
+### TrustTunnel through the Xray-router (v1.6)
+
+The TrustTunnel endpoint is the node's own process, and its outbound side is a **forward protocol** that the
+`trusttunnel-manager` writes into the endpoint's configuration: either connect directly, or hand every connection to a
+SOCKS5 upstream. «Attach» points that upstream at the router's `trusttunnel` ingress, `127.0.0.1:45104` (enabled by
+`XRAY_ROUTER_PORT_TRUSTTUNNEL`), a loopback SOCKS5 inbound **without a password**; «Detach» puts `direct` back. Attaching and
+detaching restart the endpoint, so the active sessions drop and the apps reconnect by themselves.
+
+- **Per service only.** The endpoint speaks plain SOCKS5 without credentials to the router (`extended_auth` stays off:
+  Xray does not understand SOCKS5 method 0x80), so the router sees one anonymous client and cannot tell users apart. All
+  TrustTunnel clients follow one policy; a client lane answers `lanes_unsupported`.
+- Its own policy (`trusttunnel_native`) is «direct, no rules» only; anything else answers `not_attached`. Once attached, an
+  `xray_router` policy works as for Naive and Mieru: presets, direct, WARP, custom exits and node chains.
+- **Security note.** The ingress has no password, so any local process or host-network container on the node can use
+  `127.0.0.1:45104` as a proxy into the TrustTunnel service's policy. It listens on loopback only and is not reachable from
+  outside the server.
+- Refusals: `router_lacks_trusttunnel` (the node's router has not been rebuilt on v1.6), `node_lacks_trusttunnel_egress` (a
+  linked node without the `egress.trusttunnel.v1` capability), `lanes_unsupported`.
+
 ## Chains and lanes
 
 A policy may let traffic out **through another node of the fleet**, and one client's
@@ -351,6 +371,9 @@ protocol or a share-link import, a test, on/off) and the Geodata block.
 - The mieru-manager container runs on the host network (no listener of its own, still
   `read_only` and `cap_drop: ALL`) so it can probe the WARP endpoint on the host loopback
   before applying.
+- **trusttunnel-manager** owns the forward-protocol section of the endpoint's `vpn.toml` (`direct`, or `[forward_protocol.socks5]`
+  with the router's loopback ingress address), applied by the same plan/apply/rollback calls (`/v1/egress/*`) with the endpoint
+  restarted afterwards. It never sends a username to the router.
 
 Both managers refuse a document that is outside their schema (`egress_invalid`), one
 whose provider is not configured on the host, and — before writing anything — a

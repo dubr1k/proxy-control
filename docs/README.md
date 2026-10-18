@@ -21,6 +21,7 @@ boundary you are changing.
 - [MTProto за Nginx SNI](../DOCKER_DEPLOYMENT.ru.md)
 - [Mieru/mita](../MIERU.ru.md) и [выдача ссылок, QR и конфигураций Mieru](MIERU_SHARING.ru.md)
 - [AmneziaWG: версии 1.5, 2.0 и 3.1, конфиг и QR](../AMNEZIAWG.ru.md)
+- [TrustTunnel: VPN поверх HTTP/2 и TLS, ссылка `tt://`, QR и конфиг](../TRUSTTUNNEL.ru.md)
 - [Связанные панели (Fleet v2) и транспорт mTLS (Fleet v1)](../FLEET.ru.md)
 - [Маршрутизация: политики исходящего трафика, выходы, цепи и полосы](ROUTING.ru.md)
 - [Xray-router](XRAY_ROUTER.ru.md)
@@ -58,6 +59,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v1.6.0](releases/v1.6.0.md) — протокол TrustTunnel
 - [v1.5.1](releases/v1.5.1.md) — крестик в окне AmneziaWG
 - [v1.5.0](releases/v1.5.0.md) — случайные порты AmneziaWG
 - [v1.4.0](releases/v1.4.0.md) — отдельный экран AmneziaWG
@@ -94,6 +96,7 @@ boundary you are changing.
 - [MTProto behind Nginx SNI](../DOCKER_DEPLOYMENT.md)
 - [Mieru/mita](../MIERU.en.md) and [sharing Mieru links, QR codes and configurations](MIERU_SHARING.en.md)
 - [AmneziaWG: versions 1.5, 2.0 and 3.1, config and QR](../AMNEZIAWG.en.md)
+- [TrustTunnel: a VPN over HTTP/2 and TLS, the `tt://` link, QR and config](../TRUSTTUNNEL.en.md)
 - [Linked panels (Fleet v2) and the mTLS transport (Fleet v1)](../FLEET.en.md)
 - [Routing: outbound policies, exits, chains and lanes](ROUTING.en.md)
 - [The Xray-router](XRAY_ROUTER.en.md)
@@ -131,6 +134,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v1.6.0](releases/v1.6.0.md) — the TrustTunnel protocol
 - [v1.5.1](releases/v1.5.1.md) — close cross in the AmneziaWG window
 - [v1.5.0](releases/v1.5.0.md) — random AmneziaWG ports
 - [v1.4.0](releases/v1.4.0.md) — a dedicated AmneziaWG screen

@@ -87,6 +87,18 @@ HTTP health and an open port do not prove MTProto.
 3. Check manager health and panel typed status.
 4. Do not expect per-user traffic counters: the safe typed boundary is unavailable and the UI reports `unavailable`.
 
+### TrustTunnel
+
+1. The `proxy-control-trusttunnel-manager` container is `healthy`; the panel's TrustTunnel screen (or the dashboard card)
+   shows `ok`, not `degraded` (`certificate_missing` means the domain's certificate is not issued yet).
+2. The endpoint listens on loopback only: `ss -ltn 'sport = :4453'` (or the `listen_port` you set) shows `127.0.0.1`, and
+   nothing UDP belongs to it.
+3. Connect with a real client (the official app or the CLI client) by the TrustTunnel **domain**: an IP address or a foreign
+   name is refused by design. A DNS name behind a CDN proxy breaks this.
+4. Expect a short disconnect for every credential change: the endpoint reads credentials only at start, so a new, changed or
+   disabled access restarts it (changes within ~2 s are merged), and attaching or detaching the Xray-router restarts it too.
+   Traffic counters persist across restarts.
+
 ## 4. User lifecycle
 
 ### Roles

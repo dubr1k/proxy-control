@@ -44,10 +44,20 @@ restart), then a policy on `xray_router` with an exit (`warp`, `exit:<id>`, `nod
 CIDR, `geoip` and port work; by domain, `geosite` and protocol are `rule_kind_unsupported` (Telemt
 dials Telegram by IP); no lanes.
 
+TrustTunnel (v1.6): the same shape as MTProxy, with one more limit. `trusttunnel_native` runs «direct, no rules» only
+(`not_attached`); attach first (`post_routing_targets_by_node_id_by_protocol_attach` with `protocol: trusttunnel` — the
+endpoint's upstream switches to the router's loopback ingress and **the endpoint restarts, so its active sessions drop for a few
+seconds**), then a policy on `xray_router` with an exit (`warp`, `exit:<id>`, `node:<guid>`); detach restarts it again.
+The policy is **for the whole service only**: all TrustTunnel clients share it, and a lane
+(`post_routing_lanes_by_grant_id`, `lane: grant:<id>`) is refused with `lanes_unsupported` because the endpoint talks plain
+SOCKS5 without credentials to the router. Say so instead of retrying. Tell the owner that the router's TrustTunnel ingress is a
+loopback SOCKS5 without a password (`127.0.0.1:45104`): a local process or host-network container can use it as a proxy into the
+service's policy.
+
 Rollback: `post_routing_policies_by_node_id_by_protocol_rollback` with the **current**
 `expected_revision` and `confirm` — the panel returns to the previous applied document (the
 preview's `rollback.to_digest` shows which). A lane for one client — `post_routing_lanes_by_grant_id`,
-then the same policy with `lane: grant:<id>`.
+then the same policy with `lane: grant:<id>` (not for MTProxy or TrustTunnel).
 
 ## `unsupported` reasons and what to do
 
@@ -60,6 +70,8 @@ then the same policy with `lane: grant:<id>`.
 | `exit_disabled`, `relay_*`, `chain_loop` | the exit is disabled, the exit node lacks a relay, or the chain loops — fix the exit |
 | `router_lacks_mtproxy`, `ingress_unreachable` | the node's router predates v1.1 or its `xray-router-ingress` bridge is down — the owner rebuilds `xray-router` and starts the bridge (UPGRADING, v1.1.0) |
 | `node_lacks_mtproxy_egress`, `telemt_api_unsupported` | the linked panel predates v1.1 / Telemt has no config API — update it first |
+| `router_lacks_trusttunnel`, `node_lacks_trusttunnel_egress` | the node's router predates v1.6 (the owner rebuilds `xray-router`) / the linked panel lacks the capability `egress.trusttunnel.v1` — update it first |
+| `lanes_unsupported` | TrustTunnel has no per-client lanes — route the whole service instead |
 
 Warnings `adopts_unmanaged_*` — a hand-made setting on the node; the first apply takes it under
 management and keeps it for rollback. `policy_empty` is what «Сбросить» applies. `restart_required: true` on the router and on

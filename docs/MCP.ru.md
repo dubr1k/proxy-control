@@ -120,10 +120,10 @@ approval_mode = "approve"
 | `overview` | `GET /api/dashboard` + `/api/versions` + `/api/nodes` одним JSON |
 | `create_client` | Создаёт клиента, выдаёт доступы по матрице узел×протокол (`placement`), возвращает ссылку подписки |
 | `client_subscription` | Показывает ссылку подписки клиента ещё раз (одноразовый reveal, с записью в аудит) |
-| `set_client_placement` | Приводит матрицу клиента к желаемой: недостающие доступы выдаёт, лишние выключает; без `confirm` только план |
+| `set_client_placement` | Приводит матрицу клиента к желаемой: недостающие доступы выдаёт, лишние выключает; без `confirm` только план; `protocol` — `mtproxy`, `naive`, `mieru`, `amneziawg` или `trusttunnel` (для `trusttunnel` `options` необязательны, `{"name": "<профиль>"}`) |
 | `versions_check` | Просит version-agent опросить upstream |
 | `versions_update` | Ставит версию компонента (`confirm`) |
-| `routing_preview` | Что применит backend узла для политики, ничего не сохраняя |
+| `routing_preview` | Что применит backend узла для политики, ничего не сохраняя; `protocol` — `naive`, `mieru`, `mtproxy` или `trusttunnel` (TrustTunnel: только вся служба, без полос) |
 | `routing_apply` | Применяет сохранённую ревизию политики (`confirm`) |
 | `audit_tail` | Последние строки аудита с фильтрами |
 | `reload_tools` | Перечитать схему панели после её обновления |

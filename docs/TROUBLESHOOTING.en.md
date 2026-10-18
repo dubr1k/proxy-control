@@ -84,6 +84,31 @@ Deploy the revision with the responsive Mieru dialog and confirm deployed `style
 
 This is intentional. The adapter does not parse a human table or copy GPL gRPC stubs; there is no safe typed per-user metrics boundary. Quota is a rolling approximate session-admission check, not a hard cap.
 
+## TrustTunnel does not connect
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' proxy-control-trusttunnel-manager
+docker logs --tail 50 proxy-control-trusttunnel-manager
+ss -ltn 'sport = :4453'            # the endpoint, loopback only
+ls /etc/letsencrypt/live/<trusttunnel domain>/
+```
+
+- **Refused at the TLS level / wrong name.** The endpoint accepts only the TrustTunnel **domain** as SNI; an IP address or another
+  name is refused. The profile (`tt://` link, TOML) must carry that domain.
+- **The domain is behind a CDN proxy.** A proxied name terminates TLS elsewhere and breaks the SNI route; switch it to DNS only
+  with an A record to the server.
+- **Manager `degraded`, `certificate_missing`.** The certificate lineage named after the domain is absent or unreadable; issue it
+  (the installer's `certificates` step, or `certbot certonly --cert-name <domain>`). The manager picks up a renewed certificate
+  by itself (SIGHUP, no restart).
+- **Port collision.** `4453` (the endpoint) and `1987` (the manager's metrics) must be free on loopback; change `listen_port` and
+  repeat the install, then check the Nginx SNI line points at it.
+- **Clients drop when an access is issued or changed.** Expected: the endpoint reads credentials only at start, so every
+  credential change restarts it (changes within ~2 s are merged); the apps reconnect by themselves.
+- **407 / authentication fails.** The name or password is wrong, the access is disabled, or a rotation replaced the password:
+  show the access again (a new `tt://` link) and re-import it.
+- **Routing through the router does not work.** `router_lacks_trusttunnel` — rebuild the Xray-router on the current release;
+  `lanes_unsupported` — TrustTunnel is routed per service only.
+
 ## Nginx reload fails
 
 - never reload before `nginx -t` succeeds;

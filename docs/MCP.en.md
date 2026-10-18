@@ -122,10 +122,10 @@ fields. Not exposed: `/api/openapi.json`, `/healthz`, `/login`, `/api/auth/*`,
 | `overview` | `GET /api/dashboard` + `/api/versions` + `/api/nodes` as one JSON |
 | `create_client` | Creates a client, issues grants by the node×protocol matrix (`placement`), returns the subscription link |
 | `client_subscription` | Shows a client's subscription link again (one-shot reveal, audited) |
-| `set_client_placement` | Brings the client's matrix to the desired one: issues the missing grants, disables the extra ones; without `confirm` only the plan |
+| `set_client_placement` | Brings the client's matrix to the desired one: issues the missing grants, disables the extra ones; without `confirm` only the plan; `protocol` is one of `mtproxy`, `naive`, `mieru`, `amneziawg`, `trusttunnel` (for `trusttunnel` `options` is optional, `{"name": "<profile>"}`) |
 | `versions_check` | Asks the version-agent to poll upstream |
 | `versions_update` | Installs a component version (`confirm`) |
-| `routing_preview` | What the node's backend would enforce for a policy, saving nothing |
+| `routing_preview` | What the node's backend would enforce for a policy, saving nothing; `protocol` is `naive`, `mieru`, `mtproxy` or `trusttunnel` (TrustTunnel: the whole service only, no lanes) |
 | `routing_apply` | Applies the saved policy revision (`confirm`) |
 | `audit_tail` | The newest audit rows with filters |
 | `reload_tools` | Re-read the panel's schema after a panel update |

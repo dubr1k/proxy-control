@@ -6,7 +6,7 @@
 
 **A proxy control panel that can run on the same server as 3x-ui**
 
-MTProxy, NaiveProxy and Mieru under one panel — with a transactional installer that
+MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel under one panel — with a transactional installer that
 either finishes the installation or returns the server to the state it was in.
 
 [![CI](https://github.com/dubr1k/proxy-control/actions/workflows/test.yml/badge.svg)](https://github.com/dubr1k/proxy-control/actions/workflows/test.yml)
@@ -50,7 +50,7 @@ either finishes the installation or returns the server to the state it was in.
 
 ## What it is
 
-Proxy Control is a separate control panel for MTProxy, NaiveProxy and Mieru proxies, their
+Proxy Control is a separate control panel for MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel proxies, their
 users and accesses. It is neither an add-on nor a fork of 3x-ui: install it on a clean server
 or next to a running 3x-ui — then both panels share port 443 without getting in each other's
 way. The installer can also install 3x-ui for you.
@@ -61,6 +61,7 @@ way. The installer can also install 3x-ui for you.
 | **NaiveProxy** | An HTTPS proxy that looks like an ordinary website from outside. HTTP/1.1 CONNECT and HTTP/2 CONNECT over TLS/TCP with one access for both; per-user quota and traffic accounting. |
 | **Mieru** | A traffic-obfuscating proxy with its own protocol over TCP; a one-time `mierus://` link and QR. |
 | **AmneziaWG** | A VPN over UDP — WireGuard with traffic obfuscation. Versions 1.5, 2.0 and 3.1 each run on their own port; a client can hold several, and the config is given as a `.conf` file and a QR. Optional. |
+| **TrustTunnel** | AdGuard's VPN: HTTP/2 over TLS, TCP only, on the shared port 443 through the Nginx SNI route, with no new ports and no UDP. Handed out as a `tt://` link with a QR, a TOML config and a Clash/mihomo entry; routed as a service (no per-client lanes). Optional, needs a domain of its own. |
 | **Next to 3x-ui** | The `existing` mode adopts an installed 3x-ui: it shares port 443 with it and never changes its files. The `managed-new` mode installs 3x-ui `3.10.2` on a clean server and creates VLESS Reality (TCP and XHTTP) and Hysteria2. 3x-ui stays managed in its own panel. |
 | **Clients and subscriptions** | One client holds grants to every protocol and one revocable link `https://<subscription domain>/s/<token>` for sing-box/Karing, Clash/mihomo and others. Credentials are stored under a master key (AES-256-GCM). |
 | **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
@@ -97,6 +98,7 @@ Client ── TCP/443 ──► Nginx stream + SNI
                          ├──► 3x-ui and its protocols
                          ├──► MTProxy / Telemt
                          ├──► NaiveProxy
+                         ├──► TrustTunnel (optional)
                          ├──► your other sites
                          └──► the Proxy Control panel
 ```
@@ -108,6 +110,8 @@ Client ── TCP/443 ──► Nginx stream + SNI
 | Panel | `127.0.0.1:8787` (HTTP) | Local; outside through the HTTPS virtual host on `127.0.0.1:8443` |
 | NaiveProxy (Caddy) | `127.0.0.1:4443` | Only Nginx |
 | Telemt API | `mtproxy:9091` | Only inside the Compose network |
+| TrustTunnel (optional) | `127.0.0.1:4453` (the endpoint), `127.0.0.1:1987` (the manager's metrics) | Nginx and the local system only; from outside, TCP/443 by SNI; no ports, no UDP |
+| Xray-router ingress for TrustTunnel (optional) | `127.0.0.1:45104` (SOCKS5, no password) | The local system only: any local process or host-network container can use it |
 | Mieru | TCP ports you choose | Public; port 443 is not used |
 | Mieru control | `/run/mita/mita.sock` | Only a local Unix socket |
 | AmneziaWG (optional) | One UDP port per version, random and free, chosen per server (or yours) | Public, straight over UDP; management is the `awg-manager` container's Unix socket |
@@ -135,6 +139,8 @@ Containers are named `proxy-control-*`; the Compose project is `mtproxy`.
 - The local ports in the table above are free.
 - For the optional AmneziaWG: the `/dev/net/tun` device on the server, a name that reaches the server directly over UDP,
   without a CDN. No new domain is needed — the panel domain will do.
+- For the optional TrustTunnel: a **domain of its own** with an A record to the server, DNS only (no CDN
+  proxying); the installer issues its certificate. No UDP and no new ports are needed.
 - Your own backup of Nginx, services, routes and Docker state.
 
 The installer stops and touches nothing when it sees DNS not matching the server address,
@@ -151,7 +157,7 @@ hand is used as it is. The list, URLs and checksums are in
 ## Domains and certificates
 
 This is where installations stop most often. The complete set — profile `full`, 3x-ui in
-`managed-new` mode, a client subscription domain and the MCP server — needs **11 different
+`managed-new` mode, a client subscription domain, the MCP server and TrustTunnel — needs **12 different
 domains**. Not all of them need a certificate:
 
 | Domain | When it is needed | Certificate |
@@ -167,6 +173,7 @@ domains**. Not all of them need a certificate:
 | `three_xui.subscription_domain` — the 3x-ui subscription | `managed-new`, when wanted | Yes |
 | `subscription` — client subscriptions | When you want `https://<domain>/s/<token>` links | Yes |
 | `mcp` — the MCP server | Only on the central panel, when wanted | Yes |
+| `trusttunnel` — TrustTunnel | When TrustTunnel is enabled; its own name, an A record to the server, **no CDN proxying** | Yes |
 
 Mieru and VLESS Reality need no Let's Encrypt certificate: Mieru runs its own protocol, and
 Reality uses the certificate of its cover site. They still need the domain — it goes into
@@ -255,7 +262,7 @@ itself. `coexist` — Nginx already holds port 443 and the installer only adds i
 **Domains.** The wizard asks only for those the chosen profile and 3x-ui mode need (see
 the [domain table](#domains-and-certificates)). The client subscription domain and the MCP
 domain may stay empty — those features are then off. MCP is needed only on the central
-panel. The default Mieru port is `46001`; the wizard refuses a port the installer itself
+panel. The TrustTunnel domain is asked only after a «yes» to the TrustTunnel question. The default Mieru port is `46001`; the wizard refuses a port the installer itself
 uses and says what holds it.
 
 **WARP.** In `managed-new` mode the wizard asks whether to enable WARP for Xray and, on
@@ -265,6 +272,13 @@ In the 3x-ui modes `none` and `existing` the question is asked when the profile 
 NaiveProxy or Mieru: «yes» sends all their traffic through WARP. The installer installs the
 pinned official Cloudflare client and brings up its own SOCKS5 endpoint `127.0.0.1:40000`;
 a WARP started beforehand is not needed and is treated as foreign state.
+
+**TrustTunnel.** An optional VPN for any profile: two questions — «install it?» and the domain. The domain is its
+own: an A record to the server, DNS only (no CDN proxying), different from every other domain. The installer
+issues its certificate, adds a line to the Nginx SNI map, builds the `trusttunnel-manager` image from the pinned
+`trusttunnel_endpoint` (v1.1.0) and creates `/var/lib/trusttunnel-manager` (credentials and counters). The
+endpoint listens on `127.0.0.1:4453` only (`listen_port`); there are no new ports, no UDP and no UFW rules.
+GitHub must be reachable while the image is built.
 
 **Certificate email.** The address for Let's Encrypt.
 
@@ -358,7 +372,8 @@ built.
 
 If you run Nginx, certificates and the environment yourself, the base stack can be brought
 up directly with Compose: [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md); manual installation of
-NaiveProxy and Mieru is in [PANEL.en.md](PANEL.en.md) and [MIERU.en.md](MIERU.en.md).
+NaiveProxy and Mieru is in [PANEL.en.md](PANEL.en.md) and [MIERU.en.md](MIERU.en.md); TrustTunnel on such a
+server is enabled by `scripts/enable-trusttunnel.sh` ([TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md)).
 
 ## Installation by an AI agent
 
@@ -425,6 +440,7 @@ owner's data:
 | `managed-three-xui.toml` | `fresh` | `managed-new` |
 | `existing-three-xui.toml`, `full-three-xui.toml` | `coexist` | `existing` |
 | `core-amneziawg.toml` | `fresh` | `none`, with the optional `[amneziawg]` |
+| `core-trusttunnel.toml` | `fresh` | `none`, with the optional `[trusttunnel]` and `domains.trusttunnel` |
 
 ```bash
 cp examples/installer/core.toml ~/proxy-control.toml
@@ -435,7 +451,8 @@ chmod 600 ~/proxy-control.toml
 Optional parts: `domains.subscription` (client subscriptions), `domains.mcp` (the MCP
 server, central panel only), the `[egress]` section (WARP and the Xray-router), the
 `[amneziawg]` section (AmneziaWG: `enabled`, `versions`, `host`, `ports`, `mtu`, `dns`; no
-new domain). Every field
+new domain), the `[trusttunnel]` section (TrustTunnel: `enabled`, `listen_port`; needs its own
+`domains.trusttunnel`). Every field
 is described in the [installer reference](docs/INSTALLER_REFERENCE.en.md). Passwords never
 go into the TOML.
 
@@ -501,6 +518,10 @@ sudo cat /var/lib/proxy-control/three-xui/panel-access
 the access key are written to `credentials/handoff.json` next to the installation report
 (`0600`, root only). Connecting Claude Code is described in [docs/MCP.en.md](docs/MCP.en.md).
 
+**TrustTunnel** (when enabled). Make sure the domain's A record leads to the server without CDN proxying, and issue the
+first access from a client's card (the `tt://` link, QR and TOML config are in the access window); details are in
+[TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md).
+
 Do not copy these files into Git, bug reports, logs or shared backups. Delete the
 `<configuration-name>.credentials` file if the wizard created it.
 
@@ -527,7 +548,8 @@ The script verifies the release exactly as during installation and asks the serv
 files, image and database and a rollback on failure; then it rebuilds the changed managers.
 Telemt, certificates, `.env` and `secrets/` are left alone. If AmneziaWG is enabled and its
 sources changed, `awg-manager` is rebuilt: the tunnels drop for a few seconds and the clients
-reconnect by themselves; `/var/lib/awg-manager` with the server keys is not touched.
+reconnect by themselves; `/var/lib/awg-manager` with the server keys is not touched. `trusttunnel-manager` is
+rebuilt the same way: restarting the endpoint drops sessions for seconds, `/var/lib/trusttunnel-manager` is not touched.
 
 Individual components — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, the **Xray-router**
 and the panel itself — can be updated from the «Versions» screen. «Check for updates» shows
@@ -575,7 +597,7 @@ dst.close(); src.close()
 PY
 ```
 
-Expect exactly `ok`. What else to back up for Telemt, NaiveProxy, Mieru, Nginx and Fleet and
+Expect exactly `ok`. What else to back up for Telemt, NaiveProxy, Mieru, TrustTunnel (`/var/lib/trusttunnel-manager`), Nginx and Fleet and
 how to restore it: [docs/BACKUP_RESTORE.en.md](docs/BACKUP_RESTORE.en.md).
 
 ### If the installation was interrupted
@@ -612,7 +634,7 @@ public listeners and adjacent SNI routes.
 
 ### Clients, grants and subscriptions
 
-The «Clients» screen keeps a person and all their grants to MTProxy, NaiveProxy and Mieru
+The «Clients» screen keeps a person and all their grants to MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel
 together: search and filters over the whole list, a read-only import of existing service
 users, and a grant issued as one journalled operation with an honest outcome — `succeeded`,
 `compensated` or `manual_intervention_required`. Every client gets one link
@@ -649,6 +671,11 @@ in the Naive label and Mieru `profile`; Telegram MTProxy links stay unchanged.
   the client's private key, the node knows only the public one. The config is given as a file and a
   QR and is not part of subscriptions. It needs a DNS name that reaches the server directly over UDP;
   no new domain is required. [AMNEZIAWG.en.md](AMNEZIAWG.en.md)
+- **TrustTunnel.** An optional AdGuard VPN: HTTP/2 over TLS, TCP only (QUIC and UDP are not used), on the shared
+  443 through SNI; it needs a domain of its own with no CDN proxying. An access is a `tt://` link with a QR and a
+  TOML config (for the official AdGuard apps for iOS and Android and the command-line client) and a `trusttunnel`
+  entry in the Clash/mihomo feed; the sing-box feed does not carry it. Every access change briefly restarts the
+  endpoint. Routing is for the whole service only, with no per-client lanes. [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md)
 - **3x-ui.** Stays a separate panel with its own interface; Proxy Control makes sure both
   live on one 443. In `managed-new` the inbounds listen on `127.0.0.1:8449` (VLESS Reality
   TCP), `127.0.0.1:8450` (XHTTP) and `0.0.0.0:443/UDP` (Hysteria2); the 3x-ui subscription is
@@ -708,6 +735,9 @@ Only TCP is supported for Mieru clients. Traffic accounting is not intended for 
 - **NaiveProxy accounting does not grow.** A record appears only after a closed `CONNECT`.
 - **The Mieru manager does not answer.** Check the `mita` version, `/run/mita/mita.sock` and
   the socket GID. Never run a recursive `chown` blindly.
+- **TrustTunnel does not connect.** The profile must carry the TrustTunnel domain itself (the endpoint refuses an IP
+  address) and no CDN proxying; a manager that is `degraded` with `certificate_missing` has no certificate for the
+  domain. More: [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md).
 - **No QR for an older Mieru user.** «Configuration» shows the kept key; if the key was not
   kept, press «New key» once.
 
@@ -734,6 +764,7 @@ top of the pinned registry image).
 | `mieru` (`enfein/mieru`) | 3.38.1 | GPL-3.0-or-later | The official Mieru client for traffic acceptance. |
 | `three_xui` (`MHSanaei/3x-ui`) | 3.10.2 | GPL-3.0-only | The 3x-ui panel and its Xray for VLESS Reality and Hysteria2 in `managed-new` mode. |
 | `xray` (`XTLS/Xray-core`) | 26.10.17 | MPL-2.0 | The Xray-router: only `xray`, `geoip.dat` and `geosite.dat` are taken from `Xray-linux-64.zip`, each by its own checksum. |
+| `trusttunnel` (`TrustTunnel/TrustTunnel`) | 1.1.0 | Apache-2.0 | The TrustTunnel endpoint: the archive is downloaded and checked while the `trusttunnel-manager` image is built; it runs unmodified as a subprocess. |
 
 `amneziawg-go` (MIT license, the Amnezia VPN project) is built on the server into the
 `awg-manager` image by `awg_manager/Dockerfile` from a pinned commit; the release ships no
@@ -752,6 +783,7 @@ embeds into the SBOM.
 | `xray_router_manager/Dockerfile` | The Xray-router and its manager | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | The MCP server (central panel only) | `python:3.13.5-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: the manager and `amneziawg-go` (optional) | `golang:1.25.12` → `python:3.13.5-slim` |
+| `trusttunnel_manager/Dockerfile` | TrustTunnel: the manager and the pinned `trusttunnel_endpoint` (optional) | `python:3.13.5-slim` |
 | `deploy/Dockerfile.agent` | Fleet v1 node agent | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | Fleet v1 mTLS ingress | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |
@@ -793,6 +825,7 @@ the Python standard library.
 | MTProto behind Nginx | [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) |
 | Mieru | [MIERU.en.md](MIERU.en.md), [sharing access](docs/MIERU_SHARING.en.md) |
 | AmneziaWG | [AMNEZIAWG.en.md](AMNEZIAWG.en.md) |
+| TrustTunnel | [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md) |
 | Linked panels | [FLEET.en.md](FLEET.en.md) |
 | Routing and the Xray-router | [docs/ROUTING.en.md](docs/ROUTING.en.md), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md) |
 | The MCP server | [docs/MCP.en.md](docs/MCP.en.md) |
@@ -842,6 +875,7 @@ Proxy Control builds on the work of the authors and maintainers of these project
 | Component | What we thank it for | Link |
 |---|---|---|
 | Telemt | The MTProto/MTProxy service in Rust | [telemt/telemt](https://github.com/telemt/telemt) |
+| TrustTunnel | The VPN over HTTP/2 and TLS (AdGuard) | [TrustTunnel/TrustTunnel](https://github.com/TrustTunnel/TrustTunnel) |
 | Mieru and mita | The proxy and its control tools | [enfein/mieru](https://github.com/enfein/mieru) |
 | 3x-ui | The Xray control panel | [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) |
 | Xray-core | The outbound traffic router | [XTLS/Xray-core](https://github.com/XTLS/Xray-core) |

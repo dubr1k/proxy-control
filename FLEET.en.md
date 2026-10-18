@@ -155,6 +155,13 @@ native result; the central marks a pass-through with an empty policy as `applied
 with rules as a draft to review. A central refuses a router policy for a node without
 the capability (`node_lacks_router`) — [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md).
 
+**TrustTunnel (v1.6).** A node that serves it declares `protocol.trusttunnel.v1` in `identity.capabilities` and reports
+`identity.protocols.trusttunnel` (`enabled`, `public_host`, `public_port`, `daemon`). The central never sends a TrustTunnel
+grant to a node without that capability: it skips the node in the generation and refuses the request at once. The service
+is routed per service through the central like any other, but only to a node that also declares `egress.trusttunnel.v1`
+(`node_lacks_trusttunnel_egress` otherwise); TrustTunnel has no lanes (`lanes_unsupported`). Update the nodes first, then
+the central panel ([TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md)).
+
 ### Ownership on the node
 
 A runtime user on a node belongs either to the central (`central`) or to the node
@@ -195,7 +202,7 @@ session is refused, and a `node-sync` key is refused everywhere outside this pre
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` is the node's `MTPROXY_DOMAIN` (its first allowed host when unset); a grant's own `host`/`port`, learned from the link Telemt served, win over it when a link is rendered |
+| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru\|amneziawg\|trusttunnel: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` is the node's `MTPROXY_DOMAIN` (its first allowed host when unset); a grant's own `host`/`port`, learned from the link Telemt served, win over it when a link is rendered |
 | `GET /api/fleet/v2/status` | versions and host facts from the node's version-agent (or `version_agent_unavailable`), `managed_resources`, `users` per protocol `{central, local}`, `protocols[*].traffic` (best effort: Telemt total only, NaiveProxy up/down/total, Mieru `null`) |
 | `GET /api/fleet/v2/inventory` | runtime users per protocol: `{runtime_username, enabled, options, ownership: central\|local, ref}` — no secrets; for MTProxy `options` also carries the `host`/`port` of the link Telemt serves, so an imported grant renders at the runtime's endpoint |
 | `PUT /api/fleet/v2/generation` | the push: `{expected_guid, generation, secrets}`, body ≤ 64 KiB. 409 with a `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 for an unknown field or protocol. `200 {observed, credentials}` when the reconcile finished within 25 s, `202 {observed}` when it continues in the background. `credentials` returns the credentials the node's runtime chose itself and the runtime's own reframed form of a caller credential (Telemt's Fake-TLS `ee…` secret for the bare one pushed); `Cache-Control: no-store` |

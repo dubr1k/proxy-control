@@ -31,6 +31,10 @@ checks the fleet and grant names against this file.
 | `mieru.create`, `mieru.enable`, `mieru.disable`, `mieru.rotate`, `mieru.delete`, `mieru.quotas`, `mieru.metrics.baseline`, `mieru.access` | Mieru username | `/api/mieru/users*` (`mieru.access`: the kept key shown again, nothing changes on the node; a create or rotation there also records `grant.credential.capture` / `grant.rotate` for the kept key) |
 | `runtime.version.update` | component | version agent (owner from the UI, or a central panel through the node's key) |
 
+AmneziaWG and TrustTunnel have no runtime-user routes and no event names of their own: an access is a grant, so issuing,
+switching, rotating and deleting it record the grant lifecycle rows below, attaching TrustTunnel to the Xray-router records the
+routing target rows, and the read-only `GET /api/trusttunnel/overview` writes nothing. Rows never carry a password, a `tt://` link or a config.
+
 ## Clients, grants and subscriptions
 
 | Action | Target | Recorded by |

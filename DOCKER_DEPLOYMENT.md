@@ -2,7 +2,7 @@
 
 **English** · [Русский](DOCKER_DEPLOYMENT.ru.md)
 
-This guide is specifically for the Telemt/MTProto data plane. NaiveProxy, Mieru, panel and fleet details live in their dedicated guides.
+This guide is specifically for the Telemt/MTProto data plane. NaiveProxy, Mieru, AmneziaWG, TrustTunnel (an own SNI name routed to its loopback port, see [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md)), panel and fleet details live in their dedicated guides.
 
 ```text
 Internet TCP/443 → host Nginx stream/SNI → 127.0.0.1:8445 → Telemt

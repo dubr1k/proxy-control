@@ -64,7 +64,7 @@ What it does:
    of the tree, the image and the database and rolls everything back on failure ([updating the
    panel itself](#updating-the-panel-itself-from-the-ui)).
 3. It rebuilds the managers the agent reports in `pending_rebuild` (`mieru-manager`,
-   `naive-manager`, `xray-router`), an enabled MCP server and, on a host with the Xray-router, the
+   `naive-manager`, `xray-router`, `trusttunnel-manager`), an enabled MCP server and, on a host with the Xray-router, the
    `xray-router-ingress` bridge — with the same Compose call the agent uses. The image of every
    running service is tagged `mtproxy-<service>:rollback-<timestamp>` first; a failed rebuild puts
    the previous images back, checks their health and still reports the update as failed.
@@ -74,6 +74,9 @@ What it does:
 **AmneziaWG:** when it is installed and `awg_manager/` changed, `awg-manager` is rebuilt with the
 other managers; the tunnels drop for a few seconds and the peers reconnect by themselves.
 `/var/lib/awg-manager` (the server keys) is never touched.
+
+**TrustTunnel:** when it is installed and `trusttunnel_manager/` changed, `trusttunnel-manager` is rebuilt the same way;
+the endpoint restarts and sessions drop for a few seconds. `/var/lib/trusttunnel-manager` is never touched.
 
 **Not touched:** Telemt and `mask`, certificates, `.env*` and `secrets/`. When `docker/` changed,
 restart Telemt and `mask` yourself ([below](#restarting-telemt-and-mask-after-docker-changed)).
@@ -109,7 +112,7 @@ a stale file reports the previous release to the central, a missing one reports 
 ## Rebuilding changed managers by hand
 
 An update of the panel from the «Versions» screen does not rebuild the managers. When
-`mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `mcp_server/` or `docker/` changed
+`mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `trusttunnel_manager/`, `mcp_server/` or `docker/` changed
 between the two releases, the agent names them in `pending_rebuild` and the panel card says
 «Managers changed: …». The one-command update rebuilds them itself. After an update from the panel,
 rebuild them with the installation's own environment files and overlays — the set the agent uses,
@@ -125,7 +128,7 @@ docker compose --env-file .env --env-file .env.mieru --env-file .env.xray-router
 
 Keep only the `--env-file` and `-f` your installation has (add `--env-file .optional.env`,
 `--env-file .env.mcp` and `-f compose.mcp.yaml` where they exist) and name only the services that
-changed: `mieru-manager`, `naive-manager`, `xray-router` together with `xray-router-ingress`, `mcp`.
+changed: `mieru-manager`, `naive-manager`, `trusttunnel-manager`, `xray-router` together with `xray-router-ingress`, `mcp`.
 Tag the running image of each first, as the one-command update does
 (`docker tag <image ID> mtproxy-<service>:rollback-<timestamp>`, the ID from
 `docker inspect --format '{{.Image}}' proxy-control-<service>`).
@@ -627,3 +630,20 @@ than 1.1).
 ```bash
 docker inspect --format '{{.State.Health.Status}}' proxy-control-xray-router-ingress   # healthy
 ```
+
+## Enabling TrustTunnel on an installed node
+
+TrustTunnel (AdGuard's HTTP/2-over-TLS VPN, TCP only) is optional and is **not** switched on by an update. On a host the
+installer set up, add the `[trusttunnel]` section and `domains.trusttunnel` to its TOML and run the installer again
+(`plan`, then `install --accept-plan`); on a hand-installed host run `scripts/enable-trusttunnel.sh --host <name>` from
+the unpacked release ([TRUSTTUNNEL](../TRUSTTUNNEL.en.md)). Either way the name needs an A record to the server (DNS only,
+no CDN proxy) and a certificate; no firewall rule or UDP port is added.
+
+- The one-command update rebuilds `trusttunnel-manager` when it is installed and `trusttunnel_manager/` changed: the
+  endpoint restarts, sessions drop for a few seconds and the apps reconnect by themselves; `/var/lib/trusttunnel-manager`
+  (the accesses' passwords and counters) is never touched.
+- To route TrustTunnel through the Xray-router the router must be rebuilt on the current release (the update does it);
+  until then the routing screen says `router_lacks_trusttunnel`. A linked node older than 1.6 does not declare the
+  capability `egress.trusttunnel.v1`; the central says `node_lacks_trusttunnel_egress`, and it never sends a TrustTunnel
+  grant to a node without `protocol.trusttunnel.v1`. Update the nodes first, then the central panel.
+- TrustTunnel has no per-client lanes: only the whole service is routed (`lanes_unsupported`).

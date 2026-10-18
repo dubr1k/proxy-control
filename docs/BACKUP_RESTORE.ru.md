@@ -15,6 +15,7 @@ Backup считается пригодным только если он согл
 | Mieru | manager state целиком, `journal.json` + исходный `journal.key`, backups, manager token, `mita` config/binary/unit, UDS/tmpfiles contract |
 | Xray-router | `/var/lib/xray-router` (поколения, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; копии менеджеров `/var/lib/naive-manager/xray-router-ingress` и `/var/lib/mieru-manager/xray-router-ingress` едут вместе с их каталогами состояния; бинари берутся из закреплённого архива, никогда из резервной копии |
 | AmneziaWG | `/var/lib/awg-manager` (0700, root: ключи сервера и выданные пиры — без них все конфиги клиентов перестанут работать), `secrets/awg-manager-token`, `.env.amneziawg`; образ пересобирается из закреплённого коммита amneziawg-go, а не восстанавливается из копии |
+| TrustTunnel | `/var/lib/trusttunnel-manager` (0700, root: `state.json` с паролями доступов и счётчиками трафика), `secrets/trusttunnel-manager-token`, `.env.trusttunnel`; образ собирается заново из закреплённого архива endpoint, сертификат имени выпускается заново (линия Certbot с его именем) |
 | Fleet central | panel DB, ingress config, public server cert, client CA certificate; offline CA private key отдельно |
 | Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests и installer backups |

@@ -79,7 +79,7 @@ python3 -m installer.cli wizard --lang en --config-output proxy-control.toml
 The wizard asks, in order: language, host mode, profile, every required domain,
 the ACME e-mail, the initial panel user, Mieru listeners when the profile
 includes Mieru, the 3x-ui mode and its domains, whether WARP is enabled and for
-which domains, whether to install AmneziaWG (and then its versions and public name), and whether the installer manages UFW. It writes the answers to a
+which domains, whether to install AmneziaWG (and then its versions and public name), whether to install TrustTunnel (and then its own domain: two questions), and whether the installer manages UFW. It writes the answers to a
 TOML file, renders the plan, and asks you to confirm the first twelve characters
 of the plan digest before anything is mutated. Quitting at any prompt leaves the
 host untouched.
@@ -131,6 +131,7 @@ mtproxy = "relay.example.com"
 naive = "edge.example.com"     # required by core-naive and full
 mieru = "mieru.example.com"    # required by core-mieru and full
 subscription = "sub.example.com"  # optional: client subscription URLs
+trusttunnel = "gate.example.org"   # optional: TrustTunnel's own domain (needs the [trusttunnel] section)
 
 [mieru]                        # only with a Mieru profile
 tcp_ports = [46001]
@@ -158,6 +159,10 @@ host = "panel.example.com"         # DNS name or IPv4 the clients dial; default:
 #                                  # omitted versions get a random free port (see below)
 mtu = 1280                         # 1280-1420
 dns = ["1.1.1.1", "1.0.0.1"]       # one to four addresses handed to clients
+
+[trusttunnel]                  # optional add-on to any profile; disabled when absent
+enabled = true
+# listen_port = 4453           # the endpoint's loopback port, 1024-65535 (default 4453)
 
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
@@ -209,7 +214,7 @@ Do not switch that off: existing Xray/HTTPS backends may depend on the client
 address. Telemt and Caddy cannot consume that header on their stock TCP listeners.
 Only for `host_mode = "coexist"`, pre-provision a loopback Nginx stream listener
 with `listen 127.0.0.1:10443 proxy_protocol; ssl_preread on;`. Route by
-`$ssl_preread_server_name` to raw TLS listeners: Telemt 8445 and Caddy 4443.
+`$ssl_preread_server_name` to raw TLS listeners: Telemt 8445, Caddy 4443 and, when enabled, TrustTunnel's `127.0.0.1:<listen_port>`.
 For the panel, subscriptions and MCP, preserve the original address with
 `set_real_ip_from 127.0.0.1;` on the trusted `listen ... proxy_protocol` stream bridge,
 and send a PROXY header to `unix:/run/proxy-control-panel-tls.sock`. Use a separate
@@ -252,6 +257,18 @@ installation passed installer verification and external client probes
 (Naive, Mieru TCP/UDP and MTProxy), but a pre-provisioned bridge and
 router forwarding remain operator-owned: the installer does not configure or
 persist those external boundaries.
+
+`[trusttunnel]` is optional and works with every profile (there is no profile for it). `enabled = false` accepts no
+other key. Unlike AmneziaWG it **needs a domain of its own**: `domains.trusttunnel` is required when `enabled = true`
+and rejected without the section. The name must differ from every other domain of the installation (panel, MTProxy,
+Naive, Mieru, subscription, MCP, the 3x-ui domains), have an A record to this server and **must not be proxied by a
+CDN**; its certificate is issued by the `certificates` step (a separate Certbot lineage named after it, HTTP-01, port
+80). TrustTunnel is TCP only and shares TCP/443: there is no new public port and no UDP, and no UFW rule is added.
+The endpoint listens on `127.0.0.1:<listen_port>` (default 4453; 1024-65535), and the Nginx `stream` sends the
+`domains.trusttunnel` name to that port by SNI (the whole TLS stream, without a PROXY header). `listen_port` and the
+manager's metrics port `127.0.0.1:1987` are in the installer's list of reserved ports: they must differ from each other
+and from every other port of the plan; with `router = true` the list also holds the Xray-router's ingress for
+TrustTunnel, `127.0.0.1:45104`.
 
 `[egress]` is optional. Without it the installer takes WARP from `[three_xui].warp` and
 `warp_port` (the rule without the section is in «WARP and egress»); with it the section is
@@ -319,6 +336,7 @@ Ready-made examples live in `examples/installer/`:
 python3 -m installer.cli plan --config examples/installer/core.toml --json
 python3 -m installer.cli plan --config examples/installer/core-naive.toml --json
 python3 -m installer.cli plan --config examples/installer/core-mieru.toml --json
+python3 -m installer.cli plan --config examples/installer/core-trusttunnel.toml --json
 python3 -m installer.cli plan --config examples/installer/existing-three-xui.toml --json
 ```
 
@@ -345,6 +363,7 @@ boundary:
 | `certificates` | The owned HTTP-01 vhosts and the per-service Certbot lineages |
 | `firewall` | Only the UFW rules it added, and only on a managed fresh host |
 | `core` | The `mtproxy` Compose project, its secrets, and the pinned TDLib probe |
+| `trusttunnel` | `.env.trusttunnel`, `secrets/trusttunnel-manager-token` (0600, root), `/var/lib/trusttunnel-manager` (0700, credentials and counters), the ownership marker `/etc/proxy-control/trusttunnel-owned` and the Compose service `trusttunnel-manager` (container `proxy-control-trusttunnel-manager`, overlay `compose.trusttunnel.yaml`, built from `trusttunnel_manager/`); the Nginx SNI map line and the certificate of its own name belong to the `nginx` and `certificates` adapters |
 | `warp` | The pinned Cloudflare client package, its registration and loopback proxy |
 | `xray_router` | The three extracted Xray members under `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, the manager token and the two ingress credentials, `.env.xray-router` and the `xray-router` and `xray-router-ingress` (v1.1) Compose services |
 | `amneziawg` | `.env.amneziawg`, `secrets/awg-manager-token` (0600, root), `/var/lib/awg-manager` (0700, the server keys), `/etc/sysctl.d/99-proxy-control-amneziawg.conf` (`net.ipv4.ip_forward = 1`), the ownership marker `/etc/proxy-control/amneziawg-owned` and the `awg-manager` Compose service (container `proxy-control-awg-manager`, overlay `compose.amneziawg.yaml`, built from `awg_manager/`) |
@@ -376,6 +395,8 @@ only on end-to-end evidence:
   output, the `0770` management socket, one official-client SOCKS request per
   enabled transport family, a drained send queue, manager and panel health, and
   untouched adjacent listeners.
+- **TrustTunnel**: the manager container `healthy`, `GET /v1/health` answers `ok` with the endpoint running, the endpoint
+  listens on its loopback port, the name's certificate lineage is in place; no port and no UDP rule was opened.
 - **3x-ui**: the staged binary reports the pinned version, and the effective
   generated configuration matches the templates.
 
@@ -492,6 +513,32 @@ rebuilds `awg-manager` when `awg_manager/` changed: the tunnels drop for a few s
 peers reconnect by themselves; the state directory is never touched. How AmneziaWG is used from
 the panel is in [AMNEZIAWG.en.md](../AMNEZIAWG.en.md).
 
+### TrustTunnel
+
+The `trusttunnel` adapter runs after `amneziawg` (it needs Core and the certificate of its own name). It refuses to
+plan when `listen_port` is held by another listener. On `apply` it creates `/var/lib/trusttunnel-manager` (0700) and
+`secrets/trusttunnel-manager-token` (32 random bytes; an existing token is kept), writes `.env.trusttunnel`
+(`TRUSTTUNNEL_MANAGER_TOKEN_FILE`, `TT_MANAGER_STATE_DIR`, `TT_CERT_DIR`, `TT_HOSTNAME`, `TT_LISTEN`, `TT_VERSION`,
+`TT_SHA256_X86_64`, `TT_SHA256_AARCH64`, `TRUSTTUNNEL_MANAGER_SOCKET_GID=10008`, `TRUSTTUNNEL_PUBLIC_HOST`) and runs
+`docker compose up -d --build --wait` over all overlays of the project; the panel is recreated by the same call to join
+the manager's socket group. The image is built on the host: Docker downloads the pinned `trusttunnel_endpoint` archive
+(version and SHA-256 are in `release/external-artifacts.json`, the `trusttunnel` entry; the aarch64 checksum is carried
+in `.env.trusttunnel` and `compose.trusttunnel.yaml`) and checks it during the build; GitHub and Docker Hub must be
+reachable while it runs. The manager mounts `/etc/letsencrypt` read-only and reads the Certbot lineage named after the
+host, so a certificate renewal reaches the endpoint without a hook.
+
+Verification requires the container `healthy`, `ok` from `GET /v1/health` (the request runs inside the container over
+its own Unix socket with its own token file: the token reaches no plan, log or report) with the endpoint running, a
+listener on `127.0.0.1:<listen_port>` and a readable certificate lineage of the name. The `firewall` adapter adds no
+rule for TrustTunnel: it uses the TCP/443 that is already open.
+
+`uninstall` stops and removes the service and the owned env and marker but keeps `/var/lib/trusttunnel-manager` (the
+accesses' passwords and counters) and the manager token; `--purge-data` removes both. Updating the host
+(`install-release.sh --update`) rebuilds `trusttunnel-manager` when `trusttunnel_manager/` changed: sessions drop for a
+few seconds and the apps reconnect by themselves; the state directory is never touched. For a host the installer did not
+set up there is `scripts/enable-trusttunnel.sh`. How TrustTunnel is used from the panel is in
+[TRUSTTUNNEL.en.md](../TRUSTTUNNEL.en.md).
+
 ## Hard stops
 
 The audit refuses to plan rather than guess. A hard stop is reported and nothing
@@ -544,7 +591,7 @@ touched.
 
 An explicit purge also removes an empty `version-overrides` directory left by
 the updater. Nonempty directories and symbolic links are preserved.
-The optional-manager socket volumes (Naive, Mieru, the Xray-router and AmneziaWG) are removed after their containers,
+The optional-manager socket volumes (Naive, Mieru, the Xray-router, AmneziaWG and TrustTunnel) are removed after their containers,
 with their exact names and Compose ownership labels checked. Other volumes are
 not swept, and Docker must refuse any volume still in use.
 

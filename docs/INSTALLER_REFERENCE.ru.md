@@ -77,7 +77,7 @@ python3 -m installer.cli wizard --lang ru --config-output proxy-control.toml
 Мастер спрашивает по порядку: язык, режим хоста, профиль, каждый обязательный
 домен, ACME-почту, первого пользователя панели, слушатели Mieru (если профиль их
 включает), режим 3x-ui и его домены, включён ли WARP и для каких доменов, ставить ли
-AmneziaWG (и тогда его версии и публичное имя), и управляет ли установщик UFW. Ответы записываются в TOML-файл, план отображается,
+AmneziaWG (и тогда его версии и публичное имя), ставить ли TrustTunnel (и тогда его отдельный домен: два вопроса), и управляет ли установщик UFW. Ответы записываются в TOML-файл, план отображается,
 и до любой мутации требуется подтвердить первые двенадцать символов digest
 плана. Выход на любом вопросе оставляет хост нетронутым.
 
@@ -129,6 +129,7 @@ mtproxy = "relay.example.com"
 naive = "edge.example.com"     # обязателен для core-naive и full
 mieru = "mieru.example.com"    # обязателен для core-mieru и full
 subscription = "sub.example.com"  # необязательно: ссылки подписки клиентов
+trusttunnel = "gate.example.org"   # необязательно: свой домен TrustTunnel (нужна секция [trusttunnel])
 
 [mieru]                        # только с профилем Mieru
 tcp_ports = [46001]
@@ -156,6 +157,10 @@ host = "panel.example.com"         # DNS-имя или IPv4, по котором
 #                                  # у версий без порта он случайный свободный (см. ниже)
 mtu = 1280                         # 1280-1420
 dns = ["1.1.1.1", "1.0.0.1"]       # от одного до четырёх адресов, которые получат клиенты
+
+[trusttunnel]                  # необязательное дополнение к любому профилю; без секции выключено
+enabled = true
+# listen_port = 4453           # loopback-порт endpoint, 1024–65535 (по умолчанию 4453)
 
 [three_xui]
 mode = "managed-new"           # none | existing | managed-new
@@ -202,6 +207,18 @@ UDP-порт из 10240–32000 (ниже эфемерного диапазон�
 заменяет). Подсети туннелей (`10.66.15.0/24`, `10.66.20.0/24`, `10.66.31.0/24`)
 фиксированы.
 
+`[trusttunnel]` необязательна и работает с любым профилем (отдельного профиля нет). `enabled = false`
+не принимает других ключей. В отличие от AmneziaWG ей **нужен свой домен**: `domains.trusttunnel` обязателен
+при `enabled = true` и запрещён без секции. Имя должно отличаться от всех остальных доменов установки (панель,
+MTProxy, Naive, Mieru, подписка, MCP, домены 3x-ui), иметь A-запись на этот сервер и **не проксироваться CDN**;
+сертификат для него выпускает шаг `certificates` (отдельная линия Certbot с тем же именем, HTTP-01, порт 80).
+TrustTunnel работает только по TCP и делит TCP/443: новых публичных портов и UDP нет, правила UFW не
+добавляются. Endpoint слушает `127.0.0.1:<listen_port>` (по умолчанию 4453; 1024–65535), а Nginx `stream`
+отправляет имя `domains.trusttunnel` на этот порт по SNI (целым потоком TLS, без PROXY header). `listen_port` и
+порт метрик менеджера `127.0.0.1:1987` входят в список занятых портов установщика: они не должны совпадать
+между собой и с другими портами плана; при `router = true` в список входит и ingress Xray-router для TrustTunnel
+`127.0.0.1:45104`.
+
 `[egress]` необязателен. Без него установщик берёт WARP из `[three_xui].warp` и `warp_port` (правило
 без секции — в «WARP и egress»); с ним секция канонична: `warp`/`warp_port` решают, ставится ли клиент
 Cloudflare, а `naive`/`mieru` выбирают **начальный** egress каждого сервиса (`direct`, `warp` или
@@ -232,7 +249,7 @@ Cloudflare, а `naive`/`mieru` выбирают **начальный** egress к
 Telemt или Caddy не принимают этот заголовок. До плана оператор поднимает
 свой loopback-only bridge, который принимает PROXY protocol на указанном
 `127.0.0.1:port`, выбирает backend по TLS SNI и передаёт **исходный TLS без
-PROXY header** на `8445` (Telemt) либо `4443` (Naive). Для панели, подписок и MCP
+PROXY header** на `8445` (Telemt), `4443` (Naive) либо `127.0.0.1:<listen_port>` (TrustTunnel, если включён). Для панели, подписок и MCP
 bridge с `listen ... proxy_protocol` должен сохранить исходный адрес
 (`set_real_ip_from 127.0.0.1;`) и отправить PROXY header на
 `unix:/run/proxy-control-panel-tls.sock`. Для этой ветки нужен отдельный stream
@@ -302,6 +319,7 @@ profile = "full"        # Telemt, панель, NaiveProxy и Mieru вместе
 python3 -m installer.cli plan --config examples/installer/core.toml --json
 python3 -m installer.cli plan --config examples/installer/core-naive.toml --json
 python3 -m installer.cli plan --config examples/installer/core-mieru.toml --json
+python3 -m installer.cli plan --config examples/installer/core-trusttunnel.toml --json
 python3 -m installer.cli plan --config examples/installer/existing-three-xui.toml --json
 ```
 
@@ -329,6 +347,7 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
 | `firewall` | Только добавленными правилами UFW и только на управляемом свежем хосте |
 | `core` | Compose-проектом `mtproxy`, его секретами и зафиксированным TDLib-probe |
 | `amneziawg` | `.env.amneziawg`, `secrets/awg-manager-token` (0600, root), `/var/lib/awg-manager` (0700, ключи сервера), `/etc/sysctl.d/99-proxy-control-amneziawg.conf` (`net.ipv4.ip_forward = 1`), маркером владения `/etc/proxy-control/amneziawg-owned` и Compose-сервисом `awg-manager` (контейнер `proxy-control-awg-manager`, оверлей `compose.amneziawg.yaml`, сборка из `awg_manager/`) |
+| `trusttunnel` | `.env.trusttunnel`, `secrets/trusttunnel-manager-token` (0600, root), `/var/lib/trusttunnel-manager` (0700, учётные данные и счётчики), маркером владения `/etc/proxy-control/trusttunnel-owned` и Compose-сервисом `trusttunnel-manager` (контейнер `proxy-control-trusttunnel-manager`, оверлей `compose.trusttunnel.yaml`, сборка из `trusttunnel_manager/`); строку в карте SNI Nginx и сертификат своего имени ведут адаптеры `nginx` и `certificates` |
 | `warp` | Закреплённым пакетом клиента Cloudflare, его регистрацией и loopback-прокси |
 | `xray_router` | Тремя извлечёнными членами архива Xray в `/usr/local/lib/proxy-control/xray-router`, identity 10006, `/var/lib/xray-router`, токеном менеджера и двумя ключами ingress, `.env.xray-router` и Compose-сервисами `xray-router` и `xray-router-ingress` (v1.1) |
 | `naive` | Зафиксированной сборкой Caddy, разделёнными identity, состоянием и токеном manager, границей лога учёта и маршрутом Naive |
@@ -360,6 +379,8 @@ python3 -m installer.cli plan --config examples/installer/existing-three-xui.tom
   SOCKS-запрос официального клиента на каждое включённое транспортное семейство,
   опустевшая очередь отправки, health manager и панели, нетронутые соседние
   слушатели.
+- **TrustTunnel**: контейнер менеджера `healthy`, `GET /v1/health` отвечает `ok` при работающем endpoint, endpoint
+  слушает свой loopback-порт, линия сертификата имени на месте; ни порта, ни UDP-правила не открыто.
 - **3x-ui**: staged-бинарь сообщает зафиксированную версию, а эффективная
   сгенерированная конфигурация совпадает с шаблонами.
 
@@ -464,6 +485,32 @@ coexist или `manage_ufw = false`), откройте UDP-порты и раз�
 переподключаются сами; каталог состояния не трогается. Как пользоваться AmneziaWG из панели — в
 [AMNEZIAWG.ru.md](../AMNEZIAWG.ru.md).
 
+### TrustTunnel
+
+Адаптер `trusttunnel` выполняется после `amneziawg` (ему нужны Core и сертификат своего имени). План не
+строится, если `listen_port` занят другим слушателем. При `apply` он создаёт `/var/lib/trusttunnel-manager` (0700) и
+`secrets/trusttunnel-manager-token` (32 случайных байта; существующий токен сохраняется), пишет `.env.trusttunnel`
+(`TRUSTTUNNEL_MANAGER_TOKEN_FILE`, `TT_MANAGER_STATE_DIR`, `TT_CERT_DIR`, `TT_HOSTNAME`, `TT_LISTEN`, `TT_VERSION`,
+`TT_SHA256_X86_64`, `TT_SHA256_AARCH64`, `TRUSTTUNNEL_MANAGER_SOCKET_GID=10008`, `TRUSTTUNNEL_PUBLIC_HOST`) и запускает
+`docker compose up -d --build --wait` по всем оверлеям проекта; при этом пересоздаётся и панель, чтобы войти в группу
+сокета менеджера. Образ собирается на хосте: Docker скачивает закреплённый архив `trusttunnel_endpoint` (версия и SHA-256 —
+в `release/external-artifacts.json`, запись `trusttunnel`; для aarch64 контрольная сумма лежит в `.env.trusttunnel`
+и `compose.trusttunnel.yaml`) и сверяет его при сборке; на время сборки должны быть доступны GitHub и Docker Hub.
+Менеджер монтирует `/etc/letsencrypt` только для чтения и читает линию Certbot по имени хоста, поэтому продление
+сертификата доходит до endpoint без хука.
+
+Проверка требует контейнер `healthy`, ответ `ok` на `GET /v1/health` (запрос выполняется внутри контейнера по его
+Unix-сокету с его же файлом токена: токен не попадает ни в план, ни в логи, ни в отчёт) при работающем endpoint,
+слушатель `127.0.0.1:<listen_port>` и читаемую линию сертификата имени. Правил брандмауэра адаптер `firewall` для
+TrustTunnel не добавляет: используется уже открытый TCP/443.
+
+`uninstall` останавливает и убирает сервис, владеемые env и маркер, но сохраняет `/var/lib/trusttunnel-manager`
+(пароли доступов и счётчики) и токен менеджера; `--purge-data` удаляет и их. Обновление хоста
+(`install-release.sh --update`) пересобирает `trusttunnel-manager`, когда изменился `trusttunnel_manager/`: сессии на
+несколько секунд обрываются, приложения переподключаются сами; каталог состояния не трогается. Для хоста, который
+установщик не ставил, есть `scripts/enable-trusttunnel.sh`. Как пользоваться TrustTunnel из панели — в
+[TRUSTTUNNEL.ru.md](../TRUSTTUNNEL.ru.md).
+
 ## Жёсткие остановки
 
 Аудит отказывается планировать, а не догадывается. Жёсткая остановка сообщается,
@@ -515,7 +562,7 @@ python3 -m installer.cli uninstall --json
 
 Явный purge удаляет также пустой каталог `version-overrides`, оставшийся от
 обновлятора. Непустой каталог и символические ссылки сохраняются.
-Тома Unix-сокетов дополнительных менеджеров (Naive, Mieru, Xray-router и AmneziaWG) удаляются после контейнеров:
+Тома Unix-сокетов дополнительных менеджеров (Naive, Mieru, Xray-router, AmneziaWG и TrustTunnel) удаляются после контейнеров:
 проверяются точные имена и метки владения Compose. Остальные тома не затрагиваются;
 используемый том Docker обязан отказать удалять.
 

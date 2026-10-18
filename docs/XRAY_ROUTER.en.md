@@ -55,6 +55,17 @@ container that way); everything else private stays blocked. MTProxy has no lanes
 on the socket and not a second Xray: Xray 26.3.27's `socks` inbound silently ignores a socket
 path and its outbounds cannot dial one — proved on the stand.
 
+### A fourth ingress: TrustTunnel (v1.6)
+
+The TrustTunnel endpoint runs on the host network, so its `trusttunnel` ingress is a SOCKS5 inbound on the host loopback,
+`127.0.0.1:45104` (the `XRAY_ROUTER_PORT_TRUSTTUNNEL` variable of the router container). **It has no login**: the endpoint's
+SOCKS5 client offers no username to the router (the endpoint's `extended_auth` stays off, and Xray does not understand
+SOCKS5 method 0x80), so the router sees one anonymous client and can apply one section to the whole service, never per
+client. Any local process or host-network container on the node can therefore use that loopback port as a proxy into the
+TrustTunnel service's policy; it is not reachable from outside the server. The `trusttunnel-manager` writes the address
+into the endpoint's forward-protocol block on «Attach» ([ROUTING](ROUTING.en.md)). A router from before v1.6 reports no
+`trusttunnel` service, and the panel says `router_lacks_trusttunnel`.
+
 ## What it enforces
 
 Every cell below was proved on the stand (`spikes/XRAY_EGRESS_ROUTER.md`, Xray-core

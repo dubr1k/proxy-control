@@ -153,6 +153,13 @@ digest при отсутствии, поэтому узел без `egress.route
 отказывает политике роутера для узла без возможности (`node_lacks_router`) —
 [docs/XRAY_ROUTER.ru.md](docs/XRAY_ROUTER.ru.md).
 
+**TrustTunnel (v1.6).** Узел, который его обслуживает, объявляет `protocol.trusttunnel.v1` в `identity.capabilities` и
+отдаёт `identity.protocols.trusttunnel` (`enabled`, `public_host`, `public_port`, `daemon`). Центр никогда не отправляет
+TrustTunnel-доступ узлу без этой возможности: он пропускает такой узел в поколении и сразу отказывает запросу. Маршрутизация
+службы идёт через центр, как у остальных, но только на узел, который объявляет ещё и `egress.trusttunnel.v1`
+(иначе `node_lacks_trusttunnel_egress`); полос у TrustTunnel нет (`lanes_unsupported`). Обновляйте сначала узлы, потом
+центральную панель ([TRUSTTUNNEL.ru.md](TRUSTTUNNEL.ru.md)).
+
 ### Владение на узле
 
 Учётная запись в runtime узла принадлежит либо центру (`central`), либо самому узлу
@@ -193,7 +200,7 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 
 | Метод и путь | Назначение |
 | --- | --- |
-| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` — это `MTPROXY_DOMAIN` узла (первый разрешённый хост, если не задан); собственные `host`/`port` доступа, выученные из ссылки Telemt, при рендере ссылки важнее |
+| `GET /api/fleet/v2/identity` | `{guid, panel_version, api_version: 2, master_guid, protocols: {mtproxy\|naive\|mieru\|amneziawg\|trusttunnel: {enabled, public_host, public_port, daemon: ok\|down\|off}}, capabilities}` — `mtproxy.public_host` — это `MTPROXY_DOMAIN` узла (первый разрешённый хост, если не задан); собственные `host`/`port` доступа, выученные из ссылки Telemt, при рендере ссылки важнее |
 | `GET /api/fleet/v2/status` | версии и факты о хосте от version-agent узла (или `version_agent_unavailable`), `managed_resources`, `users` по протоколам `{central, local}`, `protocols[*].traffic` (best effort: у Telemt только total, у NaiveProxy up/down/total, у Mieru `null`) |
 | `GET /api/fleet/v2/inventory` | учётные записи runtime по протоколам: `{runtime_username, enabled, options, ownership: central\|local, ref}` — без секретов; у MTProxy в `options` ещё `host`/`port` ссылки, которую отдаёт Telemt, чтобы импортированный доступ рендерился на endpoint runtime |
 | `PUT /api/fleet/v2/generation` | push: `{expected_guid, generation, secrets}`, тело ≤ 64 KiB. 409 с `code`: `guid_mismatch`, `foreign_master`, `stale_generation`, `digest_conflict`, `secret_store_disabled`; 422 — неизвестное поле или протокол. `200 {observed, credentials}`, если reconcile уложился в 25 с, `202 {observed}` — если продолжается в фоне. В `credentials` — учётные данные, которые runtime узла сгенерировал сам, и собственная форма runtime для присланного центром секрета (Fake-TLS `ee…` Telemt вместо голого); `Cache-Control: no-store` |

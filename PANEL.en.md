@@ -1,6 +1,6 @@
 # Proxy Control panel
 
-The panel manages distinct Telemt/MTProto, NaiveProxy/Caddy, Mieru/mita, and fleet boundaries. Protocol-specific capabilities and accounting semantics are not interchangeable.
+The panel manages distinct Telemt/MTProto, NaiveProxy/Caddy, Mieru/mita, AmneziaWG, TrustTunnel, and fleet boundaries. Protocol-specific capabilities and accounting semantics are not interchangeable.
 
 The panel binds to host loopback only at `http://127.0.0.1:8787`. Use an SSH tunnel (`ssh -L 8787:127.0.0.1:8787 server`) or your own HTTPS reverse proxy remotely. Never publish Telemt port `9091`; Compose intentionally exposes no host port for it.
 
@@ -216,8 +216,8 @@ panel's escrow, one per node, and hands them over through a one-time reveal with
 Formats are chosen with `?format=` or by `Accept`: `raw` (plain text, one link per
 line, no base64), `singbox` (`application/json`, naive + mieru outbounds for Karing and Throne — Throne does not import Clash YAML;
 `&client=singbox` cuts it to naive only, because an official sing-box ≥ 1.13 refuses a
-configuration with an outbound type it does not know), `clash` (`text/yaml`, mieru
-proxies for mihomo), `manifest`
+configuration with an outbound type it does not know), `clash` (`text/yaml`, mieru and trusttunnel
+proxies for mihomo; in `raw` TrustTunnel is a `tt://` line, and `singbox` leaves it out: sing-box has no TrustTunnel outbound, so it is listed as `unsupported` with a note), `manifest`
 (`application/vnd.proxy-control.subscription+json;version=1`) and `html` (a page
 with links, QR codes and the compatibility matrix). What a client cannot consume is
 listed as `unsupported` with the reason, never handed over as a link that does not
@@ -297,6 +297,17 @@ shows **«ожидает узел»** until that panel reports the account appli
 rotate and delete work the same way, through a new generation rather than a manager
 call ([FLEET.en.md](FLEET.en.md)).
 
+## The TrustTunnel screen
+
+The «TrustTunnel» menu item is visible only where the protocol is enabled (`TRUSTTUNNEL_ENABLED=true`, set by the installer). The screen only reads the state of the server this panel runs on: domain and port, the endpoint's state
+(`ok`/`degraded`), the version and whether the certificate is trusted, the number of accesses and sessions, the traffic
+(downloaded/uploaded from the client's point of view), and lists the node's accesses with the client that holds each; accesses
+the panel is waiting for from the manager are listed separately. An access is issued with the «+ TrustTunnel access» button or
+from a client's card («Nodes and access»: TrustTunnel has a column of its own in the matrix); the access window shows the
+`tt://` link, its QR and the TOML config. The panel makes the password and keeps it in its store (capture and import of existing
+users are not supported); rotation issues a new password. Any credential change briefly restarts the endpoint:
+[TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md). The overview has a card for the protocol.
+
 ## The Nodes screen
 
 The screen lists three kinds of nodes: this server, **linked panels** (Fleet v2) and
@@ -342,8 +353,8 @@ Details of both transports: [FLEET.en.md](FLEET.en.md).
 ## The Routing screen
 
 **«Маршрутизация»** sets, per node and per service, where the clients' traffic leaves:
-a node selector (this server and the linked panels), the tabs NaiveProxy / Mieru / MTProxy
-(since v1.1 MTProxy is routed only through the node's Xray-router: «Подключить» first, then an exit), and for each policy the defaults
+a node selector (this server and the linked panels), the tabs NaiveProxy / Mieru / MTProxy / TrustTunnel
+(since v1.1 MTProxy, and TrustTunnel for anything but a direct exit, is routed only through the node's Xray-router: «Подключить» first, then an exit; TrustTunnel has no lanes for individual clients), and for each policy the defaults
 («По умолчанию: Напрямую | Через WARP», «При недоступности WARP: отказать | напрямую»)
 and the ordered rules — enabled, domains, CIDRs, ports, action (Блокировать / Напрямую /
 Через WARP), a note — with ↑/↓ and drag, «Добавить правило», «Сбросить» (direct, no

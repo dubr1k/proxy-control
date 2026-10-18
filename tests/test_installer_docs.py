@@ -266,6 +266,46 @@ def test_the_amneziawg_example_is_listed_with_the_other_examples():
     assert (ROOT / "examples/installer/core-amneziawg.toml").is_file()
 
 
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_reference_documents_the_optional_trusttunnel_addon(language):
+    """The add-on is an optional section of any profile with a domain of its own: every TOML key, the
+    adapter and its owned paths, the loopback ports, the no-firewall-rule statement and the update note."""
+    text = reference(language)
+    for needle in (
+        "[trusttunnel]", "listen_port", "domains.trusttunnel", "`trusttunnel`", "/var/lib/trusttunnel-manager",
+        "secrets/trusttunnel-manager-token", ".env.trusttunnel", "compose.trusttunnel.yaml", "trusttunnel_manager/",
+        "127.0.0.1:1987", "127.0.0.1:45104", "4453", "scripts/enable-trusttunnel.sh", "TRUSTTUNNEL.", "--purge-data",
+        "core-trusttunnel.toml",
+    ):
+        assert needle in text, needle
+    assert "CDN" in text
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_readmes_describe_the_trusttunnel_addon_and_its_installer_pieces(language):
+    text = readme(language)
+    for needle in ("[trusttunnel]", "trusttunnel_manager/Dockerfile", "trusttunnel_endpoint", "core-trusttunnel.toml",
+                   "/var/lib/trusttunnel-manager", "TRUSTTUNNEL.", "scripts/enable-trusttunnel.sh", "domains.trusttunnel",
+                   "`trusttunnel`"):
+        assert needle in text, needle
+    assert re.search(r"\bv0\.\d", text) is None
+
+
+def test_the_trusttunnel_example_is_listed_and_loads():
+    for language in LANGUAGES:
+        assert "core-trusttunnel.toml" in readme(language)
+    example = (ROOT / "examples/installer/core-trusttunnel.toml").read_text(encoding="utf-8")
+    assert "[trusttunnel]" in example and "trusttunnel = " in example
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_the_domain_count_names_trusttunnel_as_the_twelfth_name(language):
+    """The complete set is now twelve names; the table lists the TrustTunnel one and says it is not proxied."""
+    text = readme(language)
+    assert "**12 разных доменов**" in text or "**12 different\ndomains**" in text
+    assert "| `trusttunnel`" in text
+
+
 def test_primary_install_path_verifies_release_assets_before_sudo():
     command_documents = (*INSTALL_GUIDES.values(), *READMES.values(), *REFERENCES.values())
     for path in command_documents:
