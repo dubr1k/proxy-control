@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-18
+
+- The close cross is back in the «New AmneziaWG access» window.
+
 ## [1.5.0] - 2026-10-18
 
 - AmneziaWG no longer uses the well-known ports 51820–51822: the installer picks a free random UDP port per version (10240–32000), stable for the server across plan, install and update. Ports can be set by hand: a wizard question (Enter accepts the picked ones), `ports` in the TOML, `--ports` of `scripts/enable-amneziawg.sh`.

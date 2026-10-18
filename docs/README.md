@@ -58,6 +58,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v1.5.1](releases/v1.5.1.md) — крестик в окне AmneziaWG
 - [v1.5.0](releases/v1.5.0.md) — случайные порты AmneziaWG
 - [v1.4.0](releases/v1.4.0.md) — отдельный экран AmneziaWG
 - [v1.3.4](releases/v1.3.4.md) — обновление хоста после обновления компонентов из панели
@@ -130,6 +131,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v1.5.1](releases/v1.5.1.md) — close cross in the AmneziaWG window
 - [v1.5.0](releases/v1.5.0.md) — random AmneziaWG ports
 - [v1.4.0](releases/v1.4.0.md) — a dedicated AmneziaWG screen
 - [v1.3.4](releases/v1.3.4.md) — updating a host after components were updated from the panel

@@ -150,6 +150,7 @@ try:
     assert ev("!document.querySelector('#add').hidden") is True, "the add button is hidden on the AmneziaWG screen"
     ev("document.querySelector('#add').click()")
     wait("document.querySelector('#awg-modal')?.open", "awg-modal")
+    assert ev("document.querySelector('#awg-modal .icon-button.close').textContent.trim()") == "×", "the close cross is missing"
     ev("(() => { const i = document.querySelector('#new-awg-user'); i.value = 'screen-made'; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelector('[data-awg-version=\"3.1\"]').click(); })()")
     wait("!document.querySelector('#create-awg').disabled", "awg-create-enabled")
     ev("document.querySelector('#create-awg').click()")
