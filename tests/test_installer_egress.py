@@ -139,5 +139,30 @@ def test_router_requires_a_proxy_service_in_the_profile():
                 .replace('mieru = "mieru.example.com"\n', "")
                 .replace("\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46002]\n", "")
                 + "\n[egress]\nrouter = true\n" + '\n[three_xui]\nmode = "none"\n' + TAIL)
-    with pytest.raises(ConfigError, match="egress.router requires NaiveProxy or Mieru"):
+    with pytest.raises(ConfigError, match="egress.router requires NaiveProxy, Mieru or TrustTunnel"):
         parse_config(document)
+
+
+def _core_document(*, trusttunnel: bool, egress: str) -> str:
+    head = (HEAD.replace('profile = "full"', 'profile = "core"').replace('naive = "edge.example.com"\n', "")
+            .replace('mieru = "mieru.example.com"\n', "")
+            .replace("\n[mieru]\ntcp_ports = [46001]\nudp_ports = [46002]\n", ""))
+    if trusttunnel:
+        head = head.replace('mtproxy = "proxy.example.com"\n', 'mtproxy = "proxy.example.com"\ntrusttunnel = "gate.example.com"\n')
+        head += "\n[trusttunnel]\nenabled = true\n"
+    return head + egress + '\n[three_xui]\nmode = "none"\n' + TAIL
+
+
+def test_a_trusttunnel_only_node_may_install_the_router():
+    """v1.6: the router also feeds TrustTunnel (a no-auth loopback ingress), so MTProxy + TrustTunnel
+    can route; the naive/mieru seeds stay tied to their services."""
+    config = parse_config(_core_document(trusttunnel=True, egress="\n[egress]\nrouter = true\n"))
+    assert config.egress.router is True and config.egress.relay_port == 45443 and config.trusttunnel is not None
+    assert (config.egress.naive, config.egress.mieru) == (EgressChoice.DIRECT, EgressChoice.DIRECT)
+    assert "router = true" in render_config(config)
+    off = parse_config(_core_document(trusttunnel=True, egress="\n[egress]\nrouter = true\nrelay_port = 0\n"))
+    assert off.egress.relay_port == 0
+    with pytest.raises(ConfigError, match="egress.naive is not part of profile"):
+        parse_config(_core_document(trusttunnel=True, egress='\n[egress]\nrouter = true\nnaive = "router"\n'))
+    with pytest.raises(ConfigError, match="egress.router requires NaiveProxy, Mieru or TrustTunnel"):
+        parse_config(_core_document(trusttunnel=False, egress="\n[egress]\nrouter = true\n"))

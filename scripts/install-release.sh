@@ -146,7 +146,7 @@ WARP (необязательно): секция [egress] в install.toml или 
 
 Xray-router (необязательно): [egress] router = true — выделенный Xray для
   политик с geosite/geoip/портами и блокировками рядом с WARP; мастер предлагает его
-  каждому профилю с NaiveProxy или Mieru, архив приезжает сам (см. выше). Через него
+  каждому профилю с NaiveProxy или Mieru (и узлу с TrustTunnel), архив приезжает сам (см. выше). Через него
   же можно направить MTProxy (WARP, свой выход, другой узел): рядом встаёт мост
   xray-router-ingress в сети Compose, новых портов хоста нет.
 
@@ -256,7 +256,7 @@ WARP (optional): the [egress] section of install.toml or the wizard's questions 
 
 Xray-router (optional): [egress] router = true — a dedicated Xray for
   policies with geosite/geoip/ports and blocks beside WARP; the wizard offers it to
-  every profile with NaiveProxy or Mieru, the archive arrives by itself (see above).
+  every profile with NaiveProxy or Mieru (and a node with TrustTunnel), the archive arrives by itself (see above).
   MTProxy can be sent through it too (WARP, your own exit, another node):
   the xray-router-ingress bridge runs beside it on the Compose network, no new host ports.
 

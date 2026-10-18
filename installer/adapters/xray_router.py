@@ -319,8 +319,8 @@ class XrayRouterAdapter:
             return ()
         if getattr(facts, "hard_stops", ()):
             raise XrayRouterError("host audit contains blocking findings")
-        if not (config.profile.includes_naive or config.profile.includes_mieru):
-            raise PlanError("the Xray-router needs NaiveProxy or Mieru to feed")
+        if not (config.profile.includes_naive or config.profile.includes_mieru or config.trusttunnel is not None):
+            raise PlanError("the Xray-router needs NaiveProxy, Mieru or TrustTunnel to feed")
         self._assert_planned_identities(facts)
         self._assert_free_listeners(facts, config.effective_egress.relay_port)
         url, archive_sha256, members = self._pins()

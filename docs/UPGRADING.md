@@ -514,7 +514,7 @@ the services' own backends, and rules with `geosites`, `geoips` or ports only pr
 `rule_kind_unsupported` naming the router.
 
 **What the installer does with it.** The router is part of the installer configuration:
-`router = true` in `[egress]` (the profile needs NaiveProxy or Mieru), and `naive = "router"` /
+`router = true` in `[egress]` (the profile needs NaiveProxy or Mieru, or `[trusttunnel]` must be enabled), and `naive = "router"` /
 `mieru = "router"` only when a service should start attached. The pinned archive
 `/var/lib/proxy-control/Xray-linux-64.zip` is fetched by the installer when absent (URL and SHA-256
 in `release/external-artifacts.json`; an offline host stages the file in advance). The plan gains

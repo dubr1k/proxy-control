@@ -228,7 +228,8 @@ Cloudflare, а `naive`/`mieru` выбирают **начальный** egress к
 панели (`docs/ROUTING.ru.md`); repair и обновление её не переписывают.
 
 `router = true` ставит выделенный Xray egress-router (`docs/XRAY_ROUTER.ru.md`) и требует NaiveProxy
-или Mieru в профиле. Закреплённый архив `/var/lib/proxy-control/Xray-linux-64.zip` установщик скачивает
+или Mieru в профиле либо включённый `[trusttunnel]` (узел только с TrustTunnel использует лишь вход
+`trusttunnel` 127.0.0.1:45104; мастер спрашивает после ответов про TrustTunnel). Закреплённый архив `/var/lib/proxy-control/Xray-linux-64.zip` установщик скачивает
 сам по закреплённому HTTPS-URL, если его там нет (как пакет mita), и сверяет SHA-256 до любого использования
 (URL и SHA-256 — в `release/external-artifacts.json`; несовпавший файл выбрасывается, а при другом дайджесте
 положенного вручную файла план отказывает, называя оба). Мастер предлагает роутер каждому профилю с NaiveProxy

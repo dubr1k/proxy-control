@@ -40,6 +40,7 @@ systemctl reset-failed >/dev/null 2>&1 || true
 # 3. Files the runner and the installer wrote.
 rm -rf /var/lib/proxy-control /opt/mtproxy-shared443 /etc/letsencrypt /etc/proxy-control \
   /var/lib/naive-manager /var/log/naive-proxy /var/lib/mieru-manager /etc/mieru-manager /var/lib/mita \
+  /var/lib/trusttunnel-manager \
   /opt/proxy-control /run/proxy-control \
   /usr/local/x-ui /etc/x-ui /var/lib/lab-status /tmp/proxyctl-host /tmp/lab-credentials /tmp/lab-client-results
 # The fake certbot shadows the packaged one on PATH; a real install must never see it.

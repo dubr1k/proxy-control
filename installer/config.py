@@ -91,7 +91,9 @@ def parse_config(text: str) -> InstallerConfig:
     domains = _parse_domains(root["domains"], profile)
     mieru = _parse_mieru(root.get("mieru"), profile)
     three_xui = _parse_three_xui(root["three_xui"], explicit_egress="egress" in root)
-    egress = _parse_egress(root.get("egress"), three_xui, profile, three_xui_raw=_table(root["three_xui"], "three_xui"))
+    trusttunnel = _parse_trusttunnel(root.get("trusttunnel"), domains)
+    egress = _parse_egress(root.get("egress"), three_xui, profile, three_xui_raw=_table(root["three_xui"], "three_xui"),
+                           trusttunnel=trusttunnel is not None)
     if mieru is not None:
         # Lane slots (v0.7) need the router; absent, a router host gets the default set.
         router = egress is not None and egress.router
@@ -106,7 +108,6 @@ def parse_config(text: str) -> InstallerConfig:
     firewall = _parse_firewall(root["firewall"])
     ingress = _parse_ingress(root.get("ingress"))
     amneziawg = _parse_amneziawg(root.get("amneziawg"), domains)
-    trusttunnel = _parse_trusttunnel(root.get("trusttunnel"), domains)
 
     if host_mode is HostMode.COEXIST and firewall.manage_ufw:
         raise ConfigError("UFW can be managed only in fresh mode")
@@ -355,7 +356,8 @@ def _parse_three_xui(value: object, *, explicit_egress: bool = False) -> ThreeXu
     )
 
 
-def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *, three_xui_raw: Mapping[str, Any]) -> EgressConfig | None:
+def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *, three_xui_raw: Mapping[str, Any],
+                   trusttunnel: bool = False) -> EgressConfig | None:
     """`[egress]` when written, None otherwise (`InstallerConfig.effective_egress` then
     derives it from the pre-v0.4 `[three_xui].warp*` keys, so an old configuration plans
     unchanged). Both spellings present must agree."""
@@ -364,10 +366,10 @@ def _parse_egress(value: object, three_xui: ThreeXuiConfig, profile: Profile, *,
     raw = _table(value, "egress")
     _keys(raw, path="egress", required=set(), optional={"warp", "warp_port", "naive", "mieru", "router", "relay_port"})
     warp = _boolean(raw["warp"], "egress.warp") if "warp" in raw else False
-    # v0.5: the Xray egress-router is worth installing only with a service to feed it.
+    # v0.5: the Xray egress-router is worth installing only with a service to feed it (v1.6: TrustTunnel too).
     router = _boolean(raw["router"], "egress.router") if "router" in raw else False
-    if router and not (profile.includes_naive or profile.includes_mieru):
-        raise ConfigError("egress.router requires NaiveProxy or Mieru in the profile")
+    if router and not (profile.includes_naive or profile.includes_mieru or trusttunnel):
+        raise ConfigError("egress.router requires NaiveProxy, Mieru or TrustTunnel (in the profile or [trusttunnel])")
     # v0.7: the relay inbound comes with the router; a router host gets it on the default port.
     relay_port = _integer(raw.get("relay_port", DEFAULT_RELAY_PORT if router else 0), "egress.relay_port")
     if relay_port and not router:

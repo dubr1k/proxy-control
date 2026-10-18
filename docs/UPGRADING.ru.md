@@ -512,7 +512,7 @@ docker compose exec panel python -m panel.cli master-key-rotate --path /run/pane
 портами дают в предпросмотре `rule_kind_unsupported` с упоминанием роутера.
 
 **Что делает с ним установщик.** Роутер — часть конфигурации установщика: `router = true` в
-`[egress]` (в профиле нужен NaiveProxy или Mieru), а `naive = "router"` / `mieru = "router"` — только
+`[egress]` (нужен NaiveProxy или Mieru в профиле либо включённый `[trusttunnel]`), а `naive = "router"` / `mieru = "router"` — только
 если сервис должен стартовать подключённым. Закреплённый архив
 `/var/lib/proxy-control/Xray-linux-64.zip` установщик скачает сам, если его нет (URL и SHA-256 — в
 `release/external-artifacts.json`; хост без интернета кладёт файл заранее). В плане появляется одно

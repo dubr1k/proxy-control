@@ -281,7 +281,8 @@ configuration and the panel's «Routing» screen changes it (`docs/ROUTING.en.md
 repair or an upgrade never rewrites it.
 
 `router = true` installs the dedicated Xray egress-router (`docs/XRAY_ROUTER.en.md`)
-and needs NaiveProxy or Mieru in the profile. The pinned archive
+and needs NaiveProxy or Mieru in the profile, or an enabled `[trusttunnel]` (a TrustTunnel-only node then gets
+just the `trusttunnel` ingress 127.0.0.1:45104 in use; the wizard asks after the TrustTunnel answers). The pinned archive
 `/var/lib/proxy-control/Xray-linux-64.zip` is fetched by the installer from its pinned
 HTTPS URL when absent (as the mita package is) and its SHA-256 is proven before anything
 uses it (the URL and SHA-256 are in `release/external-artifacts.json`; a mismatching

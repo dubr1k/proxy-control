@@ -543,3 +543,16 @@ def test_no_document_presents_the_well_known_amneziawg_ports_as_a_default(langua
     assert "· 51820 ·" not in guide and "--ports" in guide and "10240" in guide
     example = (ROOT / "examples/installer/core-amneziawg.toml").read_text(encoding="utf-8")
     assert "\nports = " not in example and '# ports = { "1.5"' in example
+
+
+def test_the_router_requirement_names_trusttunnel_in_both_languages():
+    """v1.6: a TrustTunnel-only node may install the Xray-router, so no document still says that
+    NaiveProxy or Mieru alone feed it."""
+    root = Path(__file__).resolve().parent.parent
+    for name, phrase in (("docs/INSTALLER_REFERENCE.en.md", "or an enabled `[trusttunnel]`"),
+                         ("docs/INSTALLER_REFERENCE.ru.md", "либо включённый `[trusttunnel]`"),
+                         ("docs/UPGRADING.md", "or `[trusttunnel]` must be enabled"),
+                         ("docs/UPGRADING.ru.md", "либо включённый `[trusttunnel]`")):
+        assert phrase in (root / name).read_text(encoding="utf-8"), name
+    script = (root / "scripts" / "install-release.sh").read_text(encoding="utf-8")
+    assert "NaiveProxy or Mieru (and a node with TrustTunnel)" in script and "NaiveProxy или Mieru (и узлу с TrustTunnel)" in script

@@ -491,6 +491,7 @@ class TerminalWizard:
         self._egress_choices(values)
         self._amneziawg_choices(values)
         self._trusttunnel_choices(values)
+        self._trusttunnel_router_choice(values)
         values["acme_email"] = self.io.validated(
             text(self.locale, "acme_email"), _email
         )
@@ -603,6 +604,20 @@ class TerminalWizard:
             _domain,
             default=_optional(values.get("tt_domain")),
         )
+
+    def _trusttunnel_router_choice(self, values: dict[str, object]) -> None:
+        """A profile without NaiveProxy and Mieru has nothing to feed the Xray-router — unless
+        TrustTunnel is on (v1.6): its endpoint then forwards through the router's no-auth loopback
+        ingress, so the question is asked here, after the TrustTunnel answers."""
+        assert self.locale is not None
+        profile = values["profile"]
+        assert isinstance(profile, Profile)
+        if profile.includes_naive or profile.includes_mieru:
+            return
+        if values.get("tt"):
+            values["router"] = self.io.yes_no(text(self.locale, "router", version=pinned_version("xray")), default=False)
+        else:
+            values.pop("router", None)
 
     def _awg_ports(self, values: dict[str, object]) -> str:
         """The UDP ports, in version order. The default is a free pseudo-random pick (the same
@@ -898,10 +913,12 @@ class TerminalWizard:
                 else ()
             )
             self._egress_choices(values)
+            self._trusttunnel_router_choice(values)
         elif field is EditField.AMNEZIAWG:
             self._amneziawg_choices(values)
         elif field is EditField.TRUSTTUNNEL:
             self._trusttunnel_choices(values)
+            self._trusttunnel_router_choice(values)
         else:
             values["manage_ufw"] = self.io.yes_no(
                 text(self.locale, "manage_ufw"), default=bool(values["manage_ufw"])

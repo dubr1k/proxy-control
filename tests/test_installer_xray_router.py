@@ -637,3 +637,41 @@ def test_verify_accepts_the_member_the_version_agent_installed(tmp_path):
                                      "members": {"xray": _sha(updated.read_bytes())}}})
     with pytest.raises(ArtifactError, match="does not match its pin: xray"):
         instance.verify(action)
+
+
+# -- a node with TrustTunnel and nothing else to feed the router (v1.6) ---------------
+
+
+def _trusttunnel_only(tmp_path: Path):
+    from installer.model import TrustTunnelConfig
+
+    base = config(profile=Profile.CORE, router=True)
+    return replace_config(base, domains=DomainConfig(panel="panel.example.com", mtproxy="proxy.example.com",
+                                                     trusttunnel="gate.example.com"),
+                          trusttunnel=TrustTunnelConfig(hostname="gate.example.com", listen_port=4453))
+
+
+def replace_config(base, **changes):
+    import dataclasses
+
+    return dataclasses.replace(base, **changes)
+
+
+def test_the_router_plans_on_a_trusttunnel_only_node_and_refuses_one_with_nothing_to_feed(tmp_path):
+    (action,) = adapter(tmp_path).plan(_trusttunnel_only(tmp_path), AuditFacts())
+    values = dict(item.split("=", 1) for item in action.mutations)
+    assert values["port-trusttunnel"] == "45104" and values["port-naive"] == "45101"
+    with pytest.raises(PlanError, match="needs NaiveProxy, Mieru or TrustTunnel"):
+        adapter(tmp_path).plan(config(profile=Profile.CORE, router=True), AuditFacts())
+
+
+def test_a_trusttunnel_only_router_still_verifies_and_writes_every_ingress_credential(tmp_path):
+    runner = FakeRunner()
+    stage_archive(tmp_path)
+    instance = adapter(tmp_path, runner)
+    (action,) = instance.plan(_trusttunnel_only(tmp_path), AuditFacts())
+    instance.apply(action, instance.prepare(action))
+    for service in ("naive", "mieru"):  # the manager reads both secrets whatever the profile
+        assert host(tmp_path, PATHS.ingress(service)).is_file()
+    evidence = instance.verify(action)
+    assert evidence.success and evidence.details["trusttunnel_port"] == 45104

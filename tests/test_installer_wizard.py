@@ -723,6 +723,25 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
     assert "Xray-router" not in transcript.getvalue()
 
 
+def test_wizard_offers_the_router_on_a_trusttunnel_only_node(tmp_path: Path):
+    """v1.6: with TrustTunnel enabled the router can feed it even when the profile has neither
+    NaiveProxy nor Mieru; the question follows the TrustTunnel answers."""
+    output = tmp_path / "tt-router.toml"
+    answers = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
+               "",  # AmneziaWG
+               "yes", "gate.example.com",  # TrustTunnel and its name
+               "yes",  # Xray-router
+               "admin@example.com", "owner", "", "yes", "save"]
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=output)
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    config = load_config(output)
+    assert config.trusttunnel is not None and config.egress.router is True
+    assert "Xray-router" in transcript.getvalue()
+
+
 def _scripted(
     answers: list[str], output: Path, locale: Locale = Locale.EN, root: Path | None = None
 ) -> tuple[str, str]:
@@ -1001,7 +1020,9 @@ def test_installer_catalog_has_the_same_keys_and_placeholders_in_both_languages(
 
 def _tt_answers(*tt: str, last: str = "save") -> list[str]:
     """A core wizard run: AmneziaWG declined, then the TrustTunnel answers."""
-    return ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", *tt,
+    # v1.6: with TrustTunnel on, a core profile is also asked about the Xray-router (declined here).
+    router = ["no"] if tt and tt[0] in ("yes", "да") else []
+    return ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", *tt, *router,
             "admin@example.com", "owner", "", "yes", last]
 
 
@@ -1043,8 +1064,8 @@ def test_a_bad_trusttunnel_domain_is_asked_again_with_localized_feedback(tmp_pat
 def test_the_review_can_add_trusttunnel_and_a_duplicate_name_sends_the_operator_back(tmp_path: Path):
     output = tmp_path / "tt-edit.toml"
     answers = _tt_answers("no")[:-1]  # up to «yes» (manage_ufw)
-    answers += ["edit", "trusttunnel", "yes", "panel.example.com",  # collides with the panel name
-                "domains.trusttunnel" if False else "trusttunnel", "yes", "gate.example.org",
+    answers += ["edit", "trusttunnel", "yes", "panel.example.com", "no",  # collides with the panel name; router declined
+                "trusttunnel", "yes", "gate.example.org", "no",
                 "save"]
     transcript, _ = _scripted(answers, output)
     assert "domains.trusttunnel duplicates domains.panel" in transcript
