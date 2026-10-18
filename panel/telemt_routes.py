@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Request
 
 from .fleet_v2.guard import require_unmanaged
 from .amneziawg import AmneziawgError
+from .trusttunnel import TrusttunnelError
 from .mieru import MieruError
 from .naive import NaiveError
 from .naive_routes import safe_naive_traffic
@@ -419,6 +420,28 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
                 }
         else:
             protocols["amneziawg"] = {"available": False, "status": "disabled"}
+        if settings.trusttunnel_enabled:
+            try:
+                tt_health, tt_clients = await asyncio.gather(
+                    app.state.trusttunnel.health(), app.state.trusttunnel.clients()
+                )
+            except TrusttunnelError:
+                protocols["trusttunnel"] = {"available": True, "status": "degraded", "ready": False,
+                                            "credentials": {"available": False}, "traffic": {"available": False}}
+            else:
+                rows = [item for item in tt_clients if isinstance(item, dict)]
+                active = sum(item.get("enabled") is True for item in rows)
+                ready = tt_health.get("status") == "ok"
+                protocols["trusttunnel"] = {
+                    "available": True, "status": "ready" if ready else "degraded", "ready": ready,
+                    "credentials": {"active": active, "disabled": len(rows) - active, "total": len(rows)},
+                    # rx/tx are the client's point of view: it downloads what the endpoint sends
+                    "traffic": {"available": True,
+                                "upload_bytes": sum(int(item.get("tx") or 0) for item in rows),
+                                "download_bytes": sum(int(item.get("rx") or 0) for item in rows)},
+                }
+        else:
+            protocols["trusttunnel"] = {"available": False, "status": "disabled"}
         host = await host_resources()
         return {
             "health": health,

@@ -13,7 +13,7 @@ from collections import Counter
 
 from .models import Manifest
 
-PROTOCOL_TITLES = {"mtproxy": "MTProxy", "naive": "Naive", "mieru": "Mieru", "amneziawg": "AmneziaWG"}
+PROTOCOL_TITLES = {"mtproxy": "MTProxy", "naive": "Naive", "mieru": "Mieru", "amneziawg": "AmneziaWG", "trusttunnel": "TrustTunnel"}
 
 
 def display_text(value: str) -> str:

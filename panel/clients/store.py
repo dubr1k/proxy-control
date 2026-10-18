@@ -124,7 +124,7 @@ class ClientStore:
             conditions.append(f"""(instr(client_lower(c.display_name || char(10) || c.id), ?) > 0
                 OR EXISTS (SELECT 1 FROM access_grants g LEFT JOIN fleet_nodes n ON n.node_id=g.node_id
                 WHERE {live} AND instr(client_lower(g.runtime_username || char(10) ||
-                    CASE g.protocol WHEN 'naive' THEN 'NaiveProxy' WHEN 'mtproxy' THEN 'MTProxy' WHEN 'amneziawg' THEN 'AmneziaWG' ELSE 'Mieru' END
+                    CASE g.protocol WHEN 'naive' THEN 'NaiveProxy' WHEN 'mtproxy' THEN 'MTProxy' WHEN 'amneziawg' THEN 'AmneziaWG' WHEN 'trusttunnel' THEN 'TrustTunnel' ELSE 'Mieru' END
                     || char(10) || CASE WHEN g.node_id='local' THEN 'Этот сервер'
                         ELSE COALESCE(NULLIF(n.display_name,''), g.node_id) END), ?) > 0))""")
             parameters.extend((word, word))

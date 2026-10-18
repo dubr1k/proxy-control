@@ -210,6 +210,7 @@ def test_generated_model_and_canonical_form_have_no_secret_fields():
         "egress",
         "ingress",
         "amneziawg",
+        "trusttunnel",
     }
 
 

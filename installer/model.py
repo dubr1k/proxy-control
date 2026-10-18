@@ -43,6 +43,9 @@ class DomainConfig:
     # The MCP server (v0.11 §9a) rides on its own name too, and only on the central
     # panel: nodes leave it empty and the MCP container never starts there.
     mcp: str | None = None
+    # TrustTunnel (the optional `[trusttunnel]` add-on) rides TCP/443 through the SNI router
+    # on a name of its own; it is set exactly when the section is enabled.
+    trusttunnel: str | None = None
 
 
 # Lane slots (v0.7): extra mita daemons for clients' own lanes, one TCP port each from
@@ -170,6 +173,25 @@ class AmneziaWgConfig:
         return tuple(awg_interface(version) for version in self.versions)
 
 
+# TrustTunnel (the optional `[trusttunnel]` add-on): AdGuard's HTTP/2-over-TLS VPN endpoint,
+# TCP only. The pinned `trusttunnel_endpoint` listens on the host loopback; the Nginx SNI
+# router sends `domains.trusttunnel` to it, so no port is opened and nothing is UDP. The
+# manager polls the endpoint's metrics on the second loopback port.
+TT_DEFAULT_LISTEN_PORT = 4453
+TT_METRICS_PORT = 1987
+
+
+@dataclass(frozen=True)
+class TrustTunnelConfig:
+    """The optional TrustTunnel add-on (`[trusttunnel]`), any profile.
+
+    `hostname` is `domains.trusttunnel`: the name clients dial and the endpoint's certificate
+    names. It needs an A record to this server (DNS only, no CDN proxy)."""
+
+    hostname: str
+    listen_port: int = TT_DEFAULT_LISTEN_PORT
+
+
 @dataclass(frozen=True)
 class FirewallConfig:
     manage_ufw: bool
@@ -206,6 +228,8 @@ class InstallerConfig:
     ingress: IngressConfig | None = None
     # The optional AmneziaWG add-on; None means it is not installed.
     amneziawg: AmneziaWgConfig | None = None
+    # The optional TrustTunnel add-on; None means it is not installed.
+    trusttunnel: TrustTunnelConfig | None = None
 
     @property
     def effective_egress(self) -> EgressConfig:
@@ -224,6 +248,7 @@ class InstallerConfig:
             self.domains.mieru,
             self.domains.subscription,
             self.domains.mcp,
+            self.domains.trusttunnel,
             self.three_xui.panel_domain,
             self.three_xui.vless_tcp_domain,
             self.three_xui.vless_xhttp_domain,

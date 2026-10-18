@@ -48,6 +48,23 @@
       }
     },
     {
+      "name": "trusttunnel",
+      "version": "1.1.0",
+      "tag": "v1.1.0",
+      "repository": "TrustTunnel/TrustTunnel",
+      "spdx_license": "Apache-2.0",
+      "platforms": {
+        "amd64": {
+          "architecture": "amd64",
+          "filename_architecture": "x86_64",
+          "url": "https://github.com/TrustTunnel/TrustTunnel/releases/download/v1.1.0/trusttunnel-v1.1.0-linux-x86_64.tar.gz",
+          "sha256": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+          "executable_path": "trusttunnel-v1.1.0-linux-x86_64/trusttunnel_endpoint",
+          "executable_sha256": "9bb15f4e30e2ff196cf0aa387462c42387d9405ddfeb5caad133838560fa33cd"
+        }
+      }
+    },
+    {
       "name": "xray",
       "version": "26.10.17",
       "tag": "v26.10.17",

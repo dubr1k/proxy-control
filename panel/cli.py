@@ -137,11 +137,12 @@ def main():
 
         from .clients.provisioning import ProvisioningService
         from .clients.service import ClientService
-        from .protocols import AmneziawgAdapter, MieruAdapter, NaiveAdapter, TelemtAdapter
+        from .protocols import AmneziawgAdapter, MieruAdapter, NaiveAdapter, TelemtAdapter, TrusttunnelAdapter
         from .telemt import TelemtClient
         from .naive import NaiveClient
         from .mieru import MieruClient
         from .amneziawg import AmneziawgClient
+        from .trusttunnel import TrusttunnelClient
 
         settings = Settings()
         database_boundary = Database(database)
@@ -157,6 +158,10 @@ def main():
             "amneziawg": AmneziawgAdapter(
                 AmneziawgClient(settings.amneziawg_socket, settings.amneziawg_token),
                 public_host=settings.amneziawg_public_host or settings.naive_public_host,
+            ),
+            "trusttunnel": TrusttunnelAdapter(
+                TrusttunnelClient(settings.trusttunnel_socket, settings.trusttunnel_token),
+                public_host=settings.trusttunnel_public_host or settings.naive_public_host,
             ),
         }
         clients = ClientService(database_boundary, secrets)

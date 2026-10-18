@@ -48,7 +48,7 @@ _MCP_GID = 10007
 _SECRET_MODE = 0o440
 # The protocol overlays extend the same project; their env files ride along whenever
 # they exist on the host, in the installer's order (version_agent/service.py agrees).
-_ENV_SIBLINGS = ("naive", "mieru", "xray-router", "amneziawg", "mcp")
+_ENV_SIBLINGS = ("naive", "mieru", "xray-router", "amneziawg", "trusttunnel", "mcp")
 _HEX_32 = re.compile(r"[0-9a-f]{32}\Z")
 _DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z")
 _COMPOSE_FILE = re.compile(r"\Acompose(\.[a-z-]+)?\.yaml\Z")

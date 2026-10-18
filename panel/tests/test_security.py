@@ -39,7 +39,7 @@ async def test_login_uses_opaque_server_side_session_and_security_headers(client
     assert identity.json() == {
         "username": "owner", "role": "owner", "via": "session",
         "panel_version": (ROOT / "VERSION").read_text().strip() or "dev",
-        "features": {"naive": True, "mieru": True, "amneziawg": False},
+        "features": {"naive": True, "mieru": True, "amneziawg": False, "trusttunnel": False},
     }
     dashboard = await client.get("/api/dashboard")
     assert dashboard.status_code == 200

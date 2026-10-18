@@ -125,6 +125,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
             "no",  # WARP: asked for Naive and Mieru profiles
             "no",  # Xray-router: offered whenever a proxy service could feed it (v0.5)
             "",  # AmneziaWG: blank keeps it off
+            "",  # TrustTunnel: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -149,6 +150,7 @@ def test_russian_full_wizard_exports_same_config_as_toml(tmp_path: Path):
         "mieru": "mieru.example.com",
         "subscription": None,
         "mcp": None,
+        "trusttunnel": None,
     }
 
 
@@ -176,6 +178,7 @@ def test_russian_invalid_prompt_feedback_is_localized_in_pty(tmp_path: Path):
             "no",  # WARP: asked for the Mieru profile
             "no",  # Xray-router
             "",  # AmneziaWG: blank keeps it off
+            "",  # TrustTunnel: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -244,6 +247,7 @@ def test_russian_saved_toml_parses_to_the_wizard_result(tmp_path: Path):
         "no",  # WARP: asked for Naive and Mieru profiles
         "no",  # Xray-router
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password: blank keeps it generated
@@ -274,6 +278,7 @@ def test_english_locale_can_be_selected_explicitly(tmp_path: Path):
             "",  # subscription domain: blank keeps subscriptions off
             "",  # MCP domain: blank keeps MCP off
             "",  # AmneziaWG: blank keeps it off
+            "",  # TrustTunnel: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -304,6 +309,7 @@ def test_wizard_writes_the_subscription_domain_when_one_is_given(tmp_path: Path)
             "sub.example.com",
             "",  # MCP domain: blank keeps MCP off
             "",  # AmneziaWG: blank keeps it off
+            "",  # TrustTunnel: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -336,6 +342,7 @@ def test_wizard_writes_the_mcp_domain_when_one_is_given(tmp_path: Path):
             "",  # subscription domain
             "mcp.example.com",
             "",  # AmneziaWG: blank keeps it off
+            "",  # TrustTunnel: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -375,6 +382,7 @@ def test_wizard_writes_an_explicit_egress_section_per_service(tmp_path: Path):
         "no",  # NaiveProxy through WARP? — direct
         "yes",  # Mieru through WARP
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password
@@ -410,6 +418,7 @@ def test_review_edit_and_back_change_typed_fields_before_save(tmp_path: Path):
             "",  # subscription domain: blank keeps subscriptions off
             "",  # MCP domain: blank keeps MCP off
             "",  # AmneziaWG: blank keeps it off
+            "",  # TrustTunnel: blank keeps it off
             "admin@example.com",
             "owner",
             "",  # panel password: blank keeps it generated
@@ -453,6 +462,7 @@ def test_existing_xui_edit_can_clear_domain_and_back_preserves_absent_domain(
         "vless.example.com",
         "",
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password: blank keeps it generated
@@ -560,6 +570,7 @@ def test_a_typed_panel_password_is_saved_privately_and_never_in_the_config(tmp_p
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "correct-horse-battery",
@@ -594,6 +605,7 @@ def test_blank_passwords_leave_no_credentials_file_behind(tmp_path: Path):
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "",
@@ -623,6 +635,7 @@ def test_mismatched_passwords_are_rejected_and_asked_again(tmp_path: Path):
         "",  # subscription domain: blank keeps subscriptions off
         "",  # MCP domain: blank keeps MCP off
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "first-attempt-password",
@@ -668,6 +681,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
         "no",  # Mieru through the router
         "yes",  # Mieru through WARP (the only service still asked)
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "",  # panel password
@@ -699,7 +713,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
 
     # A core-only profile has nothing to feed a router: the question is not asked.
     core = tmp_path / "core.toml"
-    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "admin@example.com",
+    answers_core = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "", "", "admin@example.com",
                     "owner", "", "yes", "save"]
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers_core) + "\n"), transcript)
@@ -740,6 +754,7 @@ def test_enter_takes_the_explained_defaults_and_the_example_mieru_ports(tmp_path
         "no",  # WARP
         "no",  # router
         "",  # AmneziaWG: blank keeps it off
+        "",  # TrustTunnel: blank keeps it off
         "admin@example.com",
         "owner",
         "",
@@ -793,7 +808,7 @@ def test_warp_domains_take_geosite_lists_and_refuse_a_blank_answer(tmp_path: Pat
         "yes",  # WARP for 3x-ui
         "",  # blank: refused, asked again
         "geosite:openai, domain:Claude.AI, chatgpt.com",
-        "", "admin@example.com", "owner", "",
+        "", "", "admin@example.com", "owner", "",
         "xuiadmin", "",  # 3x-ui username, generated password
         "yes", "save",
     ]
@@ -816,7 +831,7 @@ def test_an_invalid_configuration_says_why(tmp_path: Path):
         "8443",  # the panel's private TLS listener: refused with the reason
         "8443",
         "no", "no",
-        "", "admin@example.com", "owner", "", "yes",
+        "", "", "admin@example.com", "owner", "", "yes",
         "mieru.tcp_ports", "46001",  # the field to fix and its new value
         "save",
     ]
@@ -827,7 +842,7 @@ def test_an_invalid_configuration_says_why(tmp_path: Path):
 
 
 def _core_answers(*awg: str) -> list[str]:
-    return ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", *awg,
+    return ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", *awg, "",  # TrustTunnel: blank keeps it off
             "admin@example.com", "owner", "", "yes", "save"]
 
 
@@ -880,6 +895,7 @@ def test_the_review_can_edit_amneziawg(tmp_path: Path):
     output = tmp_path / "awg-edit.toml"
     answers = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
                "no",  # AmneziaWG off at first
+               "",  # TrustTunnel: blank keeps it off
                "admin@example.com", "owner", "", "yes",
                "edit", "amneziawg", "yes", "2.0", "vpn.example.com", "",
                "save"]
@@ -895,6 +911,7 @@ def test_an_amneziawg_port_that_collides_is_reported_by_the_review_loop(tmp_path
     answers = ["", "fresh", "core-mieru", "none", "panel.example.com", "relay.example.com", "", "",
                "mieru.example.com", "51820", "46001", "no", "no",
                "yes", "", "", "51820,23457,23458",  # AmneziaWG: all versions, the panel name, the ports
+               "",  # TrustTunnel: blank keeps it off
                "admin@example.com", "owner", "", "yes",
                "mieru.tcp_ports", "46001",
                "save"]
@@ -952,6 +969,7 @@ def test_bad_amneziawg_port_input_asks_again_in_both_languages(tmp_path: Path):
 def test_editing_amneziawg_in_the_review_keeps_the_earlier_ports_as_the_default(tmp_path: Path):
     answers = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
                "yes", "", "", "23456,24567,25678",
+               "",  # TrustTunnel: blank keeps it off
                "admin@example.com", "owner", "", "yes",
                "edit", "amneziawg", "yes", "", "", "",  # versions, host, ports: Enter keeps all
                "save"]
@@ -973,5 +991,85 @@ def test_installer_catalog_has_the_same_keys_and_placeholders_in_both_languages(
         return {name for _, name, _, _ in string.Formatter().parse(message) if name}
 
     assert {key for key in english if fields(english[key]) != fields(russian[key])} == set()
-    for key in ("amneziawg", "amneziawg_versions", "amneziawg_host", "invalid_awg_versions", "invalid_awg_host"):
+    for key in ("amneziawg", "amneziawg_versions", "amneziawg_host", "invalid_awg_versions", "invalid_awg_host",
+                "trusttunnel", "trusttunnel_domain"):
         assert key in english and key in russian
+
+
+# -- TrustTunnel ------------------------------------------------------------------------
+
+
+def _tt_answers(*tt: str, last: str = "save") -> list[str]:
+    """A core wizard run: AmneziaWG declined, then the TrustTunnel answers."""
+    return ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", *tt,
+            "admin@example.com", "owner", "", "yes", last]
+
+
+def test_the_wizard_offers_trusttunnel_with_its_own_domain_and_the_honest_hint(tmp_path: Path):
+    output = tmp_path / "tt.toml"
+    transcript, written = _scripted(_tt_answers("yes", "Gate.Example.org."), output)
+    config = load_config(output)
+    assert config.trusttunnel is not None and config.trusttunnel.hostname == "gate.example.org"
+    assert config.trusttunnel.listen_port == 4453 and config.domains.trusttunnel == "gate.example.org"
+    assert "[trusttunnel]" in written and 'trusttunnel = "gate.example.org"' in written
+    assert "Install TrustTunnel" in transcript and "A record to this server" in transcript
+    assert "DNS only" in transcript and "CDN" in transcript and "TCP/443" in transcript and "no UDP rule" in transcript
+    assert "trusttunnel.hostname | gate.example.org" in transcript.split("Configuration review", 1)[1]
+
+
+def test_the_trusttunnel_hint_is_honest_in_russian_too(tmp_path: Path):
+    output = tmp_path / "tt-ru.toml"
+    transcript, _ = _scripted(_tt_answers("да", "gate.example.org"), output, Locale.RU)
+    assert "A-запись на этот сервер" in transcript and "только DNS" in transcript and "CDN" in transcript
+    assert "TCP/443" in transcript and "правило UDP не добавляются" in transcript
+    assert load_config(output).trusttunnel.hostname == "gate.example.org"
+
+
+def test_declining_trusttunnel_writes_no_section_and_no_domain(tmp_path: Path):
+    output = tmp_path / "no-tt.toml"
+    transcript, written = _scripted(_tt_answers("no"), output)
+    config = load_config(output)
+    assert config.trusttunnel is None and config.domains.trusttunnel is None
+    assert "[trusttunnel]" not in written and "trusttunnel." not in transcript.split("Configuration review", 1)[1]
+
+
+def test_a_bad_trusttunnel_domain_is_asked_again_with_localized_feedback(tmp_path: Path):
+    transcript, _ = _scripted(_tt_answers("yes", "not a domain", "gate.example.org"), tmp_path / "bad.toml")
+    assert transcript.count("Enter a fully-qualified domain name.") == 1
+    ru, _ = _scripted(_tt_answers("да", "x_y", "gate.example.org"), tmp_path / "bad-ru.toml", Locale.RU)
+    assert ru.count("Введите полное доменное имя.") == 1
+
+
+def test_the_review_can_add_trusttunnel_and_a_duplicate_name_sends_the_operator_back(tmp_path: Path):
+    output = tmp_path / "tt-edit.toml"
+    answers = _tt_answers("no")[:-1]  # up to «yes» (manage_ufw)
+    answers += ["edit", "trusttunnel", "yes", "panel.example.com",  # collides with the panel name
+                "domains.trusttunnel" if False else "trusttunnel", "yes", "gate.example.org",
+                "save"]
+    transcript, _ = _scripted(answers, output)
+    assert "domains.trusttunnel duplicates domains.panel" in transcript
+    assert load_config(output).trusttunnel.hostname == "gate.example.org"
+
+
+def test_typed_trusttunnel_values_reach_the_adapters_on_apply_and_on_install_config(tmp_path: Path):
+    """The «apply» path hands the config to the planner directly; `install --config` re-reads the
+    saved TOML. Both must select the adapter and plan the typed name."""
+    from installer.adapters.trusttunnel import TrustTunnelAdapter
+    from installer.planner import adapters_for
+
+    # apply
+    transcript = io.StringIO()
+    answers = _tt_answers("yes", "gate.example.org", last="apply")
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    config = TerminalWizard(terminal, locale=Locale.EN, config_output=tmp_path / "unused.toml").run(AuditFacts())
+    assert config.trusttunnel is not None and config.trusttunnel.hostname == "gate.example.org"
+    assert "trusttunnel" in [adapter.name for adapter in adapters_for(config)]
+    (tmp_path / "dev").mkdir()
+    (action,) = TrustTunnelAdapter(root=tmp_path, runner=object()).plan(config, AuditFacts())
+    assert "hostname=gate.example.org" in action.mutations and "listen=127.0.0.1:4453" in action.mutations
+    # install --config
+    saved = tmp_path / "saved.toml"
+    _scripted(_tt_answers("yes", "gate.example.org"), saved)
+    reread = load_config(saved)
+    assert reread.trusttunnel == config.trusttunnel and reread.domains.trusttunnel == config.domains.trusttunnel
+    assert "trusttunnel" in [adapter.name for adapter in adapters_for(reread)]

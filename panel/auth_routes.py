@@ -142,6 +142,7 @@ def register_auth_admin_audit_routes(
                 "naive": settings.naive_enabled,
                 "mieru": settings.mieru_enabled,
                 "amneziawg": settings.amneziawg_enabled,
+                "trusttunnel": settings.trusttunnel_enabled,
             },
         }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import tomllib
@@ -16,6 +17,8 @@ from installer.model import (
     DEFAULT_RELAY_PORT,
     MAX_LANE_SLOTS,
     ROUTER_PORTS,
+    TT_DEFAULT_LISTEN_PORT,
+    TT_METRICS_PORT,
     AmneziaWgConfig,
     DomainConfig,
     EgressChoice,
@@ -28,6 +31,7 @@ from installer.model import (
     Profile,
     ThreeXuiConfig,
     ThreeXuiMode,
+    TrustTunnelConfig,
     lane_slot_port,
 )
 
@@ -68,7 +72,7 @@ def parse_config(text: str) -> InstallerConfig:
             "three_xui",
             "firewall",
         },
-        optional={"mieru", "egress", "ingress", "amneziawg"},
+        optional={"mieru", "egress", "ingress", "amneziawg", "trusttunnel"},
     )
 
     schema = _integer(root["schema"], "schema")
@@ -101,6 +105,7 @@ def parse_config(text: str) -> InstallerConfig:
     firewall = _parse_firewall(root["firewall"])
     ingress = _parse_ingress(root.get("ingress"))
     amneziawg = _parse_amneziawg(root.get("amneziawg"), domains)
+    trusttunnel = _parse_trusttunnel(root.get("trusttunnel"), domains)
 
     if host_mode is HostMode.COEXIST and firewall.manage_ufw:
         raise ConfigError("UFW can be managed only in fresh mode")
@@ -120,8 +125,10 @@ def parse_config(text: str) -> InstallerConfig:
         egress=egress,
         ingress=ingress,
         amneziawg=amneziawg,
+        trusttunnel=trusttunnel,
     )
     _reject_duplicate_tcp_sni_domains(config)
+    _reject_trusttunnel_collisions(config)
     _reject_mieru_port_collisions(config)
     _reject_amneziawg_port_collisions(config)
     return config
@@ -147,6 +154,8 @@ def render_config(config: InstallerConfig) -> str:
         lines.append(f"subscription = {_toml_string(config.domains.subscription)}")
     if config.domains.mcp is not None:
         lines.append(f"mcp = {_toml_string(config.domains.mcp)}")
+    if config.domains.trusttunnel is not None:
+        lines.append(f"trusttunnel = {_toml_string(config.domains.trusttunnel)}")
 
     if config.mieru is not None:
         lines.extend(
@@ -195,6 +204,14 @@ def render_config(config: InstallerConfig) -> str:
             f"dns = {_toml_array(awg.dns)}",
         ])
 
+    if config.trusttunnel is not None:
+        lines.extend([
+            "",
+            "[trusttunnel]",
+            "enabled = true",
+            f"listen_port = {config.trusttunnel.listen_port}",
+        ])
+
     lines.extend(["", "[three_xui]", f"mode = {_toml_string(config.three_xui.mode.value)}"])
     for name in (
         "panel_domain",
@@ -234,7 +251,7 @@ def _parse_domains(value: object, profile: Profile) -> DomainConfig:
     if profile.includes_mieru and "mieru" not in raw:
         raise ConfigError(f"domains.mieru is required for profile {profile.value}")
     required = {"panel", "mtproxy"}
-    optional: set[str] = {"subscription", "mcp"}
+    optional: set[str] = {"subscription", "mcp", "trusttunnel"}
     if profile.includes_naive:
         required.add("naive")
     if profile.includes_mieru:
@@ -249,6 +266,7 @@ def _parse_domains(value: object, profile: Profile) -> DomainConfig:
             _domain(raw["subscription"], "domains.subscription") if "subscription" in raw else None
         ),
         mcp=_domain(raw["mcp"], "domains.mcp") if "mcp" in raw else None,
+        trusttunnel=_domain(raw["trusttunnel"], "domains.trusttunnel") if "trusttunnel" in raw else None,
     )
 
 
@@ -494,6 +512,27 @@ def _parse_amneziawg(value: object, domains: DomainConfig) -> AmneziaWgConfig | 
     return AmneziaWgConfig(host=host, versions=selected, ports=tuple(ports), mtu=mtu, dns=tuple(dns))
 
 
+def _parse_trusttunnel(value: object, domains: DomainConfig) -> TrustTunnelConfig | None:
+    """`[trusttunnel]` when enabled, None otherwise. Its name is `domains.trusttunnel`, which
+    must be present exactly when the add-on is enabled: a name without the section (or the
+    section without a name) would be silently ignored otherwise."""
+    raw = _table(value, "trusttunnel") if value is not None else {}
+    _keys(raw, path="trusttunnel", required=set(), optional={"enabled", "listen_port"})
+    enabled = _boolean(raw.get("enabled", False), "trusttunnel.enabled")
+    if not enabled:
+        if set(raw) - {"enabled"}:
+            raise ConfigError("trusttunnel settings are given while trusttunnel.enabled is false")
+        if domains.trusttunnel is not None:
+            raise ConfigError("domains.trusttunnel is set but [trusttunnel] is not enabled")
+        return None
+    if domains.trusttunnel is None:
+        raise ConfigError("domains.trusttunnel is required when trusttunnel.enabled is true")
+    listen_port = _integer(raw.get("listen_port", TT_DEFAULT_LISTEN_PORT), "trusttunnel.listen_port")
+    if not 1024 <= listen_port <= 65535:
+        raise ConfigError("trusttunnel.listen_port must be between 1024 and 65535")
+    return TrustTunnelConfig(hostname=domains.trusttunnel, listen_port=listen_port)
+
+
 def _awg_host(value: object, path: str) -> str:
     """A DNS name or an IPv4 address: what a client puts in its `Endpoint`."""
     text = _string(value, path).strip().lower().rstrip(".")
@@ -557,6 +596,11 @@ def reserved_tcp_ports(config: InstallerConfig) -> dict[int, str]:
     }
     if config.domains.mcp is not None:
         reserved[_MCP_PORT] = "the MCP server"
+    if config.trusttunnel is not None:
+        # setdefault: a clash with another binding is reported by `_reject_trusttunnel_collisions`
+        # against the table WITHOUT these two entries, and the rest keep their own owner.
+        reserved.setdefault(config.trusttunnel.listen_port, _TT_LISTEN_OWNER)
+        reserved.setdefault(TT_METRICS_PORT, _TT_METRICS_OWNER)
     if config.profile.includes_naive:
         reserved[_NAIVE_PRIVATE_PORT] = "NaiveProxy's private listener"
     egress = config.effective_egress
@@ -573,6 +617,42 @@ def reserved_tcp_ports(config: InstallerConfig) -> dict[int, str]:
     if config.three_xui.mode is ThreeXuiMode.MANAGED_NEW:
         reserved.update(_MANAGED_XUI_PORTS)
     return reserved
+
+
+_TT_LISTEN_OWNER = "TrustTunnel's loopback listener (trusttunnel.listen_port)"
+_TT_METRICS_OWNER = "TrustTunnel's loopback metrics listener"
+
+
+def _reject_trusttunnel_collisions(config: InstallerConfig) -> None:
+    """The loopback listener and the metrics port must be free of every other binding, and the
+    TrustTunnel name must differ from every other name the installer serves."""
+    tt = config.trusttunnel
+    if tt is None:
+        return
+    others = {
+        "domains.panel": config.domains.panel,
+        "domains.mtproxy": config.domains.mtproxy,
+        "domains.naive": config.domains.naive,
+        "domains.mieru": config.domains.mieru,
+        "domains.subscription": config.domains.subscription,
+        "domains.mcp": config.domains.mcp,
+        "three_xui.panel_domain": config.three_xui.panel_domain,
+        "three_xui.vless_tcp_domain": config.three_xui.vless_tcp_domain,
+        "three_xui.vless_xhttp_domain": config.three_xui.vless_xhttp_domain,
+        "three_xui.hysteria_domain": config.three_xui.hysteria_domain,
+        "three_xui.subscription_domain": config.three_xui.subscription_domain,
+    }
+    for key, value in others.items():
+        if value is not None and value == tt.hostname:
+            raise ConfigError(f"domains.trusttunnel duplicates {key}: {tt.hostname}")
+    taken = planned_ports(dataclasses.replace(config, trusttunnel=None))
+    for port, label in ((tt.listen_port, "trusttunnel.listen_port"), (TT_METRICS_PORT, None)):
+        if port in taken:
+            if label is None:
+                raise ConfigError(f"port {port} (TrustTunnel's metrics listener) is taken by {taken[port]}")
+            raise ConfigError(f"{label}: {port} is taken by {taken[port]}")
+    if tt.listen_port == TT_METRICS_PORT:
+        raise ConfigError("trusttunnel.listen_port collides with TrustTunnel's metrics listener")
 
 
 def _reject_mieru_port_collisions(config: InstallerConfig) -> None:

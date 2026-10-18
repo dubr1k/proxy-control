@@ -1,0 +1,84 @@
+name: mtproxy
+
+services:
+  trusttunnel-manager:
+    container_name: proxy-control-trusttunnel-manager
+    build:
+      context: .
+      dockerfile: trusttunnel_manager/Dockerfile
+      args:
+        TT_VERSION: ${TT_VERSION:-v1.1.0}
+        TT_SHA256_X86_64: ${TT_SHA256_X86_64:-91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7}
+        TT_SHA256_AARCH64: ${TT_SHA256_AARCH64:-c2aee17a1ced349283cba4775202e2baba053b8ea835d4cc23dc67d16c6b9686}
+    restart: unless-stopped
+    # Host network: the endpoint listens on a loopback port that the Nginx stream SNI router
+    # forwards to, and its metrics listener is loopback too. The manager API is a Unix socket.
+    network_mode: host
+    # Root inside, no capabilities: it only reads the certificate and runs the endpoint.
+    user: "0:0"
+    environment:
+      TT_MANAGER_TOKEN_FILE: /run/secrets/trusttunnel-manager-token
+      TT_MANAGER_SOCKET: /run/trusttunnel-manager/manager.sock
+      TT_MANAGER_SOCKET_MODE: "660"
+      TT_STATE_DIR: /var/lib/trusttunnel-manager
+      TT_HOSTNAME: ${TT_HOSTNAME:?set the TrustTunnel domain}
+      TT_LISTEN: ${TT_LISTEN:-127.0.0.1:4453}
+      TT_METRICS: ${TT_METRICS:-127.0.0.1:1987}
+      TT_CERT: ${TT_CERT:-/etc/letsencrypt/live/${TT_HOSTNAME}/fullchain.pem}
+      TT_KEY: ${TT_KEY:-/etc/letsencrypt/live/${TT_HOSTNAME}/privkey.pem}
+      TT_BINARY: /usr/local/bin/trusttunnel_endpoint
+    secrets: [trusttunnel-manager-token]
+    volumes:
+      # The installer creates the directory (0700).
+      - type: bind
+        source: ${TT_MANAGER_STATE_DIR:-/var/lib/trusttunnel-manager}
+        target: /var/lib/trusttunnel-manager
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TT_CERT_DIR:-/etc/letsencrypt}
+        target: /etc/letsencrypt
+        read_only: true
+        bind:
+          create_host_path: false
+      - trusttunnel-manager-run:/run/trusttunnel-manager
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-m", "trusttunnel_manager.healthcheck"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  panel:
+    depends_on:
+      trusttunnel-manager:
+        condition: service_healthy
+    group_add:
+      - "${TRUSTTUNNEL_MANAGER_SOCKET_GID:-10008}"
+    environment:
+      TRUSTTUNNEL_ENABLED: "true"
+      TRUSTTUNNEL_PUBLIC_HOST: ${TRUSTTUNNEL_PUBLIC_HOST:?set the public host of TrustTunnel}
+      # Overlays merge `group_add`; panel/entrypoint.sh reads the groups from there.
+      PANEL_SUPPLEMENTARY_GROUPS: "10001,10008"
+      TRUSTTUNNEL_MANAGER_TOKEN_SOURCE: /run/secrets/trusttunnel-manager-token
+      TRUSTTUNNEL_MANAGER_SOCKET: /run/trusttunnel-manager/manager.sock
+    secrets: [trusttunnel-manager-token]
+    volumes:
+      - trusttunnel-manager-run:/run/trusttunnel-manager:ro
+
+secrets:
+  trusttunnel-manager-token:
+    file: ${TRUSTTUNNEL_MANAGER_TOKEN_FILE:?set the prepared host TrustTunnel manager token path}
+volumes:
+  trusttunnel-manager-run:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      # setgid directory: the socket is created in the panel's group without CAP_CHOWN.
+      o: uid=0,gid=${TRUSTTUNNEL_MANAGER_SOCKET_GID:-10008},mode=2750

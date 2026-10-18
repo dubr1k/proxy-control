@@ -19,6 +19,7 @@ from .amneziawg import AmneziawgAdapter
 from .mieru import MieruAdapter
 from .naive import NaiveAdapter
 from .telemt import TelemtAdapter
+from .trusttunnel import TrusttunnelAdapter
 from .xray_router import RouterAdapter
 
 __all__ = [
@@ -41,4 +42,5 @@ __all__ = [
     "RouterAdapter",
     "RouterTarget",
     "TelemtAdapter",
+    "TrusttunnelAdapter",
 ]

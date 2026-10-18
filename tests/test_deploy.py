@@ -727,6 +727,7 @@ class DeployCliTests(unittest.TestCase):
             "compose.mieru.yaml",
             "compose.xray-router.yaml",
             "compose.amneziawg.yaml",
+            "compose.trusttunnel.yaml",
             "compose.agent.yaml",
             "compose.fleet-central.yaml",
             "compose.mcp.yaml",
@@ -776,6 +777,11 @@ class DeployCliTests(unittest.TestCase):
                 "AWG_MANAGER_TOKEN_FILE": str(temp / "token"),
                 "AWG_MANAGER_STATE_DIR": str(temp / "state"),
                 "AMNEZIAWG_PUBLIC_HOST": "panel.example.com",
+                "TRUSTTUNNEL_MANAGER_TOKEN_FILE": str(temp / "token"),
+                "TT_MANAGER_STATE_DIR": str(temp / "state"),
+                "TT_CERT_DIR": str(temp / "letsencrypt"),
+                "TT_HOSTNAME": "gate.example.com",
+                "TRUSTTUNNEL_PUBLIC_HOST": "gate.example.com",
             }
             (temp / "xray").mkdir()
             command = ["docker", "compose"]
@@ -792,7 +798,7 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(
                 set(model["services"]),
                 {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "xray-router-ingress", "fleet-agent",
-                 "fleet-ingress", "mcp", "awg-manager"},
+                 "fleet-ingress", "mcp", "awg-manager", "trusttunnel-manager"},
             )
             expected_container_names = {
                 "mask": "proxy-control-mask",
@@ -806,6 +812,7 @@ class DeployCliTests(unittest.TestCase):
                 "fleet-ingress": "proxy-control-fleet-ingress",
                 "mcp": "proxy-control-mcp",
                 "awg-manager": "proxy-control-awg-manager",
+                "trusttunnel-manager": "proxy-control-trusttunnel-manager",
             }
             for service, container_name in expected_container_names.items():
                 self.assertEqual(model["services"][service]["container_name"], container_name)
@@ -832,8 +839,18 @@ class DeployCliTests(unittest.TestCase):
             self.assertEqual(awg["cap_drop"], ["ALL"])
             self.assertTrue(awg["read_only"])
             self.assertEqual(awg["environment"]["AWG_PORTS"], "1.5=51820,2.0=51821,3.1=51822")
+            tt = model["services"]["trusttunnel-manager"]
+            self.assertEqual(tt["network_mode"], "host")
+            self.assertEqual(tt["cap_drop"], ["ALL"])
+            self.assertNotIn("cap_add", tt)
+            self.assertTrue(tt["read_only"])
+            self.assertEqual(tt["environment"]["TT_LISTEN"], "127.0.0.1:4453")
+            self.assertTrue(any(
+                v.get("target") == "/etc/letsencrypt" and v.get("read_only") for v in tt["volumes"]
+            ))
+            self.assertEqual(model["services"]["panel"]["environment"]["TRUSTTUNNEL_ENABLED"], "true")
             panel_groups = {str(value) for value in model["services"]["panel"].get("group_add", [])}
-            self.assertTrue({"10001", "10005", "10006", "10007"} <= panel_groups, panel_groups)
+            self.assertTrue({"10001", "10005", "10006", "10007", "10008"} <= panel_groups, panel_groups)
             self.assertEqual(model["services"]["panel"]["environment"]["AMNEZIAWG_PUBLIC_HOST"], "panel.example.com")
             self.assertEqual(model["services"]["panel"]["environment"]["AMNEZIAWG_ENABLED"], "true")
 
@@ -855,6 +872,22 @@ class DeployCliTests(unittest.TestCase):
             self.assertIn(variable, compose)
         self.assertIn("10007", (ROOT / "panel/entrypoint.sh").read_text())
         self.assertNotIn("awg_manager", (ROOT / ".dockerignore").read_text())
+
+    def test_trusttunnel_overlay_is_a_documented_hardened_manager(self):
+        compose = (ROOT / "compose.trusttunnel.yaml").read_text()
+        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertIn("container_name: proxy-control-trusttunnel-manager", compose)
+        self.assertIn("dockerfile: trusttunnel_manager/Dockerfile", compose)
+        self.assertIn("trusttunnel-manager-run:", compose)
+        self.assertIn("no-new-privileges:true", compose)
+        for variable in ("TRUSTTUNNEL_MANAGER_TOKEN_FILE", "TT_MANAGER_STATE_DIR", "TT_CERT_DIR", "TT_HOSTNAME",
+                         "TT_LISTEN", "TT_METRICS", "TRUSTTUNNEL_MANAGER_SOCKET_GID", "TRUSTTUNNEL_PUBLIC_HOST",
+                         "TT_SHA256_X86_64", "TT_SHA256_AARCH64"):
+            self.assertIn(variable, compose)
+        dockerfile = (ROOT / "trusttunnel_manager/Dockerfile").read_text()
+        self.assertIn("sha256sum --check", dockerfile)
+        self.assertIn("91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7", dockerfile)
+        self.assertNotIn("trusttunnel_manager", (ROOT / ".dockerignore").read_text())
 
     def test_host_fleet_ingress_root_stages_certbot_key_for_panel(self):
         env_file = ROOT / "deploy/fleet-ingress.env.example"

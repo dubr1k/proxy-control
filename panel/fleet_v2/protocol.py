@@ -43,7 +43,7 @@ class _Report(BaseModel):
 
 class Resource(_Strict):
     ref: str = Field(min_length=1, max_length=128)
-    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg"]
+    protocol: Literal["mtproxy", "naive", "mieru", "amneziawg", "trusttunnel"]
     runtime_username: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")
     desired_state: Literal["enabled", "disabled", "deleted"]
     credential_ref: str = Field(min_length=1, max_length=160)

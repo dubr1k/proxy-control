@@ -62,14 +62,15 @@ _BASE_COMPONENTS = ("telemt", "naive", "mita", "panel")
 PANEL_ARCHIVE_PREFIX = "proxy-control"
 PANEL_SYNC = (
     "panel", "installer", "scripts", "docker", "mieru_manager", "naive_manager", "xray_router_manager",
-    "awg_manager", "mcp_server", "release", "docs",
+    "awg_manager", "trusttunnel_manager", "mcp_server", "release", "docs",
     "compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.xray-router.yaml",
-    "compose.amneziawg.yaml", "compose.mcp.yaml", "compose.agent.yaml", "compose.fleet-central.yaml",
+    "compose.amneziawg.yaml", "compose.trusttunnel.yaml", "compose.mcp.yaml", "compose.agent.yaml",
+    "compose.fleet-central.yaml",
     "VERSION", "uninstall.sh", "install.sh", "install-bootstrap",
     "CHANGELOG.md", "CHANGELOG.ru.md", "README.md", "README.en.md", "THIRD_PARTY_NOTICES.md", "LICENSE",
 )
 # Images the agent does not rebuild: a change here is reported as `pending_rebuild`.
-PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "awg_manager", "mcp_server", "docker")
+PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "awg_manager", "trusttunnel_manager", "mcp_server", "docker")
 PANEL_AGENT_DIR = "version_agent"
 PANEL_DB_FILES = ("panel.sqlite3", "panel.sqlite3-wal", "panel.sqlite3-shm")
 OPTIONAL_COMPOSE_SERVICES = {
@@ -79,6 +80,7 @@ OPTIONAL_COMPOSE_SERVICES = {
     "xray-router": "compose.xray-router.yaml",
     "xray-router-ingress": "compose.xray-router.yaml",
     "awg-manager": "compose.amneziawg.yaml",
+    "trusttunnel-manager": "compose.trusttunnel.yaml",
     "fleet-agent": "compose.agent.yaml",
     "fleet-ingress": "compose.fleet-central.yaml",
 }
@@ -1274,7 +1276,7 @@ class VersionAgent:
         optional = self.compose_dir / ".optional.env"
         if optional.is_file():
             files.append(optional)
-        for sibling in ("naive", "mieru", "xray-router", "amneziawg", "mcp"):
+        for sibling in ("naive", "mieru", "xray-router", "amneziawg", "trusttunnel", "mcp"):
             overlay = self.compose_dir / f".env.{sibling}"
             if overlay.is_file():
                 files.append(overlay)

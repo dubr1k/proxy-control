@@ -59,6 +59,12 @@ _CATALOG: dict[Locale, dict[str, str]] = {
             "AmneziaWG UDP ports for versions {versions}: {count} comma-separated numbers in this order, "
             "1024-65535 (the free random ports shown are not well-known, so Enter is the sensible choice)"
         ),
+        "trusttunnel": (
+            "Install TrustTunnel (AdGuard's HTTP/2 over TLS VPN, TCP only; it shares TCP/443 with the other services "
+            "through SNI, so no port and no UDP rule are added). It needs a domain of its own with an A record to this "
+            "server, DNS only: do not put a CDN proxy in front of it"
+        ),
+        "trusttunnel_domain": "TrustTunnel domain (an A record to this server, DNS only; its own name, not one used above)",
         "acme_email": "ACME email",
         "initial_user": "Name of the first MTProxy and Mieru user (the panel login is always owner)",
         "panel_password": "Password of the panel login owner (blank to generate one)",
@@ -151,6 +157,12 @@ _CATALOG: dict[Locale, dict[str, str]] = {
             "UDP-порты AmneziaWG для версий {versions}: {count} чисел через запятую в этом порядке, "
             "1024-65535 (показаны свободные случайные порты — они не из общеизвестных, так что Enter — разумный выбор)"
         ),
+        "trusttunnel": (
+            "Установить TrustTunnel (VPN AdGuard поверх HTTP/2 и TLS, только TCP; делит TCP/443 с остальными сервисами "
+            "по SNI, поэтому порт и правило UDP не добавляются). Нужен отдельный домен с A-записью на этот сервер, "
+            "только DNS: не ставьте перед ним прокси CDN"
+        ),
+        "trusttunnel_domain": "Домен TrustTunnel (A-запись на этот сервер, только DNS; отдельное имя, не одно из названных выше)",
         "acme_email": "Email для ACME",
         "initial_user": "Имя первого пользователя MTProxy и Mieru (логин в панель всегда owner)",
         "panel_password": "Пароль для входа в панель под owner (пусто — создать автоматически)",

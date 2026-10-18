@@ -364,3 +364,39 @@ def test_stage_secret_rejects_invalid_source_without_creating_destination(
         stage_secret.stage(str(source), str(destination))
 
     assert not destination.exists()
+
+
+@pytest.mark.parametrize("groups", ["10008", "10001,10008", "10001,10005,10006,10007,10008"])
+def test_panel_entrypoint_accepts_the_trusttunnel_manager_group(tmp_path: Path, groups: str):
+    result = run_entrypoint(tmp_path, groups)
+
+    assert result.returncode == 0, result.stderr
+    launch = logged_commands(result)[-1]
+    assert launch[launch.index("--groups") + 1] == groups
+
+
+@pytest.mark.parametrize("groups", ["10009", "10008,10001", "10008,10008", "10001,10009,10008"])
+def test_panel_entrypoint_still_refuses_other_group_lists(tmp_path: Path, groups: str):
+    result = run_entrypoint(tmp_path, groups)
+
+    assert result.returncode == 64
+    assert "10008" in result.stderr
+    assert logged_commands(result) == []
+
+
+def test_panel_entrypoint_stages_the_trusttunnel_manager_token(tmp_path: Path):
+    source = tmp_path / "trusttunnel-token"
+    source.write_text("sentinel")
+    (tmp_path / "run").mkdir()
+    result = run_entrypoint(tmp_path / "run", None, TRUSTTUNNEL_MANAGER_TOKEN_SOURCE=str(source))
+
+    assert result.returncode == 0, result.stderr
+    installs = [line for line in logged_commands(result) if line[0] == "install"]
+    assert any(line[-2:] == [str(source), f"{RUNTIME_DIR}/trusttunnel-manager-token"] for line in installs)
+
+
+def test_panel_entrypoint_skips_the_trusttunnel_token_without_its_overlay(tmp_path: Path):
+    result = run_entrypoint(tmp_path, None, TRUSTTUNNEL_MANAGER_TOKEN_SOURCE=str(tmp_path / "absent"))
+
+    assert result.returncode == 0, result.stderr
+    assert all("trusttunnel" not in " ".join(line) for line in logged_commands(result))

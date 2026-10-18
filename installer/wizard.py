@@ -18,6 +18,7 @@ from installer.model import (
     AWG_VERSIONS,
     DEFAULT_LANE_SLOTS,
     DEFAULT_RELAY_PORT,
+    TT_DEFAULT_LISTEN_PORT,
     AmneziaWgConfig,
     DomainConfig,
     EgressChoice,
@@ -29,6 +30,7 @@ from installer.model import (
     Profile,
     ThreeXuiConfig,
     ThreeXuiMode,
+    TrustTunnelConfig,
 )
 from installer.credentials import (
     CredentialError,
@@ -351,6 +353,7 @@ class EditField(StrEnum):
     XUI_XHTTP = "three_xui.vless_xhttp_domain"
     XUI_HYSTERIA = "three_xui.hysteria_domain"
     AMNEZIAWG = "amneziawg"
+    TRUSTTUNNEL = "trusttunnel"
     WARP = "three_xui.warp"
     FIREWALL = "firewall.manage_ufw"
 
@@ -487,6 +490,7 @@ class TerminalWizard:
             values["warp"] = self.io.yes_no(text(self.locale, "warp"), default=False)
         self._egress_choices(values)
         self._amneziawg_choices(values)
+        self._trusttunnel_choices(values)
         values["acme_email"] = self.io.validated(
             text(self.locale, "acme_email"), _email
         )
@@ -583,6 +587,22 @@ class TerminalWizard:
             default=str(values.get("awg_host") or values["panel"]),
         )
         values["awg_ports"] = self._awg_ports(values)
+
+    def _trusttunnel_choices(self, values: dict[str, object]) -> None:
+        """The optional TrustTunnel add-on (any profile): a yes/no, then its own domain. It
+        shares TCP/443 through the SNI router, so the name needs an A record to this server
+        (DNS only, no CDN proxy); the loopback port stays in the TOML."""
+        assert self.locale is not None
+        if not self.io.yes_no(text(self.locale, "trusttunnel"), default=False):
+            values.pop("tt_domain", None)
+            values["tt"] = False
+            return
+        values["tt"] = True
+        values["tt_domain"] = self.io.validated(
+            text(self.locale, "trusttunnel_domain"),
+            _domain,
+            default=_optional(values.get("tt_domain")),
+        )
 
     def _awg_ports(self, values: dict[str, object]) -> str:
         """The UDP ports, in version order. The default is a free pseudo-random pick (the same
@@ -709,6 +729,7 @@ class TerminalWizard:
                 mieru=str(values["mieru"]) if profile.includes_mieru else None,
                 subscription=_optional(values.get("subscription")),
                 mcp=_optional(values.get("mcp")),
+                trusttunnel=str(values["tt_domain"]) if values.get("tt") else None,
             ),
             mieru=(
                 MieruConfig(
@@ -737,6 +758,11 @@ class TerminalWizard:
                     ports=tuple(int(port) for port in str(values["awg_ports"]).split(",")),
                 )
                 if values.get("awg")
+                else None
+            ),
+            trusttunnel=(
+                TrustTunnelConfig(hostname=str(values["tt_domain"]), listen_port=TT_DEFAULT_LISTEN_PORT)
+                if values.get("tt")
                 else None
             ),
             egress=EgressConfig(
@@ -776,6 +802,7 @@ class TerminalWizard:
             EditField.INITIAL_USER,
             # Before the profile-specific fields, so «back» still lands on the last of those.
             EditField.AMNEZIAWG,
+            EditField.TRUSTTUNNEL,
         ]
         if isinstance(profile, Profile) and profile.includes_naive:
             fields.append(EditField.NAIVE)
@@ -873,6 +900,8 @@ class TerminalWizard:
             self._egress_choices(values)
         elif field is EditField.AMNEZIAWG:
             self._amneziawg_choices(values)
+        elif field is EditField.TRUSTTUNNEL:
+            self._trusttunnel_choices(values)
         else:
             values["manage_ufw"] = self.io.yes_no(
                 text(self.locale, "manage_ufw"), default=bool(values["manage_ufw"])

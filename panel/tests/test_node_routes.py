@@ -98,7 +98,7 @@ async def test_local_node_is_listed_first_with_manager_health(client, login_user
     # Sorted by node_id "local" would land last; the operator's own host comes first.
     assert [item["node_id"] for item in items] == ["local", "edge-01"]
     assert items[0]["kind"] == "local"
-    assert items[0]["services"] == {"telemt": "ok", "naive": "ok", "mieru": "ok", "amneziawg": "disabled"}
+    assert items[0]["services"] == {"telemt": "ok", "naive": "ok", "mieru": "ok", "amneziawg": "disabled", "trusttunnel": "disabled"}
     # The owner's own card shows who this panel is and who manages it (nobody, until a
     # central links it); a remote node carries neither block.
     assert items[0]["identity"] == {"guid": client._transport.app.state.panel_guid, "master_guid": None,
@@ -118,7 +118,7 @@ async def test_local_node_reports_unavailable_managers(client, login_user, mieru
 
     telemt.health = failing_health
     services = (await client.get("/api/nodes/local")).json()["services"]
-    assert services == {"telemt": "unavailable", "naive": "ok", "mieru": "unavailable", "amneziawg": "disabled"}
+    assert services == {"telemt": "unavailable", "naive": "ok", "mieru": "unavailable", "amneziawg": "disabled", "trusttunnel": "disabled"}
 
 
 async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
@@ -163,7 +163,7 @@ async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
             headers={"X-CSRF-Token": page.cookies["panel_csrf"]},
         )
         services = (await client.get("/api/nodes/local")).json()["services"]
-    assert services == {"telemt": "ok", "naive": "disabled", "mieru": "disabled", "amneziawg": "disabled"}
+    assert services == {"telemt": "ok", "naive": "disabled", "mieru": "disabled", "amneziawg": "disabled", "trusttunnel": "disabled"}
 
 
 async def test_local_node_refuses_transport_and_lifecycle_actions(client, login_user):

@@ -893,7 +893,7 @@ def test_update_host_rebuilds_the_manager_with_the_overlay_and_env():
     script = (ROOT / "scripts" / "update-host.sh").read_text()
     assert "awg-manager) required=compose.amneziawg.yaml" in script
     assert "awg_manager) has compose.amneziawg.yaml && services+=(awg-manager)" in script
-    assert "for sibling in naive mieru xray-router amneziawg mcp; do" in script
+    assert "for sibling in naive mieru xray-router amneziawg trusttunnel mcp; do" in script
 
 
 def test_the_install_script_describes_the_add_on_in_both_languages():

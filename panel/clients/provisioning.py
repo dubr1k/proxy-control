@@ -58,6 +58,10 @@ def new_credential(protocol: str) -> bytes:
         from ..protocols.amneziawg import new_credential as new_key_pair
 
         return new_key_pair()
+    if protocol == "trusttunnel":
+        from ..protocols.trusttunnel import new_credential as new_password
+
+        return new_password()
     return (secret_tokens.token_hex(16) if protocol == "mtproxy" else secret_tokens.token_urlsafe(24)).encode()
 
 
@@ -158,6 +162,18 @@ class ProvisioningService:
         if intent.options.version not in (entry.get("versions") or []):
             raise ClientConflict(f"amneziawg: version {intent.options.version} is not served by this node")
 
+    @staticmethod
+    def _require_trusttunnel(db, intent: GrantIntent) -> None:
+        """A linked panel applies a TrustTunnel grant only if it declared the capability and runs
+        the protocol; otherwise the grant would wait for it forever."""
+        row = db.execute("SELECT identity_json FROM node_links WHERE node_id=?", (intent.node_id,)).fetchone()
+        identity = json.loads(row["identity_json"]) if row is not None and row["identity_json"] else {}
+        if "protocol.trusttunnel.v1" not in (identity.get("capabilities") or []):
+            raise ClientConflict("trusttunnel: the node runs a panel version without TrustTunnel")
+        entry = (identity.get("protocols") or {}).get("trusttunnel") or {}
+        if not entry.get("enabled"):
+            raise ClientConflict("trusttunnel: TrustTunnel is not enabled on this node")
+
     async def start(
         self, client_id: str, intents: list[GrantIntent], *, actor: dict, ip: str, request_id: str | None = None
     ) -> str:
@@ -181,6 +197,8 @@ class ProvisioningService:
                     raise ClientConflict(f"{intent.protocol}: runtime_username is managed by central")
                 if intent.protocol == "amneziawg" and intent.node_id in remote:
                     self._require_awg_version(db, intent)
+                if intent.protocol == "trusttunnel" and intent.node_id in remote:
+                    self._require_trusttunnel(db, intent)
         for intent in intents:
             if intent.node_id in remote:
                 continue  # no manager to ask here: the node's own reconcile reports a taken name

@@ -550,6 +550,10 @@ class NginxAdapter:
                 raise TopologyError("Naive route domain is missing")
             # The private Caddy listener never competes for TCP/443 itself.
             routes += ((config.domains.naive, "127.0.0.1:4443"),)
+        if config.trusttunnel is not None:
+            # TrustTunnel (HTTP/2 over TLS, TCP only): the endpoint terminates TLS itself on
+            # a loopback port, so the router forwards the raw stream by SNI, as for Naive.
+            routes += ((config.trusttunnel.hostname, f"127.0.0.1:{config.trusttunnel.listen_port}"),)
         # 3x-ui's loopback backends (its panel, its subscription server and the VLESS
         # inbounds) reach the outside through this map too: the 3x-ui adapter proves each
         # one answers on loopback, this adapter is the only owner of the router file.
@@ -2405,6 +2409,10 @@ def _certificate_groups(
         if config.domains.naive is None:
             raise TopologyError("Naive certificate domain is missing")
         groups.append(("naive", config.domains.naive, (config.domains.naive,)))
+    if config.trusttunnel is not None:
+        # The endpoint's own lineage, named after the host: a deploy hook publishes it to the
+        # TrustTunnel manager's certificate directory.
+        groups.append(("trusttunnel", config.trusttunnel.hostname, (config.trusttunnel.hostname,)))
     if config.three_xui.mode.value == "managed-new":
         if config.three_xui.panel_domain is not None:
             groups.append(

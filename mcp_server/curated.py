@@ -19,9 +19,9 @@ PLACEMENT_ITEM = {
     "type": "object",
     "properties": {
         "node_id": {"type": "string", "description": "The node: `local` for this panel, or a linked panel's id."},
-        "protocol": {"type": "string", "enum": ["mtproxy", "naive", "mieru", "amneziawg"]},
+        "protocol": {"type": "string", "enum": ["mtproxy", "naive", "mieru", "amneziawg", "trusttunnel"]},
         "runtime_username": {"type": "string", "description": "Account name on the runtime; derived from the display name when omitted."},
-        "options": {"type": "object", "description": "Protocol options (quota, limits…); the panel validates them. For `amneziawg` set `{\"version\": \"1.5\"|\"2.0\"|\"3.1\"}` (default 2.0); each version is its own access, the account is named `<name>-awg<ver>`."},
+        "options": {"type": "object", "description": "Protocol options (quota, limits…); the panel validates them. For `amneziawg` set `{\"version\": \"1.5\"|\"2.0\"|\"3.1\"}` (default 2.0); each version is its own access, the account is named `<name>-awg<ver>`. For `trusttunnel` options are optional (`{\"name\": \"<label shown in the app>\"}`); the node teaches the rest."},
     },
     "required": ["node_id", "protocol"],
     "additionalProperties": False,

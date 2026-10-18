@@ -23,7 +23,7 @@ _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 # The project targets x86-64 VPS hosts, which is what the lab runs on. A pin
 # for an architecture nothing ever verifies is a claim, not a guarantee.
 _SUPPORTED_ARCHITECTURES = frozenset({"amd64"})
-_SUPPORTED_SPDX_LICENSES = frozenset({"GPL-3.0-only", "GPL-3.0-or-later", "MPL-2.0"})
+_SUPPORTED_SPDX_LICENSES = frozenset({"Apache-2.0", "GPL-3.0-only", "GPL-3.0-or-later", "MPL-2.0"})
 # A zip member the release names explicitly (v0.5, Xray): a plain file name, no path.
 _MEMBER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _MEMBER_MODE_RE = re.compile(r"0[0-7]{3}")
@@ -702,7 +702,7 @@ def _parse_platform_pin(
         filename_architecture = _require_string(
             pin["filename_architecture"], f"artifact {name} filename_architecture"
         )
-        if re.fullmatch(r"[A-Za-z0-9]{1,16}", filename_architecture) is None:
+        if re.fullmatch(r"[A-Za-z0-9_]{1,16}", filename_architecture) is None:
             raise ReleaseError(f"artifact {name} filename_architecture is invalid")
     url = _require_string(pin["url"], f"artifact {name} URL")
     _validate_release_url(url, repository, tag, filename_architecture or architecture)

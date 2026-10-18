@@ -55,6 +55,14 @@ class Settings:
     # The DNS name (or address) clients put in `Endpoint =`: UDP goes straight to the server, so it
     # must not be a proxied name. Empty falls back to `NAIVE_PUBLIC_HOST`.
     amneziawg_public_host: str = os.getenv("AMNEZIAWG_PUBLIC_HOST", "")
+    # TrustTunnel (v1.6): the node manager's socket and token. The public host is the domain the
+    # endpoint answers to (`domains.trusttunnel`): clients dial it and send it as the TLS name.
+    trusttunnel_socket: str = os.getenv("TRUSTTUNNEL_MANAGER_SOCKET", "/run/trusttunnel-manager/manager.sock")
+    trusttunnel_token: str = field(
+        default_factory=lambda: _secret_setting("TRUSTTUNNEL_MANAGER_TOKEN", "TRUSTTUNNEL_MANAGER_TOKEN_FILE")
+    )
+    trusttunnel_enabled: bool = os.getenv("TRUSTTUNNEL_ENABLED", "false").lower() == "true"
+    trusttunnel_public_host: str = os.getenv("TRUSTTUNNEL_PUBLIC_HOST", "")
     # The node's Xray-router (v0.5, compose.xray-router.yaml): its manager socket and token.
     xray_router_enabled: bool = os.getenv("XRAY_ROUTER_ENABLED", "false").lower() == "true"
     xray_router_socket: str = os.getenv("XRAY_ROUTER_MANAGER_SOCKET", "/run/xray-router/manager.sock")

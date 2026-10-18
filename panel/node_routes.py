@@ -7,6 +7,7 @@ from dataclasses import asdict
 from fastapi import Depends, HTTPException, Request
 
 from .amneziawg import AmneziawgError
+from .trusttunnel import TrusttunnelError
 from .fleet import ProtocolError
 from .mieru import MieruError
 from .naive import NaiveError
@@ -50,13 +51,14 @@ async def _probe(health, error) -> str:
 
 async def _local_services(app, settings) -> dict[str, str]:
     """The local node has no transport, so its health is the health of the three managers."""
-    telemt, naive, mieru, amneziawg = await asyncio.gather(
+    telemt, naive, mieru, amneziawg, trusttunnel = await asyncio.gather(
         _probe(app.state.telemt.health, TelemtError),
         _probe(app.state.naive.health, NaiveError) if settings.naive_enabled else _switched_off(),
         _probe(app.state.mieru.health, MieruError) if settings.mieru_enabled else _switched_off(),
         _probe(app.state.amneziawg.health, AmneziawgError) if settings.amneziawg_enabled else _switched_off(),
+        _probe(app.state.trusttunnel.health, TrusttunnelError) if settings.trusttunnel_enabled else _switched_off(),
     )
-    return {"telemt": telemt, "naive": naive, "mieru": mieru, "amneziawg": amneziawg}
+    return {"telemt": telemt, "naive": naive, "mieru": mieru, "amneziawg": amneziawg, "trusttunnel": trusttunnel}
 
 
 async def _local_awg_versions(app, settings) -> list[str]:

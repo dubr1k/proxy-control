@@ -1,0 +1,25 @@
+schema = 1
+host_mode = "fresh"
+profile = "core"
+acme_email = "admin@example.com"
+initial_user = "owner"
+
+[domains]
+panel = "panel.example.com"
+mtproxy = "relay.example.com"
+# TrustTunnel is an optional add-on to any profile. It needs a domain of its own: an A record
+# to this server, DNS only (no CDN proxy), different from every other domain. The installer
+# issues its certificate; clients reach it on the shared TCP/443 through the SNI router.
+trusttunnel = "gate.example.org"
+
+[trusttunnel]
+enabled = true
+# The endpoint listens on this loopback TCP port only (default 4453); nothing UDP is opened and
+# no firewall rule is added.
+# listen_port = 4453
+
+[three_xui]
+mode = "none"
+
+[firewall]
+manage_ufw = true

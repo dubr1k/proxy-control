@@ -123,7 +123,8 @@ Proxy Control — что нужно для установки
 Домены и DNS
   • Домен панели и домен MTProxy — всегда; домен NaiveProxy — в профилях с Naive;
     домен Mieru — в профилях с Mieru (сертификат ему не нужен); необязательный
-    домен подписки; в режиме 3x-ui — ещё четыре домена.
+    домен подписки; необязательный отдельный домен TrustTunnel;
+    в режиме 3x-ui — ещё четыре домена.
   • Записи A ведут на этот сервер, AAAA либо нет, либо тоже на него; CAA не
     запрещает Let's Encrypt. Сертификаты выпускаются через HTTP-01 на порту 80.
 
@@ -133,7 +134,9 @@ Proxy Control — что нужно для установки
   (хост без интернета), используется как есть и никогда не заменяется:
   • профили с Mieru: mita_3.38.1_amd64.deb и mieru_3.38.1_amd64.deb;
   • управляемый 3x-ui 3.10.2: x-ui-linux-amd64.tar.gz;
-  • Xray-router: Xray-linux-64.zip (Xray-core 26.10.17).
+  • Xray-router: Xray-linux-64.zip (Xray-core 26.10.17);
+  • TrustTunnel: trusttunnel-v1.1.0-linux-x86_64.tar.gz (TrustTunnel endpoint 1.1.0) —
+    его скачивает и сверяет при сборке образа менеджера Docker, не установщик.
   URL и SHA-256 — в release/external-artifacts.json распакованного релиза.
 
 WARP (необязательно): секция [egress] в install.toml или вопросы мастера —
@@ -159,6 +162,18 @@ AmneziaWG (необязательно): секция [amneziawg] в install.toml
   свои на каждый сервер; можно задать свои) и маршрутизацию на интерфейсах awg15, awg20, awg31; без управляемого UFW
   откройте эти порты и разрешите пересылку сами. Нужен /dev/net/tun на хосте.
 
+TrustTunnel (необязательно): секция [trusttunnel] и ключ domains.trusttunnel в install.toml
+  или вопросы мастера — VPN AdGuard (HTTP/2 поверх TLS, только TCP) в контейнере
+  trusttunnel-manager, который запускает закреплённый trusttunnel_endpoint (Apache-2.0,
+  проект TrustTunnel; образ собирается на хосте, нужен доступ к GitHub на время сборки).
+  Нужен отдельный домен: A-запись на этот сервер, только DNS (прокси CDN выключен), имя
+  не совпадает с другими доменами; сертификат Let's Encrypt для него выпускается
+  установщиком (HTTP-01, порт 80). Новых портов и UDP нет: общий TCP/443 делит SNI-маршрут
+  Nginx, endpoint слушает только 127.0.0.1:4453 (listen_port; рядом 127.0.0.1:1987 для
+  метрик менеджера), правила UFW не добавляются. Установщик создаёт /var/lib/trusttunnel-manager
+  (учётные данные, счётчики), secrets/trusttunnel-manager-token и .env.trusttunnel; менеджер
+  читает сертификат домена из /etc/letsencrypt (только чтение).
+
 Обновление уже установленного хоста (с v1.1): скачайте install-release.sh и .sha256
   нового выпуска так же, как для установки, сверьте сумму и запустите
   `bash install-release.sh --update` — та же проверка выпуска, затем version-agent
@@ -167,6 +182,7 @@ AmneziaWG (необязательно): секция [amneziawg] в install.toml
   Telemt, сертификаты, .env и secrets/ не трогаются. Если на хосте AmneziaWG и его
   исходники изменились, awg-manager пересобирается: туннели на секунды рвутся,
   клиенты переподключаются сами, /var/lib/awg-manager с ключами не трогается.
+  Так же пересобирается trusttunnel-manager: перезапуск endpoint рвёт сессии на секунды.
   После первого обновления старым агентом перед repair выполните
   `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
   из нового выпуска с точным архивом и проверенным digest (INSTALLER_REFERENCE).
@@ -185,8 +201,12 @@ AmneziaWG (необязательно): секция [amneziawg] в install.toml
   • AmneziaWG (если включён): контейнер proxy-control-awg-manager, секрет
     secrets/awg-manager-token, .env.amneziawg, /var/lib/awg-manager и sysctl-файл
     пересылки IPv4.
+  • TrustTunnel (если включён): контейнер proxy-control-trusttunnel-manager, секрет
+    secrets/trusttunnel-manager-token, .env.trusttunnel, /var/lib/trusttunnel-manager,
+    и подключение /etc/letsencrypt только для чтения; ничего UDP.
   • Правила UFW — только если вы это разрешили и только на свежем хосте
-    (порты 80 и 443, порты профиля, UDP-порты и маршрутизация AmneziaWG).
+    (порты 80 и 443, порты профиля, UDP-порты и маршрутизация AmneziaWG;
+    для TrustTunnel правил нет: он использует уже открытый TCP/443).
   • 3x-ui — в режиме `existing` только маршрут, в `managed-new` — свой экземпляр.
     `managed-new` требует отсутствия прежней базы и её каталога /etc/x-ui.
   • Журнал транзакции, владение и отчёты — /var/lib/proxy-control/.
@@ -213,7 +233,8 @@ Server
 Domains and DNS
   • The panel domain and the MTProxy domain — always; a NaiveProxy domain in the
     Naive profiles; a Mieru domain in the Mieru profiles (no certificate needed);
-    an optional subscription domain; four more domains in the 3x-ui modes.
+    an optional subscription domain; an optional domain of its own for TrustTunnel;
+    four more domains in the 3x-ui modes.
   • A records point at this server, AAAA either absent or also this server; CAA
     does not forbid Let's Encrypt. Certificates are issued over HTTP-01 on port 80.
 
@@ -223,7 +244,9 @@ Nothing to stage for the pinned external artifacts — the installer fetches the
   /var/lib/proxy-control/ (an offline host) is used as it is and never replaced:
   • the Mieru profiles: mita_3.38.1_amd64.deb and mieru_3.38.1_amd64.deb;
   • managed 3x-ui 3.10.2: x-ui-linux-amd64.tar.gz;
-  • the Xray-router: Xray-linux-64.zip (Xray-core 26.10.17).
+  • the Xray-router: Xray-linux-64.zip (Xray-core 26.10.17);
+  • TrustTunnel: trusttunnel-v1.1.0-linux-x86_64.tar.gz (TrustTunnel endpoint 1.1.0) —
+    Docker downloads and checks it while building the manager image, not the installer.
   URLs and SHA-256 in release/external-artifacts.json of the extracted release.
 
 WARP (optional): the [egress] section of install.toml or the wizard's questions —
@@ -249,6 +272,18 @@ AmneziaWG (optional): the [amneziawg] section of install.toml or the wizard's qu
   awg31 interfaces in UFW; without a UFW the installer manages, open the ports and allow
   forwarding yourself. /dev/net/tun must exist on the host.
 
+TrustTunnel (optional): the [trusttunnel] section and the domains.trusttunnel key of install.toml
+  or the wizard's questions — AdGuard's VPN (HTTP/2 over TLS, TCP only) in the
+  trusttunnel-manager container, which runs the pinned trusttunnel_endpoint (Apache-2.0,
+  the TrustTunnel project; the image is built on the host, GitHub must be reachable during the
+  build). It needs a domain of its own: an A record to this server, DNS only (no CDN proxy),
+  different from every other domain; its Let's Encrypt certificate is issued by the
+  installer (HTTP-01, port 80). No new ports and nothing UDP: the shared TCP/443 is divided
+  by the Nginx SNI route, the endpoint listens on 127.0.0.1:4453 only (listen_port; beside it
+  127.0.0.1:1987 for the manager's metrics), no UFW rule is added. The installer creates
+  /var/lib/trusttunnel-manager (credentials, counters), secrets/trusttunnel-manager-token and
+  .env.trusttunnel; the manager reads the name's certificate from /etc/letsencrypt (read-only).
+
 Updating an installed host (since v1.1): download the new release's install-release.sh
   and .sha256 as for an install, check the sum and run `bash install-release.sh --update`
   — the same release verification, then the host's version-agent updates the panel (with
@@ -256,6 +291,7 @@ Updating an installed host (since v1.1): download the new release's install-rele
   .env and secrets/ are not touched. On a host with AmneziaWG whose sources changed,
   awg-manager is rebuilt: the tunnels drop for a few seconds and the clients reconnect
   by themselves; /var/lib/awg-manager with the keys is not touched.
+  trusttunnel-manager is rebuilt the same way: restarting the endpoint drops sessions for seconds.
   After the first update by an older agent, before repair run
   `python3 -m installer.cli reconcile-panel-update --archive PATH --sha256 DIGEST`
   from the new release with the exact archive and verified digest (INSTALLER_REFERENCE).
@@ -274,8 +310,12 @@ What the installer does (wizard → plan → digest confirmation → apply):
   • AmneziaWG (when enabled): the proxy-control-awg-manager container, the
     secrets/awg-manager-token secret, .env.amneziawg, /var/lib/awg-manager and the
     IPv4 forwarding sysctl file.
+  • TrustTunnel (when enabled): the proxy-control-trusttunnel-manager container, the
+    secrets/trusttunnel-manager-token secret, .env.trusttunnel, /var/lib/trusttunnel-manager,
+    and a read-only mount of /etc/letsencrypt; nothing UDP.
   • UFW rules — only when you allow it and only on a fresh host
-    (ports 80 and 443, the profile's ports, AmneziaWG's UDP ports and forwarding).
+    (ports 80 and 443, the profile's ports, AmneziaWG's UDP ports and forwarding;
+    none for TrustTunnel: it uses the TCP/443 that is already open).
   • 3x-ui — a route only in `existing` mode, its own instance in `managed-new`.
     `managed-new` requires the old database and its /etc/x-ui directory to be absent.
   • The transaction journal, ownership and reports — /var/lib/proxy-control/.

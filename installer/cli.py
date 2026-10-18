@@ -440,6 +440,12 @@ def _write_reports(
                 "AmneziaWG: the installer does not manage the firewall here; keep these UDP ports open "
                 "and forwarding allowed on the awg interfaces"
             )
+    if config.trusttunnel is not None:
+        tt = config.trusttunnel
+        operator_notes.append(
+            f"TrustTunnel: enabled on {tt.hostname} (TCP/443 through the SNI router, endpoint on 127.0.0.1:{tt.listen_port}; "
+            "no UDP port is opened). The name needs an A record to this server and must not be proxied by a CDN"
+        )
     report = AcceptanceReport.from_evidence(
         profile=config.profile.value,
         release_tag=state.origin,

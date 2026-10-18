@@ -47,8 +47,10 @@ RELAY_KEY = "fleet_relay_json"
 LANE_PROTOCOLS = ("naive", "mieru")
 # Options the runtime teaches the panel (Telemt's endpoint, mita's share link): they are
 # never pushed back, so they never count as drift.
+# TrustTunnel (v1.6): the endpoint's domain and certificate come from its manager; `name` is the label of
+# the profile in the client app — presentation the panel renders, which no runtime stores.
 LEARNED_OPTIONS = frozenset({"host", "port", "share_template", "address", "server_public_key", "mtu", "dns",
-                             "obfuscation"})
+                             "obfuscation", "hostname", "certificate_der_b64", "name"})
 log = logging.getLogger(__name__)
 
 

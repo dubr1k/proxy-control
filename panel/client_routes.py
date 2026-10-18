@@ -85,7 +85,7 @@ def register_client_routes(app, context: RequestContext) -> None:
         cursor: Annotated[str | None, Query(max_length=512)] = None,
         query: Annotated[str, Query(max_length=256)] = "",
         state: Literal["all", "active", "suspended", "archived"] = "all",
-        protocol: Literal["", "mtproxy", "naive", "mieru", "amneziawg"] = "",
+        protocol: Literal["", "mtproxy", "naive", "mieru", "amneziawg", "trusttunnel"] = "",
         node: Annotated[str, Query(max_length=128)] = "",
         issue: Literal["", "problem", "pending", "failed", "orphan", "disabled", "lane", "empty"] = "",
         _user=Depends(context.current),

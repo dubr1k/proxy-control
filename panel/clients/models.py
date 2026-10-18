@@ -6,6 +6,8 @@ can be logged, diffed and rendered without a credential ever passing through it.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import ipaddress
 import re
 from typing import Literal
@@ -15,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ..fleet import LIMIT_FIELDS
 from ..secrets_store import SecretRef
 
-PROTOCOLS = ("mtproxy", "naive", "mieru", "amneziawg")
+PROTOCOLS = ("mtproxy", "naive", "mieru", "amneziawg", "trusttunnel")
 # The AmneziaWG protocol versions a node can serve, oldest first. They are not compatible with
 # one another (server-side parameters differ), so a grant names exactly one.
 AWG_VERSIONS = ("1.5", "2.0", "3.1")
@@ -127,12 +129,47 @@ class AmneziawgOptions(BaseModel):
         return value
 
 
-Options = MtproxyOptions | NaiveOptions | MieruOptions | AmneziawgOptions
+_HOSTNAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
+
+
+class TrusttunnelOptions(BaseModel):
+    """One TrustTunnel access. Everything is learned from the node's manager at issue time (the
+    domain its TLS endpoint answers to, the public port and the certificate in DER when it is not
+    one a public CA signed), so a deep link or a client config rebuilt from escrow needs no call
+    to the node. `name` is the label the client app shows for the profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hostname: str | None = Field(default=None, max_length=253)
+    port: int | None = Field(default=None, strict=True, ge=1, le=65535)
+    certificate_der_b64: str | None = Field(default=None, max_length=32768)
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @field_validator("hostname")
+    @classmethod
+    def hostname_is_a_name(cls, value):
+        if value is not None and not _HOSTNAME_RE.match(value):
+            raise ValueError("hostname must be a DNS name")
+        return value
+
+    @field_validator("certificate_der_b64")
+    @classmethod
+    def certificate_is_base64(cls, value):
+        if value is not None:
+            try:
+                base64.b64decode(value, validate=True)
+            except (ValueError, binascii.Error) as exc:
+                raise ValueError("certificate_der_b64 must be base64") from exc
+        return value
+
+
+Options = MtproxyOptions | NaiveOptions | MieruOptions | AmneziawgOptions | TrusttunnelOptions
 PROTOCOL_OPTIONS: dict[str, type[Options]] = {
     "mtproxy": MtproxyOptions,
     "naive": NaiveOptions,
     "mieru": MieruOptions,
     "amneziawg": AmneziawgOptions,
+    "trusttunnel": TrusttunnelOptions,
 }
 
 
@@ -143,7 +180,7 @@ class _ProtocolOptions(BaseModel):
     protocol's options into another's; this validator rejects what is left.
     """
 
-    protocol: str = Field(pattern=r"^(mtproxy|naive|mieru|amneziawg)$")
+    protocol: str = Field(pattern=r"^(mtproxy|naive|mieru|amneziawg|trusttunnel)$")
     options: Options
 
     @model_validator(mode="after")

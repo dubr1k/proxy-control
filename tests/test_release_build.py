@@ -607,6 +607,7 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions():
         "mita": re.findall(r"mita_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
         "mieru": re.findall(r"mieru_([0-9][0-9A-Za-z.\-]*)_amd64\.deb", script),
         "xray": re.findall(r"Xray-core ([0-9][0-9.]*[0-9])", script),
+        "trusttunnel": re.findall(r"TrustTunnel endpoint ([0-9][0-9.]*[0-9])", script),
     }
     for name, versions in named.items():
         assert len(versions) >= 2, f"{name}: both languages must name the pinned version"

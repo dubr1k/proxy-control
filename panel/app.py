@@ -34,13 +34,15 @@ from .fleet_v2.reconcile import Reconciler
 from .keyring import Keyring
 from .amneziawg import AmneziawgClient, AmneziawgError
 from .amneziawg_routes import register_amneziawg_routes
+from .trusttunnel import TrusttunnelClient, TrusttunnelError
+from .trusttunnel_routes import register_trusttunnel_routes
 from .mieru import MieruClient, MieruError
 from .mieru_routes import register_mieru_routes
 from .naive import NaiveClient, NaiveError
 from .naive_routes import register_naive_routes
 from .node_routes import register_node_routes
 from .openapi_routes import register_openapi_routes
-from .protocols import AmneziawgAdapter, MieruAdapter, NaiveAdapter, TelemtAdapter
+from .protocols import AmneziawgAdapter, MieruAdapter, NaiveAdapter, TelemtAdapter, TrusttunnelAdapter
 from .protocols.xray_router import RouterAdapter
 from .nodes.service import NodeLifecycleService
 from .routing.lanes import LaneService, RelayRegistry
@@ -88,6 +90,7 @@ def create_app(
     naive=None,
     mieru=None,
     amneziawg=None,
+    trusttunnel=None,
     router=None,
     version_client=None,
 ):
@@ -132,6 +135,9 @@ def create_app(
     app.state.amneziawg = amneziawg or AmneziawgClient(
         settings.amneziawg_socket, settings.amneziawg_token
     )
+    app.state.trusttunnel = trusttunnel or TrusttunnelClient(
+        settings.trusttunnel_socket, settings.trusttunnel_token
+    )
     # NaiveProxy's public host is panel configuration; Telemt and mita report theirs
     # inside the link they return — `MTPROXY_DOMAIN` is only the fallback for a grant
     # that has not learned its endpoint yet.
@@ -143,6 +149,8 @@ def create_app(
         "mieru": MieruAdapter(app.state.mieru),
         "amneziawg": AmneziawgAdapter(app.state.amneziawg,
                                       public_host=settings.amneziawg_public_host or settings.naive_public_host),
+        "trusttunnel": TrusttunnelAdapter(app.state.trusttunnel,
+                                          public_host=settings.trusttunnel_public_host or settings.naive_public_host),
     }
     # The node's Xray-router (v0.5): present only when its overlay is part of the stack.
     if router is not None:
@@ -221,7 +229,8 @@ def create_app(
     app.state.routing = RoutingService(
         app.state.database, routing_store, app.state.adapters, app.state.nodes.nodes,
         enabled=lambda protocol: {"naive": settings.naive_enabled, "mieru": settings.mieru_enabled,
-                                  "amneziawg": settings.amneziawg_enabled}.get(protocol, True),
+                                  "amneziawg": settings.amneziawg_enabled,
+                                  "trusttunnel": settings.trusttunnel_enabled}.get(protocol, True),
         publisher=lambda db, node_id: publish(db, app.state.clients.store, app.state.desired, node_id=node_id,
                                               master_guid=app.state.panel_guid, routing=routing_store),
         managed=app.state.managed, router=app.state.router, relays=app.state.relays, own_guid=app.state.panel_guid,
@@ -270,6 +279,12 @@ def create_app(
             {"detail": "AmneziaWG manager unavailable"}, exc.status_code
         )
 
+    @app.exception_handler(TrusttunnelError)
+    async def trusttunnel_error(_request, exc):
+        return JSONResponse(
+            {"detail": "TrustTunnel manager unavailable"}, exc.status_code
+        )
+
     @app.exception_handler(VersionAgentError)
     async def version_agent_error(_request, exc):
         return JSONResponse({"detail": str(exc)}, exc.status_code)
@@ -284,6 +299,7 @@ def create_app(
     register_naive_routes(app, context)
     register_mieru_routes(app, context)
     register_amneziawg_routes(app, context)
+    register_trusttunnel_routes(app, context)
     register_fleet_routes(app, context)
     register_node_routes(app, context)
     register_client_routes(app, context)

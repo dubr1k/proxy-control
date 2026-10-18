@@ -118,7 +118,7 @@ def test_migration_12_rebuilds_provisioning_operations_with_existing_rows(tmp_pa
             db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
                        " VALUES('op-x','c1','pending_remote','[]',9,9)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     with database.transaction() as db:
         rows = db.execute("SELECT operation_id,status,steps_json,created_at FROM provisioning_operations ORDER BY created_at").fetchall()
         assert [tuple(row) for row in rows] == [
@@ -160,7 +160,7 @@ def test_migration_20_adds_escrow_columns_and_keeps_old_subscriptions_readable(t
             " VALUES('s1','c1','hash-1',1,'active',12,1,1)"
         )
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [20, 21, 22, 23]
+    assert apply_migrations(database) == [20, 21, 22, 23, 24]
     with database.connect() as db:
         columns = {row[1] for row in db.execute("PRAGMA table_info(client_subscriptions)")}
         assert {"secret_id", "secret_version"} <= columns
@@ -320,3 +320,45 @@ def test_connections_keep_temporary_storage_in_memory(tmp_path):
         assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
     with database.transaction() as db:
         assert db.execute("PRAGMA temp_store").fetchone()[0] == 2
+
+
+def test_migration_24_widens_grants_routing_and_egress_and_keeps_every_row(tmp_path, monkeypatch):
+    """TrustTunnel (v1.6): three CHECK lists are rebuilt; rows, children and indexes survive."""
+    from panel import migrations as module
+
+    database = Database(tmp_path / "panel.sqlite3")
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS[:23])
+    apply_migrations(database)
+    with database.transaction() as db:
+        db.execute("INSERT INTO clients(id,display_name,state,created_at,updated_at) VALUES('c1','A','active',1,1)")
+        db.execute("INSERT INTO access_grants(id,client_id,protocol,node_id,runtime_username,desired_state,origin,"
+                   "created_at,updated_at,label) VALUES('g1','c1','amneziawg','local','alice','enabled','provisioned',1,1,'L')")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO access_grants(id,client_id,protocol,node_id,runtime_username,desired_state,origin,"
+                       "created_at,updated_at) VALUES('g2','c1','trusttunnel','local','bob','enabled','provisioned',1,1)")
+        db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
+                   " VALUES('p1','local','naive','naive_native','direct','fail_closed',1,1)")
+        db.execute("INSERT INTO routing_rules(id,policy_id,position,match_json,action,created_at,updated_at)"
+                   " VALUES('r1','p1',1,'{}','direct',1,1)")
+        db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('naive',1,'converged',1)")
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
+    assert apply_migrations(database) == [24]
+    with database.transaction() as db:
+        assert db.execute("SELECT label,protocol FROM access_grants WHERE id='g1'").fetchone()[:] == ("L", "amneziawg")
+        assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p1'").fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM managed_egress").fetchone()[0] == 1
+        db.execute("INSERT INTO access_grants(id,client_id,protocol,node_id,runtime_username,desired_state,origin,"
+                   "created_at,updated_at) VALUES('g2','c1','trusttunnel','local','bob','enabled','provisioned',1,1)")
+        db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
+                   " VALUES('p2','local','trusttunnel','trusttunnel_native','direct','fail_closed',1,1)")
+        db.execute("INSERT INTO routing_rules(id,policy_id,position,match_json,action,created_at,updated_at)"
+                   " VALUES('r2','p2',1,'{}','block',1,1)")
+        db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('trusttunnel',1,'converged',1)")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('socks',1,'converged',1)")
+        names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+        assert {"access_grants_client", "routing_applies_policy"} <= names
+        assert db.execute("SELECT count(*) FROM sqlite_master WHERE name LIKE '%\\_old' ESCAPE '\\'").fetchone()[0] == 0
+        # the children follow the new parent: deleting a policy cascades
+        db.execute("DELETE FROM routing_policies WHERE id='p2'")
+        assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p2'").fetchone()[0] == 0

@@ -25,7 +25,7 @@ from .client import NodeAuthFailed, NodeRejected, NodeUnreachable, fingerprint, 
 from .importing import ImportItem, UnknownClient, import_resources
 from .links import LinkConflict
 
-PROTOCOLS = ("mtproxy", "naive", "mieru", "amneziawg")
+PROTOCOLS = ("mtproxy", "naive", "mieru", "amneziawg", "trusttunnel")
 FINGERPRINT_TIMEOUT = 5.0
 # A linked panel is the only node whose credentials/versions the central operates by hand;
 # the central's own runtime keeps its existing routes.
@@ -50,6 +50,7 @@ def public_hosts_for(state, node_id: str) -> dict[str, str]:
         "mtproxy": settings.mtproxy_host,
         "mieru": settings.naive_public_host,
         "amneziawg": settings.amneziawg_public_host or settings.naive_public_host,
+        "trusttunnel": settings.trusttunnel_public_host or settings.naive_public_host,
     }
 
 
