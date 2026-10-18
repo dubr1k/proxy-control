@@ -161,6 +161,8 @@ def create_app(
         app.state.router = None
     # Telemt has no manager of its own: it asks the router for the MTProxy ingress (v1.1).
     app.state.adapters["mtproxy"].router = app.state.router
+    # The TrustTunnel endpoint's SOCKS5 upstream is the router's loopback ingress (v1.6).
+    app.state.adapters["trusttunnel"].router = app.state.router
     app.state.clients.adapters = app.state.adapters
     # Resources the central panel owns (ADR 003): every local writer asks here first.
     app.state.managed = ManagedStore(app.state.database)

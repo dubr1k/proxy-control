@@ -263,3 +263,17 @@ def test_routing_screen_is_steps_with_a_built_in_guide():
         assert selector in css, selector
     # The guide escapes what it interpolates: node names come from the API.
     assert "esc(target.node_name || target.node_id)" in guide and "esc(scenario.title)" in guide
+
+
+def test_routing_js_knows_trusttunnel_as_a_service_without_lanes():
+    """v1.6: TrustTunnel is a routing service — its name, its native backend (`trusttunnel_native`),
+    the refusals the panel can answer with, and no «Добавить полосу» for it (the endpoint reaches the
+    router as one anonymous SOCKS5 client)."""
+    assert 'trusttunnel: "TrustTunnel"' in ROUTING and 'trusttunnel_native: "TrustTunnel"' in ROUTING
+    for code in ("router_lacks_trusttunnel", "node_lacks_trusttunnel_egress", "lanes_unsupported"):
+        assert code in ROUTING, code
+    assert 'target.backend === "xray_router" && target.protocol !== "trusttunnel"' in ROUTING
+    assert "полос для отдельных клиентов здесь нет" in ROUTING
+    guide = (STATIC / "js/routing-guide.js").read_text()
+    assert "<tr><td>TrustTunnel</td>" in guide and "полосы для отдельных клиентов" in guide
+    assert "(MTProxy, NaiveProxy, Mieru, TrustTunnel)" in guide

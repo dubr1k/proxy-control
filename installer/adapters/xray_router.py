@@ -23,7 +23,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from installer.adapters.core import _DOMAIN, _DefaultCoreRunner, _file_sha256
-from installer.model import ROUTER_PORTS, InstallerConfig
+from installer.model import ROUTER_PORTS, TRUSTTUNNEL_ROUTER_PORT, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, MemberPin, ReleaseError, safe_extract_zip, verify_artifact
 from installer.runtime_state import accepted_sha256
@@ -342,6 +342,8 @@ class XrayRouterAdapter:
                     f"router-uid={_ROUTER_UID}",
                     f"router-gid={_ROUTER_GID}",
                     *(f"port-{service}={ROUTER_PORTS[service]}" for service in _SERVICES),
+                    # v1.6: TrustTunnel's no-auth SOCKS ingress on the loopback (served on every router).
+                    f"port-trusttunnel={TRUSTTUNNEL_ROUTER_PORT}",
                     # The WARP endpoint the router may send traffic through (v0.4 provider).
                     f"warp-provider={config.effective_egress.provider_url() or ''}",
                     # The relay inbound (v0.7): its public port and the panel name it hides behind.
@@ -353,14 +355,14 @@ class XrayRouterAdapter:
                 preconditions=(
                     "the Core runtime is verified",
                     f"the pinned archive is staged in {self.paths.artifact_dir} or fetched from its pin",
-                    "loopback ports 45101 and 45102 are free or held by the owned router",
+                    "loopback ports 45101, 45102 and 45104 are free or held by the owned router",
                     "fixed router identity 10006 is free or already owned",
                     *(("the relay port is free or held by the owned router",) if config.effective_egress.relay_port else ()),
                 ),
                 verification=(
                     "archive and member digests match the pinned release",
                     "the manager reports verified artifacts and a running generation",
-                    "both ingresses listen on the loopback only",
+                    "the naive, mieru and trusttunnel ingresses listen on the loopback only",
                     "one authenticated CONNECT through the NaiveProxy ingress reaches the Internet",
                     "the MTProxy ingress bridge answers on the Compose network",
                     *(("the relay inbound is enabled on its port behind the panel name",) if config.effective_egress.relay_port else ()),
@@ -399,7 +401,7 @@ class XrayRouterAdapter:
             return
         held = {int(value) for value in observed if isinstance(value, int)}
         owners = listeners.get("owners")
-        ports = [ROUTER_PORTS[service] for service in _SERVICES] + ([relay_port] if relay_port else [])
+        ports = [ROUTER_PORTS[service] for service in _SERVICES] + [TRUSTTUNNEL_ROUTER_PORT] + ([relay_port] if relay_port else [])
         for port in ports:
             if port not in held:
                 continue
@@ -421,7 +423,8 @@ class XrayRouterAdapter:
                     "state-dir", "router-uid", "router-gid", "warp-provider",
                     *(f"{member}-digest" for member in _MEMBERS), *(f"port-{service}" for service in _SERVICES)}
         optional = {"relay-port", "relay-server-name",  # v0.7; a v0.5/v0.6 action has neither
-                    "mtproxy-bridge"}  # v1.1; an older action has none
+                    "mtproxy-bridge",  # v1.1; an older action has none
+                    "port-trusttunnel"}  # v1.6; an older action has none
         if not required <= set(values) or set(values) - required - optional:
             raise XrayRouterError("Xray-router action is invalid")
         url, archive_sha256, members = self._pins()
@@ -447,6 +450,8 @@ class XrayRouterAdapter:
         if not relay_port.isdigit() or int(relay_port) > 65535 or (0 < int(relay_port) < 1024):
             raise XrayRouterError("invalid relay port")
         if values.get("mtproxy-bridge", f"{_BRIDGE_SERVICE}:45103") != f"{_BRIDGE_SERVICE}:45103":
+            raise XrayRouterError("Xray-router action is invalid")
+        if values.get("port-trusttunnel", str(TRUSTTUNNEL_ROUTER_PORT)) != str(TRUSTTUNNEL_ROUTER_PORT):
             raise XrayRouterError("Xray-router action is invalid")
         server_name = values.get("relay-server-name", "")
         if int(relay_port) and (not server_name or _DOMAIN.fullmatch(server_name) is None):
@@ -640,6 +645,8 @@ class XrayRouterAdapter:
         for service in _SERVICES:
             if not listener(ROUTER_PORTS[service]):
                 raise XrayRouterError(f"the {service} ingress must listen on the loopback only")
+        if not listener(TRUSTTUNNEL_ROUTER_PORT):
+            raise XrayRouterError("the trusttunnel ingress must listen on the loopback only")
         probe = getattr(self.runner, "ingress_probe", None)
         if not callable(probe):
             raise XrayRouterError("ingress verification is unavailable")
@@ -660,12 +667,13 @@ class XrayRouterAdapter:
             success=True,
             observations=(
                 "pinned Xray members, verified artifacts and a running generation",
-                "both ingresses are loopback-only and the NaiveProxy ingress relays",
+                "all three SOCKS ingresses (naive, mieru, trusttunnel) are loopback-only and the NaiveProxy ingress relays",
                 "the MTProxy ingress bridge answers",
                 *(("the relay inbound is up on its public port behind the panel name",) if relay else ()),
             ),
             details={"generation": generation, "xray_version": str(status.get("xray_version") or ""),
-                     "ports": {service: ROUTER_PORTS[service] for service in _SERVICES}, "relay": relay},
+                     "ports": {service: ROUTER_PORTS[service] for service in _SERVICES}, "relay": relay,
+                     "trusttunnel_port": TRUSTTUNNEL_ROUTER_PORT},
         )
 
     def repair(self, action: Action, checkpoint: Mapping[str, object]) -> Mapping[str, object]:

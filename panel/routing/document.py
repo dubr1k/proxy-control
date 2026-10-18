@@ -42,7 +42,12 @@ ATTACH_DOCUMENTS = {
     # v1.1: Telemt's upstream is the router's MTProxy ingress (through the bridge); the panel
     # writes it into Telemt itself — there is no manager in between.
     "mtproxy": {"schema": 1, "upstream": {"provider": "router"}},
+    # v1.6: the TrustTunnel manager's own document — the endpoint's SOCKS5 forward protocol, pointed at the
+    # router's no-auth loopback ingress (`xray_router_manager.intent.TRUSTTUNNEL_PORT`).
+    "trusttunnel": {"mode": "socks5", "address": "127.0.0.1:45104"},
 }
+# The TrustTunnel manager's document (v1.6) for «direct»: the endpoint dials destinations itself.
+TRUSTTUNNEL_DIRECT_DOCUMENT = {"mode": "direct"}
 # Telemt's own document (v1.1) for «direct»: the upstream it had before the router.
 TELEMT_DIRECT_DOCUMENT = {"schema": 1, "upstream": None}
 # Where Telemt reaches the router: the `xray-router-ingress` bridge on the Compose network.
@@ -60,6 +65,8 @@ def attached_to_router(protocol: str, document: dict | None) -> bool:
         return False
     if protocol in ("naive", "mtproxy"):
         return document.get("upstream") == {"provider": "router"}
+    if protocol == "trusttunnel":
+        return document == ATTACH_DOCUMENTS["trusttunnel"]
     if protocol == "mieru":
         rules = document.get("rules") or []
         return (any(proxy.get("name") == "router" for proxy in document.get("proxies") or [] if isinstance(proxy, dict))

@@ -50,6 +50,18 @@ MATRIX: dict[str, dict[str, str]] = {
         "hiddify": "unsupported",
         "throne": "supported",
     },
+    "trusttunnel": {
+        "karing": "unproven",
+        "singbox": "unsupported",
+        "mihomo": "supported",
+        "mieru_cli": "unsupported",
+        "telegram": "unsupported",
+        "shadowrocket": "unproven",
+        "nekobox": "unproven",
+        "v2rayn": "unproven",
+        "hiddify": "unsupported",
+        "throne": "unsupported",
+    },
 }
 
 NOTES: dict[str, dict[str, str]] = {
@@ -88,6 +100,18 @@ NOTES: dict[str, dict[str, str]] = {
         "v2rayn": "depends on the bundled core version; not verified against our clash renderer",
         "hiddify": "sing-box based; the official core has no mieru outbound",
         "throne": "the mieru outbound comes from the Karing sing-box JSON cut, never from Clash YAML (Throne's clash parser has no mieru type); in Throne 1.3.1 a UDP binding connects only when the server is an IP address",
+    },
+    "trusttunnel": {
+        "karing": "ships a mihomo (Clash.Meta) core next to the sing-box one, but a trusttunnel proxy in a Clash feed is unverified in Karing; the sing-box cut has no TrustTunnel outbound",
+        "singbox": "sing-box has no TrustTunnel outbound",
+        "mihomo": "proxy type trusttunnel with server, port, username, password, udp, quic, skip-cert-verify (MetaCubeX wiki, config/proxies/trusttunnel); the same type also appears in other Clash.Meta-family cores",
+        "mieru_cli": "single-protocol client",
+        "telegram": "not a Telegram protocol",
+        "shadowrocket": "no verified TrustTunnel import format for our renderers; the tt:// link in the raw feed is for the official AdGuard TrustTunnel apps and CLI",
+        "nekobox": "no verified TrustTunnel import path",
+        "v2rayn": "depends on the bundled core version; not verified against our clash renderer",
+        "hiddify": "sing-box based; sing-box has no TrustTunnel outbound",
+        "throne": "ThroneCore is a sing-box fork without a TrustTunnel outbound, and Throne's Clash parser takes no trusttunnel type",
     },
 }
 

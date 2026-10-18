@@ -32,7 +32,7 @@ from ..protocols.base import AdapterError
 from ..secrets_store import SecretError, SecretRef, SecretStore
 from .adapters.xray_router import ChainHop
 from .document import document_digest, without_lane
-from .models import LANE_SERVICE, PolicyInput, Reason, RoutingPolicy
+from .models import LANE_SERVICE, LANES_UNSUPPORTED_TRUSTTUNNEL, PolicyInput, Reason, RoutingPolicy
 from .store import RoutingStore
 
 RELAY_PURPOSE = "relay-account"
@@ -269,6 +269,8 @@ class LaneService:
         with self.database.connect() as db:
             grant = self._grant(db, grant_id)
             current = self._routing_lane(db, grant_id)
+        if grant.protocol == "trusttunnel":
+            raise LaneError(422, "lanes_unsupported", LANES_UNSUPPORTED_TRUSTTUNNEL)
         if grant.protocol not in ("naive", "mieru"):
             raise LaneError(422, "protocol_out_of_scope", f"{grant.protocol} is outside routing")
         lane = self.lane_of(grant_id)

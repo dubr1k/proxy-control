@@ -6,6 +6,7 @@ and must not phone anywhere. Every value goes through `html.escape`, including t
 """
 from __future__ import annotations
 
+import base64
 from html import escape
 
 from ...reveals import qr_data
@@ -39,6 +40,14 @@ def _grant_section(grant: ManifestGrant, artifacts: dict, name: str) -> str:
         if artifact.media_type == "text/uri-list":
             value = named_share_url(grant, value, name)
         shown = escape(value)
+        if artifact.media_type == "application/toml":
+            # A config file: shown in full to copy, and offered as a download. No script needed.
+            href = "data:application/toml;base64," + base64.b64encode(value.encode()).decode()
+            parts.append(
+                f"<p>{escape(artifact.label)} · <a href=\"{href}\" download=\"trusttunnel_client.toml\">"
+                f"скачать</a></p><pre><code>{shown}</code></pre>"
+            )
+            continue
         parts.append(f"<p><a href=\"{shown}\">{escape(artifact.label)}</a></p><code>{shown}</code>")
         if artifact.media_type == "text/uri-list":
             parts.append(f"<img src=\"{escape(qr_data(value))}\" alt=\"QR\">")

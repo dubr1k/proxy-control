@@ -66,8 +66,11 @@ async def test_targets_lists_local_protocols_with_backends_and_mtproxy_direct_on
     stand["mieru"].reachable = False
     service.save("local", "naive", _warp(), expected_revision=None, **CTX)
     items = await service.targets()
-    assert [(i["node_id"], i["protocol"]) for i in items] == [("local", "mtproxy"), ("local", "naive"), ("local", "mieru")]
-    mtproxy, naive, mieru = items
+    assert [(i["node_id"], i["protocol"]) for i in items] == [("local", "mtproxy"), ("local", "naive"), ("local", "mieru"),
+                                                                       ("local", "trusttunnel")]
+    mtproxy, naive, mieru, trusttunnel = items
+    # v1.6: TrustTunnel is a target too; this stand runs no endpoint for it.
+    assert trusttunnel["reason"] == "protocol_disabled_on_node" and trusttunnel["backend"] is None
     # v1.1: MTProxy is a target — Telemt's own backend, direct only without a router.
     assert mtproxy["backend"] == "mtproxy_native" and mtproxy["reason"] is None and mtproxy["policy"] is None
     assert mtproxy["capabilities"] == ["whole_direct"] and mtproxy["router"] is None

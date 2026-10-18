@@ -88,7 +88,7 @@ def test_mtproxy_is_handed_out_as_links_and_a_qr_never_as_a_subscription():
     assert 'id="links-box"' in html and 'id="links-body"' in html and 'id="subscription-box"' in html
     assert 'id="subscription-unavailable"' in html
     # Подписка умеет отдавать не всё: MTProxy в этом множестве нет.
-    assert 'const SUBSCRIBABLE = new Set(["naive", "mieru"])' in javascript
+    assert 'const SUBSCRIBABLE = new Set(["naive", "mieru", "trusttunnel"])' in javascript
     assert "SUBSCRIBABLE.has(grant.protocol)" in javascript
     assert 'query("#subscription-box", root).hidden = hide' in javascript
     # Ссылки берутся одноразовым reveal'ом ровно по mtproxy и проверяются как в окне доступа.

@@ -38,7 +38,7 @@ from .base import (
 
 LINK_KIND, TOML_KIND = "trusttunnel_link", "trusttunnel_toml"
 LINK_MEDIA_TYPE, TOML_MEDIA_TYPE = "text/uri-list", "application/toml"
-EGRESS_CAPABILITIES = ("egress.direct", "egress.socks5")
+EGRESS_CAPABILITIES = ("whole_direct",)
 PASSWORD = re.compile(r"[\x21-\x7e]{8,128}")
 
 
@@ -171,9 +171,12 @@ class TrusttunnelAdapter:
     capture_supported = False
     accepts_caller_credential = True
 
-    def __init__(self, client, *, public_host: str = ""):
+    def __init__(self, client, *, public_host: str = "", router=None):
         self.client = client
         self.public_host = public_host
+        # The node's Xray-router adapter (v1.6): the endpoint's SOCKS5 upstream is its loopback ingress,
+        # so the target offers it only while the router serves the `trusttunnel` section.
+        self.router = router
 
     async def _clients(self) -> list[dict]:
         try:
@@ -313,10 +316,13 @@ class TrusttunnelAdapter:
 
     async def egress_target(self) -> EgressTarget | None:
         view = await self._egress_view()
+        providers = {}
+        if self.router is not None and (await self.router.target(self.protocol)).available:
+            providers["router"] = {"reachable": True}
         # `socks5` is the manager's word for an upstream; the compiler's vocabulary calls it `proxy`.
         return egress_target_from_view(self.protocol, "trusttunnel_native", {
             "revision": view.get("revision"), "mode": "proxy" if view.get("mode") == "socks5" else "direct",
-            "document": self._document(view), "providers": {}, "capabilities": list(EGRESS_CAPABILITIES)})
+            "document": self._document(view), "providers": providers, "capabilities": list(EGRESS_CAPABILITIES)})
 
     async def plan_egress(self, document: dict, *, expected_revision: str) -> dict:
         await self._egress_current(expected_revision)

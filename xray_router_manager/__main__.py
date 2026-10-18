@@ -41,6 +41,8 @@ def build_manager() -> XrayRouterManager:
         # v1.1: the MTProxy ingress on a Unix socket the `xray-router-ingress` bridge shares;
         # empty turns it off (a router that serves naive and mieru only).
         mtproxy_socket=os.getenv("XRAY_ROUTER_INGRESS_MTPROXY_SOCKET", MTPROXY_SOCKET).strip() or None,
+        # v1.6: the TrustTunnel ingress, a no-auth SOCKS inbound on this loopback port; empty turns it off.
+        trusttunnel_port=int(os.getenv("XRAY_ROUTER_PORT_TRUSTTUNNEL", "").strip() or 0) or None,
     )
 
 

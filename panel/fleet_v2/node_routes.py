@@ -41,8 +41,10 @@ APPLY_DEADLINE = 25.0
 # the button for a node without it.
 # `egress.mtproxy.v1` (v1.1): this node applies an `mtproxy` egress section (Telemt's upstream,
 # and the MTProxy section of its router) and reports its MTProxy egress target.
+# `egress.trusttunnel.v1` (v1.6): the same for TrustTunnel (the endpoint's SOCKS5 upstream and the
+# `trusttunnel` section of its router).
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1",
-                "egress.mtproxy.v1", "protocol.amneziawg.v1", "protocol.trusttunnel.v1")
+                "egress.mtproxy.v1", "protocol.amneziawg.v1", "protocol.trusttunnel.v1", "egress.trusttunnel.v1")
 ROUTER_CAPABILITY = "egress.router.v1"
 # v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
 # and applies the `relay` section, reporting both in `identity.router`.
@@ -154,17 +156,19 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         if router is None:
             return None
         sections, lanes = {}, {}
-        for service in ("naive", "mieru", "mtproxy"):
+        for service in ("naive", "mieru", "mtproxy", "trusttunnel"):
             target = await router.target(service)
             if service == "mtproxy" and target.reason == "router_lacks_mtproxy":
                 continue  # a router not rebuilt since v1.1 still serves the other two
+            if service == "trusttunnel" and target.reason == "router_lacks_trusttunnel":
+                continue  # a router not rebuilt since v1.6 serves the rest
             if not target.available:
                 return {"available": False, "reason": target.reason or "router_unavailable"}
             sections[service] = {"revision": target.revision,
                                  "applied_digest": target.applied["digest"] if target.applied else None}
             capabilities, providers, xray_version = target.capabilities, target.providers, target.xray_version
-            if service == "mtproxy":
-                continue  # no lanes on MTProxy
+            if service in ("mtproxy", "trusttunnel"):
+                continue  # no lanes on MTProxy or TrustTunnel
             try:
                 lanes[service] = sorted((await router.lanes(service)).get("lanes", []))
             except AdapterError:

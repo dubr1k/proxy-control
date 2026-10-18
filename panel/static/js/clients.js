@@ -10,7 +10,7 @@ const CLIENT_STATE = {
 };
 
 // One order on every card, whatever order the grants were issued in.
-const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2, amneziawg: 3 };
+const PROTOCOL_ORDER = { mtproxy: 0, naive: 1, mieru: 2, amneziawg: 3, trusttunnel: 4 };
 
 function byProtocol(left, right) {
   return (PROTOCOL_ORDER[left.protocol] ?? 9) - (PROTOCOL_ORDER[right.protocol] ?? 9)

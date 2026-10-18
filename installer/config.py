@@ -17,6 +17,7 @@ from installer.model import (
     DEFAULT_RELAY_PORT,
     MAX_LANE_SLOTS,
     ROUTER_PORTS,
+    TRUSTTUNNEL_ROUTER_PORT,
     TT_DEFAULT_LISTEN_PORT,
     TT_METRICS_PORT,
     AmneziaWgConfig,
@@ -609,6 +610,7 @@ def reserved_tcp_ports(config: InstallerConfig) -> dict[int, str]:
     if egress.router:
         for service, port in ROUTER_PORTS.items():
             reserved[port] = f"the Xray-router ingress for {service}"
+        reserved[TRUSTTUNNEL_ROUTER_PORT] = "the Xray-router ingress for trusttunnel"
         if egress.relay_port:
             reserved[egress.relay_port] = "the Xray-router relay (egress.relay_port)"
     if config.mieru is not None:

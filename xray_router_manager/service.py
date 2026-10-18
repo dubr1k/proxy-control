@@ -47,6 +47,8 @@ from . import intent as intent_module
 from .intent import (
     CAPABILITIES,
     MTPROXY_BRIDGE_ADDRESS,
+    NO_LANE_SERVICES,
+    NOAUTH_SERVICES,
     PORTS,
     SCHEMA_V2,
     SERVICES,
@@ -287,17 +289,25 @@ class _Journal:
 class XrayRouterManager:
     def __init__(self, *, state_dir: Path, runner: XrayRunner, ingress_files: dict[str, Path], warp_url: str | None,
                  artifacts: dict[str, tuple[Path, str]], ports: dict[str, int] | None = None,
-                 ready_timeout: float = 10.0, reachability=None, mtproxy_socket: Path | str | None = None):
+                 ready_timeout: float = 10.0, reachability=None, mtproxy_socket: Path | str | None = None,
+                 trusttunnel_port: int | None = None):
         self.state_dir = Path(state_dir)
         # v1.1: the MTProxy ingress (a `vless` inbound on this Unix socket) — None keeps the
         # router what it was before: naive and mieru only.
         self.mtproxy_socket = None if mtproxy_socket is None else Path(mtproxy_socket)
-        self.services: tuple[str, ...] = tuple(tag for tag in SERVICES if tag != "mtproxy" or self.mtproxy_socket is not None)
+        # v1.6: the TrustTunnel ingress (a no-auth SOCKS inbound on this loopback port) — None keeps
+        # the router what it was before.
+        self.trusttunnel_port = trusttunnel_port
+        self.services: tuple[str, ...] = tuple(
+            tag for tag in SERVICES
+            if (tag != "mtproxy" or self.mtproxy_socket is not None) and (tag != "trusttunnel" or trusttunnel_port is not None))
         self.runner = runner
         self.ingress_files = {tag: Path(path) for tag, path in ingress_files.items()}
         self.warp_url = warp_url or None
         self.artifacts = {name: (Path(path), digest) for name, (path, digest) in artifacts.items()}
         self.ports = dict(ports or PORTS)
+        if trusttunnel_port is not None:
+            self.ports["trusttunnel"] = trusttunnel_port
         self.ready_timeout = ready_timeout
         self.reachability = reachability or intent_module.check_reachable
         self.hop_reachability = check_hop_reachable
@@ -372,6 +382,9 @@ class XrayRouterManager:
                 record = self._mtproxy_credential()
                 ingresses.append(Ingress(tag=tag, port=0, user=record["username"], password=record["password"],
                                          socket=str(self.mtproxy_socket), uuid=record["uuid"]))
+                continue
+            if tag in NOAUTH_SERVICES:
+                ingresses.append(Ingress(tag=tag, port=self.ports[tag], user="", password=""))
                 continue
             path = self.ingress_files[tag]
             try:
@@ -480,9 +493,10 @@ class XrayRouterManager:
     def lane_issue(self, service: str, lane: str) -> dict:
         """Mint (or rotate) a grant lane's account, put it on the ingress now, return it once."""
         self._service(service)
-        if service == "mtproxy":
-            # One VLESS client behind the bridge: Telemt cannot tell its users apart upstream.
-            raise ValidationError("mtproxy has no lanes")
+        if service in NO_LANE_SERVICES:
+            # One VLESS client behind the bridge (Telemt), one anonymous SOCKS client (TrustTunnel):
+            # neither tells its users apart upstream.
+            raise ValidationError(f"{service} has no lanes")
         match = GRANT_LANE.fullmatch(lane) if isinstance(lane, str) else None
         if match is None:
             raise ValidationError("invalid lane")

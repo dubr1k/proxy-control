@@ -93,6 +93,10 @@ class EgressChoice(StrEnum):
 # The router's per-service SOCKS5 ingress on the host loopback (v0.5, frozen identifiers):
 # the same numbers `xray_router_manager.intent.PORTS` listens on.
 ROUTER_PORTS: dict[str, int] = {"naive": 45101, "mieru": 45102}
+# v1.6: TrustTunnel's ingress — a no-auth SOCKS5 inbound on the host loopback (the endpoint's SOCKS5
+# client presents no credentials). Not an authenticated per-service port, so not in `ROUTER_PORTS`;
+# `xray_router_manager.intent.TRUSTTUNNEL_PORT` and `compose.xray-router.yaml` carry the same number.
+TRUSTTUNNEL_ROUTER_PORT = 45104
 # The relay inbound's public port (v0.7): vless+reality for chains from other nodes.
 DEFAULT_RELAY_PORT = 45443
 

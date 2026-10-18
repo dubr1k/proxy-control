@@ -17,7 +17,14 @@ from pathlib import Path
 
 import pytest
 
-from panel.clients.models import AccessGrant, Client, MieruOptions, MtproxyOptions, NaiveOptions
+from panel.clients.models import (
+    AccessGrant,
+    Client,
+    MieruOptions,
+    MtproxyOptions,
+    NaiveOptions,
+    TrusttunnelOptions,
+)
 from panel.clients.service import CREDENTIAL_PURPOSE
 from panel.clients.store import ClientStore
 from panel.database import Database
@@ -25,7 +32,7 @@ from panel.keyring import Keyring
 from panel.migrations import apply_migrations
 from panel.mieru import MemoryMieru
 from panel.naive import MemoryNaive
-from panel.protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
+from panel.protocols import MieruAdapter, NaiveAdapter, TelemtAdapter, TrusttunnelAdapter
 from panel.secrets_store import SecretStore
 from panel.subscriptions.compatibility import MATRIX, NOTES
 from panel.subscriptions.models import Manifest, ManifestGrant
@@ -37,6 +44,8 @@ from panel.subscriptions.renderers import (
 )
 from panel.subscriptions.renderers import clash as clash_module
 from panel.telemt import MemoryTelemt
+from panel.trusttunnel import MemoryTrusttunnel
+from panel.trusttunnel_link import decode_deeplink
 
 ROOT = Path(__file__).resolve().parents[2]
 HOSTS = {"mtproxy": "proxy.example.com", "naive": "naive.example.com", "mieru": "mieru.example.com"}
@@ -324,7 +333,7 @@ def test_a_body_over_the_size_limit_is_refused_not_truncated(manifest, artifacts
 
 
 def test_compatibility_matrix_follows_the_fixture_and_never_claims_telegram_auto_refresh():
-    assert set(MATRIX) == {"mtproxy", "naive", "mieru"}
+    assert set(MATRIX) == {"mtproxy", "naive", "mieru", "trusttunnel"}
     assert all(
         value in {"supported", "unsupported", "unproven"} for row in MATRIX.values() for value in row.values()
     )
@@ -343,3 +352,158 @@ def test_compatibility_matrix_follows_the_fixture_and_never_claims_telegram_auto
         protocol: {client: cells[protocol]["note"] for client, cells in fixture.items()}
         for protocol in NOTES
     } == NOTES
+
+
+# --- TrustTunnel ----------------------------------------------------------------------
+
+SELF_SIGNED_DER_B64 = "MAMCAQU="  # a DER SEQUENCE the adapter can split; the content is irrelevant here
+TT_PASSWORD = b"tt-pass-CANARY-01"
+
+
+def _seed_tt(database, secrets, username, *, certificate=None, name=None, enabled=True):
+    options = TrusttunnelOptions(hostname="gate.example.com", port=443, certificate_der_b64=certificate, name=name)
+    grant = AccessGrant(
+        id=str(uuid.uuid4()), client_id="c1", protocol="trusttunnel", node_id="local",
+        endpoint_id="default", runtime_username=username,
+        desired_state="enabled" if enabled else "disabled", observed_state="enabled",
+        options=options, origin="provisioned", created_at=NOW, updated_at=NOW,
+    )
+    store = ClientStore(database)
+    with database.transaction() as db:
+        store.insert_grant(db, grant)
+        reference = secrets.store(
+            db, secret_id=f"grant:{grant.id}", version=1, purpose=CREDENTIAL_PURPOSE,
+            grant_id=grant.id, permitted_node_id="local", plaintext=TT_PASSWORD, state="active",
+        )
+        store.update_grant(db, grant.id, secret_id=reference.secret_id, secret_version=reference.version)
+    return ManifestGrant(
+        grant_id=grant.id, protocol="trusttunnel", node_id="local", endpoint_id="default",
+        runtime_username=username, secret_version=1, options=options.model_dump(), enabled=enabled,
+    )
+
+
+@pytest.fixture
+def tt_feed(database, secrets):
+    grants = [
+        _seed_tt(database, secrets, "trusted"),
+        _seed_tt(database, secrets, "selfsigned", certificate=SELF_SIGNED_DER_B64),
+        _seed_tt(database, secrets, "paused", enabled=False),
+    ]
+    manifest = Manifest(client_id="c1", client_name="Sergey", generation=5, grants=grants)
+    adapters = {"trusttunnel": TrusttunnelAdapter(MemoryTrusttunnel(), public_host="gate.example.com")}
+    with database.connect() as db:
+        artifacts = resolve_artifacts(manifest, secrets, adapters, db, public_hosts={"trusttunnel": "gate.example.com"})
+    return manifest, artifacts
+
+
+def test_trusttunnel_grants_reach_the_renderers_with_both_artifacts(tt_feed):
+    manifest, artifacts = tt_feed
+    by_user = {grant.runtime_username: grant.grant_id for grant in manifest.grants}
+    assert set(artifacts) == {by_user["trusted"], by_user["selfsigned"]}
+    assert [a.kind for a in artifacts[by_user["trusted"]]] == ["trusttunnel_link", "trusttunnel_toml"]
+
+
+def test_clash_emits_a_trusttunnel_proxy_with_exactly_the_documented_keys(tt_feed):
+    manifest, artifacts = tt_feed
+    text = RENDERERS["clash"].render(manifest, artifacts).decode()
+    proxies, tail = text.split("proxy-control:")
+    assert "    type: 'trusttunnel'\n    server: 'gate.example.com'\n    port: 443\n" in proxies
+    assert "    username: 'trusted'\n    password: 'tt-pass-CANARY-01'\n    udp: false\n    quic: false\n" in proxies
+    block = proxies.split("- name:")[1]  # the trusted entry: no certificate, so no skip-cert-verify
+    assert "skip-cert-verify" not in block.split("- name:")[0]
+    keys = [line.split(":")[0].strip() for line in block.splitlines()[1:] if line.startswith("    ") and not line.startswith("     ")]
+    assert keys == ["type", "server", "port", "username", "password", "udp", "quic"]
+    assert "paused" not in proxies
+    assert "tt-pass-CANARY-01" not in tail
+
+
+def test_clash_skips_certificate_verification_only_for_an_untrusted_certificate(tt_feed):
+    manifest, artifacts = tt_feed
+    proxies = RENDERERS["clash"].render(manifest, artifacts).decode().split("proxy-groups:")[0]
+    entries = proxies.split("  - name:")[1:]
+    flags = {("trusted" if "username: 'trusted'" in e else "selfsigned"): "skip-cert-verify: true" in e for e in entries}
+    assert flags == {"trusted": False, "selfsigned": True}
+
+
+def test_clash_group_lists_the_trusttunnel_proxies(tt_feed):
+    manifest, artifacts = tt_feed
+    text = RENDERERS["clash"].render(manifest, artifacts).decode()
+    group = text.split("proxy-groups:")[1].split("proxy-control:")[0]
+    assert group.count("TrustTunnel") == 2
+
+
+def test_singbox_names_the_gap_for_trusttunnel_and_stays_valid(tt_feed):
+    manifest, artifacts = tt_feed
+    for client in ("karing", "singbox"):
+        data = json.loads(RENDERERS["singbox"].render(manifest, artifacts, client=client))
+        assert data["outbounds"] == []
+        reasons = {item["runtime_username"]: item["reason"] for item in data["proxy_control"]["unsupported"]}
+        assert reasons == {"trusted": NOTES["trusttunnel"][client], "selfsigned": NOTES["trusttunnel"][client]}
+        assert "TrustTunnel" in reasons["trusted"]
+        assert "tt-pass" not in json.dumps(data)
+
+
+def test_raw_carries_the_tt_link_with_its_name_and_a_comment_for_the_paused_one(tt_feed):
+    manifest, artifacts = tt_feed
+    lines = RENDERERS["raw"].render(manifest, artifacts).decode().splitlines()
+    links = [line for line in lines if line.startswith("tt://?")]
+    assert len(links) == 2
+    fields = [decode_deeplink(link) for link in links]
+    assert {f["username"] for f in fields} == {"trusted", "selfsigned"}
+    assert all(f["password"] == TT_PASSWORD.decode() and f["hostname"] == "gate.example.com" for f in fields)
+    # the feed's display name, not the adapter's, labels the profile in the client app
+    assert len({f["name"] for f in fields}) == 2 and all(f["name"].startswith("local · TrustTunnel") for f in fields)
+    assert "# disabled trusttunnel paused" in lines
+    certificates = {f["username"]: f.get("certificate") for f in fields}
+    assert certificates["trusted"] is None and certificates["selfsigned"]
+
+
+def test_trusttunnel_profile_names_follow_the_client_labels(database, secrets):
+    grant = dataclasses.replace(_seed_tt(database, secrets, "named"), label="Phone")
+    manifest = Manifest(client_id="c1", client_name="Sergey", generation=1, grants=[grant])
+    adapters = {"trusttunnel": TrusttunnelAdapter(MemoryTrusttunnel(), public_host="gate.example.com")}
+    with database.connect() as db:
+        artifacts = resolve_artifacts(manifest, secrets, adapters, db, public_hosts={})
+    link = RENDERERS["raw"].render(manifest, artifacts).decode().strip()
+    assert decode_deeplink(link)["name"] == "Phone"
+    assert "name: 'Phone'" in RENDERERS["clash"].render(manifest, artifacts).decode()
+
+
+def test_html_shows_the_trusttunnel_link_qr_and_toml_download(tt_feed):
+    manifest, artifacts = tt_feed
+    text = RENDERERS["html"].render(manifest, artifacts).decode()
+    assert text.count("tt://?") >= 2 and text.count("data:image/svg+xml;base64,") == 2
+    assert "<pre" in text and "[endpoint]" in text and 'download="trusttunnel_client.toml"' in text
+    assert 'href="data:application/toml;base64,' in text
+    assert 'href="[' not in text and "<script" not in text.lower()
+    assert "TrustTunnel" in text
+
+
+def test_manifest_carries_trusttunnel_artifacts_and_its_matrix_row(tt_feed):
+    manifest, artifacts = tt_feed
+    data = json.loads(RENDERERS["manifest"].render(manifest, artifacts))
+    grants = {item["runtime_username"]: item for item in data["grants"]}
+    assert [a["kind"] for a in grants["trusted"]["artifacts"]] == ["trusttunnel_link", "trusttunnel_toml"]
+    assert grants["paused"]["artifacts"] == []
+    assert set(data["compatibility"]["trusttunnel"]) == set(MATRIX["mtproxy"])
+
+
+def test_trusttunnel_password_stays_out_of_the_database_logs_and_errors(database, tt_feed, caplog):
+    manifest, artifacts = tt_feed
+    for renderer in RENDERERS.values():
+        renderer.render(manifest, artifacts)
+    assert b"tt-pass-CANARY-01" not in _database_bytes(database)
+    assert "tt-pass-CANARY-01" not in caplog.text
+    broken = dataclasses.replace(manifest, grants=manifest.grants * 30)
+    for renderer in RENDERERS.values():
+        with pytest.raises(RenderError) as exc:
+            renderer.render(broken, artifacts)
+        assert "tt-pass-CANARY-01" not in str(exc.value)
+
+
+def test_trusttunnel_matrix_row_is_evidence_honest():
+    row = MATRIX["trusttunnel"]
+    assert set(row) == set(MATRIX["mtproxy"]) and set(NOTES["trusttunnel"]) == set(row)
+    assert row["mihomo"] == "supported"
+    assert row["singbox"] == row["throne"] == row["mieru_cli"] == row["telegram"] == "unsupported"
+    assert "supported" not in {v for k, v in row.items() if k != "mihomo"}

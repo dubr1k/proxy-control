@@ -16,6 +16,10 @@ VNEXT_ROUTING_ENGINE.md`), plus the constraints that no capability flag can expr
   own policy can only be «direct, no rules»; the rest is `not_attached`. On the router,
   Telemt dials Telegram's data centres by address and speaks MTProto, which no sniffer
   names: a rule on a domain, a `geosite` or a protocol could never match, so it is refused.
+- `trusttunnel_native` (v1.6) — the endpoint's forward protocol: direct, or handed whole to the
+  router's loopback ingress. Its own policy can only be «direct, no rules»; the rest is
+  `not_attached`. The endpoint's SOCKS5 client presents no username, so the router sees one
+  anonymous client per service: no client lanes.
 
 Private destinations (loopback, link-local, RFC 1918) may be blocked but never opened
 by a `direct`/`egress` rule (spec §10): Caddy denies them by default, mita must not hand
@@ -29,11 +33,12 @@ import json
 
 from ..protocols.base import EgressTarget, RouterTarget
 from .adapters.xray_router import ChainHop, compile_intent
-from .document import ROUTER_DIRECT_INTENT, TELEMT_DIRECT_DOCUMENT, canonical, document_digest
+from .document import ROUTER_DIRECT_INTENT, TELEMT_DIRECT_DOCUMENT, TRUSTTUNNEL_DIRECT_DOCUMENT, canonical, document_digest
 from .models import (
     BACKEND_FOR,
     COMPILER_VERSION,
     LANE_SERVICE,
+    LANES_UNSUPPORTED_TRUSTTUNNEL,
     Compiled,
     Reason,
     RoutingPolicy,
@@ -96,6 +101,8 @@ def direct_document(backend: str) -> dict:
         return json.loads(json.dumps(ROUTER_DIRECT_INTENT))
     if backend == "mtproxy_native":
         return json.loads(json.dumps(TELEMT_DIRECT_DOCUMENT))
+    if backend == "trusttunnel_native":
+        return json.loads(json.dumps(TRUSTTUNNEL_DIRECT_DOCUMENT))
     return (_naive_document if backend == "naive_native" else _mieru_document)("direct", [])
 
 
@@ -153,6 +160,9 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
                                           message=f"{policy.protocol} reports no egress target on this node"))
         return unsupported
     is_lane = policy.lane != LANE_SERVICE or any(other.lane != LANE_SERVICE for other in (lanes or []))
+    if is_lane and policy.protocol == "trusttunnel":
+        unsupported.reasons.append(Reason(code="lanes_unsupported", message=LANES_UNSUPPORTED_TRUSTTUNNEL))
+        return unsupported
     if is_lane and (router is None or not router.available):
         unsupported.reasons.append(Reason(code="lane_requires_router",
                                           message="a client lane runs only on the node's Xray-router"))
@@ -187,8 +197,8 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
                                           message=f"{policy.protocol} is attached to the node's Xray-router: "
                                                   "the policy must target xray_router"))
         return unsupported
-    if target.backend == "mtproxy_native":
-        return _compile_mtproxy_native(policy, target, unsupported)
+    if target.backend in ("mtproxy_native", "trusttunnel_native"):
+        return _compile_direct_only(policy, target, unsupported)
 
     reasons: list[Reason] = []
     warnings: list[str] = list(target.warnings)
@@ -264,15 +274,17 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     )
 
 
-def _compile_mtproxy_native(policy: RoutingPolicy, target: EgressTarget, unsupported: Compiled) -> Compiled:
-    """Telemt's own upstream (v1.1): «direct, no rules» is the one policy it runs by itself —
-    what «reset» applies and what a detach leaves. Anything else needs the router."""
+def _compile_direct_only(policy: RoutingPolicy, target: EgressTarget, unsupported: Compiled) -> Compiled:
+    """Telemt's own upstream (v1.1) and the TrustTunnel endpoint's forward protocol (v1.6):
+    «direct, no rules» is the one policy such a backend runs by itself — what «reset» applies
+    and what a detach leaves. Anything else needs the router."""
     if policy.default_action != "direct" or any(rule.enabled for rule in policy.rules):
+        name = "TrustTunnel" if target.backend == "trusttunnel_native" else "MTProxy"
         unsupported.reasons.append(Reason(code="not_attached",
-                                          message="MTProxy is routed only through the node's Xray-router: attach it first"))
+                                          message=f"{name} is routed only through the node's Xray-router: attach it first"))
         unsupported.warnings = list(target.warnings)
         return unsupported
-    document = direct_document("mtproxy_native")
+    document = direct_document(target.backend)
     digest = document_digest(document)
     applied = target.applied
     if applied is not None and applied.get("document") is None:

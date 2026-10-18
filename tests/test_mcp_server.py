@@ -393,6 +393,14 @@ async def test_versions_and_routing_and_audit_curated_tools(registry, fake):
     assert tail["items"][0]["action"] == "api_key.create" and fake.calls[-1][1] == "/api/audit?limit=10"
 
 
+async def test_the_curated_routing_tools_accept_trusttunnel(registry, fake):
+    for name in ("routing_preview", "routing_apply"):
+        tool = next(item for item in registry.tools() if item.name == name)
+        assert tool.input_schema["properties"]["protocol"]["enum"] == ["naive", "mieru", "mtproxy", "trusttunnel"]
+    preview = _text(await registry.call("routing_preview", {"node_id": "local", "protocol": "trusttunnel"}))
+    assert fake.calls[-1][1] == "/api/routing/policies/local/trusttunnel/preview?lane=svc" and preview["lane"] == ["svc"]
+
+
 async def test_resources_are_json_text(registry):
     uris = {resource.uri for resource in registry.resources()}
     assert uris == {"proxy-control://overview", "proxy-control://versions", "proxy-control://nodes"}

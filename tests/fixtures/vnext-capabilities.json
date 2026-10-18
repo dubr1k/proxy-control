@@ -132,52 +132,62 @@
     "karing": {
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path; the tg:// link is handed over manually"},
       "naive": {"status": "supported", "note": "sing-box fork core; accepts a sing-box JSON subscription with a naive outbound"},
-      "mieru": {"status": "supported", "note": "release notes list Mieru support for both the sing-box and clash cores"}
+      "mieru": {"status": "supported", "note": "release notes list Mieru support for both the sing-box and clash cores"},
+      "trusttunnel": {"status": "unproven", "note": "ships a mihomo (Clash.Meta) core next to the sing-box one, but a trusttunnel proxy in a Clash feed is unverified in Karing; the sing-box cut has no TrustTunnel outbound"}
     },
     "singbox": {
       "mtproxy": {"status": "unsupported", "note": "sing-box has no MTProto outbound"},
       "naive": {"status": "supported", "note": "outbound type naive exists since sing-box 1.13.0 on Apple, Android, Windows and part of the Linux builds"},
-      "mieru": {"status": "unsupported", "note": "official sing-box has no mieru outbound"}
+      "mieru": {"status": "unsupported", "note": "official sing-box has no mieru outbound"},
+      "trusttunnel": {"status": "unsupported", "note": "sing-box has no TrustTunnel outbound"}
     },
     "mihomo": {
       "mtproxy": {"status": "unsupported", "note": "mihomo has no MTProto proxy type"},
       "naive": {"status": "unsupported", "note": "naiveproxy support is an open feature request, MetaCubeX/mihomo#273"},
-      "mieru": {"status": "supported", "note": "proxy type mieru with server, port/port-range, transport, username, password, multiplexing, udp"}
+      "mieru": {"status": "supported", "note": "proxy type mieru with server, port/port-range, transport, username, password, multiplexing, udp"},
+      "trusttunnel": {"status": "supported", "note": "proxy type trusttunnel with server, port, username, password, udp, quic, skip-cert-verify (MetaCubeX wiki, config/proxies/trusttunnel); the same type also appears in other Clash.Meta-family cores"}
     },
     "mieru_cli": {
       "mtproxy": {"status": "unsupported", "note": "single-protocol client"},
       "naive": {"status": "unsupported", "note": "single-protocol client"},
-      "mieru": {"status": "unsupported", "note": "the official client has no subscription mechanism at all: mieru apply config / mieru import config only (enfein/mieru docs/client-install.md)"}
+      "mieru": {"status": "unsupported", "note": "the official client has no subscription mechanism at all: mieru apply config / mieru import config only (enfein/mieru docs/client-install.md)"},
+      "trusttunnel": {"status": "unsupported", "note": "single-protocol client"}
     },
     "telegram": {
       "mtproxy": {"status": "unsupported", "note": "Telegram accepts a tg://proxy link and never polls a subscription URL"},
       "naive": {"status": "unsupported", "note": "not a Telegram protocol"},
-      "mieru": {"status": "unsupported", "note": "not a Telegram protocol"}
+      "mieru": {"status": "unsupported", "note": "not a Telegram protocol"},
+      "trusttunnel": {"status": "unsupported", "note": "not a Telegram protocol"}
     },
     "shadowrocket": {
       "mtproxy": {"status": "unsupported", "note": "MTProto is imported manually, not from a mixed feed"},
       "naive": {"status": "unproven", "note": "no verified naive import format for our renderers; not offered until proven on the lab host"},
-      "mieru": {"status": "unsupported", "note": "no verified Mieru import format (docs/MIERU_SHARING.en.md)"}
+      "mieru": {"status": "unsupported", "note": "no verified Mieru import format (docs/MIERU_SHARING.en.md)"},
+      "trusttunnel": {"status": "unproven", "note": "no verified TrustTunnel import format for our renderers; the tt:// link in the raw feed is for the official AdGuard TrustTunnel apps and CLI"}
     },
     "nekobox": {
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
       "naive": {"status": "unproven", "note": "NekoBox forks parse naive+https:// links, but subscription auto-refresh with our feed is unverified"},
-      "mieru": {"status": "unsupported", "note": "no verified Mieru import format (docs/MIERU_SHARING.en.md)"}
+      "mieru": {"status": "unsupported", "note": "no verified Mieru import format (docs/MIERU_SHARING.en.md)"},
+      "trusttunnel": {"status": "unproven", "note": "no verified TrustTunnel import path"}
     },
     "v2rayn": {
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
       "naive": {"status": "unproven", "note": "depends on the bundled core version; not verified against our sing-box renderer"},
-      "mieru": {"status": "unproven", "note": "depends on the bundled core version; not verified against our clash renderer"}
+      "mieru": {"status": "unproven", "note": "depends on the bundled core version; not verified against our clash renderer"},
+      "trusttunnel": {"status": "unproven", "note": "depends on the bundled core version; not verified against our clash renderer"}
     },
     "hiddify": {
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
       "naive": {"status": "unproven", "note": "sing-box based, but the shipped core version and naive build variant are unverified"},
-      "mieru": {"status": "unsupported", "note": "sing-box based; the official core has no mieru outbound"}
+      "mieru": {"status": "unsupported", "note": "sing-box based; the official core has no mieru outbound"},
+      "trusttunnel": {"status": "unsupported", "note": "sing-box based; sing-box has no TrustTunnel outbound"}
     },
     "throne": {
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
       "naive": {"status": "supported", "note": "ThroneCore (a sing-box fork) takes the naive outbound from either sing-box JSON cut; verified with Throne 1.3.1 on the lab host"},
-      "mieru": {"status": "supported", "note": "the mieru outbound comes from the Karing sing-box JSON cut, never from Clash YAML (Throne's clash parser has no mieru type); in Throne 1.3.1 a UDP binding connects only when the server is an IP address"}
+      "mieru": {"status": "supported", "note": "the mieru outbound comes from the Karing sing-box JSON cut, never from Clash YAML (Throne's clash parser has no mieru type); in Throne 1.3.1 a UDP binding connects only when the server is an IP address"},
+      "trusttunnel": {"status": "unsupported", "note": "ThroneCore is a sing-box fork without a TrustTunnel outbound, and Throne's Clash parser takes no trusttunnel type"}
     }
   }
 }

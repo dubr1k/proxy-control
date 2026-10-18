@@ -374,7 +374,7 @@ async def test_subscription_management_needs_a_writer_role_and_a_configured_url(
         assert (await viewer.post(f"/api/clients/{client_id}/subscription/revoke")).status_code == 403
         assert (await viewer.post(f"/api/clients/{client_id}/subscription/reveal")).status_code == 403
         compat = await viewer.get("/api/subscriptions/compatibility")
-        assert compat.status_code == 200 and set(compat.json()["matrix"]) == {"mtproxy", "naive", "mieru"}
+        assert compat.status_code == 200 and set(compat.json()["matrix"]) == {"mtproxy", "naive", "mieru", "trusttunnel"}
 
     app.state.subscriptions.public_base = ""  # what an empty PANEL_SUBSCRIPTION_URL leaves behind
     async with httpx.AsyncClient(

@@ -18,6 +18,7 @@ from urllib.parse import quote, unquote_plus, urlsplit
 from ...clients.store import ClientStore
 from ...protocols.base import AccessArtifact
 from ...secrets_store import SecretRef
+from ...trusttunnel_link import DeepLinkError, decode_deeplink, encode_deeplink
 from ..models import Manifest, ManifestGrant
 
 MEDIA_TYPE_MANIFEST = "application/vnd.proxy-control.subscription+json;version=1"
@@ -153,7 +154,31 @@ def named_share_url(grant: ManifestGrant, link: str, name: str) -> str:
             for item in parts.query.split("&")
         )
         return parts._replace(query=query).geturl()
+    if grant.protocol == "trusttunnel":
+        return trusttunnel_share_url(link, name)
     return link
+
+
+def trusttunnel_fields(link: str) -> dict:
+    """The decoded `tt://` link. The error names the protocol, never the link (it carries the password)."""
+    try:
+        return decode_deeplink(link)
+    except DeepLinkError as exc:
+        raise RenderError("trusttunnel: link is not renderable") from exc
+
+
+def trusttunnel_share_url(link: str, name: str) -> str:
+    """The same access with the profile name the client app shows replaced by the feed's display name."""
+    fields = trusttunnel_fields(link)
+    try:
+        return encode_deeplink(
+            hostname=fields["hostname"], addresses=fields["addresses"], username=fields["username"],
+            password=fields["password"], certificate_der=fields.get("certificate"),
+            upstream_protocol=fields["upstream_protocol"], name=name,
+            skip_verification=fields["skip_verification"],
+        )
+    except (DeepLinkError, KeyError) as exc:
+        raise RenderError("trusttunnel: link is not renderable") from exc
 
 
 def naive_share_url(proxy_url: str, username: str, *, name: str | None = None) -> str:

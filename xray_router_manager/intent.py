@@ -35,8 +35,15 @@ import socket
 from urllib.parse import urlsplit
 
 SCHEMA = 1
-SERVICES = ("naive", "mieru", "mtproxy")
+SERVICES = ("naive", "mieru", "mtproxy", "trusttunnel")
 PORTS = {"naive": 45101, "mieru": 45102}
+# v1.6: TrustTunnel's endpoint forwards through a plain SOCKS5 client that offers no credentials
+# (`[forward_protocol.socks5]`, `extended_auth = false`), so its ingress is a no-auth SOCKS inbound
+# on the host loopback — served only when the router's environment names the port, and without
+# client lanes: the endpoint cannot tell its clients apart upstream.
+TRUSTTUNNEL_PORT = 45104
+NOAUTH_SERVICES = ("trusttunnel",)
+NO_LANE_SERVICES = ("mtproxy", "trusttunnel")
 # v1.1: MTProxy (Telemt) lives on the Compose bridge network and cannot reach the host
 # loopback, so its ingress is a `vless` inbound on a Unix socket in the volume it shares with
 # the `xray-router-ingress` bridge (docs/XRAY_ROUTER.en.md).
@@ -81,7 +88,7 @@ MAX_CHAINS = 16
 MAX_HOPS = 3
 MAX_DOCUMENT_BYTES_V2 = 65536
 CHAIN_EXITS = ("direct", "warp")
-_LANE = re.compile(r"(?:svc:(?:naive|mieru|mtproxy)|grant:[A-Za-z0-9_-]{1,64})\Z")
+_LANE = re.compile(r"(?:svc:(?:naive|mieru|mtproxy|trusttunnel)|grant:[A-Za-z0-9_-]{1,64})\Z")
 _CHAIN_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
 _GUID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")

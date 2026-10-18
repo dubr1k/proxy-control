@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .geodata import GeodataError
-from .intent import EgressInvalid, EgressUnreachable
+from .intent import NO_LANE_SERVICES, EgressInvalid, EgressUnreachable
 from .service import ArtifactMismatch, ManagerConflict, ManualInterventionRequired, ValidationError, XrayError
 
 LOGGER = logging.getLogger("xray_router_manager")
@@ -120,7 +120,7 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if path.startswith("/v1/lanes/"):
                 tail = path[len("/v1/lanes/"):].split("/")
                 service = tail[0]
-                if service not in manager.services or service == "mtproxy":
+                if service not in manager.services or service in NO_LANE_SERVICES:
                     return self._send(404, {"detail": "not found"})
                 if self.command == "GET" and len(tail) == 1:
                     return self._send(200, manager.lanes(service))

@@ -14,9 +14,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-Protocol = Literal["naive", "mieru", "mtproxy"]
+Protocol = Literal["naive", "mieru", "mtproxy", "trusttunnel"]
 # The native backend of each data plane (v0.4) or the node's dedicated Xray-router (v0.5).
-Backend = Literal["naive_native", "mieru_native", "mtproxy_native", "xray_router"]
+Backend = Literal["naive_native", "mieru_native", "mtproxy_native", "trusttunnel_native", "xray_router"]
 Action = Literal["direct", "block", "egress"]
 DefaultAction = Literal["direct", "egress"]
 # An egress names where the connection leaves (v0.7): this node's WARP, or a chain of other
@@ -28,10 +28,16 @@ State = Literal["draft", "applying", "applied", "failed", "rolled_back"]
 
 # v1.1: MTProxy's own backend is Telemt's upstream — it can only be direct; anything else the
 # service does goes through the router once it is attached.
-BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native", "mtproxy": "mtproxy_native"}
+# v1.6: TrustTunnel's own backend is the endpoint's forward protocol — direct, or a SOCKS5 upstream that
+# is the router's loopback ingress; like MTProxy, everything else the service does goes through the router.
+BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native", "mtproxy": "mtproxy_native",
+                               "trusttunnel": "trusttunnel_native"}
 # Protocols whose users may get a lane of their own on the router (v0.7): Telemt cannot tell
-# its users apart upstream, so MTProxy has none.
+# its users apart upstream, and neither can the TrustTunnel endpoint (its SOCKS5 client offers
+# no username to the router), so MTProxy and TrustTunnel have none.
 LANE_PROTOCOLS = ("naive", "mieru")
+LANES_UNSUPPORTED_TRUSTTUNNEL = ("TrustTunnel has no client lanes: its endpoint reaches the router as one anonymous SOCKS5 client, "
+                                 "so the router cannot tell its users apart. Route the whole service instead")
 NATIVE_BACKEND_FOR = BACKEND_FOR
 ROUTER_BACKEND = "xray_router"
 MAX_RULES = 128

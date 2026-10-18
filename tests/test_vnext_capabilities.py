@@ -50,7 +50,7 @@ def test_named_client_matrix_is_explicit_and_matches_the_owner_decision():
         "shadowrocket", "nekobox", "v2rayn", "hiddify", "throne",
     }
     for name, cells in clients.items():
-        assert set(cells) == {"mtproxy", "naive", "mieru"}, name
+        assert set(cells) == {"mtproxy", "naive", "mieru", "trusttunnel"}, name
         for protocol, cell in cells.items():
             assert cell["status"] in STATUSES and cell["note"].strip(), (name, protocol)
     assert clients["karing"]["naive"]["status"] == "supported"
@@ -61,3 +61,6 @@ def test_named_client_matrix_is_explicit_and_matches_the_owner_decision():
     assert clients["mihomo"]["naive"]["status"] == "unsupported"      # MetaCubeX/mihomo#273
     assert clients["mieru_cli"]["mieru"]["status"] == "unsupported"   # the client has no subscriptions
     assert all(cells["mtproxy"]["status"] == "unsupported" for cells in clients.values())
+    assert clients["mihomo"]["trusttunnel"]["status"] == "supported"  # type: trusttunnel
+    assert clients["singbox"]["trusttunnel"]["status"] == "unsupported"  # no sing-box outbound
+    assert clients["throne"]["trusttunnel"]["status"] == "unsupported"

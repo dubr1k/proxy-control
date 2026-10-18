@@ -3,8 +3,8 @@
 // so «Новый клиент» and the client window share one definition of what a tick means.
 import { esc } from "./common.js";
 
-export const PROTOCOLS = ["mtproxy", "naive", "mieru"];
-export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
+export const PROTOCOLS = ["mtproxy", "naive", "mieru", "trusttunnel"];
+export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
 // AmneziaWG versions are not compatible with each other, so each one is its own column and a
 // client can hold several: one grant per node and version, named `<account>-awg<ver>`.
@@ -91,7 +91,7 @@ export function placementRows(nodes, grants) {
     const node = known.get(id) || { node_id: id, display_name: id };
     const cells = {};
     for (const column of [...BASE_COLUMNS, ...AWG_COLUMNS]) cells[column.key] = granted(live, id, column);
-    return { node_id: id, label: label(node), offered: offered(node), cells, awg: awgVersions(node) };
+    return { node_id: id, label: label(node), offered: offered(node), cells, awg: awgVersions(node), trusttunnel: node.identity?.protocols?.trusttunnel?.enabled !== false };
   });
 }
 
@@ -99,7 +99,7 @@ function cell(row, column, canWrite) {
   const grant = row.cells[column.key];
   const ticked = grant !== null && grant.desired_state === "enabled";
   // A node that does not serve this AmneziaWG version cannot take a new one; an existing grant stays.
-  const unserved = column.version !== null && grant === null && !row.awg.includes(column.version);
+  const unserved = grant === null && (column.version !== null ? !row.awg.includes(column.version) : (column.protocol === "trusttunnel" && row.trusttunnel === false));
   const locked = !canWrite || !row.offered || unserved;
   // Deleting an existing grant never needs the node reachable, so it stays available even on
   // a row that is not currently offered (a paused linked panel) — only new ticks are locked.

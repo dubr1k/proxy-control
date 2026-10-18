@@ -25,6 +25,7 @@ from .lanes import DEFAULT_RELAY_PORT, ChainResolver, RelayRegistry, lane_polici
 from .models import (
     BACKEND_FOR,
     LANE_SERVICE,
+    LANES_UNSUPPORTED_TRUSTTUNNEL,
     ROUTER_BACKEND,
     Compiled,
     PolicyInput,
@@ -38,7 +39,7 @@ from .store import PolicyConflict, RoutingStore
 
 GEODATA_REFUSALS = ("geodata_invalid", "geodata_corrupt", "geodata_rejected", "geodata_busy")
 
-PROTOCOLS = ("mtproxy", "naive", "mieru")
+PROTOCOLS = ("mtproxy", "naive", "mieru", "trusttunnel")
 # What an apply failure costs the caller: the manager's own refusals are conflicts, an
 # unrecoverable runtime is a 503, a manager that does not answer a 502.
 ERROR_STATUS = {"manual_intervention_required": 503, "manager_unavailable": 502, "artifact_mismatch": 503}
@@ -85,6 +86,9 @@ def router_target_from_identity(protocol: str, router: dict | None) -> RouterTar
     if protocol == "mtproxy" and "mtproxy" not in (router.get("services") or {}):
         # The node's router manager is from before v1.1 (v1.1 nodes report it once rebuilt).
         return RouterTarget(available=False, service=protocol, reason="router_lacks_mtproxy")
+    if protocol == "trusttunnel" and "trusttunnel" not in (router.get("services") or {}):
+        # The node's router manager is from before v1.6 (it reports the service once rebuilt).
+        return RouterTarget(available=False, service=protocol, reason="router_lacks_trusttunnel")
     section = (router.get("services") or {}).get(protocol) or {}
     revision = str(section.get("revision") or "")
     digest = section.get("applied_digest")
@@ -167,6 +171,8 @@ class RoutingService:
             return None, False
         if protocol == "mtproxy" and "egress.mtproxy.v1" not in (identity.get("capabilities") or []):
             raise AdapterError("the node must be updated to v1.1 to route MTProxy", code="node_lacks_mtproxy_egress")
+        if protocol == "trusttunnel" and "egress.trusttunnel.v1" not in (identity.get("capabilities") or []):
+            raise AdapterError("the node must be updated to v1.6 to route TrustTunnel", code="node_lacks_trusttunnel_egress")
         return target_from_identity(protocol, (identity.get("protocols") or {}).get(protocol, {}).get("egress")), True
 
     async def _router_target(self, row: dict, protocol: str) -> RouterTarget | None:
@@ -531,6 +537,8 @@ class RoutingService:
     def _policy(self, db, node_id: str, protocol: str, lane: str = LANE_SERVICE) -> RoutingPolicy:
         self._protocol(protocol)
         self._node(db, node_id)
+        if protocol == "trusttunnel" and self._lane(lane) != LANE_SERVICE:
+            raise RoutingError(422, "lanes_unsupported", LANES_UNSUPPORTED_TRUSTTUNNEL)
         policy = self.store.get(db, node_id, protocol, lane=self._lane(lane))
         if policy is None:
             raise RoutingError(404, "policy_not_found", "no routing policy for this node, protocol and lane")
@@ -549,6 +557,8 @@ class RoutingService:
         """A grant lane's policy exists only for a grant that has its lane on this node."""
         if lane == LANE_SERVICE:
             return
+        if protocol == "trusttunnel":
+            raise RoutingError(422, "lanes_unsupported", LANES_UNSUPPORTED_TRUSTTUNNEL)
         row = db.execute("SELECT routing_lane FROM access_grants WHERE id=? AND node_id=? AND protocol=?",
                          (lane[6:], node_id, protocol)).fetchone()
         if row is None or row["routing_lane"] != "own":

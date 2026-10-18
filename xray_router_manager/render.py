@@ -39,7 +39,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 
-from .intent import PORTS, SCHEMA_V2, SERVICES, EgressInvalid, provider_endpoint, uses_provider
+from .intent import NOAUTH_SERVICES, PORTS, SCHEMA_V2, SERVICES, EgressInvalid, provider_endpoint, uses_provider
 
 # What Telemt itself dials through its upstream besides Telegram: the TLS front of the `mask`
 # container on the Compose network. Loopback and link-local stay blocked.
@@ -256,6 +256,14 @@ def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_ur
                 "tag": tag, "listen": ingress.socket, "port": 0, "protocol": "vless",
                 "settings": {"clients": [{"id": ingress.uuid, "email": tag, "flow": ""}], "decryption": "none"},
                 "streamSettings": {"network": "raw"},
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"], "routeOnly": True},
+            })
+            continue
+        if tag in NOAUTH_SERVICES:
+            # The endpoint's SOCKS5 client has no credentials to present; the inbound is loopback-only.
+            inbounds.append({
+                "tag": tag, "listen": "127.0.0.1", "port": ports[tag], "protocol": "socks",
+                "settings": {"auth": "noauth", "udp": False},
                 "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"], "routeOnly": True},
             })
             continue

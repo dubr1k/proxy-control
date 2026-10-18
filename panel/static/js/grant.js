@@ -4,7 +4,7 @@
 import { bytes, esc, locale, query } from "./common.js";
 import { proxyLink, qrSource } from "./access.js";
 
-export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
+export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
 // AmneziaWG versions are different protocols on the wire, so the version is part of the name.
 export function protocolTitle(grant) {
@@ -117,6 +117,13 @@ function checkedLink(protocol, value) {
     }
     return value;
   }
+  if (protocol === "trusttunnel") {
+    // The deep link the TrustTunnel app imports: tt://? and base64url, nothing else.
+    if (typeof value !== "string" || value.length > 16384 || !/^tt:\/\/\?[A-Za-z0-9_-]+={0,2}$/.test(value)) {
+      throw new Error("Панель вернула некорректную ссылку TrustTunnel");
+    }
+    return value;
+  }
   const scheme = protocol === "naive" ? /^(naive\+)?https:\/\/[^\s]+$/ : /^mierus?:\/\/[^\s]+$/;
   if (typeof value !== "string" || value.length > 4096 || !scheme.test(value)) {
     throw new Error("Панель вернула некорректную ссылку доступа");
@@ -178,6 +185,10 @@ export function createGrantDialog(context) {
       rows.push(fact("Адрес в туннеле", options.address || "ещё не выдан узлом"));
       rows.push(fact("Порт версии", options.port ? `${options.port}/udp` : "—"));
     }
+    if (grant.protocol === "trusttunnel") {
+      if (grant.options?.name) rows.push(fact("Профиль", grant.options.name));
+      rows.push(fact("Особенности", "TrustTunnel — только TCP/HTTP2; новый клиент ненадолго перезапускает endpoint", { wide: true }));
+    }
     rows.push(fact("Ограничения", limits(grant)));
     const period = validity(grant);
     if (period) rows.push(fact("Срок действия", period));
@@ -221,7 +232,9 @@ export function createGrantDialog(context) {
     hint.textContent = grant.desired_state === "enabled"
       ? (grant.protocol === "amneziawg"
         ? "Конфиг собирается из хранилища панели по запросу и в окне не остаётся: он содержит ключ клиента."
-        : "Ссылка собирается из хранилища панели по запросу и в окне не остаётся.")
+        : grant.protocol === "trusttunnel"
+          ? "Ссылка tt:// и конфиг TOML собираются из хранилища панели по запросу и в окне не остаются: в них пароль доступа."
+          : "Ссылка собирается из хранилища панели по запросу и в окне не остаётся.")
       : "Доступ выключен: ссылка заработает, когда его включат.";
     actions.innerHTML = `<button type="button" class="primary" data-grant-action="show">${state.link ? "Показать заново" : (grant.protocol === "amneziawg" ? "Показать конфиг" : "Показать ссылку")}</button>${apps}`;
     if (!state.link) {
@@ -235,7 +248,7 @@ export function createGrantDialog(context) {
           <textarea class="awg-conf" readonly rows="12" spellcheck="false" aria-label="${esc(label)}">${esc(value)}</textarea>
         </label>
         ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код конфига: ${esc(grant.runtime_username)}">` : ""}
-        <span class="link-card-actions"><button type="button" class="copy" data-copy="${esc(value)}">Копировать</button>
+        <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(value)}">Копировать</button>
           <a class="primary button" href="data:text/plain;charset=utf-8,${encodeURIComponent(value)}" download="${esc(file)}">Скачать .conf</a>
           ${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>`;
       return;
@@ -243,11 +256,19 @@ export function createGrantDialog(context) {
     const telegram = grant.protocol === "mtproxy"
       ? `<a class="primary button" href="${esc(value)}">Открыть в Telegram</a>`
       : "";
+    // TrustTunnel also hands out its client config (TOML): no QR for it, a copy and a download.
+    const toml = state.link.toml
+      ? `<label class="grant-link-field">${esc(state.link.toml.label)}
+          <textarea class="awg-conf tt-toml" readonly rows="10" spellcheck="false" aria-label="${esc(state.link.toml.label)}">${esc(state.link.toml.value)}</textarea>
+        </label>
+        <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(state.link.toml.value)}">Копировать</button>
+          <a class="primary button" href="data:application/toml;charset=utf-8,${encodeURIComponent(state.link.toml.value)}" download="${esc(grant.runtime_username)}.toml">Скачать .toml</a></span>`
+      : "";
     body.innerHTML = `<label class="grant-link-field">${esc(label)}
         <span class="copy-field"><input readonly value="${esc(value)}" aria-label="${esc(label)}"><button type="button" class="copy" data-copy="${esc(value)}">Копировать</button></span>
       </label>
       ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код: ${esc(grant.runtime_username)}">` : ""}
-      <span class="link-card-actions">${telegram}${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.protocol)}-${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>`;
+      <span class="link-card-actions">${telegram}${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.protocol)}-${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>${toml}`;
   }
 
   function renderActions(client, grant) {
@@ -331,13 +352,21 @@ export function createGrantDialog(context) {
       const payload = await api(`/api/reveal/${encodeURIComponent(token)}`);
       if (generation !== state.generation) return;
       const revealed = (payload.grants || []).find((item) => item.grant_id === state.grantId);
-      const artifact = revealed?.artifacts?.[0];
+      const artifacts = revealed?.artifacts || [];
+      const artifact = found.grant.protocol === "trusttunnel"
+        ? artifacts.find((item) => item.kind === "trusttunnel_link")
+        : artifacts[0];
       if (!artifact) throw new Error("Панель вернула доступ без ссылки");
       state.link = {
         value: checkedLink(found.grant.protocol, artifact.value),
         qr: artifact.qr ? qrSource(artifact.qr) : null,
         label: artifact.label || (found.grant.protocol === "amneziawg" ? "Конфиг AmneziaWG" : "Ссылка"),
+        toml: null,
       };
+      const toml = artifacts.find((item) => item.kind === "trusttunnel_toml");
+      if (found.grant.protocol === "trusttunnel" && toml && typeof toml.value === "string" && toml.value.length <= 65536) {
+        state.link.toml = { value: toml.value, label: toml.label || "Конфиг TrustTunnel (TOML)" };
+      }
     } catch (exception) {
       if (generation !== state.generation) return;
       state.link = null;

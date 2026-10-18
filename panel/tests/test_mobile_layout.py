@@ -866,3 +866,86 @@ def test_name_dialog_fits_the_phone_viewport(tmp_path: Path) -> None:
     errors = json.loads(rendered["errors"])
     assert rendered["innerWidth"] == 390
     assert rendered["result"] == "pass", errors
+
+
+def test_trusttunnel_screen_and_grant_window_fit_the_phone_viewport(tmp_path: Path) -> None:
+    """The TrustTunnel overview cards, a data row and the grant window with the link, its QR and
+    the TOML config (real index.html markup, filled the way trusttunnel.js and grant.js fill it)."""
+    import re
+
+    css = (ROOT / "static" / "style.css").read_text()
+    html = (ROOT / "static" / "index.html").read_text()
+    dialog = re.search(r'<dialog id="grant-window".*?</dialog>', html, re.DOTALL).group(0)
+    tt_modal = re.search(r'<dialog id="tt-modal".*?</dialog>', html, re.DOTALL).group(0)
+    long_name = "alice-with-a-very-long-runtime-name-that-does-not-fit"
+    overview = (
+        '<div class="awg-overview tt-overview">'
+        '<article><small>Менеджер TrustTunnel</small><strong>Работает</strong><span class="status-pill active"><i></i>Работает</span></article>'
+        '<article><small>Endpoint · gate.sky.example-with-a-long-name.test</small><strong>443/tcp</strong><span class="status-pill active"><i></i>Работает</span><small>Версия: 1.0.35</small></article>'
+        '<article><small>TLS</small><strong>Свой</strong><span class="status-pill blocked"><i></i>Сертификат не из публичного УЦ</span><small>Сертификат кладётся в ссылку и конфиг доступа</small></article>'
+        '<article><small>Доступы и сессии</small><strong>1 из 2</strong><small>Сессий сейчас: 3</small><small>↑ 5.3 МБ · ↓ 118 МБ</small></article>'
+        '</div>'
+        f'<section class="data-panel"><div class="data-row naive-grid"><div class="identity"><span class="user-glyph">AL</span><span><b>{long_name}</b><small>TrustTunnel</small><small>Клиент: Ноутбук Сергея — рабочий · профиль «Дом»</small></span></div>'
+        '<div class="cell"><span class="status-pill active"><i></i>Включён</span><small>Сессий: 3</small></div>'
+        '<div class="cell"><b>↑ 5.3 МБ · ↓ 118 МБ</b><small>отправлено / получено клиентом</small></div>'
+        '<div class="row-actions"><button class="action-button share">Открыть доступ</button></div></div></section>'
+    )
+    toml = f'hostname = "gate.sky.example.test"\nusername = "{long_name}"\npassword = "' + "p" * 90 + '"\n'
+    fact = lambda label, value, wide="": f'<div class="grant-fact{wide}"><dt>{label}</dt><dd>{value}</dd></div>'  # noqa: E731
+    facts = "".join((
+        fact("Клиент", "Ноутбук Сергея — рабочий, с очень длинным названием · активен", " wide"),
+        fact("Учётная запись", f"<code>{long_name}</code>"),
+        fact("Особенности", "TrustTunnel — только TCP/HTTP2; новый клиент ненадолго перезапускает endpoint", " wide"),
+    ))
+    body = (
+        '<label class="grant-link-field">Ссылка TrustTunnel<span class="copy-field"><input readonly value="tt://?' + "A1b2C3d4_-" * 22 + '"><button type="button" class="copy">Копировать</button></span></label>'
+        '<img class="link-qr" alt="QR" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIi8+PC9zdmc+">'
+        '<span class="link-card-actions"><a class="secondary button" href="#">Скачать QR</a></span>'
+        f'<label class="grant-link-field">Конфиг TrustTunnel (TOML)<textarea class="awg-conf tt-toml" readonly rows="10">{toml}</textarea></label>'
+        '<span class="link-card-actions"><button type="button" class="secondary button copy">Копировать</button><a class="primary button" href="#">Скачать .toml</a></span>'
+    )
+    script = f"""
+      addEventListener("load", () => {{
+        const errors = [];
+        const tolerance = 1;
+        if (innerWidth !== 390) errors.push(`viewport is ${{innerWidth}}px instead of 390px`);
+        document.querySelector("main").innerHTML = {json.dumps(overview)};
+        if (document.documentElement.scrollWidth > innerWidth + tolerance) errors.push("the TrustTunnel screen scrolls horizontally");
+        for (const node of document.querySelectorAll(".tt-overview, .tt-overview *, .naive-grid, .naive-grid *")) {{
+          const box = node.getBoundingClientRect();
+          if (box.width && box.right > innerWidth + tolerance) errors.push(`${{node.className || node.tagName}} leaves the viewport`);
+        }}
+        const dialog = document.querySelector("#grant-window");
+        document.querySelector("#grant-facts").innerHTML = {json.dumps(facts)};
+        document.querySelector("#grant-link").hidden = false;
+        document.querySelector("#grant-link-body").innerHTML = {json.dumps(body)};
+        dialog.showModal();
+        const form = dialog.querySelector("form");
+        if (form.scrollWidth > form.clientWidth + tolerance) errors.push("grant dialog scrolls horizontally");
+        for (const node of form.querySelectorAll(".grant-link-body *, .grant-fact, .grant-fact *")) {{
+          if (node.matches("input")) continue;
+          const box = node.getBoundingClientRect();
+          const parent = node.parentElement.getBoundingClientRect();
+          if (box.width && (box.left < parent.left - tolerance || box.right > parent.right + tolerance)) errors.push(`${{node.className || node.tagName}} escapes its box`);
+        }}
+        const area = form.querySelector(".tt-toml");
+        if (area.scrollWidth > area.clientWidth + tolerance) errors.push("TOML text is wider than its box");
+        dialog.close();
+        document.querySelector("#tt-modal").showModal();
+        const modal = document.querySelector("#tt-modal form");
+        if (modal.scrollWidth > modal.clientWidth + tolerance) errors.push("create dialog scrolls horizontally");
+        document.body.dataset.result = errors.length ? "fail" : "pass";
+        document.body.dataset.errors = JSON.stringify(errors);
+      }});
+    """
+    page = tmp_path / "trusttunnel.html"
+    page.write_text(
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<style>{css}</style></head><body><main></main>{dialog}{tt_modal}<script>{script}</script></body></html>"
+    )
+
+    rendered = _render_at_phone_viewport(page, tmp_path / "chromium-profile")
+    errors = json.loads(rendered["errors"])
+    assert rendered["innerWidth"] == 390
+    assert rendered["result"] == "pass", errors

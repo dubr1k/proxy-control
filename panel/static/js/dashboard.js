@@ -29,6 +29,7 @@ function paintNavCounts(context, data, nodes) {
   set("#mieru-count", protocols.mieru?.credentials);
   set("#naive-count", protocols.naive?.credentials);
   set("#amneziawg-count", protocols.amneziawg?.credentials);
+  set("#trusttunnel-count", protocols.trusttunnel?.credentials);
   const fleet = query("#fleet-count", context.root);
   if (fleet) fleet.textContent = nodes ?? "—";
 }
@@ -158,7 +159,10 @@ export async function renderDashboard(context, generation) {
   const awgAvailable = awg.available === true;
   const awgReady = awg.ready === true;
   const awgVersions = Object.entries(awg.versions || {}).map(([version, count]) => `${version}: ${count}`).join(" · ");
-  const allReady = mtReady && (!naiveAvailable || naiveReady) && (!mieruAvailable || mieruReady) && (!awgAvailable || awgReady);
+  const tt = data.protocols?.trusttunnel || { available: false, status: "disabled" };
+  const ttAvailable = tt.available === true;
+  const ttReady = tt.ready === true;
+  const allReady = mtReady && (!naiveAvailable || naiveReady) && (!mieruAvailable || mieruReady) && (!awgAvailable || awgReady) && (!ttAvailable || ttReady);
   const system = query(".system-mini", root);
   system.classList.toggle("degraded", !allReady);
   query("b", system).textContent = allReady ? "Прокси-сервисы работают" : "Есть неполадки";
@@ -189,6 +193,11 @@ export async function renderDashboard(context, generation) {
       ${awgVersions ? `<p class="protocol-note">Версии (доступов): ${esc(awgVersions)}</p>` : ""}
       <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(awg.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(awg.credentials?.disabled)}</strong></span></div>
       <div class="protocol-metrics"><span><small>Принято / отдано</small><b>${bytes(awg.traffic?.upload_bytes)} / ${bytes(awg.traffic?.download_bytes)}</b></span></div>
+    </article>
+    <article class="protocol-card ${ttReady || !ttAvailable ? "" : "degraded"}"${ttAvailable ? "" : " hidden"}>
+      <div class="protocol-head"><span><small>HTTP/2 · TCP</small><h2>TrustTunnel</h2></span><span class="status-pill ${ttReady ? "active" : "blocked"}"><i></i>${!ttAvailable ? "Отключён" : ttReady ? "Работает" : "Недоступен"}</span></div>
+      <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(tt.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(tt.credentials?.disabled)}</strong></span></div>
+      <div class="protocol-metrics"><span><small>Принято / отдано</small><b>${bytes(tt.traffic?.upload_bytes)} / ${bytes(tt.traffic?.download_bytes)}</b></span></div>
     </article>
     <article class="protocol-card naive-card ${naiveReady ? "" : "degraded"}">
       <div class="protocol-head"><span><small>HTTPS · HTTP/2 CONNECT</small><h2>NaiveProxy</h2></span><span class="status-pill ${naiveReady ? "active" : "blocked"}"><i></i>${naiveStatus}</span></div>

@@ -17,6 +17,7 @@ import {
   ROLE_NAMES,
 } from "./management.js";
 import { bindAmneziawg, handleAmneziawgClick, openAwgModal, renderAmneziawg } from "./amneziawg.js";
+import { bindTrusttunnel, handleTrusttunnelClick, openTtModal, renderTrusttunnel } from "./trusttunnel.js";
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
 import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
@@ -40,6 +41,7 @@ const TITLES = {
   clients: ["Клиенты", "Абоненты и их доступы MTProxy · Naive · Mieru"],
   mieru: ["Mieru", "Пользователи, rolling-квоты и application-byte трафик"],
   amneziawg: ["AmneziaWG", "Версии 1.5, 2.0 и 3.1: порты, доступы и трафик"],
+  trusttunnel: ["TrustTunnel", "HTTP/2 поверх TCP: доступы, сессии и трафик"],
   users: ["MTProxy", "Пользователи, ссылки и ключи доступа"],
   naive: ["NaiveProxy", "HTTPS-прокси, конфигурации и доступы"],
   versions: ["Версии", "Установка и откат версий компонентов"],
@@ -55,6 +57,7 @@ const RENDERERS = {
   users: renderUsers,
   mieru: renderMieru,
   amneziawg: renderAmneziawg,
+  trusttunnel: renderTrusttunnel,
   naive: renderNaive,
   versions: renderVersions,
   fleet: renderNodes,
@@ -104,7 +107,7 @@ function createNavigator(context) {
     query(".mobile-nav .active", context.root)?.scrollIntoView?.({ inline: "center", block: "nearest" });
     markMobileNavEdges(context.root);
 
-    const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "amneziawg", "clients"].includes(name))
+    const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "amneziawg", "trusttunnel", "clients"].includes(name))
       || (name === "fleet" && context.state.me?.role === "owner")
       || (name === "admins" && context.state.me?.role === "owner");
     const add = query("#add", context.root);
@@ -118,6 +121,7 @@ function createNavigator(context) {
       naive: "Naive доступ",
       mieru: "Mieru доступ",
       amneziawg: "AmneziaWG доступ",
+      trusttunnel: "TrustTunnel доступ",
       users: "Подключение",
     }[name] || "Добавить";
 
@@ -190,6 +194,7 @@ function bindPanel(context) {
     else if (context.state.view === "naive") openNaiveModal(context);
     else if (context.state.view === "mieru") openMieruModal(context);
     else if (context.state.view === "amneziawg") openAwgModal(context);
+    else if (context.state.view === "trusttunnel") void openTtModal(context);
     else openUserModal(context);
   });
   query("#refresh", root).addEventListener("click", ({ currentTarget: button }) => {
@@ -234,6 +239,7 @@ function bindPanel(context) {
   bindClients(context);
   bindMieru(context);
   bindAmneziawg(context);
+  bindTrusttunnel(context);
   bindNaive(context);
   bindNodes(context);
   bindRouting(context);
@@ -269,6 +275,7 @@ function bindPanel(context) {
     if (handleKeysClick(context, button)) return;
     if (handleMieruClick(context, button)) return;
     if (handleAmneziawgClick(context, button)) return;
+    if (handleTrusttunnelClick(context, button)) return;
     if (handleNaiveClick(context, button)) return;
     handleUsersClick(context, button);
   });
@@ -288,6 +295,7 @@ async function initialise(context) {
     queryAll('[data-view="naive"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.naive !== true; });
     queryAll('[data-view="mieru"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.mieru !== true; });
     queryAll('[data-view="amneziawg"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.amneziawg !== true; });
+    queryAll('[data-view="trusttunnel"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.trusttunnel !== true; });
     queryAll(".owner-only", context.root).forEach((item) => { item.hidden = context.state.me.role !== "owner"; });
     queryAll(".audit-nav", context.root).forEach((item) => { item.hidden = false; });
     // Открытый адрес решает, какой экран показать; чужая или закрытая ролью закладка

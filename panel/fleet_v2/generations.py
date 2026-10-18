@@ -131,6 +131,9 @@ def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | Non
     if "egress.mtproxy.v1" not in capabilities:
         # A node before v1.1: its strict model has no `mtproxy` egress (its apply was refused earlier).
         desired.pop("mtproxy", None)
+    if "egress.trusttunnel.v1" not in capabilities:
+        # A node before v1.6: its strict model has no `trusttunnel` egress (its apply was refused earlier).
+        desired.pop("trusttunnel", None)
     return desired or None
 
 

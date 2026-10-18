@@ -5,7 +5,10 @@ name: mtproxy
 # (naive 45101, mieru 45102). Host network so the loopback ingresses are where Caddy and
 # mita can reach them; nothing else of the container is reachable. v1.1: a third ingress for
 # MTProxy, a VLESS inbound on a Unix socket in the shared `xray-router-run` volume, which
-# Telemt reaches through the `xray-router-ingress` bridge on the Compose network. The Xray binary and its
+# Telemt reaches through the `xray-router-ingress` bridge on the Compose network. v1.6: a fourth
+# ingress for TrustTunnel, a no-auth SOCKS5 inbound on the host loopback (45104): the endpoint's
+# SOCKS5 forward protocol presents no credentials, so it is the one ingress without an account
+# and it carries no client lanes. The Xray binary and its
 # geodata come from the host path the installer filled from the pinned release archive,
 # and the manager checks their digests before it starts anything.
 services:
@@ -33,6 +36,9 @@ services:
       XRAY_ROUTER_EGRESS_WARP: ${XRAY_ROUTER_EGRESS_WARP:-}
       # v1.1: the MTProxy ingress; its credential the manager mints in the state directory.
       XRAY_ROUTER_INGRESS_MTPROXY_SOCKET: /run/xray-router/ingress-mtproxy.sock
+      # v1.6: the TrustTunnel ingress (no-auth SOCKS5 on this loopback port); the endpoint's manager
+      # is pointed at it when the panel attaches TrustTunnel to the router. Empty turns it off.
+      XRAY_ROUTER_PORT_TRUSTTUNNEL: "45104"
       TMPDIR: /tmp
     secrets: [xray-router-manager-token, xray-router-ingress-naive, xray-router-ingress-mieru]
     volumes:

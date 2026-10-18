@@ -4,11 +4,11 @@ import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
 import { grantRowHtml } from "./grant.js";
 
-const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
+const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
 // Что подписка действительно умеет отдавать. MTProxy сюда не входит и не может войти:
 // Telegram открывает ссылку `tg://proxy` и никогда не опрашивает URL подписки.
-const SUBSCRIBABLE = new Set(["naive", "mieru"]);
+const SUBSCRIBABLE = new Set(["naive", "mieru", "trusttunnel"]);
 
 // One link variant per client family (owner decision 2): what each carries and what it
 // leaves out is stated next to it, so nobody hands a Telegram user a sing-box feed.
@@ -18,27 +18,27 @@ const VARIANTS = [
     label: "sing-box JSON для Karing и Throne",
     clients: "Karing (оба ядра), Throne и другие клиенты на форке sing-box с Mieru",
     carries: "NaiveProxy и Mieru как outbound'ы; Throne 1.3.1 подключает Mieru по UDP, только если сервер задан IP-адресом, по TCP — всегда",
-    leaves: "MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже",
+    leaves: "MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже; TrustTunnel — в unsupported: у sing-box нет исходящего TrustTunnel",
   },
   {
     format: "singbox-official",
     label: "sing-box JSON для официального sing-box",
     clients: "sing-box ≥ 1.13 (Apple, Android, Windows, часть сборок Linux); Throne — если нужен только NaiveProxy",
     carries: "только NaiveProxy",
-    leaves: "Mieru и MTProxy — в unsupported: официальный sing-box не загрузит конфиг с неизвестным outbound'ом",
+    leaves: "Mieru, MTProxy и TrustTunnel — в unsupported: официальный sing-box не загрузит конфиг с неизвестным outbound'ом (у sing-box нет исходящего TrustTunnel)",
   },
   {
     format: "clash",
     label: "Clash YAML",
     clients: "mihomo и Clash-совместимые, Karing; не для Throne — он не берёт из Clash YAML ни Mieru, ни NaiveProxy",
-    carries: "Mieru как proxies (TCP/UDP, диапазоны портов)",
+    carries: "Mieru как proxies (TCP/UDP, диапазоны портов) и TrustTunnel (mihomo)",
     leaves: "NaiveProxy и MTProxy — в unsupported (у mihomo нет таких типов)",
   },
   {
     format: "raw",
     label: "Ссылки текстом",
     clients: "ручной импорт, QR, человек",
-    carries: "tg://proxy, naive+https://, mierus:// по одной на строку",
+    carries: "tg://proxy, naive+https://, mierus://, tt:// по одной на строку",
     leaves: "автообновления нет: клиенту придётся переимпортировать после изменений; Throne склеивает порты ссылки mierus:// в один TCP-профиль и теряет UDP",
   },
 ];
@@ -164,7 +164,7 @@ export function createSubscriptionDialog(context) {
     const names = new Set(state.grants.filter((grant) => grant.desired_state !== "deleted").map((grant) => grant.runtime_username));
     if (!username.dataset.typed) username.value = names.size === 1 ? [...names][0] : proposeUsername(state.name);
     query("#placement-username-row", root).hidden = !canWrite();
-    const order = { mtproxy: 0, naive: 1, mieru: 2 };
+    const order = { mtproxy: 0, naive: 1, mieru: 2, amneziawg: 3, trusttunnel: 4 };
     const grants = liveGrants().sort((left, right) => (order[left.protocol] ?? 9) - (order[right.protocol] ?? 9)
       || String(left.node_id).localeCompare(String(right.node_id)));
     query("#subscription-grants", root).innerHTML = grants.length

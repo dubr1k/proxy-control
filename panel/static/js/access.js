@@ -39,7 +39,7 @@ export function qrSource(value) {
   return value;
 }
 
-const BUNDLE_PROTOCOLS = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG" };
+const BUNDLE_PROTOCOLS = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
 // One artifact of an issued access. A link is a one-line field; an AmneziaWG config is several
 // lines, so it gets a text area, its QR and a download instead of a field that would flatten it.
@@ -51,8 +51,14 @@ function bundleArtifact(grant) {
       return `<label class="grant-link-field">${esc(artifact.label)}
         <textarea class="awg-conf" readonly rows="10" spellcheck="false" aria-label="${esc(artifact.label)}">${esc(artifact.value)}</textarea></label>
         ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код конфига: ${esc(grant.runtime_username)}">` : ""}
-        <span class="link-card-actions"><button type="button" class="copy" data-copy="${esc(artifact.value)}">Копировать</button>
+        <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(artifact.value)}">Копировать</button>
           <a class="primary button" href="data:text/plain;charset=utf-8,${encodeURIComponent(artifact.value)}" download="${esc(file)}">Скачать .conf</a></span>`;
+    }
+    if (artifact.media_type === "application/toml") {
+      return `<label class="grant-link-field">${esc(artifact.label)}
+        <textarea class="awg-conf tt-toml" readonly rows="10" spellcheck="false" aria-label="${esc(artifact.label)}">${esc(artifact.value)}</textarea></label>
+        <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(artifact.value)}">Копировать</button>
+          <a class="primary button" href="data:application/toml;charset=utf-8,${encodeURIComponent(artifact.value)}" download="${esc(grant.runtime_username)}.toml">Скачать .toml</a></span>`;
     }
     return `<label>${esc(artifact.label)}
         <span class="copy-field"><input readonly value="${esc(artifact.value)}"><button type="button" class="copy" data-copy="${esc(artifact.value)}">Копировать</button></span>

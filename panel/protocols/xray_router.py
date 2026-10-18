@@ -26,6 +26,9 @@ class RouterAdapter:
             if service == "mtproxy" and exc.status_code == 404:
                 # A router manager from before v1.1: rebuild `xray-router` (and start its bridge).
                 return RouterTarget(available=False, service=service, reason="router_lacks_mtproxy")
+            if service == "trusttunnel" and exc.status_code == 404:
+                # A router manager from before v1.6 (or one started without the TrustTunnel ingress port).
+                return RouterTarget(available=False, service=service, reason="router_lacks_trusttunnel")
             reason = exc.code or ("router_unavailable" if exc.status_code == 502 else UNAVAILABLE_REASONS.get(
                 exc.status_code, "router_unavailable"))
             return RouterTarget(available=False, service=service, reason=reason)

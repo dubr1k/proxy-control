@@ -188,6 +188,7 @@ def test_plan_is_deterministic_and_secret_free(tmp_path):
     values = dict(item.split("=", 1) for item in action.mutations)
     assert values["archive"] == "/var/lib/proxy-control/Xray-linux-64.zip"
     assert values["port-naive"] == "45101" and values["port-mieru"] == "45102"
+    assert values["port-trusttunnel"] == "45104"  # v1.6: the no-auth loopback ingress, on every router
     assert values["warp-provider"] == "socks5://127.0.0.1:40000"
     assert values["router-uid"] == "10006"
     assert not any("token" in item or "password" in item for item in action.mutations)
@@ -203,6 +204,22 @@ def test_plan_refuses_foreign_identity_and_claimed_ports(tmp_path):
         adapter(tmp_path).plan(config(), facts)
     facts = AuditFacts(listeners={"tcp": [45101], "owners": {"45101": ["xray"]}})
     assert len(adapter(tmp_path).plan(config(), facts)) == 1
+    facts = AuditFacts(listeners={"tcp": [45104], "owners": {"45104": ["nginx"]}})
+    with pytest.raises(PlanError, match="45104 is already claimed"):
+        adapter(tmp_path).plan(config(), facts)
+
+
+def test_an_action_from_before_the_trusttunnel_ingress_is_still_valid(tmp_path):
+    from dataclasses import replace
+
+    instance = adapter(tmp_path)
+    action = action_for(tmp_path)
+    older = replace(action, mutations=tuple(item for item in action.mutations if not item.startswith("port-trusttunnel=")))
+    assert instance._selection(older)["relay_port"] == 0
+    wrong = replace(action, mutations=tuple("port-trusttunnel=45999" if item.startswith("port-trusttunnel=") else item
+                                            for item in action.mutations))
+    with pytest.raises(XrayRouterError, match="action is invalid"):
+        instance._selection(wrong)
 
 
 # -- prepare -------------------------------------------------------------------
@@ -412,6 +429,19 @@ def test_verify_refuses_public_listener_or_dead_ingress(tmp_path, monkeypatch):
     with pytest.raises(XrayRouterError, match="did not reach the Internet"):
         instance.verify(action)
     assert len(runner.probed) == 3  # three tries before the verdict
+
+
+def test_verify_requires_the_trusttunnel_ingress_on_the_loopback_too(tmp_path):
+    class OnlyAuthenticated(FakeRunner):
+        def loopback_listener(self, port):
+            return port in (45101, 45102)
+
+    instance, action = _applied(tmp_path, OnlyAuthenticated())
+    with pytest.raises(XrayRouterError, match="trusttunnel ingress must listen on the loopback only"):
+        instance.verify(action)
+    runner = FakeRunner()
+    instance, action = _applied(tmp_path, runner)
+    assert instance.verify(action).details["trusttunnel_port"] == 45104
 
 
 def test_verify_refuses_a_bridge_that_does_not_answer(tmp_path):

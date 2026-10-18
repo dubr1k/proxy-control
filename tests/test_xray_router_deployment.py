@@ -63,6 +63,8 @@ def test_router_overlay_is_loopback_only_read_only_and_pinned():
     env = router["environment"]
     assert env["XRAY_ROUTER_XRAY_SHA256"] == XRAY_SHA256 and env["XRAY_ROUTER_GEOSITE_SHA256"] == GEOSITE_SHA256
     assert env["XRAY_ROUTER_EGRESS_WARP"] == "" and env["XRAY_ROUTER_SOCKET_MODE"] == "660"
+    # v1.6: the TrustTunnel ingress is in the shipped overlay, so a fresh install equals an updated node.
+    assert env["XRAY_ROUTER_PORT_TRUSTTUNNEL"] == "45104"
     assert {s["source"] for s in router["secrets"]} == {"xray-router-ingress-mieru", "xray-router-ingress-naive",
                                                         "xray-router-manager-token"}
     assert router["healthcheck"]["test"] == ["CMD", "python", "-m", "xray_router_manager.healthcheck"]

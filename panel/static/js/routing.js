@@ -7,7 +7,7 @@ import { date, esc, locale, number, query, queryAll } from "./common.js";
 import { capabilityList, guideHtml } from "./routing-guide.js";
 import { isCurrent } from "./state.js";
 
-const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy" };
+const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy", trusttunnel: "TrustTunnel" };
 const PREVIEW_DEBOUNCE_MS = 400;
 const REASON_TEXT = {
   protocol_out_of_scope: "вне области маршрутизации",
@@ -61,6 +61,10 @@ const REASON_TEXT = {
   node_lacks_mtproxy_egress: "узел нужно обновить до v1.1 для маршрутизации MTProxy",
   telemt_api_unsupported: "у Telemt на узле нет API конфигурации — обновите Telemt",
   egress_reload_failed: "Telemt не включил новый upstream — работает прежний",
+  // TrustTunnel through the router (v1.6): one policy for the whole service, no client lanes.
+  router_lacks_trusttunnel: "Xray-router узла старше v1.6 — пересоберите xray-router, чтобы у него появился вход для TrustTunnel",
+  node_lacks_trusttunnel_egress: "узел нужно обновить до v1.6 для маршрутизации TrustTunnel",
+  lanes_unsupported: "у TrustTunnel нет полос для клиентов: узел видит от него одного анонимного клиента, поэтому маршрут задаётся для всего сервиса",
 };
 const WARNING_TEXT = {
   provider_unreachable: "WARP на узле не отвечает: политика применится напрямую (fallback)",
@@ -91,7 +95,7 @@ const WARNING_TEXT = {
   geodata_invalid: "источник geodata задан неверно",
   geodata_install_failed: "списки не удалось положить на место",
 };
-const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", mtproxy_native: "Telemt", xray_router: "Xray-router" };
+const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", mtproxy_native: "Telemt", trusttunnel_native: "TrustTunnel", xray_router: "Xray-router" };
 const EXIT_PROTOCOL_NAMES = { vless: "VLESS", trojan: "Trojan", shadowsocks: "Shadowsocks", socks: "SOCKS5", http: "HTTP" };
 const SNIFFED_PROTOCOLS = ["tls", "http", "quic", "bittorrent"];
 const STATE_TEXT = {
@@ -416,6 +420,8 @@ function routerLine(context, target) {
   if (!router) {
     return target.protocol === "mtproxy"
       ? "<p class='form-hint routing-router-line'>Xray-router: не установлен — без него MTProxy ходит только напрямую.</p>"
+      : target.protocol === "trusttunnel"
+      ? "<p class='form-hint routing-router-line'>Xray-router: не установлен — без него TrustTunnel ходит только напрямую.</p>"
       : "<p class='form-hint routing-router-line'>Xray-router: не установлен — политика применяется собственным backend сервиса.</p>";
   }
   const owner = context.state.me?.role === "owner";
@@ -619,7 +625,7 @@ function laneTabs(context, target) {
     tabs.push(`<button class="${active ? "active" : ""}" role="tab" aria-selected="${active}" data-routing-action="lane" data-lane="${esc(item.lane)}">${label}</button>`);
   }
   const owner = context.state.me?.role === "owner";
-  const add = owner && target.backend === "xray_router" ? '<button class="ghost" data-routing-action="lane-add">Добавить полосу для клиента…</button>' : "";
+  const add = owner && target.backend === "xray_router" && target.protocol !== "trusttunnel" ? '<button class="ghost" data-routing-action="lane-add">Добавить полосу для клиента…</button>' : "";
   return `<div class="node-tabs routing-lanes" role="tablist" id="routing-lanes">${tabs.join("")}${add}</div>`;
 }
 
@@ -681,6 +687,8 @@ function targetCard(context) {
     <p class="routing-can">Этот сервис умеет: ${esc(capabilities)}.</p>
     ${target.protocol === "mtproxy" && !target.router?.attached ? '<p class="form-hint routing-reason-line">MTProxy маршрутизируется только через Xray-router: подключите сервис в «Возможностях узла» ниже, затем выберите выход — WARP, свой выход или другой узел.</p>' : ""}
     ${target.protocol === "mtproxy" && target.router?.attached ? '<p class="form-hint">Telemt ходит к дата-центрам Telegram по IP: правила по CIDR, geoip и порту работают, по домену, geosite и протоколу — нет.</p>' : ""}
+    ${target.protocol === "trusttunnel" && !target.router?.attached ? '<p class="form-hint routing-reason-line">TrustTunnel маршрутизируется только через Xray-router: подключите сервис в «Возможностях узла» ниже, затем выберите выход — WARP, свой выход или другой узел.</p>' : ""}
+    ${target.protocol === "trusttunnel" && target.router?.attached ? '<p class="form-hint">Все клиенты TrustTunnel идут по одной политике сервиса: полос для отдельных клиентов здесь нет.</p>' : ""}
     ${reason}
     <section class="routing-step">
       ${stepHead(1, "Для кого", "Весь сервис или отдельный клиент со своей полосой: его трафик живёт по своей политике.")}
