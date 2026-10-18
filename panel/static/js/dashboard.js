@@ -68,7 +68,7 @@ function hostCard(host, when = new Date()) {
   const cores = typeof cpu?.cores === "number" ? `${number(cpu.cores)} ядер · ${load}` : load;
   return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}" ${stamp}>
     <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}"><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
-    <p class="protocol-note">${esc(cores)} · ${esc(updatedAt(when))}</p>
+    <p class="protocol-note">${esc(cores)} · ${esc(updatedAt(when))} · <a class="mon-link" href="#monitoring">Подробнее в мониторинге</a></p>
     <div class="protocol-metrics host-metrics">
       ${hostRow("Загрузка CPU", cpu, "Мгновенная утилизация, окно 150 мс")}
       ${hostRow("Оперативная память", memory, memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "", swapLine(swap))}

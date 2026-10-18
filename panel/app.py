@@ -32,6 +32,7 @@ from .fleet_v2.node_routes import register_fleet_v2_node_routes
 from .fleet_v2.pusher import FleetPusher
 from .fleet_v2.reconcile import Reconciler
 from .keyring import Keyring
+from .metrics import register_metrics_routes, setup_metrics
 from .amneziawg import AmneziawgClient, AmneziawgError
 from .amneziawg_routes import register_amneziawg_routes
 from .trusttunnel import TrusttunnelClient, TrusttunnelError
@@ -71,12 +72,16 @@ async def _lifespan(app):
     await app.state.access_enforcer.tick(force=True)
     app.state.pusher_task = asyncio.create_task(app.state.pusher.run_forever())
     app.state.access_task = asyncio.create_task(app.state.access_enforcer.run_forever())
+    collector = app.state.metrics_collector
+    app.state.metrics_task = asyncio.create_task(collector.run_forever()) if collector else None
     try:
         yield
     finally:
         app.state.pusher.stop()
         app.state.access_enforcer.stop()
-        tasks = {app.state.pusher_task, app.state.access_task}
+        if collector:
+            collector.stop()
+        tasks = {app.state.pusher_task, app.state.access_task} | ({app.state.metrics_task} if collector else set())
         _, pending = await asyncio.wait(tasks, timeout=PUSHER_STOP_GRACE)
         for task in pending:
             task.cancel()
@@ -243,6 +248,7 @@ def create_app(
     app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
                                   app.state.router, publisher=app.state.routing.publisher)
     app.state.lifecycle.lanes = app.state.lanes
+    setup_metrics(app, settings)
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")
@@ -308,4 +314,5 @@ def create_app(
     register_subscription_admin_routes(app, context)
     register_subscription_routes(app, context)
     register_routing_routes(app, context)
+    register_metrics_routes(app, context)
     return app

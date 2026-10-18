@@ -20,7 +20,8 @@ NAME_LIMIT = 64
 # Paths the MCP server does not expose: its own schema and health, the login surface,
 # the one-shot reveal (consumed by the curated tools), the subscriber endpoint and the
 # node API behind a fleet key. Anything outside `/api/` is the browser's, not the API's.
-EXCLUDED_EXACT = {"/api/openapi.json", "/healthz", "/login", "/api/reveal/{token}"}
+# `/api/metrics/stream` is an endless SSE response: a tool call waits for a finished answer.
+EXCLUDED_EXACT = {"/api/openapi.json", "/healthz", "/login", "/api/reveal/{token}", "/api/metrics/stream"}
 EXCLUDED_PREFIXES = ("/api/auth/", "/s/", "/api/fleet/")
 # Mutations that cannot be undone: a `DELETE`, or a POST/PUT on one of these paths.
 IRREVERSIBLE_MARKERS = ("/update", "/rollback", "/unlink", "/revoke", "/rotate", "/delete", "/archive",

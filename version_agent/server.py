@@ -12,6 +12,8 @@ from pathlib import Path
 
 from .catalog import CatalogError
 from .host import host_metrics
+from .hostmetrics import MetricsSampler, install as install_sampler, metrics_response
+from .metrics_ports import discover_ports
 from .service import ConflictError, UpdateError, agent_from_env
 
 _MAX_BODY = 16 * 1024
@@ -92,6 +94,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # widens the agent's surface by nothing an attacker could act on.
             self._send(200, host_metrics())
             return
+        if self.path == "/v1/metrics":
+            self._send(*metrics_response())
+            return
         if self.path != "/v1/versions":
             self._send(404, {"detail": "not found"})
             return
@@ -103,6 +108,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802 - BaseHTTPRequestHandler API
         if self.path == "/v1/upstream/check":
             self._check_upstream()
+            return
+        if self.path == "/v1/panel/managers/rebuild":
+            self._rebuild_managers()
+            return
+        if self.path == "/v1/panel/managers/ack":
+            self._ack_managers()
             return
         if self.path != "/v1/update":
             self._send(404, {"detail": "not found"})
@@ -147,6 +158,51 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(502, {"detail": detail, "state": exc.state})
         else:
             self._send(200, result)
+
+    def _read_json(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = -1
+        if length < 0 or length > _MAX_BODY:
+            self._send(413, {"detail": "request body too large"})
+            return None
+        try:
+            return json.loads(self.rfile.read(length) or b"null")
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self._send(422, {"detail": "invalid JSON"})
+            return None
+
+    def _rebuild_managers(self) -> None:
+        # No input: the list is the agent's own `pending_rebuild`. The rebuild runs in a
+        # thread; the answer carries `rebuilding` and the screen polls the versions.
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if length < 0 or length > _MAX_BODY:
+            self._send(413, {"detail": "request body too large"})
+            return
+        if length:
+            self.rfile.read(length)
+        try:
+            self._send(200, self.server.agent.rebuild_managers(background=True))
+        except ConflictError as exc:
+            self._send(409, {"detail": str(exc)})
+        except UpdateError as exc:
+            self._send(502, {"detail": str(exc), "state": getattr(exc, "state", "update_failed")})
+
+    def _ack_managers(self) -> None:
+        body = self._read_json()
+        if body is None:
+            return
+        if not isinstance(body, dict) or set(body) != {"names"}:
+            self._send(422, {"detail": "invalid acknowledge request"})
+            return
+        try:
+            self._send(200, self.server.agent.ack_managers(body["names"]))
+        except ValueError as exc:
+            self._send(422, {"detail": str(exc)})
 
     def _check_upstream(self) -> None:
         # The check takes no input: the sources are fixed in code, so any body is
@@ -195,6 +251,9 @@ def main() -> None:
     server = UnixHTTPServer(socket_path, Handler, gid=gid)
     server.agent = agent
     stop = threading.Event()
+    install_sampler(
+        MetricsSampler(ports=lambda: discover_ports(agent.compose_dir, agent.compose_files), runner=agent.runner)
+    ).start()
     if agent.upstream_enabled and interval > 0:
         threading.Thread(
             target=auto_check_upstream, args=(agent, interval, stop), name="upstream-check", daemon=True

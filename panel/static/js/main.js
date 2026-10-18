@@ -6,6 +6,7 @@ import { query, queryAll } from "./common.js";
 import { renderDashboard } from "./dashboard.js";
 import { refreshNavCounts, startNavCountsRefresh } from "./nav-counts.js";
 import { createGrantDialog } from "./grant.js";
+import { bindMonitoring, renderMonitoring } from "./monitoring.js";
 import { handleFleetChange, handleFleetClick, handleFleetSubmit } from "./fleet.js";
 import { bindKeys, handleKeysClick } from "./keys.js";
 import {
@@ -39,6 +40,7 @@ import { bindUsers, handleUsersClick, handleUsersInput, openUserModal, renderUse
 
 const TITLES = {
   dashboard: ["Обзор", "Состояние всех прокси-протоколов в одном месте"],
+  monitoring: ["Мониторинг", "Ресурсы и трафик в прямом эфире, по протоколам и узлам"],
   clients: ["Клиенты", "Абоненты и их доступы MTProxy · Naive · Mieru"],
   mieru: ["Mieru", "Пользователи, rolling-квоты и application-byte трафик"],
   amneziawg: ["AmneziaWG", "Версии 1.5, 2.0 и 3.1: порты, доступы и трафик"],
@@ -54,6 +56,7 @@ const TITLES = {
 
 const RENDERERS = {
   dashboard: renderDashboard,
+  monitoring: renderMonitoring,
   clients: renderClients,
   users: renderUsers,
   mieru: renderMieru,
@@ -246,6 +249,7 @@ function bindPanel(context) {
   bindRouting(context);
   bindManagement(context);
   bindKeys(context);
+  bindMonitoring(context);
   context.access.bind();
   context.subscriptions.bind();
   context.grants.bind();

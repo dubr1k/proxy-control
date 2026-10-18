@@ -659,11 +659,22 @@ TRUSTTUNNEL_V24 = Migration(24, "trusttunnel", (
     "DROP TABLE managed_egress_old",
 ))
 
+# Monitoring (v2.0): time-series rollups of the host and protocol meters. One row per
+# (resolution, bucket, node, series); the sum and count give the average, `max` the peak, `last`
+# the closing value. WITHOUT ROWID keeps the primary key the table itself.
+METRICS_V25 = Migration(25, "metrics", (
+    """CREATE TABLE metric_rollups (
+      resolution INTEGER NOT NULL, bucket INTEGER NOT NULL, node_id TEXT NOT NULL, series TEXT NOT NULL,
+      sum REAL NOT NULL, count INTEGER NOT NULL, max REAL NOT NULL, last REAL NOT NULL,
+      PRIMARY KEY(resolution, bucket, node_id, series)) WITHOUT ROWID""",
+    "CREATE INDEX metric_rollups_series ON metric_rollups(node_id, series, resolution, bucket)",
+))
+
 MIGRATIONS: tuple[Migration, ...] = (
     BASELINE, AUDIT_V2, SECRETS_V3, NODES_V4, LOCAL_NODE_V5, CLIENTS_V6, PROVISIONING_V7,
     SUBSCRIPTIONS_V8, API_KEYS_V9, MANAGED_V10, LINKS_V11, REMOTE_OPERATIONS_V12, LEARNED_V13,
     ROUTING_V14, ROUTING_V15, ROUTING_V16, LINKS_V17, ROUTING_V18, EXITS_V19, SUBSCRIPTION_ESCROW_V20,
-    ROUTING_V21, GRANT_LABELS_V22, AMNEZIAWG_V23, TRUSTTUNNEL_V24,
+    ROUTING_V21, GRANT_LABELS_V22, AMNEZIAWG_V23, TRUSTTUNNEL_V24, METRICS_V25,
 )
 
 _FLEET_COMMANDS_STATEMENT = BASELINE.statements[6]

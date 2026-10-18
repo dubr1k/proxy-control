@@ -117,6 +117,13 @@ class Settings:
     # heartbeat: it backs off per node (30 s doubling to 10 min) until something changes.
     fleet_heartbeat_seconds: int = int(os.getenv("PANEL_FLEET_HEARTBEAT_SECONDS", "15"))
 
+    # Monitoring (v2.0): the in-process sampler behind `/api/metrics/*`. `PANEL_METRICS_ENABLED=0`
+    # switches the sampler and the routes off (the routes then answer 404 metrics_disabled).
+    metrics_enabled: bool = os.getenv("PANEL_METRICS_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    metrics_interval_seconds: float = float(
+        os.getenv("PANEL_METRICS_INTERVAL_SECONDS", os.getenv("METRICS_INTERVAL_SECONDS", "2")))
+    metrics_ring_points: int = int(os.getenv("PANEL_METRICS_RING_POINTS", "900"))
+
     @property
     def mtproxy_host(self) -> str:
         """The MTProxy endpoint this panel would put in a link it cannot learn from Telemt."""

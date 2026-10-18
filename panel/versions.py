@@ -43,11 +43,23 @@ class VersionClient:
         # or wedged agent has to cost the dashboard a card, not the whole page.
         return await self._request("GET", "/v1/host", timeout=3.0)
 
+    async def metrics(self):
+        """The agent's latest meter sample (host, protocol counters); None when it cannot be had."""
+        try:
+            return await self._request("GET", "/v1/metrics", timeout=3.0)
+        except VersionAgentError:
+            return None
+
     async def check(self):
         # v0.11: the agent polls upstream (GitHub Releases, registries) and answers with
         # the same shape as `/v1/versions`; several sources in a row need more than the
         # default 20 s.
         return await self._request("POST", "/v1/upstream/check", timeout=90.0)
+
+    async def rebuild_managers(self):
+        # The agent starts the rebuild in the background and answers at once; the screen
+        # polls the versions (`rebuilding_managers`).
+        return await self._request("POST", "/v1/panel/managers/rebuild", {}, timeout=30.0)
 
     async def update(self, component: str, version: str, expected_current: str | None):
         # A `naive` update rebuilds Caddy on the host (up to 15 min): the panel waits for
@@ -152,6 +164,17 @@ class MemoryVersions:
 
     async def host(self):
         return self.host_metrics
+
+    async def metrics(self):
+        return getattr(self, "agent_metrics", None)
+
+    async def rebuild_managers(self):
+        self.calls.append(("rebuild_managers",))
+        panel = self.components["panel"]
+        if panel.get("status") == "updating":
+            raise VersionAgentError("update is running", 409)
+        panel["pending_rebuild"] = [n for n in panel.get("pending_rebuild", []) if n == "docker"]
+        return {"pending_rebuild": panel["pending_rebuild"], "rebuilding": False}
 
     async def update(self, component, version, expected_current):
         self.calls.append((component, version, expected_current))
