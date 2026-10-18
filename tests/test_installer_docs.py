@@ -597,6 +597,7 @@ def test_the_monitoring_guide_is_reachable_from_the_readme_and_the_index(languag
 def test_the_release_note_for_2_0_names_the_installer_boundary():
     note = (ROOT / "docs/releases/v2.0.0.md").read_text(encoding="utf-8")
     assert "v2.0.0" in note and "v1.6.0" in note
-    assert "Установщик в этом выпуске не менялся" in note and "The installer did not change in this release" in note
+    assert "Установщик в этом выпуске изменён одной правкой" in note and "The installer has one fix in this release" in note
+    assert "MTU 1400" in note and "an MTU of 1400" in note
     assert "install-release.sh --update" in note
     assert "--update" in (ROOT / "docs/UPGRADING.md").read_text(encoding="utf-8")

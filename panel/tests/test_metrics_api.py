@@ -205,6 +205,23 @@ async def test_stream_frames_retry_snapshot_ping_and_bye(rig):
     assert registry.open_streams() == 0
 
 
+async def test_stream_pings_every_fifteen_seconds_even_while_snapshots_flow(rig):
+    registry = StreamRegistry()
+    gen = stream_of(rig, FakeRequest(), registry.acquire("s1"))
+    assert await gen.__anext__() == "retry: 3000\n\n"
+    assert (await gen.__anext__()).startswith("event: snapshot")
+    frames = []
+    for _ in range(9):  # a collector tick every 2 s for 18 s: ticks keep coming, the keep-alive still goes out
+        rig.clock.advance(2)
+        await rig.tick()
+        frames.append(await gen.__anext__())
+    pending = asyncio.ensure_future(gen.__anext__())
+    done, _ = await asyncio.wait({pending}, timeout=1)
+    frames += [pending.result()] if done else []
+    assert ": ping\n\n" in frames
+    await gen.aclose()
+
+
 async def test_stream_ends_when_the_client_leaves_or_the_session_is_gone(rig):
     registry = StreamRegistry()
     request = FakeRequest()

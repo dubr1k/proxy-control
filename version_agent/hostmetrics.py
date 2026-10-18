@@ -131,6 +131,7 @@ class MetricsSampler:
         wall: Callable[[], float] = time.time,
         proc: Path = Path("/proc"),
         cgroup: Path = Path("/sys/fs/cgroup"),
+        virtual_net: Path = Path("/sys/devices/virtual/net"),
         root_path: str = "/",
         root_device: str | None = None,
         statvfs: Callable[[str], os.statvfs_result] = os.statvfs,
@@ -144,6 +145,7 @@ class MetricsSampler:
         self._wall = wall
         self._proc = Path(proc)
         self._cgroup = Path(cgroup)
+        self._virtual_net = Path(virtual_net)
         self._root_path = root_path
         self._root_device = root_device
         self._statvfs = statvfs
@@ -370,7 +372,8 @@ class MetricsSampler:
         for name, (rx, tx) in sorted(readings.items()):
             drx, dtx = self._net.update(f"{name}:rx", rx), self._net.update(f"{name}:tx", tx)
             self._net_delta[name] = drx, dtx
-            if name.startswith(_SKIP_PREFIXES):
+            # Virtual devices (veth, tap, bridges, tunnels under any name) would double-count the NIC.
+            if name.startswith(_SKIP_PREFIXES) or (self._virtual_net / name).exists():
                 continue
             rx_bps = _round(drx / elapsed) if elapsed else None
             tx_bps = _round(dtx / elapsed) if elapsed else None

@@ -966,6 +966,7 @@ class MieruAdapter:
                 }
             ],
             "loggingLevel": "INFO",
+            "mtu": 1400,
         }
         if selected["egress"] == "router":
             if router_credential is None:

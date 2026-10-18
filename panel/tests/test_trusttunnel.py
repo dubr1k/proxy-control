@@ -541,7 +541,8 @@ async def test_options_the_node_teaches_cannot_be_forged_into_a_foreign_shape(ap
 
 async def test_the_node_reports_the_daemon_and_the_dashboard_counts_clients(api, tt):
     await _issue(api, [{"protocol": "trusttunnel", "runtime_username": "alice-tt", "options": {}}])
-    tt.client_table["alice-tt"].update(rx=2000, tx=500, sessions=1)
+    # measured on a real endpoint (2026-10-18): rx = what the client uploaded, tx = what it downloaded
+    tt.client_table["alice-tt"].update(rx=500, tx=2000, sessions=1)
     local = (await api.get("/api/nodes/local")).json()
     assert local["services"]["trusttunnel"] == "ok"
     me = (await api.get("/api/auth/me")).json()
@@ -566,7 +567,7 @@ async def test_the_overview_joins_the_manager_with_the_clients_that_hold_the_acc
                                     "options": {"name": "Alice phone"}}])
     # an account on the node the panel knows nothing about (made by hand on the manager)
     await tt.create_client({"operation_id": "x", "username": "stranger", "password": "stranger-password"})
-    tt.client_table["alice-tt"].update(rx=2000, tx=500, sessions=2)
+    tt.client_table["alice-tt"].update(rx=500, tx=2000, sessions=2)
     data = (await api.get("/api/trusttunnel/overview")).json()
     assert data["status"] == "ok" and data["public_host"] == "gate.example.com"
     assert data["endpoint"] == {"hostname": "gate.example.com", "port": 443, "version": "1.1.0", "running": True,
@@ -737,7 +738,7 @@ async def test_the_node_declares_the_capability_and_its_endpoint_host(tmp_path):
 async def test_the_node_inventory_and_traffic_know_trusttunnel(tmp_path):
     node, central, node_id = await _linked_tt(tmp_path)
     await node.state.trusttunnel.create_client({"operation_id": "x", "username": "local-one", "password": "pw-local-1"})
-    node.state.trusttunnel.client_table["local-one"].update(rx=900, tx=100)
+    node.state.trusttunnel.client_table["local-one"].update(rx=100, tx=900)
     key = node.state.api_keys.create("probe", "node-sync", None, actor=ACTOR, ip="x")[1]
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=node), base_url="http://testserver",
                                  headers={"Authorization": f"Bearer {key}"}) as client:

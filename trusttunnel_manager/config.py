@@ -90,5 +90,5 @@ def from_env(env: Mapping[str, str]) -> Config:
         version=get("TT_VERSION"),
         public_port=_int(get("TT_PUBLIC_PORT", "443"), "TT_PUBLIC_PORT"),
         restart_delay=2.0,
-        poll_interval=15.0,
+        poll_interval=5.0,  # per-client rows of the live monitor follow the endpoint within seconds
     )

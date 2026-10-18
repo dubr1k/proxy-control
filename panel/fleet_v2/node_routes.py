@@ -275,9 +275,9 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
                 rows = await app.state.trusttunnel.clients()
             except TrusttunnelError:
                 return None
-            # rx/tx are the client's point of view: it downloads what the endpoint sends.
-            up = sum(int(row.get("tx") or 0) for row in rows if isinstance(row, dict))
-            down = sum(int(row.get("rx") or 0) for row in rows if isinstance(row, dict))
+            # measured on a real endpoint: rx is what the client uploaded, tx what it downloaded.
+            up = sum(int(row.get("rx") or 0) for row in rows if isinstance(row, dict))
+            down = sum(int(row.get("tx") or 0) for row in rows if isinstance(row, dict))
             return {"upload_bytes": up, "download_bytes": down, "total_bytes": up + down}
 
         async def amneziawg():

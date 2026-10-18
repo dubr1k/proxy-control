@@ -51,8 +51,9 @@ def register_trusttunnel_routes(app, context: RequestContext) -> None:
             holder = holders.get(name)
             rows.append({
                 "username": name, "enabled": row.get("enabled") is True, "sessions": int(row.get("sessions") or 0),
-                # the manager counts from the client's side: rx is what the client downloaded
-                "download_bytes": int(row.get("rx") or 0), "upload_bytes": int(row.get("tx") or 0),
+                # measured on a real endpoint: the manager's rx is what the client uploaded
+                # (the endpoint's `outbound`), tx is what the client downloaded (`inbound`)
+                "download_bytes": int(row.get("tx") or 0), "upload_bytes": int(row.get("rx") or 0),
                 "grant_id": holder["grant_id"] if holder else None,
                 "client_id": holder["client_id"] if holder else None,
                 "client_name": holder["client_name"] if holder else None,

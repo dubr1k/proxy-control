@@ -327,7 +327,7 @@ def test_totals_survive_restarts_and_use_a_final_poll(tmp_path):
     clock.now += 15
     manager.tick()
     view = manager.list_clients()["clients"][0]
-    # rx = what the client downloaded = endpoint outbound; tx = upload = inbound
+    # rx = endpoint `outbound` = what the client uploaded; tx = endpoint `inbound` = what it downloaded (measured)
     assert (view["rx"], view["tx"], view["sessions"]) == (1000, 100, 2)
     sup.traffic("alice", inbound=150, outbound=1500)  # traffic after the last poll
     manager.create_client(create_body(name="bob", op="op-2"))

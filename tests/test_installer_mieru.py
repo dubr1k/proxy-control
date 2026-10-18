@@ -521,6 +521,8 @@ def test_mieru_bootstrap_config_is_one_valid_generation(tmp_path):
     assert [user["name"] for user in document["users"]] == ["owner"]
     assert document["egress"]["rules"][0]["action"] == "DIRECT"
     assert document["egress"]["proxies"][0]["port"] == 40000
+    # mita 3.38 reports an unset MTU as 0, which the manager refuses (1280..1500): pin its default.
+    assert document["mtu"] == 1400
 
 
 def test_mieru_bootstrap_config_proxies_all_traffic_with_warp(tmp_path):

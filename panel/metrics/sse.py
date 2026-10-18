@@ -53,12 +53,12 @@ class StreamRegistry:
 async def event_stream(request, lease: Lease, *, build, version, next_event, alive, clock=time,
                        ping_seconds: float = PING_SECONDS, max_age: float = MAX_AGE_SECONDS,
                        recheck_seconds: float = RECHECK_SECONDS, poll: float = 1.0):
-    """Yield SSE text: `retry`, a snapshot at once and after every collector tick, `: ping`
-    when quiet, `event: bye` at the age limit or when the session is gone. Ends when the
+    """Yield SSE text: `retry`, a snapshot at once and after every collector tick, a `: ping`
+    keep-alive every `ping_seconds` (also between snapshots: proxies and watchdogs count it), `event: bye` at the age limit or when the session is gone. Ends when the
     client leaves; always gives its lease back."""
     try:
         yield f"retry: {RETRY_MS}\n\n"
-        started = last_sent = last_check = clock.monotonic()
+        started = last_ping = last_check = clock.monotonic()
         seen = None
         while True:
             now = clock.monotonic()
@@ -77,11 +77,10 @@ async def event_stream(request, lease: Lease, *, build, version, next_event, ali
                 payload = await build()
                 if payload is not None:
                     seen = current
-                    last_sent = now
                     yield frame("snapshot", payload)
                     continue
-            if now - last_sent >= ping_seconds:
-                last_sent = now
+            if now - last_ping >= ping_seconds:
+                last_ping = now
                 yield ": ping\n\n"
             try:
                 await asyncio.wait_for(next_event().wait(), timeout=poll)

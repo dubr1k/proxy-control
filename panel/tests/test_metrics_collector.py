@@ -44,7 +44,8 @@ async def test_snapshot_shape_from_kernel_counters_and_managers(rig):
                     {"username": "dave", "rx": 0, "tx": 0, "latest_handshake": int(rig.clock.time()) - 900}]
     rig.telemt.rows = [{"username": "erin", "total_octets": 0, "current_connections": 3}]
     await rig.step()
-    rig.tt.rows = [{"username": "alice", "tx": 15000, "rx": 45000, "sessions": 2},
+    # the endpoint's inbound (tx) is the CLIENT'S DOWNLOAD, its outbound (rx) the client's upload
+    rig.tt.rows = [{"username": "alice", "tx": 45000, "rx": 15000, "sessions": 2},
                    {"username": "bob", "tx": 0, "rx": 0, "sessions": 0}]
     rig.telemt.rows = [{"username": "erin", "total_octets": 18000, "current_connections": 3}]
     await rig.step(15.0)  # Telemt is asked every 15 s
@@ -69,6 +70,24 @@ async def test_snapshot_shape_from_kernel_counters_and_managers(rig):
     assert top[1]["up_bps"] is None and top[1]["total_bps"] == 1200.0  # Telemt reports one combined counter
 
 
+async def test_kernel_rates_are_averaged_over_the_panel_tick_not_the_agents_last_second(rig):
+    """The agent's 1 s rate is a single, bursty second; the panel reads every 2 s, so it derives the rate
+    from the cumulative bytes between its own two reads (every byte counted once, no aliasing)."""
+    rig.agent.set_protocol("naive", 0.0, 0.0)
+    await rig.step()
+    rig.agent.protocols["naive"].update(up_bytes=1000, down_bytes=6000, up_bps=5000.0, down_bps=90000.0)  # a burst second
+    rig.agent._at = rig.clock.now + 2.0  # the double must not add its own growth on top
+    await rig.step()
+    naive = rig.collector.latest["protocols"]["naive"]
+    assert (naive["up_bps"], naive["down_bps"]) == (500.0, 3000.0)  # 1000 B / 2 s, 6000 B / 2 s
+    assert naive["total_bps"] == 3500.0 and (naive["up_bytes"], naive["down_bytes"]) == (1000, 6000)
+    rig.agent.protocols["naive"].update(up_bytes=10, down_bytes=20, up_bps=0.0, down_bps=0.0)  # the agent restarted
+    rig.agent._at = rig.clock.now + 2.0
+    await rig.step()
+    naive = rig.collector.latest["protocols"]["naive"]
+    assert (naive["up_bps"], naive["down_bps"]) == (5.0, 10.0)  # a reset counts the reading, never a negative delta
+
+
 async def test_top_clients_are_named_through_the_client_store_and_capped_at_ten(rig):
     with rig.database.transaction() as db:
         db.execute("INSERT INTO clients(id,display_name,state,created_at,updated_at) VALUES('c1','Alice Doe','active',1,1)")
@@ -90,7 +109,7 @@ async def test_without_kernel_counters_rates_come_from_manager_deltas(rig):
     rig.agent.kernel_counters = "unavailable"
     rig.tt.rows = [{"username": "alice", "tx": 1000, "rx": 1000, "sessions": 1}]
     await rig.step()
-    rig.tt.rows = [{"username": "alice", "tx": 1000 + 5000, "rx": 1000 + 10000, "sessions": 1}]
+    rig.tt.rows = [{"username": "alice", "tx": 1000 + 10000, "rx": 1000 + 5000, "sessions": 1}]
     await rig.step(5.0)
     tt = rig.collector.latest["protocols"]["trusttunnel"]
     assert (tt["source"], tt["live"], tt["up_bps"], tt["down_bps"]) == ("manager", True, 1000.0, 2000.0)

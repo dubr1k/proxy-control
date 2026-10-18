@@ -52,11 +52,11 @@ class FakeStat:
     f_blocks, f_frsize, f_bfree, f_bavail = 1000, 4096, 400, 400
 
 
-def make(tmp_path, host, clock, *, ports=None, nft=None, runner=None):
+def make(tmp_path, host, clock, *, ports=None, nft=None, runner=None, **extra):
     return MetricsSampler(
         ports=(lambda: ports if ports is not None else {}), nft=nft, runner=runner or (lambda *a, **k: ""),
         clock=clock, wall=lambda: 1_700_000_000.0, proc=host.proc, cgroup=host.cg,
-        root_device="vda1", statvfs=lambda _p: FakeStat(), cores=4,
+        root_device="vda1", statvfs=lambda _p: FakeStat(), cores=4, **extra,
     )
 
 
@@ -91,6 +91,24 @@ def test_host_rates_from_deltas(tmp_path):
     assert [i["name"] for i in h["net"]["interfaces"]] == ["ens3"]
     assert h["net"]["interfaces"][0]["rx_bytes"] == 2000
     assert sample["interval"] == 1.0 and sample["ts"] == 1_700_000_000.0
+
+
+def test_virtual_interfaces_of_any_name_stay_out_of_the_host_totals(tmp_path):
+    """A veth/tap/bridge that a tool named freely (here `vmonawg`) is virtual in sysfs: it must not double-count."""
+    host, clock = FakeHost(tmp_path), Clock()
+    host.net["vmonawg"] = (10, 10)
+    host.write()
+    virtual = tmp_path / "sys-virtual-net"
+    (virtual / "vmonawg").mkdir(parents=True)
+    sampler = make(tmp_path, host, clock, virtual_net=virtual)
+    sampler.tick()
+    clock.now += 1
+    host.net["vmonawg"] = (5_000_010, 5_000_010)
+    host.net["ens3"] = (2000, 1000)
+    host.write()
+    net = sampler.tick()["host"]["net"]
+    assert [i["name"] for i in net["interfaces"]] == ["ens3"]
+    assert net["rx_bps"] == 1000.0
 
 
 def test_cpu_percent_exact(tmp_path):

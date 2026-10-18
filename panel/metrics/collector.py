@@ -73,6 +73,8 @@ class MetricsCollector:
         self._agent_now: dict | None = None  # the agent sample of the latest tick (None when it failed)
         self._last_agent_wall: float | None = None
         self._kernel_prev: dict[str, tuple[float, float]] = {}
+        self._kernel_seen: dict[str, tuple[float, float, float]] = {}  # protocol -> (agent ts, up, down) of the last read
+        self._derived: dict[str, tuple[float, float]] = {}  # protocol -> (up_bps, down_bps) between the last two reads
         self._manager: dict[str, dict] = {}
         self._last_poll: dict[str, float] = {}
         self._inflight: dict[str, asyncio.Task] = {}
@@ -134,6 +136,7 @@ class MetricsCollector:
             await self._refresh_names()
         agent = await self._fetch_agent()
         self._agent_now = agent
+        self._derived = self._derive_rates(agent) if agent is not None else {}
         if agent is not None:
             self._last_agent, self._last_agent_wall = agent, wall
         self._launch_due(mono, agent or self._last_agent)
@@ -170,6 +173,30 @@ class MetricsCollector:
         except Exception:  # noqa: BLE001 — a wedged agent costs the sample, not the monitor
             return None
         return sample if isinstance(sample, dict) and isinstance(sample.get("host"), dict) else None
+
+    def _derive_rates(self, agent: dict) -> dict[str, tuple[float, float]]:
+        """Protocol rates from the cumulative counters between this read and the previous one. The agent's own
+        `up_bps` is one second of a bursty flow; read every 2 s it aliases with the sender's rhythm. The
+        growth over the whole panel tick counts every byte once. A reset counter yields its reading."""
+        ts = _num(agent.get("ts"))
+        out: dict[str, tuple[float, float]] = {}
+        protocols = agent.get("protocols")
+        if ts is None or not isinstance(protocols, dict):
+            return out
+        for protocol, row in protocols.items():
+            up, down = (_num(row.get("up_bytes")), _num(row.get("down_bytes"))) if isinstance(row, dict) else (None, None)
+            if up is None or down is None:
+                continue
+            seen = self._kernel_seen.get(protocol)
+            if seen is not None and ts - seen[0] < 0.5:
+                if ts - seen[0] >= 0:
+                    continue  # the same sample again: keep the older baseline
+                seen = None  # the agent's clock went back: start over
+            self._kernel_seen[protocol] = (ts, up, down)
+            if seen is not None:
+                span = ts - seen[0]
+                out[protocol] = (fold(seen[1], up) / span, fold(seen[2], down) / span)
+        return out
 
     async def _refresh_names(self) -> None:
         def read():
@@ -255,8 +282,9 @@ class MetricsCollector:
 
     async def _read_trusttunnel(self, mono: float) -> dict:
         clients = [c for c in await self.state.trusttunnel.clients() if isinstance(c, dict)]
-        # the dashboard reads TrustTunnel's counters from the client's side: tx = upload, rx = download
-        rows = [(c.get("username"), c.get("tx"), c.get("rx"), None) for c in clients if isinstance(c.get("username"), str)]
+        # The manager names the endpoint's directions: `tx` is its inbound (bytes fetched for the client = the
+        # client's DOWNLOAD, measured live against real clients), `rx` its outbound (the client's UPLOAD).
+        rows = [(c.get("username"), c.get("rx"), c.get("tx"), None) for c in clients if isinstance(c.get("username"), str)]
         out = self._fold_rows("trusttunnel", rows, mono)
         out["sessions"] = sum(_int(c.get("sessions")) or 0 for c in clients)
         out["clients"] = sum(1 for c in clients if (_int(c.get("sessions")) or 0) > 0)
@@ -313,6 +341,8 @@ class MetricsCollector:
         manager = self._fresh(protocol, mono) if protocol in CADENCE else None
         if self._kernel_has(protocol, agent):
             up, down = _num(kernel.get("up_bps")), _num(kernel.get("down_bps"))
+            if agent is self._agent_now and protocol in self._derived:
+                up, down = (round(value, 1) for value in self._derived[protocol])
             entry.update(available=True, live=True, source=kernel.get("source") if kernel.get("source") in ("kernel", "interface") else "kernel",
                          up_bps=up, down_bps=down, total_bps=(up or 0.0) + (down or 0.0),
                          up_bytes=_int(kernel.get("up_bytes")), down_bytes=_int(kernel.get("down_bytes")))

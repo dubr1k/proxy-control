@@ -435,10 +435,10 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
                 protocols["trusttunnel"] = {
                     "available": True, "status": "ready" if ready else "degraded", "ready": ready,
                     "credentials": {"active": active, "disabled": len(rows) - active, "total": len(rows)},
-                    # rx/tx are the client's point of view: it downloads what the endpoint sends
+                    # measured: rx is what the client uploaded, tx what it downloaded
                     "traffic": {"available": True,
-                                "upload_bytes": sum(int(item.get("tx") or 0) for item in rows),
-                                "download_bytes": sum(int(item.get("rx") or 0) for item in rows)},
+                                "upload_bytes": sum(int(item.get("rx") or 0) for item in rows),
+                                "download_bytes": sum(int(item.get("tx") or 0) for item in rows)},
                 }
         else:
             protocols["trusttunnel"] = {"available": False, "status": "disabled"}
