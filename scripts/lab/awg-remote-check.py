@@ -13,6 +13,8 @@ Three modes, because the parts run on different machines:
   cleanup-multi  (inside the panel container)    python awg-remote-check.py cleanup-multi <client_id,client_id,…> <panel-host>
   connect-multi  (on the client host, root, AWG_REMOTE=1) python awg-remote-check.py connect-multi <repo> <multi.json> <amneziawg-go>
            brings ALL tunnels of ALL clients up at the same time and checks each one.
+  overview (inside the panel container)          python awg-remote-check.py overview <panel-host>
+           prints what the panel's AmneziaWG screen shows (versions, ports, peers), no secrets.
   connect  (on the client host, root, AWG_REMOTE=1) python awg-remote-check.py connect <repo> <issue.json> <amneziawg-go>
            brings up a real amneziawg-go client per version in a network namespace over the real
            network and proves the tunnel by pinging its gateway and the Internet through the node.
@@ -303,12 +305,25 @@ def connect_multi(repo, multi_json, binary):
     return 1 if fails else 0
 
 
+def overview(panel_host):
+    http, _headers = panel_session(panel_host)
+    try:
+        data = http.get("/api/amneziawg/overview").json()
+        print(json.dumps({"status": data.get("status"), "ip_forward": data.get("ip_forward"),
+                          "versions": [(v["version"], v["port"], v["running"], v["peers"]) for v in data.get("versions", [])],
+                          "peers": len(data.get("peers", [])), "pending": len(data.get("pending", []))}))
+    finally:
+        drop_admin()
+
+
 if __name__ == "__main__":
     mode = sys.argv[1]
     if mode == "issue":
         issue(sys.argv[2], sys.argv[3])
     elif mode == "cleanup":
         cleanup(sys.argv[2], sys.argv[3])
+    elif mode == "overview":
+        overview(sys.argv[2])
     elif mode == "multi":
         multi_issue(sys.argv[2], sys.argv[3])
     elif mode == "cleanup-multi":
