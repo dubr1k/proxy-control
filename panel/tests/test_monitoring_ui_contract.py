@@ -228,3 +228,32 @@ def test_zero_rate_translates_as_one_unit_and_the_chip_follows_stale_nodes():
     assert 'stale: "данные устарели"' in MONITORING
     assert 'setBadge(context, "stale")' in MONITORING
     assert ".live-badge.stale" in CSS
+
+
+def test_connections_replace_sessions_on_port_based_cards_and_fall_back_to_them():
+    assert 'connections: parts.some((entry) => finite(entry.connections))' in MONITORING
+    assert "Установленные TCP-соединения на портах протокола" in MONITORING
+    en = json.loads((STATIC / "i18n" / "en.json").read_text())
+    assert en["Соединений"] == "Connections"
+    assert en["Установленные TCP-соединения на портах протокола"].startswith("Established TCP connections")
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not installed")
+def test_protocol_card_meta_prefers_connections_and_keeps_peer_sessions_for_amneziawg():
+    source = re.search(r"function protoMeta\(entry\) \{.*?\n\}\n", MONITORING, re.S).group(0)
+    script = (
+        "const finite = (v) => typeof v === 'number' && Number.isFinite(v); const number = (v) => String(v);\n"
+        + source
+        + "\nconsole.log(JSON.stringify([protoMeta({connections: 5, sessions: 0, clients: 0}),"
+          " protoMeta({connections: 0, clients: 2}), protoMeta({connections: null, sessions: 3, clients: 1}),"
+          " protoMeta({connections: null, sessions: null, clients: null})]));"
+    )
+    tmp = Path(tempfile.mkdtemp())
+    (tmp / "run.mjs").write_text(script)
+    result = subprocess.run([NODE, str(tmp / "run.mjs")], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    with_conn, zero, peers, nothing = json.loads(result.stdout.strip().splitlines()[-1])
+    assert "Соединений <b>5</b>" in with_conn and "Сессий" not in with_conn and "Клиентов" not in with_conn
+    assert "Соединений <b>0</b>" in zero and "Клиентов <b>2</b>" in zero
+    assert "Сессий <b>3</b>" in peers and "Клиентов <b>1</b>" in peers and "Соединений" not in peers
+    assert "Сессий <b>—</b>" in nothing

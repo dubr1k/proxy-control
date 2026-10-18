@@ -1587,6 +1587,8 @@
  "Сертификат кладётся в ссылку и конфиг доступа": "The certificate is put into the access link and config",
  "Сертификат публичный": "Public certificate",
  "Сессий": "Sessions",
+ "Соединений": "Connections",
+ "Установленные TCP-соединения на портах протокола": "Established TCP connections on the protocol's ports",
  "Сессий сейчас": "Sessions now",
  "Скачать .toml": "Download .toml",
  "Сначала создайте клиента на экране «Клиенты».": "Create a client first on the «Clients» screen.",

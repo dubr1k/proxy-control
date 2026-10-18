@@ -219,6 +219,7 @@ class MetricsStore:
                     peaks[bucket] = peaks.get(bucket, 0.0) + slot[2]
             peak = max(peaks.items(), key=lambda item: item[1]) if peaks else None
             sessions = data[f"{proto}.sessions"]
+            connections = data[f"{proto}.connections"]
             totals[proto] = {
                 "up_bytes": int(up_b) if has_bytes else None, "down_bytes": int(down_b) if has_bytes else None,
                 "total_bytes": int(up_b + down_b) if has_bytes else None,
@@ -226,6 +227,7 @@ class MetricsStore:
                 "peak_bps": _num(peak[1]) if peak else None, "peak_at": int(peak[0]) if peak else None,
                 "share_percent": None,
                 "sessions_peak": int(max(slot[2] for slot in sessions.values())) if sessions else None,
+                "connections_peak": int(max(slot[2] for slot in connections.values())) if connections else None,
             }
         grand = sum(row["total_bytes"] or 0 for row in totals.values())
         for row in totals.values():

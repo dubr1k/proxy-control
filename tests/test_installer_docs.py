@@ -601,3 +601,12 @@ def test_the_release_note_for_2_0_names_the_installer_boundary():
     assert "MTU 1400" in note and "an MTU of 1400" in note
     assert "install-release.sh --update" in note
     assert "--update" in (ROOT / "docs/UPGRADING.md").read_text(encoding="utf-8")
+
+
+def test_the_release_note_for_2_0_1_is_a_patch_and_says_the_installer_did_not_change():
+    note = (ROOT / "docs/releases/v2.0.1.md").read_text(encoding="utf-8")
+    assert "v2.0.1" in note and "v2.0.0" in note
+    assert "Установщик в этом выпуске не менялся" in note and "The installer did not change in this release" in note
+    assert "install-release.sh --update" in note and "releases/download/v2.0.1/install-release.sh.sha256" in note
+    assert "releases/download/v2.0.0" not in note
+    assert "(releases/v2.0.1.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")

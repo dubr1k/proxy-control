@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-18
+
+- **Connection counters in the monitor.** The protocol cards of «Сейчас» showed «Сессий» and «Клиентов» as 0 or «—» for TrustTunnel, NaiveProxy and Mieru while traffic was flowing, because those managers give no live count (TrustTunnel's `sessions` stays 0). The version-agent now counts **established TCP connections** on each protocol's ports from `/proc/net/tcp` and `/proc/net/tcp6` (no external tool) and serves it as `connections` in every `protocols.<name>` entry of `GET /v1/metrics` (`null` where the protocol has no TCP port, i.e. AmneziaWG). The card shows «Соединений N» and falls back to «Сессий» when there is no figure; AmneziaWG keeps its peer count. The panel carries `connections` in `GET /api/metrics/live`, records the series `<protocol>.connections` and reports `connections_peak` in `GET /api/metrics/summary`. Mieru counts its TCP ports only (UDP is not counted); behind the SNI router a loopback hop counts the tunnels to the backend. `sessions` stays the manager's or the peers' figure. Described in `MONITORING.en.md`.
+- No breaking changes; the installer did not change.
+
 ## [2.0.0] - 2026-10-18
 
 - **Monitoring.** A new «Мониторинг» screen (every role, read-only) shows the server and each protocol live: CPU, memory, swap, disk and its I/O, network, containers, and the ↑/↓ rate, sessions and busiest clients of MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel. Three tabs: «Сейчас» (live, 5-minute chart), «Трафик» (history by protocol, 15 minutes to 90 days) and «Узлы» (comparison of nodes, alerts, per-node drill-down). Charts are drawn by the panel itself, work in the dark and light themes and respect reduced motion. Described in `MONITORING.en.md`.

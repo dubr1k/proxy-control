@@ -216,6 +216,7 @@ function mergeProtocols(nodes) {
       up_bytes: add("up_bytes", parts),
       down_bytes: add("down_bytes", parts),
       sessions: add("sessions", parts),
+      connections: parts.some((entry) => finite(entry.connections)) ? add("connections", parts) : null,
       clients: add("clients", parts),
     };
   }
@@ -253,6 +254,16 @@ function paintSegmented(root, attribute, current) {
     button.classList.toggle("active", on);
     button.setAttribute("aria-pressed", String(on));
   }
+}
+
+// Port-based protocols report established TCP connections measured by the agent; the managers' own
+// «sessions» stay the fallback (and AmneziaWG's peer count), so a card never shows a made-up zero.
+function protoMeta(entry) {
+  if (finite(entry.connections)) {
+    const clients = finite(entry.clients) && entry.clients > 0 ? `<span>Клиентов <b>${number(entry.clients)}</b></span>` : "";
+    return `<div class="proto-meta"><span title="Установленные TCP-соединения на портах протокола">Соединений <b>${number(entry.connections)}</b></span>${clients}</div>`;
+  }
+  return `<div class="proto-meta"><span>Сессий <b>${finite(entry.sessions) ? number(entry.sessions) : "—"}</b></span><span>Клиентов <b>${finite(entry.clients) ? number(entry.clients) : "—"}</b></span></div>`;
 }
 
 function pickNodeNames(mon, snapshot) {
@@ -481,7 +492,7 @@ function paintProtocols(context, protocols, ring, single) {
     setHtmlIfChanged(rt, `proto-${proto}`, body, `<div class="proto-rates">
         <span><small>↓ к клиентам</small><b>${rateText(entry.down_bps)}</b></span>
         <span><small>↑ от клиентов</small><b>${rateText(entry.up_bps)}</b></span></div>
-      <div class="proto-meta"><span>Сессий <b>${finite(entry.sessions) ? number(entry.sessions) : "—"}</b></span><span>Клиентов <b>${finite(entry.clients) ? number(entry.clients) : "—"}</b></span></div>`);
+      ${protoMeta(entry)}`);
     if (!rt.protoEls[proto]) {
       rt.protoEls[proto] = sparkline(spark, { x: [], series: [], height: 36, label: name, unit: "rate" });
       rt.charts.push(rt.protoEls[proto]);

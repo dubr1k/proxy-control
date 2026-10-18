@@ -60,6 +60,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v2.0.1](releases/v2.0.1.md) — счётчики соединений в мониторе
 - [v2.0.0](releases/v2.0.0.md) — мониторинг в прямом эфире
 - [v1.6.0](releases/v1.6.0.md) — протокол TrustTunnel
 - [v1.5.1](releases/v1.5.1.md) — крестик в окне AmneziaWG
@@ -137,6 +138,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v2.0.1](releases/v2.0.1.md) — connection counters in the monitor
 - [v2.0.0](releases/v2.0.0.md) — live monitoring
 - [v1.6.0](releases/v1.6.0.md) — the TrustTunnel protocol
 - [v1.5.1](releases/v1.5.1.md) — close cross in the AmneziaWG window

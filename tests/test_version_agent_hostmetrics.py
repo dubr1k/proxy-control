@@ -146,7 +146,7 @@ def test_amneziawg_from_interface_counters(tmp_path):
     host.write()
     awg = sampler.tick()["protocols"]["amneziawg"]
     assert awg == {"up_bps": 2000.0, "down_bps": 1000.0, "up_bytes": 4000, "down_bytes": 2000,
-                   "source": "interface"}
+                   "source": "interface", "connections": None}
     assert all(i["name"] != "awg15" for i in sampler.latest()["host"]["net"]["interfaces"])
 
 
@@ -233,7 +233,8 @@ def test_kernel_counters_become_protocol_rates_and_totals(tmp_path):
     sample = sampler.tick()
     assert sample["kernel_counters"] == "ok"
     assert sample["protocols"]["naive"] == {
-        "up_bps": 1000.0, "down_bps": 3000.0, "up_bytes": 2000, "down_bytes": 6000, "source": "kernel"}
+        "up_bps": 1000.0, "down_bps": 3000.0, "up_bytes": 2000, "down_bytes": 6000, "source": "kernel",
+        "connections": None}  # no /proc/net/tcp in the fake tree: unknown, not zero
     assert len(nft.scripts) == 1  # same map: not recreated
 
 
@@ -360,3 +361,69 @@ def test_route_over_the_agent_socket_warming_then_sample(tmp_path):
         server.server_close()
         thread.join(timeout=2)
         hostmetrics.install(None)
+
+
+HEADER = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+
+
+def _row(local, state):
+    return f"   0: {local} 0100007F:9C40 {state} 00000000:00000000 00:00000000 00000000     0        0 1 1\n"
+
+
+def test_connections_count_established_on_protocol_ports_only(tmp_path):
+    host, clock, nft = FakeHost(tmp_path), Clock(), FakeNft()
+    nft.counters = {"up_naive_tcp_4443": 0, "down_naive_tcp_4443": 0, "up_trusttunnel_tcp_4453": 0,
+                    "down_trusttunnel_tcp_4453": 0}
+    (host.proc / "net" / "tcp").write_text(
+        HEADER + _row("0100007F:115B", "01") * 2      # 4443 established x2
+        + _row("0100007F:115B", "06")                  # TIME_WAIT: ignored
+        + _row("00000000:115B", "0A")                  # LISTEN: ignored
+        + _row("0100007F:1165", "01")                  # 4453 established
+        + _row("0100007F:1F90", "01"))                 # unrelated 8080: ignored
+    (host.proc / "net" / "tcp6").write_text(
+        HEADER + _row("00000000000000000000000001000000:115B", "01")  # 4443 over ipv6
+        + _row("00000000000000000000000001000000:1165", "08"))        # CLOSE_WAIT: ignored
+    sampler = make(tmp_path, host, clock, nft=nft, ports={
+        "naive": {"tcp": [4443], "udp": []}, "trusttunnel": {"tcp": [4453], "udp": []}})
+    sampler.tick()
+    clock.now += 1
+    protocols = sampler.tick()["protocols"]
+    assert protocols["naive"]["connections"] == 3
+    assert protocols["trusttunnel"]["connections"] == 1
+
+
+def test_connections_tolerate_missing_ipv6_and_garbage(tmp_path):
+    host, clock, nft = FakeHost(tmp_path), Clock(), FakeNft()
+    (host.proc / "net" / "tcp").write_text(HEADER + _row("0100007F:115B", "01") + "garbage\n" + "0: x y\n")
+    sampler = make(tmp_path, host, clock, nft=nft, ports={"naive": {"tcp": [4443], "udp": []}})
+    sampler.tick()
+    clock.now += 1
+    assert sampler.tick()["protocols"]["naive"]["connections"] == 1
+
+
+def test_connections_zero_when_files_readable_and_null_without_tcp_ports_or_files(tmp_path):
+    host, clock = FakeHost(tmp_path), Clock()
+    (host.proc / "net" / "tcp").write_text(HEADER)
+    host.net["awg15"] = (10, 10)
+    nft = FakeNft()
+    sampler = make(tmp_path, host, clock, nft=nft, ports={"naive": {"tcp": [4443], "udp": []}})
+    sampler.tick()
+    clock.now += 1
+    host.net["awg15"] = (20, 30)
+    host.write()
+    protocols = sampler.tick()["protocols"]
+    assert protocols["naive"]["connections"] == 0
+    assert protocols["amneziawg"]["connections"] is None  # peer based, not port based
+    (host.proc / "net" / "tcp").unlink()
+    clock.now += 1
+    assert sampler.tick()["protocols"]["naive"]["connections"] is None
+
+
+def test_mieru_counts_tcp_ports_only(tmp_path):
+    host, clock, nft = FakeHost(tmp_path), Clock(), FakeNft()
+    nft.counters = {"up_mieru_tcp_8443": 0, "down_mieru_tcp_8443": 0}
+    (host.proc / "net" / "tcp").write_text(HEADER + _row("0100007F:20FB", "01") + _row("0100007F:20FC", "01"))
+    sampler = make(tmp_path, host, clock, nft=nft, ports={"mieru": {"tcp": [8443], "udp": [8444]}})
+    sampler.tick()
+    clock.now += 1
+    assert sampler.tick()["protocols"]["mieru"]["connections"] == 1

@@ -70,9 +70,22 @@
   безвредны). Убрать её вручную: `sudo nft delete table inet proxy_control_metrics`; агент создаст её
   заново, пока работает.
 
+### Соединения
+
+Поле `connections` в каждой записи протокола — число **установленных TCP-соединений** (состояние
+`ESTABLISHED`) на портах протокола, которые агент раз в секунду считает по `/proc/net/tcp` и
+`/proc/net/tcp6` без внешних утилит. Карточка показывает его как «Соединений N». Это реальные TCP-потоки,
+а не клиенты: один клиент может держать несколько. Цифра нужна потому, что у менеджеров нет живого
+счёта: `sessions` у TrustTunnel остаётся 0 при идущем трафике, у NaiveProxy и Mieru его нет совсем, поэтому
+`sessions` для них не используется. За SNI-роутером (NaiveProxy) считается петлевой отрезок, то есть число
+туннелей к бэкенду. У Mieru считаются **только TCP-порты**, UDP не считается. У AmneziaWG TCP-порта нет:
+`connections` равно `null`, а карточка показывает «Сессий» — число пиров с недавним рукопожатием.
+Если файлов `/proc/net/tcp*` нет, `connections` — `null`, а не 0; карточка тогда возвращается к «Сессий».
+В истории это ряд `<протокол>.connections`, в сводке — `connections_peak`.
+
 ### Что каждый протокол показывает вживую
 
-- **TrustTunnel, AmneziaWG** — скорости ↑/↓ по ядру, сессии и клиенты от менеджера, скорости по клиентам
+- **TrustTunnel, AmneziaWG** — скорости ↑/↓ по ядру, клиенты от менеджера (сессии AmneziaWG — пиры; у TrustTunnel вместо сессий соединения), скорости по клиентам
   (раз в 5 секунд) с разделением на ↑ и ↓.
 - **MTProxy** — скорости ↑/↓ по ядру. Путь через менеджер (Telemt) даёт **только суммарный счётчик**
   `total_octets` без разделения на ↑ и ↓: по клиентам видна общая скорость, соединения — из
@@ -170,7 +183,7 @@ AmneziaWG это работает как обычно, MTProxy — только 
 `range` — одно из `15m 1h 6h 24h 7d 30d 90d`; неизвестное значение даёт `422`. Идентификаторы рядов:
 `host.cpu`, `host.mem`, `host.swap`, `host.disk`, `host.disk_read_bps`, `host.disk_write_bps`,
 `host.load1`, `net.rx_bps`, `net.tx_bps` и для каждого протокола (`mtproxy`, `naive`, `mieru`,
-`amneziawg`, `trusttunnel`) `<протокол>.up_bps`, `.down_bps`, `.sessions`, `.clients`, `.up_bytes`,
+`amneziawg`, `trusttunnel`) `<протокол>.up_bps`, `.down_bps`, `.sessions`, `.clients`, `.connections`, `.up_bytes`,
 `.down_bytes`.
 
 Пример `GET /api/metrics/live?node=local` (сокращён):
@@ -190,7 +203,7 @@ AmneziaWG это работает как обычно, MTProxy — только 
     },
     "protocols": {
       "trusttunnel": {"available": true, "live": true, "source": "kernel", "up_bps": 51200.0, "down_bps": 307200.0,
-                      "total_bps": 358400.0, "up_bytes": 5242880, "down_bytes": 31457280, "sessions": 3, "clients": 2},
+                      "total_bps": 358400.0, "up_bytes": 5242880, "down_bytes": 31457280, "sessions": 3, "clients": 2, "connections": 4},
       "mieru": {"available": true, "live": false, "reason": "no_counters"},
       "naive": {"available": false, "reason": "disabled"}
     },
@@ -223,7 +236,7 @@ AmneziaWG это работает как обычно, MTProxy — только 
 
 `GET /api/metrics/summary?range=7d` возвращает для каждого узла `host` (для CPU, памяти, диска, сети:
 `avg`, `p95`, `max`, `max_at`), `protocols` (`up_bytes`, `down_bytes`, `total_bytes`, `avg_bps`,
-`peak_bps`, `peak_at`, `share_percent`, `sessions_peak`), `hours_of_day` (по 24 средних на протокол,
+`peak_bps`, `peak_at`, `share_percent`, `sessions_peak`, `connections_peak`), `hours_of_day` (по 24 средних на протокол,
 только от 7 суток) и `alerts`. При `node=all` добавляется `compare` — по строке на узел, по убыванию
 трафика.
 

@@ -9,7 +9,7 @@ HOST_SERIES = (
     "host.cpu", "host.mem", "host.swap", "host.disk", "host.disk_read_bps", "host.disk_write_bps",
     "host.load1", "net.rx_bps", "net.tx_bps",
 )
-PROTOCOL_SERIES = ("up_bps", "down_bps", "sessions", "clients", "up_bytes", "down_bytes")
+PROTOCOL_SERIES = ("up_bps", "down_bps", "sessions", "clients", "connections", "up_bytes", "down_bytes")
 ALL_SERIES = HOST_SERIES + tuple(f"{p}.{s}" for p in PROTOCOLS for s in PROTOCOL_SERIES)
 
 RANGES = {"15m": 900, "1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800, "30d": 2592000, "90d": 7776000}

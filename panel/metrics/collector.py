@@ -336,7 +336,8 @@ class MetricsCollector:
         enabled = {"mtproxy": True, "naive": self.settings.naive_enabled, "mieru": self.settings.mieru_enabled,
                    "amneziawg": self.settings.amneziawg_enabled, "trusttunnel": self.settings.trusttunnel_enabled}[protocol]
         entry = {"available": False, "live": False, "source": None, "up_bps": None, "down_bps": None,
-                 "total_bps": None, "up_bytes": None, "down_bytes": None, "sessions": None, "clients": None}
+                 "total_bps": None, "up_bytes": None, "down_bytes": None, "sessions": None, "clients": None,
+                 "connections": None}
         kernel = (agent or {}).get("protocols", {}).get(protocol) if isinstance(agent, dict) else None
         manager = self._fresh(protocol, mono) if protocol in CADENCE else None
         if self._kernel_has(protocol, agent):
@@ -345,7 +346,8 @@ class MetricsCollector:
                 up, down = (round(value, 1) for value in self._derived[protocol])
             entry.update(available=True, live=True, source=kernel.get("source") if kernel.get("source") in ("kernel", "interface") else "kernel",
                          up_bps=up, down_bps=down, total_bps=(up or 0.0) + (down or 0.0),
-                         up_bytes=_int(kernel.get("up_bytes")), down_bytes=_int(kernel.get("down_bytes")))
+                         up_bytes=_int(kernel.get("up_bytes")), down_bytes=_int(kernel.get("down_bytes")),
+                         connections=_int(kernel.get("connections")))
         elif manager is not None:
             entry.update(available=True, live=protocol != "naive", source="manager",
                          up_bps=manager["up_bps"], down_bps=manager["down_bps"], total_bps=manager["total_bps"])
@@ -407,6 +409,7 @@ class MetricsCollector:
                 continue
             values[f"{protocol}.up_bps"], values[f"{protocol}.down_bps"] = entry["up_bps"], entry["down_bps"]
             values[f"{protocol}.sessions"], values[f"{protocol}.clients"] = entry["sessions"], entry["clients"]
+            values[f"{protocol}.connections"] = entry["connections"]
             if entry["source"] in ("kernel", "interface"):
                 kernel = agent["protocols"][protocol]
                 up, down = _num(kernel.get("up_bytes")), _num(kernel.get("down_bytes"))

@@ -462,7 +462,40 @@ class MetricsSampler:
         self._nft_state = "ok"
         return counters
 
+    def _established(self) -> dict[int, int] | None:
+        """Established TCP connections per LOCAL port from /proc/net/tcp{,6}; None = unreadable."""
+        counts: dict[int, int] = {}
+        readable = False
+        for name in ("net/tcp", "net/tcp6"):
+            text = self._read(name)
+            if text is None:
+                continue
+            readable = True
+            for line in text.splitlines()[1:]:
+                fields = line.split()
+                if len(fields) > 3 and fields[3] == "01":
+                    _, _, port = fields[1].rpartition(":")
+                    try:
+                        key = int(port, 16)
+                    except ValueError:
+                        continue
+                    counts[key] = counts.get(key, 0) + 1
+        return counts if readable else None
+
+    def _connections(self, protocols: dict) -> None:
+        """`connections` of every protocol entry: established TCP on the protocol's TCP ports."""
+        wanted = {port for m in self._port_map.values() for port in m["tcp"]}
+        counts = self._established() if wanted else None
+        for protocol, entry in protocols.items():
+            tcp = self._port_map.get(protocol, {}).get("tcp") or []
+            entry["connections"] = sum(counts.get(p, 0) for p in tcp) if counts is not None and tcp else None
+
     def _protocols(self, now: float, elapsed: float | None) -> tuple[dict, str]:
+        protocols, kernel = self._protocol_rates(now, elapsed)
+        self._connections(protocols)
+        return protocols, kernel
+
+    def _protocol_rates(self, now: float, elapsed: float | None) -> tuple[dict, str]:
         self._discover(now)
         protocols: dict[str, dict] = {}
         counters = self._read_kernel(now) if self._port_map else None

@@ -175,3 +175,18 @@ async def test_kernel_counter_reset_adds_the_reading_not_a_negative_spike(rig):
     values = [value for _ts, value in rig.ring.points_of("trusttunnel.up_bytes")]
     assert all(value >= 0 for value in values) and len(values) == 2
     assert values[-1] == 200  # the counters restarted: the reading (2 s at 100 B/s) is the growth
+
+
+async def test_connections_come_from_the_agent_next_to_the_manager_sessions(rig):
+    rig.agent.set_protocol("trusttunnel", 1000.0, 3000.0)
+    rig.agent.set_protocol("amneziawg", 200.0, 800.0, source="interface")
+    rig.agent.protocols["trusttunnel"]["connections"] = 5
+    rig.agent.protocols["amneziawg"]["connections"] = None
+    rig.tt.rows = [{"username": "alice", "tx": 0, "rx": 0, "sessions": 0}]  # the manager's own figure stays 0
+    await rig.step()
+    await rig.step()
+    protocols = rig.collector.snapshot()["nodes"][0]["protocols"]
+    assert protocols["trusttunnel"]["connections"] == 5 and protocols["trusttunnel"]["sessions"] == 0
+    assert protocols["amneziawg"]["connections"] is None
+    assert protocols["mieru"]["connections"] is None  # unavailable protocols carry the key too
+    assert [v for _ts, v in rig.ring.points_of("trusttunnel.connections")][-1] == 5

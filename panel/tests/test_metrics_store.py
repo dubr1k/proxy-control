@@ -129,6 +129,7 @@ async def test_summary_statistics_shares_and_peaks(rig):
         put(rig.store, "trusttunnel.up_bps", bucket, up, peak=up * 2)
         put(rig.store, "trusttunnel.down_bps", bucket, down, peak=down * 2)
     put(rig.store, "trusttunnel.sessions", now - 240, 3.0, peak=7.0)
+    put(rig.store, "trusttunnel.connections", now - 240, 4.0, peak=9.0)
     body = await rig.store.summary("24h")
     cpu = body["host"]["cpu"]
     assert (cpu["avg"], cpu["p95"], cpu["max"], cpu["max_at"]) == (50.5, 95.0, 100.0, now - 60)
@@ -138,6 +139,7 @@ async def test_summary_statistics_shares_and_peaks(rig):
     assert (naive["total_bytes"], tt["share_percent"], naive["share_percent"]) == (2000, 81.8, 18.2)
     assert tt["avg_bps"] == pytest.approx(250.0 + 450.0)  # mean up + mean down
     assert (tt["peak_bps"], tt["peak_at"]) == (1200.0 + 800.0, now - 240)  # upper bound: peak up + peak down
+    assert tt["connections_peak"] == 9 and body["protocols"]["naive"]["connections_peak"] is None
     assert tt["sessions_peak"] == 7 and body["protocols"]["mieru"]["total_bytes"] is None
     assert body["hours_of_day"] == {}  # only a week or more has a daily shape
 

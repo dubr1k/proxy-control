@@ -72,9 +72,23 @@ is touched.
   stops (the counters are harmless). To remove it by hand: `sudo nft delete table inet proxy_control_metrics`;
   the agent creates it again while it runs.
 
+### Connections
+
+The `connections` field of each protocol entry is the number of **established TCP connections**
+(state `ESTABLISHED`) on the protocol's ports, counted by the agent once a second from `/proc/net/tcp`
+and `/proc/net/tcp6` with no external tool. The card shows it as «Соединений N» (Connections). These are
+real TCP streams, not clients: one client may hold several. It exists because the managers have no live
+count: TrustTunnel's `sessions` stays 0 while traffic flows and NaiveProxy and Mieru have none, so
+`sessions` is not used for them. Behind the SNI router (NaiveProxy) the loopback hop is counted, i.e.
+the number of tunnels to the backend. For Mieru **only its TCP ports** are counted; UDP is not.
+AmneziaWG has no TCP port: its `connections` is `null` and the card shows «Сессий» (Sessions), the
+number of peers with a recent handshake. If `/proc/net/tcp*` is missing, `connections` is `null`, not 0,
+and the card falls back to «Сессий». History keeps it as `<protocol>.connections`, the summary as
+`connections_peak`.
+
 ### What each protocol shows live
 
-- **TrustTunnel, AmneziaWG** — ↑/↓ rates from the kernel, sessions and clients from the manager,
+- **TrustTunnel, AmneziaWG** — ↑/↓ rates from the kernel, clients from the manager (AmneziaWG sessions are peers; TrustTunnel shows connections instead of sessions),
   per-client rates (every 5 seconds) split into ↑ and ↓.
 - **MTProxy** — ↑/↓ rates from the kernel. The manager path (Telemt) has **only a combined counter**,
   `total_octets`, with no ↑/↓ split: per client you see the total rate, and connections come from
@@ -175,7 +189,7 @@ All routes are `GET`, open to every signed-in role (and to API keys, `monitor` i
 `range` is one of `15m 1h 6h 24h 7d 30d 90d`; any other value gives `422`. Series ids: `host.cpu`,
 `host.mem`, `host.swap`, `host.disk`, `host.disk_read_bps`, `host.disk_write_bps`, `host.load1`,
 `net.rx_bps`, `net.tx_bps` and, for each protocol (`mtproxy`, `naive`, `mieru`, `amneziawg`,
-`trusttunnel`), `<protocol>.up_bps`, `.down_bps`, `.sessions`, `.clients`, `.up_bytes`, `.down_bytes`.
+`trusttunnel`), `<protocol>.up_bps`, `.down_bps`, `.sessions`, `.clients`, `.connections`, `.up_bytes`, `.down_bytes`.
 
 An example `GET /api/metrics/live?node=local` (abridged):
 
@@ -194,7 +208,7 @@ An example `GET /api/metrics/live?node=local` (abridged):
     },
     "protocols": {
       "trusttunnel": {"available": true, "live": true, "source": "kernel", "up_bps": 51200.0, "down_bps": 307200.0,
-                      "total_bps": 358400.0, "up_bytes": 5242880, "down_bytes": 31457280, "sessions": 3, "clients": 2},
+                      "total_bps": 358400.0, "up_bytes": 5242880, "down_bytes": 31457280, "sessions": 3, "clients": 2, "connections": 4},
       "mieru": {"available": true, "live": false, "reason": "no_counters"},
       "naive": {"available": false, "reason": "disabled"}
     },
@@ -227,7 +241,7 @@ the third is the maximum inside the bucket. `null` means there is no data in tha
 
 `GET /api/metrics/summary?range=7d` returns for every node `host` (for CPU, memory, disk and network:
 `avg`, `p95`, `max`, `max_at`), `protocols` (`up_bytes`, `down_bytes`, `total_bytes`, `avg_bps`,
-`peak_bps`, `peak_at`, `share_percent`, `sessions_peak`), `hours_of_day` (24 averages per protocol,
+`peak_bps`, `peak_at`, `share_percent`, `sessions_peak`, `connections_peak`), `hours_of_day` (24 averages per protocol,
 from 7 days up) and `alerts`. With `node=all` it adds `compare`, one row per node ordered by traffic.
 
 ## Nodes
