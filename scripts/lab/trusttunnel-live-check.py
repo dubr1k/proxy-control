@@ -5,7 +5,6 @@ Run on the node itself (it resolves the gate name to 127.0.0.1) with the panel's
 Needs a node installed with [trusttunnel] enabled (routing: also [egress] router = true).
 Prints statuses only; never passwords.
 """
-import json
 import os
 import re
 import subprocess
