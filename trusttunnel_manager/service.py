@@ -59,7 +59,10 @@ def inspect_certificate(path: Path, *, now: Callable[[], float] = time.time) -> 
     """
     try:
         pem = Path(path).read_text()
-        der = ssl.PEM_cert_to_DER_cert(pem[pem.index("-----BEGIN CERTIFICATE-----"):])
+        start = pem.index("-----BEGIN CERTIFICATE-----")
+        # fullchain.pem carries the leaf and its intermediates: the leaf is the first block only.
+        end = pem.index("-----END CERTIFICATE-----", start) + len("-----END CERTIFICATE-----")
+        der = ssl.PEM_cert_to_DER_cert(pem[start:end])
     except (OSError, ValueError):
         return None
     trusted = False

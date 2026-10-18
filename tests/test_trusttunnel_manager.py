@@ -441,6 +441,27 @@ def test_self_signed_certificate_is_exposed_for_pinning(tmp_path):
     assert inspect_certificate(tmp_path / "missing.pem") is None
 
 
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="needs openssl")
+def test_a_fullchain_file_is_read_by_its_leaf_and_counts_as_trusted(tmp_path):
+    """Let's Encrypt's fullchain.pem is the leaf plus an intermediate: the leaf is the first block."""
+    def run(*argv):
+        subprocess.run(["openssl", *argv], check=True, capture_output=True, cwd=tmp_path)
+
+    run("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", "ca.key", "-out", "ca.pem",
+        "-days", "30", "-subj", "/CN=Test Intermediate")
+    run("req", "-newkey", "rsa:2048", "-nodes", "-keyout", "leaf.key", "-out", "leaf.csr",
+        "-subj", "/CN=gate.example.com")
+    run("x509", "-req", "-in", "leaf.csr", "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial",
+        "-out", "leaf.pem", "-days", "30")
+    run("x509", "-in", "leaf.pem", "-outform", "DER", "-out", "leaf.der")
+    chain = tmp_path / "fullchain.pem"
+    chain.write_text((tmp_path / "leaf.pem").read_text() + (tmp_path / "ca.pem").read_text())
+    found = inspect_certificate(chain)
+    assert found is not None, "a two-certificate chain must still be readable"
+    assert found["trusted"] is True
+    assert found["der"] == (tmp_path / "leaf.der").read_bytes()
+
+
 # ---------------------------------------------------------------- egress
 
 
