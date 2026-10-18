@@ -28,6 +28,7 @@ function paintNavCounts(context, data, nodes) {
   };
   set("#mieru-count", protocols.mieru?.credentials);
   set("#naive-count", protocols.naive?.credentials);
+  set("#amneziawg-count", protocols.amneziawg?.credentials);
   const fleet = query("#fleet-count", context.root);
   if (fleet) fleet.textContent = nodes ?? "—";
 }

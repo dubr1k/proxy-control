@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-18
+
+- A dedicated «AmneziaWG» screen in the panel (next to MTProxy, Mieru and NaiveProxy): cards for versions 1.5, 2.0 and 3.1 with the port, subnet and state, the list of this server's accesses with the client that holds each, the last connection and the traffic, and an «Open access» button (the access window with the config, QR, switch on/off, rotation and delete). The screen only reads: accesses are still given to clients («Clients» → «Nodes and accesses»). New route `GET /api/amneziawg/overview` (no keys and no obfuscation parameters); the menu item is shown only on a server that runs AmneziaWG.
+
 ## [1.3.4] - 2026-10-17
 
 - Installer: files the version agent is meant to manage (the Caddy build and its pin, the mita binary and the digest in `.env.mieru`, the router's Xray files) are no longer read as foreign edits. Before, on a host set up by the installer, updating Caddy or mita from the panel made the next panel update refuse with «owned file drifted». Ownership still requires the file to exist and to be of the same kind; only its digest is not compared.

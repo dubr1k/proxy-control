@@ -16,6 +16,7 @@ import {
   renderVersions,
   ROLE_NAMES,
 } from "./management.js";
+import { handleAmneziawgClick, renderAmneziawg } from "./amneziawg.js";
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
 import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
@@ -38,6 +39,7 @@ const TITLES = {
   dashboard: ["Обзор", "Состояние всех прокси-протоколов в одном месте"],
   clients: ["Клиенты", "Абоненты и их доступы MTProxy · Naive · Mieru"],
   mieru: ["Mieru", "Пользователи, rolling-квоты и application-byte трафик"],
+  amneziawg: ["AmneziaWG", "Версии 1.5, 2.0 и 3.1: порты, доступы и трафик"],
   users: ["MTProxy", "Пользователи, ссылки и ключи доступа"],
   naive: ["NaiveProxy", "HTTPS-прокси, конфигурации и доступы"],
   versions: ["Версии", "Установка и откат версий компонентов"],
@@ -52,6 +54,7 @@ const RENDERERS = {
   clients: renderClients,
   users: renderUsers,
   mieru: renderMieru,
+  amneziawg: renderAmneziawg,
   naive: renderNaive,
   versions: renderVersions,
   fleet: renderNodes,
@@ -262,6 +265,7 @@ function bindPanel(context) {
     if (handleManagementClick(context, button)) return;
     if (handleKeysClick(context, button)) return;
     if (handleMieruClick(context, button)) return;
+    if (handleAmneziawgClick(context, button)) return;
     if (handleNaiveClick(context, button)) return;
     handleUsersClick(context, button);
   });
@@ -280,6 +284,7 @@ async function initialise(context) {
     query("#profile-menu-version", context.root).textContent = `версия ${context.state.me.panel_version || "не определена"}`;
     queryAll('[data-view="naive"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.naive !== true; });
     queryAll('[data-view="mieru"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.mieru !== true; });
+    queryAll('[data-view="amneziawg"]', context.root).forEach((item) => { item.hidden = context.state.me.features?.amneziawg !== true; });
     queryAll(".owner-only", context.root).forEach((item) => { item.hidden = context.state.me.role !== "owner"; });
     queryAll(".audit-nav", context.root).forEach((item) => { item.hidden = false; });
     // Открытый адрес решает, какой экран показать; чужая или закрытая ролью закладка

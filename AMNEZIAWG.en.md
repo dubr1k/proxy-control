@@ -82,6 +82,10 @@ agent's list, rebuilds the manager and the panel and checks that every version a
 `--mtu` and `--dns` narrow the defaults. A host behind a home router also needs UDP 51820–51822 forwarded to
 it.
 
+## The AmneziaWG screen
+
+The left menu has an «AmneziaWG» item on a server that runs the protocol. It shows the version cards (port, subnet, state, number of accesses), the manager's state and every access of this server with the client that holds it, the last connection and the traffic; «Open access» opens the access window. The screen only reads: accesses are given to clients, below.
+
 ## Giving access
 
 1. Open the client → **Nodes and accesses**. The matrix has an «AmneziaWG 1.5 / 2.0 / 3.1» column for

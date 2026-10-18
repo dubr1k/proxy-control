@@ -451,3 +451,60 @@ async def test_the_node_declares_the_capability_and_its_versions(tmp_path):
     entry = identity["protocols"]["amneziawg"]
     assert entry["enabled"] is True and entry["versions"] == ["1.5", "2.0", "3.1"] and entry["daemon"] == "ok"
     assert entry["public_host"] == "node.example"
+
+
+# ---- the AmneziaWG screen ------------------------------------------------------------------------
+
+async def test_the_overview_joins_the_manager_with_the_clients_that_hold_the_accesses(api, awg):
+    client_id = await _issue(api, [
+        {"protocol": "amneziawg", "runtime_username": "alice-awg20", "options": {"version": "2.0"}},
+        {"protocol": "amneziawg", "runtime_username": "alice-awg31", "options": {"version": "3.1"}}])
+    # a peer on the node the panel knows nothing about (made by hand on the manager)
+    await awg.create_peer({"operation_id": "x", "username": "stranger", "version": "1.5",
+                           "public_key": "A" * 43 + "=", "preshared_key": "B" * 43 + "="})
+    awg.peer_table["alice-awg20"]["latest_handshake"] = 1_700_000_000
+    data = (await api.get("/api/amneziawg/overview")).json()
+    assert data["status"] == "ok" and data["ip_forward"] is True and data["public_host"] == "vpn.example.com"
+    assert [(v["version"], v["port"], v["peers"], v["running"]) for v in data["versions"]] == [
+        ("1.5", 51820, 1, True), ("2.0", 51821, 1, True), ("3.1", 51822, 1, True)]
+    by_name = {row["username"]: row for row in data["peers"]}
+    assert by_name["alice-awg20"]["client_name"] == "Alice" and by_name["alice-awg20"]["client_id"] == client_id
+    assert by_name["alice-awg20"]["grant_id"] and by_name["alice-awg20"]["version"] == "2.0"
+    assert by_name["stranger"]["client_id"] is None and by_name["stranger"]["grant_id"] is None
+    assert data["pending"] == []
+    # nothing secret leaves: no keys, no obfuscation values
+    assert "HeaderProtectionKey" not in json.dumps(data) and "private" not in json.dumps(data).lower()
+
+
+async def test_the_overview_says_so_when_the_manager_is_down_or_the_feature_is_off(api, awg, tmp_path):
+    await _issue(api, [{"protocol": "amneziawg", "runtime_username": "alice-awg20", "options": {"version": "2.0"}}])
+    awg.broken = True
+    down = (await api.get("/api/amneziawg/overview")).json()
+    assert down["status"] == "down" and down["peers"] == [] and [p["username"] for p in down["pending"]] == ["alice-awg20"]
+
+    master_key = tmp_path / "off-key"
+    Keyring.generate().save(master_key)
+    app = create_app(Settings(database_path=tmp_path / "off.sqlite3", master_key_file=master_key,
+                              session_cookie_secure=False, allowed_hosts=("testserver",), vnext_writer="domain"),
+                     telemt=MemoryTelemt(), naive=MemoryNaive(), mieru=MemoryMieru(), amneziawg=MemoryAmneziawg(),
+                     version_client=VersionClient(str(tmp_path / "none.sock")))
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as off:
+        page = await off.get("/login")
+        await off.post("/api/auth/login", json={"username": "owner", "password": "correct horse battery staple"},
+                       headers={"X-CSRF-Token": page.cookies["panel_csrf"]})
+        assert (await off.get("/api/amneziawg/overview")).status_code == 404
+
+
+def test_the_screen_is_in_the_navigation_and_opens_the_access_window():
+    from pathlib import Path
+
+    static = Path(__file__).resolve().parents[1] / "static"
+    index = (static / "index.html").read_text(encoding="utf-8")
+    main = (static / "js/main.js").read_text(encoding="utf-8")
+    screen = (static / "js/amneziawg.js").read_text(encoding="utf-8")
+    assert index.count('data-view="amneziawg"') == 2  # the sidebar and the phone bar
+    assert 'amneziawg: renderAmneziawg' in main and "handleAmneziawgClick" in main
+    assert "features?.amneziawg" in main  # hidden unless the server has the protocol
+    assert "/api/amneziawg/overview" in screen and "context.grants.open" in screen
+    assert "private" not in screen.lower() or "приватн" not in screen.lower()

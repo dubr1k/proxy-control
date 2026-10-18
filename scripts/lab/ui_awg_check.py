@@ -129,6 +129,22 @@ try:
     ev("document.querySelector('[data-grant-action=rotate]').click()")
     wait("[...document.querySelectorAll('dialog[open]')].some(d => d.textContent.includes('Ротировать ключи?'))", "rotate-confirm")
     shot("rotate-confirm")
+    # the AmneziaWG screen of its own
+    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
+    assert ev("!document.querySelector('.nav-item[data-view=amneziawg]').hidden") is True, "the nav item is hidden"
+    ev("document.querySelector('.nav-item[data-view=amneziawg]').click()")
+    wait("document.querySelectorAll('.awg-overview article').length >= 4 && document.querySelectorAll('.data-row.naive-grid').length >= 2", "amneziawg-screen")
+    cards = ev("[...document.querySelectorAll('.awg-overview article small:first-child')].map(e=>e.textContent.trim())")
+    assert any("AmneziaWG 1.5" in c for c in cards) and any("AmneziaWG 3.1" in c for c in cards), cards
+    ports = ev("[...document.querySelectorAll('.awg-overview article strong')].map(e=>e.textContent.trim())")
+    assert {"51820/udp", "51821/udp", "51822/udp"} <= set(ports), ports
+    names = ev("[...document.querySelectorAll('.data-row .identity b')].map(e=>e.textContent.trim())")
+    assert "samsung-awg15" in names and "samsung-awg31" in names, names
+    assert "samsung" in ev("document.querySelector('.data-row .identity').textContent")
+    shot("screen")
+    ev("document.querySelector('[data-awg-action=open]').click()")
+    wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "access-window-from-screen")
+    shot("screen-open")
     print("UI_AWG_OK errors=", errors)
 finally:
     proc.terminate()

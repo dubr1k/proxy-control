@@ -33,6 +33,7 @@ from .fleet_v2.pusher import FleetPusher
 from .fleet_v2.reconcile import Reconciler
 from .keyring import Keyring
 from .amneziawg import AmneziawgClient, AmneziawgError
+from .amneziawg_routes import register_amneziawg_routes
 from .mieru import MieruClient, MieruError
 from .mieru_routes import register_mieru_routes
 from .naive import NaiveClient, NaiveError
@@ -282,6 +283,7 @@ def create_app(
     register_telemt_dashboard_routes(app, context)
     register_naive_routes(app, context)
     register_mieru_routes(app, context)
+    register_amneziawg_routes(app, context)
     register_fleet_routes(app, context)
     register_node_routes(app, context)
     register_client_routes(app, context)
