@@ -502,6 +502,8 @@ table.chart-sr{display:block}
 .live-badge.live i{background:var(--green);animation:live-pulse 1.8s ease-out infinite}
 .live-badge.polling{border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent-soft)}
 .live-badge.polling i{background:var(--accent)}
+.live-badge.stale{border-color:rgba(231,168,75,.35);background:rgba(231,168,75,.08);color:var(--amber)}
+.live-badge.stale i{background:var(--amber)}
 .live-badge.reconnecting{border-color:rgba(231,168,75,.35);background:rgba(231,168,75,.08);color:var(--amber)}
 .live-badge.reconnecting i{background:var(--amber)}
 .live-badge.paused i{background:var(--quiet)}
@@ -558,7 +560,7 @@ table.chart-sr{display:block}
 .mon-card-head h2{margin:0;font-size:14px;font-weight:580;letter-spacing:-.1px}
 .mon-card-head small{display:block;margin-top:3px;color:var(--quiet);font-size:11px}
 .mon-chart{min-height:60px}
-.mon-two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px}
+.mon-two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
 .mon-two.single{grid-template-columns:minmax(0,1fr)}
 .mon-note{margin:0;color:var(--quiet);font-size:11px;line-height:1.5}
 .mon-empty{padding:34px 16px;text-align:center;color:var(--muted)}

@@ -325,6 +325,7 @@ function setBadge(context, state, detail = {}) {
     reconnecting: `нет связи · повтор через ${Math.max(1, Math.round((detail.retryInMs || 1000) / 1000))} сек`,
     paused: detail.reason === "hidden" ? "пауза · вкладка была скрыта" : "пауза",
     connecting: "подключение…",
+    stale: "данные устарели",
   }[state] || state;
   badge.className = `live-badge ${state}`;
   query("b", badge).textContent = text;
@@ -359,6 +360,12 @@ function setHtmlIfChanged(rt, key, element, html) {
   fillWidths(element);
 }
 
+// A gap in the live feed is five missed ticks, but the history that primes the ring may come
+// from 60 s rollups (right after a panel restart): its spacing must not read as a gap.
+function ringGap(rt, ring) {
+  return Math.max(10, (rt.last?.interval || 2) * 5, ring.gap || 0);
+}
+
 function windowOf(ring) {
   const end = ring.t.length ? ring.t[ring.t.length - 1] : Date.now() / 1000;
   return { x: ring.t, domain: [end - WINDOW_SECONDS, end] };
@@ -369,7 +376,7 @@ function paintTiles(context, node, ring, single) {
   const root = context.ui.view;
   const host = node?.host;
   const win = windowOf(ring);
-  const gap = Math.max(10, (rt.last?.interval || 2) * 5);
+  const gap = ringGap(rt, ring);
   const spark = (id, series, unit, extra = {}) => {
     const tile = ensureTile(rt, root, id);
     tile.spark.update({ x: win.x, domain: win.domain, series, unit, gap, ...extra });
@@ -449,7 +456,7 @@ function paintStrip(context, nodes) {
 function paintProtocols(context, protocols, ring, single) {
   const rt = runtimeOf(context);
   const win = windowOf(ring);
-  const gap = Math.max(10, (rt.last?.interval || 2) * 5);
+  const gap = ringGap(rt, ring);
   for (const [proto, name] of PROTOCOLS) {
     const card = query(`[data-proto="${proto}"]`, context.ui.view);
     const entry = protocols[proto] || { available: false };
@@ -509,7 +516,7 @@ function paintChartNow(context, protocols, ring) {
   const list = PROTOCOLS
     .filter(([proto]) => protocols[proto]?.available && protocols[proto].live)
     .map(([proto, name]) => ({ id: proto, label: name, cls: `ser-${proto}`, values: directionValues(ring, proto, mon.dir) }));
-  const options = { x: ring.t, domain: win.domain, series: list, unit: "rate", height: 230, gap: Math.max(10, (rt.last?.interval || 2) * 5), label: "Трафик по протоколам за последние 5 минут", legend: true };
+  const options = { x: ring.t, domain: win.domain, series: list, unit: "rate", height: 230, gap: ringGap(rt, ring), label: "Трафик по протоколам за последние 5 минут", legend: true };
   if (!list.length) {
     host.innerHTML = emptyBlock("Нет протоколов с данными в реальном времени", "Счётчики ядра недоступны или протоколы выключены.");
     rt.chartHandle = null;
@@ -587,6 +594,11 @@ function paintNow(context, snapshot) {
     if (stale.length) banner.textContent = `Суммы без узлов: ${stale.map((entry) => entry.name || entry.node_id).join(", ")} — нет свежих данных.`;
   }
 
+  // the chip must not say «в эфире» while the node's numbers are old
+  const degraded = all ? nodes.length > 0 && nodes.every((entry) => entry.status !== "ok") : Boolean(node) && node.status !== "ok";
+  if (degraded && rt.badge === "live") setBadge(context, "stale");
+  else if (!degraded && rt.badge === "stale") setBadge(context, "live");
+
   // the ring that feeds the charts
   if (all) {
     pushSample(ringOf(rt, "all"), snapshot.ts, sumNodes(nodes));
@@ -628,6 +640,7 @@ async function prefill(context, nodeId, generation, epoch) {
     const data = await context.api(`/api/metrics/history?node=${encodeURIComponent(nodeId)}&series=${series.join(",")}&range=15m&points=450`);
     if (!isCurrent(context.state, generation, "monitoring") || mon.epoch !== epoch || ring.t.length) return;
     const aligned = alignSeries(data.series || {});
+    ring.gap = (Number(data.step) || 0) * 2.5;
     const end = aligned.x.length ? aligned.x[aligned.x.length - 1] : 0;
     aligned.x.forEach((stamp, index) => {
       if (stamp < end - RING_SECONDS) return;

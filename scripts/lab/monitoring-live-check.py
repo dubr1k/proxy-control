@@ -549,10 +549,11 @@ def phase_history(panel: Panel, rig: Rig | None, moved: dict, t_start_wall: floa
     for proto in ("trusttunnel", "naive", "mieru", "amneziawg"):
         got = sum(v[0] for v in moved.get(proto, {}).values())
         total = s["protocols"][proto]["total_bytes"]
-        base = (summary_before or {}).get(proto, 0)
-        delta = total - base
-        check(f"summary 1h: {proto} bytes grew by ~ the bytes moved (+-15 %)", got and 0.85 <= delta / got <= 1.30,
-              f"delta {delta / 1e6:.1f} MB vs client {got / 1e6:.1f} MB (sum of both directions)")
+        # The 1 h window slides: older load ages out while new bytes arrive, so a before/after
+        # difference is not comparable. What must hold is a lower bound: the window contains
+        # everything this run just moved (headers make the kernel count a little higher).
+        check(f"summary 1h: {proto} total covers the bytes moved (>= 85 %)", bool(got) and total >= 0.85 * got,
+              f"summary {total / 1e6:.1f} MB vs client {got / 1e6:.1f} MB (sum of both directions)")
     time.sleep(35)  # a flush interval
     for res, bucket_s in ((60, "60 s"), (900, "900 s"), (3600, "3600 s")):
         rows = panel_db(f"select count(*) from metric_rollups where resolution={res}")

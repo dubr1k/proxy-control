@@ -41,7 +41,7 @@ import { bindUsers, handleUsersClick, handleUsersInput, openUserModal, renderUse
 const TITLES = {
   dashboard: ["Обзор", "Состояние всех прокси-протоколов в одном месте"],
   monitoring: ["Мониторинг", "Ресурсы и трафик в прямом эфире, по протоколам и узлам"],
-  clients: ["Клиенты", "Абоненты и их доступы MTProxy · Naive · Mieru"],
+  clients: ["Клиенты", "Абоненты и их доступы MTProxy · Naive · Mieru · AmneziaWG · TrustTunnel"],
   mieru: ["Mieru", "Пользователи, rolling-квоты и application-byte трафик"],
   amneziawg: ["AmneziaWG", "Версии 1.5, 2.0 и 3.1: порты, доступы и трафик"],
   trusttunnel: ["TrustTunnel", "HTTP/2 поверх TCP: доступы, сессии и трафик"],

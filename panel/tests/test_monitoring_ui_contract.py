@@ -212,3 +212,19 @@ def test_units_ticks_gaps_and_backoff_behave_in_node():
     assert out["chartTable"] is True
     assert out["gauge"] == [True, True]
     assert out["backoff"] == [1000, 2000, 4000, 8000, 15000, 15000, 15000]
+
+
+def test_history_primed_ring_is_not_drawn_as_gaps():
+    # prefill from 60 s rollups must widen the gap threshold, or the primed minutes vanish
+    assert "function ringGap(rt, ring)" in MONITORING
+    assert "ring.gap = (Number(data.step) || 0) * 2.5" in MONITORING
+    assert "Math.max(10, (rt.last?.interval || 2) * 5)" not in MONITORING
+
+
+def test_zero_rate_translates_as_one_unit_and_the_chip_follows_stale_nodes():
+    en = json.loads((STATIC / "i18n" / "en.json").read_text())
+    # «0 Б» (3 chars) would otherwise win over «Б/с» and leave «0 B/since»
+    assert en["0 Б/с"] == "0 B/s"
+    assert 'stale: "данные устарели"' in MONITORING
+    assert 'setBadge(context, "stale")' in MONITORING
+    assert ".live-badge.stale" in CSS
