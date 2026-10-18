@@ -40,7 +40,7 @@ class StateStore:
         self.directory = Path(directory)
         self.path = self.directory / "state.json"
         self.doc: dict = {
-            "schema": SCHEMA, "clients": {}, "operations": {},
+            "schema": SCHEMA, "clients": {}, "operations": {}, "placeholder": None,
             "egress": {"document": {"mode": "direct", "address": None}, "previous": None},
         }
 

@@ -48,7 +48,9 @@ class FakeSupervisor:
         self.starts += 1
         self.counters = {}
         creds = tomllib.loads((vpn_toml.parent / "credentials.toml").read_text())
-        self.credentials_at_start.append([c["username"] for c in creds.get("client", [])])
+        self.credentials_at_start.append(
+            [c["username"] for c in creds["client"] if c["username"] != "proxy-control-idle"]
+        )
         self.vpn_at_start.append(tomllib.loads(vpn_toml.read_text()))
 
     def stop(self):
@@ -118,8 +120,12 @@ def settle(manager, clock):
     manager.tick()
 
 
+def raw_credentials(tmp_path):
+    return tomllib.loads((tmp_path / "state" / "credentials.toml").read_text())["client"]
+
+
 def credentials(tmp_path):
-    return tomllib.loads((tmp_path / "state" / "credentials.toml").read_text()).get("client", [])
+    return [c for c in raw_credentials(tmp_path) if c["username"] != "proxy-control-idle"]
 
 
 # ---------------------------------------------------------------- config
@@ -651,3 +657,56 @@ def test_endpoint_info_follows_the_renewed_certificate(tmp_path):
         )
         seen.append(manager.endpoint()["fingerprint"])
     assert seen[0] != seen[1]
+
+
+# ---------------------------------------------------------------- idle placeholder client
+
+
+def test_zero_client_credentials_file_is_valid_and_non_empty(tmp_path):
+    """The real endpoint panics on a credentials file without clients."""
+    manager, _, _ = make_manager(tmp_path)
+    text = (tmp_path / "state" / "credentials.toml").read_text()
+    clients = tomllib.loads(text)["client"]
+    assert len(clients) >= 1 and clients[0]["username"] == "proxy-control-idle"
+    assert len(clients[0]["password"]) >= 32
+    manager.create_client(create_body())
+    manager.set_enabled("alice", False)
+    assert len(raw_credentials(tmp_path)) == 1  # the last real client is disabled: still valid
+    manager.delete_client("alice")
+    assert len(raw_credentials(tmp_path)) == 1
+
+
+def test_placeholder_is_stable_private_and_never_toggles_a_restart(tmp_path):
+    manager, sup, clock = make_manager(tmp_path)
+    password = raw_credentials(tmp_path)[0]["password"]
+    again, _, _ = make_manager(tmp_path)
+    assert raw_credentials(tmp_path)[0]["password"] == password
+    assert json.loads((tmp_path / "state" / "state.json").read_text())["placeholder"] == password
+    assert stat.S_IMODE((tmp_path / "state" / "state.json").stat().st_mode) == 0o600
+    settle(manager, clock)
+    starts = sup.starts
+    manager.create_client(create_body())
+    settle(manager, clock)
+    assert sup.starts == starts + 1  # one restart for the real change only
+
+
+def test_placeholder_username_is_reserved_and_invisible(tmp_path, caplog):
+    manager, sup, clock = make_manager(tmp_path)
+    password = raw_credentials(tmp_path)[0]["password"]
+    with pytest.raises(ApiError) as exc:
+        manager.create_client(create_body(name="proxy-control-idle"))
+    assert (exc.value.status, exc.value.code) == (422, "reserved_username")
+    manager.create_client(create_body())
+    sup.traffic("proxy-control-idle", inbound=7, outbound=7)
+    sup.traffic("alice", inbound=1, outbound=2)
+    settle(manager, clock)
+    clock.now += 15
+    with caplog.at_level("DEBUG"):
+        manager.tick()
+    shown = json.dumps([manager.list_clients(), manager.health(), manager.endpoint(), manager.egress()])
+    assert "proxy-control-idle" not in shown and password not in shown
+    assert manager.health()["clients"] == 1
+    assert [c["username"] for c in manager.list_clients()["clients"]] == ["alice"]
+    assert password not in caplog.text and "proxy-control-idle" not in json.dumps(
+        json.loads((tmp_path / "state" / "state.json").read_text())["clients"]
+    )

@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+import secrets
 import ssl
 import threading
 import time
@@ -23,6 +24,9 @@ PASSWORD = re.compile(r"[\x21-\x7e]{8,128}")
 OPERATION_ID = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 EGRESS_ADDRESS = re.compile(r"127\.0\.0\.1:([0-9]{4,5})")
 MAX_BACKOFF_SECONDS = 30.0
+# The endpoint panics on a credentials file without clients, so one internal client is always
+# present. It is never exposed, counted or reported.
+PLACEHOLDER_USERNAME = "proxy-control-idle"
 CERT_CHECK_SECONDS = 60.0
 
 
@@ -125,6 +129,9 @@ class TrusttunnelManager:
         with self.lock:
             self.store.load()
             self.store.directory.mkdir(parents=True, exist_ok=True)
+            if not self.store.doc.get("placeholder"):
+                self.store.doc["placeholder"] = secrets.token_urlsafe(32)
+                self.store.save()
             self._write_files()
             self._next_poll = self.clock() + self.config.poll_interval
             self._next_cert_check = self.clock() + CERT_CHECK_SECONDS
@@ -159,7 +166,12 @@ class TrusttunnelManager:
     # ------------------------------------------------------------ files
 
     def _credentials_text(self) -> str:
-        lines = []
+        lines = [
+            "[[client]]",
+            f"username = {toml_string(PLACEHOLDER_USERNAME)}",
+            f"password = {toml_string(self.store.doc['placeholder'])}",
+            "",
+        ]
         for name in sorted(self.store.clients):
             client = self.store.clients[name]
             if client["enabled"]:
@@ -400,6 +412,8 @@ class TrusttunnelManager:
         self._check_fields(body, {"operation_id", "username", "password"})
         op = self._operation_id(body)
         username = body.get("username")
+        if username == PLACEHOLDER_USERNAME:
+            raise ApiError(422, "reserved_username", "this username is reserved")
         if not isinstance(username, str) or not USERNAME.fullmatch(username):
             raise ApiError(422, "invalid_request", "invalid username")
         password = self._password(body)
