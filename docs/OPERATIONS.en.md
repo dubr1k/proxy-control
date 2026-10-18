@@ -353,3 +353,22 @@ ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
   access log is off by design. Nothing in the logs, the API, the audit or the reports
   carries an ingress credential; the lab's secret scan fails on the shape.
 - Audit: `routing.target.attach | detach` beside the policy events.
+
+## 14. Monitoring
+
+The «Мониторинг» screen and `GET /api/metrics/*` need no set-up. What to know in operation
+([MONITORING.en.md](../MONITORING.en.md) has the details):
+
+- The sampler lives in the `version-agent` (`sudo systemctl status version-agent`). After an update the
+  agent restarts and picks up the sampler; the first sample takes a few seconds (`503 metrics_warming_up`
+  on `GET /v1/metrics` until then).
+- On the first sample the agent creates the nftables table `inet proxy_control_metrics` for the ports of the
+  enabled protocols. It only counts. Look at it with `sudo nft list ruleset | sed -n '/proxy_control_metrics/,/^}/p'`
+  and remove it with `sudo nft delete table inet proxy_control_metrics`; the agent recreates it while it runs.
+- Non-standard ports: `/etc/proxy-control/metrics-ports.json` (see the document above); picked up within a minute.
+- Daily check: no `stale` alert on the «Nodes» tab, `kernel_counters` is `ok` for every node, CPU/RAM/disk are below
+  the alert thresholds.
+- History lives in the panel's database (table `metric_rollups`, about 40 MB at most with all protocols) and is part
+  of the usual backup; losing it loses only graphs.
+- `PANEL_METRICS_ENABLED=0` switches the collector and the routes off; the version-agent keeps sampling.
+- Before a change window the overview also reads the same figures through MCP (`overview` → `metrics`).

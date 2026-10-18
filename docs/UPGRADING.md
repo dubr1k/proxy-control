@@ -667,3 +667,24 @@ no CDN proxy) and a certificate; no firewall rule or UDP port is added.
   capability `egress.trusttunnel.v1`; the central says `node_lacks_trusttunnel_egress`, and it never sends a TrustTunnel
   grant to a node without `protocol.trusttunnel.v1`. Update the nodes first, then the central panel.
 - TrustTunnel has no per-client lanes: only the whole service is routed (`lanes_unsupported`).
+
+## Upgrading to 2.0
+
+2.0 adds live monitoring ([MONITORING.en.md](../MONITORING.en.md)). The update is the usual `--update`; nothing has to be
+configured, and the API, the configuration and the installer TOML have no breaking changes.
+
+- **Migration 25** creates the table `metric_rollups` (resolutions 60 s, 15 min and 1 h). It only adds a table; a 1.x image
+  refuses a schema-25 database, so roll back together with the database from the backup.
+- **The agent restart picks up the sampler.** The `version-agent` is restarted as the last step of the update; from then on it
+  samples the host every second and serves `GET /v1/metrics`. The first sample comes in a few seconds. Until a node's agent
+  is updated the panel shows that node as `unavailable` in the monitoring screen; nothing else is affected.
+- **A nftables table appears on the first sample.** The agent creates `inet proxy_control_metrics` (counters only, no verdicts)
+  for the ports of the protocols enabled on the host and finds those ports itself. Nothing to configure; non-standard ports:
+  `/etc/proxy-control/metrics-ports.json`. To remove it: `sudo nft delete table inet proxy_control_metrics`.
+- **Managers are rebuilt by the updater.** Since this release the agent rebuilds the managers a panel update changed right
+  after the panel is healthy (see [Rebuilding changed managers](#rebuilding-changed-managers-by-hand)); rebuilding the
+  AmneziaWG and TrustTunnel managers briefly drops tunnels and sessions. The sidebar counters now fill in when the panel
+  starts.
+- **Fleet.** Update the nodes first, then the central panel. A central panel shows a node older than 2.0 as `unsupported` on
+  the monitoring screen (no capability `metrics.v1`); everything else works as before.
+- **Switching it off.** `PANEL_METRICS_ENABLED=0` stops the collector and the routes; `/api/metrics/*` then answers `404`.

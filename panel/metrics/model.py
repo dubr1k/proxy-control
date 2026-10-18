@@ -43,5 +43,8 @@ class NodeMetricsSource(Protocol):
     async def history(self, node_id: str, series: list[str], range: str, points: int) -> dict | None:
         """The body of `/api/metrics/history` for that node."""
 
+    async def summary(self, node_id: str, range: str) -> dict | None:
+        """The summary row of that node (a `nodes[i]` of `/api/metrics/summary`)."""
+
     async def nodes(self) -> list[dict]:
         """The nodes this source can serve: `[{node_id, name}]`."""

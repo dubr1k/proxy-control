@@ -8,7 +8,7 @@ import socket
 import ssl
 import time
 from contextlib import asynccontextmanager
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import anyio
 import httpcore
@@ -222,11 +222,13 @@ class NodeClient:
             async with self._new_http_client() as client:
                 yield client
 
-    async def _call(self, method: str, path: str, json=None) -> tuple[int, dict]:
+    async def _call(self, method: str, path: str, json=None, *, timeout: float | None = None) -> tuple[int, dict]:
         content = bytearray()
+        # `timeout` shortens the read/write/pool waits of one call (live meters); connect keeps its own.
+        options = {} if timeout is None else {"timeout": httpx.Timeout(timeout, connect=self.timeout.connect)}
         try:
             async with self._session() as client:
-                async with client.stream(method, path, json=json) as response:
+                async with client.stream(method, path, json=json, **options) as response:
                     status = response.status_code
                     if status in (401, 403):
                         raise NodeAuthFailed()
@@ -256,6 +258,19 @@ class NodeClient:
 
     async def inventory(self) -> dict:
         return (await self._call("GET", "/api/fleet/v2/inventory"))[1]
+
+    # v2.0: the node's live meters (`metrics.v1`), pulled on demand while somebody watches
+    async def metrics(self, timeout: float = 3.0) -> dict:
+        return (await self._call("GET", "/api/fleet/v2/metrics", timeout=timeout))[1]
+
+    async def metrics_history(self, series: list[str] | str, range: str, points: int, timeout: float = 10.0) -> dict:
+        names = series if isinstance(series, str) else ",".join(series)
+        query = urlencode({"series": names, "range": range, "points": points})
+        return (await self._call("GET", f"/api/fleet/v2/metrics/history?{query}", timeout=timeout))[1]
+
+    async def metrics_summary(self, range: str, timeout: float = 10.0) -> dict:
+        return (await self._call("GET", f"/api/fleet/v2/metrics/summary?{urlencode({'range': range})}",
+                                 timeout=timeout))[1]
 
     async def push(self, request: PushRequest) -> tuple[int, PushResponse]:
         status, body = await self._call("PUT", "/api/fleet/v2/generation", json=request.wire())

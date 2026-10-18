@@ -156,3 +156,13 @@ Transport exit не доказывает rollback или failure. На целе�
 ## Когда делать rollback
 
 Rollback оправдан, если новая generation не проходит config validation, health + protocol acceptance, accounting continuity или adjacent SNI regression. Восстанавливайте полную generation по [BACKUP_RESTORE.ru.md](BACKUP_RESTORE.ru.md), а не отдельный config/database file.
+
+## Мониторинг показывает «нет связи» или «нет данных»
+
+Идите по списку: `GET /api/metrics/live` отвечает в браузере (иначе виновата панель или прокси перед ней;
+поток не должен буферизоваться и сам переходит на опрос раз в 3 секунды); узел не `stale`
+(`systemctl status version-agent`, `GET /v1/metrics` на сокете агента); `kernel_counters` — `ok` (иначе
+`nft` отсутствует или отказывает: протоколы переходят на менеджеры, NaiveProxy не «живой», у Mieru нет
+данных); порт протокола есть в `sudo nft list counters table inet proxy_control_metrics` (иначе задайте
+`/etc/proxy-control/metrics-ports.json`). Узел `unsupported` старее 2.0. Полная таблица —
+[MONITORING.ru.md](../MONITORING.ru.md).

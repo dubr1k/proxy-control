@@ -308,6 +308,16 @@ from a client's card («Nodes and access»: TrustTunnel has a column of its own 
 users are not supported); rotation issues a new password. Any credential change briefly restarts the endpoint:
 [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md). The overview has a card for the protocol.
 
+## The Monitoring screen
+
+The «Мониторинг» (Monitoring) menu item is visible to every role and changes nothing. It has three tabs:
+«Сейчас» (Now: the live feed — tiles for CPU, memory, disk, network and load, protocol cards with ↑/↓ rates and
+sessions, a 5-minute chart, who is transferring now, containers), «Трафик» (Traffic: history by protocol from 15
+minutes to 90 days) and «Узлы» (Nodes: node comparison, alerts and a drill-down per node). The data arrives over SSE
+with a 3-second polling fallback; on a central panel there is a node selector and an «All nodes» entry. The
+resources card on the overview links here. Sources, alert thresholds, retention and the HTTP API:
+[MONITORING.en.md](MONITORING.en.md); the collector can be switched off with `PANEL_METRICS_ENABLED=0`.
+
 ## The Nodes screen
 
 The screen lists three kinds of nodes: this server, **linked panels** (Fleet v2) and

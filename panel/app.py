@@ -28,6 +28,7 @@ from .fleet_v2.generations import DesiredStore, publish
 from .fleet_v2.identity import ensure_guid, read_panel_version
 from .fleet_v2.links import NodeLinkService
 from .fleet_v2.managed import ManagedStore
+from .fleet_v2.metrics_source import build_fleet_metrics_source
 from .fleet_v2.node_routes import register_fleet_v2_node_routes
 from .fleet_v2.pusher import FleetPusher
 from .fleet_v2.reconcile import Reconciler
@@ -248,7 +249,7 @@ def create_app(
     app.state.lanes = LaneService(app.state.database, routing_store, app.state.clients, app.state.adapters,
                                   app.state.router, publisher=app.state.routing.publisher)
     app.state.lifecycle.lanes = app.state.lanes
-    setup_metrics(app, settings)
+    setup_metrics(app, settings, source=build_fleet_metrics_source(app))
 
     static = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static), name="static")

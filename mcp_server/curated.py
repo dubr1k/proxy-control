@@ -71,12 +71,45 @@ async def _reveal(panel: PanelClient, token: str) -> dict[str, Any]:
 # --- overview --------------------------------------------------------------------------
 
 
+def _metrics_node(entry: dict[str, Any]) -> dict[str, Any]:
+    """One node of `/api/metrics/live` cut down to what a status report needs."""
+    host = entry.get("host") if isinstance(entry.get("host"), dict) else {}
+    net = host.get("net") if isinstance(host.get("net"), dict) else {}
+    load = host.get("load")
+    protocols = {
+        name: {"up_bps": item.get("up_bps"), "down_bps": item.get("down_bps"), "sessions": item.get("sessions")}
+        for name, item in (entry.get("protocols") or {}).items() if isinstance(item, dict) and item.get("available")
+    }
+    return {
+        "node_id": entry.get("node_id"), "name": entry.get("name"), "status": entry.get("status"),
+        "age_seconds": entry.get("age_seconds"),
+        "cpu_percent": host.get("cpu_percent"),
+        "mem_percent": (host.get("mem") or {}).get("percent"),
+        "disk_percent": (host.get("disk") or {}).get("percent"),
+        "load1": load[0] if isinstance(load, list) and load else None,
+        "net_rx_bps": net.get("rx_bps"), "net_tx_bps": net.get("tx_bps"),
+        "protocols": protocols,
+        "alerts": [{"kind": a.get("kind"), "severity": a.get("severity"), "detail": a.get("detail")}
+                   for a in entry.get("alerts") or [] if isinstance(a, dict)],
+    }
+
+
+async def metrics_data(panel: PanelClient) -> dict[str, Any] | None:
+    """Live meters of every node, reduced; `None` when the panel has no monitoring to give."""
+    try:
+        live = await panel.get("/api/metrics/live", node="all")
+        return {"ts": live.get("ts"), "nodes": [_metrics_node(n) for n in live.get("nodes") or [] if isinstance(n, dict)]}
+    except (PanelError, AttributeError, TypeError):
+        return None
+
+
 async def overview_data(panel: PanelClient) -> dict[str, Any]:
     nodes = await panel.get("/api/nodes")
     return {
         "dashboard": await panel.get("/api/dashboard"),
         "versions": await panel.get("/api/versions"),
         "nodes": nodes.get("items", nodes) if isinstance(nodes, dict) else nodes,
+        "metrics": await metrics_data(panel),
     }
 
 
@@ -231,7 +264,9 @@ CURATED: tuple[CuratedTool, ...] = (
     CuratedTool(
         "overview",
         "One picture of the panel: the dashboard (runtimes, clients, server resources), the installed and available "
-        "component versions and the nodes with their status. GET /api/dashboard + /api/versions + /api/nodes.",
+        "component versions, the nodes with their status and a compact `metrics` section (per node: status, CPU/RAM/disk %, "
+        "network rates, per-protocol up/down bytes per second and sessions, alerts; `null` if monitoring is unavailable). "
+        "GET /api/dashboard + /api/versions + /api/nodes + /api/metrics/live?node=all.",
         _schema({}), overview,
     ),
     CuratedTool(
@@ -324,7 +359,7 @@ CURATED: tuple[CuratedTool, ...] = (
 )
 
 RESOURCES: dict[str, tuple[str, Callable[[PanelClient], Awaitable[Any]]]] = {
-    "proxy-control://overview": ("Dashboard, versions and nodes in one JSON document.", overview_data),
+    "proxy-control://overview": ("Dashboard, versions, nodes and live metrics in one JSON document.", overview_data),
     "proxy-control://versions": ("Installed and available component versions (GET /api/versions).", versions_data),
     "proxy-control://nodes": ("This panel's nodes with their status (GET /api/nodes).", nodes_data),
 }

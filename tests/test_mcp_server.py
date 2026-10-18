@@ -93,6 +93,27 @@ OPENAPI = {
 }
 
 
+METRICS_LIVE = {
+    "ts": 1760000000.5, "interval": 2,
+    "nodes": [
+        {"node_id": "local", "name": "central", "status": "ok", "age_seconds": 0.0, "kernel_counters": "ok",
+         "host": {"cpu_percent": 12.5, "cores": 4, "load": [0.5, 0.4, 0.3], "uptime_seconds": 99,
+                  "mem": {"used": 1, "total": 2, "percent": 41.2, "available": 1},
+                  "disk": {"percent": 33.0, "read_bps": 1.0, "write_bps": 2.0},
+                  "net": {"rx_bps": 1000.0, "tx_bps": 2000.0, "interfaces": [{"name": "eth0"}]},
+                  "containers": [{"name": "panel", "cpu_percent": 1.0, "mem_bytes": 5}]},
+         "protocols": {
+             "trusttunnel": {"available": True, "live": True, "source": "kernel", "up_bps": 10.0, "down_bps": 20.0,
+                             "up_bytes": 5, "down_bytes": 6, "sessions": 2, "clients": 1},
+             "mieru": {"available": False, "live": False, "reason": "disabled"}},
+         "top_clients": [{"protocol": "trusttunnel", "username": "alice", "total_bps": 30.0}],
+         "alerts": [{"kind": "cpu", "severity": "warn", "since": 1, "detail": "cpu 90% average over 5 min"}]},
+        {"node_id": "n2", "name": "edge", "status": "stale", "age_seconds": 75.0, "host": None, "protocols": {},
+         "top_clients": [], "alerts": [{"kind": "stale", "severity": "warn", "since": 2, "detail": "no host sample"}]},
+    ],
+}
+
+
 class FakePanel:
     """The routes the curated tools use, with a log of every request."""
 
@@ -102,6 +123,7 @@ class FakePanel:
         self.clients: dict[str, dict] = {}
         self.reveals: dict[str, dict] = {}
         self.next_id = 1
+        self.metrics_status = 200
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["host"] == PANEL_HOST
@@ -113,6 +135,10 @@ class FakePanel:
             return httpx.Response(200, json=OPENAPI)
         if path == "/api/dashboard":
             return httpx.Response(200, json={"users": 3})
+        if path == "/api/metrics/live":
+            if self.metrics_status != 200:
+                return httpx.Response(self.metrics_status, json={"detail": "metrics_disabled"})
+            return httpx.Response(200, json=METRICS_LIVE)
         if path == "/api/versions":
             return httpx.Response(200, json={"enabled": True, "components": {"panel": {"current": "0.11.0"}}})
         if path == "/api/versions/check":
@@ -321,6 +347,28 @@ async def test_overview_joins_dashboard_versions_and_nodes(registry):
     assert body["dashboard"] == {"users": 3}
     assert body["versions"]["components"]["panel"]["current"] == "0.11.0"
     assert body["nodes"] == [{"node_id": "local"}]
+
+
+async def test_overview_carries_a_compact_metrics_section(registry, fake):
+    body = _text(await registry.call("overview", {}))
+    assert ("GET", "/api/metrics/live?node=all", None) in fake.calls
+    local, edge = body["metrics"]["nodes"]
+    assert local == {
+        "node_id": "local", "name": "central", "status": "ok", "age_seconds": 0.0,
+        "cpu_percent": 12.5, "mem_percent": 41.2, "disk_percent": 33.0, "load1": 0.5,
+        "net_rx_bps": 1000.0, "net_tx_bps": 2000.0,
+        "protocols": {"trusttunnel": {"up_bps": 10.0, "down_bps": 20.0, "sessions": 2}},
+        "alerts": [{"kind": "cpu", "severity": "warn", "detail": "cpu 90% average over 5 min"}],
+    }
+    assert edge["status"] == "stale" and edge["cpu_percent"] is None and edge["protocols"] == {}
+    assert "containers" not in json.dumps(body["metrics"]) and "top_clients" not in json.dumps(body["metrics"])
+
+
+async def test_overview_metrics_is_null_when_the_call_fails(registry, fake):
+    fake.metrics_status = 404
+    body = _text(await registry.call("overview", {}))
+    assert body["metrics"] is None
+    assert body["dashboard"] == {"users": 3}
 
 
 async def test_create_client_creates_places_and_returns_the_subscription_url(registry, fake):

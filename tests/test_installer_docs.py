@@ -556,3 +556,47 @@ def test_the_router_requirement_names_trusttunnel_in_both_languages():
         assert phrase in (root / name).read_text(encoding="utf-8"), name
     script = (root / "scripts" / "install-release.sh").read_text(encoding="utf-8")
     assert "NaiveProxy or Mieru (and a node with TrustTunnel)" in script and "NaiveProxy или Mieru (и узлу с TrustTunnel)" in script
+
+
+MONITORING_GUIDES = {"ru": ROOT / "MONITORING.ru.md", "en": ROOT / "MONITORING.en.md"}
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_the_monitoring_guide_states_what_the_code_does(language):
+    """v2.0: the numbers the guide promises are the constants of the code, not a copy that drifts."""
+    from panel.metrics.model import RANGES, RETENTION
+    from panel.metrics.sse import GLOBAL, MAX_AGE_SECONDS, PER_SESSION
+    from version_agent.hostmetrics import TABLE
+    from version_agent.metrics_ports import DEFAULT_NAIVE_PORT, OVERRIDE_FILE
+
+    text = MONITORING_GUIDES[language].read_text(encoding="utf-8")
+    assert f"inet {TABLE}" in text and f"nft delete table inet {TABLE}" in text
+    assert str(OVERRIDE_FILE) in text and f"{DEFAULT_NAIVE_PORT}/tcp" in text
+    for needle in ("/api/metrics/live", "/api/metrics/stream", "/api/metrics/history", "/api/metrics/summary",
+                   "/api/fleet/v2/metrics", "metrics.v1", "PANEL_METRICS_ENABLED", "metric_rollups", "get_metrics_live",
+                   "X-Accel-Buffering", "L3", "429"):
+        assert needle in text, needle
+    for name in RANGES:
+        assert name in text, name
+    assert f"{PER_SESSION}" in text and f"{GLOBAL}" in text and str(int(MAX_AGE_SECONDS // 60)) in text
+    assert {60, 900, 3600} == set(RETENTION)
+    assert str(RETENTION[3600] // 86400) in text and str(RETENTION[900] // 86400) in text
+    assert re.search(r"\bv0\.\d", text) is None
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_the_monitoring_guide_is_reachable_from_the_readme_and_the_index(language):
+    guide = "MONITORING.ru.md" if language == "ru" else "MONITORING.en.md"
+    assert guide in readme(language)
+    index = (ROOT / "docs/README.md").read_text(encoding="utf-8")
+    assert f"../{guide}" in index
+    assert guide in (ROOT / ("FLEET.ru.md" if language == "ru" else "FLEET.en.md")).read_text(encoding="utf-8")
+    assert guide in (ROOT / ("PANEL.ru.md" if language == "ru" else "PANEL.en.md")).read_text(encoding="utf-8")
+
+
+def test_the_release_note_for_2_0_names_the_installer_boundary():
+    note = (ROOT / "docs/releases/v2.0.0.md").read_text(encoding="utf-8")
+    assert "v2.0.0" in note and "v1.6.0" in note
+    assert "Установщик в этом выпуске не менялся" in note and "The installer did not change in this release" in note
+    assert "install-release.sh --update" in note
+    assert "--update" in (ROOT / "docs/UPGRADING.md").read_text(encoding="utf-8")

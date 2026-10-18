@@ -137,3 +137,13 @@ Transport exit does not prove failure or rollback. Inspect durable `/var/lib/pro
 ## When to roll back
 
 Rollback when a new generation fails configuration validation, health plus protocol acceptance, accounting continuity, or adjacent SNI regression. Restore a complete generation through [BACKUP_RESTORE.en.md](BACKUP_RESTORE.en.md), not one config or database file.
+
+## Monitoring shows «нет связи» or «no data»
+
+Work down the list: `GET /api/metrics/live` answers in the browser (otherwise the panel or the proxy in front
+of it is at fault; the stream needs no buffering and falls back to 3-second polling by itself); the node is not
+`stale` (`systemctl status version-agent`, `GET /v1/metrics` on the agent socket); `kernel_counters` is `ok`
+(otherwise `nft` is missing or refuses: protocols fall back to the managers, NaiveProxy is not live, Mieru has no
+data); the protocol's port is in `sudo nft list counters table inet proxy_control_metrics` (otherwise set
+`/etc/proxy-control/metrics-ports.json`). A node with `unsupported` is older than 2.0. The full table is in
+[MONITORING.en.md](../MONITORING.en.md).

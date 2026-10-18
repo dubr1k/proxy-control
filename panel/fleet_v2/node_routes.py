@@ -28,6 +28,7 @@ from .protocol import (
     PushResponse,
     canonical_digest,
 )
+from .metrics_node import register_fleet_v2_metrics_node_routes
 from .reconcile import GenerationSuperseded
 
 # The central reads a push for 30 s (spec §6): the node answers 202 before that and the
@@ -45,6 +46,9 @@ APPLY_DEADLINE = 25.0
 # `trusttunnel` section of its router).
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1",
                 "egress.mtproxy.v1", "protocol.amneziawg.v1", "protocol.trusttunnel.v1", "egress.trusttunnel.v1")
+# `metrics.v1` (v2.0): this node serves its live meters, history and summary under
+# `/api/fleet/v2/metrics*`; advertised only while `PANEL_METRICS_ENABLED` is on.
+METRICS_CAPABILITY = "metrics.v1"
 ROUTER_CAPABILITY = "egress.router.v1"
 # v0.7 (spec §7), with a router: this node builds client lanes named by a resource's `lane`
 # and applies the `relay` section, reporting both in `identity.router`.
@@ -276,8 +280,21 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             down = sum(int(row.get("rx") or 0) for row in rows if isinstance(row, dict))
             return {"upload_bytes": up, "download_bytes": down, "total_bytes": up + down}
 
-        telemt, naive_counters = await asyncio.gather(mtproxy(), naive())
-        return {"mtproxy": telemt, "naive": naive_counters, "mieru": None, "amneziawg": None,
+        async def amneziawg():
+            if not settings.amneziawg_enabled:
+                return None
+            try:
+                peers = await app.state.amneziawg.peers()
+            except AmneziawgError:
+                return None
+            # rx/tx are the server interface's: it receives what the client uploads.
+            rows = [row for row in peers if isinstance(row, dict)]
+            up = sum(int(row.get("rx") or 0) for row in rows)
+            down = sum(int(row.get("tx") or 0) for row in rows)
+            return {"upload_bytes": up, "download_bytes": down, "total_bytes": up + down}
+
+        telemt, naive_counters, awg = await asyncio.gather(mtproxy(), naive(), amneziawg())
+        return {"mtproxy": telemt, "naive": naive_counters, "mieru": None, "amneziawg": awg,
                 "trusttunnel": await trusttunnel()}
 
     async def _unlink(actor: dict, request: Request) -> dict:
@@ -290,7 +307,8 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         with app.state.database.connect() as db:
             master = app.state.managed.master_guid(db)
         router = await _router_entry()
-        capabilities = list(CAPABILITIES) + (list(ROUTER_CAPABILITIES) if router is not None else [])
+        capabilities = (list(CAPABILITIES) + ([METRICS_CAPABILITY] if settings.metrics_enabled else [])
+                        + (list(ROUTER_CAPABILITIES) if router is not None else []))
         return {"guid": app.state.panel_guid, "panel_version": app.state.panel_version, "api_version": 2,
                 "master_guid": master, "protocols": await _protocol_table(egress=True),
                 "capabilities": capabilities, "router": router}
@@ -314,6 +332,8 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             protocols[protocol]["traffic"] = counters
         return {"versions": versions, "host": host, "managed_resources": managed, "users": users,
                 "protocols": protocols}
+
+    register_fleet_v2_metrics_node_routes(app, context)
 
     @app.get("/api/fleet/v2/inventory")
     async def inventory(_key=Depends(context.fleet_key)):

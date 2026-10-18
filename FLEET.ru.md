@@ -208,6 +208,9 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru всегда `unsupported` |
 | `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → собственный version-agent узла |
 | `POST /api/fleet/v2/unlink` | забыть мастера; учётные записи центра становятся локальными; runtime не трогается |
+| `GET /api/fleet/v2/metrics` | живой снимок узла (то же, что `nodes[0]` у `/api/metrics/live`); возможность `metrics.v1`, `no-store` |
+| `GET /api/fleet/v2/metrics/history` | история одного узла: параметры `series`, `range`, `points` как у `/api/metrics/history` |
+| `GET /api/fleet/v2/metrics/summary` | итоги узла за `range` как у `/api/metrics/summary` |
 
 Повторный push того же поколения идемпотентен: reconcile проходит по уже сошедшемуся
 как no-op, ответ той же формы. У владельца узла есть один собственный сессионный маршрут —
@@ -225,6 +228,17 @@ web-сессия отвергается, а ключ `node-sync` отверга�
 ресурсам — учётные данные только по ссылкам), `DELETE /api/nodes/{id}`. Отказ узла
 возвращается с кодом, на который UI умеет реагировать: `node_unreachable` (502),
 `node_auth_failed` (409) или собственный код узла.
+
+## Мониторинг в парке
+
+Центральная панель показывает ресурсы и трафик связанных узлов в экране «Мониторинг» (выбор узла и
+«Все узлы»). Узел отдаёт свои данные тремя маршрутами `GET /api/fleet/v2/metrics[/history|/summary]`
+(ключ `node-sync`, возможность `metrics.v1` в `identity`). Центр опрашивает узлы **только пока экран
+открыт хотя бы у одного человека** (без зрителей ничего не опрашивается; статус узла по-прежнему обновляет обычный
+heartbeat), не больше 8 узлов одновременно, с таймаутом 3 секунды и кэшем на 2 секунды; историю и итоги узла
+запрашивает у самого узла в момент просмотра, а в базе центра хранится только его собственная. Недоступный узел
+120 секунд показан как `stale` с последним снимком и его возрастом, затем как `unavailable`; узел без `metrics.v1` — `unsupported`. Обновляйте сначала узлы, потом центр.
+Подробности — [MONITORING.ru.md](MONITORING.ru.md).
 
 ## Heartbeat и здоровье
 

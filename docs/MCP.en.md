@@ -113,13 +113,16 @@ The name is `<method>_<path>` without `/api/`, `/` → `_`, `{parameter}` → `b
 `GET /api/audit` → `get_audit`. The description is the route's summary and docstring plus the
 path itself. The input schema merges path parameters, query parameters and the request body's
 fields. Not exposed: `/api/openapi.json`, `/healthz`, `/login`, `/api/auth/*`,
-`/api/reveal/{token}` (the curated tools consume it), `/s/*` and the node API `/api/fleet/*`.
+`/api/reveal/{token}` (the curated tools consume it), `/s/*`, the node API `/api/fleet/*` and
+`/api/metrics/stream` (an endless SSE response: a tool call waits for a finished answer). The monitoring
+routes `GET /api/metrics/live`, `/history` and `/summary` are tools like any other
+(`get_metrics_live`, `get_metrics_history`, `get_metrics_summary`; [MONITORING.en.md](../MONITORING.en.md)).
 
 **Curated** — with hand-written descriptions, one call per everyday move:
 
 | Tool | What it does |
 |---|---|
-| `overview` | `GET /api/dashboard` + `/api/versions` + `/api/nodes` as one JSON |
+| `overview` | `GET /api/dashboard` + `/api/versions` + `/api/nodes` + a compact `metrics` section (per node: status, CPU/RAM/disk %, network rates, per-protocol ↑/↓ rate and sessions, alerts; `null` if monitoring is unavailable) as one JSON |
 | `create_client` | Creates a client, issues grants by the node×protocol matrix (`placement`), returns the subscription link |
 | `client_subscription` | Shows a client's subscription link again (one-shot reveal, audited) |
 | `set_client_placement` | Brings the client's matrix to the desired one: issues the missing grants, disables the extra ones; without `confirm` only the plan; `protocol` is one of `mtproxy`, `naive`, `mieru`, `amneziawg`, `trusttunnel` (for `trusttunnel` `options` is optional, `{"name": "<profile>"}`) |

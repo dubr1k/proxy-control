@@ -5,7 +5,7 @@ description: Use when a Proxy Control client reports that a proxy does not conne
 
 # Diagnosing a client's access
 
-Cheap checks first, stop as soon as the cause is found. Usually 6–8 calls; the server side is most
+Cheap checks first, stop as soon as the cause is found. Usually 6–9 calls; the server side is most
 often intact and the app or the link itself is to blame. After every step ask: does what I found
 explain the symptom?
 
@@ -20,7 +20,8 @@ explain the symptom?
 | 5 | `get_nodes_by_node_id_inventory` | the account exists on the node, `enabled`, `linked_grant_id` matches; neighbours on the protocol for comparison |
 | 6 | `get_nodes_by_node_id_generations` | the resource `grant:<id>` — `state: enabled`, `error: null`; `reconcile_state: converged` — the exact answer to «did it reach the node» |
 | 7 | `audit_tail` without `target`, limit 40, read `action` | `subscription.rotate/revoke`, `grant.disable`, `client.state`, `routing.*.apply`; the subscription's state without a reveal is visible only here. An import is written with `target` = the node, so an imported grant's own audit is empty |
-| 8 | `get_routing_policies_by_node_id_by_protocol` + `…_explain` | only when specific sites fail. `404 policy_not_found` = no policy, the default applies, `explain` is pointless |
+| 8 | `get_metrics_live` (`node=<node_id>`) | does traffic flow at all: `protocols.<x>.up_bps`/`down_bps` and `sessions` on that node, `top_clients[]` with the client's account name (`username`). Traffic from the client (`up_bps` > 0) with nothing coming back (`down_bps` ≈ 0) points past the server (the destination, the exit, routing); no `up_bps` and no session while the person says they are connected points at the client side. Only a live moment: ask the person to try now. TrustTunnel and AmneziaWG show per-client rates, MTProxy only a combined one per client, NaiveProxy and Mieru show only the protocol total (no per-client live rate). `status: stale`/`kernel_counters: unavailable` = the numbers are not trustworthy, say so |
+| 9 | `get_routing_policies_by_node_id_by_protocol` + `…_explain` | only when specific sites fail. `404 policy_not_found` = no policy, the default applies, `explain` is pointless |
 
 Beyond that the panel cannot see: `mita`/Caddy/Telemt logs and restarts are SSH only — say so.
 Mieru has no traffic counters (`traffic: null`); that does not mean «nobody connects». TrustTunnel counts traffic per access in the manager (the counters survive restarts).

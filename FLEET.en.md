@@ -210,6 +210,9 @@ session is refused, and a `node-sync` key is refused everywhere outside this pre
 | `POST /api/fleet/v2/credentials/capture` | `{resources: [{protocol, runtime_username}]}` (≤ 200) → `{credentials: {"proto:user": plaintext\|null}, unsupported: [...]}`, `no-store`; Mieru is always `unsupported` |
 | `POST /api/fleet/v2/versions/update` | `{component: telemt\|naive\|mita, version, expected_current}` → the node's own version-agent |
 | `POST /api/fleet/v2/unlink` | forget the master; central-owned users become local; the runtime is untouched |
+| `GET /api/fleet/v2/metrics` | the node's live snapshot (the same as `nodes[0]` of `/api/metrics/live`); capability `metrics.v1`, `no-store` |
+| `GET /api/fleet/v2/metrics/history` | one node's history: `series`, `range`, `points` as in `/api/metrics/history` |
+| `GET /api/fleet/v2/metrics/summary` | the node's totals for `range` as in `/api/metrics/summary` |
 
 Pushing the same generation again is idempotent: the reconcile passes over what already
 converged and the response has the same shape. The node's owner has one session route
@@ -226,6 +229,18 @@ grant this panel already holds for each, `linked_grant_id`), `POST /api/nodes/{i
 and observed: numbers, digests, per-resource states — credentials by reference only),
 `DELETE /api/nodes/{id}`. What the node refused comes back with a code the UI can act
 on: `node_unreachable` (502), `node_auth_failed` (409) or the node's own.
+
+## Monitoring across the fleet
+
+The central panel shows the resources and traffic of linked nodes on the «Мониторинг» screen (a node
+selector and «Все узлы»). A node serves its data through three routes, `GET /api/fleet/v2/metrics[/history|/summary]`
+(the `node-sync` key, capability `metrics.v1` in `identity`). The central polls nodes **only while the
+screen is open for at least one person** (with no viewer nothing is polled; a node's status is still refreshed by
+the usual heartbeat), at most 8 nodes at a time, with a 3-second timeout and a 2-second cache; a node's history
+and totals are requested from the node itself at the moment of viewing, and the central's own database holds only
+its own. An unreachable node is shown as `stale` with its last sample and its age for 120 seconds, then as
+`unavailable`; a node without `metrics.v1` is `unsupported`. Update the nodes
+first, the central last. Details: [MONITORING.en.md](MONITORING.en.md).
 
 ## Heartbeat and health
 

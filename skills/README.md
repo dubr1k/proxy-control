@@ -16,9 +16,9 @@ cp -r skills/proxy-control-* ~/.agents/skills/    # Codex CLI and other clients 
 | Skill | Task |
 |---|---|
 | [`proxy-control-granting-access`](proxy-control-granting-access/SKILL.md) | grant access (including AmneziaWG and TrustTunnel links and configs), the subscription link, a client's nodes and protocols |
-| [`proxy-control-morning-overview`](proxy-control-morning-overview/SKILL.md) | the state of the panel and its nodes, what happened in the last day |
+| [`proxy-control-morning-overview`](proxy-control-morning-overview/SKILL.md) | the state of the panel and its nodes (including live load and per-protocol traffic), what happened in the last day |
 | [`proxy-control-updating-components`](proxy-control-updating-components/SKILL.md) | checking for and installing component updates |
-| [`proxy-control-diagnosing-access`](proxy-control-diagnosing-access/SKILL.md) | «the subscription is there but nothing works» |
+| [`proxy-control-diagnosing-access`](proxy-control-diagnosing-access/SKILL.md) | «the subscription is there but nothing works» (including a look at live protocol rates and sessions) |
 | [`proxy-control-changing-routing`](proxy-control-changing-routing/SKILL.md) | a routing policy: preview, apply, rollback |
 
 Editing a skill is like editing code: first the scenario without the skill (what the model gets

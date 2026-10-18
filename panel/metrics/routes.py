@@ -19,6 +19,35 @@ PLACEHOLDER = {"age_seconds": None, "host": None, "protocols": {}, "top_clients"
                "alerts": []}
 
 
+# Remote nodes are pulled on demand; the budget bounds how long one answer waits for them.
+LIVE_BUDGET = 4.0
+STREAM_BUDGET = 0.75  # a stream tick must not wait for a slow node: late nodes go out as stale
+
+
+def local_entry(app) -> dict:
+    """This panel's node entry (the collector's latest), or an `unavailable` placeholder."""
+    collector = app.state.metrics_collector
+    latest = collector.latest if collector else None
+    if latest is not None:
+        return latest
+    return {"node_id": LOCAL_NODE, "name": LOCAL_NODE, "status": "unavailable", **PLACEHOLDER}
+
+
+async def local_summary(app, range_name: str) -> dict:
+    body = await app.state.metrics_store.summary(range_name)
+    entry = local_entry(app)
+    body["name"], body["status"], body["age_seconds"] = entry["name"], entry["status"], entry["age_seconds"]
+    body["alerts"] = entry.get("alerts", [])
+    return body
+
+
+def parse_series(series: str) -> list[str]:
+    names = list(dict.fromkeys(part.strip() for part in series.split(",") if part.strip()))
+    if not names or len(names) > MAX_SERIES or any(name not in ALL_SERIES for name in names):
+        raise HTTPException(422, "unknown series")
+    return names
+
+
 def register_metrics_routes(app, context) -> None:
     settings = context.settings
 
@@ -52,33 +81,34 @@ def register_metrics_routes(app, context) -> None:
             raise HTTPException(422, "unknown node")
         return node, known
 
-    def local_entry() -> dict:
-        collector = app.state.metrics_collector
-        latest = collector.latest if collector else None
-        if latest is not None:
-            return latest
-        return {"node_id": LOCAL_NODE, "name": LOCAL_NODE, "status": "unavailable", **PLACEHOLDER}
-
-    async def remote_entry(item: dict) -> dict:
+    async def remote_entries(others: list[dict], budget: float) -> list[dict]:
+        """The linked nodes' entries, in order. One node never costs the whole answer."""
         source = app.state.metrics_source
-        if source is not None:
+        if source is None:
+            return [{"node_id": item["node_id"], "name": item["name"], "status": "unsupported", **PLACEHOLDER}
+                    for item in others]
+        results = None
+        fan_out = getattr(source, "live_many", None)
+        if fan_out is not None:
             try:
-                entry = await source.live(item["node_id"])
-            except Exception:  # noqa: BLE001 — one node never costs the whole answer
-                entry = None
-            if entry is not None:
-                return entry
-            return {"node_id": item["node_id"], "name": item["name"], "status": "unavailable", **PLACEHOLDER}
-        return {"node_id": item["node_id"], "name": item["name"], "status": "unsupported", **PLACEHOLDER}
+                results = await fan_out(others, budget)
+            except Exception:  # noqa: BLE001
+                results = None
+        else:
+            results = await asyncio.gather(*(source.live(item["node_id"]) for item in others), return_exceptions=True)
+        results = results if results is not None else [None] * len(others)
+        return [entry if isinstance(entry, dict) else
+                {"node_id": item["node_id"], "name": item["name"], "status": "unavailable", **PLACEHOLDER}
+                for item, entry in zip(others, results)]
 
-    async def live_payload(node: str, others: list[dict]) -> dict | None:
+    async def live_payload(node: str, others: list[dict], budget: float = LIVE_BUDGET) -> dict | None:
         collector = app.state.metrics_collector
         if collector is None or (node in (LOCAL_NODE, "all") and collector.latest is None):
             return None
         entries = []
         if node in (LOCAL_NODE, "all"):
-            entries.append(local_entry())
-        entries += await asyncio.gather(*(remote_entry(item) for item in others))
+            entries.append(local_entry(app))
+        entries += await remote_entries(others, budget)
         return {"ts": round(collector.clock.time(), 3), "interval": collector.interval, "nodes": entries}
 
     @app.get("/api/metrics/live")
@@ -89,8 +119,8 @@ def register_metrics_routes(app, context) -> None:
         if payload is None:  # before the first tick: say so rather than invent a snapshot
             collector = app.state.metrics_collector
             payload = {"ts": round(collector.clock.time(), 3), "interval": collector.interval,
-                       "nodes": ([local_entry()] if node in (LOCAL_NODE, "all") else [])
-                       + list(await asyncio.gather(*(remote_entry(item) for item in others)))}
+                       "nodes": ([local_entry(app)] if node in (LOCAL_NODE, "all") else [])
+                       + await remote_entries(others, LIVE_BUDGET)}
         return JSONResponse(payload, headers=NO_STORE)
 
     @app.get("/api/metrics/stream")
@@ -110,7 +140,7 @@ def register_metrics_routes(app, context) -> None:
             return bool(await asyncio.to_thread(app.state.store.session, request.cookies.get("panel_session")))
 
         return StreamingResponse(
-            event_stream(request, lease, build=lambda: live_payload(node, others), version=lambda: collector.version,
+            event_stream(request, lease, build=lambda: live_payload(node, others, STREAM_BUDGET), version=lambda: collector.version,
                          next_event=collector.next_event, alive=alive, clock=collector.clock),
             media_type="text/event-stream", background=BackgroundTask(lease.release),
             headers={**NO_STORE, "X-Accel-Buffering": "no", "Connection": "keep-alive"})
@@ -120,9 +150,7 @@ def register_metrics_routes(app, context) -> None:
                       points: int = Query(POINTS_DEFAULT, ge=POINTS_MIN, le=POINTS_MAX), _user=Depends(context.current)):
         enabled()
         check_range(range)
-        names = list(dict.fromkeys(part.strip() for part in series.split(",") if part.strip()))
-        if not names or len(names) > MAX_SERIES or any(name not in ALL_SERIES for name in names):
-            raise HTTPException(422, "unknown series")
+        names = parse_series(series)
         if node == "all":
             raise HTTPException(422, "history is served for one node at a time")
         node, others = await check_node(node)
@@ -141,12 +169,24 @@ def register_metrics_routes(app, context) -> None:
         return JSONResponse({"status": "ok", **await app.state.metrics_store.history(names, range, points)},
                             headers=NO_STORE)
 
-    async def local_summary(range: str) -> dict:
-        body = await app.state.metrics_store.summary(range)
-        entry = local_entry()
-        body["name"], body["status"], body["age_seconds"] = entry["name"], entry["status"], entry["age_seconds"]
-        body["alerts"] = entry.get("alerts", [])
-        return body
+    async def remote_summaries(others: list[dict], range_name: str) -> list[dict]:
+        source = app.state.metrics_source
+        summarize = getattr(source, "summary", None)
+
+        def placeholder(item, status):
+            return {"node_id": item["node_id"], "name": item["name"], "status": status, "host": None,
+                    "protocols": {}, "hours_of_day": {}, "alerts": []}
+
+        if summarize is None:
+            return [placeholder(item, "unsupported") for item in others]
+        try:
+            results = await asyncio.wait_for(asyncio.gather(
+                *(summarize(item["node_id"], range_name) for item in others), return_exceptions=True), LIVE_BUDGET * 2)
+        except asyncio.TimeoutError:
+            results = [None] * len(others)
+        return [{**placeholder(item, "ok"), **row, "node_id": item["node_id"], "name": item["name"]}
+                if isinstance(row, dict) else placeholder(item, "unavailable")
+                for item, row in zip(others, results)]
 
     @app.get("/api/metrics/summary")
     async def summary(node: str = Query(LOCAL_NODE), range: str = Query("24h"), _user=Depends(context.current)):
@@ -155,10 +195,8 @@ def register_metrics_routes(app, context) -> None:
         node, others = await check_node(node)
         nodes = []
         if node in (LOCAL_NODE, "all"):
-            nodes.append(await local_summary(range))
-        for item in others:
-            nodes.append({"node_id": item["node_id"], "name": item["name"], "status": "unsupported", "host": None,
-                          "protocols": {}, "hours_of_day": {}, "alerts": []})
+            nodes.append(await local_summary(app, range))
+        nodes += await remote_summaries(others, range)
         body = {"range": range, "nodes": nodes}
         if node == "all":
             def traffic(row):

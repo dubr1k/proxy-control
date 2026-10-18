@@ -111,13 +111,15 @@ approval_mode = "approve"
 `GET /api/audit` → `get_audit`. Описание — summary и docstring маршрута плюс сам путь. Входная
 схема — path-параметры, query и поля тела запроса вместе. Не выдаются: `/api/openapi.json`,
 `/healthz`, `/login`, `/api/auth/*`, `/api/reveal/{token}` (его используют curated-инструменты),
-`/s/*` и узловой API `/api/fleet/*`.
+`/s/*`, узловой API `/api/fleet/*` и `/api/metrics/stream` (бесконечный ответ SSE: вызов инструмента ждёт готового
+ответа). Маршруты мониторинга `GET /api/metrics/live`, `/history` и `/summary` — обычные инструменты
+(`get_metrics_live`, `get_metrics_history`, `get_metrics_summary`; [MONITORING.ru.md](../MONITORING.ru.md)).
 
 **Curated** — с человеческими описаниями, по одному вызову на привычное действие:
 
 | Инструмент | Что делает |
 |---|---|
-| `overview` | `GET /api/dashboard` + `/api/versions` + `/api/nodes` одним JSON |
+| `overview` | `GET /api/dashboard` + `/api/versions` + `/api/nodes` + компактный раздел `metrics` (по узлу: состояние, CPU/RAM/диск %, сетевые скорости, скорость протоколов ↑/↓ и сессии, оповещения; `null`, если мониторинг недоступен) одним JSON |
 | `create_client` | Создаёт клиента, выдаёт доступы по матрице узел×протокол (`placement`), возвращает ссылку подписки |
 | `client_subscription` | Показывает ссылку подписки клиента ещё раз (одноразовый reveal, с записью в аудит) |
 | `set_client_placement` | Приводит матрицу клиента к желаемой: недостающие доступы выдаёт, лишние выключает; без `confirm` только план; `protocol` — `mtproxy`, `naive`, `mieru`, `amneziawg` или `trusttunnel` (для `trusttunnel` `options` необязательны, `{"name": "<профиль>"}`) |

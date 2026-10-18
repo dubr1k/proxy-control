@@ -66,7 +66,8 @@ way. The installer can also install 3x-ui for you.
 | **Clients and subscriptions** | One client holds grants to every protocol and one revocable link `https://<subscription domain>/s/<token>` for sing-box/Karing, Clash/mihomo and others. Credentials are stored under a master key (AES-256-GCM). |
 | **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
 | **Routing** | Outbound traffic rules per node and service: direct, through WARP, your own exit or another node; blocks by domain, CIDR, geosite and geoip through the optional Xray-router. |
-| **Updates** | The «Versions» screen updates Telemt, NaiveProxy, Mieru, the Xray-router and the panel itself with a backup and rollback; the whole server updates with one command. |
+| **Monitoring** | Live server resources and per-protocol traffic (CPU, memory, disk, network, containers, ↑/↓ rates of MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel), up to a year of history, node comparison and alerts. Read-only, visible to every role. |
+| **Updates** | The «Versions» screen updates Telemt, NaiveProxy, Mieru, the Xray-router and the panel itself with a backup and rollback, and rebuilds the managers itself after a panel update; the whole server updates with one command. |
 | **MCP and AI skills** | An optional MCP server on the central panel: the panel API as tools for Claude Code and Claude Desktop, irreversible actions only with `confirm`. |
 | **Panel** | Owner, admin and viewer roles; API keys scoped `admin \| monitor \| node-sync`; a secret-free audit; Russian and English interface. |
 
@@ -720,10 +721,20 @@ visible in the audit; irreversible actions require `confirm: true`. [`skills/`](
 ready AI instructions for everyday tasks: the morning overview, granting access, diagnosing,
 routing and updates. Connecting: [docs/MCP.en.md](docs/MCP.en.md).
 
+### Monitoring
+
+The «Мониторинг» (Monitoring) screen has three tabs — «Сейчас» (Now), «Трафик» (Traffic) and «Узлы»
+(Nodes) — and shows the server's load and each protocol's rate live, with a history kept as 1-minute
+points for 3 days, 15-minute points for 35 days and hourly points for 400 days. Per-protocol bytes are
+counted by a nftables table of its own that only counts and never blocks; direction is the client's
+point of view, and the bytes are network-layer bytes with headers. The central panel shows the linked
+nodes too. What is measured, the API, alert thresholds and troubleshooting:
+[MONITORING.en.md](MONITORING.en.md).
+
 ### Not supported yet
 
 Managing 3x-ui grants from Proxy Control, gradual policy rollout to a part of the nodes, UDP
-through the Xray-router, metrics history and updating a node's panel from the central panel.
+through the Xray-router and updating a node's panel from the central panel.
 Only TCP is supported for Mieru clients. Traffic accounting is not intended for billing.
 
 ## When something does not work
@@ -826,6 +837,7 @@ the Python standard library.
 | Mieru | [MIERU.en.md](MIERU.en.md), [sharing access](docs/MIERU_SHARING.en.md) |
 | AmneziaWG | [AMNEZIAWG.en.md](AMNEZIAWG.en.md) |
 | TrustTunnel | [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md) |
+| Monitoring | [MONITORING.en.md](MONITORING.en.md) |
 | Linked panels | [FLEET.en.md](FLEET.en.md) |
 | Routing and the Xray-router | [docs/ROUTING.en.md](docs/ROUTING.en.md), [docs/XRAY_ROUTER.en.md](docs/XRAY_ROUTER.en.md) |
 | The MCP server | [docs/MCP.en.md](docs/MCP.en.md) |
