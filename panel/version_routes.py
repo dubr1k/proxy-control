@@ -53,3 +53,17 @@ def register_version_routes(app, context: RequestContext) -> None:
             {"version": body.version},
         )
         return result
+
+    @app.post("/api/versions/panel/rebuild-managers")
+    async def rebuild_managers(request: Request, user=Depends(context.roles("owner"))):
+        """The managers a panel update left pending (`pending_rebuild`) are rebuilt by the
+        agent in the background; a running update answers 409 (the global handler)."""
+        result = await app.state.versions.rebuild_managers()
+        await context.audit(
+            user,
+            "runtime.version.managers_rebuild",
+            "panel",
+            request,
+            {"pending": result.get("pending_rebuild")},
+        )
+        return result

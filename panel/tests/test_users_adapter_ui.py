@@ -68,12 +68,11 @@ async def test_sidebar_counters_are_filled_by_the_overview_not_by_visiting_a_sec
     assert [node["node_id"] for node in nodes.json()["items"]] == ["local"]
 
     entry = (await client.get("/static/app.js")).text
-    dashboard = (await client.get("/static/js/dashboard.js")).text
-    # The overview holds every credential total already, so the sidebar is
-    # painted from that one snapshot instead of keeping a dash until the
-    # operator opens each section.
+    dashboard = (await client.get("/static/js/nav-counts.js")).text
+    # The sidebar is painted at start-up by one shared module (nav-counts.js) from the overview's
+    # credential totals instead of keeping a dash until the operator opens each section.
     assert entry.strip() == 'import { boot } from "/static/js/main.js";\n\nboot();'
-    assert "paintNavCounts(context, data, nodes)" in dashboard and "async function fleetCount(context)" in dashboard
+    assert "export function paintNavCounts(context, data, nodes)" in dashboard and "fleetCount" in dashboard
     for badge in ("#mieru-count", "#naive-count", "#fleet-count"):
         assert badge in dashboard
 

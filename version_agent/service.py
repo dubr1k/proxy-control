@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import fcntl
 import hashlib
 import importlib
@@ -84,6 +85,21 @@ OPTIONAL_COMPOSE_SERVICES = {
     "fleet-agent": "compose.agent.yaml",
     "fleet-ingress": "compose.fleet-central.yaml",
 }
+# Manager → Compose services built from its sources (`docker` is not a service: it is
+# informational and stays pending for the owner). A service whose overlay is not in
+# PROXY_CONTROL_COMPOSE_FILES, or that the overlay does not define, is not on this host.
+MANAGER_SERVICES = {
+    "mieru_manager": ("mieru-manager",),
+    "naive_manager": ("naive-manager",),
+    "xray_router_manager": ("xray-router", "xray-router-ingress"),
+    "awg_manager": ("awg-manager",),
+    "trusttunnel_manager": ("trusttunnel-manager",),
+    "mcp_server": ("mcp",),
+}
+# A container whose image was built this many seconds before the panel update finished still
+# counts as rebuilt (clock skew, build started a moment earlier).
+REBUILT_SLACK = 10
+REBUILD_STALE_AFTER = 1800
 MAX_PANEL_TREE = 512 * 1024 * 1024
 AGENT_RESTART = [
     "systemd-run", "--on-active=5", "--unit=proxy-control-version-agent-restart",
@@ -237,7 +253,13 @@ class VersionAgent:
         panel_volume: str = "mtproxy_panel-data",
         synchronous: bool = False,
         installer_root: Path | None = None,
+        auto_rebuild_managers: bool = True,
+        sleep: Callable[[float], None] = time.sleep,
+        manager_health_timeout: float = 180,
     ):
+        self.auto_rebuild_managers = auto_rebuild_managers
+        self.sleep = sleep
+        self.manager_health_timeout = manager_health_timeout
         self.catalog_path = catalog_path
         self.state_path = state_path
         self.compose_dir = compose_dir
@@ -334,7 +356,7 @@ class VersionAgent:
         probe = state.get("upstream", {}).get("components", {}).get(component, {})
         return probe if isinstance(probe, dict) else {}
 
-    def list_versions(self) -> dict:
+    def list_versions(self, *, heal: bool = True) -> dict:
         catalog = load_catalog(self.catalog_path)
         state = self._state()
         cached = state.get("upstream", {})
@@ -367,9 +389,14 @@ class VersionAgent:
             }
             if component == "panel":
                 components[component]["current"] = installed
-                for key in ("last_error", "pending_rebuild", "previous_version"):
+                if heal and current.get("pending_rebuild"):
+                    current = self._heal_pending(current)
+                for key in ("last_error", "pending_rebuild", "previous_version", "rebuild_error",
+                            "managers_rebuilt_at"):
                     if key in current:
                         components[component][key] = current[key]
+                if self._rebuilding(current):
+                    components[component]["rebuilding_managers"] = True
         return {
             "enabled": True,
             "upstream_enabled": self.upstream_enabled,
@@ -394,7 +421,7 @@ class VersionAgent:
                 and isinstance(last, int)
                 and 0 <= now - last < self.UPSTREAM_MIN_INTERVAL
             ):
-                return self.list_versions()
+                return self.list_versions(heal=False)
             probes = self.check_all(
                 self._current_versions(state),
                 fetcher=self.fetcher or fetch_https,
@@ -524,7 +551,11 @@ class VersionAgent:
                 # The database only migrates forward: going back is a full restore.
                 raise UpdateError("the panel cannot be downgraded; restore a backup instead")
             self._preflight_compose_scope()
-            marker = {k: v for k, v in data.items() if k not in ("status", "last_error", "pending_rebuild")}
+            if self._rebuilding(data):
+                raise ConflictError("manager rebuild is running")
+            marker = {k: v for k, v in data.items() if k not in (
+                "status", "last_error", "pending_rebuild", "rebuild_error", "managers_rebuilt_at",
+                "rebuilding_managers")}
             marker.update({"version": current, "status": "updating", "started_at": int(time.time())})
             state.setdefault("components", {})["panel"] = marker
             self._save_state(state)
@@ -594,6 +625,13 @@ class VersionAgent:
             print(f"version-agent: panel state could not be persisted: {exc}", file=sys.stderr)
             if self.synchronous:
                 raise
+        if error is None and pending and self.auto_rebuild_managers:
+            # The panel is healthy and recorded as `ready`; whatever happens to the managers
+            # below never rolls it back — a failure is recorded as `rebuild_error`.
+            try:
+                self.rebuild_managers()
+            except Exception as exc:  # noqa: BLE001 - the agent restart below must still happen
+                print(f"version-agent: manager rebuild could not run: {exc}", file=sys.stderr)
         if restart_agent:
             # The very last step: the agent's own code changed with the release.
             try:
@@ -602,6 +640,228 @@ class VersionAgent:
                 print(f"version-agent: restart could not be scheduled: {exc}", file=sys.stderr)
         if error is not None and self.synchronous:
             raise error
+
+    # ------------------------------------------------------------------
+    # managers the panel update does not rebuild (`pending_rebuild`)
+    # ------------------------------------------------------------------
+
+    def _services_of(self, manager: str) -> list[str]:
+        """The Compose services of one manager that exist on this host."""
+        found = []
+        for service in MANAGER_SERVICES.get(manager, ()):
+            overlay = OPTIONAL_COMPOSE_SERVICES[service]
+            if overlay not in self.compose_files:
+                continue
+            if service == "xray-router-ingress":
+                try:
+                    text = (self.compose_dir / overlay).read_text(encoding="utf-8")
+                except (OSError, TypeError):
+                    continue
+                if not re.search(r"^  xray-router-ingress:", text, re.MULTILINE):
+                    continue
+            found.append(service)
+        return found
+
+    def _service_containers(self, service: str) -> list[str]:
+        listed = self.runner(
+            ["docker", "ps", "-a", "--filter", "label=com.docker.compose.project=mtproxy",
+             "--filter", f"label=com.docker.compose.service={service}", "-q"], timeout=30,
+        )
+        return [line.strip() for line in listed.splitlines() if line.strip()]
+
+    @staticmethod
+    def _docker_epoch(value: str) -> int:
+        match = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.\d+)?(Z|[+-]\d\d:\d\d)", value.strip())
+        if not match:
+            raise ValueError(f"unreadable image creation time {value!r}")
+        epoch = calendar.timegm(time.strptime(match.group(1), "%Y-%m-%dT%H:%M:%S"))
+        zone = match.group(2)
+        if zone != "Z":
+            offset = int(zone[1:3]) * 3600 + int(zone[4:6]) * 60
+            epoch -= offset if zone[0] == "+" else -offset
+        return epoch
+
+    def _service_rebuilt(self, service: str, since: int) -> bool:
+        """True when nothing runs for the service, or its container's image is newer than `since`."""
+        for container in self._service_containers(service):
+            image = self.runner(["docker", "inspect", "--format", "{{.Image}}", container], timeout=30).strip()
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
+                raise ValueError("container image identity is unavailable")
+            created = self.runner(["docker", "image", "inspect", "--format", "{{.Created}}", image], timeout=30)
+            if self._docker_epoch(created) < since - REBUILT_SLACK:
+                return False
+        return True
+
+    @staticmethod
+    def _rebuilding(panel: dict) -> bool:
+        started = panel.get("rebuilding_managers")
+        return isinstance(started, int) and 0 <= time.time() - started < REBUILD_STALE_AFTER
+
+    def _heal_pending(self, panel: dict) -> dict:
+        """Self-healing `pending_rebuild`: only the agent writes the list, and nothing told it
+        that a manager was rebuilt afterwards (update-host.sh, a manual rebuild per UPGRADING).
+        A service-backed manager counts as rebuilt when every container of its services runs an
+        image created at or after the panel update (minus REBUILT_SLACK), and also when it has
+        no container or overlay on this host. `docker` and unknown names stay. Any Docker
+        error leaves the list unchanged."""
+        pending = list(panel.get("pending_rebuild") or [])
+        since = panel.get("updated_at")
+        if (not pending or self.compose_dir is None or not isinstance(since, int)
+                or panel.get("status", "ready") != "ready" or self._rebuilding(panel)):
+            return panel
+        kept = []
+        try:
+            for name in pending:
+                if name in MANAGER_SERVICES and all(
+                    self._service_rebuilt(service, since) for service in self._services_of(name)
+                ):
+                    continue
+                kept.append(name)
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+            return panel
+        if kept == pending:
+            return panel
+        try:
+            with self._locked():
+                state = self._state()
+                stored = self._component_state(state, "panel")
+                if stored.get("pending_rebuild") == pending:
+                    stored["pending_rebuild"] = kept
+                    state["components"]["panel"] = stored
+                    self._save_state(state)
+        except OSError:
+            pass
+        return {**panel, "pending_rebuild": kept}
+
+    def managers_state(self) -> dict:
+        panel = self._component_state(self._state(), "panel")
+        result = {"pending_rebuild": list(panel.get("pending_rebuild") or []),
+                  "rebuilding": self._rebuilding(panel)}
+        for key in ("rebuild_error", "managers_rebuilt_at"):
+            if key in panel:
+                result[key] = panel[key]
+        return result
+
+    def ack_managers(self, names: object) -> dict:
+        """update-host.sh (or an operator) reports managers it rebuilt itself. Idempotent."""
+        if (not isinstance(names, list) or not names
+                or not all(isinstance(n, str) and n in PANEL_MANAGERS for n in names)):
+            raise ValueError("names must be a non-empty list of known managers")
+        with self._locked():
+            state = self._state()
+            panel = self._component_state(state, "panel")
+            if "pending_rebuild" in panel:
+                panel["pending_rebuild"] = [n for n in panel["pending_rebuild"] if n not in names]
+                state.setdefault("components", {})["panel"] = panel
+                self._save_state(state)
+        return self.managers_state()
+
+    def rebuild_managers(self, *, background: bool = False) -> dict:
+        """Rebuild the service-backed managers in `pending_rebuild` with ONE Compose call.
+
+        Same env files, overlays and version overrides as the panel build. Rebuilding the
+        AmneziaWG and TrustTunnel managers briefly drops tunnels and sessions (as update-host.sh
+        does). A failure restores the saved images, leaves the list untouched and is recorded as
+        `rebuild_error`; it never rolls the healthy panel back."""
+        with self._locked():
+            state = self._state()
+            panel = self._component_state(state, "panel")
+            if panel.get("status") == "updating" or self._rebuilding(panel):
+                raise ConflictError("panel update or manager rebuild is already running")
+            if panel.get("status") == "rollback_failed":
+                raise RollbackFailedError("panel has an unverified rollback; operator recovery is required")
+            services = []
+            for name in panel.get("pending_rebuild") or []:
+                services += [s for s in self._services_of(name) if s not in services]
+            if not services:
+                return self.managers_state()
+            panel["rebuilding_managers"] = int(time.time())
+            state.setdefault("components", {})["panel"] = panel
+            self._save_state(state)
+        if background and not self.synchronous:
+            threading.Thread(target=self._rebuild_worker, args=(services,), name="managers-rebuild").start()
+        else:
+            self._rebuild_worker(services)
+        return self.managers_state()
+
+    def _rebuild_worker(self, services: list[str]) -> None:
+        error = None
+        try:
+            self._rebuild_services(services)
+        except Exception as exc:  # noqa: BLE001 - recorded, never raised into the caller
+            error = f"manager rebuild failed: {exc}"
+        with self._locked():
+            state = self._state()
+            panel = self._component_state(state, "panel")
+            panel.pop("rebuilding_managers", None)
+            if error is None:
+                panel["pending_rebuild"] = [
+                    n for n in panel.get("pending_rebuild") or []
+                    if n not in MANAGER_SERVICES
+                ]
+                panel.pop("rebuild_error", None)
+                panel["managers_rebuilt_at"] = int(time.time())
+            else:
+                panel["rebuild_error"] = error
+            state.setdefault("components", {})["panel"] = panel
+            self._save_state(state)
+
+    def _rebuild_services(self, services: list[str]) -> None:
+        stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+        saved: dict[str, str] = {}
+        running: list[str] = []
+        for service in services:
+            containers = self._service_containers(service)
+            if containers:
+                image = self.runner(["docker", "inspect", "--format", "{{.Image}}", containers[0]], timeout=30).strip()
+                if re.fullmatch(r"sha256:[0-9a-f]{64}", image):
+                    tag = f"mtproxy-{service}:rollback-{stamp}"
+                    self.runner(["docker", "tag", image, tag], timeout=60)
+                    saved[service] = tag
+                    running.append(service)
+        try:
+            self.runner(
+                self._compose_command("up", "-d", "--build", "--no-deps", *services, **self._override_kwargs()),
+                cwd=self.compose_dir, timeout=900,
+            )
+            self._wait_healthy(services)
+        except Exception:
+            try:
+                for service, tag in saved.items():
+                    self.runner(["docker", "tag", tag, f"mtproxy-{service}:latest"], timeout=60)
+                if running:
+                    self.runner(
+                        self._compose_command("up", "-d", "--no-build", "--no-deps", *running,
+                                              **self._override_kwargs()),
+                        cwd=self.compose_dir, timeout=300,
+                    )
+            except Exception as restore_exc:  # noqa: BLE001
+                print(f"version-agent: manager images could not be restored: {restore_exc}", file=sys.stderr)
+            raise
+
+    def _wait_healthy(self, services: list[str]) -> None:
+        waited = 0.0
+        while True:
+            states = []
+            for service in services:
+                containers = self._service_containers(service)
+                if not containers:
+                    states.append(f"{service}=missing")
+                    continue
+                for container in containers:
+                    status = self.runner(
+                        ["docker", "inspect", "--format",
+                         "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}", container],
+                        timeout=30,
+                    ).strip()
+                    if status not in ("healthy", "running"):
+                        states.append(f"{service}={status or 'unknown'}")
+            if not states:
+                return
+            if waited >= self.manager_health_timeout:
+                raise UpdateError("not healthy: " + ", ".join(states))
+            self.sleep(2)
+            waited += 2
 
     @staticmethod
     def _preflight_panel_archive(archive: tarfile.TarFile) -> list[tarfile.TarInfo]:
@@ -1526,4 +1786,5 @@ def agent_from_env() -> VersionAgent:
         panel_image=os.getenv("PROXY_CONTROL_PANEL_IMAGE", "mtproxy-panel"),
         panel_container=os.getenv("PROXY_CONTROL_PANEL_CONTAINER", "proxy-control-panel"),
         panel_volume=os.getenv("PROXY_CONTROL_PANEL_VOLUME", "mtproxy_panel-data"),
+        auto_rebuild_managers=os.getenv("VERSION_AGENT_AUTO_REBUILD_MANAGERS", "1").strip() != "0",
     )

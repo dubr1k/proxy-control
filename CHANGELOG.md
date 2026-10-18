@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-18
+
+- The «Versions» screen no longer tells you to rebuild managers when nothing needs doing. The version-agent now rebuilds the managers a panel update changed (`mieru-manager`, `naive-manager`, `xray-router`, `awg-manager`, `trusttunnel-manager`, `mcp`) itself, right after the panel is healthy, with one Compose call and a rollback image per service; a failure is recorded as `rebuild_error` and never rolls the panel back. Rebuilding the AmneziaWG and TrustTunnel managers briefly drops tunnels and sessions. Set `VERSION_AGENT_AUTO_REBUILD_MANAGERS=0` to keep the old behaviour.
+- The card heals itself: a manager whose container already runs an image built after the panel update leaves `pending_rebuild`, also on hosts where it had got stuck. The card now reads «… — ещё не пересобраны» with an owner-only «Пересобрать менеджеры» button (`POST /api/versions/panel/rebuild-managers`, audit event `runtime.version.managers_rebuild`); the agent has `POST /v1/panel/managers/rebuild` and `/ack`, and the one-command update acknowledges what it rebuilt.
+- The sidebar counters fill in when the panel starts, not only after a visit to the screen.
+
 ## [1.6.0] - 2026-10-18
 
 - A fifth protocol, **TrustTunnel** (AdGuard's VPN: HTTP/2 over TLS, TCP only; no QUIC and no UDP). It shares TCP/443 with the other services through the Nginx SNI route, so no new port is opened and no firewall rule is added. It is optional and needs a domain of its own (an A record to the server, DNS only, different from every other domain); its certificate comes from the installer. A new `trusttunnel-manager` container runs the pinned endpoint (TrustTunnel 1.1.0, Apache-2.0).

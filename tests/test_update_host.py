@@ -28,9 +28,17 @@ class Agent:
     def __init__(self, *, current="1.0.3", offered_digest=DIGEST, pending=("xray_router_manager",)):
         self.current, self.offered_digest, self.pending = current, offered_digest, list(pending)
         self.updates: list[dict] = []
+        self.acks: list[dict] = []
+        self.ack_status = 200
+        self.rebuilding_polls = 0
+
+    def _count(self) -> bool:
+        self.rebuilding_polls -= 1
+        return self.rebuilding_polls <= 0
 
     def versions(self) -> dict:
         panel = {"current": self.current, "status": "ready", "pending_rebuild": self.pending if self.updates else [],
+                 **({"rebuilding_managers": True} if self.rebuilding_polls > 0 and not self._count() else {}),
                  "available": [{"version": "1.1.0", "sha256": self.offered_digest}]}
         return {"components": {"panel": panel}}
 
@@ -40,9 +48,9 @@ def _serve(path: Path, agent: Agent):
         def log_message(self, *args):
             pass
 
-        def _answer(self, value):
+        def _answer(self, value, status=200):
             data = json.dumps(value).encode()
-            self.send_response(200)
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
@@ -57,6 +65,10 @@ def _serve(path: Path, agent: Agent):
                 request = json.loads(body)
                 agent.updates.append(request)
                 agent.current = request["version"]
+            if self.path == "/v1/panel/managers/ack":
+                agent.acks.append(json.loads(body))
+                self._answer({"detail": "x"} if agent.ack_status != 200 else {"pending_rebuild": []}, agent.ack_status)
+                return
             self._answer(agent.versions() if self.path == "/v1/upstream/check" else {"changed": True})
 
     class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
@@ -319,3 +331,26 @@ def test_a_host_without_amneziawg_does_not_rebuild_the_manager(host):
     result = _run(host, Agent(pending=("awg_manager",)))
     assert result.returncode == 0, result.stderr
     assert not any("awg-manager" in line for line in host["log"].read_text().splitlines())
+
+
+def test_rebuilt_managers_are_acknowledged_to_the_agent(host):
+    agent = Agent()
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert agent.acks == [{"names": ["xray_router_manager"]}]
+
+
+def test_an_agent_without_the_ack_endpoint_does_not_fail_the_update(host):
+    agent = Agent()
+    agent.ack_status = 404
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert agent.acks and "done: Proxy Control 1.1.0" in result.stdout
+
+
+def test_it_waits_while_the_agent_rebuilds_the_managers_itself(host):
+    agent = Agent(pending=())
+    agent.rebuilding_polls = 3
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert agent.rebuilding_polls <= 0 and agent.acks == []

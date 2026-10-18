@@ -478,7 +478,9 @@ def test_panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies(tmp_p
     state = _state(tmp_path)
     assert state["version"] == NEW_PANEL and state["status"] == "ready" and state["previous_version"] == OLD_PANEL
     assert state["kind"] == "release" and state["url"] == PANEL_URL and state["pending_rebuild"] == ["naive_manager"]
-    listed = agent.list_versions()["components"]["panel"]
+    # heal=False: this host has no naive overlay, so the self-healing listing would drop it
+    # (covered in tests/test_version_agent_managers.py).
+    listed = agent.list_versions(heal=False)["components"]["panel"]
     assert listed["current"] == NEW_PANEL and listed["status"] == "ready" and listed["pending_rebuild"] == ["naive_manager"]
     assert not (tmp_path / "staging").exists()
 

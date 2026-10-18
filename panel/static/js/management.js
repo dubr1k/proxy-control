@@ -9,6 +9,7 @@ const PANEL_POLL_MS = 3000;
 const PANEL_POLL_LIMIT_MS = 10 * 60 * 1000;
 const PANEL_CONFIRM = "Панель пересоберётся и перезапустится; страница перезагрузится сама, когда панель ответит новой версией. База данных и код сохраняются в rollback-копии.";
 let panelPoll = null;
+let rebuildTimer = null;
 
 export { ROLE_NAMES };
 
@@ -45,14 +46,27 @@ export async function renderVersions(context, generation) {
         : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Установить</button>`;
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
     // Managers the agent does not rebuild: their sources changed with the release.
-    const pending = Array.isArray(item.pending_rebuild) && item.pending_rebuild.length
-      ? `<p class="version-empty">Изменились менеджеры: ${esc(item.pending_rebuild.join(", "))} — пересоберите их по UPGRADING</p>`
-      : "";
+    // The agent rebuilds them itself after a panel update; the button is for a failed or disabled rebuild.
+    const pendingList = Array.isArray(item.pending_rebuild) ? item.pending_rebuild : [];
+    const rebuilding = component === "panel" && item.rebuilding_managers === true;
+    const canRebuild = context.state.me?.role === "owner" && !rebuilding && item.status !== "updating"
+      && pendingList.some((name) => name !== "docker");
+    const rebuildError = item.rebuild_error ? `<small class="version-note">Пересборка менеджеров не удалась: ${esc(item.rebuild_error)}</small>` : "";
+    const pending = rebuilding
+      ? '<p class="version-empty"><b>Пересборка менеджеров…</b> Туннели и сессии могут ненадолго оборваться.</p>'
+      : pendingList.length
+        ? `<p class="version-empty">${esc(pendingList.join(", "))} — ещё не пересобраны</p>${rebuildError}${canRebuild ? '<button class="ghost" data-managers-rebuild="1">Пересобрать менеджеры</button>' : ""}`
+        : "";
     const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
     return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}<small class="version-note">«Каталог» — версии, проверенные оператором в <code>versions.json</code> на хосте; «upstream» — релизы GitHub и реестров образов. Источник и SHA-256 проверяет host-agent; произвольные URL из браузера запрещены.</small></article>`;
   }).join("");
   context.ui.view.innerHTML = `<div class="security-note">Обновления выполняются только owner-ролью через отдельный host version-agent. Перед каждой заменой он проверяет allowlist-каталог, immutable digest или SHA-256, сохраняет rollback-копию и проверяет health.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
   if (context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
+  // A manager rebuild runs in the agent's background: look again until it is over.
+  window.clearTimeout(rebuildTimer);
+  if (context.state.versions.components?.panel?.rebuilding_managers === true) {
+    rebuildTimer = window.setTimeout(() => { if (isCurrent(context.state, generation, "versions")) void context.navigate("versions"); }, 4000);
+  }
 }
 
 function sleep(ms) {
@@ -108,6 +122,19 @@ async function checkVersions(context, button) {
     await context.navigate("versions");
   } catch (error) {
     context.ui.toast(`Не удалось проверить: ${error.message}`, "error");
+  } finally {
+    context.ui.setBusy(button, false);
+  }
+}
+
+async function rebuildManagers(context, button) {
+  try {
+    context.ui.setBusy(button, true, "Пересобираем…");
+    await context.api("/api/versions/panel/rebuild-managers", { method: "POST" });
+    context.ui.toast("Пересборка менеджеров запущена");
+    await context.navigate("versions");
+  } catch (error) {
+    context.ui.toast(`Не удалось пересобрать: ${error.message}`, "error");
   } finally {
     context.ui.setBusy(button, false);
   }
@@ -236,6 +263,10 @@ export function handleManagementChange(context, target) {
 export function handleManagementClick(context, button) {
   if (button.dataset.versionCheck) {
     void checkVersions(context, button);
+    return true;
+  }
+  if (button.dataset.managersRebuild) {
+    void rebuildManagers(context, button);
     return true;
   }
   if (button.dataset.versionUpdate) {

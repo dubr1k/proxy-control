@@ -111,11 +111,31 @@ a stale file reports the previous release to the central, a missing one reports 
 
 ## Rebuilding changed managers by hand
 
-An update of the panel from the «Versions» screen does not rebuild the managers. When
-`mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `trusttunnel_manager/`, `mcp_server/` or `docker/` changed
-between the two releases, the agent names them in `pending_rebuild` and the panel card says
-«Managers changed: …». The one-command update rebuilds them itself. After an update from the panel,
-rebuild them with the installation's own environment files and overlays — the set the agent uses,
+When `mieru_manager/`, `naive_manager/`, `xray_router_manager/`, `awg_manager/`, `trusttunnel_manager/`,
+`mcp_server/` or `docker/` changed between the two releases, the agent names them in `pending_rebuild`.
+
+**The agent rebuilds them itself.** After a successful panel update (the state is already `ready`),
+the agent rebuilds the service-backed managers with ONE `docker compose … up -d --build --no-deps`
+call — the same env files, overlays and version overrides as the panel build — tagging every running
+service's image `mtproxy-<service>:rollback-<timestamp>` first, waits until the containers are healthy
+and removes them from `pending_rebuild`. A failure restores the tagged images, leaves the list as it
+was and records `rebuild_error`; the already healthy panel is never rolled back for a manager. The
+agent's own restart is still the very last step. Rebuilding the AmneziaWG and TrustTunnel managers
+briefly drops tunnels and sessions (the peers and apps reconnect), exactly as the one-command update
+does. To keep the old behaviour set `VERSION_AGENT_AUTO_REBUILD_MANAGERS=0` in
+`/etc/proxy-control/version-agent.env`. `docker` is not a service: it stays in the list until you
+recreate Telemt and mask (below).
+
+**The card clears itself.** On every read of the versions the agent drops a manager from the list when
+the image of every container of its services was created at or after the panel update (10 seconds of
+slack), or when the host has no such container or overlay. So a rebuild done by hand or by the
+one-command update clears the «… — ещё не пересобраны» card without anyone telling the agent, also
+on a host that was already stale. A Docker error leaves the list unchanged. The one-command update
+also reports what it rebuilt (`POST /v1/panel/managers/ack`, best effort). If the rebuild failed or
+is switched off, the owner's «Rebuild managers» button on the screen (`POST /api/versions/panel/rebuild-managers`)
+runs it again.
+
+To rebuild by hand, use the installation's own environment files and overlays — the set the agent uses,
 `PROXY_CONTROL_COMPOSE_DIR` and `PROXY_CONTROL_COMPOSE_FILES` in
 `/etc/proxy-control/version-agent.env`:
 
@@ -418,8 +438,8 @@ is `rollback_failed` and the agent accepts no further panel update until the ope
 
 **Managers are not rebuilt.** If `mieru_manager/`, `naive_manager/`, `xray_router_manager/`,
 `mcp_server/` or `docker/` changed between the two releases, the agent reports them in
-`pending_rebuild` and the card says so: rebuild those services
-([by hand](#rebuilding-changed-managers-by-hand)) or run the [one-command
+`pending_rebuild`. The agent rebuilds them itself after the update and the card clears
+([details](#rebuilding-changed-managers-by-hand)); otherwise rebuild those services by hand or run the [one-command
 update](#updating-with-one-command), which also reconciles an enabled MCP server from the verified
 release tree even when an older agent omitted its sources (the previous sources are kept in
 `version-overrides/mcp-source-previous-*`). The agent's own code is synced with the release; if it

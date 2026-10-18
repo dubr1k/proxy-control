@@ -31,6 +31,7 @@ const ACTION_NAMES = {
   "fleet.node.create": "Добавлен Fleet-узел",
   "fleet.command.queue": "Команда Fleet поставлена в очередь",
   "runtime.version.update": "Обновлена версия компонента",
+  "runtime.version.managers_rebuild": "Пересобраны менеджеры панели",
   "admin.create": "Создан администратор",
   "admin.update": "Изменён администратор",
   "admin.delete": "Удалён администратор",

@@ -291,6 +291,43 @@ async def test_owner_updates_the_panel_itself_and_the_answer_is_async(
         assert actions == ["runtime.version.update"]
 
 
+@pytest.mark.anyio
+async def test_owner_rebuilds_pending_managers_viewer_cannot_and_a_running_update_is_409(
+    tmp_path, telemt, naive, mieru, login_user
+):
+    from httpx import ASGITransport, AsyncClient
+    from panel.app import Settings, create_app
+
+    versions = MemoryVersions()
+    versions.components["panel"]["pending_rebuild"] = ["naive_manager", "docker"]
+    settings = Settings(
+        database_path=tmp_path / "panel.sqlite3", session_cookie_secure=False,
+        allowed_hosts=("testserver",), naive_public_host="naive.example.com",
+        naive_enabled=True, mieru_enabled=True,
+    )
+    app = create_app(settings, telemt=telemt, naive=naive, mieru=mieru, version_client=versions)
+    app.state.store.create_admin("owner", "correct horse battery staple", "owner")
+    app.state.store.create_admin("viewer", "correct horse battery staple", "viewer")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        await login_user(client, username="viewer")
+        refused = await client.post(
+            "/api/versions/panel/rebuild-managers", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
+        assert refused.status_code == 403 and versions.calls == []
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        await login_user(client)
+        csrf = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+        versions.components["panel"]["status"] = "updating"
+        busy = await client.post("/api/versions/panel/rebuild-managers", headers=csrf)
+        assert busy.status_code == 409
+        versions.components["panel"]["status"] = "ready"
+        done = await client.post("/api/versions/panel/rebuild-managers", headers=csrf)
+        assert done.status_code == 200 and done.json()["pending_rebuild"] == ["docker"]
+        with app.state.database.connect() as db:
+            actions = [row["action"] for row in db.execute(
+                "SELECT action FROM audit_log WHERE action LIKE 'runtime.version.%'")]
+        assert actions == ["runtime.version.managers_rebuild"]
+
+
 def test_memory_versions_offer_xray_only_with_a_router():
     assert "xray" not in MemoryVersions().components
     assert MemoryVersions(router=True).components["xray"]["current"] == "26.3.27"

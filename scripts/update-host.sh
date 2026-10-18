@@ -111,7 +111,20 @@ fi
 say "панель: $VERSION" "panel: $VERSION"
 
 # --- the managers the agent does not rebuild --------------------------------------------
-pending=$(agent http://agent/v1/versions | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)["components"]["panel"].get("pending_rebuild") or []))')
+# v1.6.1: an agent rebuilds the managers itself after a panel update (unless
+# VERSION_AGENT_AUTO_REBUILD_MANAGERS=0) and says so in `rebuilding_managers`; let it finish
+# before this script looks at the list, or both would rebuild the same services.
+for _ in $(seq 1 360); do
+    busy=$(agent http://agent/v1/versions 2>/dev/null \
+        | python3 -c 'import json,sys; print("1" if json.load(sys.stdin)["components"]["panel"].get("rebuilding_managers") else "")' 2>/dev/null) || busy=
+    [[ -n $busy ]] || break
+    sleep "$POLL"
+done
+for _ in $(seq 1 10); do
+    pending=$(agent http://agent/v1/versions 2>/dev/null | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)["components"]["panel"].get("pending_rebuild") or []))' 2>/dev/null) && break
+    sleep "$POLL"  # the agent restarts itself a few seconds after an update
+done
+[[ -n ${pending+x} ]] || fail "version-agent не отвечает" "the version-agent does not answer"
 cd -- "$DIR" || fail "нет каталога проекта $DIR" "no project directory $DIR"
 compose=(docker compose --project-name mtproxy --env-file .env)
 [[ -f .optional.env ]] && compose+=(--env-file .optional.env)
@@ -121,17 +134,18 @@ for file in "${overlays[@]}"; do compose+=(-f "$DIR/$file"); done
 [[ -f version-overrides/compose.versions.yaml ]] && compose+=(-f "$DIR/version-overrides/compose.versions.yaml")
 
 services=()
+acked=()  # managers this script rebuilds: the agent is told afterwards so its card clears
 for manager in $pending; do
     case $manager in
-        mieru_manager) has compose.mieru.yaml && services+=(mieru-manager) ;;
-        naive_manager) has compose.naive.yaml && services+=(naive-manager) ;;
-        xray_router_manager) has compose.xray-router.yaml && services+=(xray-router) ;;
+        mieru_manager) has compose.mieru.yaml && services+=(mieru-manager) && acked+=("$manager") ;;
+        naive_manager) has compose.naive.yaml && services+=(naive-manager) && acked+=("$manager") ;;
+        xray_router_manager) has compose.xray-router.yaml && services+=(xray-router) && acked+=("$manager") ;;
         # Restarting the manager briefly drops the AmneziaWG tunnels (peers reconnect by themselves);
         # its state directory with the server keys is never touched.
-        awg_manager) has compose.amneziawg.yaml && services+=(awg-manager) ;;
+        awg_manager) has compose.amneziawg.yaml && services+=(awg-manager) && acked+=("$manager") ;;
         # Restarting the TrustTunnel manager restarts the endpoint: sessions drop for seconds.
-        trusttunnel_manager) has compose.trusttunnel.yaml && services+=(trusttunnel-manager) ;;
-        mcp_server) has compose.mcp.yaml && services+=(mcp) ;;
+        trusttunnel_manager) has compose.trusttunnel.yaml && services+=(trusttunnel-manager) && acked+=("$manager") ;;
+        mcp_server) has compose.mcp.yaml && services+=(mcp) && acked+=("$manager") ;;
     esac
 done
 # Agents predating this fix omitted mcp_server from their sync set. Complete that
@@ -180,6 +194,7 @@ PY
     ) || fail "не удалось обновить исходники MCP" "could not update MCP sources"
     # Always reconcile an enabled MCP, including agents that did not report it.
     [[ " ${services[*]} " == *" mcp "* ]] || services+=(mcp)
+    [[ " ${acked[*]:-} " == *" mcp_server "* ]] || acked+=(mcp_server)
 fi
 # v1.1: the router's MTProxy bridge comes with the router (a new service on an updated host).
 if has compose.xray-router.yaml && grep -q '^  xray-router-ingress:' compose.xray-router.yaml; then
@@ -241,6 +256,12 @@ PY
         fi
         fail "пересборка не удалась; восстановлены доступные образы, новым службам нужна проверка оператора" \
             "the rebuild failed; available images restored, new services need operator recovery"
+    fi
+    # Best effort: tell the agent, so its «managers not rebuilt» card clears. An agent without
+    # the endpoint answers 404 (self-healing clears the card there); never fails the update.
+    if ((${#acked[@]})); then
+        body=$(json 'import json,sys; print(json.dumps({"names": sys.argv[1:]}))' "${acked[@]}")
+        agent -X POST -H 'Content-Type: application/json' -d "$body" http://agent/v1/panel/managers/ack >/dev/null 2>&1 || true
     fi
 else
     say "менеджеры пересобирать не нужно" "no manager needs a rebuild"

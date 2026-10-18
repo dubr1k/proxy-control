@@ -42,7 +42,7 @@ def test_versions_screen_updates_the_panel_itself_and_waits_for_it_to_come_back(
     errors of the restart, and reloads the page once the panel answers with the new version."""
     assert 'panel: "Proxy Control / панель"' in JS
     assert "Панель пересоберётся и перезапустится; страница перезагрузится сама, когда панель ответит новой версией. База данных и код сохраняются в rollback-копии." in JS
-    for text in ("Перезапускаем…", "Обновление идёт…", "Панель обновлена до ", "Изменились менеджеры: ", "пересоберите их по UPGRADING", "Панель не ответила за 10 минут"):
+    for text in ("Перезапускаем…", "Обновление идёт…", "Панель обновлена до ", "— ещё не пересобраны", "Пересобрать менеджеры", "Пересборка менеджеров…", "Панель не ответила за 10 минут"):
         assert text in JS, text
     assert "const PANEL_POLL_MS = 3000;" in JS and "const PANEL_POLL_LIMIT_MS = 10 * 60 * 1000;" in JS
     assert 'components?.panel?.status === "updating"' in JS and 'panel.status !== "updating"' in JS
@@ -52,6 +52,9 @@ def test_versions_screen_updates_the_panel_itself_and_waits_for_it_to_come_back(
     # Another tab may have started it: the card is disabled and the poll begins at render.
     assert 'item.status === "updating"' in JS and "void pollPanelUpdate(context, null)" in JS
     assert "item.pending_rebuild" in JS
+    # The rebuild button is owner-only and calls the panel route; the screen polls while it runs.
+    assert 'context.state.me?.role === "owner"' in JS and "/api/versions/panel/rebuild-managers" in JS
+    assert "item.rebuilding_managers === true" in JS and 'data-managers-rebuild="1"' in JS
 
 
 def test_versions_screen_has_styles_for_the_check_bar_and_the_risk_note():
