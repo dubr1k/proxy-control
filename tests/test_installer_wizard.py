@@ -709,10 +709,12 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
     assert "Xray-router" not in transcript.getvalue()
 
 
-def _scripted(answers: list[str], output: Path, locale: Locale = Locale.EN) -> tuple[str, str]:
+def _scripted(
+    answers: list[str], output: Path, locale: Locale = Locale.EN, root: Path | None = None
+) -> tuple[str, str]:
     transcript = io.StringIO()
     terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
-    wizard = TerminalWizard(terminal, locale=locale, config_output=output)
+    wizard = TerminalWizard(terminal, locale=locale, config_output=output, **({"root": root} if root else {}))
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
     return transcript.getvalue(), output.read_text()
@@ -831,13 +833,15 @@ def _core_answers(*awg: str) -> list[str]:
 
 def test_the_wizard_offers_amneziawg_with_versions_and_a_public_name(tmp_path: Path):
     """One yes/no, then the versions (default all three) and the name clients dial (default the
-    panel domain); no new domain is asked. Ports, MTU and DNS stay in the TOML."""
+    panel domain); no new domain is asked, then the ports (Enter takes the random free ones).
+    MTU and DNS stay in the TOML."""
     output = tmp_path / "awg.toml"
-    transcript, written = _scripted(_core_answers("yes", "3.1, 1.5", "vpn.example.com"), output)
+    transcript, written = _scripted(_core_answers("yes", "3.1, 1.5", "vpn.example.com", ""), output)
     awg = load_config(output).amneziawg
     assert awg is not None
     assert awg.versions == ("1.5", "3.1") and awg.host == "vpn.example.com"
-    assert awg.port_map() == {"1.5": 51820, "3.1": 51822}
+    assert set(awg.port_map()) == {"1.5", "3.1"} and len(set(awg.ports)) == 2
+    assert all(10240 <= port <= 32000 for port in awg.ports)
     assert "[amneziawg]" in written and 'versions = ["1.5", "3.1"]' in written
     assert "Install AmneziaWG" in transcript and "needs no new domain" in transcript
     assert "amneziawg.versions | 1.5,3.1" in transcript.split("Configuration review", 1)[1]
@@ -845,7 +849,7 @@ def test_the_wizard_offers_amneziawg_with_versions_and_a_public_name(tmp_path: P
 
 def test_amneziawg_defaults_are_all_versions_and_the_panel_domain(tmp_path: Path):
     output = tmp_path / "awg-defaults.toml"
-    _scripted(_core_answers("yes", "", ""), output)
+    _scripted(_core_answers("yes", "", "", ""), output)
     awg = load_config(output).amneziawg
     assert awg.versions == ("1.5", "2.0", "3.1") and awg.host == "panel.example.com"
 
@@ -859,13 +863,13 @@ def test_declining_amneziawg_writes_no_section(tmp_path: Path):
 
 def test_amneziawg_answers_are_validated_with_localized_feedback(tmp_path: Path):
     output = tmp_path / "awg-bad.toml"
-    transcript, _ = _scripted(_core_answers("yes", "4.0", "2.0, 2.0", "2.0", "bad_host", "198.51.100.4"), output)
+    transcript, _ = _scripted(_core_answers("yes", "4.0", "2.0, 2.0", "2.0", "bad_host", "198.51.100.4", ""), output)
     assert transcript.count("Enter one or more of 1.5, 2.0, 3.1") == 2
     assert "Enter a DNS name or an IPv4 address." in transcript
     awg = load_config(output).amneziawg
     assert awg.versions == ("2.0",) and awg.host == "198.51.100.4"
     ru_output = tmp_path / "awg-bad-ru.toml"
-    ru_transcript, _ = _scripted(_core_answers("да", "9", "1.5", "x_y", ""), ru_output, Locale.RU)
+    ru_transcript, _ = _scripted(_core_answers("да", "9", "1.5", "x_y", "", ""), ru_output, Locale.RU)
     assert "Введите одну или несколько версий из 1.5, 2.0, 3.1" in ru_transcript
     assert "Введите DNS-имя или IPv4-адрес." in ru_transcript
     assert "новый домен не нужен" in ru_transcript
@@ -877,7 +881,7 @@ def test_the_review_can_edit_amneziawg(tmp_path: Path):
     answers = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
                "no",  # AmneziaWG off at first
                "admin@example.com", "owner", "", "yes",
-               "edit", "amneziawg", "yes", "2.0", "vpn.example.com",
+               "edit", "amneziawg", "yes", "2.0", "vpn.example.com", "",
                "save"]
     _scripted(answers, output)
     awg = load_config(output).amneziawg
@@ -885,18 +889,75 @@ def test_the_review_can_edit_amneziawg(tmp_path: Path):
 
 
 def test_an_amneziawg_port_that_collides_is_reported_by_the_review_loop(tmp_path: Path):
-    """The wizard never asks for ports, but a colliding Mieru port is caught on the
+    """A typed AmneziaWG port that collides with a Mieru port is caught on the
     config round trip (`invalid_config`), so the operator is sent back to the field."""
     output = tmp_path / "awg-collision.toml"
     answers = ["", "fresh", "core-mieru", "none", "panel.example.com", "relay.example.com", "", "",
                "mieru.example.com", "51820", "46001", "no", "no",
-               "yes", "", "",  # AmneziaWG: all versions, the panel name
+               "yes", "", "", "51820,23457,23458",  # AmneziaWG: all versions, the panel name, the ports
                "admin@example.com", "owner", "", "yes",
                "mieru.tcp_ports", "46001",
                "save"]
     transcript, _ = _scripted(answers, output)
     assert "amneziawg.ports.1.5: 51820 is taken by a Mieru" in transcript
     assert load_config(output).mieru.tcp_ports == (46001,)
+
+
+def _awg_root(tmp_path: Path, identity: str = "wizard-host") -> Path:
+    root = tmp_path / "root"
+    (root / "etc").mkdir(parents=True, exist_ok=True)
+    (root / "etc/machine-id").write_text(identity + "\n")
+    return root
+
+
+def test_amneziawg_ports_default_to_the_random_free_ones_and_enter_accepts_them(tmp_path: Path):
+    from installer.awg_ports import pick_ports
+
+    root = _awg_root(tmp_path)
+    expected = pick_ports(("1.5", "2.0", "3.1"), identity="wizard-host", taken=())
+    transcript, written = _scripted(_core_answers("yes", "", "", ""), tmp_path / "a.toml", root=root)
+    awg = load_config(tmp_path / "a.toml").amneziawg
+    assert awg.port_map() == expected
+    shown = ",".join(str(port) for port in expected.values())
+    assert f"[{shown}]" in transcript and "AmneziaWG UDP ports for versions 1.5, 2.0, 3.1" in transcript
+    assert "3 comma-separated numbers in this order" in transcript
+    assert not set(awg.ports) & {51820, 51821, 51822}
+    assert f"amneziawg.ports | {shown}" in transcript.split("Configuration review", 1)[1] or \
+        all(str(port) in transcript.split("Configuration review", 1)[1] for port in expected.values())
+    assert "[amneziawg]" in written and all(str(port) in written for port in expected.values())
+
+
+def test_a_typed_amneziawg_port_list_overrides_the_default(tmp_path: Path):
+    transcript, _ = _scripted(_core_answers("yes", "", "", "23456, 24567,25678"), tmp_path / "t.toml",
+                              root=_awg_root(tmp_path))
+    assert load_config(tmp_path / "t.toml").amneziawg.port_map() == {"1.5": 23456, "2.0": 24567, "3.1": 25678}
+    # the order follows the selected versions
+    _scripted(_core_answers("yes", "3.1,1.5", "", "30001,30002"), tmp_path / "o.toml", root=_awg_root(tmp_path))
+    assert load_config(tmp_path / "o.toml").amneziawg.port_map() == {"1.5": 30001, "3.1": 30002}
+
+
+def test_bad_amneziawg_port_input_asks_again_in_both_languages(tmp_path: Path):
+    answers = _core_answers("yes", "", "", "23456,24567", "1,2,3", "23456,23456,25678", "70000,24567,25678",
+                            "a,b,c", "23456,24567,25678")
+    transcript, _ = _scripted(answers, tmp_path / "bad.toml", root=_awg_root(tmp_path))
+    assert transcript.count("Enter distinct port numbers between 1024 and 65535, comma-separated, 3 in total") == 5
+    assert load_config(tmp_path / "bad.toml").amneziawg.ports == (23456, 24567, 25678)
+    ru_transcript, _ = _scripted(_core_answers("да", "2.0", "", "x", ""), tmp_path / "bad-ru.toml", Locale.RU,
+                                 _awg_root(tmp_path))
+    assert "Введите разные номера портов от 1024 до 65535 через запятую, всего: 1" in ru_transcript
+    assert "UDP-порты AmneziaWG для версий 2.0" in ru_transcript
+    assert len(load_config(tmp_path / "bad-ru.toml").amneziawg.ports) == 1
+
+
+def test_editing_amneziawg_in_the_review_keeps_the_earlier_ports_as_the_default(tmp_path: Path):
+    answers = ["", "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
+               "yes", "", "", "23456,24567,25678",
+               "admin@example.com", "owner", "", "yes",
+               "edit", "amneziawg", "yes", "", "", "",  # versions, host, ports: Enter keeps all
+               "save"]
+    transcript, _ = _scripted(answers, tmp_path / "e.toml", root=_awg_root(tmp_path))
+    assert load_config(tmp_path / "e.toml").amneziawg.ports == (23456, 24567, 25678)
+    assert "[23456,24567,25678]" in transcript
 
 
 def test_installer_catalog_has_the_same_keys_and_placeholders_in_both_languages():

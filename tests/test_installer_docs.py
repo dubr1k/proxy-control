@@ -244,7 +244,7 @@ def test_reference_documents_the_optional_amneziawg_addon(language):
     for needle in (
         "[amneziawg]", "versions", "ports", "mtu", "dns", "host", "`amneziawg`", "/var/lib/awg-manager",
         "secrets/awg-manager-token", ".env.amneziawg", "99-proxy-control-amneziawg.conf", "compose.amneziawg.yaml",
-        "ufw route allow in on awg15|awg20|awg31", "/dev/net/tun", "51820", "51821", "51822", "10.66.15.0/24",
+        "ufw route allow in on awg15|awg20|awg31", "/dev/net/tun", "10240", "32000", "machine-id", "10.66.15.0/24",
         "AMNEZIAWG.", "--purge-data",
     ):
         assert needle in text, needle
@@ -255,7 +255,7 @@ def test_reference_documents_the_optional_amneziawg_addon(language):
 def test_readmes_describe_the_amneziawg_addon_and_its_installer_pieces(language):
     text = readme(language)
     for needle in ("[amneziawg]", "/dev/net/tun", "awg_manager/Dockerfile", "amneziawg-go", "core-amneziawg.toml",
-                   "/var/lib/awg-manager", "51820"):
+                   "/var/lib/awg-manager"):
         assert needle in text, needle
     assert re.search(r"\bv0\.\d", text) is None
 
@@ -492,3 +492,14 @@ def test_the_mtproto_probe_reports_why_it_failed_without_echoing_a_secret():
     assert "describe(error)" in source
     assert "[REDACTED]" in source
     assert "main().catch(() => fail(" not in source
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_no_document_presents_the_well_known_amneziawg_ports_as_a_default(language):
+    """The ports are random per server; 51820-51822 appear only as the ones NOT to use."""
+    for text in (readme(language), reference(language)):
+        assert "UDP 51820" not in text and "51820, 51821, 51822" not in text and "51820/51821/51822" not in text
+    guide = (ROOT / ("AMNEZIAWG.en.md" if language == "en" else "AMNEZIAWG.ru.md")).read_text(encoding="utf-8")
+    assert "· 51820 ·" not in guide and "--ports" in guide and "10240" in guide
+    example = (ROOT / "examples/installer/core-amneziawg.toml").read_text(encoding="utf-8")
+    assert "\nports = " not in example and '# ports = { "1.5"' in example

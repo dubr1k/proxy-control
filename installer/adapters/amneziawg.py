@@ -196,6 +196,8 @@ class AmneziaWgAdapter:
                 f"AmneziaWG needs {self.paths.tun_device} on the host (load the kernel module: modprobe tun) "
                 "or a kernel/container platform that provides it"
             )
+        if not all(awg.ports):
+            raise AmneziaWgError("AmneziaWG ports are not assigned (resolve them with installer.awg_ports first)")
         self._assert_free_udp(facts, awg.ports)
         ports = ",".join(f"{version}:{port}" for version, port in awg.port_map().items())
         ufw_managed = config.host_mode.value == "fresh" and config.firewall.manage_ufw

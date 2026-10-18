@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-18
+
+- AmneziaWG no longer uses the well-known ports 51820–51822: the installer picks a free random UDP port per version (10240–32000), stable for the server across plan, install and update. Ports can be set by hand: a wizard question (Enter accepts the picked ones), `ports` in the TOML, `--ports` of `scripts/enable-amneziawg.sh`.
+- The «AmneziaWG» screen has a «+ AmneziaWG access» button: a name, versions (several allowed) and a node; after issuing, the window with the configs and QR opens.
+
 ## [1.4.0] - 2026-10-18
 
 - A dedicated «AmneziaWG» screen in the panel (next to MTProxy, Mieru and NaiveProxy): cards for versions 1.5, 2.0 and 3.1 with the port, subnet and state, the list of this server's accesses with the client that holds each, the last connection and the traffic, and an «Open access» button (the access window with the config, QR, switch on/off, rotation and delete). The screen only reads: accesses are still given to clients («Clients» → «Nodes and accesses»). New route `GET /api/amneziawg/overview` (no keys and no obfuscation parameters); the menu item is shown only on a server that runs AmneziaWG.

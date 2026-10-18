@@ -18,6 +18,8 @@ services:
       AWG_MANAGER_SOCKET_MODE: "660"
       AWG_STATE_DIR: /var/lib/awg-manager
       AWG_VERSIONS: ${AWG_VERSIONS:-1.5,2.0,3.1}
+      # The installer and scripts/enable-amneziawg.sh always write AWG_PORTS (free pseudo-random
+      # ports). The fallback below is for the lab acceptance scripts only: never rely on it on a host.
       AWG_PORTS: ${AWG_PORTS:-1.5=51820,2.0=51821,3.1=51822}
       AWG_SUBNETS: ${AWG_SUBNETS:-1.5=10.66.15.0/24,2.0=10.66.20.0/24,3.1=10.66.31.0/24}
       AWG_MTU: ${AWG_MTU:-1280}

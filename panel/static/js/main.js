@@ -16,7 +16,7 @@ import {
   renderVersions,
   ROLE_NAMES,
 } from "./management.js";
-import { handleAmneziawgClick, renderAmneziawg } from "./amneziawg.js";
+import { bindAmneziawg, handleAmneziawgClick, openAwgModal, renderAmneziawg } from "./amneziawg.js";
 import { bindMieru, handleMieruClick, openMieruModal, renderMieru } from "./mieru.js";
 import { bindNodes, handleNodesClick, openLinkModal, renderNodes } from "./nodes.js";
 import { bindNaive, handleNaiveClick, handleNaiveInput, openNaiveModal, renderNaive } from "./naive.js";
@@ -104,7 +104,7 @@ function createNavigator(context) {
     query(".mobile-nav .active", context.root)?.scrollIntoView?.({ inline: "center", block: "nearest" });
     markMobileNavEdges(context.root);
 
-    const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "clients"].includes(name))
+    const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "amneziawg", "clients"].includes(name))
       || (name === "fleet" && context.state.me?.role === "owner")
       || (name === "admins" && context.state.me?.role === "owner");
     const add = query("#add", context.root);
@@ -117,6 +117,7 @@ function createNavigator(context) {
       fleet: "Панель",
       naive: "Naive доступ",
       mieru: "Mieru доступ",
+      amneziawg: "AmneziaWG доступ",
       users: "Подключение",
     }[name] || "Добавить";
 
@@ -188,6 +189,7 @@ function bindPanel(context) {
     else if (context.state.view === "fleet") openLinkModal(context);
     else if (context.state.view === "naive") openNaiveModal(context);
     else if (context.state.view === "mieru") openMieruModal(context);
+    else if (context.state.view === "amneziawg") openAwgModal(context);
     else openUserModal(context);
   });
   query("#refresh", root).addEventListener("click", ({ currentTarget: button }) => {
@@ -231,6 +233,7 @@ function bindPanel(context) {
   bindUsers(context);
   bindClients(context);
   bindMieru(context);
+  bindAmneziawg(context);
   bindNaive(context);
   bindNodes(context);
   bindRouting(context);

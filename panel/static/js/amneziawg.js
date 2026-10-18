@@ -3,6 +3,7 @@
 // its own window (the same one the client card opens), because the panel owns the client's keys.
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
+import { AWG_VERSIONS, awgAccount, awgVersions } from "./placement.js";
 
 const STATUS = { ok: ["active", "Работает"], degraded: ["blocked", "Есть неполадки"], down: ["blocked", "Менеджер недоступен"] };
 
@@ -53,9 +54,9 @@ export async function renderAmneziawg(context, generation) {
     ? `<div class="security-note">Ждут узел или потеряны на узле: ${data.pending.map((item) => `${esc(item.username)} (${esc(item.client_name)})`).join(", ")}.</div>`
     : "";
   context.ui.view.innerHTML = `${note}${waiting}
-  <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code> и порту своей версии. Доступы выдаются клиентам: «Клиенты» → «Узлы и доступы» → колонки AmneziaWG 1.5 / 2.0 / 3.1. Конфиг с ключом показывает окно доступа.</div>
+  <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code> и порту своей версии. Новый доступ — кнопка «+ AmneziaWG доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Конфиг с ключом показывает окно доступа.</div>
   <div class="awg-overview"><article><small>Менеджер AmneziaWG</small><strong>${esc(word)}</strong><span class="status-pill ${tone}"><i></i>${esc(word)}</span></article>${(data.versions || []).map(versionCard).join("")}</div>
-  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><b>Доступов AmneziaWG пока нет</b><small>Откройте клиента → «Узлы и доступы» и отметьте нужные версии AmneziaWG.</small></div>'}</section>`;
+  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><b>Доступов AmneziaWG пока нет</b><small>Нажмите «+ AmneziaWG доступ» вверху справа.</small></div>'}</section>`;
 }
 
 export function handleAmneziawgClick(context, button) {
@@ -70,4 +71,75 @@ export function handleAmneziawgClick(context, button) {
     }
   })();
   return true;
+}
+
+// «+ AmneziaWG доступ»: a client with the given name and one grant per ticked version on the node.
+function offeredNodes(context) {
+  return (context.state.nodes || []).filter((node) => node.node_id === "local" || (node.transport === "panel" && node.link?.enabled === true));
+}
+
+function syncAwgCreate(context) {
+  const root = context.root;
+  const name = query("#new-awg-user", root).value.trim();
+  const picked = [...root.querySelectorAll("[data-awg-version]:checked")].length;
+  query("#create-awg", root).disabled = !name || !picked || !query("#new-awg-user", root).validity.valid;
+}
+
+export function openAwgModal(context) {
+  const root = context.root;
+  query("#awg-form", root).reset();
+  query("#awg-error", root).textContent = "";
+  const nodes = offeredNodes(context);
+  const select = query("#awg-node", root);
+  select.innerHTML = (nodes.length ? nodes : [{ node_id: "local", display_name: "Этот сервер" }])
+    .map((node) => `<option value="${esc(node.node_id)}">${esc(node.node_id === "local" ? "Этот сервер" : node.display_name || node.node_id)}</option>`).join("");
+  paintVersions(context);
+  syncAwgCreate(context);
+  context.ui.openModal("#awg-modal", "#new-awg-user");
+}
+
+// A node that reports the versions it serves offers exactly those; one that reports none (older
+// panel) offers all three and the server refuses an unserved one with its own message.
+function paintVersions(context) {
+  const node = (context.state.nodes || []).find((item) => item.node_id === query("#awg-node", context.root).value);
+  const served = awgVersions(node);
+  context.root.querySelectorAll("[data-awg-version]").forEach((box) => {
+    const ok = !served.length || served.includes(box.dataset.awgVersion);
+    box.disabled = !ok;
+    if (!ok) box.checked = false;
+  });
+}
+
+export function bindAmneziawg(context) {
+  const { api, root, ui } = context;
+  query("#awg-form", root)?.addEventListener("input", () => syncAwgCreate(context));
+  query("#awg-node", root)?.addEventListener("change", () => { paintVersions(context); syncAwgCreate(context); });
+  query("#awg-form", root)?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    query("#create-awg", root).click();
+  });
+  query("#create-awg", root)?.addEventListener("click", async ({ currentTarget: button }) => {
+    const error = query("#awg-error", root);
+    error.textContent = "";
+    if (!query("#awg-form", root).reportValidity()) return;
+    const username = query("#new-awg-user", root).value.trim();
+    const nodeId = query("#awg-node", root).value || "local";
+    const versions = AWG_VERSIONS.filter((version) => root.querySelector(`[data-awg-version="${version}"]`)?.checked);
+    try {
+      ui.setBusy(button, true);
+      const client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: username, subscription: false }) });
+      const result = await api(`/api/clients/${encodeURIComponent(client.id)}/grants`, {
+        method: "POST",
+        body: JSON.stringify({ grants: versions.map((version) => ({ protocol: "amneziawg", node_id: nodeId, runtime_username: awgAccount(username, version), options: { version } })) }),
+      });
+      root.querySelector("#awg-modal")?.close?.();
+      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
+      else ui.toast(result.status === "manual_intervention_required" ? `Операция ${result.operation_id}: продолжить можно командой operations-resume` : "Доступ ещё выдаётся, он появится в списке", "error");
+      await context.navigate("amneziawg");
+    } catch (exception) {
+      error.textContent = exception.message;
+    } finally {
+      ui.setBusy(button, false);
+    }
+  });
 }

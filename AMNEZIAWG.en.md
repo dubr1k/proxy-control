@@ -14,15 +14,20 @@ compatible with one another** (their server-side parameters differ), so each ver
 interface, UDP port and tunnel subnet of the node, and one access is always exactly one version. A
 client can hold several accesses and choose in the app which to use.
 
-| Version | What it adds | Interface · default port · subnet | Needs in the app |
+| Version | What it adds | Interface · subnet | Needs in the app |
 |---|---|---|---|
-| **1.5** | junk packets and signature packets `I1`–`I5` that imitate other UDP protocols (QUIC, DNS…) at the start of a session | `awg15` · 51820 · 10.66.15.0/24 | an app that supports AmneziaWG 1.5 |
-| **2.0** | random padding on every packet type (`S3`, `S4`), header values from ranges instead of fixed numbers | `awg20` · 51821 · 10.66.20.0/24 | AmneziaVPN 4.8.12.9 or later |
-| **3.1** | header protection with a key and padding of the payload; designed against statistical and behavioural analysis | `awg31` · 51822 · 10.66.31.0/24 | AmneziaVPN 5.0.1.5 or later |
+| **1.5** | junk packets and signature packets `I1`–`I5` that imitate other UDP protocols (QUIC, DNS…) at the start of a session | `awg15` · 10.66.15.0/24 | an app that supports AmneziaWG 1.5 |
+| **2.0** | random padding on every packet type (`S3`, `S4`), header values from ranges instead of fixed numbers | `awg20` · 10.66.20.0/24 | AmneziaVPN 4.8.12.9 or later |
+| **3.1** | header protection with a key and padding of the payload; designed against statistical and behavioural analysis | `awg31` · 10.66.31.0/24 | AmneziaVPN 5.0.1.5 or later |
 
 Amnezia describes 3.1 as the newest and most block-resistant version and recommends trying a
 different version (and, for 3.1, adjusting `I1` and lowering the MTU) if a connection is unstable
 in a given network. Giving a person several versions is exactly for that.
+
+**The UDP port is chosen per server.** The well-known 51820–51822 are fingerprinted by censors, so each
+version gets its own free pseudo-random port (10240–32000), picked once when AmneziaWG is enabled and kept
+across updates. You see the ports in the installer plan and report, on the AmneziaWG screen and in every
+client config. To choose your own, see below.
 
 The server is [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), built in the node's
 container from a pinned commit; the obfuscation parameters of each version are generated once per
@@ -58,9 +63,12 @@ TOML (see the [installer reference](docs/INSTALLER_REFERENCE.en.md) for every ke
 enabled  = true
 versions = ["1.5", "2.0", "3.1"]
 host     = "vpn.example.com"   # defaults to the panel domain
+# ports  = { "1.5" = 23456, "2.0" = 24567, "3.1" = 25678 }   # optional: your own UDP ports (any subset)
 ```
 
-The installer turns on IPv4 forwarding, opens the UDP ports and allows forwarding for the tunnel
+The ports are random and free unless you name them: in the TOML `ports` (above), in the wizard (it shows
+the random ones; press Enter to accept or type a comma list in version order), or with `--ports` of the
+script below. The installer turns on IPv4 forwarding, opens the UDP ports and allows forwarding for the tunnel
 interfaces in the firewall it manages (on a server whose firewall it does not manage, open the ports
 and allow forwarding yourself), builds the container and checks that every version answers.
 On a server whose firewall the installer does not manage (no `ufw`, Docker's forwarding policy is `DROP`), open the UDP ports and install `deploy/awg-forward.service` as a systemd unit: it lets the tunnel interfaces through Docker's forwarding chain after every start of Docker.
@@ -79,8 +87,10 @@ It copies the manager and its Compose overlay, creates the token and the state d
 are never touched), writes `.env.amneziawg`, turns on IPv4 forwarding, opens the UDP ports and the forwarding
 rules in `ufw` (or installs `awg-forward.service` when there is no `ufw`), adds the overlay to the version
 agent's list, rebuilds the manager and the panel and checks that every version answers. `--versions`,
-`--mtu` and `--dns` narrow the defaults. A host behind a home router also needs UDP 51820–51822 forwarded to
-it.
+`--mtu` and `--dns` narrow the defaults. The ports are random and free like the installer's, kept on a re-run, and
+printed at the end («clients dial HOST on UDP …»); `--ports 1.5=23456,2.0=24567` sets some or all of them (the
+rest are picked, the `ufw` rules of changed ports are removed). A host behind a home router also needs the
+chosen UDP ports forwarded to it.
 
 ## The AmneziaWG screen
 

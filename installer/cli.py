@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, TextIO
 
+from installer.awg_ports import resolve_awg_ports
 from installer.config import ConfigError, load_config
 from installer.i18n import Locale, parse_locale, text
 from installer.model import InstallerConfig
@@ -188,7 +189,7 @@ def _default_services(root: Path, source_dir: Path | None = None) -> CliServices
         engine=engine,
         store=store,
         wizard=lambda io, locale, output: TerminalWizard(
-            io, locale=locale, config_output=output
+            io, locale=locale, config_output=output, root=root
         ),
     )
 
@@ -208,7 +209,7 @@ def run(
         if args.command == "wizard":
             return _wizard(args, composed, terminal, stdout)
         if args.command == "plan":
-            config, plan = _plan_from_path(args.config, composed)
+            config, plan = _plan_from_path(args.config, composed, args.root)
             del config
             _write_plan(plan, json_output=args.json, output=stdout)
             return 0
@@ -376,7 +377,7 @@ def _automated_install(
     services: CliServices,
     output: TextIO,
 ) -> int:
-    _config, plan = _plan_from_path(args.config, services)
+    _config, plan = _plan_from_path(args.config, services, args.root)
     accepted = args.accept_plan
     if not _HEX_64.fullmatch(accepted):
         raise CliError("--accept-plan requires the complete plan digest")
@@ -401,7 +402,7 @@ def _write_reports(
     output: TextIO,
 ) -> int:
     """Aggregate only named evidence from the durable transaction journal."""
-    config = load_config(args.config)
+    config = resolve_awg_ports(load_config(args.config), root=args.root)
     state = _read_status(services, args.root)
     if state.status != "active":
         raise CliError("a report requires a completed installation")
@@ -466,9 +467,13 @@ def _write_reports(
 def _plan_from_path(
     path: Path,
     services: CliServices,
+    root: Path = Path("/"),
 ) -> tuple[InstallerConfig, InstallPlan]:
     config = load_config(path)
     facts = services.audit(config)
+    # AmneziaWG ports the TOML does not name are picked here, from the host's identity and the
+    # audited listeners, so `plan` and `install --accept-plan` agree on them.
+    config = resolve_awg_ports(config, root=root, listeners=facts.listeners)
     plan = services.plan(config, facts)
     _validate_plan(config, facts, plan)
     return config, plan

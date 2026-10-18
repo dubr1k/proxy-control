@@ -11,10 +11,10 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol, TextIO, TypeVar
 
+from installer.awg_ports import bound_ports, machine_id, pick_ports
 from installer.config import ConfigError, parse_config, render_config
 from installer.i18n import Locale, locale_from_environment, parse_locale, text
 from installer.model import (
-    AWG_DEFAULT_PORTS,
     AWG_VERSIONS,
     DEFAULT_LANE_SLOTS,
     DEFAULT_RELAY_PORT,
@@ -368,9 +368,13 @@ class TerminalWizard:
         *,
         locale: Locale | None = None,
         config_output: Path = Path("proxy-control.toml"),
+        root: Path = Path("/"),
     ):
         self.io = io
         self.locale = locale
+        # Where `/etc/machine-id` is read from, for the pre-chosen AmneziaWG ports.
+        self.root = Path(root)
+        self._facts = AuditFacts()
         self.config_output = Path(config_output)
         # What the operator typed, handed to the CLI on «apply» (never written there).
         self.credentials: OperatorCredentials | None = None
@@ -379,6 +383,7 @@ class TerminalWizard:
         if not isinstance(facts, AuditFacts):
             raise TypeError("facts must be AuditFacts")
         facts.stable_dict()
+        self._facts = facts
         default_locale = self.locale or locale_from_environment(
             os.environ.get("LC_ALL") or os.environ.get("LANG")
         )
@@ -562,7 +567,7 @@ class TerminalWizard:
         public name. It needs no domain of its own; ports, MTU and DNS are TOML-only."""
         assert self.locale is not None
         if not self.io.yes_no(text(self.locale, "amneziawg"), default=False):
-            for key in ("awg_versions", "awg_host"):
+            for key in ("awg_versions", "awg_host", "awg_ports", "awg_port_map"):
                 values.pop(key, None)
             values["awg"] = False
             return
@@ -577,6 +582,31 @@ class TerminalWizard:
             _awg_host,
             default=str(values.get("awg_host") or values["panel"]),
         )
+        values["awg_ports"] = self._awg_ports(values)
+
+    def _awg_ports(self, values: dict[str, object]) -> str:
+        """The UDP ports, in version order. The default is a free pseudo-random pick (the same
+        derivation the installer uses, never a well-known port); a typed list overrides it."""
+        assert self.locale is not None
+        versions = tuple(str(values["awg_versions"]).split(","))
+        # An earlier answer for a version that is still selected stays the default.
+        previous = values.get("awg_port_map")
+        kept = {v: p for v, p in previous.items() if v in versions} if isinstance(previous, dict) else {}
+        taken = {int(p) for key in ("mieru_tcp", "mieru_udp") for p in values.get(key, ())}  # type: ignore[attr-defined]
+        taken |= bound_ports(self._facts.listeners)
+        picks = pick_ports(
+            versions,
+            identity=machine_id(self.root),
+            taken=taken,
+            fixed=kept,
+        )
+        value = self.io.validated(
+            text(self.locale, "amneziawg_ports", versions=", ".join(versions), count=len(versions)),
+            _awg_ports(len(versions)),
+            default=",".join(str(picks[v]) for v in versions),
+        )
+        values["awg_port_map"] = dict(zip(versions, (int(port) for port in value.split(",")), strict=True))
+        return value
 
     def _egress_choices(self, values: dict[str, object]) -> None:
         """Each proxy service chooses its initial egress (`[egress]`, v0.4). The router is
@@ -704,7 +734,7 @@ class TerminalWizard:
                 AmneziaWgConfig(
                     host=str(values["awg_host"]),
                     versions=tuple(str(values["awg_versions"]).split(",")),
-                    ports=tuple(AWG_DEFAULT_PORTS[v] for v in str(values["awg_versions"]).split(",")),
+                    ports=tuple(int(port) for port in str(values["awg_ports"]).split(",")),
                 )
                 if values.get("awg")
                 else None
@@ -862,6 +892,21 @@ def _awg_versions(value: str) -> str:
     if not parts or len(parts) != len(set(parts)) or any(part not in AWG_VERSIONS for part in parts):
         raise PromptValidationError("invalid_awg_versions")
     return ",".join(version for version in AWG_VERSIONS if version in parts)
+
+
+def _awg_ports(count: int) -> Callable[[str], str]:
+    """`count` distinct UDP ports, comma-separated, in the order of the chosen versions."""
+
+    def validate(value: str) -> str:
+        parts = [part.strip() for part in value.split(",")]
+        if len(parts) != count or not all(part.isdigit() for part in parts):
+            raise PromptValidationError("invalid_awg_ports", count=count)
+        ports = [int(part) for part in parts]
+        if len(set(ports)) != count or not all(1024 <= port <= 65535 for port in ports):
+            raise PromptValidationError("invalid_awg_ports", count=count)
+        return ",".join(str(port) for port in ports)
+
+    return validate
 
 
 def _awg_host(value: str) -> str:

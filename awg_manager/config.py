@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Mapping
 
 KNOWN_VERSIONS = ("1.5", "2.0", "3.1")
+# Lab-only fallback: the installer and scripts/enable-amneziawg.sh always pass AWG_PORTS (free
+# pseudo-random ports); these well-known ports are fingerprinted, so never rely on them on a host.
 DEFAULT_PORTS = {"1.5": 51820, "2.0": 51821, "3.1": 51822}
 DEFAULT_SUBNETS = {"1.5": "10.66.15.0/24", "2.0": "10.66.20.0/24", "3.1": "10.66.31.0/24"}
 LOG_LEVELS = ("verbose", "error", "silent")

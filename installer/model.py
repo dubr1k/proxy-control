@@ -133,9 +133,9 @@ class EgressConfig:
 
 # AmneziaWG (the optional `[amneziawg]` add-on): one amneziawg-go process per enabled
 # version, each on its own UDP port, host interface and tunnel subnet. These are the
-# defaults `awg_manager.config` and `compose.amneziawg.yaml` carry as well.
+# ports are NOT defaulted: well-known ports are fingerprinted, so a version without an explicit
+# port gets a pseudo-random free one (`installer.awg_ports`); 0 below means «not yet assigned».
 AWG_VERSIONS = ("1.5", "2.0", "3.1")
-AWG_DEFAULT_PORTS: dict[str, int] = {"1.5": 51820, "2.0": 51821, "3.1": 51822}
 AWG_DEFAULT_SUBNETS: dict[str, str] = {
     "1.5": "10.66.15.0/24",
     "2.0": "10.66.20.0/24",
@@ -159,7 +159,7 @@ class AmneziaWgConfig:
 
     host: str
     versions: tuple[str, ...] = AWG_VERSIONS
-    ports: tuple[int, ...] = tuple(AWG_DEFAULT_PORTS[version] for version in AWG_VERSIONS)
+    ports: tuple[int, ...] = (0, 0, 0)
     mtu: int = AWG_DEFAULT_MTU
     dns: tuple[str, ...] = AWG_DEFAULT_DNS
 

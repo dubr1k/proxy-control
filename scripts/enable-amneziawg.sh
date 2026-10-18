@@ -8,18 +8,26 @@
 # to the version agent's compose list, brings awg-manager and the panel up and checks the result.
 # Server keys in /var/lib/awg-manager are never touched.
 #
+# UDP ports: the well-known 51820-51822 are fingerprinted, so by default every version gets a free
+# pseudo-random port in 10240-32000 derived from /etc/machine-id (stable per host; the same derivation
+# as the installer's). --ports names some or all of them (1.5=P,2.0=P,3.1=P; the rest are picked).
+# A re-run keeps the ports already in .env.amneziawg unless --ports changes them; the ufw rules of
+# ports that changed are removed. The chosen ports are printed at the end.
+#
 #   sudo scripts/enable-amneziawg.sh --host vpn.example.com [--dir /opt/mtproxy-shared443]
-#        [--versions 1.5,2.0,3.1] [--mtu 1280] [--dns 1.1.1.1,1.0.0.1]
+#        [--versions 1.5,2.0,3.1] [--ports 1.5=23456,2.0=24567,3.1=25678]
+#        [--mtu 1280] [--dns 1.1.1.1,1.0.0.1]
 set -euo pipefail
 
-usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { awk 'NR >= 2 { if (/^set -euo/) exit; print }' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-DIR=/opt/mtproxy-shared443 HOST="" VERSIONS=1.5,2.0,3.1 MTU=1280 DNS=1.1.1.1,1.0.0.1
+DIR=/opt/mtproxy-shared443 HOST="" VERSIONS=1.5,2.0,3.1 MTU=1280 DNS=1.1.1.1,1.0.0.1 PORTS_ARG=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --host) HOST=${2:?}; shift 2 ;;
     --dir) DIR=${2:?}; shift 2 ;;
     --versions) VERSIONS=${2:?}; shift 2 ;;
+    --ports) PORTS_ARG=${2:?}; shift 2 ;;
     --mtu) MTU=${2:?}; shift 2 ;;
     --dns) DNS=${2:?}; shift 2 ;;
     -h|--help) usage 0 ;;
@@ -34,15 +42,75 @@ done
 [[ -d $SRC/awg_manager && -f $SRC/compose.amneziawg.yaml ]] || { echo "run this script from an unpacked release" >&2; exit 2; }
 [[ -c /dev/net/tun ]] || { echo "/dev/net/tun is missing on this host" >&2; exit 2; }
 
-declare -A PORT=([1.5]=51820 [2.0]=51821 [3.1]=51822) SUBNET=([1.5]=10.66.15.0/24 [2.0]=10.66.20.0/24 [3.1]=10.66.31.0/24)
+declare -A SUBNET=([1.5]=10.66.15.0/24 [2.0]=10.66.20.0/24 [3.1]=10.66.31.0/24)
+declare -A PORT=() GIVEN=() OLD=()
 IFS=, read -r -a VERS <<< "$VERSIONS"
-PORTS="" SUBNETS=""
 for v in "${VERS[@]}"; do
-  [[ -n ${PORT[$v]:-} ]] || { echo "unsupported version: $v (1.5, 2.0, 3.1)" >&2; exit 2; }
-  if ss -H -lun 2>/dev/null | grep -qE ":${PORT[$v]}\b" && ! docker ps --format '{{.Names}}' | grep -qx proxy-control-awg-manager; then
-    echo "UDP ${PORT[$v]} is already in use by another program" >&2; exit 2
+  [[ -n ${SUBNET[$v]:-} ]] || { echo "unsupported version: $v (1.5, 2.0, 3.1)" >&2; exit 2; }
+done
+# --ports: any subset of the selected versions; every number is a UDP port a client can dial
+if [[ -n $PORTS_ARG ]]; then
+  IFS=, read -r -a ENTRIES <<< "$PORTS_ARG"
+  for entry in "${ENTRIES[@]}"; do
+    [[ $entry =~ ^(1\.5|2\.0|3\.1)=([0-9]{4,5})$ ]] || { echo "invalid --ports entry: $entry (use 1.5=P,2.0=P,3.1=P)" >&2; exit 2; }
+    v=${BASH_REMATCH[1]} p=${BASH_REMATCH[2]}
+    [[ -n ${SUBNET[$v]:-} && " ${VERS[*]} " == *" $v "* ]] || { echo "--ports names version $v, which is not in --versions" >&2; exit 2; }
+    (( 10#$p >= 1024 && 10#$p <= 65535 )) || { echo "--ports $v: $p is outside 1024-65535" >&2; exit 2; }
+    GIVEN[$v]=$((10#$p))
+  done
+fi
+# the ports of an earlier run (kept unless --ports names the version)
+if [[ -f $DIR/.env.amneziawg ]]; then
+  OLD_LINE=$(sed -n 's/^AWG_PORTS=//p' "$DIR/.env.amneziawg" | tail -n1)
+  IFS=, read -r -a OLD_ENTRIES <<< "$OLD_LINE"
+  for entry in "${OLD_ENTRIES[@]}"; do
+    if [[ $entry =~ ^(1\.5|2\.0|3\.1)=([0-9]{4,5})$ ]]; then OLD[${BASH_REMATCH[1]}]=${BASH_REMATCH[2]}; fi
+  done
+fi
+# listeners already bound on the host (UDP and TCP); the ports of an earlier run are ours
+BOUND=$( { ss -H -lun 2>/dev/null; ss -H -ltn 2>/dev/null; } | awk '{n=split($4,a,":"); print a[n]}' | sort -un | tr '\n' ' ')
+for v in "${VERS[@]}"; do
+  if [[ -n ${GIVEN[$v]:-} ]]; then PORT[$v]=${GIVEN[$v]}
+  elif [[ -n ${OLD[$v]:-} ]]; then PORT[$v]=${OLD[$v]}; fi
+done
+# every other version: a free pseudo-random port, derived exactly like the installer does
+NEED=()
+for v in "${VERS[@]}"; do [[ -n ${PORT[$v]:-} ]] || NEED+=("$v"); done
+if (( ${#NEED[@]} )); then
+  PICKED=$(python3 - "$BOUND" "${PORT[@]}" -- "${NEED[@]}" <<'PY'
+import hashlib, socket, sys
+bound_arg, *rest = sys.argv[1:]
+split = rest.index("--")
+fixed, need = rest[:split], rest[split + 1:]
+taken = {int(p) for p in bound_arg.split()} | {int(p) for p in fixed}
+try:
+    ident = open("/etc/machine-id").read().strip() or socket.gethostname()
+except OSError:
+    ident = socket.gethostname()
+for version in need:
+    for attempt in range(4096):
+        port = 10240 + int.from_bytes(hashlib.sha256(f"{ident}:{version}:{attempt}".encode()).digest(), "big") % 21761
+        if port not in taken:
+            taken.add(port)
+            print(f"{version}={port}")
+            break
+    else:
+        sys.exit("no free port found")
+PY
+  )
+  for entry in $PICKED; do PORT[${entry%%=*}]=${entry#*=}; done
+fi
+PORTS="" SUBNETS=""
+declare -A SEEN=()
+for v in "${VERS[@]}"; do
+  p=${PORT[$v]}
+  [[ -z ${SEEN[$p]:-} ]] || { echo "UDP $p is chosen twice; the ports must be distinct" >&2; exit 2; }
+  SEEN[$p]=1
+  # a port the earlier run holds is ours; anything else bound there belongs to another program
+  if [[ " $BOUND " == *" $p "* && ${OLD[$v]:-} != "$p" ]]; then
+    echo "port $p (version $v) is already in use by another program" >&2; exit 2
   fi
-  PORTS+="${PORTS:+,}$v=${PORT[$v]}"; SUBNETS+="${SUBNETS:+,}$v=${SUBNET[$v]}"
+  PORTS+="${PORTS:+,}$v=$p"; SUBNETS+="${SUBNETS:+,}$v=${SUBNET[$v]}"
 done
 
 echo "== files"
@@ -76,6 +144,13 @@ printf '# Managed by Proxy Control (AmneziaWG): the tunnels forward clients'"'"'
   > /etc/sysctl.d/99-proxy-control-amneziawg.conf
 sysctl -p /etc/sysctl.d/99-proxy-control-amneziawg.conf >/dev/null
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q 'Status: active'; then
+  # ports of an earlier run that this run no longer uses lose their rules
+  for v in "${!OLD[@]}"; do
+    if [[ " ${PORT[*]} " != *" ${OLD[$v]} "* ]] && ufw status | grep -q "proxy-control:firewall:udp:${OLD[$v]}\b"; then
+      ufw delete allow "${OLD[$v]}/udp" >/dev/null
+      echo "ufw: removed the rule for the previous UDP port ${OLD[$v]}"
+    fi
+  done
   for v in "${VERS[@]}"; do
     ufw allow "${PORT[$v]}/udp" comment "proxy-control:firewall:udp:${PORT[$v]}" >/dev/null
     ufw route allow in on "awg${v/./}" comment "proxy-control:firewall:route:awg${v/./}" >/dev/null
@@ -114,4 +189,4 @@ systemctl try-restart version-agent.service 2>/dev/null || true
 echo "== check"
 docker exec proxy-control-awg-manager python -m awg_manager.healthcheck
 for v in "${VERS[@]}"; do ip link show "awg${v/./}" >/dev/null; done
-echo "AmneziaWG is enabled: versions $VERSIONS, clients dial $HOST (UDP $PORTS)"
+echo "AmneziaWG is enabled: versions $VERSIONS, clients dial $HOST on UDP $PORTS"

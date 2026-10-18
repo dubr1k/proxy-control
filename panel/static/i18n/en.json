@@ -1551,5 +1551,13 @@
  "мин назад": "min ago",
  "принято / отдано узлом": "received / sent by the node",
  "только что": "just now",
- "ч назад": "h ago"
+ "ч назад": "h ago",
+ "AmneziaWG доступ": "AmneziaWG access",
+ "Версии между собой несовместимы: клиентское приложение должно поддерживать выбранную.": "The versions are not compatible with each other: the client app must support the one you pick.",
+ "Доступ ещё выдаётся, он появится в списке": "The access is still being issued and will appear in the list",
+ "Нажмите «+ AmneziaWG доступ» вверху справа.": "Press «+ AmneziaWG access» at the top right.",
+ "Новый AmneziaWG-доступ": "New AmneziaWG access",
+ "Создаётся клиент с этим именем и по одному доступу на каждую отмеченную версию. Конфиг с ключом и QR показываются после выдачи; пересоздать их позже можно ротацией в окне доступа.": "A client with this name is created, with one access per ticked version. The config with the key and the QR are shown after issuing; they can be renewed later by rotation in the access window.",
+ "и порту своей версии. Новый доступ — кнопка «+ AmneziaWG доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Конфиг с ключом показывает окно доступа.": "and the port of their version. A new access is the «+ AmneziaWG access» button at the top; the same access can also be given from a client card («Nodes and accesses»). The access window shows the config with the key.",
+ "например, my-phone": "for example, my-phone"
 }

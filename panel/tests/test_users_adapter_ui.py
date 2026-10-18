@@ -315,7 +315,7 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     assert "function proxyLink" in modules["access"] and "navigationGeneration" in modules["state"]
     # Every name field (MTProxy, Naive, Mieru, admin) takes the same characters,
     # underscore included.
-    assert text.count(r'pattern="[A-Za-z0-9_.\-]+"') == 4
+    assert text.count(r'pattern="[A-Za-z0-9_.\-]+"') == 5
     assert 'value="cancel" formnovalidate' in text
     assert 'id="create-user" type="button" disabled' in text
     assert 'data-view="naive"' in text and 'id="naive-modal"' in text

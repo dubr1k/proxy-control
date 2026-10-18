@@ -15,7 +15,9 @@ mtproxy = "relay.example.com"
 enabled = true
 versions = ["1.5", "2.0", "3.1"]
 host = "panel.example.com"
-ports = { "1.5" = 51820, "2.0" = 51821, "3.1" = 51822 }
+# UDP ports: by default every version gets a random free port, chosen per server (the well-known
+# 51820-51822 are fingerprinted by censors). Optional manual override, any subset of the versions:
+# ports = { "1.5" = 23456, "2.0" = 24567, "3.1" = 25678 }
 mtu = 1280
 dns = ["1.1.1.1", "1.0.0.1"]
 

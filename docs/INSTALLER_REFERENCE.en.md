@@ -154,7 +154,8 @@ mieru = "direct"               # direct | warp | router — the initial egress o
 enabled = true
 versions = ["1.5", "2.0", "3.1"]   # a subset; default all three
 host = "panel.example.com"         # DNS name or IPv4 the clients dial; default: domains.panel
-ports = { "1.5" = 51820, "2.0" = 51821, "3.1" = 51822 }   # UDP, 1024-65535, distinct
+# ports = { "1.5" = 23456, "2.0" = 24567, "3.1" = 25678 }   # optional manual choice: UDP, 1024-65535, distinct;
+#                                  # omitted versions get a random free port (see below)
 mtu = 1280                         # 1280-1420
 dns = ["1.1.1.1", "1.0.0.1"]       # one to four addresses handed to clients
 
@@ -187,7 +188,19 @@ over UDP straight to this server, so the panel domain works as long as it points
 and is not proxied by a CDN; `host` may also be an IPv4 address. Each selected version needs a
 distinct UDP port that collides with no port the installer plans (80, 443, Mieru's ports, the
 managers' and router's ports, the panel's private TLS port), and `ports` may name selected
-versions only. The tunnel subnets (`10.66.15.0/24`, `10.66.20.0/24`, `10.66.31.0/24`) are fixed.
+versions only.
+
+**Ports are random by default.** The well-known 51820–51822 are fingerprinted by censors, so the
+installer never defaults to them. A version without a `ports` entry gets a free pseudo-random UDP
+port in 10240–32000 (below the ephemeral range), derived from
+`sha256("<machine-id>:<version>:<attempt>")` (`/etc/machine-id` of the host, its name when absent).
+A candidate that the installer plans for something else, that is bound on the host or already taken
+by another version is skipped (`attempt` is raised), so the three ports are distinct and free. The
+same host always derives the same ports, so `plan` and `install --accept-plan` agree and the plan
+digest is stable; the ports an installed host already runs (`AWG_PORTS` in `.env.amneziawg`) are kept
+as they are, and an update never changes them. They are part of the plan and the report. To choose
+your own, name them in `ports` (any subset), or type them in the wizard, which shows the random ones
+as the default (Enter accepts; a comma list in version order overrides). The tunnel subnets (`10.66.15.0/24`, `10.66.20.0/24`, `10.66.31.0/24`) are fixed.
 
 ### Shared 443 with a foreign PROXY-protocol frontend
 

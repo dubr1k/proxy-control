@@ -110,7 +110,7 @@ Client ── TCP/443 ──► Nginx stream + SNI
 | Telemt API | `mtproxy:9091` | Only inside the Compose network |
 | Mieru | TCP ports you choose | Public; port 443 is not used |
 | Mieru control | `/run/mita/mita.sock` | Only a local Unix socket |
-| AmneziaWG (optional) | UDP 51820, 51821, 51822 by default | Public, straight over UDP; management is the `awg-manager` container's Unix socket |
+| AmneziaWG (optional) | One UDP port per version, random and free, chosen per server (or yours) | Public, straight over UDP; management is the `awg-manager` container's Unix socket |
 | Fleet v1 ingress | TCP/8790 | Only HTTPS with mTLS, when this optional component is enabled |
 
 A fresh installation preserves the panel client IP through the shared Nginx entry. If
@@ -133,8 +133,7 @@ Containers are named `proxy-control-*`; the Compose project is `mtproxy`.
   `stream` owns port 443, and its routes file has **exactly one** clear
   `$ssl_preread_server_name` map.
 - The local ports in the table above are free.
-- For the optional AmneziaWG: the `/dev/net/tun` device on the server, free UDP ports
-  (51820, 51821, 51822 by default) and a name that reaches the server directly over UDP,
+- For the optional AmneziaWG: the `/dev/net/tun` device on the server, a name that reaches the server directly over UDP,
   without a CDN. No new domain is needed — the panel domain will do.
 - Your own backup of Nginx, services, routes and Docker state.
 
@@ -287,8 +286,9 @@ disabled UFW with SSH allowed as the first rule.
 **AmneziaWG.** An optional VPN for any profile: yes/no, then the versions (all three by
 default — `1.5`, `2.0`, `3.1`) and the name or IPv4 address clients connect to (the panel
 domain by default; it must point straight at the server and not be proxied). No new domain
-is needed. The ports (51820/51821/51822), MTU and DNS are set in the TOML only (the
-`[amneziawg]` section). The installer builds the `awg-manager` image from the pinned
+is needed. The UDP ports are random and free, picked per server (never the well-known 51820–51822
+that censors fingerprint): the wizard shows them and lets you type your own, the TOML takes
+`ports`. MTU and DNS are set in the TOML only (the `[amneziawg]` section). The installer builds the `awg-manager` image from the pinned
 amneziawg-go commit, creates `/var/lib/awg-manager` (the server keys) and the IPv4 forwarding
 sysctl file. In `fresh` mode with UFW it opens the UDP ports and forwarding on the `awg15`,
 `awg20` and `awg31` interfaces; otherwise open those UDP ports and allow forwarding on the

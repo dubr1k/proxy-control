@@ -155,8 +155,8 @@ AmneziaWG (необязательно): секция [amneziawg] в install.toml
   по UDP напрямую к серверу по имени (по умолчанию — домен панели; он должен указывать
   на сервер и не проксироваться) или по IPv4. Установщик создаёт каталог
   /var/lib/awg-manager (ключи сервера), файл /etc/sysctl.d/99-proxy-control-amneziawg.conf
-  (net.ipv4.ip_forward = 1) и открывает в UFW UDP-порты 51820, 51821, 51822 (можно
-  изменить) и маршрутизацию на интерфейсах awg15, awg20, awg31; без управляемого UFW
+  (net.ipv4.ip_forward = 1) и открывает в UFW UDP-порты версий (случайные свободные,
+  свои на каждый сервер; можно задать свои) и маршрутизацию на интерфейсах awg15, awg20, awg31; без управляемого UFW
   откройте эти порты и разрешите пересылку сами. Нужен /dev/net/tun на хосте.
 
 Обновление уже установленного хоста (с v1.1): скачайте install-release.sh и .sha256
@@ -245,7 +245,7 @@ AmneziaWG (optional): the [amneziawg] section of install.toml or the wizard's qu
   UDP straight to the server by name (the panel domain by default; it must point at the
   server and not be proxied) or by IPv4. The installer creates /var/lib/awg-manager (the
   server keys), /etc/sysctl.d/99-proxy-control-amneziawg.conf (net.ipv4.ip_forward = 1) and
-  opens UDP 51820, 51821 and 51822 (changeable) plus forwarding on the awg15, awg20 and
+  opens one random free UDP port per version (chosen per server; you can set your own) plus forwarding on the awg15, awg20 and
   awg31 interfaces in UFW; without a UFW the installer manages, open the ports and allow
   forwarding yourself. /dev/net/tun must exist on the host.
 

@@ -145,6 +145,18 @@ try:
     ev("document.querySelector('[data-awg-action=open]').click()")
     wait("document.querySelector('#grant-window')?.open && !!document.querySelector('[data-grant-action=show]')", "access-window-from-screen")
     shot("screen-open")
+    # issue an access from the screen itself
+    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
+    assert ev("!document.querySelector('#add').hidden") is True, "the add button is hidden on the AmneziaWG screen"
+    ev("document.querySelector('#add').click()")
+    wait("document.querySelector('#awg-modal')?.open", "awg-modal")
+    ev("(() => { const i = document.querySelector('#new-awg-user'); i.value = 'screen-made'; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelector('[data-awg-version=\"3.1\"]').click(); })()")
+    wait("!document.querySelector('#create-awg').disabled", "awg-create-enabled")
+    ev("document.querySelector('#create-awg').click()")
+    wait("document.querySelector('#bundle-modal')?.open && document.querySelectorAll('#bundle-body textarea.awg-conf').length === 2", "awg-bundle-from-screen")
+    ev("[...document.querySelectorAll('dialog[open]')].forEach(d => d.close())")
+    wait("[...document.querySelectorAll('.data-row .identity b')].some(e => e.textContent.trim() === 'screen-made-awg20') && [...document.querySelectorAll('.data-row .identity b')].some(e => e.textContent.trim() === 'screen-made-awg31')", "screen-made-rows")
+    shot("screen-issued")
     print("UI_AWG_OK errors=", errors)
 finally:
     proc.terminate()

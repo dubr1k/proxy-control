@@ -26,7 +26,7 @@ from installer.adapters.firewall import (
     parse_ufw_status,
 )
 from installer.config import ConfigError, parse_config, render_config
-from installer.model import AWG_DEFAULT_PORTS, AWG_VERSIONS, HostMode
+from installer.model import AWG_VERSIONS, HostMode
 from installer.planner import (
     Action,
     AuditFacts,
@@ -83,8 +83,21 @@ manage_ufw = true
 """
 
 
+# Fixture ports (the installer itself never defaults to these well-known ones): the adapter tests
+# below need a resolved configuration, so `cfg` assigns them to the versions the TOML leaves open.
+TEST_PORTS = {"1.5": 51820, "2.0": 51821, "3.1": 51822}
+
+
+def assign_test_ports(config):
+    awg = config.amneziawg
+    if awg is None or all(awg.ports):
+        return config
+    ports = tuple(port or TEST_PORTS[version] for version, port in zip(awg.versions, awg.ports, strict=True))
+    return dataclasses.replace(config, amneziawg=dataclasses.replace(awg, ports=ports))
+
+
 def cfg(extra: str = "[amneziawg]\nenabled = true\n", *, ufw: str = "true"):
-    return parse_config(BASE.format(extra=extra, ufw=ufw))
+    return assign_test_ports(parse_config(BASE.format(extra=extra, ufw=ufw)))
 
 
 # -- configuration ---------------------------------------------------------------------
@@ -94,7 +107,7 @@ def test_the_defaults_cover_all_three_versions_and_the_panel_name():
     awg = cfg().amneziawg
     assert awg is not None
     assert awg.versions == AWG_VERSIONS == ("1.5", "2.0", "3.1")
-    assert awg.port_map() == AWG_DEFAULT_PORTS == {"1.5": 51820, "2.0": 51821, "3.1": 51822}
+    assert awg.port_map() == TEST_PORTS
     assert awg.host == "panel.example.com"
     assert awg.mtu == 1280 and awg.dns == ("1.1.1.1", "1.0.0.1")
     assert awg.interfaces() == ("awg15", "awg20", "awg31")
@@ -142,7 +155,7 @@ def test_the_host_is_normalised_dns_name_or_ipv4():
         ('[amneziawg]\nenabled = true\nhost = "localhost"\n', "DNS name or an IPv4"),
         ('[amneziawg]\nenabled = true\nports = { "1.5" = 80 }\n', "between 1024 and 65535"),
         ('[amneziawg]\nenabled = true\nports = { "1.5" = 70000 }\n', "between 1024 and 65535"),
-        ('[amneziawg]\nenabled = true\nports = { "1.5" = 51821 }\n', "distinct"),
+        ('[amneziawg]\nenabled = true\nports = { "1.5" = 51821, "2.0" = 51821 }\n', "distinct"),
         ('[amneziawg]\nenabled = true\nports = { "9.9" = 51821 }\n', "unknown amneziawg version"),
         ('[amneziawg]\nenabled = true\nversions = ["1.5"]\nports = { "2.0" = 51821 }\n', "not enabled"),
         ('[amneziawg]\nenabled = true\nports = { "1.5" = "x" }\n', "must be an integer"),
@@ -331,6 +344,7 @@ def test_without_a_managed_ufw_the_plan_tells_the_operator_to_open_the_ports(tmp
     assert any("operator opens the selected UDP ports" in item for item in action.preconditions)
     coexist = parse_config(BASE.format(extra="[amneziawg]\nenabled = true\n", ufw="false").replace(
         'host_mode = "fresh"', 'host_mode = "coexist"'))
+    coexist = assign_test_ports(coexist)
     assert coexist.host_mode is HostMode.COEXIST
     _, action = planned(tmp_path, coexist)
     assert any("operator opens the selected UDP ports" in item for item in action.preconditions)
@@ -886,7 +900,7 @@ def test_the_install_script_describes_the_add_on_in_both_languages():
     script = (ROOT / "scripts" / "install-release.sh").read_text()
     assert script.count("AmneziaWG") >= 8
     for needle in ("amneziawg-go", "/var/lib/awg-manager", "/dev/net/tun", "99-proxy-control-amneziawg.conf",
-                   "awg15, awg20, awg31", "awg15, awg20 and", "[amneziawg]", "51820, 51821, 51822"):
+                   "awg15, awg20, awg31", "awg15, awg20 and", "[amneziawg]", "random free UDP port"):
         assert needle in script, needle
 
 
@@ -908,11 +922,184 @@ def test_the_overlay_and_the_manager_defaults_agree_with_the_installer_model():
     from installer.model import AWG_DEFAULT_SUBNETS, awg_interface
 
     assert tuple(KNOWN_VERSIONS) == AWG_VERSIONS
-    assert DEFAULT_PORTS == AWG_DEFAULT_PORTS and DEFAULT_SUBNETS == AWG_DEFAULT_SUBNETS
+    # the manager's and the overlay's fallback ports are lab-only; the installer has no such default
+    assert DEFAULT_PORTS == TEST_PORTS and DEFAULT_SUBNETS == AWG_DEFAULT_SUBNETS
     assert all(interface_name(v) == awg_interface(v) for v in AWG_VERSIONS)
     overlay = (ROOT / "compose.amneziawg.yaml").read_text()
-    for version, port in AWG_DEFAULT_PORTS.items():
+    for version, port in TEST_PORTS.items():
         assert f"{version}={port}" in overlay
+    assert "lab acceptance scripts only" in overlay
     for name in ("AWG_MANAGER_TOKEN_FILE", "AWG_MANAGER_STATE_DIR", "AWG_VERSIONS", "AWG_PORTS", "AWG_SUBNETS",
                  "AWG_MTU", "AWG_DNS", "AWG_MANAGER_SOCKET_GID", "AMNEZIAWG_PUBLIC_HOST"):
         assert name in overlay, name
+
+
+# -- random free ports (installer.awg_ports) --------------------------------------------
+
+from installer.awg_ports import (  # noqa: E402
+    PORT_HIGH,
+    PORT_LOW,
+    derive_port,
+    installed_ports,
+    machine_id,
+    pick_ports,
+    resolve_awg_ports,
+)
+
+
+def raw(extra: str = "[amneziawg]\nenabled = true\n"):
+    """The configuration as parsed: ports the TOML does not name are 0 (unassigned)."""
+    return parse_config(BASE.format(extra=extra, ufw="true"))
+
+
+def host_root(tmp_path: Path, identity: str | None = "host-a") -> Path:
+    root = tmp_path / "root"
+    (root / "etc").mkdir(parents=True, exist_ok=True)
+    if identity is not None:
+        (root / "etc/machine-id").write_text(identity + "\n")
+    return root
+
+
+def test_an_unnamed_port_is_left_unassigned_by_the_parser_and_never_a_well_known_default():
+    awg = raw().amneziawg
+    assert awg.ports == (0, 0, 0)
+    assert "ports" not in render_config(raw())
+    partial = raw('[amneziawg]\nenabled = true\nports = { "2.0" = 40000 }\n').amneziawg
+    assert partial.ports == (0, 40000, 0)
+    assert parse_config(render_config(raw('[amneziawg]\nenabled = true\nports = { "2.0" = 40000 }\n'))) == raw(
+        '[amneziawg]\nenabled = true\nports = { "2.0" = 40000 }\n')
+
+
+def test_the_derivation_is_sha256_of_machine_id_version_and_attempt():
+    import hashlib
+
+    digest = hashlib.sha256(b"abc:2.0:0").digest()
+    assert derive_port("abc", "2.0", 0) == 10240 + int.from_bytes(digest, "big") % 21761
+    assert PORT_LOW == 10240 and PORT_HIGH == 32000
+
+
+def test_same_root_same_ports_and_a_different_machine_id_other_ports(tmp_path: Path):
+    root = host_root(tmp_path)
+    first = resolve_awg_ports(raw(), root=root).amneziawg.ports
+    assert resolve_awg_ports(raw(), root=root).amneziawg.ports == first
+    other = resolve_awg_ports(raw(), root=host_root(tmp_path / "b", "host-b")).amneziawg.ports
+    assert other != first
+    assert len(set(first)) == 3 and all(PORT_LOW <= port <= PORT_HIGH for port in first)
+    assert not set(first) & {51820, 51821, 51822}
+
+
+def test_without_a_machine_id_the_host_name_is_used(tmp_path: Path, monkeypatch):
+    import socket
+
+    monkeypatch.setattr(socket, "gethostname", lambda: "lab-host")
+    assert machine_id(host_root(tmp_path, None)) == "lab-host"
+    assert resolve_awg_ports(raw(), root=host_root(tmp_path, None)).amneziawg.ports == \
+        resolve_awg_ports(raw(), root=host_root(tmp_path / "x", None)).amneziawg.ports
+
+
+def test_planned_and_bound_ports_are_skipped_and_the_picks_stay_distinct(tmp_path: Path):
+    root = host_root(tmp_path)
+    plain = resolve_awg_ports(raw(), root=root).amneziawg.port_map()
+    # the first candidate of 1.5 is bound (TCP or UDP, a foreign program): the next attempt is used
+    for kind in ("udp", "tcp"):
+        listeners = {kind: [plain["1.5"]]}
+        moved = resolve_awg_ports(raw(), root=root, listeners=listeners).amneziawg.port_map()
+        assert moved["1.5"] == derive_port("host-a", "1.5", 1) and moved["1.5"] != plain["1.5"]
+        assert moved["2.0"] == plain["2.0"] and len(set(moved.values())) == 3
+    # a planned Mieru port is skipped too
+    mieru = parse_config(MIERU_BASE.format(extra="[amneziawg]\nenabled = true\n").replace(
+        "tcp_ports = [46001]", f"tcp_ports = [{plain['3.1']}]"))
+    assert resolve_awg_ports(mieru, root=root).amneziawg.port_map()["3.1"] != plain["3.1"]
+    # two candidates colliding with each other: the later version moves on
+    assert pick_ports(("1.5", "2.0"), identity="x", taken={derive_port("x", "2.0", 0)})["2.0"] == derive_port("x", "2.0", 1)
+
+
+def test_pick_ports_never_returns_a_taken_port_even_after_many_collisions():
+    taken = {derive_port("busy", "1.5", attempt) for attempt in range(40)}
+    port = pick_ports(("1.5",), identity="busy", taken=taken)["1.5"]
+    assert port == derive_port("busy", "1.5", 40) and port not in taken
+
+
+def test_a_partial_ports_table_fills_only_the_rest(tmp_path: Path):
+    root = host_root(tmp_path)
+    config = resolve_awg_ports(raw('[amneziawg]\nenabled = true\nports = { "2.0" = 40000 }\n'), root=root)
+    ports = config.amneziawg.port_map()
+    assert ports["2.0"] == 40000 and ports["1.5"] != 40000 and ports["3.1"] != 40000
+    assert PORT_LOW <= ports["1.5"] <= PORT_HIGH and len({*ports.values()}) == 3
+
+
+def test_manual_ports_are_validated_as_before_and_untouched_by_the_resolver(tmp_path: Path):
+    manual = raw('[amneziawg]\nenabled = true\nports = { "1.5" = 23456, "2.0" = 23457, "3.1" = 23458 }\n')
+    assert resolve_awg_ports(manual, root=host_root(tmp_path)) is manual
+    with pytest.raises(ConfigError, match="distinct"):
+        raw('[amneziawg]\nenabled = true\nports = { "1.5" = 23456, "2.0" = 23456 }\n')
+    with pytest.raises(ConfigError, match="between 1024 and 65535"):
+        raw('[amneziawg]\nenabled = true\nports = { "3.1" = 80 }\n')
+
+
+def test_the_plan_is_stable_across_two_plan_calls_and_refuses_unassigned_ports(tmp_path: Path):
+    root = host_root(tmp_path)
+    make_root(tmp_path)
+    plans = []
+    for _ in range(2):
+        config = resolve_awg_ports(raw(), root=root, listeners={"udp": [], "tcp": [22]})
+        (action,) = AmneziaWgAdapter(root=tmp_path, runner=FakeRunner()).plan(config, AuditFacts())
+        plans.append(action)
+    assert plans[0] == plans[1]
+    ports = ",".join(f"{v}:{p}" for v, p in resolve_awg_ports(raw(), root=root).amneziawg.port_map().items())
+    assert f"ports={ports}" in plans[0].mutations
+    with pytest.raises(AmneziaWgError, match="not assigned"):
+        AmneziaWgAdapter(root=tmp_path, runner=FakeRunner()).plan(raw(), AuditFacts())
+
+
+def test_the_installers_own_running_manager_keeps_its_ports(tmp_path: Path):
+    root = host_root(tmp_path)
+    first = resolve_awg_ports(raw(), root=root).amneziawg.port_map()
+    # replanned on an installed host: the ports are UDP listeners of our own amneziawg-go
+    own = {"udp": list(first.values()),
+           "owners": {str(port): ["amneziawg-go"] for port in first.values()}}
+    assert resolve_awg_ports(raw(), root=root, listeners=own).amneziawg.port_map() == first
+    # a foreign owner is not accepted: the pick moves away
+    foreign = {"udp": [first["1.5"]], "owners": {str(first["1.5"]): ["wireguard"]}}
+    assert resolve_awg_ports(raw(), root=root, listeners=foreign).amneziawg.port_map()["1.5"] != first["1.5"]
+    # and the adapter accepts the held ports exactly like before
+    facts = AuditFacts(listeners=own)
+    make_root(tmp_path)
+    assert AmneziaWgAdapter(root=tmp_path, runner=FakeRunner()).plan(resolve_awg_ports(raw(), root=root, listeners=own), facts)
+
+
+def test_an_installed_hosts_env_overlay_wins_over_the_derivation(tmp_path: Path):
+    root = host_root(tmp_path)
+    project = root / "opt/mtproxy-shared443"
+    project.mkdir(parents=True)
+    (project / ".env.amneziawg").write_text("AWG_VERSIONS=1.5,2.0,3.1\nAWG_PORTS=1.5=20001,2.0=20002,3.1=20003\n")
+    assert installed_ports(root) == {"1.5": 20001, "2.0": 20002, "3.1": 20003}
+    assert resolve_awg_ports(raw(), root=root).amneziawg.ports == (20001, 20002, 20003)
+    # an explicit TOML entry still beats the installed one
+    mixed = resolve_awg_ports(raw('[amneziawg]\nenabled = true\nports = { "2.0" = 30000 }\n'), root=root)
+    assert mixed.amneziawg.ports == (20001, 30000, 20003)
+    (project / ".env.amneziawg").write_text("AWG_PORTS=1.5=20001,2.0=20001\n")
+    assert installed_ports(root) == {}
+
+
+def test_the_cli_plan_digest_is_identical_between_plan_and_install_and_the_report_shows_the_ports(tmp_path: Path):
+    from installer import cli
+
+    root = host_root(tmp_path)
+    toml = tmp_path / "proxy-control.toml"
+    toml.write_text(BASE.format(extra="[amneziawg]\nenabled = true\n", ufw="true"))
+    seen = []
+
+    class Services:
+        def audit(self, config):
+            return AuditFacts(listeners={"udp": [], "tcp": [22]})
+
+        def plan(self, config, facts):
+            seen.append(config)
+            raise cli.CliError("stop")
+
+    for _ in range(2):
+        with pytest.raises(cli.CliError):
+            cli._plan_from_path(toml, Services(), root)
+    assert seen[0] == seen[1] and all(seen[0].amneziawg.ports)
+    assert seen[0].amneziawg.port_map() == resolve_awg_ports(raw(), root=root).amneziawg.port_map()

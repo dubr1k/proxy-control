@@ -11,7 +11,6 @@ from typing import Any, TypeVar
 from installer.model import (
     AWG_DEFAULT_DNS,
     AWG_DEFAULT_MTU,
-    AWG_DEFAULT_PORTS,
     AWG_VERSIONS,
     DEFAULT_LANE_SLOTS,
     DEFAULT_RELAY_PORT,
@@ -184,14 +183,14 @@ def render_config(config: InstallerConfig) -> str:
 
     if config.amneziawg is not None:
         awg = config.amneziawg
-        ports = ", ".join(f"{_toml_string(version)} = {port}" for version, port in awg.port_map().items())
+        ports = ", ".join(f"{_toml_string(version)} = {port}" for version, port in awg.port_map().items() if port)
         lines.extend([
             "",
             "[amneziawg]",
             "enabled = true",
             f"versions = {_toml_array(awg.versions)}",
             f"host = {_toml_string(awg.host)}",
-            f"ports = {{ {ports} }}",
+            *([f"ports = {{ {ports} }}"] if ports else []),
             f"mtu = {awg.mtu}",
             f"dns = {_toml_array(awg.dns)}",
         ])
@@ -468,11 +467,15 @@ def _parse_amneziawg(value: object, domains: DomainConfig) -> AmneziaWgConfig | 
             raise ConfigError(f"amneziawg.ports names version {version}, which is not enabled")
     ports: list[int] = []
     for version in selected:
-        port = _integer(ports_raw.get(version, AWG_DEFAULT_PORTS[version]), f"amneziawg.ports.{version}")
+        if version not in ports_raw:
+            ports.append(0)  # assigned later: a free pseudo-random port (installer.awg_ports)
+            continue
+        port = _integer(ports_raw[version], f"amneziawg.ports.{version}")
         if not 1024 <= port <= 65535:
             raise ConfigError(f"amneziawg.ports.{version} must be between 1024 and 65535")
         ports.append(port)
-    if len(set(ports)) != len(ports):
+    given = [port for port in ports if port]
+    if len(set(given)) != len(given):
         raise ConfigError("amneziawg.ports must be distinct")
     mtu = _integer(raw.get("mtu", AWG_DEFAULT_MTU), "amneziawg.mtu")
     if not 1280 <= mtu <= 1420:
@@ -596,7 +599,7 @@ def _reject_amneziawg_port_collisions(config: InstallerConfig) -> None:
         return
     planned = planned_ports(config)
     for version, port in config.amneziawg.port_map().items():
-        if port in planned:
+        if port and port in planned:
             raise ConfigError(f"amneziawg.ports.{version}: {port} is taken by {planned[port]}")
 
 
