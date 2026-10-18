@@ -4,6 +4,7 @@ import { handleAuditClick, handleAuditSubmit, renderAudit } from "./audit.js";
 import { bindClients, handleClientsClick, handleClientsInput, openClientModal, renderClients } from "./clients.js";
 import { query, queryAll } from "./common.js";
 import { renderDashboard } from "./dashboard.js";
+import { refreshNavCounts, startNavCountsRefresh } from "./nav-counts.js";
 import { createGrantDialog } from "./grant.js";
 import { handleFleetChange, handleFleetClick, handleFleetSubmit } from "./fleet.js";
 import { bindKeys, handleKeysClick } from "./keys.js";
@@ -302,6 +303,9 @@ async function initialise(context) {
     // не оставляет оператора ни с чем — он попадает на «Обзор», адрес выправляется.
     const requested = viewFromHash(window.location.hash);
     const start = requested && allowedView(context, requested) ? requested : FALLBACK_VIEW;
+    // The sidebar numbers do not wait for a visit to each section.
+    void refreshNavCounts(context);
+    startNavCountsRefresh(context);
     await context.navigate(start, { address: "replace" });
   } catch (error) {
     context.ui.renderError(error);

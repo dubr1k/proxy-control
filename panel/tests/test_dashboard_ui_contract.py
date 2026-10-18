@@ -86,7 +86,9 @@ def test_accent_is_one_variable_and_a_per_browser_choice():
 def test_clients_badge_is_painted_from_the_clients_list():
     common = (STATIC / "js/common.js").read_text()
     assert "export function paintClientsCount(context, total)" in common
-    assert '"/api/clients"' in DASHBOARD and "paintClientsCount(context" in DASHBOARD
+    # The list is read by the shared badge module (start-up and the overview), painted by the same call.
+    assert '"/api/clients"' in (STATIC / "js/nav-counts.js").read_text()
+    assert "clientsCount" in DASHBOARD and "paintClientsCount(context" in DASHBOARD
     # The paginated list's badge is exercised against the rendered DOM in
     # test_clients_filters_ui, including a search returning only one row.
     assert 'id="clients-count"' in (STATIC / "index.html").read_text()

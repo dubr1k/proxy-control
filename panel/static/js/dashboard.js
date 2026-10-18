@@ -1,38 +1,7 @@
 import { bytes, esc, icon, locale, number, paintClientsCount, query } from "./common.js";
+import { clientsCount, fleetCount, paintNavCounts } from "./nav-counts.js";
 import { isCurrent } from "./state.js";
 import { refreshUsers } from "./users.js";
-
-async function fleetCount(context) {
-  try {
-    return ((await context.api("/api/fleet/nodes")).items || []).length;
-  } catch {
-    return null;
-  }
-}
-
-async function clientsCount(context) {
-  try {
-    return ((await context.api("/api/clients")).items || []).length;
-  } catch {
-    return null;
-  }
-}
-
-function paintNavCounts(context, data, nodes) {
-  const protocols = data.protocols || {};
-  const set = (selector, credentials) => {
-    const badge = query(selector, context.root);
-    if (badge) badge.textContent = credentials && credentials.available !== false && credentials.total != null
-      ? credentials.total
-      : "—";
-  };
-  set("#mieru-count", protocols.mieru?.credentials);
-  set("#naive-count", protocols.naive?.credentials);
-  set("#amneziawg-count", protocols.amneziawg?.credentials);
-  set("#trusttunnel-count", protocols.trusttunnel?.credentials);
-  const fleet = query("#fleet-count", context.root);
-  if (fleet) fleet.textContent = nodes ?? "—";
-}
 
 // Above this the resource is the story, so the bar turns amber then red; below
 // it a filled bar would cry wolf on a server that is simply being used.
