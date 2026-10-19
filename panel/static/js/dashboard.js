@@ -104,6 +104,12 @@ async function followHost(context, generation) {
   }
 }
 
+// One line of «Состояние сервисов» for a protocol that is switched on: green when its manager is ready.
+function serviceRow(name, available, ready, status) {
+  if (!available) return "";
+  return `<div class="service-row ${ready ? "" : "degraded"}"><i></i><span><b>${name}</b><small>${ready ? "Manager работает" : "Manager недоступен"}</small></span><em>${esc(status || (ready ? "ready" : "degraded"))}</em></div>`;
+}
+
 export async function renderDashboard(context, generation) {
   const { api, root, state, ui } = context;
   const [data, users, nodes, clients] = await Promise.all([
@@ -179,6 +185,9 @@ export async function renderDashboard(context, generation) {
   <div class="dashboard-grid"><section class="panel-card"><div class="panel-head"><h2>Состояние сервисов</h2><span>обновлено сейчас</span></div><div class="service-list">
     <div class="service-row ${mtReady ? "" : "degraded"}"><i></i><span><b>MTProxy · Telemt</b><small>${mtReady ? "Control API отвечает" : "Проверьте Telemt"}</small></span><em>${esc(mt.status || "degraded")}</em></div>
     <div class="service-row ${naiveReady || !naiveAvailable ? "" : "degraded"}"><i></i><span><b>NaiveProxy · manager</b><small>${naiveState}</small></span><em>${esc(naive.status)}</em></div>
+    ${serviceRow("Mieru · manager", mieruAvailable, mieruReady, mieru.status)}
+    ${serviceRow("AmneziaWG · manager", awgAvailable, awgReady, awg.status)}
+    ${serviceRow("TrustTunnel · manager", ttAvailable, ttReady, tt.status)}
     <div class="service-row ${location.protocol === "https:" ? "" : "degraded"}"><i></i><span><b>Proxy Control${state.me?.panel_version ? ` · ${esc(state.me.panel_version)}` : ""}</b><small>${location.protocol === "https:" ? "HTTPS · защищённое соединение" : "HTTP · соединение не защищено"}</small></span><em>${location.protocol === "https:" ? "secure" : "insecure"}</em></div>
   </div></section></div>`;
   fillBars(ui.view);

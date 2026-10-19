@@ -82,3 +82,11 @@ console.log(JSON.stringify({ live, naive: cells.alice.textContent, title: cells.
     assert out["live"]["idle"] == ""  # no fresh rate: nothing, not a zero
     assert out["quiet"] == ""  # an averaged row at zero is not shown: idle and mid-transfer look alike
     assert out["naive"].startswith("За минуту ↓ 3") and "закрывается" in out["title"]
+
+
+def test_the_services_list_on_the_overview_names_every_protocol_that_is_switched_on():
+    source = (JS / "dashboard.js").read_text()
+    for needle in ("MTProxy · Telemt", "NaiveProxy · manager", 'serviceRow("Mieru · manager"',
+                   'serviceRow("AmneziaWG · manager"', 'serviceRow("TrustTunnel · manager"'):
+        assert needle in source, needle
+    assert "if (!available) return \"\";" in source  # a protocol that is off has no line
