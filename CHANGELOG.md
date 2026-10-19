@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-19
+
+- **«Состояние сервисов» on the overview** lists every protocol that is switched on: Mieru, AmneziaWG and TrustTunnel join MTProxy and NaiveProxy (by their managers' state).
+- No breaking changes; the installer did not change.
+
 ## [2.2.0] - 2026-10-19
 
 - **Mieru in the clients table, live.** The Mieru manager serves cumulative per-user bytes (`GET /v1/traffic`, from `mita get metrics`; with lanes the running slots are added up) and the panel polls it every 5 seconds. The total rate stays with the kernel; without kernel counters it is computed from mita's counters (`source: "manager"`), and the `no_counters` reason is no longer reported.

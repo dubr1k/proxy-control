@@ -60,6 +60,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v2.2.1](releases/v2.2.1.md) — все протоколы в «Состоянии сервисов»
 - [v2.2.0](releases/v2.2.0.md) — мониторинг по клиентам для Mieru и NaiveProxy
 - [v2.1.0](releases/v2.1.0.md) — TrustTunnel: приложения-клиенты, подписка sing-box для форков ядра, данные для ручной настройки
 - [v2.0.1](releases/v2.0.1.md) — счётчики соединений в мониторе
@@ -140,6 +141,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v2.2.1](releases/v2.2.1.md) — every protocol in the services list
 - [v2.2.0](releases/v2.2.0.md) — per-client monitoring for Mieru and NaiveProxy
 - [v2.1.0](releases/v2.1.0.md) — TrustTunnel: client apps, a sing-box feed for fork cores, details for manual setup
 - [v2.0.1](releases/v2.0.1.md) — connection counters in the monitor
