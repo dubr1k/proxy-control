@@ -82,9 +82,11 @@ node addresses.
 
 | Overview | Step-by-step routing |
 |---|---|
-| [![Overview of the three proxy services and host resources](docs/releases/assets/v1.0.0/dashboard-en.png)](docs/releases/assets/v1.0.0/dashboard-en.png) | [![The four routing steps for NaiveProxy](docs/releases/assets/v1.0.0/routing-en.png)](docs/releases/assets/v1.0.0/routing-en.png) |
+| [![Overview of the five protocols and host resources](docs/releases/assets/v2.2.1/dashboard-en.png)](docs/releases/assets/v2.2.1/dashboard-en.png) | [![The four routing steps for NaiveProxy](docs/releases/assets/v2.2.1/routing-en.png)](docs/releases/assets/v2.2.1/routing-en.png) |
 
-[Mobile overview](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Clients with search](docs/releases/assets/v1.0.2/clients.png) · [Access window](docs/releases/assets/v1.0.2/grant-window.png) · [Clients on a phone](docs/releases/assets/v1.0.2/clients-phone.png) · [Built-in guide](docs/releases/assets/v1.0.0/routing-guide.png) · [Russian overview](docs/releases/assets/v1.0.0/dashboard.png) · [Russian routing](docs/releases/assets/v1.0.0/routing.png) · [Sign-in](docs/releases/assets/v1.0.0/login.png)
+[Mobile overview](docs/releases/assets/v2.2.1/dashboard-phone.png) · [Clients with search](docs/releases/assets/v2.2.1/clients.png) · [Access window](docs/releases/assets/v1.0.2/grant-window.png) · [Clients on a phone](docs/releases/assets/v2.2.1/clients-phone.png) · [Built-in guide](docs/releases/assets/v2.2.1/routing-guide.png) · [Russian overview](docs/releases/assets/v2.2.1/dashboard.png) · [Russian routing](docs/releases/assets/v2.2.1/routing.png) · [Sign-in](docs/releases/assets/v2.2.1/login.png)
+
+Live monitoring: [Now](docs/releases/assets/v2.2.1/monitoring-now.png) · [Traffic](docs/releases/assets/v2.2.1/monitoring-traffic.png) · [Nodes](docs/releases/assets/v2.2.1/monitoring-nodes.png) · [Now on a phone](docs/releases/assets/v2.2.1/monitoring-now-phone.png) · [Now in English](docs/releases/assets/v2.2.1/monitoring-now-en.png)
 
 ## How the shared port 443 works
 

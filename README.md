@@ -82,9 +82,11 @@ Proxy Control — отдельная панель управления прок�
 
 | Обзор | Маршрутизация по шагам |
 |---|---|
-| [![Обзор трёх прокси-служб и ресурсов сервера](docs/releases/assets/v1.0.0/dashboard.png)](docs/releases/assets/v1.0.0/dashboard.png) | [![Четыре шага маршрутизации NaiveProxy](docs/releases/assets/v1.0.0/routing.png)](docs/releases/assets/v1.0.0/routing.png) |
+| [![Обзор пяти протоколов и ресурсов сервера](docs/releases/assets/v2.2.1/dashboard.png)](docs/releases/assets/v2.2.1/dashboard.png) | [![Четыре шага маршрутизации NaiveProxy](docs/releases/assets/v2.2.1/routing.png)](docs/releases/assets/v2.2.1/routing.png) |
 
-[Мобильный обзор](docs/releases/assets/v1.0.0/dashboard-phone.png) · [Клиенты с поиском](docs/releases/assets/v1.0.2/clients.png) · [Окно доступа](docs/releases/assets/v1.0.2/grant-window.png) · [Клиенты на телефоне](docs/releases/assets/v1.0.2/clients-phone.png) · [Встроенная инструкция](docs/releases/assets/v1.0.0/routing-guide.png) · [Английский обзор](docs/releases/assets/v1.0.0/dashboard-en.png) · [Маршрутизация на английском](docs/releases/assets/v1.0.0/routing-en.png) · [Вход](docs/releases/assets/v1.0.0/login.png)
+[Мобильный обзор](docs/releases/assets/v2.2.1/dashboard-phone.png) · [Клиенты с поиском](docs/releases/assets/v2.2.1/clients.png) · [Окно доступа](docs/releases/assets/v1.0.2/grant-window.png) · [Клиенты на телефоне](docs/releases/assets/v2.2.1/clients-phone.png) · [Встроенная инструкция](docs/releases/assets/v2.2.1/routing-guide.png) · [Английский обзор](docs/releases/assets/v2.2.1/dashboard-en.png) · [Маршрутизация на английском](docs/releases/assets/v2.2.1/routing-en.png) · [Вход](docs/releases/assets/v2.2.1/login.png)
+
+Мониторинг в прямом эфире: [Сейчас](docs/releases/assets/v2.2.1/monitoring-now.png) · [Трафик](docs/releases/assets/v2.2.1/monitoring-traffic.png) · [Узлы](docs/releases/assets/v2.2.1/monitoring-nodes.png) · [Сейчас на телефоне](docs/releases/assets/v2.2.1/monitoring-now-phone.png) · [Сейчас на английском](docs/releases/assets/v2.2.1/monitoring-now-en.png)
 
 ## Как устроен общий порт 443
 
