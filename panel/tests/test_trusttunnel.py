@@ -274,9 +274,17 @@ async def test_the_link_and_the_config_are_built_from_escrow_alone():
     credential = new_credential("trusttunnel")
     applied = await adapter.create("op-1", _intent("carol"), CredentialPlan("caller", credential))
     grant = _grant(applied, "carol", name='Carol "phone"')
-    link, config = adapter.render_artifacts(grant, credential, public_host="fallback.example.com")
+    link, config, manual = adapter.render_artifacts(grant, credential, public_host="fallback.example.com")
     assert (link.kind, link.media_type) == ("trusttunnel_link", "text/uri-list")
     assert (config.kind, config.media_type) == ("trusttunnel_toml", "application/toml")
+    assert (manual.kind, manual.media_type) == ("trusttunnel_manual", "application/json")
+    fields = json.loads(manual.value)
+    assert fields == {
+        "server": "gate.example.com", "port": 443, "username": "carol", "password": credential.decode(),
+        "sni": "gate.example.com", "protocol": "HTTP/2", "quic": False,
+        "certificate_pem": tomllib.loads(config.value)["endpoint"]["certificate"],
+        "surge": f"trust-tunnel, gate.example.com, 443, username=carol, password={credential.decode()}",
+    }
 
     decoded = decode_deeplink(link.value)
     assert decoded["hostname"] == "gate.example.com" and decoded["addresses"] == ["gate.example.com:443"]
@@ -300,7 +308,8 @@ async def test_no_certificate_and_no_name_leave_those_keys_out():
     manager, adapter = _adapter()
     credential = new_credential("trusttunnel")
     applied = await adapter.create("op-1", _intent(), CredentialPlan("caller", credential))
-    link, config = adapter.render_artifacts(_grant(applied), credential, public_host="")
+    link, config, manual = adapter.render_artifacts(_grant(applied), credential, public_host="")
+    assert json.loads(manual.value)["certificate_pem"] is None
     decoded = decode_deeplink(link.value)
     assert "certificate" not in decoded and "name" not in decoded
     endpoint = tomllib.loads(config.value)["endpoint"]
@@ -331,7 +340,7 @@ def test_an_access_that_has_not_learned_its_endpoint_cannot_render():
     with pytest.raises(AdapterError, match="not learned"):
         adapter.render_artifacts(unlearned, b"password-1234", public_host="")
     # a host from the settings stands in for a hostname the access did not record
-    link, _ = adapter.render_artifacts(unlearned, b"password-1234", public_host="gate.example.com")
+    link, *_ = adapter.render_artifacts(unlearned, b"password-1234", public_host="gate.example.com")
     assert decode_deeplink(link.value)["hostname"] == "gate.example.com"
 
 
@@ -507,6 +516,9 @@ async def test_an_access_is_issued_shown_rotated_switched_off_and_deleted(api, t
     link, config = decode_deeplink(artifacts["trusttunnel_link"]["value"]), artifacts["trusttunnel_toml"]
     assert artifacts["trusttunnel_link"]["qr"].startswith("data:image/svg+xml;base64,")
     assert config["media_type"] == "application/toml" and "qr" in config and config["qr"] is None
+    manual = artifacts["trusttunnel_manual"]  # typed by hand, never scanned: no QR
+    assert manual["media_type"] == "application/json" and manual["qr"] is None
+    assert json.loads(manual["value"])["username"] == "alice-tt" and json.loads(manual["value"])["quic"] is False
     password = link["password"]
     assert link["username"] == "alice-tt" and link["name"] == "Alice phone" and tt.authenticates("alice-tt", password)
     assert tomllib.loads(config["value"])["endpoint"]["password"] == password
@@ -666,7 +678,7 @@ async def test_a_linked_node_applies_the_access_and_the_central_learns_its_detai
 
     host = public_hosts_for(central.state, node_id)["trusttunnel"]
     assert host == "gate.node.example"
-    link, _config = central.state.adapters["trusttunnel"].render_artifacts(grant, credential, public_host=host)
+    link, *_rest = central.state.adapters["trusttunnel"].render_artifacts(grant, credential, public_host=host)
     assert decode_deeplink(link.value)["addresses"] == ["gate.node.example:443"]
 
 

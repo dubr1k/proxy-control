@@ -5,7 +5,10 @@
 does not ship `tests/`, so the copy lives here, and
 `test_compatibility_matrix_follows_the_fixture…` fails the moment the two drift apart.
 
-A cell is `supported` only where auto-refresh was proven on the lab host, `unproven`
+A cell is `supported` where auto-refresh was proven on the lab host or, for a client whose
+core the vendor documents (the TrustTunnel cell of mihomo), where the note says "not verified
+by us"; the sing-box feed delivers TrustTunnel to the fork cores by User-Agent or `client=` whatever
+their cell says (Hiddify's was run against a real core; Throne's and NekoBox's were not); `unproven`
 where the client could plausibly work but nobody has shown it, and `unsupported` where
 the client has no way to consume that protocol at all. A missing cell is not allowed.
 """
@@ -59,8 +62,8 @@ MATRIX: dict[str, dict[str, str]] = {
         "shadowrocket": "unproven",
         "nekobox": "unproven",
         "v2rayn": "unproven",
-        "hiddify": "unsupported",
-        "throne": "unsupported",
+        "hiddify": "supported",
+        "throne": "unproven",
     },
 }
 
@@ -103,15 +106,15 @@ NOTES: dict[str, dict[str, str]] = {
     },
     "trusttunnel": {
         "karing": "ships a mihomo (Clash.Meta) core next to the sing-box one, but a trusttunnel proxy in a Clash feed is unverified in Karing; the sing-box cut has no TrustTunnel outbound",
-        "singbox": "sing-box has no TrustTunnel outbound",
-        "mihomo": "proxy type trusttunnel with server, port, username, password, udp, quic, skip-cert-verify (MetaCubeX wiki, config/proxies/trusttunnel); the same type also appears in other Clash.Meta-family cores",
+        "singbox": "upstream sing-box has no TrustTunnel outbound (planned: SagerNet/sing-box#3723, milestone 1.14); an official sing-box rejects an unknown outbound type and drops the whole config, so the feed never emits TrustTunnel for plain sing-box",
+        "mihomo": "proxy type trusttunnel with server, port, username, password, udp, quic, skip-cert-verify (MetaCubeX wiki, config/proxies/trusttunnel); documented by the core vendor, not verified by us; Clash Verge Rev, FlClash, Mihomo Party, ClashMi and the other Mihomo-core clients take it while their bundled core is recent",
         "mieru_cli": "single-protocol client",
         "telegram": "not a Telegram protocol",
-        "shadowrocket": "no verified TrustTunnel import format for our renderers; the tt:// link in the raw feed is for the official AdGuard TrustTunnel apps and CLI",
-        "nekobox": "no verified TrustTunnel import path",
+        "shadowrocket": "the TrustTunnel README lists Shadowrocket as a supporting client, but its import format is unverified: enter the server by hand or check whether it takes the tt:// link; no Clash or sing-box import is claimed",
+        "nekobox": "the feed carries the trusttunnel outbound for a NekoBox, NyameBox or NekoRay User-Agent and for ?format=singbox&client=nekobox; the NekoBox fork NyameBox (qr243vbi/nekobox) lists a trusttunnel outbound in its core fork, but we could not run that core: unverified",
         "v2rayn": "depends on the bundled core version; not verified against our clash renderer",
-        "hiddify": "sing-box based; sing-box has no TrustTunnel outbound",
-        "throne": "ThroneCore is a sing-box fork without a TrustTunnel outbound, and Throne's Clash parser takes no trusttunnel type",
+        "hiddify": "delivered by default in the sing-box subscription (a Hiddify User-Agent or ?format=singbox&client=hiddify); verified 2026-10-19 against hiddify-sing-box built from master ae5cb1488 (no release has the outbound yet): sing-box check passes, an official sing-box 1.14.3 refuses it as an unknown outbound type, and a request through it returned 200 with the traffic counted on the gate; health_check is not emitted because that build panicked with it on",
+        "throne": "the sing-box subscription carries the trusttunnel outbound for a Throne User-Agent or ?format=singbox&client=throne, and ThroneCore 1.4.0-beta.3 (sing-box v1.14.1 fork) contains the outbound, but whether Throne's subscription import keeps it is unverified; Throne does not import tt:// links (throneproj/Throne#1416), so the fallback is a profile created by hand (Ctrl+N, Type TrustTunnel, address, port, username, password, SNI; leave QUIC off)",
     },
 }
 

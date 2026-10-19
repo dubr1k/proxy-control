@@ -68,9 +68,15 @@ the app>"}`. The account is named like the others (`runtime_username`).
 - **Tell the owner about the restart**: the endpoint reads credentials only at start, so every new, changed or disabled access
   restarts it; changes within about two seconds are merged, active TrustTunnel sessions drop and the apps reconnect by
   themselves. Do not batch dozens of single grants at peak time.
-- **Not in every app**: sing-box, Karing's sing-box cut, Hiddify and Throne have no TrustTunnel outbound (the `singbox` feeds name
-  the gap, nothing breaks); mihomo is the one verified subscription client; Surge needs its `trust-tunnel` policy set up by hand.
-  `get_subscriptions_compatibility` gives the app × protocol matrix.
+- **Not in every app**: official sing-box and Karing's sing-box cut have no TrustTunnel outbound (those feeds name the gap, nothing
+  breaks). Throne, NekoBox/NyameBox/NekoRay and Hiddify run fork cores that have it, so their `singbox` feed carries it when the
+  User-Agent names them (or with `client=throne|nekobox|hiddify`; the `singbox-hiddify` and `singbox-nekobox` variants are those
+  URLs). Only Hiddify's core was run against our feed; Throne's subscription import is unverified. Throne does not import `tt://`
+  links: hand over the manual-setup block instead (Ctrl+N → Type «TrustTunnel» → server, port, username, password, SNI; QUIC off).
+  The access window and the subscription page show «Как подключить» (which app takes what) and «Данные для ручной настройки»
+  (the `trusttunnel_manual` artifact: server, port, username, password, SNI, HTTP/2, certificate PEM, Surge policy line) for
+  Throne, Surge, Shadowrocket and the like. mihomo is the other documented subscription client. `get_subscriptions_compatibility`
+  gives the app × protocol matrix.
 
 ## Link variants (`subscription.variants`)
 
@@ -78,7 +84,9 @@ the app>"}`. The account is named like the others (`runtime_username`).
 |---|---|---|
 | `singbox` | Karing (iPhone, Android, Windows) | NaiveProxy + Mieru; no MTProxy, no TrustTunnel |
 | `singbox-official` | official sing-box ≥ 1.13 | NaiveProxy only (no TrustTunnel) |
-| `clash` | mihomo, Clash-compatible apps | Mieru and TrustTunnel |
+| `singbox-hiddify` | Hiddify (hiddify-sing-box core) | TrustTunnel only (verified on a core built from source) |
+| `singbox-nekobox` | NekoBox / NyameBox / NekoRay | TrustTunnel only (core not run by us) |
+| `clash` | mihomo, Clash-compatible apps (Clash Verge Rev, FlClash, Mihomo Party, ClashMi) | Mieru and TrustTunnel |
 | `raw` | manual import, QR, Telegram | `tg://proxy`, `naive+https://`, `mierus://`, `tt://` one per line; no auto-refresh |
 
 In doubt, `get_subscriptions_compatibility` gives the app × protocol matrix. Karing: «Add profile →

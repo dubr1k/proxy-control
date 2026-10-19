@@ -18,7 +18,21 @@ const VARIANTS = [
     label: "sing-box JSON для Karing и Throne",
     clients: "Karing (оба ядра), Throne и другие клиенты на форке sing-box с Mieru",
     carries: "NaiveProxy и Mieru как outbound'ы; Throne 1.3.1 подключает Mieru по UDP, только если сервер задан IP-адресом, по TCP — всегда",
-    leaves: "MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже; TrustTunnel — в unsupported: у sing-box нет исходящего TrustTunnel",
+    leaves: "MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже; TrustTunnel — в unsupported для Karing: у официального sing-box нет исходящего TrustTunnel (Throne, NekoBox и Hiddify получают его по User-Agent или по параметру client)",
+  },
+  {
+    format: "singbox-hiddify",
+    label: "sing-box JSON с TrustTunnel для Hiddify",
+    clients: "Hiddify — ядро hiddify-sing-box с исходящим TrustTunnel; без параметра client Hiddify опознаётся по User-Agent",
+    carries: "TrustTunnel (HTTP/2 поверх TCP, QUIC выключен); документировано производителем, нами не проверено",
+    leaves: "NaiveProxy, Mieru и MTProxy — в unsupported; в официальный sing-box этот вариант не загружать: он отвергнет неизвестный outbound целиком",
+  },
+  {
+    format: "singbox-nekobox",
+    label: "sing-box JSON с TrustTunnel для NekoBox",
+    clients: "NekoBox на форке NyameBox (и NekoRay), у которого есть TrustTunnel; без параметра client опознаётся по User-Agent",
+    carries: "TrustTunnel (HTTP/2 поверх TCP, QUIC выключен); документировано производителем, нами не проверено",
+    leaves: "NaiveProxy, Mieru и MTProxy — в unsupported; в официальный sing-box этот вариант не загружать",
   },
   {
     format: "singbox-official",

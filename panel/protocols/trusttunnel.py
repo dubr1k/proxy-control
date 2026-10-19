@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import json
 import re
 import secrets
 
@@ -36,8 +37,8 @@ from .base import (
     egress_target_from_view,
 )
 
-LINK_KIND, TOML_KIND = "trusttunnel_link", "trusttunnel_toml"
-LINK_MEDIA_TYPE, TOML_MEDIA_TYPE = "text/uri-list", "application/toml"
+LINK_KIND, TOML_KIND, MANUAL_KIND = "trusttunnel_link", "trusttunnel_toml", "trusttunnel_manual"
+LINK_MEDIA_TYPE, TOML_MEDIA_TYPE, MANUAL_MEDIA_TYPE = "text/uri-list", "application/toml", "application/json"
 EGRESS_CAPABILITIES = ("whole_direct",)
 PASSWORD = re.compile(r"[\x21-\x7e]{8,128}")
 
@@ -164,6 +165,22 @@ def render_link(grant: AccessGrant, credential: bytes, *, public_host: str) -> s
                            password=password, certificate_der=certificate, name=options.name)
 
 
+def render_manual(grant: AccessGrant, credential: bytes, *, public_host: str) -> str:
+    """The fields a person types into a client that imports neither the `tt://` link nor the TOML
+    (Throne, Surge, Shadowrocket…), as one JSON object. TCP only: HTTP/2, QUIC off. The Surge policy
+    line is the vendor's documented form; it carries no certificate, so for an endpoint whose
+    certificate the system store does not trust the PEM below has to be trusted by the client."""
+    options, password = grant.options, parse_credential(credential)
+    host = _host(options, public_host)
+    port = options.port or 443
+    certificate = certificate_pem(options.certificate_der_b64) if options.certificate_der_b64 else None
+    return json.dumps({
+        "server": host, "port": port, "username": grant.runtime_username, "password": password, "sni": host,
+        "protocol": "HTTP/2", "quic": False, "certificate_pem": certificate,
+        "surge": f"trust-tunnel, {host}, {port}, username={grant.runtime_username}, password={password}",
+    }, ensure_ascii=False, indent=2)
+
+
 class TrusttunnelAdapter:
     protocol = "trusttunnel"
     credential_origin = "caller"
@@ -284,6 +301,8 @@ class TrusttunnelAdapter:
                            value=render_link(grant, credential, public_host=public_host)),
             AccessArtifact(kind=TOML_KIND, label="Конфиг TrustTunnel (TOML)", media_type=TOML_MEDIA_TYPE,
                            value=render_toml(grant, credential, public_host=public_host)),
+            AccessArtifact(kind=MANUAL_KIND, label="Данные для ручной настройки", media_type=MANUAL_MEDIA_TYPE,
+                           value=render_manual(grant, credential, public_host=public_host)),
         ]
 
     # ------------------------------------------------------------------

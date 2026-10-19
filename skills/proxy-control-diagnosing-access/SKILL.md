@@ -30,7 +30,7 @@ Mieru has no traffic counters (`traffic: null`); that does not mean «nobody con
 
 | Symptom | Cause |
 |---|---|
-| The protocol is missing from the app's server list | the link variant does not carry it (`singbox`: naive+mieru; `singbox-official`: naive; `clash`: mieru and trusttunnel; `raw`: everything, no refresh) or the app does not support it. TrustTunnel is never in a sing-box feed (sing-box has no outbound for it) |
+| The protocol is missing from the app's server list | the link variant does not carry it (`singbox`: naive+mieru; `singbox-official`: naive; `clash`: mieru and trusttunnel; `raw`: everything, no refresh) or the app does not support it. TrustTunnel is in a sing-box feed only for fork-core clients (a Throne, NekoBox, NyameBox, NekoRay or Hiddify User-Agent, or `client=throne|nekobox|hiddify`); official sing-box and Karing never get it (no outbound upstream) |
 | Mieru «connects» but no data flows | the app uses UDP or a port range; our Mieru is **TCP only**, server-side UDP was verified — the client side is at fault |
 | TrustTunnel: nobody connects, the manager is `degraded` | `get_dashboard` → `protocols.trusttunnel` (`status`, `ready`) or the node's `protocols.trusttunnel.daemon`; `degraded` with `certificate_missing` = the domain's certificate is not issued or readable (the owner issues it; the manager picks a renewal up by itself); `endpoint_down` = the endpoint process is not running |
 | TrustTunnel: the app is refused on connect | the profile holds an IP address or another name instead of the TrustTunnel **domain** (the endpoint accepts only that SNI), or the domain is behind a CDN proxy (it must be DNS only); a 407 means the name/password is wrong, the access is disabled, or a rotation replaced the password |

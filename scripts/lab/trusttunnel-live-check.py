@@ -81,7 +81,8 @@ def reveal():
 
 
 arts = reveal()
-check("artifact kinds", set(arts) == {"trusttunnel_link", "trusttunnel_toml"}, ",".join(sorted(arts)))
+check("artifact kinds", set(arts) == {"trusttunnel_link", "trusttunnel_toml", "trusttunnel_manual"}, ",".join(sorted(arts)))
+check("manual has no QR", arts["trusttunnel_manual"].get("qr") is None)
 check("link scheme", arts["trusttunnel_link"]["value"].startswith("tt://?"))
 check("link has QR", str(arts["trusttunnel_link"].get("qr", "")).startswith("data:image/svg+xml"))
 check("toml has no QR", arts["trusttunnel_toml"].get("qr") is None)

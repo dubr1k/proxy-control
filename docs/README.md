@@ -60,6 +60,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v2.1.0](releases/v2.1.0.md) — TrustTunnel: приложения-клиенты, подписка sing-box для форков ядра, данные для ручной настройки
 - [v2.0.1](releases/v2.0.1.md) — счётчики соединений в мониторе
 - [v2.0.0](releases/v2.0.0.md) — мониторинг в прямом эфире
 - [v1.6.0](releases/v1.6.0.md) — протокол TrustTunnel
@@ -138,6 +139,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v2.1.0](releases/v2.1.0.md) — TrustTunnel: client apps, a sing-box feed for fork cores, details for manual setup
 - [v2.0.1](releases/v2.0.1.md) — connection counters in the monitor
 - [v2.0.0](releases/v2.0.0.md) — live monitoring
 - [v1.6.0](releases/v1.6.0.md) — the TrustTunnel protocol

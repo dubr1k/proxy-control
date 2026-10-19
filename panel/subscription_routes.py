@@ -55,11 +55,32 @@ SHARE_VARIANTS = {
     "raw": "?format=raw",
     "singbox": "?format=singbox",
     "singbox-official": "?format=singbox&client=singbox",
+    # The fork cores that carry a TrustTunnel outbound (hiddify-sing-box, the NekoBox fork).
+    "singbox-hiddify": "?format=singbox&client=hiddify",
+    "singbox-nekobox": "?format=singbox&client=nekobox",
     "clash": "?format=clash",
 }
 # Which `client` values a format understands; anything else is the same 404 as an
 # unknown format.
-FORMAT_CLIENTS = {"singbox": ("karing", "singbox")}
+FORMAT_CLIENTS = {"singbox": ("karing", "singbox", "hiddify", "nekobox", "nyamebox", "throne")}
+# User-Agent tokens of the sing-box fork clients whose core has a TrustTunnel outbound; the first
+# match names the cut. Official sing-box (`sing-box`, SFA, SFI, SFM) and unknown agents match nothing
+# and keep the feed without it: an unknown outbound type makes an official sing-box drop the whole config.
+FORK_AGENTS = (("hiddify", "hiddify"), ("nyamebox", "nekobox"), ("nekobox", "nekobox"), ("nekoray", "nekobox"),
+               ("throne", "throne"))
+CLIENT_ALIASES = {"nyamebox": "nekobox"}
+
+
+def fork_client(user_agent: str, extra: str = "") -> str | None:
+    """The renderer client a fork-core User-Agent asks for, or None."""
+    agent = user_agent.lower()
+    for token, client in FORK_AGENTS:
+        if token in agent:
+            return client
+    for token in (item.strip().lower() for item in extra.split(",")):
+        if token and token in agent:
+            return "fork"
+    return None
 
 
 def _public(subscription) -> dict:
@@ -215,13 +236,20 @@ def register_subscription_routes(app, context: RequestContext) -> None:
             return refuse()
         if not TOKEN_RE.fullmatch(token):
             return refuse()
-        name = request.query_params.get("format") or negotiate(request.headers.get("accept", ""))
+        explicit = request.query_params.get("format")
+        user_agent = request.headers.get("user-agent", "")
+        forked = fork_client(user_agent, settings.singbox_fork_clients) if explicit in (None, "singbox") else None
+        # A fork-core client that names no format gets the sing-box JSON: that is where its core finds TrustTunnel.
+        name = explicit or ("singbox" if forked else negotiate(request.headers.get("accept", "")))
         renderer = RENDERERS.get(name)
         if renderer is None:
             return refuse()
         client = request.query_params.get("client")
         if client is not None and client not in FORMAT_CLIENTS.get(name, ()):
             return refuse()
+        if client is None and name == "singbox":
+            client = forked  # an explicit `client` always wins over the User-Agent
+        client = CLIENT_ALIASES.get(client, client)
         reservation = await asyncio.to_thread(
             app.state.store.reserve_login_attempt,
             [f"subscription:{context.client_ip(request)}"], FETCHES_PER_MINUTE, 60,
@@ -235,7 +263,7 @@ def register_subscription_routes(app, context: RequestContext) -> None:
         now = int(app.state.clock.time())
         headers = {
             "Cache-Control": "private, no-cache",
-            "Vary": "Accept",
+            "Vary": "Accept, User-Agent",
             "Profile-Update-Interval": str(found.update_interval_hours),
             "X-Robots-Tag": "noindex",
         }

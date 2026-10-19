@@ -95,22 +95,80 @@ TrustTunnel column of its own.
    the TOML with the command-line client. The official project and clients:
    [github.com/TrustTunnel/TrustTunnel](https://github.com/TrustTunnel/TrustTunnel).
 
-| What is needed | Format |
-|---|---|
-| AdGuard TrustTunnel app (iOS, Android) | the `tt://?…` link or the QR |
-| Command-line client | the TOML config |
-| Clash/mihomo | a `type: trusttunnel` entry in the subscription feed |
-| Surge | the `trust-tunnel` policy, set up by hand from the TOML's values |
-| sing-box, Hiddify, Throne (the sing-box family) | **not supported**: sing-box has no TrustTunnel outbound, so the sing-box feed leaves it out with a note |
-
-Compatibility per subscription client (`supported` / `unproven` / `unsupported`) is in
-[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): mihomo is `supported`; Karing, Shadowrocket, NekoBox and v2rayN
-are `unproven`; sing-box, Throne, Hiddify, Mieru CLI and Telegram are `unsupported`.
+The full list of apps is in [«Clients»](#clients) below; the access window in the panel shows the same list in a
+«How to connect» block, with a «Details for manual setup» card.
 
 Through the API an access is `protocol: "trusttunnel"` (in the MCP `set_client_placement` the `options` field is
 optional: `{"name": "<profile>"}`). **Rotation** issues a new password: the old link stops working.
 **Disabling** removes the access from the endpoint's credentials but keeps the password: after enabling, the
 same link works again; **deleting** removes the account.
+
+## Clients
+
+What takes a TrustTunnel access and how. Compiled from the vendors' documentation (checked 2026-10-19); **«not
+verified by us»** means the panel has not run that client itself.
+
+| App | Platforms | How to import | Verified by us |
+|---|---|---|---|
+| [AdGuard TrustTunnel](https://apps.apple.com/us/app/trusttunnel/id6755807890) ([Google Play](https://play.google.com/store/apps/details?id=com.adguard.trusttunnel)) | iOS, Android (macOS and Windows «coming soon») | the `tt://?…` link or the QR | yes (official client) |
+| [TrustTunnel CLI](https://github.com/TrustTunnel/TrustTunnelClient) | Linux, macOS, Windows | the TOML file | yes (official client) |
+| Throne | Windows, Linux, macOS, Android | **by hand**: Ctrl+N → Type «TrustTunnel» → address, port, username, password, SNI → OK; leave QUIC off | no |
+| [Surge](https://manual.nssurge.com/policies/trust-tunnel.html) | macOS 6.4.4+, iOS | the policy line `Proxy-TrustTunnel = trust-tunnel, <host>, <port>, username=<user>, password=<password>` (no `h3=true`: we are TCP-only) | no |
+| Clash Verge Rev, FlClash, Mihomo Party, ClashMi and other mihomo-core clients | Windows, macOS, Linux, Android, iOS | a Clash subscription (`?format=clash`); the bundled mihomo core must be recent | no |
+| Hiddify | Windows, macOS, Linux, Android, iOS | a sing-box subscription (`?format=singbox`; Hiddify is recognised by its User-Agent, or add `&client=hiddify`) | yes, on a core built from source (below) |
+| NekoBox (NyameBox fork), NekoRay | Android, Windows, Linux | a sing-box subscription (recognised by User-Agent, or add `&client=nekobox`) | no |
+| Shadowrocket | iOS | unverified: check whether it imports the `tt://` link, or enter the details by hand | no |
+| Trusty, TrustTunnel-GUI-Client, FireTunnel, FreeTunnel | Windows, macOS, Linux | unverified: check whether it imports the `tt://` link or TOML, or enter the details by hand | no |
+
+Community links: [Trusty](https://github.com/Meddelin/trusty), [TrustTunnel-GUI-Client](https://github.com/blazuryk/TrustTunnel-GUI-Client),
+[FireTunnel](https://github.com/pnsrc/firetunnel), [FreeTunnel](https://github.com/dimmmmmmmer/freetunnel).
+
+### Details for manual setup
+
+For Throne, Surge, Shadowrocket and the like, the access window (and the subscription page) shows a card: server,
+port, username, password (hidden until you press «Show»; the button copies it), SNI, protocol (**HTTP/2, QUIC off**),
+the certificate in PEM when the domain has its own, and the Surge policy line. It is the `trusttunnel_manual`
+artifact (`application/json`, no QR), built from the panel's store on request like the link and the TOML. Do not tick
+QUIC in the app: the server is TCP-only (HTTP/2); users reported QUIC problems with uTLS. A domain with a certificate
+from a trusted authority needs nothing more; otherwise the client has to trust the PEM shown.
+
+### The sing-box feed and fork cores
+
+**Official sing-box has no TrustTunnel outbound** (planned: [SagerNet/sing-box#3723](https://github.com/SagerNet/sing-box/issues/3723),
+milestone 1.14). Official sing-box, SFA and SFI reject a config with an unknown outbound type **as a whole**
+(`unknown outbound type: trusttunnel`), so for them, for Karing and for any unrecognised client the sing-box feed
+**does not carry** TrustTunnel and names the gap in `proxy_control.unsupported`. A `trusttunnel` outbound exists in
+fork cores: hiddify-sing-box (Hiddify), NyameBox (NekoBox) and ThroneCore (Throne 1.4.0-beta.3, on sing-box v1.14.1).
+
+The panel picks the feed by client, and TrustTunnel reaches a subscription like this:
+
+- a request with **no `format`** (or `format=singbox`) whose User-Agent contains `Throne`, `NekoBox`, `NyameBox`,
+  `NekoRay` or `Hiddify` gets the sing-box JSON with a `trusttunnel` outbound (Throne together with naive and mieru);
+- an explicit `&client=throne|nekobox|nyamebox|hiddify` turns it on whatever the User-Agent; an explicit
+  `&client=singbox` or `&client=karing` always stays without it;
+- `PANEL_SINGBOX_FORK_CLIENTS` is a comma-separated list of extra User-Agent parts (for example `karing,streisand`)
+  whose clients get the Karing feed plus TrustTunnel; it changes without a release (an environment variable of the panel container).
+
+The outbound the feed emits (TCP, HTTP/2, QUIC off; `insecure` only when the access carries its own certificate):
+
+```json
+{"type": "trusttunnel", "tag": "…", "server": "gate.example.org", "server_port": 443,
+ "username": "…", "password": "…", "quic": false,
+ "tls": {"enabled": true, "server_name": "gate.example.org"}}
+```
+
+The feed does not emit `health_check`: hiddify-sing-box (a build of master `ae5cb1488`) panics on the first connection
+when it is on. Live check (2026-10-19, `scripts/lab/trusttunnel-fork-core-check.py`): that build's `sing-box check`
+passes, a request through the outbound returns 200 with the traffic counted on the gate, and official sing-box 1.14.3
+rejects the same JSON. No hiddify-sing-box release has TrustTunnel yet (the latest, 1.13.0.h5, predates it), so a source
+build was tested. NekoBox and Throne: their cores contain the outbound, but we could not run it or check the
+subscription import, so their cells in the compatibility matrix are `unproven`. **If Throne ignores the outbound from
+the subscription, the fallback is the «Details for manual setup» card and a profile created by hand.**
+
+Compatibility per subscription client (`supported` / `unproven` / `unsupported`) is in
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): for `trusttunnel` mihomo is `supported` (by the core's documentation),
+Hiddify `supported` (verified on a core built from source); Karing, Shadowrocket, NekoBox, Throne and v2rayN are
+`unproven`; sing-box, Mieru CLI and Telegram are `unsupported`.
 
 ## Routing
 
@@ -138,7 +196,7 @@ Details: [`docs/ROUTING.en.md`](docs/ROUTING.en.md).
 - Capture («accept the access» without rotation) is not supported: the only copy of the password is the
   panel's store. Existing runtime users cannot be imported either.
 - No per-access traffic quota (traffic is counted and shown).
-- No lanes for individual clients (above). The sing-box feed does not contain it.
+- No lanes for individual clients (above). The sing-box feed does not carry it for official sing-box and unrecognised clients (see «Clients»).
 
 ## Backup
 

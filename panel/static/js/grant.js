@@ -3,6 +3,7 @@
 // The client card and the client window both open it by a click on the grant's row.
 import { bytes, esc, locale, query } from "./common.js";
 import { proxyLink, qrSource } from "./access.js";
+import { appsHtml, manualHtml, parseManual } from "./trusttunnel-clients.js";
 
 export const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
@@ -23,7 +24,7 @@ const OBSERVED = {
   failed: "ошибка",
   drifted: "расхождение",
 };
-const APPS = ["karing", "singbox", "mihomo", "throne"];
+const APPS = ["karing", "singbox", "mihomo", "throne", "hiddify", "nekobox"];
 const AUTO_REFRESH = { supported: "обновляется", unsupported: "не поддерживает", unproven: "не проверено" };
 const LANE_PROTOCOLS = new Set(["naive", "mieru"]);
 
@@ -268,7 +269,8 @@ export function createGrantDialog(context) {
         <span class="copy-field"><input readonly value="${esc(value)}" aria-label="${esc(label)}"><button type="button" class="copy" data-copy="${esc(value)}">Копировать</button></span>
       </label>
       ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код: ${esc(grant.runtime_username)}">` : ""}
-      <span class="link-card-actions">${telegram}${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.protocol)}-${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>${toml}`;
+      <span class="link-card-actions">${telegram}${qr ? `<a class="secondary button" href="${esc(qr)}" download="${esc(grant.protocol)}-${esc(grant.runtime_username)}.svg">Скачать QR</a>` : ""}</span>${toml}`
+      + (grant.protocol === "trusttunnel" ? `${state.link.manual ? manualHtml(state.link.manual) : ""}${appsHtml()}` : "");
   }
 
   function renderActions(client, grant) {
@@ -362,11 +364,14 @@ export function createGrantDialog(context) {
         qr: artifact.qr ? qrSource(artifact.qr) : null,
         label: artifact.label || (found.grant.protocol === "amneziawg" ? "Конфиг AmneziaWG" : "Ссылка"),
         toml: null,
+        manual: null,
       };
       const toml = artifacts.find((item) => item.kind === "trusttunnel_toml");
       if (found.grant.protocol === "trusttunnel" && toml && typeof toml.value === "string" && toml.value.length <= 65536) {
         state.link.toml = { value: toml.value, label: toml.label || "Конфиг TrustTunnel (TOML)" };
       }
+      const manual = artifacts.find((item) => item.kind === "trusttunnel_manual");
+      if (found.grant.protocol === "trusttunnel" && manual) state.link.manual = parseManual(manual.value);
     } catch (exception) {
       if (generation !== state.generation) return;
       state.link = null;

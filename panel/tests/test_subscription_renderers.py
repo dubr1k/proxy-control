@@ -400,7 +400,7 @@ def test_trusttunnel_grants_reach_the_renderers_with_both_artifacts(tt_feed):
     manifest, artifacts = tt_feed
     by_user = {grant.runtime_username: grant.grant_id for grant in manifest.grants}
     assert set(artifacts) == {by_user["trusted"], by_user["selfsigned"]}
-    assert [a.kind for a in artifacts[by_user["trusted"]]] == ["trusttunnel_link", "trusttunnel_toml"]
+    assert [a.kind for a in artifacts[by_user["trusted"]]] == ["trusttunnel_link", "trusttunnel_toml", "trusttunnel_manual"]
 
 
 def test_clash_emits_a_trusttunnel_proxy_with_exactly_the_documented_keys(tt_feed):
@@ -443,6 +443,48 @@ def test_singbox_names_the_gap_for_trusttunnel_and_stays_valid(tt_feed):
         assert "tt-pass" not in json.dumps(data)
 
 
+HIDDIFY_OUTBOUND = {
+    "type": "trusttunnel", "tag": None, "server": "gate.example.com", "server_port": 443,
+    "username": None, "password": TT_PASSWORD.decode(), "quic": False,
+    "tls": {"enabled": True, "server_name": "gate.example.com"},
+}
+
+
+@pytest.mark.parametrize("client", ["hiddify", "nekobox"])
+def test_singbox_emits_the_trusttunnel_outbound_only_for_a_fork_core_client(tt_feed, client):
+    manifest, artifacts = tt_feed
+    data = json.loads(RENDERERS["singbox"].render(manifest, artifacts, client=client))
+    outbounds = {item["username"]: item for item in data["outbounds"]}
+    assert set(outbounds) == {"trusted", "selfsigned"}  # the paused one is not in the feed
+    trusted = outbounds["trusted"]
+    assert trusted == {**HIDDIFY_OUTBOUND, "tag": trusted["tag"], "username": "trusted"}
+    assert trusted["tag"].startswith("local · TrustTunnel")
+    # `insecure` only where the grant learned an untrusted certificate (the link then carries it)
+    assert "insecure" not in trusted["tls"]
+    assert outbounds["selfsigned"]["tls"] == {"enabled": True, "server_name": "gate.example.com", "insecure": True}
+    assert data["proxy_control"]["client"] == client and data["proxy_control"]["unsupported"] == []
+
+
+def test_singbox_cuts_that_cannot_load_the_outbound_never_carry_it(tt_feed):
+    manifest, artifacts = tt_feed
+    for client in ("karing", "singbox"):
+        text = RENDERERS["singbox"].render(manifest, artifacts, client=client).decode()
+        assert '"trusttunnel"' not in text.replace('"protocol": "trusttunnel"', "")
+    with pytest.raises(RenderError):
+        RENDERERS["singbox"].render(manifest, artifacts, client="sagernet")
+
+
+def test_the_trusttunnel_outbound_keeps_the_password_out_of_logs_and_errors(tt_feed, caplog):
+    manifest, artifacts = tt_feed
+    RENDERERS["singbox"].render(manifest, artifacts, client="hiddify")
+    assert "tt-pass-CANARY-01" not in caplog.text
+    broken = {key: [dataclasses.replace(item, value="tt://?broken") if item.kind == "trusttunnel_link" else item for item in value]
+              for key, value in artifacts.items()}
+    with pytest.raises(RenderError) as exc:
+        RENDERERS["singbox"].render(manifest, broken, client="hiddify")
+    assert "tt-pass-CANARY-01" not in str(exc.value)
+
+
 def test_raw_carries_the_tt_link_with_its_name_and_a_comment_for_the_paused_one(tt_feed):
     manifest, artifacts = tt_feed
     lines = RENDERERS["raw"].render(manifest, artifacts).decode().splitlines()
@@ -479,11 +521,24 @@ def test_html_shows_the_trusttunnel_link_qr_and_toml_download(tt_feed):
     assert "TrustTunnel" in text
 
 
+def test_html_shows_the_manual_fields_and_the_app_table_for_trusttunnel(tt_feed):
+    manifest, artifacts = tt_feed
+    text = RENDERERS["html"].render(manifest, artifacts).decode()
+    assert "Данные для ручной настройки" in text and "HTTP/2, QUIC выключен" in text
+    assert "Proxy-TrustTunnel = trust-tunnel, gate.example.com, 443, username=trusted, password=" in text
+    assert text.count("Как подключить") == 2  # one per enabled TrustTunnel access
+    for name in ("AdGuard TrustTunnel", "TrustTunnel CLI", "Throne", "Surge", "Hiddify, NekoBox", "Shadowrocket, Trusty"):
+        assert name in text
+    assert "https://apps.apple.com/us/app/trusttunnel/id6755807890" in text
+    assert 'rel="noopener noreferrer"' in text and "style=\"" not in text
+    assert "BEGIN CERTIFICATE" in text  # the self-signed access carries its certificate
+
+
 def test_manifest_carries_trusttunnel_artifacts_and_its_matrix_row(tt_feed):
     manifest, artifacts = tt_feed
     data = json.loads(RENDERERS["manifest"].render(manifest, artifacts))
     grants = {item["runtime_username"]: item for item in data["grants"]}
-    assert [a["kind"] for a in grants["trusted"]["artifacts"]] == ["trusttunnel_link", "trusttunnel_toml"]
+    assert [a["kind"] for a in grants["trusted"]["artifacts"]] == ["trusttunnel_link", "trusttunnel_toml", "trusttunnel_manual"]
     assert grants["paused"]["artifacts"] == []
     assert set(data["compatibility"]["trusttunnel"]) == set(MATRIX["mtproxy"])
 
@@ -505,5 +560,9 @@ def test_trusttunnel_matrix_row_is_evidence_honest():
     row = MATRIX["trusttunnel"]
     assert set(row) == set(MATRIX["mtproxy"]) and set(NOTES["trusttunnel"]) == set(row)
     assert row["mihomo"] == "supported"
-    assert row["singbox"] == row["throne"] == row["mieru_cli"] == row["telegram"] == "unsupported"
-    assert "supported" not in {v for k, v in row.items() if k != "mihomo"}
+    assert row["singbox"] == row["mieru_cli"] == row["telegram"] == "unsupported"
+    # Hiddify's core was run against the feed; NekoBox's and Throne's cells stay unproven and say so.
+    assert row["hiddify"] == "supported" and row["nekobox"] == row["throne"] == "unproven"
+    assert "not verified by us" in NOTES["trusttunnel"]["mihomo"] and "verified 2026-10-19" in NOTES["trusttunnel"]["hiddify"]
+    assert "unverified" in NOTES["trusttunnel"]["nekobox"] and "unverified" in NOTES["trusttunnel"]["throne"]
+    assert "supported" not in {v for k, v in row.items() if k not in ("mihomo", "hiddify")}

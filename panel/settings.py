@@ -80,6 +80,9 @@ class Settings:
     # The only Host `/s/{token}` answers on. Defaults to the URL's own host; empty
     # means the public endpoint is switched off and every `/s/` request is a 404.
     subscription_host: str = os.getenv("PANEL_SUBSCRIPTION_HOST", "").lower()
+    # Extra User-Agent tokens (comma-separated, case-insensitive substrings, e.g. `karing,streisand`) of
+    # sing-box fork clients that should receive the TrustTunnel outbound in the sing-box feed.
+    singbox_fork_clients: str = os.getenv("PANEL_SINGBOX_FORK_CLIENTS", "")
     version_agent_socket: str = os.getenv(
         "VERSION_AGENT_SOCKET", "/run/proxy-control/version-agent.sock"
     )

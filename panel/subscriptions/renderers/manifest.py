@@ -19,7 +19,7 @@ from .base import MEDIA_TYPE_MANIFEST, check, credential_reason, finish
 class ManifestRenderer:
     name = "manifest"
     media_type = MEDIA_TYPE_MANIFEST
-    version = 2
+    version = 3
 
     def render(self, manifest: Manifest, artifacts: dict) -> bytes:
         check(manifest)

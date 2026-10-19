@@ -32,9 +32,9 @@ def test_the_client_window_shows_the_url_on_request_and_never_keeps_it():
     assert "/grants`" in javascript and "/enable`" in javascript and "/disable`" in javascript and "/delete`" in javascript
     # The variants of owner decision 2 (the sing-box JSON cut twice: Karing takes mieru,
     # the official core does not), each with what it carries and what it leaves out.
-    for name in ("singbox", "singbox-official", "clash", "raw"):
+    for name in ("singbox", "singbox-official", "singbox-hiddify", "singbox-nekobox", "clash", "raw"):
         assert re.search(rf'format: "{name}"', javascript), name
-    assert javascript.count("carries:") == 4 and javascript.count("leaves:") == 4
+    assert javascript.count("carries:") == 6 and javascript.count("leaves:") == 6
     assert 'name="subscription-format"' in javascript
     # Every grant carries its auto-refresh marks from the compatibility matrix.
     assert "/api/subscriptions/compatibility" in javascript and "data-auto-refresh" in javascript

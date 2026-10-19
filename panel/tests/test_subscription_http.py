@@ -118,7 +118,7 @@ async def test_public_subscription_serves_formats_with_etag_and_304(public, toke
     etag = first.headers["etag"]
     assert etag.startswith('"') and etag.endswith('"')
     assert first.headers["profile-update-interval"] == "12"
-    assert first.headers["x-robots-tag"] == "noindex" and first.headers["vary"] == "Accept"
+    assert first.headers["x-robots-tag"] == "noindex" and first.headers["vary"] == "Accept, User-Agent"
     lines = first.text.splitlines()
     assert any(line.startswith("tg://proxy?server=proxy.example.com&port=443&secret=ee") for line in lines)
     assert any(line.startswith("naive+https://alice:") for line in lines)
@@ -154,6 +154,40 @@ async def test_public_subscription_serves_formats_with_etag_and_304(public, toke
 
     head = await public.head(f"/s/{token}")
     assert head.status_code == 200 and head.headers["etag"] == etag and not head.content
+
+
+async def test_a_fork_core_client_is_recognised_by_user_agent_and_the_official_core_is_not(public, token):
+    """Throne, NekoBox, Hiddify get the sing-box JSON cut for their core without asking for a format; an
+    official sing-box or an unknown agent keeps what it got before; an explicit `client` always wins."""
+    throne = await public.get(f"/s/{token}", headers={"User-Agent": "Throne/1.1.4"})
+    assert throne.headers["content-type"].startswith("application/json")
+    assert throne.json()["proxy_control"]["client"] == "throne"
+    assert {o["type"] for o in throne.json()["outbounds"]} == {"naive", "mieru"}
+    for agent, client in (("NekoBox/Android 5.0", "nekobox"), ("NyameBox/1", "nekobox"), ("HiddifyNext/2.5", "hiddify"),
+                          ("nekoray/4.0", "nekobox")):
+        body = (await public.get(f"/s/{token}", headers={"User-Agent": agent})).json()
+        assert body["proxy_control"]["client"] == client, agent
+    for agent in ("sing-box 1.13.0", "SFA/1.13", "SFI/1.13", "curl/8", ""):
+        plain = await public.get(f"/s/{token}", headers={"User-Agent": agent})
+        assert plain.headers["content-type"].startswith("text/plain"), agent  # nothing changed for them
+    official = await public.get(f"/s/{token}", params={"format": "singbox"}, headers={"User-Agent": "sing-box 1.13.0"})
+    assert official.json()["proxy_control"]["client"] == "karing"
+    forced = await public.get(f"/s/{token}", params={"format": "singbox", "client": "hiddify"}, headers={"User-Agent": "sing-box 1.13.0"})
+    assert forced.json()["proxy_control"]["client"] == "hiddify"
+    kept = await public.get(f"/s/{token}", params={"format": "singbox", "client": "singbox"}, headers={"User-Agent": "Throne/1.1.4"})
+    assert kept.json()["proxy_control"]["client"] == "singbox"
+    assert (await public.get(f"/s/{token}", params={"format": "singbox", "client": "nyamebox"})).json()["proxy_control"]["client"] == "nekobox"
+    clash = await public.get(f"/s/{token}", params={"format": "clash"}, headers={"User-Agent": "Throne/1.1.4"})
+    assert clash.headers["content-type"].startswith("text/yaml")
+    # the ETag follows the cut, so a client switching cut is never answered 304 for the other body
+    cuts = {(await public.get(f"/s/{token}", headers={"User-Agent": a})).headers["etag"] for a in ("Throne/1", "NekoBox/1", "Hiddify/1")}
+    assert len(cuts) == 3
+
+
+def test_user_agent_tokens_can_be_extended_by_the_owner_setting():
+    from panel.subscription_routes import fork_client
+    assert fork_client("Karing/1.2", "") is None and fork_client("Streisand/3", "karing, streisand") == "fork"
+    assert fork_client("Throne/1", "karing") == "throne" and fork_client("", "karing,") is None
 
 
 async def test_node_rename_refreshes_subscription_with_the_same_url(public, token, app):
@@ -284,9 +318,11 @@ async def test_creating_a_subscription_reveals_the_url_once_and_never_again(owne
     assert reveal.status_code == 200
     payload = reveal.json()
     assert payload["url"].startswith(f"https://{SUB_HOST}/s/") and payload["qr"].startswith("data:image/svg+xml;base64,")
-    assert set(payload["variants"]) == {"raw", "singbox", "singbox-official", "clash"}
+    assert set(payload["variants"]) == {"raw", "singbox", "singbox-official", "singbox-hiddify", "singbox-nekobox", "clash"}
     assert payload["variants"]["singbox"]["url"] == payload["url"] + "?format=singbox"
     assert payload["variants"]["singbox-official"]["url"] == payload["url"] + "?format=singbox&client=singbox"
+    assert payload["variants"]["singbox-hiddify"]["url"] == payload["url"] + "?format=singbox&client=hiddify"
+    assert payload["variants"]["singbox-nekobox"]["url"] == payload["url"] + "?format=singbox&client=nekobox"
     assert payload["generation"] == 1
     # A reveal is consumed on first read; the URL is not stored anywhere readable.
     assert (await owner.get(f"/api/reveal/{created.json()['reveal_token']}")).status_code == 410
@@ -340,7 +376,7 @@ async def test_the_url_can_be_shown_again_through_an_audited_reveal(owner, publi
     shown = await owner.post(f"/api/clients/{client_id}/subscription/reveal")
     assert shown.status_code == 200 and set(shown.json()) == {"reveal_token"}
     payload = (await owner.get(f"/api/reveal/{shown.json()['reveal_token']}")).json()
-    assert payload["url"] == first["url"] and set(payload["variants"]) == {"raw", "singbox", "singbox-official", "clash"}
+    assert payload["url"] == first["url"] and set(payload["variants"]) == {"raw", "singbox", "singbox-official", "singbox-hiddify", "singbox-nekobox", "clash"}
     assert payload["qr"].startswith("data:image/svg+xml;base64,")
     # Consumed on first read, like every reveal.
     assert (await owner.get(f"/api/reveal/{shown.json()['reveal_token']}")).status_code == 410

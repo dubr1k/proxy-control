@@ -1,4 +1,5 @@
 import { esc, query } from "./common.js";
+import { appsHtml, bindReveal, manualHtml, parseManual } from "./trusttunnel-clients.js";
 
 function validServer(value) {
   if (/^[A-Za-z0-9.-]{1,253}$/.test(value)) return true;
@@ -53,6 +54,11 @@ function bundleArtifact(grant) {
         ${qr ? `<img class="link-qr" src="${esc(qr)}" alt="QR-код конфига: ${esc(grant.runtime_username)}">` : ""}
         <span class="link-card-actions"><button type="button" class="secondary button copy" data-copy="${esc(artifact.value)}">Копировать</button>
           <a class="primary button" href="data:text/plain;charset=utf-8,${encodeURIComponent(artifact.value)}" download="${esc(file)}">Скачать .conf</a></span>`;
+    }
+    if (artifact.media_type === "application/json") {
+      // TrustTunnel's fields for apps that import neither the link nor the TOML (v2.1): a card, never raw JSON.
+      const manual = parseManual(artifact.value);
+      return manual ? manualHtml(manual) : "";
     }
     if (artifact.media_type === "application/toml") {
       return `<label class="grant-link-field">${esc(artifact.label)}
@@ -492,6 +498,8 @@ export function createAccessDialogs(context) {
       else await navigator.clipboard?.writeText(button.dataset.copy);
       ui.toast("Скопировано");
     });
+    // One delegated handler for every «Показать» of a TrustTunnel card, in the grant window and the bundle.
+    bindReveal(root);
     query("#access-modal", root)?.addEventListener("close", () => {
       query("#access-link", root).value = "";
       query("#qr-image", root).removeAttribute("src");
@@ -525,7 +533,7 @@ export function createAccessDialogs(context) {
     const body = query("#bundle-body", root);
     body.innerHTML = (bundle.grants || []).map((grant) => `<section class="bundle-grant">
       <h3>${esc(BUNDLE_PROTOCOLS[grant.protocol] || grant.protocol)} · ${esc(grant.runtime_username)}</h3>
-      ${(grant.artifacts || []).map(bundleArtifact(grant)).join("")}
+      ${(grant.artifacts || []).map(bundleArtifact(grant)).join("")}${grant.protocol === "trusttunnel" ? appsHtml() : ""}
     </section>`).join("") || "<p class=\"form-hint\">Артефактов нет.</p>";
     // The client's subscription, when one came with it: the same reveal payload the client
     // window renders, shown here once so the operator copies link and artifacts together.

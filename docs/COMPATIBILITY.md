@@ -101,10 +101,18 @@ node simply does not declare the capabilities below.
   the Xray-router's no-password SOCKS5 ingress `127.0.0.1:45104` (`XRAY_ROUTER_PORT_TRUSTTUNNEL`), the installer section
   `[trusttunnel]` with `domains.trusttunnel`, and the pinned artifact `trusttunnel` 1.1.0 in `release/external-artifacts.json`.
 - **Access artifacts**: `trusttunnel_link` (`text/uri-list`, `tt://?` + base64url without padding of TLV records) and
-  `trusttunnel_toml` (`application/toml`); the Clash/mihomo feed carries `type: trusttunnel`.
+  `trusttunnel_toml` (`application/toml`) and, since 2.1, `trusttunnel_manual` (`application/json`: `server`, `port`, `username`,
+  `password`, `sni`, `protocol` `HTTP/2`, `quic` false, `certificate_pem` or null, `surge` policy line; no QR); the Clash/mihomo feed
+  carries `type: trusttunnel`, and the sing-box feed carries the fork cores' `trusttunnel` outbound (`type`, `tag`, `server`,
+  `server_port`, `username`, `password`, `quic` false, `tls`) only for a request that names a fork-core client: a User-Agent with
+  `Throne`, `NekoBox`, `NyameBox`, `NekoRay` or `Hiddify` (when `format` is absent or `singbox`), `PANEL_SINGBOX_FORK_CLIENTS`
+  extra tokens, or an explicit `client=throne|nekobox|nyamebox|hiddify`. `GET /s/{token}` now varies on `User-Agent` and the
+  reveal's `variants` gain `singbox-hiddify` and `singbox-nekobox`.
 - **Subscription compatibility matrix** (`panel/subscriptions/compatibility.py`, vocabulary `supported | unproven | unsupported`),
-  row `trusttunnel`: `mihomo` supported; `karing`, `shadowrocket`, `nekobox`, `v2rayn` unproven; `singbox`, `throne`, `hiddify`,
-  `mieru_cli`, `telegram` unsupported. sing-box has no TrustTunnel outbound, so the sing-box feed leaves it out with a note.
+  row `trusttunnel`: `mihomo` supported (documented by the core vendor, not verified by us); `hiddify` supported (verified 2026-10-19
+  against hiddify-sing-box built from master `ae5cb1488`); `karing`, `shadowrocket`, `nekobox`, `throne`, `v2rayn` unproven (Throne:
+  profile type but no `tt://` import, manual steps in the note); `singbox`, `mieru_cli`, `telegram` unsupported. Upstream sing-box has
+  no TrustTunnel outbound (SagerNet/sing-box#3723), so the feed leaves it out with a note for official and unknown clients.
 
 ## Monitoring (v2.0)
 
