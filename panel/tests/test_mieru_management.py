@@ -433,7 +433,7 @@ async def test_viewer_cannot_see_a_kept_mieru_key(client, login_user, mieru):
     assert response.status_code == 403
 
 
-async def test_panel_preserves_unavailable_metrics_without_synthesizing_zero(
+async def test_panel_shows_mita_counters_per_user_and_keeps_the_quota_history_unavailable(
     client, login_user, mieru
 ):
     await login_user(client)
@@ -444,29 +444,58 @@ async def test_panel_preserves_unavailable_metrics_without_synthesizing_zero(
         headers={"X-CSRF-Token": csrf},
     )
     assert created.status_code == 201
+    mieru.traffic_rows = {"phone": (1500, 25_000_000), "stranger": (1, 2)}
 
     listed = (await client.get("/api/mieru/users")).json()
-    assert listed["metrics"] == {
-        "capability": "unavailable",
-        "reason": "typed_histories_unavailable",
-    }
-    assert listed["items"][0]["traffic_available"] is False
-    assert "upload_bytes" not in listed["items"][0]
-    assert "download_bytes" not in listed["items"][0]
-    reset = await client.post(
-        "/api/mieru/users/phone/reset-metrics",
-        headers={"X-CSRF-Token": csrf},
-    )
+    # the typed quota history stays unavailable: rolling quotas are mita's own, approximate
+    assert listed["metrics"] == {"capability": "unavailable", "reason": "typed_histories_unavailable"}
+    assert listed["traffic"] == {"available": True, "since": "mita_start"}
+    assert listed["items"][0]["traffic_available"] is True
+    assert (listed["items"][0]["upload_bytes"], listed["items"][0]["download_bytes"]) == (1500, 25_000_000)
+    assert all(item["username"] != "stranger" for item in listed["items"])
+    reset = await client.post("/api/mieru/users/phone/reset-metrics", headers={"X-CSRF-Token": csrf})
     assert reset.status_code == 409
 
     dashboard = (await client.get("/api/dashboard")).json()["protocols"]["mieru"]
     assert dashboard["status"] == "ready"
-    assert dashboard["traffic"] == {
-        "available": False,
-        "capability": "unavailable",
-        "reason": "typed_histories_unavailable",
-        "label": "application bytes",
-    }
+    assert dashboard["traffic"] == {"available": True, "label": "application bytes", "since": "mita_start",
+                                    "upload_bytes": 1501, "download_bytes": 25_000_002}
+
+
+async def test_a_user_mita_has_not_counted_yet_shows_zero_and_an_old_manager_shows_unavailable(
+    client, login_user, mieru, monkeypatch
+):
+    await login_user(client)
+    csrf = client.cookies["panel_csrf"]
+    await client.post("/api/mieru/users", json={"username": "phone", "quotas": [], "expected_revision": "rev-1"},
+                      headers={"X-CSRF-Token": csrf})
+    quiet = (await client.get("/api/mieru/users")).json()["items"][0]
+    assert quiet["traffic_available"] is True and (quiet["upload_bytes"], quiet["download_bytes"]) == (0, 0)
+
+    async def old_manager():
+        raise MieruError("manager rejected request")
+
+    monkeypatch.setattr(mieru, "traffic", old_manager)
+    listed = (await client.get("/api/mieru/users")).json()
+    assert listed["traffic"]["available"] is False
+    assert listed["items"][0]["traffic_available"] is False
+    assert "upload_bytes" not in listed["items"][0]
+    dashboard = (await client.get("/api/dashboard")).json()["protocols"]["mieru"]
+    assert dashboard["traffic"]["available"] is False and dashboard["traffic"]["reason"] == "typed_histories_unavailable"
+
+
+async def test_mieru_client_reads_the_manager_traffic_route():
+    import httpx
+
+    seen = {}
+
+    async def handler(request):
+        seen.update(method=request.method, path=request.url.path)
+        return httpx.Response(200, json={"users": [{"username": "a", "upload_bytes": 1, "download_bytes": 2}]})
+
+    client = MieruClient("/run/mieru.sock", "token", transport=httpx.MockTransport(handler))
+    assert (await client.traffic())["users"][0]["download_bytes"] == 2
+    assert seen == {"method": "GET", "path": "/v1/traffic"}
 
 
 async def test_panel_mieru_viewer_is_read_only(client, login_user):
@@ -489,7 +518,8 @@ async def test_dashboard_reports_mieru_disabled_ready_and_degraded(
     await login_user(client)
     ready = (await client.get("/api/dashboard")).json()["protocols"]["mieru"]
     assert ready["status"] == "ready"
-    assert ready["traffic"]["capability"] == "unavailable"
+    assert ready["traffic"] == {"available": True, "label": "application bytes", "since": "mita_start",
+                                "upload_bytes": 0, "download_bytes": 0}
     mieru.broken = True
     degraded = (await client.get("/api/dashboard")).json()["protocols"]["mieru"]
     assert degraded["status"] == "degraded"

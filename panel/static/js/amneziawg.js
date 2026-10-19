@@ -4,6 +4,7 @@
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { AWG_VERSIONS, awgAccount, awgVersions } from "./placement.js";
+import { startLiveRates } from "./live-rates.js";
 
 const STATUS = { ok: ["active", "Работает"], degraded: ["blocked", "Есть неполадки"], down: ["blocked", "Менеджер недоступен"] };
 
@@ -36,7 +37,7 @@ function accessRow(context, row) {
   return `<div class="data-row naive-grid">
     <div class="identity"><span class="user-glyph">${esc(initials(row.client_name || row.username))}</span><span><b>${esc(row.username)}</b><small>AmneziaWG ${esc(row.version)} · ${esc(row.address)}</small>${holder}</span></div>
     <div class="cell"><span class="status-pill ${row.enabled ? "active" : "blocked"}"><i></i>${row.enabled ? "Включён" : "Выключен"}</span><small>${esc(ago(row.latest_handshake))}</small></div>
-    <div class="cell"><b>↑ ${bytes(row.rx)} · ↓ ${bytes(row.tx)}</b><small>принято / отдано узлом</small></div>
+    <div class="cell"><b>↑ ${bytes(row.rx)} · ↓ ${bytes(row.tx)}</b><small>принято / отдано узлом</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
     <div class="row-actions">${open || "—"}</div>
   </div>`;
 }
@@ -57,6 +58,7 @@ export async function renderAmneziawg(context, generation) {
   <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code> и порту своей версии. Новый доступ — кнопка «+ AmneziaWG доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Конфиг с ключом показывает окно доступа.</div>
   <div class="awg-overview"><article><small>Менеджер AmneziaWG</small><strong>${esc(word)}</strong><span class="status-pill ${tone}"><i></i>${esc(word)}</span></article>${(data.versions || []).map(versionCard).join("")}</div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><b>Доступов AmneziaWG пока нет</b><small>Нажмите «+ AmneziaWG доступ» вверху справа.</small></div>'}</section>`;
+  startLiveRates(context, generation, "amneziawg", "amneziawg");
 }
 
 export function handleAmneziawgClick(context, button) {

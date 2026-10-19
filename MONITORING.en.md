@@ -93,18 +93,19 @@ and the card falls back to «Сессий». History keeps it as `<protocol>.con
 - **MTProxy** — ↑/↓ rates from the kernel. The manager path (Telemt) has **only a combined counter**,
   `total_octets`, with no ↑/↓ split: per client you see the total rate, and connections come from
   `current_connections` (polled every 15 seconds).
-- **NaiveProxy** — the total live rate from the kernel. While the kernel counts NaiveProxy the
-  manager is not polled (its counter arrives only when a tunnel closes, and the query is expensive).
-  There is no live **per-client** rate for NaiveProxy; see its per-client volumes in the traffic
-  accounting (period totals).
-- **Mieru** — the total rate from the kernel (UDP too). Mieru has no counters in the manager or in
-  mita: there is no per-client or session data. When the kernel counters are unavailable Mieru shows
-  «no counters».
+- **NaiveProxy** — the total live rate from the kernel. The **per-client** rates come from the manager
+  (polled every 15 seconds, even while the kernel counts the port): Caddy's log is written when a
+  tunnel closes, so a client's row is a 60-second average over finished connections, with
+  `live: false` and the mark «from finished». These are real volumes, not a running meter.
+- **Mieru** — the total rate from the kernel (UDP too). The **per-client** rates are live from mita's
+  counters (`mita get metrics`, served by the manager on `/v1/traffic`; with lanes the running slots
+  are added up), polled every 5 seconds, split into ↑ and ↓. Mieru has no per-client sessions. mita's
+  counters restart with the daemon: the panel treats that as a reset.
 
 If `nft` is missing or fails, the agent reports `kernel_counters: "unavailable"` and retries every 30
 seconds. The panel then falls back to sums over the managers (`source: "manager"`): TrustTunnel and
-AmneziaWG work as usual, MTProxy gives only a total rate, NaiveProxy is flagged not live
-(`live: false`, a 30-second cadence or slower) and Mieru has no data.
+AmneziaWG and Mieru work as usual, MTProxy gives only a total rate, NaiveProxy is flagged not live
+(`live: false`, a one-minute average over finished connections).
 
 ## The three screens
 
@@ -185,6 +186,7 @@ All routes are `GET`, open to every signed-in role (and to API keys, `monitor` i
 | `/api/metrics/stream` | `node` | SSE: `snapshot`, `bye` |
 | `/api/metrics/history` | `node` (one node), `series` (up to 40, comma-separated), `range`, `points` (10–2000, default 240) | series of `[ts, average, maximum]` |
 | `/api/metrics/summary` | `node`, `range` (default `24h`) | period totals, alerts, node comparison |
+| `/api/metrics/clients` | `protocol` | this panel's clients of one protocol with their current rates (the protocol pages print them as «Now» / «Per minute»); only this node |
 
 `range` is one of `15m 1h 6h 24h 7d 30d 90d`; any other value gives `422`. Series ids: `host.cpu`,
 `host.mem`, `host.swap`, `host.disk`, `host.disk_read_bps`, `host.disk_write_bps`, `host.load1`,
@@ -209,7 +211,7 @@ An example `GET /api/metrics/live?node=local` (abridged):
     "protocols": {
       "trusttunnel": {"available": true, "live": true, "source": "kernel", "up_bps": 51200.0, "down_bps": 307200.0,
                       "total_bps": 358400.0, "up_bytes": 5242880, "down_bytes": 31457280, "sessions": 3, "clients": 2, "connections": 4},
-      "mieru": {"available": true, "live": false, "reason": "no_counters"},
+      "mieru": {"available": true, "live": true, "source": "kernel"},
       "naive": {"available": false, "reason": "disabled"}
     },
     "top_clients": [{"protocol": "trusttunnel", "username": "alice", "client_name": "Alice", "up_bps": 40960.0,
@@ -270,7 +272,7 @@ compact `metrics` section: per node the status, CPU, RAM and disk percent, netwo
 - **The agent does not answer.** The collector marks the node `stale` and shows the last sample with
   its age; after 60 seconds a `stale` alert appears. History does not break: the gap simply has no data.
 - **No `nft`.** The protocol series are built from the managers (see above), NaiveProxy is not live,
-  Mieru has no data; the host figures keep working.
+  Mieru comes from mita's counters; the host figures keep working.
 - **No Docker** or cgroup v2 means only that there is no containers table.
 - **The panel restarted.** The in-memory ring fills up again; the history in the database is intact
   (at most the last 30 seconds of points may not have been written).

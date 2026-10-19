@@ -113,8 +113,10 @@ class MetricsRig:
         apply_migrations(self.database)
         self.settings = Settings(database_path=tmp_path / "panel.sqlite3", metrics_interval_seconds=2.0, **flags)
         self.tt, self.awg, self.telemt, self.naive = ManagerRows(), ManagerRows(), ManagerRows(), ManagerRows()
+        self.mieru = ManagerRows()
         self.state = SimpleNamespace(versions=self.agent, database=self.database, nodes=None, trusttunnel=self.tt,
-                                     amneziawg=self.awg, telemt=self.telemt, naive=self.naive)
+                                     amneziawg=self.awg, telemt=self.telemt, naive=self.naive,
+                                     mieru=self.mieru)
         self.ring = SeriesRing(900)
         self.store = MetricsStore(self.database, self.ring, interval=2.0, clock=self.clock)
         self.collector = MetricsCollector(self.state, self.settings, store=self.store, ring=self.ring, interval=2.0,

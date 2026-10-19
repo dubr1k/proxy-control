@@ -1626,7 +1626,6 @@
  "7 д": "7 d",
  "90 д": "90 d",
  "CPU и память по cgroup": "CPU and memory by cgroup",
- "NaiveProxy и Mieru не дают скорость по клиентам в реальном времени — их объёмы смотрите на вкладке «Трафик».": "NaiveProxy and Mieru do not report per-client speed in real time — see their volumes on the “Traffic” tab.",
  "Swap выключен": "Swap is off",
  "Σ всего": "Σ total",
  "Агент не вернул статистику cgroup.": "The agent returned no cgroup statistics.",
@@ -1787,5 +1786,13 @@
  "Hiddify — ядро hiddify-sing-box с исходящим TrustTunnel; без параметра client Hiddify опознаётся по User-Agent": "Hiddify — the hiddify-sing-box core with a TrustTunnel outbound; without the client parameter Hiddify is recognised by its User-Agent",
  "MTProxy — в unsupported (в sing-box нет MTProto); Mieru с диапазоном портов — тоже; TrustTunnel — в unsupported для Karing: у официального sing-box нет исходящего TrustTunnel (Throne, NekoBox и Hiddify получают его по User-Agent или по параметру client": "MTProxy goes to unsupported (sing-box has no MTProto); so does Mieru with a port range; TrustTunnel goes to unsupported for Karing: the official sing-box has no TrustTunnel outbound (Throne, NekoBox and Hiddify get it by User-Agent or by the client parameter",
  "NekoBox на форке NyameBox (и NekoRay), у которого есть TrustTunnel; без параметра client опознаётся по User-Agent": "NekoBox on the NyameBox fork (and NekoRay), which has TrustTunnel; without the client parameter it is recognised by its User-Agent",
- "подписка sing-box: ссылка подписки с": "sing-box subscription: the subscription link with"
+ "подписка sing-box: ссылка подписки с": "sing-box subscription: the subscription link with",
+ "Скорость NaiveProxy по клиентам — среднее за минуту по завершённым соединениям: объём записывается, когда соединение закрывается.": "NaiveProxy per-client speed is a one-minute average over finished connections: the volume is recorded when a connection closes.",
+ "Объём записывается при закрытии соединения": "The volume is recorded when a connection closes",
+ "по завершённым": "from finished",
+ "с запуска mita · квота приблизительная": "since mita started · quota is approximate",
+ "менеджер Mieru не отдаёт счётчики: обновите менеджер до 2.2.0": "the Mieru manager does not serve counters: update the manager to 2.2.0",
+ "С запуска mita": "Since mita started",
+ "Объём записывается, когда соединение закрывается": "The volume is recorded when a connection closes",
+ "За минуту": "Per minute"
 }

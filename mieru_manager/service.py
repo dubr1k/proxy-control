@@ -739,6 +739,27 @@ class MitaCLI:
     def metrics(self) -> dict:
         raise MitaError("typed per-user metrics are unavailable in the mita CLI")
 
+    def traffic(self) -> dict[str, tuple[int, int]]:
+        """Cumulative payload bytes per user since the daemon started, from `mita get metrics`:
+        {name: (upload, download)} from the client's side (mita 3.38 measured: a user who only
+        downloads shows the volume under DownloadBytes, matching `mita get users`)."""
+        try:
+            value = json.loads(self._text(["get", "metrics"]))
+        except (ValueError, TypeError) as exc:
+            raise MitaError("mita returned invalid metrics") from exc
+        users = value.get("users", {}) if isinstance(value, dict) else None
+        if not isinstance(users, dict):
+            raise MitaError("mita returned invalid metrics")
+        out: dict[str, tuple[int, int]] = {}
+        for name, row in users.items():
+            if not isinstance(name, str) or not isinstance(row, dict):
+                raise MitaError("mita returned invalid metrics")
+            up, down = row.get("UploadBytes", 0), row.get("DownloadBytes", 0)
+            if any(isinstance(v, bool) or not isinstance(v, int) or v < 0 for v in (up, down)):
+                raise MitaError("mita returned invalid metrics")
+            out[name] = (up, down)
+        return out
+
     def probe(self) -> None:
         if self.status() != "RUNNING":
             raise MitaError("mita is not running")
@@ -1811,6 +1832,23 @@ class MieruManager:
                 "capability": "unavailable",
                 "reason": "typed_histories_unavailable",
             }
+
+    def traffic(self) -> dict:
+        """Live per-user byte counters for the monitor: the main daemon plus every running lane
+        slot (a lane user's traffic goes through its slot), summed per user. Read-only: no lock
+        on the config, so a slow transaction never stalls the sampler's poll."""
+        totals: dict[str, list[int]] = {}
+        clients = [self.mita]
+        clients.extend(self._slot_client(slot) for slot in self.lane_slots)
+        for index, client in enumerate(clients):
+            if index and client.status() != "RUNNING":
+                continue
+            for name, (up, down) in client.traffic().items():
+                row = totals.setdefault(name, [0, 0])
+                row[0] += up
+                row[1] += down
+        return {"users": [{"username": name, "upload_bytes": up, "download_bytes": down}
+                          for name, (up, down) in sorted(totals.items())]}
 
     def reset_metric_baseline(self, username: str) -> dict:
         with self._writer():

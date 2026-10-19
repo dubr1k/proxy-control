@@ -1,5 +1,6 @@
 import { bytes, date, esc, initials, localDateTime, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
+import { repaintLiveRates, startLiveRates } from "./live-rates.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
 
 export async function refreshUsers(context, generation = null) {
@@ -40,7 +41,7 @@ function userRow(context, user) {
   return `<div class="data-row" data-name="${esc(user.username)}">
     <div class="identity"><span class="user-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>MTProto · FakeTLS</small></span></div>
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${enabled ? "Активен" : "Заблокирован"}</span></div>
-    <div class="cell"><b>${userUsage(user)}</b><small>${number(connections)} соединений</small></div>
+    <div class="cell"><b>${userUsage(user)}</b><small>${number(connections)} соединений</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small></div>
     <div class="row-actions">${actions}</div>
   </div>`;
 }
@@ -52,6 +53,7 @@ export function paintUsers(context) {
   list.innerHTML = items.length
     ? items.map((user) => userRow(context, user)).join("")
     : '<div class="empty-state"><span>◇</span><h3>Подключений не найдено</h3><p>Измените поиск или создайте новый доступ.</p></div>';
+  repaintLiveRates(context);
 }
 
 export async function renderUsers(context, generation) {
@@ -64,6 +66,7 @@ export async function renderUsers(context, generation) {
   </div>
   <section class="data-panel"><div class="data-head"><span>Пользователь</span><span>Статус</span><span>Квота и подключения</span><span class="align-right">Действия</span></div><div id="user-list"></div></section>`;
   paintUsers(context);
+  startLiveRates(context, generation, "users", "mtproxy");
 }
 
 export function openUserModal(context) {

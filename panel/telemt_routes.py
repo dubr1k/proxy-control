@@ -12,6 +12,7 @@ from .fleet_v2.guard import require_unmanaged
 from .amneziawg import AmneziawgError
 from .trusttunnel import TrusttunnelError
 from .mieru import MieruError
+from .mieru_routes import mieru_traffic
 from .naive import NaiveError
 from .naive_routes import safe_naive_traffic
 from .reveals import qr_data
@@ -339,10 +340,11 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
             protocols["naive"] = {"available": False, "status": "disabled"}
         if settings.mieru_enabled:
             try:
-                mieru_health, mieru_users, mieru_metrics = await asyncio.gather(
+                mieru_health, mieru_users, mieru_metrics, mieru_bytes = await asyncio.gather(
                     app.state.mieru.health(),
                     app.state.mieru.list_users(),
                     app.state.mieru.metrics(),
+                    mieru_traffic(app),
                 )
             except MieruError:
                 protocols["mieru"] = {
@@ -386,12 +388,14 @@ def register_telemt_dashboard_routes(app, context: RequestContext) -> None:
                         "disabled": disabled,
                         "total": active + disabled,
                     },
-                    "traffic": {
-                        "available": False,
-                        "capability": "unavailable",
-                        "reason": "typed_histories_unavailable",
-                        "label": "application bytes",
-                    },
+                    "traffic": (
+                        {"available": True, "label": "application bytes", "since": "mita_start",
+                         "upload_bytes": sum(up for up, _ in mieru_bytes.values()),
+                         "download_bytes": sum(down for _, down in mieru_bytes.values())}
+                        if mieru_bytes is not None else
+                        {"available": False, "capability": "unavailable",
+                         "reason": "typed_histories_unavailable", "label": "application bytes"}
+                    ),
                 }
         else:
             protocols["mieru"] = {"available": False, "status": "disabled"}

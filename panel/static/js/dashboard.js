@@ -156,6 +156,7 @@ export async function renderDashboard(context, generation) {
     <article class="protocol-card ${mieruReady ? "" : "degraded"}">
       <div class="protocol-head"><span><small>Native AEAD · TCP</small><h2>Mieru</h2></span><span class="status-pill ${mieruReady ? "active" : "blocked"}"><i></i>${!mieruAvailable ? "Отключён" : mieruReady ? "Работает" : "Недоступен"}</span></div>
       <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(mieru.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(mieru.credentials?.disabled)}</strong></span></div>
+      ${mieru.traffic?.available ? `<div class="protocol-metrics"><span><small>Принято / отдано</small><b>${bytes(mieru.traffic.upload_bytes)} / ${bytes(mieru.traffic.download_bytes)}</b><em>С запуска mita</em></span></div>` : ""}
     </article>
     <article class="protocol-card ${awgReady || !awgAvailable ? "" : "degraded"}"${awgAvailable ? "" : " hidden"}>
       <div class="protocol-head"><span><small>UDP · WireGuard с маскировкой</small><h2>AmneziaWG</h2></span><span class="status-pill ${awgReady ? "active" : "blocked"}"><i></i>${!awgAvailable ? "Отключён" : awgReady ? "Работает" : "Недоступен"}</span></div>

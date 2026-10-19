@@ -4,6 +4,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-19
+
+- **Mieru in the clients table, live.** The Mieru manager serves cumulative per-user bytes (`GET /v1/traffic`, from `mita get metrics`; with lanes the running slots are added up) and the panel polls it every 5 seconds. The total rate stays with the kernel; without kernel counters it is computed from mita's counters (`source: "manager"`), and the `no_counters` reason is no longer reported.
+- **NaiveProxy: per-client rows always.** The Naive manager used to be polled only when the kernel did not count the port. Now it is polled every 15 seconds always; the per-client rate is a 60-second average over finished connections (Caddy's log is written when a connection closes), and rows with `live: false` are marked «from finished».
+- **The interface everywhere.** The MTProxy, Mieru, NaiveProxy, AmneziaWG and TrustTunnel pages show «Now ↓ ↑» beside a user (Naive: «Per minute»), `GET /api/metrics/clients?protocol=`; the Mieru page and the overview show the bytes since mita started instead of «Unavailable» (`traffic.available` in `/api/mieru/users` and `/api/dashboard`).
+- Changes in the panel and the Mieru manager only; a manager older than 2.2.0 simply gives no Mieru rows. No breaking changes; the installer did not change.
+
 ## [2.1.0] - 2026-10-19
 
 - **TrustTunnel for the client apps that actually take it.** The access window gains a «How to connect» table (AdGuard TrustTunnel for iOS/Android: link or QR; the TrustTunnel CLI: TOML; Throne: a profile created by hand; Surge: a policy line; Clash Verge Rev, FlClash, Mihomo Party, ClashMi: the Clash subscription; Hiddify and NekoBox: the sing-box subscription; Shadowrocket and the community GUIs: unverified, enter by hand) with store and project links, and a «Details for manual setup» card (server, port, username, password hidden until shown, SNI, protocol HTTP/2 with QUIC off, the certificate PEM, the Surge policy line) with a copy button per field. The subscription page carries the same list and card. Anything not run by us is marked «не проверено нами». Described in `TRUSTTUNNEL.en.md`, «Clients».

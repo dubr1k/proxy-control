@@ -1,5 +1,6 @@
 import { bytes, date, esc, icon, initials, number, query, sumNaiveTraffic } from "./common.js";
 import { isCurrent } from "./state.js";
+import { repaintLiveRates, startLiveRates } from "./live-rates.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
 
 export async function refreshNaive(context, generation = null) {
@@ -40,7 +41,7 @@ function naiveRow(context, user) {
   return `<div class="data-row naive-grid" data-naive-name="${esc(user.username)}">
     <div class="identity"><span class="user-glyph naive-glyph">${esc(initials(user.username))}</span><span><b>${esc(user.username)}</b><small>HTTPS · HTTP/2 CONNECT</small></span></div>
     <div class="cell"><span class="status-pill ${enabled ? "active" : "blocked"}"><i></i>${status}</span></div>
-    <div class="cell"><b>↑ ${bytes(user.upload_bytes_decimal)} · ↓ ${bytes(user.download_bytes_decimal)} · Σ ${bytes(user.total_bytes_decimal)}</b><small>${user.period_start ? `с ${date(user.period_start)} · ` : ""}квота ${quota}</small></div>
+    <div class="cell"><b>↑ ${bytes(user.upload_bytes_decimal)} · ↓ ${bytes(user.download_bytes_decimal)} · Σ ${bytes(user.total_bytes_decimal)}</b><small>${user.period_start ? `с ${date(user.period_start)} · ` : ""}квота ${quota}</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small></div>
     <div class="row-actions">${actions}</div>
   </div>`;
 }
@@ -52,6 +53,7 @@ export function paintNaive(context) {
   list.innerHTML = items.length
     ? items.map((user) => naiveRow(context, user)).join("")
     : '<div class="empty-state"><span>◇</span><h3>Naive-доступы не найдены</h3><p>Измените поиск или создайте новый доступ.</p></div>';
+  repaintLiveRates(context);
 }
 
 export async function renderNaive(context, generation) {
@@ -68,6 +70,7 @@ export async function renderNaive(context, generation) {
   <div class="toolbar"><div class="search"><input id="naive-search" type="search" value="${esc(context.state.naiveQuery)}" placeholder="Поиск Naive-доступа" aria-label="Поиск NaiveProxy пользователей"></div><div class="filter-pills"><button class="filter-pill ${context.state.naiveFilter === "all" ? "active" : ""}" data-naive-filter="all">Все · ${users.length}</button><button class="filter-pill ${context.state.naiveFilter === "active" ? "active" : ""}" data-naive-filter="active">Активные</button><button class="filter-pill ${context.state.naiveFilter === "blocked" ? "active" : ""}" data-naive-filter="blocked">Отключённые</button></div></div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Статус</span><span>Трафик ↑ / ↓ / Σ</span><span class="align-right">Действия</span></div><div id="naive-list"></div></section>`;
   paintNaive(context);
+  startLiveRates(context, generation, "naive", "naive");
 }
 
 function naiveQuotaBytes(context, selector) {

@@ -20,6 +20,20 @@ def test_fold_treats_a_lower_reading_as_a_reset_and_first_sight_as_baseline():
     assert fold(1000, 40) == 40
 
 
+def test_a_windowed_rate_spreads_a_burst_over_the_window_and_decays_to_zero():
+    rates = ClientRates()
+    assert rates.update("naive", "nina", 0.0, up=0, down=0, window=60.0) is None
+    quiet = rates.update("naive", "nina", 15.0, up=0, down=0, window=60.0)
+    assert (quiet.up_bps, quiet.down_bps) == (0.0, 0.0)
+    burst = rates.update("naive", "nina", 30.0, up=3000, down=60000, window=60.0)  # a connection closed
+    assert (burst.up_bps, burst.down_bps) == (100.0, 2000.0)  # 30 s of history so far, not one 30 s slice
+    later = rates.update("naive", "nina", 45.0, up=3000, down=60000, window=60.0)
+    assert (later.up_bps, later.down_bps) == (3000 / 45, 60000 / 45)  # still there, flattening out
+    gone = rates.update("naive", "nina", 100.0, up=3000, down=60000, window=60.0)
+    assert (gone.up_bps, gone.down_bps) == (0.0, 0.0)  # the burst left the window
+    assert gone.up_delta == 0.0  # the poll's own growth (for the byte counters) is unaffected by the window
+
+
 def test_client_rates_baseline_reset_and_forgetting():
     rates = ClientRates(forget_after=600)
     assert rates.update("trusttunnel", "alice", 0.0, up=1000, down=5000) is None  # baseline: no spike
@@ -61,8 +75,9 @@ async def test_snapshot_shape_from_kernel_counters_and_managers(rig):
     awg = node["protocols"]["amneziawg"]
     assert awg["source"] == "interface" and awg["sessions"] == 1  # only the fresh handshake counts
     assert node["protocols"]["mtproxy"]["sessions"] == 3
-    assert node["protocols"]["mieru"] == {**node["protocols"]["mieru"], "available": True, "live": False, "source": None,
-                                           "up_bps": None}
+    # the agent does not count mieru here: mita's own per-user counters make the meter (no users yet: zero)
+    assert node["protocols"]["mieru"] == {**node["protocols"]["mieru"], "available": True, "live": True, "source": "manager",
+                                           "up_bps": 0.0}
     top = node["top_clients"]
     assert [row["username"] for row in top] == ["alice", "erin"]
     assert top[0] == {"protocol": "trusttunnel", "username": "alice", "client_name": None, "up_bps": 1000.0,
@@ -123,17 +138,59 @@ async def test_without_kernel_counters_rates_come_from_manager_deltas(rig):
     assert naive["source"] == "manager" and naive["live"] is False and naive["down_bps"] == 900.0
 
 
-async def test_naive_is_polled_at_most_every_30_seconds_and_not_at_all_when_the_kernel_counts_it(tmp_path, rig):
+async def test_naive_is_polled_every_15_seconds_even_when_the_kernel_counts_it(tmp_path, rig):
     for _ in range(46):  # 92 s at a 2 s tick
         await rig.step()
         rig.agent.set_protocol("naive", 1.0, 1.0)  # from the second tick on, the kernel counts naive
-    assert rig.naive.calls == 1  # polled once before the kernel numbers appeared
+    assert 5 <= rig.naive.calls <= 7  # the kernel counts the port, only the manager knows the users
     other = Rig(tmp_path / "b", naive_enabled=True)
     other.agent.kernel_counters = "unavailable"
     for _ in range(46):
         await other.step()
-    assert 3 <= other.naive.calls <= 4
-    assert other.tt.calls == 0  # TrustTunnel is not enabled there: its manager is never asked
+    assert 5 <= other.naive.calls <= 7
+    assert other.tt.calls == 0 and other.mieru.calls == 0  # not enabled there: never asked
+
+
+async def test_naive_and_mieru_clients_get_their_own_rows_while_the_kernel_keeps_the_node_totals(rig):
+    rig.agent.set_protocol("naive", 4000.0, 9000.0)
+    rig.agent.set_protocol("mieru", 2000.0, 7000.0)
+    rig.naive.rows = [{"username": "nina", "upload_bytes": 0, "download_bytes": 0}]
+    rig.mieru.rows = [{"username": "mia", "upload_bytes": 100, "download_bytes": 1000}]
+    await rig.step()
+    rig.naive.rows = [{"username": "nina", "upload_bytes": 1500, "download_bytes": 15000}]
+    rig.mieru.rows = [{"username": "mia", "upload_bytes": 100 + 4000, "download_bytes": 1000 + 20000}]
+    await rig.step(20.0)
+    protocols = rig.collector.latest["protocols"]
+    assert protocols["naive"]["source"] == "kernel" and protocols["mieru"]["source"] == "kernel"
+    rows = {(row["protocol"], row["username"]): row for row in rig.collector.latest["top_clients"]}
+    mia, nina = rows[("mieru", "mia")], rows[("naive", "nina")]
+    assert (mia["up_bps"], mia["down_bps"], mia["live"]) == (200.0, 1000.0, True)
+    # naive's access log is written when a CONNECT closes: the row is real but not a live meter
+    assert (nina["up_bps"], nina["down_bps"], nina["live"]) == (75.0, 750.0, False)
+
+
+async def test_mieru_rates_fall_back_to_the_manager_counters_without_the_kernel(rig):
+    rig.agent.kernel_counters = "unavailable"
+    rig.mieru.rows = [{"username": "mia", "upload_bytes": 0, "download_bytes": 0}]
+    await rig.step()
+    rig.mieru.rows = [{"username": "mia", "upload_bytes": 500, "download_bytes": 5000}]
+    await rig.step(5.0)
+    mieru = rig.collector.latest["protocols"]["mieru"]
+    assert (mieru["source"], mieru["live"], mieru["up_bps"], mieru["down_bps"]) == ("manager", True, 100.0, 1000.0)
+    rig.mieru.rows = [{"username": "mia", "upload_bytes": 20, "download_bytes": 40}]  # mita restarted
+    await rig.step(5.0)
+    mieru = rig.collector.latest["protocols"]["mieru"]
+    assert (mieru["up_bps"], mieru["down_bps"]) == (4.0, 8.0)  # a reset counts the reading, never a negative delta
+
+
+async def test_an_old_mieru_manager_without_the_route_leaves_the_rest_untouched(rig):
+    rig.agent.set_protocol("mieru", 1000.0, 1000.0)
+    rig.mieru.broken = True
+    await rig.step()
+    await rig.step(5.0)
+    mieru = rig.collector.latest["protocols"]["mieru"]
+    assert mieru["source"] == "kernel" and mieru["live"] is True
+    assert [row for row in rig.collector.latest["top_clients"] if row["protocol"] == "mieru"] == []
 
 
 async def test_a_failing_manager_marks_only_its_protocol_unavailable(rig):

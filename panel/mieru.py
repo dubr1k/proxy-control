@@ -86,6 +86,10 @@ class MieruClient:
             raise MieruError("Invalid Mieru metrics response")
         return value
 
+    async def traffic(self):
+        """Cumulative per-user bytes (monitor). A manager older than 2.2 has no such route."""
+        return await self._request("GET", "/v1/traffic")
+
     async def lifecycle(self, action):
         if action not in {"start", "stop", "restart"}:
             raise ValueError("invalid Mieru lifecycle action")
@@ -202,6 +206,12 @@ class MemoryMieru:
             "capability": "unavailable",
             "reason": "typed_histories_unavailable",
         }
+
+    async def traffic(self):
+        if self.broken:
+            raise MieruError("unavailable")
+        return {"users": [{"username": name, "upload_bytes": up, "download_bytes": down}
+                          for name, (up, down) in getattr(self, "traffic_rows", {}).items()]}
 
     def _replay(self, operation_id, operation, username):
         if operation_id is None:

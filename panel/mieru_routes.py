@@ -111,6 +111,21 @@ async def _domain_created(app, context, username: str, payload: dict, request, u
     }
 
 
+async def mieru_traffic(app) -> dict[str, tuple[int, int]] | None:
+    """Cumulative bytes per user since mita started, or None when the manager cannot say
+    (a manager older than 2.2.0 has no such route): the panel then shows «unavailable», never a zero."""
+    try:
+        data = await app.state.mieru.traffic()
+    except MieruError:
+        return None
+    rows = data.get("users") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return None
+    return {row["username"]: (row["upload_bytes"], row["download_bytes"]) for row in rows
+            if isinstance(row, dict) and isinstance(row.get("username"), str)
+            and isinstance(row.get("upload_bytes"), int) and isinstance(row.get("download_bytes"), int)}
+
+
 def register_mieru_routes(app, context: RequestContext) -> None:
     from .clients.store import ClientConflict  # noqa: PLC0415 - avoids an import cycle
 
@@ -185,10 +200,11 @@ def register_mieru_routes(app, context: RequestContext) -> None:
     @app.get("/api/mieru/users")
     async def mieru_users(_user=Depends(context.current)):
         require_mieru()
-        health, items, metrics = await asyncio.gather(
+        health, items, metrics, traffic = await asyncio.gather(
             app.state.mieru.health(),
             app.state.mieru.list_users(),
             app.state.mieru.metrics(),
+            mieru_traffic(app),
         )
         metric_map = {
             row.get("username"): row
@@ -219,6 +235,10 @@ def register_mieru_routes(app, context: RequestContext) -> None:
                 if isinstance(item.get("quotas", []), list)
                 else [],
             }
+            if traffic is not None:
+                # mita lists only users that carried bytes since the daemon started: absent means none yet
+                carried = traffic.get(item["username"], (0, 0))
+                row.update(traffic_available=True, upload_bytes=carried[0], download_bytes=carried[1])
             metric = metric_map.get(item["username"], {})
             for key in (
                 "upload_bytes",
@@ -240,6 +260,7 @@ def register_mieru_routes(app, context: RequestContext) -> None:
                 "status": health.get("status"),
                 "revision": health.get("revision"),
             },
+            "traffic": {"available": traffic is not None, "since": "mita_start"},
             "quota_semantics": "rolling application-byte admission quota (approximate)",
         }
 

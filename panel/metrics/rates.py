@@ -1,6 +1,7 @@
 """Counter arithmetic: reset-safe deltas and per-client rates."""
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 
 
@@ -39,10 +40,16 @@ class ClientRates:
         self.forget_after = forget_after
         self._last: dict[tuple[str, str], tuple[float | None, float | None, float | None, float]] = {}
         self._rate: dict[tuple[str, str], ClientRate] = {}
+        self._window: dict[tuple[str, str], tuple[float, deque]] = {}  # first sight, (time, up, down) deltas
 
-    def update(self, protocol: str, username: str, now: float, *, up=None, down=None, total=None) -> ClientRate | None:
+    def update(self, protocol: str, username: str, now: float, *, up=None, down=None, total=None,
+               window: float | None = None) -> ClientRate | None:
         """Feed one reading. `up`/`down` are directional counters, `total` a combined one
-        (Telemt). Returns the new rate, or None for the baseline reading."""
+        (Telemt). Returns the new rate, or None for the baseline reading.
+
+        `window` averages the rate over that many seconds instead of the last interval: for a
+        counter that moves in bursts (NaiveProxy writes a connection's bytes when it closes) the
+        row neither flickers to zero between bursts nor spikes at a burst."""
         key = (protocol, username)
         up, down, total = _number(up), _number(down), _number(total)
         if total is None and up is not None and down is not None:
@@ -62,10 +69,19 @@ class ClientRates:
             return self._rate.get(key)
         if d_up is not None and d_down is not None:
             d_total = d_up + d_down
+        span, d_span = dt, (d_up, d_down, d_total)
+        if window is not None:
+            started, history = self._window.setdefault(key, (then, deque()))
+            history.append((now, *d_span))
+            while history and history[0][0] <= now - window:
+                history.popleft()
+            span = max(dt, min(window, now - started))
+            d_span = tuple(None if all(row[i + 1] is None for row in history) else sum(row[i + 1] or 0.0 for row in history)
+                           for i in range(3))
         rate = ClientRate(
-            up_bps=None if d_up is None else d_up / dt,
-            down_bps=None if d_down is None else d_down / dt,
-            total_bps=d_total / dt, up_delta=d_up or 0.0, down_delta=d_down or 0.0,
+            up_bps=None if d_span[0] is None else d_span[0] / span,
+            down_bps=None if d_span[1] is None else d_span[1] / span,
+            total_bps=d_span[2] / span, up_delta=d_up or 0.0, down_delta=d_down or 0.0,
             total_delta=d_total, seen=now,
         )
         self._rate[key] = rate
@@ -80,6 +96,7 @@ class ClientRates:
         for key in [k for k, value in self._last.items() if now - value[3] > self.forget_after]:
             self._last.pop(key, None)
             self._rate.pop(key, None)
+            self._window.pop(key, None)
 
     def __len__(self) -> int:
         return len(self._last)

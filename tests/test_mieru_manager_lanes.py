@@ -214,3 +214,15 @@ def test_the_slot_unit_template_mirrors_the_main_unit_with_its_own_socket_and_st
     assert "ExecStart=/usr/bin/mita run" in template and "mita start" not in template
     for line in ("NoNewPrivileges=true", "ProtectSystem=strict", "ReadOnlyPaths=/usr/bin/mita", "ReadWritePaths=/run/mita /var/lib/mita", "User=mita"):
         assert line in main and line in template
+
+
+def test_traffic_adds_the_counters_of_running_lane_slots_and_skips_idle_ones(tmp_path):
+    instance, main, slots = lane_manager(tmp_path)
+    instance.set_lanes({"lanes": [LANE_A]})  # slot 1 runs, slot 2 stays idle
+    main.traffic_value = {"alice": (10, 100), "carol": (1, 2)}
+    slots[1].traffic_value = {"alice": (5, 50)}
+    slots[2].traffic_value = {"bob": (999, 999)}  # idle daemon: its counters are not read
+    assert instance.traffic() == {"users": [
+        {"username": "alice", "upload_bytes": 15, "download_bytes": 150},
+        {"username": "carol", "upload_bytes": 1, "download_bytes": 2},
+    ]}

@@ -3,6 +3,8 @@ export function createPanelState() {
     view: "dashboard",
     navigationGeneration: 0,
     navCountsTimer: null,
+    liveRatesTimer: null,
+    liveRatesLast: null,
     me: null,
     clients: [],
     // «Клиенты» (v1.0.2): the search and the filters survive a repaint after any change.

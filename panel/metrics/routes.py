@@ -9,7 +9,7 @@ from fastapi import Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
-from .model import ALL_SERIES, LOCAL_NODE, POINTS_DEFAULT, POINTS_MAX, POINTS_MIN, RANGES
+from .model import ALL_SERIES, LOCAL_NODE, POINTS_DEFAULT, POINTS_MAX, POINTS_MIN, PROTOCOLS, RANGES
 from .sse import event_stream
 
 NODE_ID = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
@@ -122,6 +122,18 @@ def register_metrics_routes(app, context) -> None:
                        "nodes": ([local_entry(app)] if node in (LOCAL_NODE, "all") else [])
                        + await remote_entries(others, LIVE_BUDGET)}
         return JSONResponse(payload, headers=NO_STORE)
+
+    @app.get("/api/metrics/clients")
+    async def clients(protocol: str = Query(...), _user=Depends(context.current)):
+        """This panel's own clients of one protocol with their current rates: the protocol pages
+        paint them next to each user. `live` is false for NaiveProxy (rows from finished connections)."""
+        enabled()
+        if protocol not in PROTOCOLS:
+            raise HTTPException(422, "unknown protocol")
+        collector = app.state.metrics_collector
+        rows = collector.client_rates(protocol) if collector else {}
+        return JSONResponse({"protocol": protocol, "live": protocol != "naive", "clients": rows,
+                             "ts": round(collector.clock.time(), 3) if collector else None}, headers=NO_STORE)
 
     @app.get("/api/metrics/stream")
     async def stream(request: Request, node: str = Query(LOCAL_NODE), user=Depends(context.current)):

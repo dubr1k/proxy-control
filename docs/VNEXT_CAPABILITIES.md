@@ -50,8 +50,10 @@ The cells that shape the control plane most:
   and offers the rotation, including in bulk.
 - **`accounting` for Mieru is `no`.** `panel/mieru.py` requires the metrics
   response to be exactly `capability: unavailable`,
-  `reason: typed_histories_unavailable`. Any traffic number for Mieru would be
-  invented.
+  `reason: typed_histories_unavailable`. Quota usage and any per-period history
+  for Mieru would be invented. Since 2.2.0 the panel does show mita's own
+  cumulative per-user counters (`mita get metrics`, since the daemon started),
+  labelled as such: they are not a quota and not a history.
 - **`expiry` is `no` everywhere.** No protocol has a validity window;
   `AccessGrant.valid_until` is a control-plane concept enforced by disabling.
 - **`rollback` is `no` everywhere.** A protocol keeps no history of its users to

@@ -566,6 +566,9 @@ table.chart-sr{display:block}
 .mon-two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
 .mon-two.single{grid-template-columns:minmax(0,1fr)}
 .mon-note{margin:0;color:var(--quiet);font-size:11px;line-height:1.5}
+.mon-clients small.muted{margin-left:6px;font-size:10px}
+.live-rate{display:block;white-space:nowrap;color:var(--accent,#8b8cf8);font-variant-numeric:tabular-nums}
+.live-rate:empty{display:none}
 .mon-empty{padding:34px 16px;text-align:center;color:var(--muted)}
 .mon-empty b{display:block;color:var(--text-2);font-size:13px;font-weight:560}
 .mon-empty p{margin:6px auto 0;max-width:46ch;font-size:12px}

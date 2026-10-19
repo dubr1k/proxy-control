@@ -82,7 +82,7 @@ Deploy the revision with the responsive Mieru dialog and confirm deployed `style
 
 ## Mieru works but traffic is unavailable
 
-This is intentional. The adapter does not parse a human table or copy GPL gRPC stubs; there is no safe typed per-user metrics boundary. Quota is a rolling approximate session-admission check, not a hard cap.
+Since 2.2.0 the Mieru page, the overview and the monitor show the bytes mita has counted per user since the daemon started (`mita get metrics`, served by the manager on `/v1/traffic`). «Unavailable» now means the node's Mieru manager is older than 2.2.0: update it. The per-user history and the quota usage stay unavailable on purpose: there is no safe typed history boundary and the adapter does not parse a human table or copy GPL gRPC stubs. Quota is a rolling approximate session-admission check, not a hard cap. The counters restart when mita restarts.
 
 ## TrustTunnel does not connect
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 from pathlib import Path
 
@@ -54,7 +55,7 @@ async def rig(tmp_path, login_user):
     await value.client.aclose()
 
 
-ROUTES = ["/api/metrics/live", "/api/metrics/stream", "/api/metrics/history?series=host.cpu", "/api/metrics/summary"]
+ROUTES = ["/api/metrics/clients?protocol=mieru", "/api/metrics/live", "/api/metrics/stream", "/api/metrics/history?series=host.cpu", "/api/metrics/summary"]
 
 
 @pytest.mark.parametrize("path", ROUTES)
@@ -79,6 +80,28 @@ async def test_live_snapshot_shape_and_no_store(rig):
     assert node["protocols"]["amneziawg"]["source"] == "interface"
     assert node["protocols"]["naive"]["available"] is False
     assert "password" not in json.dumps(body)
+
+
+async def test_client_rates_of_one_protocol_for_the_protocol_pages(rig):
+    collector = rig.app.state.metrics_collector
+    collector.settings = dataclasses.replace(collector.settings, trusttunnel_enabled=True)
+    rig.app.state.trusttunnel = type("Rows", (), {"clients": staticmethod(lambda: _rows([
+        {"username": "alice", "tx": 0, "rx": 0, "sessions": 1}]))})()
+    await rig.tick(times=1)
+    rig.app.state.trusttunnel = type("Rows", (), {"clients": staticmethod(lambda: _rows([
+        {"username": "alice", "tx": 6000, "rx": 2000, "sessions": 1}]))})()
+    await rig.tick(5.0)
+    body = (await rig.client.get("/api/metrics/clients?protocol=trusttunnel")).json()
+    assert body["protocol"] == "trusttunnel" and body["live"] is True
+    assert body["clients"]["alice"] == {"up_bps": 400.0, "down_bps": 1200.0, "total_bps": 1600.0}
+    naive = (await rig.client.get("/api/metrics/clients?protocol=naive")).json()
+    assert naive["live"] is False and naive["clients"] == {}  # naive is not enabled here: nothing measured
+    assert (await rig.client.get("/api/metrics/clients?protocol=nope")).status_code == 422
+    assert (await rig.client.get("/api/metrics/clients")).status_code == 422
+
+
+async def _rows(rows):
+    return rows
 
 
 async def test_a_viewer_may_read_the_meters(rig, login_user):

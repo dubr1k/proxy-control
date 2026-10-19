@@ -118,6 +118,8 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.manager.list_users())
             if self.command == "GET" and path == "/v1/metrics":
                 return self._send(200, self.server.manager.metrics())
+            if self.command == "GET" and path == "/v1/traffic":
+                return self._send(200, self.server.manager.traffic())
             if self.command == "GET" and path == "/v1/egress":
                 return self._send(200, self.server.manager.egress())
             if self.command == "GET" and path == "/v1/lanes":

@@ -17,8 +17,10 @@ AGENT_TIMEOUT = 3.5
 MANAGER_TIMEOUT = 4.0
 NAIVE_TIMEOUT = 15.0
 # Seconds between manager polls. Telemt answers with every user, NaiveProxy's `traffic()` scans
-# a log: it is the expensive one.
-CADENCE = {"trusttunnel": 5.0, "amneziawg": 5.0, "mtproxy": 15.0, "naive": 30.0}
+# a log: it is the expensive one. Mieru reads mita's own counters (one short CLI call).
+CADENCE = {"trusttunnel": 5.0, "amneziawg": 5.0, "mieru": 5.0, "mtproxy": 15.0, "naive": 15.0}
+# NaiveProxy's access log is written when a CONNECT closes: its rate is averaged over this window
+NAIVE_WINDOW = 60.0
 FLUSH_SECONDS = 30.0
 PRUNE_SECONDS = 3600.0
 REFRESH_NAMES_SECONDS = 60.0
@@ -226,10 +228,10 @@ class MetricsCollector:
 
     def _wanted(self, protocol: str, agent: dict | None) -> bool:
         s = self.settings
-        if protocol == "naive":
-            # the expensive log scan is only worth it when the kernel does not count naive
-            return bool(s.naive_enabled) and not self._kernel_has("naive", agent)
-        return {"trusttunnel": s.trusttunnel_enabled, "amneziawg": s.amneziawg_enabled, "mtproxy": True}[protocol]
+        # naive and mieru are read even when the kernel counts their port: the kernel sees one
+        # shared port, only the manager knows which user the bytes belong to (the clients table).
+        return {"trusttunnel": s.trusttunnel_enabled, "amneziawg": s.amneziawg_enabled, "mtproxy": True,
+                "naive": bool(s.naive_enabled), "mieru": bool(s.mieru_enabled)}[protocol]
 
     def _launch_due(self, mono: float, agent: dict | None) -> None:
         for protocol, every in CADENCE.items():
@@ -259,13 +261,13 @@ class MetricsCollector:
         state["pending_down"] += delta_down
         self._refresh_latest()
 
-    def _fold_rows(self, protocol: str, rows, mono: float) -> dict:
+    def _fold_rows(self, protocol: str, rows, mono: float, window: float | None = None) -> dict:
         """Feed (username, up, down, total) readings; return the poll's aggregate."""
         up_bps = down_bps = total_bps = 0.0
         delta_up = delta_down = 0.0
         directional = True
         for username, up, down, total in rows:
-            rate = self.rates.update(protocol, username, mono, up=up, down=down, total=total)
+            rate = self.rates.update(protocol, username, mono, up=up, down=down, total=total, window=window)
             if rate is None:
                 continue
             total_bps += rate.total_bps
@@ -308,12 +310,21 @@ class MetricsCollector:
         out["clients"] = sum(1 for n in connections if n > 0)
         return out
 
+    async def _read_mieru(self, mono: float) -> dict:
+        data = await self.state.mieru.traffic()
+        users = data.get("users") if isinstance(data, dict) else None
+        rows = [(r.get("username"), r.get("upload_bytes"), r.get("download_bytes"), None)
+                for r in users or [] if isinstance(r, dict) and isinstance(r.get("username"), str)]
+        out = self._fold_rows("mieru", rows, mono)
+        out["sessions"] = out["clients"] = None
+        return out
+
     async def _read_naive(self, mono: float) -> dict:
         data = await self.state.naive.traffic()
         users = data.get("users") if isinstance(data, dict) else None
         rows = [(r.get("username"), r.get("upload_bytes"), r.get("download_bytes"), None)
                 for r in users or [] if isinstance(r, dict) and isinstance(r.get("username"), str)]
-        out = self._fold_rows("naive", rows, mono)
+        out = self._fold_rows("naive", rows, mono, window=NAIVE_WINDOW)
         out["sessions"] = out["clients"] = None
         return out
 
@@ -353,9 +364,6 @@ class MetricsCollector:
                          up_bps=manager["up_bps"], down_bps=manager["down_bps"], total_bps=manager["total_bps"])
             if manager["directional"]:
                 entry.update(up_bytes=int(manager["cum_up"]), down_bytes=int(manager["cum_down"]))
-        elif enabled and protocol == "mieru":
-            # Mieru exposes no counters at all: present, not measurable
-            entry.update(available=True, reason="no_counters")
         elif not enabled:
             entry["reason"] = "disabled"
         elif protocol in CADENCE:
@@ -365,10 +373,22 @@ class MetricsCollector:
             entry["sessions"], entry["clients"] = status.get("sessions"), status.get("clients")
         return entry
 
+    def client_rates(self, protocol: str) -> dict[str, dict]:
+        """Every client of a protocol with a fresh rate (idle ones included, at zero): what the
+        protocol pages print next to a user. Empty when the protocol is not measured per client."""
+        if protocol not in CADENCE or not self._wanted(protocol, self._last_agent):
+            return {}
+        mono = self.clock.monotonic()
+        window = 3 * max(CADENCE[protocol], self.interval)
+        return {username: {"up_bps": _num(rate.up_bps) if rate.up_bps is not None else None,
+                           "down_bps": _num(rate.down_bps) if rate.down_bps is not None else None,
+                           "total_bps": rate.total_bps}
+                for username, rate in self.rates.current(protocol, mono, window).items()}
+
     def _top_clients(self, mono: float) -> list[dict]:
         rows = []
         for protocol in CADENCE:
-            if protocol == "naive" and not self._wanted("naive", self._last_agent):
+            if not self._wanted(protocol, self._last_agent):
                 continue
             for username, rate in self.rates.current(protocol, mono, 3 * max(CADENCE[protocol], self.interval)).items():
                 if rate.total_bps <= 0:

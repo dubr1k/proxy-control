@@ -1,6 +1,7 @@
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { issueOnNode, loadNodeOptions } from "./clients.js";
+import { startLiveRates } from "./live-rates.js";
 
 export async function refreshMieru(context, generation = null) {
   const data = await context.api("/api/mieru/users");
@@ -20,8 +21,8 @@ function quotaSummary(quotas) {
 function mieruRow(context, user) {
   const enabled = user.enabled === true;
   const traffic = user.traffic_available === true
-    ? `<b>↑ ${bytes(user.upload_bytes)} · ↓ ${bytes(user.download_bytes)}</b><small>application bytes · rolling quota approximate</small>`
-    : "<b>Недоступно</b><small>mita не предоставляет типизированную историю трафика</small>";
+    ? `<b>↑ ${bytes(user.upload_bytes)} · ↓ ${bytes(user.download_bytes)}</b><small>с запуска mita · квота приблизительная</small><small class="live-rate" data-live-rate="${esc(user.username)}"></small>`
+    : "<b>Недоступно</b><small>менеджер Mieru не отдаёт счётчики: обновите менеджер до 2.2.0</small>";
   // The panel keeps every key it issues: showing it again changes nothing on the node.
   // A key issued before it did exists only as mita's hash — one rotation stores it.
   const access = user.credential_kept === true
@@ -49,6 +50,7 @@ export async function renderMieru(context, generation) {
   context.ui.view.innerHTML = `<div class="security-note">Квоты Mieru — rolling application-byte admission quota (approximate): проверяются при открытии сессии и не являются hard cap.</div>
   <div class="naive-overview"><article><small>mita</small><strong>${ready ? "RUNNING" : "DEGRADED"}</strong><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${ready ? "Ready" : "Ошибка"}</span></article><article><small>Пользователи</small><strong>${number(users.length)}</strong><span>revision ${esc(context.state.mieruService.revision || "—")}</span></article></div>
   <section class="data-panel"><div class="data-head naive-grid"><span>Пользователь</span><span>Статус и квота</span><span>Трафик</span><span class="align-right">Действия</span></div>${users.length ? users.map((user) => mieruRow(context, user)).join("") : '<div class="empty-state"><h3>Mieru-доступов нет</h3><p>Добавьте доступ, чтобы выдать конфигурацию с one-time reveal.</p></div>'}</section>`;
+  startLiveRates(context, generation, "mieru", "mieru");
 }
 
 function quotaRow(quota = {}) {

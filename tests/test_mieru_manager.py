@@ -13,6 +13,7 @@ from mieru_manager.service import (
     ConfigConflict,
     MieruManager,
     MitaCLI,
+    MitaError,
     ValidationError,
     _atomic,
     validate_config,
@@ -209,6 +210,7 @@ class FakeMita:
         self.calls = []
         self.fail_probe = False
         self.metrics_value = {"users": []}
+        self.traffic_value = {}
         self.running = True
         self.statuses = []
 
@@ -246,6 +248,9 @@ class FakeMita:
 
     def metrics(self):
         return self.metrics_value
+
+    def traffic(self):
+        return dict(self.traffic_value)
 
     @staticmethod
     def _persist(config):
@@ -1186,3 +1191,43 @@ def test_a_caller_password_is_validated_and_operations_are_pruned(tmp_path):
     }
     _atomic(service.state_file, state)
     assert set(service._state()["operations"]) == {"op-5"}
+
+
+def _traffic_cli(tmp_path, output):
+    fake = tmp_path / "mita-traffic"
+    fake.write_text("#!/bin/sh\n[ \"$1 $2\" = \"get metrics\" ] || exit 8\ncat <<'EOF_JSON'\n" + output + "\nEOF_JSON\n")
+    fake.chmod(0o755)
+    return MitaCLI(executable=fake)
+
+
+def test_cli_reads_cumulative_per_user_bytes_from_mita_get_metrics(tmp_path):
+    cli = _traffic_cli(tmp_path, json.dumps({
+        "traffic": {"DownloadBytes": 9, "UploadBytes": 1},
+        "users": {"alice": {"DownloadBytes": 3881224570, "UploadBytes": 14635},
+                  "bob": {"UploadBytes": 7}},
+    }))
+    assert cli.traffic() == {"alice": (14635, 3881224570), "bob": (7, 0)}
+
+
+def test_cli_traffic_is_empty_before_any_user_has_carried_bytes(tmp_path):
+    assert _traffic_cli(tmp_path, '{"traffic": {}}').traffic() == {}
+
+
+@pytest.mark.parametrize("output", [
+    "not json", "[]", '{"users": []}', '{"users": {"a": []}}', '{"users": {"a": {"UploadBytes": -1}}}',
+    '{"users": {"a": {"UploadBytes": true}}}', '{"users": {"a": {"DownloadBytes": "5"}}}',
+])
+def test_cli_traffic_refuses_output_it_does_not_understand(tmp_path, output):
+    with pytest.raises(MitaError):
+        _traffic_cli(tmp_path, output).traffic()
+
+
+def test_manager_traffic_lists_every_user_with_client_side_directions(tmp_path):
+    mita = FakeMita()
+    mita.traffic_value = {"bob": (5, 50), "alice": (1, 10)}
+    service = manager(tmp_path, mita)
+    service.bootstrap()
+    assert service.traffic() == {"users": [
+        {"username": "alice", "upload_bytes": 1, "download_bytes": 10},
+        {"username": "bob", "upload_bytes": 5, "download_bytes": 50},
+    ]}

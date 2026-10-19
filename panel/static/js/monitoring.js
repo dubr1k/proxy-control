@@ -547,7 +547,7 @@ function clientsHtml(clients, nodesNote) {
   const top = Math.max(...clients.map((row) => Number(row.total_bps) || 0), 1);
   return `<div class="mon-table-wrap"><table class="mon-table mon-clients"><thead><tr><th>Клиент</th><th>Протокол</th><th class="num">↓</th><th class="num">↑</th><th class="num">Σ</th></tr></thead><tbody>${clients.map((row) => (
     `<tr><td data-label="Клиент"><span class="cellv"><b>${esc(row.client_name || row.username)}</b>${row.node_name ? `<small>${esc(row.node_name)}</small>` : ""}</span></td>
-      <td data-label="Протокол"><span class="cellv">${chip(row.protocol)}${esc(PROTOCOL_NAME[row.protocol] || row.protocol)}</span></td>
+      <td data-label="Протокол"><span class="cellv">${chip(row.protocol)}${esc(PROTOCOL_NAME[row.protocol] || row.protocol)}${row.live === false ? '<small class="muted" title="Объём записывается при закрытии соединения">по завершённым</small>' : ""}</span></td>
       <td class="num" data-label="↓"><span class="cellv">${row.down_bps === null || row.down_bps === undefined ? '<span class="muted" title="Протокол отдаёт только суммарный счётчик">—</span>' : rateText(row.down_bps)}</span></td>
       <td class="num" data-label="↑"><span class="cellv">${row.up_bps === null || row.up_bps === undefined ? '<span class="muted" title="Протокол отдаёт только суммарный счётчик">—</span>' : rateText(row.up_bps)}</span></td>
       <td class="num" data-label="Σ"><span class="cellv"><span class="num-bar"><b>${rateText(row.total_bps)}</b><span class="mini-bar"><i data-width="${Math.max(2, ((Number(row.total_bps) || 0) / top) * 100).toFixed(1)}"></i></span></span></span></td></tr>`
@@ -633,8 +633,9 @@ function paintNow(context, snapshot) {
     ? nodes.flatMap((entry) => (entry.status === "ok" ? (entry.top_clients || []).map((row) => ({ ...row, node_name: entry.name })) : []))
       .sort((a, b) => (b.total_bps || 0) - (a.total_bps || 0)).slice(0, 10)
     : (node.top_clients || []).slice(0, 10);
-  const naiveHint = protocols.naive?.available && !protocols.naive.live
-    ? '<p class="mon-note">NaiveProxy и Mieru не дают скорость по клиентам в реальном времени — их объёмы смотрите на вкладке «Трафик».</p>'
+  // NaiveProxy's log is written when a CONNECT closes: its rows are real volumes, not a running meter
+  const naiveHint = clients.some((row) => row.live === false)
+    ? '<p class="mon-note">Скорость NaiveProxy по клиентам — среднее за минуту по завершённым соединениям: объём записывается, когда соединение закрывается.</p>'
     : "";
   setHtmlIfChanged(rt, "clients", query("[data-clients]", root), clientsHtml(clients, naiveHint));
   if (!all) setHtmlIfChanged(rt, "containers", query("[data-containers]", root), containersHtml(node.host?.containers, node.host?.mem?.total));

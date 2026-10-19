@@ -92,7 +92,7 @@ Accounting появляется только после **успешного з�
 
 ## Mieru подключается, но traffic unavailable
 
-Это не ошибка UI. Adapter не парсит human table и не копирует GPL gRPC stubs; безопасной typed per-user metrics boundary нет. Quota — rolling approximate session-admission check, не hard cap.
+С 2.2.0 страница Mieru, обзор и монитор показывают байты, которые mita насчитала по пользователям с запуска демона (`mita get metrics`, менеджер отдаёт их на `/v1/traffic`). «Недоступно» теперь значит, что менеджер Mieru на узле старше 2.2.0: обновите его. История по пользователям и расход квоты остаются недоступными намеренно: безопасной typed-границы для истории нет, adapter не парсит human table и не копирует GPL gRPC stubs. Quota — rolling approximate session-admission check, не hard cap. Счётчики обнуляются при перезапуске mita.
 
 ## TrustTunnel не подключается
 
