@@ -4,6 +4,23 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-20
+
+### Changed
+- **The overview's «Server resources» card is live.** It used to poll `GET /api/host` every 5 seconds and rebuild itself. It now subscribes to the monitor's own stream (`/api/metrics/stream`, the SSE feed of the «Monitoring» screen) and paints every snapshot in place — once per collector interval, 2 s by default: the percentages and the «used of total» lines change, the bars slide to the new width (CSS transition, off with `prefers-reduced-motion`), the status pill follows the load. The line under the title shows a pulsing «live» dot with the time of the snapshot.
+- CPU on the card is now the agent's one-second average (the monitor's sample) instead of a 150 ms instantaneous reading; memory, swap and disk come from the same snapshot, so the card and the «Monitoring» screen always show the same numbers.
+- **One shape for every protocol card.** MTProxy, Mieru, AmneziaWG, TrustTunnel and NaiveProxy are built by one function: the head with the status, the «Active accesses | Disabled» pair and one «Traffic» tile across the card — the value on one line (`↑ upload · ↓ download`, MTProxy `Σ total`, NaiveProxy with `Σ`), what the numbers count under it. The tile sits at the bottom of the card, so the cards of a row line up; its caption keeps two lines of room, so the tiles of a row have one height.
+- What used to be extra tiles moved into the caption: MTProxy's current connections and active IPs, AmneziaWG's access versions, the NaiveProxy host and its «closed CONNECT tunnels only» note. NaiveProxy's «Accesses» is «Active accesses» like everywhere else; its dashed traffic box and footer line are gone.
+
+### Fallback and compatibility
+- A panel whose monitor is switched off (`PANEL_METRICS_ENABLED=0`) sends no snapshot; when the stream fails twice before the first one, the card closes it and polls `/api/host` every 5 seconds as before. The connection follows the overview: it closes when another screen opens and pauses in a hidden tab.
+- `connectLive()` (`panel/static/js/live.js`) takes the screen it belongs to (`{ view }`, default `monitoring`); no API, database or configuration change. English strings for the new captions are in `i18n/en.json`.
+
+### Maintenance
+- CI: the shell step passes again (three `A && ok || bad` lines in `scripts/lab/awg-panel-e2e.sh` became `if … then … else`), and the notices step checks the Caddy builder pin of the Dockerfile (2.11.7) instead of the old 2.11.4.
+- Verification matrix: row `ui-overview-live`.
+- The installer did not change.
+
 ## [3.0.1] - 2026-10-20
 
 - **The stack move takes the host's own model and checks it before stopping anything.** `scripts/migrate-compose-project.sh` read the Compose files from the running containers' labels; a label naming an overlay the host never installed (the Xray-router on two nodes) made `up` fail after the stop, and the way back failed the same way. It now uses `PROXY_CONTROL_COMPOSE_FILES`, the version overrides and the env files present — what update-host.sh and the version-agent use — and refuses before the stop when the model does not render, lacks a running service or bind-mounts a host path that does not exist (a short-syntax bind docker creates is fine). `--check` runs the checks only.

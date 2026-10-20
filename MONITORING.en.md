@@ -123,8 +123,10 @@ an ↑/↓/total toggle, volumes and the share of each protocol.
 alerts) and drills into a chosen node: resource history, volumes by protocol, the average load by hour
 of day (periods of 7 days and longer) and peaks.
 
-Periods: 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d. Gaps in the data stay gaps, not zeros. The resources
-card on the overview keeps working and links to this screen.
+Periods: 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d. Gaps in the data stay gaps, not zeros. The «Server
+resources» card on the overview rides the same live stream (since 3.1): it updates in place every
+collector interval (2 s), marked «live», and links to this screen. With the monitor off it polls the agent
+every 5 seconds.
 
 ## Retention
 

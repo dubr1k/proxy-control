@@ -19,8 +19,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v3.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.1).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.1)
+> **Текущий выпуск — [v3.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
@@ -226,8 +226,8 @@ bash install-release.sh
 
 Полезные параметры: `--check-only` только скачивает и проверяет; `--no-wizard` ещё и
 распаковывает, но мастер не запускает; `--lang ru|en` — язык сообщений. Для установки
-именно 3.0.1 замените в обеих ссылках `releases/latest/download/` на
-`releases/download/v3.0.1/`.
+именно 3.1.0 замените в обеих ссылках `releases/latest/download/` на
+`releases/download/v3.1.0/`.
 
 Проект намеренно не предлагает «скачать и сразу выполнить одной командой»: сценарий
 сначала проверяется, потом читается и только потом запускается.
@@ -352,16 +352,16 @@ sudo python3 -m installer.cli install --config examples/installer/full-three-xui
 ### Ручная установка из архива
 
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 3.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.1): архив,
+[выпуска 3.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.0.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v3.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.0.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v3.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он

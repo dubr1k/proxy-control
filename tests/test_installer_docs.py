@@ -661,3 +661,13 @@ def test_the_release_note_for_3_0_1_says_the_installer_did_not_change():
     assert "install-release.sh --update" in note and "releases/download/v3.0.1/install-release.sh.sha256" in note
     assert "releases/download/v3.0.0" not in note
     assert "(releases/v3.0.1.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")
+
+
+def test_the_release_note_for_3_1_0_says_the_installer_did_not_change():
+    note = (ROOT / "docs/releases/v3.1.0.md").read_text(encoding="utf-8")
+    assert "v3.1.0" in note and "v3.0.1" in note
+    assert "установщик не менялись" in note and "the installer did not" in note
+    assert "PANEL_METRICS_ENABLED=0" in note and "proxy_panel_by_dubr1k" in note
+    assert "install-release.sh --update" in note and "releases/download/v3.1.0/install-release.sh.sha256" in note
+    assert "releases/download/v3.0.1" not in note
+    assert "(releases/v3.1.0.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")
