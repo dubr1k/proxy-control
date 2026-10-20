@@ -700,7 +700,8 @@ not change. The update is the usual `bash install-release.sh --update`.
   `scripts/migrate-compose-project.sh` moves the host once: it tags the running images with the new names (no
   rebuild), stops the stack, copies the data volumes into the new project's volumes, removes the old containers and
   starts the same model — the Compose and env files the old containers were created from — under the new name. The
-  services are down for the time of the copy, seconds. A failure at any step brings the old project back.
+  services are down for under a minute: the copy takes seconds, then every service starts again and passes its health
+  check (the panel last). A failure at any step brings the old project back.
 - **The way back stays.** The old volumes `mtproxy_panel-data` and `mtproxy_telemt-config` and the `mtproxy-*`
   images are kept as they were at the moment of the move. The script prints the command that removes the volumes;
   run it once you no longer need a rollback. The version-agent's `PROXY_CONTROL_PANEL_IMAGE` and
