@@ -3,21 +3,26 @@
 #
 # Run by update-host.sh at its end, as root; once a host is moved it does nothing:
 #
-#   bash scripts/migrate-compose-project.sh [--dir /opt/mtproxy-shared443] [--lang ru|en]
+#   bash scripts/migrate-compose-project.sh [--dir /opt/mtproxy-shared443] [--lang ru|en] [--check]
 #
+# `--check` runs every check below and stops before anything changes.
 # The containers keep their names, the images their bytes: every image a running service was built
 # into is tagged with the new project's name (no rebuild), the data volumes (the panel database,
 # Telemt's config) are copied into the new project's volumes while the stack is stopped, and the
-# same model — the Compose files and env files the old containers were created from, read from
-# their labels — comes up under the new name. The old volumes and images stay as they are: they are
-# the way back, and a failure here brings the old project up again from them. The services stop
-# for the time of the copy (seconds).
+# same model update-host.sh and the version-agent use — PROXY_CONTROL_COMPOSE_FILES, the version
+# overrides and the env files present — comes up under the new name. The old volumes and images
+# stay as they are: they are the way back, and a failure here brings the old project up again from
+# them. Everything that can be checked is checked before anything stops: the model renders, it
+# defines every running service, and every host path it bind-mounts exists. (3.0.0 read the model
+# from the containers' labels; a label can name an overlay the host never installed.) The services
+# are down for under a minute.
 set -Eeuo pipefail
 
 OLD=mtproxy
 NEW=proxy_panel_by_dubr1k
 DIR=/opt/mtproxy-shared443
 LANGUAGE=en
+CHECK_ONLY=
 ENV_FILE=${MIGRATE_AGENT_ENV:-/etc/proxy-control/version-agent.env}
 
 say() { if [[ $LANGUAGE == ru ]]; then printf '%s\n' "$1"; else printf '%s\n' "$2"; fi; }
@@ -27,7 +32,8 @@ while (($#)); do
     case $1 in
         --dir) DIR=${2:?}; shift 2 ;;
         --lang) LANGUAGE=${2:?}; shift 2 ;;
-        *) printf 'usage: migrate-compose-project.sh [--dir DIR] [--lang ru|en]\n' >&2; exit 2 ;;
+        --check) CHECK_ONLY=1; shift ;;
+        *) printf 'usage: migrate-compose-project.sh [--dir DIR] [--lang ru|en] [--check]\n' >&2; exit 2 ;;
     esac
 done
 [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "нужен root" "root is required"
@@ -39,26 +45,21 @@ if ((${#old_containers[@]} == 0)); then
 fi
 cd -- "$DIR" || fail "нет каталога проекта $DIR" "no project directory $DIR"
 
-# The model the old project runs: the union of its containers' Compose files and env files, in the
-# order first seen (compose.yaml first, the version overrides last), each one still on disk.
-labels() {
-    docker inspect --format "{{index .Config.Labels \"$1\"}}" "${old_containers[@]}" | tr ',' '\n' \
-        | awk 'NF && !seen[$0]++'
-}
-mapfile -t files < <(labels com.docker.compose.project.config_files \
-    | awk '/\/compose\.yaml$/ {print; next} /version-overrides\// {late[++n]=$0; next} {rest[++m]=$0}
-           END {for (i=1;i<=m;i++) print rest[i]; for (i=1;i<=n;i++) print late[i]}' | awk '!seen[$0]++')
-mapfile -t envs < <(labels com.docker.compose.project.environment_file)
-((${#files[@]})) || fail "у контейнеров $OLD нет меток Compose" "the $OLD containers carry no Compose labels"
-model=(--project-directory "$DIR")
-for file in "${envs[@]}"; do
-    [[ -f $file ]] || fail "env-файла $file больше нет" "env file $file is gone"
-    model+=(--env-file "$file")
+# The model every other tool of this host uses (update-host.sh, the version-agent): the overlays of
+# PROXY_CONTROL_COMPOSE_FILES, the version overrides, the env files present.
+FILES=$(sed -n 's/^PROXY_CONTROL_COMPOSE_FILES=//p' "$ENV_FILE" 2>/dev/null | tail -n1)
+FILES=${FILES:-compose.yaml}
+model=(--project-directory "$DIR" --env-file "$DIR/.env")
+[[ -f $DIR/.optional.env ]] && model+=(--env-file "$DIR/.optional.env")
+for sibling in naive mieru xray-router amneziawg trusttunnel mcp; do
+    [[ -f $DIR/.env.$sibling ]] && model+=(--env-file "$DIR/.env.$sibling")
 done
-for file in "${files[@]}"; do
-    [[ -f $file ]] || fail "файла Compose $file больше нет" "Compose file $file is gone"
-    model+=(-f "$file")
+IFS=: read -r -a overlays <<< "$FILES"
+for file in "${overlays[@]}"; do
+    [[ $file != */* && -f $DIR/$file ]] || fail "файла Compose $file нет" "no Compose file $file"
+    model+=(-f "$DIR/$file")
 done
+[[ -f $DIR/version-overrides/compose.versions.yaml ]] && model+=(-f "$DIR/version-overrides/compose.versions.yaml")
 old=(docker compose --project-name "$OLD" "${model[@]}")
 new=(docker compose --project-name "$NEW" "${model[@]}")
 config=$("${new[@]}" config --format json) || fail "модель Compose не собирается" "the Compose model does not render"
@@ -67,6 +68,34 @@ config=$("${new[@]}" config --format json) || fail "модель Compose не с
 mapfile -t running < <(docker ps --filter "label=com.docker.compose.project=$OLD" \
     --format '{{.Label "com.docker.compose.service"}}' | sed '/^$/d' | sort -u)
 ((${#running[@]})) || fail "в проекте $OLD ничего не работает" "nothing runs in the $OLD project"
+# Before anything stops: the model defines every running service, and every host path the services
+# it will start (with their dependencies) bind-mount exists — a missing one fails `up` mid-way.
+problem=$(python3 -c '
+import json, os, sys
+model = json.loads(sys.argv[1])
+services, secrets = model.get("services", {}), model.get("secrets") or {}
+running = sys.argv[2:]
+missing = [name for name in running if name not in services]
+if missing:
+    print("not in the model: " + " ".join(missing)); raise SystemExit
+start, queue = set(), list(running)
+while queue:
+    name = queue.pop()
+    if name in start or name not in services:
+        continue
+    start.add(name)
+    queue.extend((services[name].get("depends_on") or {}).keys())
+# A short-syntax bind has docker create a missing directory; a long-syntax one fails instead.
+paths = {volume.get("source", "") for name in start for volume in services[name].get("volumes") or []
+         if volume.get("type") == "bind" and not (volume.get("bind") or {}).get("create_host_path")}
+paths |= {(secrets.get(used.get("source")) or {}).get("file") or "" for name in start
+          for used in services[name].get("secrets") or []}
+absent = sorted(path for path in paths if path and not os.path.exists(path))
+if absent:
+    print("missing host paths: " + " ".join(absent))
+' "$config" "${running[@]}")
+[[ -z $problem ]] || fail "модель не подходит для перевода, ничего не остановлено: $problem" \
+    "the model cannot move this stack, nothing was stopped: $problem"
 read -r -a built <<< "$(python3 -c '
 import json, sys
 services = json.loads(sys.argv[1]).get("services", {})
@@ -79,6 +108,11 @@ print(" ".join(sorted(key for key, volume in volumes.items()
                       if not (volume or {}).get("external") and ((volume or {}).get("driver_opts") or {}).get("type") != "tmpfs")))
 ' "$config")"
 
+if [[ -n $CHECK_ONLY ]]; then
+    say "проверка пройдена: $OLD → $NEW, службы ${running[*]}, тома ${data_volumes[*]}" \
+        "check passed: $OLD → $NEW, services ${running[*]}, volumes ${data_volumes[*]}"
+    exit 0
+fi
 say "перевожу стек $OLD → $NEW: ${running[*]}" "moving the stack $OLD → $NEW: ${running[*]}"
 for service in "${built[@]}"; do
     container=$("${old[@]}" ps -q "$service") || fail "не найден контейнер $service" "no $service container"

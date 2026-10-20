@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v3.0.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.0).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.0)
+> **Current release: [v3.0.1](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.1).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.1)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -227,8 +227,8 @@ The script's own origin is proved with
 
 Useful options: `--check-only` downloads and verifies only; `--no-wizard` also extracts
 but does not start the wizard; `--lang ru|en` sets the language of the messages. To
-install exactly 3.0.0, replace `releases/latest/download/` in both URLs with
-`releases/download/v3.0.0/`.
+install exactly 3.0.1, replace `releases/latest/download/` in both URLs with
+`releases/download/v3.0.1/`.
 
 The project deliberately never offers «download and run in one command»: the script is
 verified first, read next, and only then run.
@@ -354,7 +354,7 @@ previous state.
 ### Manual installation from the archive
 
 The same path without the script. Download the four files under Assets of the
-[3.0.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.0): the archive,
+[3.0.1 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.0.1): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -362,9 +362,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.0.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v3.0.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.0.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v3.0.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file

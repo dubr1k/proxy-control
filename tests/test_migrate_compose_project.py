@@ -77,8 +77,9 @@ def host(tmp_path):
     (project / "version-overrides").mkdir()
     (project / "version-overrides" / "compose.versions.yaml").write_text("x: 1\n")
     agent_env = tmp_path / "version-agent.env"
-    agent_env.write_text("PROXY_CONTROL_COMPOSE_DIR=/x\nPROXY_CONTROL_PANEL_IMAGE=mtproxy-panel\n"
+    agent_env.write_text("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.xray-router.yaml\nPROXY_CONTROL_PANEL_IMAGE=mtproxy-panel\n"
                          "PROXY_CONTROL_PANEL_VOLUME=mtproxy_panel-data\n")
+    (tmp_path / "router-token").write_text("t\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     docker = bin_dir / "docker"
@@ -88,12 +89,18 @@ def host(tmp_path):
         "log": str(tmp_path / "docker.log"),
         "legacy": ["c1", "c2"],
         "running": ["mask", "panel", "xray-router-ingress"],
-        # The overrides first and the router before compose.yaml: the script orders them.
-        "files": f"{project}/version-overrides/compose.versions.yaml,{project}/compose.xray-router.yaml,{project}/compose.yaml",
-        "envs": f"{project}/.env,{project}/.env.xray-router",
+        # Stale labels (3.0.0 trusted them): an overlay this host never installed. The model comes from
+        # PROXY_CONTROL_COMPOSE_FILES now, the labels are not read.
+        "files": f"{project}/compose.yaml,{project}/compose.never-installed.yaml",
+        "envs": f"{project}/.env",
         "image": IMAGE,
-        "config": {"services": {"mask": {"image": "caddy"}, "panel": {"build": {"context": "panel"}},
+        "config": {"services": {"mask": {"image": "caddy"},
+                                "panel": {"build": {"context": "panel"}, "depends_on": {"xray-router-ingress": {}},
+                                          "volumes": [{"type": "bind", "source": str(project / ".env")},
+                                                      {"type": "bind", "source": "/nowhere/created", "bind": {"create_host_path": True}}],
+                                          "secrets": [{"source": "router-token"}]},
                                 "xray-router-ingress": {"build": {"context": "."}}, "naive-manager": {"build": {}}},
+                   "secrets": {"router-token": {"file": str(tmp_path / "router-token")}},
                    "volumes": {"panel-data": {}, "telemt-config": {}, "xray-router-run": {"driver_opts": {"type": "tmpfs"}}}},
         "volumes": ["mtproxy_panel-data", "mtproxy_telemt-config", "mtproxy_xray-router-run"],
     }
@@ -111,9 +118,9 @@ def _set(host, **changes):
     (host["bin"] / "docker.json").write_text(json.dumps(state))
 
 
-def _run(host):
+def _run(host, *extra):
     environment = {"PATH": f"{host['bin']}:/usr/bin:/bin", "MIGRATE_AGENT_ENV": str(host["agent_env"])}
-    result = subprocess.run(["bash", str(SCRIPT), "--dir", str(host["project"]), "--lang", "en"], env=environment,
+    result = subprocess.run(["bash", str(SCRIPT), "--dir", str(host["project"]), "--lang", "en", *extra], env=environment,
                             capture_output=True, text=True, timeout=60)
     log = (host["tmp"] / "docker.log").read_text().splitlines() if (host["tmp"] / "docker.log").exists() else []
     return result, log
@@ -165,10 +172,35 @@ def test_a_failed_start_brings_the_old_project_back_and_drops_the_copies(host):
     assert "mtproxy-panel" in host["agent_env"].read_text()
 
 
+def _nothing_stopped(log):
+    return not any(" stop" in line or " down" in line or line.startswith(("tag ", "volume create")) for line in log)
+
+
+def test_a_bind_source_the_host_lacks_refuses_before_anything_stops(host):
+    """3.0.0 found it mid-way: the model named a host path that does not exist, `up` failed after the stop."""
+    (host["tmp"] / "router-token").unlink()
+    result, log = _run(host)
+    assert result.returncode != 0 and "nothing was stopped" in result.stderr and "router-token" in result.stderr
+    assert _nothing_stopped(log)
+
+
+def test_a_running_service_the_model_lacks_refuses_before_anything_stops(host):
+    _set(host, running=["mask", "panel", "xray-router-ingress", "fleet-agent"])
+    result, log = _run(host)
+    assert result.returncode != 0 and "not in the model: fleet-agent" in result.stderr
+    assert _nothing_stopped(log)
+
+
+def test_check_only_runs_the_checks_and_changes_nothing(host):
+    result, log = _run(host, "--check")
+    assert result.returncode == 0 and "check passed" in result.stdout
+    assert _nothing_stopped(log) and "mtproxy-panel" in host["agent_env"].read_text()
+
+
 def test_a_missing_compose_file_refuses_before_anything_stops(host):
     (host["project"] / "compose.xray-router.yaml").unlink()
     result, log = _run(host)
-    assert result.returncode != 0 and "is gone" in result.stderr
+    assert result.returncode != 0 and "no Compose file compose.xray-router.yaml" in result.stderr
     assert not any(" stop" in line or line.startswith("tag ") for line in log)
 
 

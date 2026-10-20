@@ -699,7 +699,10 @@ not change. The update is the usual `bash install-release.sh --update`.
   renamed. Container names (`proxy-control-*`) stay. At the very end of the update, once everything is healthy,
   `scripts/migrate-compose-project.sh` moves the host once: it tags the running images with the new names (no
   rebuild), stops the stack, copies the data volumes into the new project's volumes, removes the old containers and
-  starts the same model — the Compose and env files the old containers were created from — under the new name. The
+  starts the same model the update uses (`PROXY_CONTROL_COMPOSE_FILES`, the version overrides, the `.env*` files)
+  under the new name. Before anything stops it checks that this model renders, defines every running service and that
+  every host path it mounts exists; otherwise it refuses and the host keeps running as `mtproxy` (3.0.1;
+  `sudo bash scripts/migrate-compose-project.sh --check` runs the checks alone). The
   services are down for under a minute: the copy takes seconds, then every service starts again and passes its health
   check (the panel last). A failure at any step brings the old project back.
 - **The way back stays.** The old volumes `mtproxy_panel-data` and `mtproxy_telemt-config` and the `mtproxy-*`

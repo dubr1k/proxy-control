@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-20
+
+- **The stack move takes the host's own model and checks it before stopping anything.** `scripts/migrate-compose-project.sh` read the Compose files from the running containers' labels; a label naming an overlay the host never installed (the Xray-router on two nodes) made `up` fail after the stop, and the way back failed the same way. It now uses `PROXY_CONTROL_COMPOSE_FILES`, the version overrides and the env files present — what update-host.sh and the version-agent use — and refuses before the stop when the model does not render, lacks a running service or bind-mounts a host path that does not exist (a short-syntax bind docker creates is fine). `--check` runs the checks only.
+- No other change; the installer did not change.
+
 ## [3.0.0] - 2026-10-20
 
 - **Faster and lighter.** The MTProxy ingress bridge (`xray-router-ingress`) is the static Go binary `mtproxy-bridge` (standard library only, built in the router image with the Go toolchain pinned for amneziawg-go) instead of a Python asyncio module; the protocol is unchanged (SOCKS5 login compared in constant time, VLESS over the router's socket, half-close, 4096 connections, a 10-second handshake), the kernel moves the bytes (splice) and its health check costs a millisecond.
