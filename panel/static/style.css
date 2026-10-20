@@ -691,3 +691,15 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 @media(max-width:640px){
   .tt-app{grid-template-columns:minmax(0,1fr)}
 }
+/* 3.1 overview: one shape for every protocol card — head, the access pair, one traffic tile at the bottom */
+.protocol-overview>.protocol-card:not(.host-card){display:flex;flex-direction:column}
+.protocol-overview>.protocol-card:not(.host-card) .protocol-access{margin-bottom:8px}
+.protocol-traffic{margin-top:auto;padding:12px;border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.018);min-width:0}
+.protocol-traffic small{display:block;color:var(--muted);font-size:11px}
+.protocol-traffic b{display:block;margin-top:3px;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.protocol-traffic em{display:block;min-height:2.7em;margin-top:4px;color:var(--quiet);font-size:9px;font-style:normal;line-height:1.35;overflow-wrap:anywhere}
+/* live resource card: the bars slide to the new value, a pulsing dot says the stream is on */
+.host-card .usage-bar>i{transition:width .8s ease}
+.host-card .live-badge{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:inherit;font-size:inherit;white-space:nowrap}
+.host-card .live-badge>i{width:6px;height:6px;border-radius:50%;background:var(--green);animation:live-pulse 1.8s ease-out infinite}
+@media(prefers-reduced-motion:reduce){.host-card .usage-bar>i{transition:none}}

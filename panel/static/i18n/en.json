@@ -1827,5 +1827,13 @@
  "Пока роутер не вернётся, трафик клиентов отбрасывается, а не идёт с IP сервера.": "Until the router is back, client traffic is dropped rather than sent from the server's IP.",
  "Роутер не читает туннели": "The router does not read the tunnels",
  "Роутер принимает трафик": "The router takes the traffic",
- "Через Xray-router": "Through the Xray-router"
+ "Через Xray-router": "Through the Xray-router",
+ "Для текущего runtime-поколения; не квота · соединений сейчас": "For the current runtime generation; not a quota · connections now",
+ "Менеджер не отдаёт счётчики": "The manager reports no counters",
+ "Среднее за секунду": "Average over one second",
+ "Счётчики endpoint по доступам": "Endpoint counters per access",
+ "Счётчики туннелей": "Tunnel counters",
+ "активных IP": "active IPs",
+ "в прямом эфире": "live",
+ "версии доступов": "access versions"
 }

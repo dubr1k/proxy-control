@@ -52,6 +52,34 @@ def test_host_card_follows_the_host_while_the_overview_is_open():
     assert "data-host-updated=" in DASHBOARD and "обновлено" in DASHBOARD
 
 
+def test_host_card_is_live_on_the_monitors_stream_and_polls_only_without_it():
+    """3.1 (owner: «сделай чтоб я видел обновления в прямом эфире»): the card paints every snapshot of
+    the monitor's SSE stream in place (numbers change, bars slide); a panel whose monitor is off never
+    sends one, and only then the card falls back to polling `/api/host`."""
+    assert 'connectLive(context, "local", (snapshot) => {' in DASHBOARD and '{ view: "dashboard" }' in DASHBOARD
+    assert "followLive(context, generation);" in DASHBOARD
+    assert 'if (!delivered && next === "polling") fallBack();' in DASHBOARD
+    assert "paintHost(card, host);" in DASHBOARD and "export function hostFromLive(sample)" in DASHBOARD
+    assert "в прямом эфире" in DASHBOARD and ".host-card .live-badge>i{" in CSS and ".host-card .usage-bar>i{transition:width" in CSS
+    live = (STATIC / "js/live.js").read_text()
+    assert 'export function connectLive(context, node, onSnapshot, onState, { view = "monitoring" } = {})' in live
+    assert "context.state.view === view;" in live
+
+
+def test_every_protocol_card_has_the_same_three_blocks():
+    """3.1 (owner: «приведи к одному виду»): head with status, «Активные доступы | Отключённые», one
+    traffic tile across the card at its bottom — the same for MTProxy, Mieru, AmneziaWG, TrustTunnel
+    and NaiveProxy; no per-protocol tiles of their own."""
+    assert "function protocolCard({" in DASHBOARD
+    assert DASHBOARD.count("protocolCard({") == 6  # the definition and five cards
+    assert DASHBOARD.count("<small>Активные доступы</small>") == 1
+    assert '<div class="protocol-traffic"><small>Трафик</small><b>${traffic}</b><em>${source}</em></div>' in DASHBOARD
+    for gone in ("traffic-unavailable", "protocol-caption", "<small>Доступы</small>", "Соединения сейчас</small>"):
+        assert gone not in DASHBOARD, gone
+    assert ".protocol-traffic{margin-top:auto;" in CSS
+    assert ".protocol-traffic b{display:block;margin-top:3px;font-size:16px;white-space:nowrap;" in CSS
+
+
 def test_overview_placeholder_has_the_overviews_own_shape():
     """Owner (2026-09-28): the overview's tiles went 3, then 4, then 1 + 3 while loading.
     The first paint and every later navigation draw the real grid: the resources row and

@@ -28,7 +28,7 @@ NODE = shutil.which("node")
 def test_the_three_modules_export_the_names_the_plan_promises():
     for name in ("lineChart", "areaChart", "stackedAreaChart", "barChart", "gaugeRing", "sparkline", "formatRate", "formatBytes"):
         assert re.search(rf"export (async )?function {name}\b", CHARTS), name
-    assert re.search(r"export function connectLive\(context, node, onSnapshot, onState\)", LIVE)
+    assert re.search(r"export function connectLive\(context, node, onSnapshot, onState(, \{ view = \"monitoring\" \} = \{\})?\)", LIVE)
     assert "export async function renderMonitoring" in MONITORING
     assert "export function bindMonitoring" in MONITORING
 

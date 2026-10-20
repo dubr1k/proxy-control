@@ -1,6 +1,7 @@
-// The live feed of the monitoring screen: Server-Sent Events first, polling when the stream
-// does not hold, a paused/resumed connection when the tab is hidden. One connection per screen;
-// it closes itself when the operator leaves the screen (the navigation generation moves on).
+// The live feed of the monitoring screen (and, since 3.1, of the overview's resource card):
+// Server-Sent Events first, polling when the stream does not hold, a paused/resumed connection
+// when the tab is hidden. One connection per screen; it closes itself when the operator leaves
+// the screen (the navigation generation moves on).
 //
 // States passed to `onState(state, detail)`:
 //   live         the SSE stream delivers a snapshot every interval
@@ -18,7 +19,7 @@ export function backoffDelay(attempt) {
   return Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** Math.max(0, attempt));
 }
 
-export function connectLive(context, node, onSnapshot, onState) {
+export function connectLive(context, node, onSnapshot, onState, { view = "monitoring" } = {}) {
   context.live?.close();
   const generation = context.state.navigationGeneration;
   const target = encodeURIComponent(node || "local");
@@ -39,7 +40,7 @@ export function connectLive(context, node, onSnapshot, onState) {
   let frame = 0;
   let state = "";
 
-  const alive = () => !closed && context.state.navigationGeneration === generation && context.state.view === "monitoring";
+  const alive = () => !closed && context.state.navigationGeneration === generation && context.state.view === view;
 
   function report(next, detail = {}) {
     if (state === next && next !== "reconnecting") return;

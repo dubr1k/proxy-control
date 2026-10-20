@@ -1,4 +1,5 @@
-import { bytes, esc, icon, locale, number, paintClientsCount, query } from "./common.js";
+import { bytes, esc, locale, number, paintClientsCount, query } from "./common.js";
+import { connectLive } from "./live.js";
 import { clientsCount, fleetCount, paintNavCounts } from "./nav-counts.js";
 import { isCurrent } from "./state.js";
 import { refreshUsers } from "./users.js";
@@ -9,24 +10,27 @@ const HOST_WARN_PERCENT = 75;
 const HOST_CRITICAL_PERCENT = 90;
 // v0.15 (owner: «не вижу, что что-то обновляется»): the resource card follows the host while
 // the overview is open. `/api/host` asks the agent alone, not every protocol runtime.
+// 3.1 (owner: «сделай чтоб я видел обновления в прямом эфире»): the card rides the monitor's live
+// stream (a snapshot every collector interval, 2 s); this poll is only the fallback for a panel
+// whose monitor is switched off.
 const HOST_REFRESH_MS = 5000;
 
 function usageLevel(percent) {
   return percent >= HOST_CRITICAL_PERCENT ? "critical" : percent >= HOST_WARN_PERCENT ? "warn" : "";
 }
 
-function usageBar(label, percent) {
-  return `<span class="usage-bar ${usageLevel(percent)}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i data-usage-percent="${percent.toFixed(1)}"></i></span>`;
+function usageBar(key, label, percent) {
+  return `<span class="usage-bar ${usageLevel(percent)}" data-host-bar="${key}" role="img" aria-label="${esc(label)}: ${percent.toFixed(1)} процентов"><i data-usage-percent="${percent.toFixed(1)}"></i></span>`;
 }
 
-function hostRow(label, usage, detail, extra = "") {
+function hostRow(key, label, usage, detail, extra = "") {
   const percent = usage?.used_percent;
   if (typeof percent !== "number") {
     return `<span><small>${esc(label)}</small><b>—</b><em>Нет данных</em>${extra}</span>`;
   }
-  return `<span><small>${esc(label)}</small><b>${percent.toFixed(1)} %</b>
-    ${usageBar(label, percent)}
-    <em>${esc(detail)}</em>${extra}</span>`;
+  return `<span><small>${esc(label)}</small><b data-host-value="${key}">${percent.toFixed(1)} %</b>
+    ${usageBar(key, label, percent)}
+    <em data-host-detail="${key}">${esc(detail)}</em>${extra}</span>`;
 }
 
 // Swap sits under RAM: it is the same story (memory pressure) told one step later. An
@@ -35,13 +39,53 @@ function swapLine(swap) {
   if (!swap) return "";
   if (!swap.total_bytes) return '<span class="host-swap"><small>Swap</small><em>выключен на сервере</em></span>';
   const percent = typeof swap.used_percent === "number" ? swap.used_percent : 0;
-  return `<span class="host-swap"><small>Swap</small><b>${percent.toFixed(1)} %</b>
-    ${usageBar("Swap", percent)}
-    <em>${esc(`${bytes(swap.used_bytes)} из ${bytes(swap.total_bytes)}`)}</em></span>`;
+  return `<span class="host-swap"><small>Swap</small><b data-host-value="swap">${percent.toFixed(1)} %</b>
+    ${usageBar("swap", "Swap", percent)}
+    <em data-host-detail="swap">${esc(swapDetail(swap))}</em></span>`;
+}
+
+function swapDetail(swap) {
+  return `${bytes(swap.used_bytes)} из ${bytes(swap.total_bytes)}`;
+}
+
+function memoryDetail(memory) {
+  return memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "";
+}
+
+function diskDetail(disk) {
+  return disk ? `${bytes(disk.available_bytes)} свободно из ${bytes(disk.total_bytes)}` : "";
+}
+
+function cpuDetail(host) {
+  return host.live ? "Среднее за секунду" : "Мгновенная утилизация, окно 150 мс";
 }
 
 function updatedAt(when) {
   return `обновлено ${when.toLocaleTimeString(locale())}`;
+}
+
+function loadLine(cpu) {
+  const load = Array.isArray(cpu?.load_average)
+    ? `load ${cpu.load_average.map((value) => value.toFixed(2)).join(" · ")}`
+    : "load average недоступен";
+  return typeof cpu?.cores === "number" ? `${number(cpu.cores)} ядер · ${load}` : load;
+}
+
+function strainedBy(host) {
+  const worst = Math.max(
+    ...[host.cpu?.used_percent, host.memory?.used_percent, host.disk?.used_percent]
+      .filter((value) => typeof value === "number"),
+    0,
+  );
+  return worst >= HOST_WARN_PERCENT;
+}
+
+// The line under the title: what the numbers are and how fresh. On the live stream a pulsing
+// dot says so; on the fallback poll it is the time of the last answer.
+function freshness(host, when) {
+  return host.live
+    ? `<span class="live-badge" data-host-fresh><i></i>в прямом эфире · ${esc(updatedAt(when))}</span>`
+    : `<span data-host-fresh>${esc(updatedAt(when))}</span>`;
 }
 
 function hostCard(host, when = new Date()) {
@@ -56,31 +100,80 @@ function hostCard(host, when = new Date()) {
     </article>`;
   }
   const { cpu, memory, swap, disk } = host;
-  const worst = Math.max(
-    ...[cpu?.used_percent, memory?.used_percent, disk?.used_percent]
-      .filter((value) => typeof value === "number"),
-    0,
-  );
-  const strained = worst >= HOST_WARN_PERCENT;
-  const load = Array.isArray(cpu?.load_average)
-    ? `load ${cpu.load_average.map((value) => value.toFixed(2)).join(" · ")}`
-    : "load average недоступен";
-  const cores = typeof cpu?.cores === "number" ? `${number(cpu.cores)} ядер · ${load}` : load;
-  return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}" ${stamp}>
-    <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}"><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
-    <p class="protocol-note">${esc(cores)} · ${esc(updatedAt(when))} · <a class="mon-link" href="#monitoring">Подробнее в мониторинге</a></p>
+  const strained = strainedBy(host);
+  return `<article class="protocol-card host-card host-row ${strained ? "degraded" : ""}" ${stamp} data-host-shape="${hostShape(host)}">
+    <div class="protocol-head"><span><small>CPU · RAM · Диск</small><h2>Ресурсы сервера</h2></span><span class="status-pill ${strained ? "blocked" : "active"}" data-host-pill><i></i>${strained ? "Нагружен" : "В норме"}</span></div>
+    <p class="protocol-note"><span data-host-load>${esc(loadLine(cpu))}</span> · ${freshness(host, when)} · <a class="mon-link" href="#monitoring">Подробнее в мониторинге</a></p>
     <div class="protocol-metrics host-metrics">
-      ${hostRow("Загрузка CPU", cpu, "Мгновенная утилизация, окно 150 мс")}
-      ${hostRow("Оперативная память", memory, memory ? `${bytes(memory.used_bytes)} из ${bytes(memory.total_bytes)}` : "", swapLine(swap))}
-      ${hostRow("Диск (корень)", disk, disk ? `${bytes(disk.available_bytes)} свободно из ${bytes(disk.total_bytes)}` : "")}
+      ${hostRow("cpu", "Загрузка CPU", cpu, cpuDetail(host))}
+      ${hostRow("memory", "Оперативная память", memory, memoryDetail(memory), swapLine(swap))}
+      ${hostRow("disk", "Диск (корень)", disk, diskDetail(disk))}
     </div>
   </article>`;
+}
+
+// Which rows the card has: a new sample with the same shape is painted into the card in place
+// (the numbers change, the bars slide), any other one rebuilds it.
+function hostShape(host) {
+  return [host.live ? "live" : "poll", host.cpu ? 1 : 0, host.memory ? 1 : 0, host.disk ? 1 : 0,
+    !host.swap ? "-" : host.swap.total_bytes ? "s" : "0"].join("");
 }
 
 // The bars' widths go through the CSSOM: an inline style attribute is what the CSP
 // (style-src 'self') drops, and a bar that never fills is worse than no bar.
 function fillBars(root) {
   for (const bar of root.querySelectorAll("[data-usage-percent]")) bar.style.width = `${bar.dataset.usagePercent}%`;
+}
+
+function paintHost(card, host, when = new Date()) {
+  if (card.dataset.hostShape !== hostShape(host) || host.available !== true) {
+    card.outerHTML = hostCard(host, when);
+    return;
+  }
+  const rows = { cpu: host.cpu, memory: host.memory, disk: host.disk, swap: host.swap };
+  const details = { cpu: cpuDetail(host), memory: memoryDetail(host.memory), disk: diskDetail(host.disk),
+    swap: host.swap?.total_bytes ? swapDetail(host.swap) : "" };
+  for (const [key, usage] of Object.entries(rows)) {
+    const percent = usage?.used_percent;
+    if (typeof percent !== "number") continue;
+    const value = card.querySelector(`[data-host-value="${key}"]`);
+    if (value) value.textContent = `${percent.toFixed(1)} %`;
+    const bar = card.querySelector(`[data-host-bar="${key}"]`);
+    if (bar) {
+      bar.className = `usage-bar ${usageLevel(percent)}`;
+      const fill = bar.querySelector("i");
+      fill.dataset.usagePercent = percent.toFixed(1);
+      fill.style.width = `${percent.toFixed(1)}%`;
+    }
+    const detail = card.querySelector(`[data-host-detail="${key}"]`);
+    if (detail) detail.textContent = details[key];
+  }
+  const strained = strainedBy(host);
+  card.classList.toggle("degraded", strained);
+  const pill = card.querySelector("[data-host-pill]");
+  pill.className = `status-pill ${strained ? "blocked" : "active"}`;
+  pill.lastChild.textContent = strained ? "Нагружен" : "В норме";
+  card.querySelector("[data-host-load]").textContent = loadLine(host.cpu);
+  card.querySelector("[data-host-fresh]").outerHTML = freshness(host, when);
+  card.dataset.hostUpdated = String(when.getTime());
+}
+
+// The monitor's snapshot of this node, in the shape `/api/host` answers.
+export function hostFromLive(sample) {
+  if (!sample || typeof sample !== "object") return null;
+  const usage = (part) => (part && typeof part.percent === "number"
+    ? { used_percent: part.percent, used_bytes: part.used, total_bytes: part.total } : null);
+  const disk = usage(sample.disk);
+  if (disk) disk.available_bytes = Math.max(0, (sample.disk.total || 0) - (sample.disk.used || 0));
+  return {
+    available: true,
+    live: true,
+    cpu: typeof sample.cpu_percent === "number"
+      ? { used_percent: sample.cpu_percent, cores: sample.cores, load_average: sample.load } : null,
+    memory: usage(sample.mem),
+    swap: sample.swap ? { used_percent: sample.swap.percent ?? 0, used_bytes: sample.swap.used, total_bytes: sample.swap.total } : null,
+    disk,
+  };
 }
 
 // Replaces the card in place every HOST_REFRESH_MS while this very render of the overview is
@@ -104,10 +197,58 @@ async function followHost(context, generation) {
   }
 }
 
+// The live card: every snapshot of the monitor's stream is painted as it arrives. A panel whose
+// monitor is off never sends one; then the stream is closed and the card falls back to the poll.
+function followLive(context, generation) {
+  const { state, ui } = context;
+  let delivered = false;
+  let fellBack = false;
+  let handle = null;
+  const fallBack = () => {
+    if (fellBack) return;
+    fellBack = true;
+    if (!handle) return; // reported while connecting; closed right after connectLive returns
+    handle.close();
+    if (isCurrent(state, generation, "dashboard")) void followHost(context, generation);
+  };
+  handle = connectLive(context, "local", (snapshot) => {
+    const node = snapshot?.nodes?.find((entry) => entry.node_id === "local") || snapshot?.nodes?.[0];
+    const host = node && node.status !== "unavailable" ? hostFromLive(node.host) : null;
+    const card = query(".host-card", ui.view);
+    if (!host || !card || !isCurrent(state, generation, "dashboard")) return;
+    delivered = true;
+    paintHost(card, host);
+    fillBars(query(".host-card", ui.view));
+  }, (next) => {
+    // `polling`: the stream failed twice (a monitor that is off answers 404) before any snapshot.
+    if (!delivered && next === "polling") fallBack();
+  }, { view: "dashboard" });
+  if (fellBack) {
+    fellBack = false;
+    fallBack();
+  }
+}
+
 // One line of «Состояние сервисов» for a protocol that is switched on: green when its manager is ready.
 function serviceRow(name, available, ready, status) {
   if (!available) return "";
   return `<div class="service-row ${ready ? "" : "degraded"}"><i></i><span><b>${name}</b><small>${ready ? "Manager работает" : "Manager недоступен"}</small></span><em>${esc(status || (ready ? "ready" : "degraded"))}</em></div>`;
+}
+
+// 3.1 (owner: «приведи к одному виду»): every protocol card is the same three blocks — the head
+// with its status, the active/disabled pair, and one traffic tile across the card (value on one
+// line, its source under it), pinned to the bottom so the cards of a row line up.
+function protocolCard({ name, kind, ready, available = true, status, active, disabled, traffic, source, className = "" }) {
+  const pill = !available ? "Отключён" : status || (ready ? "Работает" : "Недоступен");
+  return `<article class="protocol-card ${className} ${ready || !available ? "" : "degraded"}"${available ? "" : " hidden"}>
+      <div class="protocol-head"><span><small>${esc(kind)}</small><h2>${esc(name)}</h2></span><span class="status-pill ${ready ? "active" : "blocked"}"><i></i>${esc(pill)}</span></div>
+      <div class="protocol-access"><span><small>Активные доступы</small><strong>${active}</strong></span><span><small>Отключённые</small><strong>${disabled}</strong></span></div>
+      <div class="protocol-traffic"><small>Трафик</small><b>${traffic}</b><em>${source}</em></div>
+    </article>`;
+}
+
+function upDown(up, down) {
+  return `↑ ${bytes(up)} · ↓ ${bytes(down)}`;
 }
 
 export async function renderDashboard(context, generation) {
@@ -146,41 +287,47 @@ export async function renderDashboard(context, generation) {
   if (naiveAvailable) state.naiveService = { ready: naiveReady, host: naive.host || state.naiveService.host };
   const mtCredentials = mt.credentials || {};
   const naiveCredentials = naive.credentials || {};
+  const naiveKnown = naiveCredentials.available !== false;
   const naiveState = !naiveAvailable ? "Функция отключена" : naiveReady ? "Manager работает" : "NaiveProxy недоступен";
   const naiveStatus = !naiveAvailable ? "Отключён" : naiveReady ? "Работает" : "Сбой manager";
-  const naiveAccess = naiveCredentials.available === false
-    ? "Данные недоступны"
-    : `${number(naiveCredentials.active)} активных · ${number(naiveCredentials.disabled)} отключённых`;
+  const naiveTotals = naive.traffic?.aggregate;
+
+  const cards = [
+    protocolCard({
+      name: "MTProxy", kind: "MTProto · FakeTLS", ready: mtReady, status: mtReady ? "Работает" : "Недоступен",
+      active: number(mtCredentials.active), disabled: number(mtCredentials.disabled),
+      traffic: `Σ ${bytes(mt.runtime?.traffic_octets)}`,
+      source: `Для текущего runtime-поколения; не квота · соединений сейчас ${number(mt.runtime?.current_connections)} · активных IP ${number(mt.runtime?.active_ips)}`,
+    }),
+    protocolCard({
+      name: "Mieru", kind: "Native AEAD · TCP", ready: mieruReady, available: mieruAvailable,
+      active: number(mieru.credentials?.active), disabled: number(mieru.credentials?.disabled),
+      traffic: mieru.traffic?.available ? upDown(mieru.traffic.upload_bytes, mieru.traffic.download_bytes) : "—",
+      source: mieru.traffic?.available ? "С запуска mita" : "Менеджер не отдаёт счётчики",
+    }),
+    protocolCard({
+      name: "AmneziaWG", kind: "UDP · WireGuard с маскировкой", ready: awgReady, available: awgAvailable,
+      active: number(awg.credentials?.active), disabled: number(awg.credentials?.disabled),
+      traffic: upDown(awg.traffic?.upload_bytes, awg.traffic?.download_bytes),
+      source: `Счётчики туннелей${awgVersions ? ` · версии доступов ${esc(awgVersions)}` : ""}`,
+    }),
+    protocolCard({
+      name: "TrustTunnel", kind: "HTTP/2 · TCP", ready: ttReady, available: ttAvailable,
+      active: number(tt.credentials?.active), disabled: number(tt.credentials?.disabled),
+      traffic: upDown(tt.traffic?.upload_bytes, tt.traffic?.download_bytes),
+      source: "Счётчики endpoint по доступам",
+    }),
+    protocolCard({
+      name: "NaiveProxy", kind: "HTTPS · HTTP/2 CONNECT", ready: naiveReady, status: naiveStatus, className: "naive-card",
+      active: naiveKnown ? number(naiveCredentials.active) : "—", disabled: naiveKnown ? number(naiveCredentials.disabled) : "—",
+      traffic: `${upDown(naiveTotals?.upload_bytes_decimal, naiveTotals?.download_bytes_decimal)} · Σ ${bytes(naiveTotals?.total_bytes_decimal)}`,
+      source: `Только закрытые CONNECT-туннели; активные появятся после закрытия${naive.host ? ` · ${esc(naive.host)}` : ""}`,
+    }),
+  ];
 
   ui.view.innerHTML = `<div class="protocol-overview">
     ${hostCard(data.host)}
-    <article class="protocol-card ${mtReady ? "" : "degraded"}">
-      <div class="protocol-head"><span><small>MTProto · FakeTLS</small><h2>MTProxy</h2></span><span class="status-pill ${mtReady ? "active" : "blocked"}"><i></i>${mtReady ? "Работает" : "Недоступен"}</span></div>
-      <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(mtCredentials.active)}</strong></span><span><small>Отключённые</small><strong>${number(mtCredentials.disabled)}</strong></span></div>
-      <div class="protocol-metrics"><span><small>Соединения сейчас</small><b>${number(mt.runtime?.current_connections)}</b></span><span><small>Активные IP</small><b>${number(mt.runtime?.active_ips)}</b></span><span><small>Runtime-трафик</small><b>${bytes(mt.runtime?.traffic_octets)}</b><em>Для текущего runtime-поколения; не квота</em></span></div>
-    </article>
-    <article class="protocol-card ${mieruReady ? "" : "degraded"}">
-      <div class="protocol-head"><span><small>Native AEAD · TCP</small><h2>Mieru</h2></span><span class="status-pill ${mieruReady ? "active" : "blocked"}"><i></i>${!mieruAvailable ? "Отключён" : mieruReady ? "Работает" : "Недоступен"}</span></div>
-      <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(mieru.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(mieru.credentials?.disabled)}</strong></span></div>
-      ${mieru.traffic?.available ? `<div class="protocol-metrics"><span><small>Принято / отдано</small><b>${bytes(mieru.traffic.upload_bytes)} / ${bytes(mieru.traffic.download_bytes)}</b><em>С запуска mita</em></span></div>` : ""}
-    </article>
-    <article class="protocol-card ${awgReady || !awgAvailable ? "" : "degraded"}"${awgAvailable ? "" : " hidden"}>
-      <div class="protocol-head"><span><small>UDP · WireGuard с маскировкой</small><h2>AmneziaWG</h2></span><span class="status-pill ${awgReady ? "active" : "blocked"}"><i></i>${!awgAvailable ? "Отключён" : awgReady ? "Работает" : "Недоступен"}</span></div>
-      ${awgVersions ? `<p class="protocol-note">Версии (доступов): ${esc(awgVersions)}</p>` : ""}
-      <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(awg.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(awg.credentials?.disabled)}</strong></span></div>
-      <div class="protocol-metrics"><span><small>Принято / отдано</small><b>${bytes(awg.traffic?.upload_bytes)} / ${bytes(awg.traffic?.download_bytes)}</b></span></div>
-    </article>
-    <article class="protocol-card ${ttReady || !ttAvailable ? "" : "degraded"}"${ttAvailable ? "" : " hidden"}>
-      <div class="protocol-head"><span><small>HTTP/2 · TCP</small><h2>TrustTunnel</h2></span><span class="status-pill ${ttReady ? "active" : "blocked"}"><i></i>${!ttAvailable ? "Отключён" : ttReady ? "Работает" : "Недоступен"}</span></div>
-      <div class="protocol-access"><span><small>Активные доступы</small><strong>${number(tt.credentials?.active)}</strong></span><span><small>Отключённые</small><strong>${number(tt.credentials?.disabled)}</strong></span></div>
-      <div class="protocol-metrics"><span><small>Принято / отдано</small><b>${bytes(tt.traffic?.upload_bytes)} / ${bytes(tt.traffic?.download_bytes)}</b></span></div>
-    </article>
-    <article class="protocol-card naive-card ${naiveReady ? "" : "degraded"}">
-      <div class="protocol-head"><span><small>HTTPS · HTTP/2 CONNECT</small><h2>NaiveProxy</h2></span><span class="status-pill ${naiveReady ? "active" : "blocked"}"><i></i>${naiveStatus}</span></div>
-      <p class="protocol-note">${naiveState}${naive.host ? ` · ${esc(naive.host)}` : ""}</p>
-      <div class="protocol-access"><span><small>Доступы</small><strong>${naiveCredentials.available === false ? "—" : number(naiveCredentials.active)}</strong></span><span><small>Отключённые</small><strong>${naiveCredentials.available === false ? "—" : number(naiveCredentials.disabled)}</strong></span></div>
-      <div class="traffic-unavailable"><span>${icon("transfer")}</span><span><b>↑ ${bytes(naive.traffic?.aggregate?.upload_bytes_decimal)} · ↓ ${bytes(naive.traffic?.aggregate?.download_bytes_decimal)} · Σ ${bytes(naive.traffic?.aggregate?.total_bytes_decimal)}</b><small>Только закрытые CONNECT-туннели; активные появятся после закрытия</small></span></div><small class="protocol-caption">${naiveAccess}</small>
-    </article>
+    ${cards.join("\n    ")}
   </div>
   <div class="dashboard-grid"><section class="panel-card"><div class="panel-head"><h2>Состояние сервисов</h2><span>обновлено сейчас</span></div><div class="service-list">
     <div class="service-row ${mtReady ? "" : "degraded"}"><i></i><span><b>MTProxy · Telemt</b><small>${mtReady ? "Control API отвечает" : "Проверьте Telemt"}</small></span><em>${esc(mt.status || "degraded")}</em></div>
@@ -191,5 +338,5 @@ export async function renderDashboard(context, generation) {
     <div class="service-row ${location.protocol === "https:" ? "" : "degraded"}"><i></i><span><b>Proxy Control${state.me?.panel_version ? ` · ${esc(state.me.panel_version)}` : ""}</b><small>${location.protocol === "https:" ? "HTTPS · защищённое соединение" : "HTTP · соединение не защищено"}</small></span><em>${location.protocol === "https:" ? "secure" : "insecure"}</em></div>
   </div></section></div>`;
   fillBars(ui.view);
-  void followHost(context, generation);
+  followLive(context, generation);
 }
