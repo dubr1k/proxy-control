@@ -64,8 +64,8 @@ def test_every_protocol_map_knows_trusttunnel():
     assert 'ROTATION_REQUIRED = new Set(["mieru"])' in read("clients.js")
     nodes = read("nodes.js")
     assert '["trusttunnel", "TrustTunnel"]' in nodes
-    # the manager is not a version-agent component
-    assert "trusttunnel" not in nodes.split("const COMPONENT_NAMES")[1].split("\n")[0].lower()
+    # 3.2: the manager is a version-agent component, so the node's «Обновления» names it
+    assert 'trusttunnel: "TrustTunnel / endpoint"' in nodes.split("const COMPONENT_NAMES")[1].split("\n")[0]
     dashboard = read("dashboard.js")
     assert "#trusttunnel-count" in read("nav-counts.js") and "protocols.trusttunnel" in read("nav-counts.js")
     assert "protocols?.trusttunnel" in dashboard and "ttReady" in dashboard

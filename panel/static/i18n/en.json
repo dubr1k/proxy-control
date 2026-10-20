@@ -1835,5 +1835,7 @@
  "Счётчики туннелей": "Tunnel counters",
  "активных IP": "active IPs",
  "в прямом эфире": "live",
- "версии доступов": "access versions"
+ "версии доступов": "access versions",
+ "Образ менеджера AmneziaWG будет пересобран на хосте с amneziawg-go этой версии (несколько минут); туннели оборвутся на несколько секунд и клиенты переподключатся сами.": "The AmneziaWG manager image will be rebuilt on the host with this amneziawg-go version (a few minutes); tunnels drop for a few seconds and the clients reconnect by themselves.",
+ "Образ менеджера TrustTunnel будет пересобран на хосте с endpoint этой версии (около минуты); сессии оборвутся на несколько секунд.": "The TrustTunnel manager image will be rebuilt on the host with this endpoint version (about a minute); sessions drop for a few seconds."
 }
