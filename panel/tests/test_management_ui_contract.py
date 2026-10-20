@@ -57,6 +57,17 @@ def test_versions_screen_updates_the_panel_itself_and_waits_for_it_to_come_back(
     assert "item.rebuilding_managers === true" in JS and 'data-managers-rebuild="1"' in JS
 
 
+def test_versions_screen_puts_the_panel_first_and_names_the_protocol_managers():
+    """3.2 (owner): the panel's card comes first; AmneziaWG and TrustTunnel get their own cards,
+    and their confirm text says the manager image is rebuilt and the tunnels drop for seconds."""
+    assert 'const names = { panel: "Proxy Control / панель", telemt:' in JS
+    assert ".sort(([a], [b]) => rank(a) - rank(b))" in JS
+    for text in ('amneziawg: "AmneziaWG / amneziawg-go"', 'trusttunnel: "TrustTunnel / endpoint"',
+                 "Образ менеджера AmneziaWG будет пересобран", "Образ менеджера TrustTunnel будет пересобран"):
+        assert text in JS, text
+    assert ".version-card .panel-head h2{overflow-wrap:anywhere}" in CSS
+
+
 def test_versions_screen_has_styles_for_the_check_bar_and_the_risk_note():
     assert ".version-check{" in CSS and ".version-risk{" in CSS
     assert "@media(max-width:560px){.version-check{flex-direction:column" in CSS

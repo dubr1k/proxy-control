@@ -41,9 +41,9 @@ const DAEMON_STATE = {
   off: ["muted", "выключен"],
 };
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
-const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core" };
+const COMPONENT_NAMES = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint" };
 // Те же компоненты одним словом: строка «Компоненты» в обзоре узла должна помещаться.
-const COMPONENT_SHORT = { telemt: "Telemt", naive: "Caddy", mita: "mita", xray: "Xray", panel: "панель" };
+const COMPONENT_SHORT = { telemt: "Telemt", naive: "Caddy", mita: "mita", xray: "Xray", panel: "панель", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 const TABS = [["overview", "Обзор"], ["users", "Пользователи"], ["updates", "Обновления"]];
 const SHA256 = /^[0-9a-f]{64}$/;
 

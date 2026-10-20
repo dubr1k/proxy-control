@@ -606,7 +606,8 @@ def test_every_adapter_compose_call_rides_the_trusttunnel_overlay_when_its_env_e
         argv = adapter_type(root=tmp_path)._compose_argv("up")
         assert "/opt/mtproxy-shared443/compose.trusttunnel.yaml" in argv, adapter_type.__name__
         assert "/opt/mtproxy-shared443/.env.trusttunnel" in argv, adapter_type.__name__
-    assert AmneziaWgAdapter  # the AWG adapter predates the overlay and rides the compose list in the project
+    argv = AmneziaWgAdapter(root=tmp_path)._compose_argv("up")  # 3.2: the AWG adapter rides it too
+    assert "/opt/mtproxy-shared443/compose.trusttunnel.yaml" in argv
 
 
 def test_update_host_rebuilds_the_manager_with_the_overlay_and_env():

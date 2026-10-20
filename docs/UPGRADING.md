@@ -212,7 +212,7 @@ migration.
 newer schema («database schema N is newer than this code»). The agent therefore offers the panel
 only forward and refuses a downgrade; going back is a restore of the complete previous generation,
 database included ([backup and restore](BACKUP_RESTORE.en.md), «Upgrade rollback»). The runtimes —
-Telemt, NaiveProxy, Mieru, the Xray-router — can be rolled back from the «Versions» screen (the
+Telemt, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, the Xray-router — can be rolled back from the «Versions» screen (the
 «Roll back to an earlier one» group); the agent verifies and keeps a copy as for an update.
 
 **A failed update rolls itself back.** The agent restores the tree, the database files and the
@@ -306,9 +306,9 @@ the profile's complete Compose overlay list and the Xray-router flag, seeds an e
 `versions.json` and a `state.json` that records the versions it just installed, and waits for
 `/v1/health`. `repair` rewrites the owned files and never touches the catalog or the state.
 
-The «Versions» screen lists, for each runtime — Telemt, NaiveProxy/Caddy, Mieru/mita and the
-Xray-router when installed — several recent releases in two groups, «Newer than installed» and
-«Roll back to an earlier one»; the «Proxy Control / panel» card offers only newer releases.
+The «Versions» screen lists, for each runtime — Telemt, NaiveProxy/Caddy, Mieru/mita, AmneziaWG,
+TrustTunnel and the Xray-router when installed — several recent releases in two groups, «Newer than installed» and
+«Roll back to an earlier one»; the «Proxy Control / panel» card comes first and offers only newer releases.
 Installing is an `owner` action. The UI sends `expected_current`; a mismatch returns `409`, so a stale browser tab
 cannot update a runtime that has already changed. A component marked `rollback_failed` stays
 blocked until an operator restores and verifies the complete generation and then reconciles the
@@ -350,6 +350,29 @@ complete previous generation.
 A `mita` update rewrites the pin in `.env.mieru`, restarts `mita` and the `mita@<n>` lane slots and
 recreates the `mieru-manager` container (`PROXY_CONTROL_CONSUMER_OVERLAYS`, below).
 
+### AmneziaWG and TrustTunnel
+
+amneziawg-go and the TrustTunnel endpoint live inside their managers' images, so an update is a
+rebuild of that image with another version (since 3.2). The component exists only on a host whose
+Compose model has its overlay (`compose.amneziawg.yaml`, `compose.trusttunnel.yaml`); its current
+version is read from the running manager's image env (`AWG_GO_VERSION`, `TT_VERSION`).
+
+The agent writes the version into `version-overrides/compose.versions.yaml` as build args of the
+service (`awg-manager`: `AWG_GO_VERSION` and `AWG_GO_COMMIT`; `trusttunnel-manager`: `TT_VERSION`
+and `TT_SHA256_X86_64`), tags the running image `<project>-<service>:rollback-<time>`, runs
+`compose up -d --build --no-deps <service>`, waits for `healthy` and reads the version back from
+the container. A failed build, start, health check or readback restores the previous override and
+image and checks that the previous version runs again; otherwise `rollback_failed`. The amneziawg-go
+build clones the tag and verifies the commit; the TrustTunnel Dockerfile verifies the release
+archive's SHA-256 (x86-64 only — on another architecture the agent refuses before any change).
+Restarting the manager drops AmneziaWG tunnels or TrustTunnel sessions for a few seconds; the keys,
+passwords and counters in `/var/lib/awg-manager` and `/var/lib/trusttunnel-manager` are not touched.
+
+The override is shared by every agent pin: a Telemt update replaces only the `mtproxy` block, a
+manager update only its own. update-host.sh, the manager rebuild after a panel update and the
+installer's AmneziaWG and TrustTunnel adapters read it, so the chosen version survives a panel
+update, the one-command update and `repair`; removing a protocol drops its block.
+
 ### Updates from upstream
 
 «Check for updates» on the «Versions» screen asks the agent to poll the projects' own sources. The
@@ -364,6 +387,8 @@ URL is impossible from the browser and from the configuration alike.
 | Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` from `mita_<v>_linux_amd64.tar.gz` | the release's `.sha256.txt` |
 | Telemt | registry `ghcr.io/samnet-dev/mtproxymax-telemt`; GitHub Releases `telemt/telemt` | the image by manifest digest, or (`build`) the `telemt` binary baked into a local image on the newest registry image | registry digest; the release asset's published `sha256` |
 | NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + the `naive` branch of `klzgrad/forwardproxy` | Caddy is built on the host (`docker build`, builder image by digest, up to 15 minutes) | the pin of the built binary |
+| AmneziaWG (`amneziawg`) | tags of `amnezia-vpn/amneziawg-go` | the `awg-manager` image built on the host from the tag's commit | the tag's commit (40 hex), verified after the clone |
+| TrustTunnel (`trusttunnel`) | stable GitHub Releases `TrustTunnel/TrustTunnel` | the `trusttunnel-manager` image with `trusttunnel-v<v>-linux-x86_64.tar.gz` | the release asset's published `sha256` |
 | The panel | GitHub Releases `dubr1k/proxy-control` | the release archive | the archive's line in `SHA256SUMS` |
 
 **What a release digest proves and what it does not.** A match against

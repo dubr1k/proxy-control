@@ -19,8 +19,8 @@ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel под одной пане�
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Иллюстрация Proxy Control" width="100%"></p>
 
 > [!NOTE]
-> **Текущий выпуск — [v3.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0).**
-> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0)
+> **Текущий выпуск — [v3.2.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.0).**
+> Что изменилось — в [описании выпуска](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.0)
 > и [журнале изменений](CHANGELOG.ru.md).
 
 > [!IMPORTANT]
@@ -67,7 +67,7 @@ Proxy Control — отдельная панель управления прок�
 | **Связанные панели (Fleet)** | Центральная панель выдаёт доступы на другие серверы с Proxy Control по HTTPS и API-ключу `node-sync`. |
 | **Маршрутизация** | Правила исходящего трафика для каждого узла и службы: напрямую, через WARP, через свой выход или другой узел; блокировки по домену, CIDR, geosite и geoip через необязательный Xray-router. |
 | **Мониторинг** | Ресурсы сервера и трафик по протоколам в прямом эфире (CPU, память, диск, сеть, контейнеры, скорости ↑/↓ MTProxy, NaiveProxy, Mieru, AmneziaWG и TrustTunnel), история до года, сравнение узлов и оповещения. Только чтение, видно всем ролям. |
-| **Обновления** | Экран «Версии» обновляет Telemt, NaiveProxy, Mieru, Xray-router и саму панель с резервной копией и откатом, а менеджеры после обновления панели пересобирает сам; сервер целиком обновляется одной командой. |
+| **Обновления** | Экран «Версии» обновляет Telemt, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, Xray-router и саму панель с резервной копией и откатом, а менеджеры после обновления панели пересобирает сам; сервер целиком обновляется одной командой. |
 | **MCP и навыки для ИИ** | Необязательный MCP-сервер на центральной панели: API панели как инструменты для Claude Code и Claude Desktop, необратимые действия — только с `confirm`. |
 | **Панель** | Роли владельца, администратора и наблюдателя; API-ключи с областями `admin \| monitor \| node-sync`; аудит без секретов; интерфейс на русском и английском. |
 
@@ -226,8 +226,8 @@ bash install-release.sh
 
 Полезные параметры: `--check-only` только скачивает и проверяет; `--no-wizard` ещё и
 распаковывает, но мастер не запускает; `--lang ru|en` — язык сообщений. Для установки
-именно 3.1.0 замените в обеих ссылках `releases/latest/download/` на
-`releases/download/v3.1.0/`.
+именно 3.2.0 замените в обеих ссылках `releases/latest/download/` на
+`releases/download/v3.2.0/`.
 
 Проект намеренно не предлагает «скачать и сразу выполнить одной командой»: сценарий
 сначала проверяется, потом читается и только потом запускается.
@@ -352,16 +352,16 @@ sudo python3 -m installer.cli install --config examples/installer/full-three-xui
 ### Ручная установка из архива
 
 Тот же путь без сценария. Скачайте четыре файла из раздела Assets
-[выпуска 3.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0): архив,
+[выпуска 3.2.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.0): архив,
 `SHA256SUMS`, `release-manifest.json` и `sbom.spdx.json`. `SHA256SUMS` проверяет три файла:
 архив, описание выпуска и перечень компонентов `sbom.spdx.json`; сам файл контрольных сумм
 берётся со страницы выпуска и отдельного подтверждения происхождения не имеет.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v3.2.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v3.2.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` отказывается работать от `root`. Перед единственным вызовом `sudo` он
@@ -544,8 +544,9 @@ bash install-release.sh --update
 переподключаются сами; `/var/lib/awg-manager` с ключами сервера не трогается. Так же пересобирается
 `trusttunnel-manager`: перезапуск endpoint ненадолго рвёт сессии, `/var/lib/trusttunnel-manager` не трогается.
 
-Отдельные компоненты — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, **Xray-router** и
-саму панель — можно обновить с экрана «Версии». Кнопка «Проверить обновления» показывает
+Отдельные компоненты — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, **AmneziaWG**
+(amneziawg-go), **TrustTunnel** (endpoint), **Xray-router** и саму панель — можно обновить
+с экрана «Версии». Кнопка «Проверить обновления» показывает
 новые выпуски этих проектов с их опубликованной контрольной суммой; выпуск без контрольной
 суммы виден, но не ставится. Контрольная сумма обнаруживает подмену относительно
 опубликованного значения, но сама по себе не подтверждает автора и не означает, что версия

@@ -29,7 +29,8 @@ MAX_DIGEST_FILE = 4096
 MAX_MANIFEST = 64 * 1024
 MAX_TOKEN = 16 * 1024
 USER_AGENT = "proxy-control-version-agent/1"
-COMPONENTS = ("telemt", "naive", "mita", "xray", "panel")
+COMPONENTS = ("telemt", "naive", "mita", "xray", "panel", "amneziawg", "trusttunnel")
+OPTIONAL_COMPONENTS = ("amneziawg", "trusttunnel")
 # v1.0.1: a runtime's recent releases, back as well as forward, so the Versions screen can
 # pick any of them; `installable` still means «a newer one exists». The panel only goes
 # forward — its database migrates and an older build does not start on it.
@@ -43,6 +44,14 @@ TELEMT_UPSTREAM_REPOSITORY = "telemt/telemt"
 TELEMT_BINARY_ASSET = "telemt"
 MAX_TELEMT_BINARY = 64 * 1024 * 1024
 _RELEASE_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
+# 3.2: the AmneziaWG manager builds amneziawg-go from a tag of its repository (tags only, no
+# releases; the tag's commit is the pin, and the build checks it out and verifies it), the
+# TrustTunnel manager takes the endpoint from a stable release archive (GitHub's SHA-256 of the
+# x86_64 archive is the pin, and the build verifies it before unpacking).
+AMNEZIAWG_REPOSITORY = "amnezia-vpn/amneziawg-go"
+TRUSTTUNNEL_REPOSITORY = "TrustTunnel/TrustTunnel"
+MAX_TRUSTTUNNEL_ARCHIVE = 128 * 1024 * 1024
+_HEX40 = re.compile(r"^[0-9a-f]{40}$")
 # The panel itself (v0.11): this project's releases; every one of them is a pre-release.
 PANEL_REPOSITORY = "dubr1k/proxy-control"
 PANEL_SUMS_ASSET = "SHA256SUMS"
@@ -536,6 +545,71 @@ def _panel(fetcher: Fetcher, current: str | None) -> dict:
     }
 
 
+def _amneziawg(fetcher: Fetcher, current: str | None) -> dict:
+    """amneziawg-go's tags `v<dotted digits>` with their commits, newest first."""
+    items = _json(fetcher, f"https://api.github.com/repos/{AMNEZIAWG_REPOSITORY}/tags?per_page=30")
+    if not isinstance(items, list):
+        raise UpstreamError("tags answer is not a list")
+    tags = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("commit"), dict):
+            continue
+        name, commit = item.get("name"), item["commit"].get("sha")
+        if not isinstance(name, str) or not name.startswith("v") or not isinstance(commit, str):
+            continue
+        if _RELEASE_VERSION.fullmatch(name[1:]) and _HEX40.fullmatch(commit):
+            tags.append((name[1:], name, commit))
+    if not tags:
+        return {"latest": None, "installable": False, "reason": "no_releases", "candidates": []}
+    tags.sort(key=lambda tag: _parts(tag[0]), reverse=True)
+    # The installed tag stays among the candidates (the screen hides it while it runs): after a
+    # step back the operator can return to it without another upstream check (found live).
+    candidates = [
+        {"version": version, "tag": name, "kind": "build", "source": "upstream",
+         "build": {"commit": commit, "tag": name}, "published_at": None}
+        for version, name, commit in tags
+    ][:MAX_CANDIDATES + 1]
+    return _probe(tags[0][0], current, candidates, None)
+
+
+def _trusttunnel(fetcher: Fetcher, current: str | None) -> dict:
+    """TrustTunnel's stable releases whose x86_64 archive carries GitHub's SHA-256 (betas never)."""
+    items = _json(fetcher, f"https://api.github.com/repos/{TRUSTTUNNEL_REPOSITORY}/releases?per_page=10")
+    if not isinstance(items, list):
+        raise UpstreamError("releases answer is not a list")
+    releases = []
+    reason = None
+    for item in items:
+        if not isinstance(item, dict) or item.get("draft") or item.get("prerelease"):
+            continue
+        tag = item.get("tag_name")
+        if not isinstance(tag, str) or not tag.startswith("v") or not _RELEASE_VERSION.fullmatch(tag[1:]):
+            continue
+        version = tag[1:]
+        name = f"trusttunnel-{tag}-linux-x86_64.tar.gz"
+        asset = next((a for a in (item.get("assets") if isinstance(item.get("assets"), list) else [])
+                      if isinstance(a, dict) and a.get("name") == name), None)
+        digest = asset.get("digest") if asset else None
+        size = asset.get("size") if asset else None
+        if (not isinstance(digest, str) or not _DIGEST.fullmatch(digest)
+                or type(size) is not int or not 0 < size <= MAX_TRUSTTUNNEL_ARCHIVE):
+            if current is None or compare_versions(version, current) > 0:
+                reason = reason or "no_published_digest"
+            continue
+        url = _asset_url({name: asset.get("browser_download_url")}, name, TRUSTTUNNEL_REPOSITORY)
+        if url != f"https://github.com/{TRUSTTUNNEL_REPOSITORY}/releases/download/{tag}/{name}":
+            raise UpstreamError("asset URL is not the release download of its repository")
+        published = item.get("published_at")
+        releases.append({"version": version, "tag": tag, "kind": "build", "source": "upstream", "url": url,
+                         "sha256": digest.split(":", 1)[1],
+                         "published_at": published if isinstance(published, str) else None})
+    if not releases:
+        return {"latest": None, "installable": False, "reason": reason or "no_releases", "candidates": []}
+    releases.sort(key=lambda release: _parts(release["version"]), reverse=True)
+    # The installed release stays among the candidates, as for AmneziaWG.
+    return _probe(releases[0]["version"], current, releases[:MAX_CANDIDATES + 1], reason)
+
+
 def check_component(component: str, current: str | None, *, fetcher: Fetcher, router_enabled: bool) -> dict:
     if component == "panel":
         return _panel(fetcher, current)
@@ -567,12 +641,20 @@ def check_component(component: str, current: str | None, *, fetcher: Fetcher, ro
         return _telemt(fetcher, current)
     if component == "naive":
         return _naive(fetcher, current)
+    if component == "amneziawg":
+        return _amneziawg(fetcher, current)
+    if component == "trusttunnel":
+        return _trusttunnel(fetcher, current)
     raise UpstreamError("unknown component")
 
 
 def check_all(current: dict[str, str | None], *, fetcher: Fetcher, router_enabled: bool) -> dict[str, dict]:
     result = {}
     for component in COMPONENTS:
+        # The protocol managers are probed only on a host that runs them (the agent passes the
+        # components it serves); every probe costs GitHub's unauthenticated rate limit.
+        if component in OPTIONAL_COMPONENTS and component not in current:
+            continue
         try:
             result[component] = check_component(
                 component, current.get(component), fetcher=fetcher, router_enabled=router_enabled

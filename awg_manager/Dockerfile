@@ -1,4 +1,5 @@
-# amneziawg-go is built from the pinned upstream commit (tag v3.1.20260828) and verified.
+# amneziawg-go is built from the pinned upstream commit (tag v3.1.20260828) and verified. The
+# version-agent may rebuild with another tag (3.2): both values come as build args then.
 FROM golang:1.25.12@sha256:dbeddb5e728ea4b5ba7920574413e311025ffa42d196793857e4d160e8dfe60d AS awg-go
 ARG AWG_GO_COMMIT=b5928efb6ca19f0153958460c3d141f04abc5c2e
 RUN git clone https://github.com/amnezia-vpn/amneziawg-go /src \
@@ -16,7 +17,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends iproute2 nftables \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=awg-go /out/amneziawg-go /usr/local/bin/amneziawg-go
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ARG AWG_GO_VERSION=3.1.20260828
+ARG AWG_GO_COMMIT=b5928efb6ca19f0153958460c3d141f04abc5c2e
+# The version the agent reads back from the running container (`docker inspect`).
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 AWG_GO_VERSION=${AWG_GO_VERSION} AWG_GO_COMMIT=${AWG_GO_COMMIT}
 WORKDIR /app
 COPY awg_manager /app/awg_manager
 RUN python -m compileall -q /app

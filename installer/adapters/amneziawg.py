@@ -32,7 +32,7 @@ from installer.model import (
 )
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.transaction import atomic_write, durable_mkdir, durable_remove
-from installer.compose_project import COMPOSE_PROJECTS
+from installer.compose_project import COMPOSE_PROJECTS, VERSION_OVERRIDE, without_override_service
 
 if TYPE_CHECKING:
     from installer.audit import CommandRunner
@@ -466,6 +466,11 @@ class AmneziaWgAdapter:
             self._compose("rm", "--stop", "--force", _SERVICE)
         for absolute in (self.paths.env_overlay, self.paths.marker, self.paths.sysctl_file):
             durable_remove(self._host(absolute), missing_ok=True)
+        override = self._host(f"{self.paths.project_dir}/{VERSION_OVERRIDE}")
+        if override.is_file() and not override.is_symlink():
+            text = override.read_text(encoding="utf-8")
+            if text != without_override_service(text, _SERVICE):
+                self._atomic(override, without_override_service(text, _SERVICE).encode(), 0o640)
         state = self._host(self.paths.state_dir)
         if state.is_dir() and not state.is_symlink():
             if destructive_purge:
@@ -573,13 +578,16 @@ class AmneziaWgAdapter:
         project = self.paths.project_dir
         env_files = [f"{project}/.env"]
         compose_files = [f"{project}/compose.yaml"]
-        for sibling in ("naive", "mieru", "xray-router"):
+        for sibling in ("naive", "mieru", "xray-router", "trusttunnel"):
             env = f"{project}/.env.{sibling}"
             if self._host(env).is_file():
                 env_files.append(env)
                 compose_files.append(f"{project}/compose.{sibling}.yaml")
         env_files.append(self.paths.env_overlay)
         compose_files.append(self.paths.compose_overlay)
+        # The version-agent's pins ride along (3.2), or a repair would rebuild the old version.
+        if self._host(f"{project}/{VERSION_OVERRIDE}").is_file():
+            compose_files.append(f"{project}/{VERSION_OVERRIDE}")
         argv: list[str] = ["docker", "compose", "--project-directory", project]
         for path in env_files:
             argv += ["--env-file", path]

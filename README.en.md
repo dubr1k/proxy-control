@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v3.1.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0)
+> **Current release: [v3.2.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.0).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.0)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -67,7 +67,7 @@ way. The installer can also install 3x-ui for you.
 | **Linked panels (Fleet)** | A central panel issues grants on other servers running Proxy Control over HTTPS with a `node-sync` API key. |
 | **Routing** | Outbound traffic rules per node and service: direct, through WARP, your own exit or another node; blocks by domain, CIDR, geosite and geoip through the optional Xray-router. |
 | **Monitoring** | Live server resources and per-protocol traffic (CPU, memory, disk, network, containers, ↑/↓ rates of MTProxy, NaiveProxy, Mieru, AmneziaWG and TrustTunnel), up to a year of history, node comparison and alerts. Read-only, visible to every role. |
-| **Updates** | The «Versions» screen updates Telemt, NaiveProxy, Mieru, the Xray-router and the panel itself with a backup and rollback, and rebuilds the managers itself after a panel update; the whole server updates with one command. |
+| **Updates** | The «Versions» screen updates Telemt, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, the Xray-router and the panel itself with a backup and rollback, and rebuilds the managers itself after a panel update; the whole server updates with one command. |
 | **MCP and AI skills** | An optional MCP server on the central panel: the panel API as tools for Claude Code and Claude Desktop, irreversible actions only with `confirm`. |
 | **Panel** | Owner, admin and viewer roles; API keys scoped `admin \| monitor \| node-sync`; a secret-free audit; Russian and English interface. |
 
@@ -227,8 +227,8 @@ The script's own origin is proved with
 
 Useful options: `--check-only` downloads and verifies only; `--no-wizard` also extracts
 but does not start the wizard; `--lang ru|en` sets the language of the messages. To
-install exactly 3.1.0, replace `releases/latest/download/` in both URLs with
-`releases/download/v3.1.0/`.
+install exactly 3.2.0, replace `releases/latest/download/` in both URLs with
+`releases/download/v3.2.0/`.
 
 The project deliberately never offers «download and run in one command»: the script is
 verified first, read next, and only then run.
@@ -354,7 +354,7 @@ previous state.
 ### Manual installation from the archive
 
 The same path without the script. Download the four files under Assets of the
-[3.1.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.1.0): the archive,
+[3.2.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.0): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -362,9 +362,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.1.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v3.2.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.1.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v3.2.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file
@@ -554,8 +554,9 @@ sources changed, `awg-manager` is rebuilt: the tunnels drop for a few seconds an
 reconnect by themselves; `/var/lib/awg-manager` with the server keys is not touched. `trusttunnel-manager` is
 rebuilt the same way: restarting the endpoint drops sessions for seconds, `/var/lib/trusttunnel-manager` is not touched.
 
-Individual components — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, the **Xray-router**
-and the panel itself — can be updated from the «Versions» screen. «Check for updates» shows
+Individual components — **Telemt**, **NaiveProxy/Caddy**, **Mieru/mita**, **AmneziaWG**
+(amneziawg-go), **TrustTunnel** (the endpoint), the **Xray-router** and the panel itself — can be
+updated from the «Versions» screen. «Check for updates» shows
 new releases of these projects with their published checksum; a release without a published
 checksum is visible but not installable. The checksum detects changes against the published
 value; it does not by itself establish authorship or mean that Proxy Control has verified

@@ -309,7 +309,7 @@ CURATED: tuple[CuratedTool, ...] = (
         "POST /api/versions/{component}/update; `expected_current` must match the installed version. Irreversible: "
         "requires confirm=true.",
         _schema({
-            "component": {"type": "string", "enum": ["telemt", "naive", "mita", "xray", "panel"]},
+            "component": {"type": "string", "enum": ["telemt", "naive", "mita", "xray", "panel", "amneziawg", "trusttunnel"]},
             "version": {"type": "string"},
             "expected_current": {"type": "string"},
             "confirm": dict(CONFIRM_SCHEMA),

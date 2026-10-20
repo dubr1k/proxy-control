@@ -703,3 +703,8 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 .host-card .live-badge{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:inherit;font-size:inherit;white-space:nowrap}
 .host-card .live-badge>i{width:6px;height:6px;border-radius:50%;background:var(--green);animation:live-pulse 1.8s ease-out infinite}
 @media(prefers-reduced-motion:reduce){.host-card .usage-bar>i{transition:none}}
+/* 3.2 Versions: a long component name («AmneziaWG / amneziawg-go») wraps instead of running under the pill */
+.version-card .panel-head{gap:10px}
+.version-card .panel-head>div{min-width:0}
+.version-card .panel-head h2{overflow-wrap:anywhere}
+.version-card .panel-head>.status-pill{flex:0 0 auto}

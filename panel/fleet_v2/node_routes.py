@@ -108,7 +108,7 @@ class GeodataSettings(BaseModel):
 
 class VersionUpdateRequest(VersionUpdate):
     model_config = ConfigDict(extra="forbid")
-    component: Literal["telemt", "naive", "mita", "xray", "panel"]
+    component: Literal["telemt", "naive", "mita", "xray", "panel", "amneziawg", "trusttunnel"]
 
 
 def _conflict(code: str, detail: str = "") -> JSONResponse:

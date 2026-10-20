@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-_COMPONENTS = ("telemt", "naive", "mita", "xray", "panel")
+_COMPONENTS = ("telemt", "naive", "mita", "xray", "panel", "amneziawg", "trusttunnel")
 _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _RUNTIME_VERSION = re.compile(r"^[^\r\n]{1,160}$")
@@ -15,6 +15,12 @@ _IMAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@:-]*@sha256:[0-9a-f]{64}$")
 # A Telemt `build` entry: the registry image pinned by digest plus the upstream release binary.
 TELEMT_BASE_IMAGE = re.compile(r"^ghcr\.io/samnet-dev/mtproxymax-telemt@sha256:[0-9a-f]{64}$")
 TELEMT_RELEASE_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
+# 3.2: the AmneziaWG and TrustTunnel managers' images are rebuilt with another upstream version.
+# amneziawg-go publishes tags only (`v3.1.20260828`), pinned here by their commit; TrustTunnel
+# publishes release archives, pinned by the SHA-256 GitHub reports for the x86_64 one.
+AMNEZIAWG_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
+TRUSTTUNNEL_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$")
+TRUSTTUNNEL_REPOSITORY = "TrustTunnel/TrustTunnel"
 _ARCHIVE_FORMATS = ("zip", "tar.gz")
 _MEMBER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$")
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -221,6 +227,28 @@ def _entry(component: str, raw: object) -> CatalogEntry:
         return CatalogEntry(
             component, version, kind, url=url, sha256=digest, source=source, base_image=base_image
         )
+    if kind == "build" and component == "amneziawg":
+        _reject_unknown(raw, {"version", "kind", "build", "source"}, "amneziawg build")
+        build = raw.get("build")
+        if not AMNEZIAWG_VERSION.fullmatch(version):
+            raise CatalogError("amneziawg build version must be dotted digits")
+        if not isinstance(build, dict):
+            raise CatalogError("amneziawg build entry must be an object")
+        _reject_unknown(build, {"commit", "tag"}, "amneziawg build")
+        commit, tag = build.get("commit"), build.get("tag")
+        if type(commit) is not str or not _HEX40.fullmatch(commit) or tag != f"v{version}":
+            raise CatalogError("amneziawg build must pin the commit of tag v<version>")
+        return CatalogEntry(component, version, kind, source=source, build={"commit": commit, "tag": tag})
+    if kind == "build" and component == "trusttunnel":
+        _reject_unknown(raw, {"version", "kind", "url", "sha256", "source"}, "trusttunnel build")
+        if not TRUSTTUNNEL_VERSION.fullmatch(version):
+            raise CatalogError("trusttunnel build version is malformed")
+        url, digest = _https_artifact(raw, "trusttunnel build")
+        expected = (f"https://github.com/{TRUSTTUNNEL_REPOSITORY}/releases/download/v{version}/"
+                    f"trusttunnel-v{version}-linux-x86_64.tar.gz")
+        if url != expected:
+            raise CatalogError("trusttunnel build must download the TrustTunnel x86_64 release archive")
+        return CatalogEntry(component, version, kind, url=url, sha256=digest, source=source)
     raise CatalogError(f"unsupported artifact kind for {component}")
 
 

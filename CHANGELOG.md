@@ -4,6 +4,24 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-20
+
+### Added
+- **AmneziaWG and TrustTunnel are version-agent components.** The «Versions» screen, the node's «Updates» window, `GET/POST /api/versions…`, the fleet routes and the MCP `versions_*` tools take `amneziawg` and `trusttunnel` next to `telemt`, `naive`, `mita`, `xray` and `panel`. A component is listed only on a host whose Compose model has its overlay (`compose.amneziawg.yaml`, `compose.trusttunnel.yaml`); its current version is read from the running manager's image env (`AWG_GO_VERSION`, `TT_VERSION`).
+- Upstream candidates: `amneziawg` from the tags of `amnezia-vpn/amneziawg-go` (`kind: "build"`, `build: {commit, tag}`, a 40-hex commit); `trusttunnel` from the stable releases of `TrustTunnel/TrustTunnel` (`kind: "build"`, the `linux-x86_64` archive URL of that repository and the SHA-256 GitHub published for the asset; pre-releases are skipped, a release without a digest is visible but not installable). The installed version stays among the candidates, so a step back can be undone without another check. `versions.json` takes the same entries, validated the same way.
+- An update writes the version into `version-overrides/compose.versions.yaml` as build args of the manager's service (`AWG_GO_VERSION` + `AWG_GO_COMMIT`, `TT_VERSION` + `TT_SHA256_X86_64`), tags the running image `<project>-<service>:rollback-<time>`, runs `compose up -d --build --no-deps <service>`, waits for health and reads the version back from the container. A failed build, start, health check or readback restores the previous override and image and proves the previous version runs again (`rollback_failed` otherwise). TrustTunnel refuses on a non-x86-64 host before any change.
+- `awg_manager/Dockerfile` takes `AWG_GO_VERSION` and records it and `AWG_GO_COMMIT` in the image env.
+
+### Changed
+- The version override holds one block per service: Telemt's image update replaces only the `mtproxy` block and keeps the managers' build args, and the other way round.
+- «Versions»: the «Proxy Control / панель» card comes first, then Telemt, Mieru, AmneziaWG, TrustTunnel, NaiveProxy, the Xray-router. The confirm text of a manager update says the image is rebuilt and the tunnels drop for seconds; a long component name wraps instead of running under the status pill.
+
+### Installer
+- The AmneziaWG and TrustTunnel adapters build with `version-overrides/compose.versions.yaml` when it exists, so `repair` keeps the agent's pins (Telemt's image included) instead of rebuilding the installer's own; the AmneziaWG adapter's model now includes the TrustTunnel overlay when it is installed. Removing either protocol drops its service's block from the override. Wizard questions, configuration keys and pins did not change.
+
+### Maintenance
+- Verification matrix: row `versions-protocol-managers`.
+
 ## [3.1.0] - 2026-10-20
 
 ### Changed

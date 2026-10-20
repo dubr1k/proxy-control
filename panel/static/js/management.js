@@ -23,11 +23,14 @@ export async function renderVersions(context, generation) {
   }
   // The agent lists `xray` only on a host that runs the Xray-router, so there is no
   // "router not installed" branch here.
-  const names = { telemt: "Telemt / MTProxy", naive: "NaiveProxy / Caddy", mita: "Mieru / mita", xray: "Xray-router / Xray-core", panel: "Proxy Control / панель" };
+  // 3.2 (owner): the panel's own card first, then the runtimes in the order of the overview.
+  const names = { panel: "Proxy Control / панель", telemt: "Telemt / MTProxy", mita: "Mieru / mita", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint", naive: "NaiveProxy / Caddy", xray: "Xray-router / Xray-core" };
+  const order = Object.keys(names);
+  const rank = (component) => (order.includes(component) ? order.indexOf(component) : order.length);
   const RISK = "Версия из upstream: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась";
   const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Upstream ещё не проверялся";
   const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
-  const cards = Object.entries(context.state.versions.components || {}).map(([component, item]) => {
+  const cards = Object.entries(context.state.versions.components || {}).sort(([a], [b]) => rank(a) - rank(b)).map(([component, item]) => {
     const available = Array.isArray(item.available) ? item.available : [];
     const current = item.current || "не определена";
     const offered = available.filter((entry) => entry.version !== current);
@@ -148,16 +151,22 @@ async function versionAction(context, component, button) {
   // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min); a `telemt`
   // one builds a local image from the upstream release binary.
   const building = (component === "naive" || component === "telemt") && select.selectedOptions[0]?.dataset.kind === "build";
-  const warning = !building ? "" : component === "naive"
-    ? " Caddy будет пересобран на хосте, это занимает до 15 минут."
-    : " Образ Telemt будет собран на хосте из бинарника релиза, это занимает несколько минут.";
+  // 3.2: the AmneziaWG and TrustTunnel managers carry their runtime in their own image.
+  const manager = component === "amneziawg" || component === "trusttunnel";
+  const warning = manager
+    ? component === "amneziawg"
+      ? " Образ менеджера AmneziaWG будет пересобран на хосте с amneziawg-go этой версии (несколько минут); туннели оборвутся на несколько секунд и клиенты переподключатся сами."
+      : " Образ менеджера TrustTunnel будет пересобран на хосте с endpoint этой версии (около минуты); сессии оборвутся на несколько секунд."
+    : !building ? "" : component === "naive"
+      ? " Caddy будет пересобран на хосте, это занимает до 15 минут."
+      : " Образ Telemt будет собран на хосте из бинарника релиза, это занимает несколько минут.";
   const panel = component === "panel";
   const back = select.selectedOptions[0]?.dataset.newer === "0";
   const text = panel ? `Панель: ${current} → ${version}. ${PANEL_CONFIRM}` : `${component}: ${current} → ${version}. Сервис будет перезапущен или перезагружен, а при ошибке агент выполнит rollback.${warning}`;
   const title = panel ? "Обновить панель?" : back ? "Откатить компонент?" : "Обновить компонент?";
   if (!await context.ui.confirmed(title, text, back ? "Откатить" : "Обновить")) return;
   try {
-    context.ui.setBusy(button, true, panel ? "Перезапускаем…" : building ? "Собираем…" : "Обновляем…");
+    context.ui.setBusy(button, true, panel ? "Перезапускаем…" : building || manager ? "Собираем…" : "Обновляем…");
     await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }) });
     if (panel) {
       // The agent answered before restarting the panel: do not navigate, wait for it.

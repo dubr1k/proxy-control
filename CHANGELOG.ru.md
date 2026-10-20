@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-20
+
+### Добавлено
+- **AmneziaWG и TrustTunnel — компоненты агента обновлений.** Экран «Версии», окно «Обновления» узла, `GET/POST /api/versions…`, маршруты флота и инструменты MCP `versions_*` принимают `amneziawg` и `trusttunnel` рядом с `telemt`, `naive`, `mita`, `xray` и `panel`. Компонент показывается только на хосте, в модели Compose которого есть его overlay (`compose.amneziawg.yaml`, `compose.trusttunnel.yaml`); текущая версия читается из env образа работающего менеджера (`AWG_GO_VERSION`, `TT_VERSION`).
+- Кандидаты из upstream: `amneziawg` — теги `amnezia-vpn/amneziawg-go` (`kind: "build"`, `build: {commit, tag}`, коммит из 40 hex); `trusttunnel` — стабильные выпуски `TrustTunnel/TrustTunnel` (`kind: "build"`, URL архива `linux-x86_64` этого репозитория и SHA-256, опубликованный GitHub для asset; pre-release пропускаются, выпуск без digest виден, но не ставится). Установленная версия остаётся среди кандидатов, поэтому шаг назад отменяется без новой проверки. `versions.json` принимает такие же записи с той же проверкой.
+- Обновление пишет версию в `version-overrides/compose.versions.yaml` как build args службы менеджера (`AWG_GO_VERSION` + `AWG_GO_COMMIT`, `TT_VERSION` + `TT_SHA256_X86_64`), помечает работающий образ тегом `<project>-<service>:rollback-<время>`, выполняет `compose up -d --build --no-deps <service>`, ждёт health и сверяет версию в контейнере. Ошибка сборки, запуска, health или сверки возвращает прежний override и образ и доказывает, что снова работает прежняя версия (иначе `rollback_failed`). TrustTunnel отказывает на хосте не x86-64 до любых изменений.
+- `awg_manager/Dockerfile` принимает `AWG_GO_VERSION` и записывает его и `AWG_GO_COMMIT` в env образа.
+
+### Изменено
+- В переопределении версий — блок на каждую службу: обновление образа Telemt заменяет только блок `mtproxy` и сохраняет build args менеджеров, и наоборот.
+- «Версии»: карточка «Proxy Control / панель» — первая, за ней Telemt, Mieru, AmneziaWG, TrustTunnel, NaiveProxy, Xray-router. Текст подтверждения для менеджера говорит, что образ пересоберётся и туннели оборвутся на секунды; длинное имя компонента переносится, а не уходит под плашку статуса.
+
+### Установщик
+- Адаптеры AmneziaWG и TrustTunnel собирают с `version-overrides/compose.versions.yaml`, если он есть, поэтому `repair` сохраняет пины агента (и образ Telemt), а не пересобирает собственные; в модель адаптера AmneziaWG теперь входит overlay TrustTunnel, если тот установлен. Удаление любого из протоколов убирает блок его службы из override. Вопросы мастера, ключи конфигурации и пины не менялись.
+
+### Обслуживание
+- Матрица сверки: строка `versions-protocol-managers`.
+
 ## [3.1.0] - 2026-10-20
 
 ### Изменено

@@ -209,7 +209,7 @@ runtime-path.
 от более новой схемы («database schema N is newer than this code»). Поэтому агент предлагает
 панель только вперёд и отказывает в понижении версии; возврат — это восстановление полной
 предыдущей генерации вместе с базой ([backup и restore](BACKUP_RESTORE.ru.md), раздел об откате
-обновления). Runtime — Telemt, NaiveProxy, Mieru, Xray-router — можно откатить с экрана «Версии»
+обновления). Runtime — Telemt, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, Xray-router — можно откатить с экрана «Версии»
 (группа «Откат на прежнюю»); агент проверяет и сохраняет копию так же, как при обновлении.
 
 **Неудачное обновление откатывается само.** Агент возвращает дерево, файлы базы и прежний образ;
@@ -306,9 +306,9 @@ Compose-overlay профиля и флагом Xray-router, создаёт пу�
 что поставленными версиями и ждёт `/v1/health`. `repair` переписывает владеемые файлы и не трогает
 каталог и state.
 
-Экран «Версии» показывает для каждого runtime — Telemt, NaiveProxy/Caddy, Mieru/mita и Xray-router,
-если он установлен, — несколько последних выпусков в двух группах: «Новее установленной» и «Откат на
-прежнюю»; карточка «Proxy Control / панель» предлагает только более новые выпуски. Установка —
+Экран «Версии» показывает для каждого runtime — Telemt, NaiveProxy/Caddy, Mieru/mita, AmneziaWG,
+TrustTunnel и Xray-router, если они установлены, — несколько последних выпусков в двух группах: «Новее установленной» и «Откат на
+прежнюю»; карточка «Proxy Control / панель» стоит первой и предлагает только более новые выпуски. Установка —
 действие роли `owner`. Интерфейс отправляет `expected_current`; несовпадение возвращает `409`, и устаревшая
 вкладка не может изменить уже обновлённый runtime. Компонент в состоянии `rollback_failed` остаётся
 заблокированным, пока оператор не восстановит и не проверит полную генерацию, а затем не согласует
@@ -349,6 +349,30 @@ restore, config/readback, restart или health gate отката не прош�
 Обновление `mita` переписывает пин в `.env.mieru`, перезапускает `mita` и слоты полос `mita@<n>` и
 пересоздаёт контейнер `mieru-manager` (`PROXY_CONTROL_CONSUMER_OVERLAYS`, ниже).
 
+### AmneziaWG и TrustTunnel
+
+amneziawg-go и endpoint TrustTunnel живут внутри образов своих менеджеров, поэтому обновление —
+это пересборка образа с другой версией (с 3.2). Компонент есть только на хосте, в модели Compose
+которого есть его overlay (`compose.amneziawg.yaml`, `compose.trusttunnel.yaml`); текущая версия
+читается из env образа работающего менеджера (`AWG_GO_VERSION`, `TT_VERSION`).
+
+Агент записывает версию в `version-overrides/compose.versions.yaml` как build args службы
+(`awg-manager`: `AWG_GO_VERSION` и `AWG_GO_COMMIT`; `trusttunnel-manager`: `TT_VERSION` и
+`TT_SHA256_X86_64`), помечает работающий образ тегом `<project>-<service>:rollback-<время>`,
+выполняет `compose up -d --build --no-deps <service>`, ждёт `healthy` и сверяет версию в контейнере.
+Ошибка сборки, запуска, health или сверки возвращает прежний override и образ и проверяет, что
+снова работает прежняя версия; иначе — `rollback_failed`. Сборка amneziawg-go клонирует тег и
+сверяет коммит; Dockerfile TrustTunnel сверяет SHA-256 архива выпуска (только x86-64 — на другой
+архитектуре агент отказывает до изменений). Перезапуск менеджера рвёт туннели AmneziaWG или сессии
+TrustTunnel на несколько секунд; ключи, пароли и счётчики в `/var/lib/awg-manager` и
+`/var/lib/trusttunnel-manager` не трогаются.
+
+Override — общий для всех пинов агента: обновление Telemt заменяет только блок `mtproxy`, а
+обновление менеджера — только свой блок. Его читают update-host.sh, пересборка менеджеров после
+обновления панели и адаптеры установщика AmneziaWG и TrustTunnel, поэтому выбранная версия
+переживает обновление панели, обновление одной командой и `repair`; удаление протокола убирает его
+блок.
+
 ### Обновления из upstream
 
 Кнопка «Проверить обновления» на экране «Версии» просит агента опросить источники самих проектов.
@@ -363,6 +387,8 @@ URL невозможен ни из браузера, ни из конфигур�
 | Mieru (`mita`) | GitHub Releases `enfein/mieru` | `mita` из `mita_<v>_linux_amd64.tar.gz` | `.sha256.txt` релиза |
 | Telemt | реестр `ghcr.io/samnet-dev/mtproxymax-telemt`; GitHub Releases `telemt/telemt` | образ по digest манифеста либо (`build`) бинарник `telemt` в локальном образе на новейшем образе реестра | digest реестра; опубликованный `sha256` asset релиза |
 | NaiveProxy (`naive`) | GitHub Releases `caddyserver/caddy` + ветка `naive` `klzgrad/forwardproxy` | Caddy собирается на хосте (`docker build`, builder-образ по digest, до 15 минут) | пин собранного бинарника |
+| AmneziaWG (`amneziawg`) | теги `amnezia-vpn/amneziawg-go` | образ `awg-manager`, собранный на хосте из коммита тега | коммит тега (40 hex), сверяется после клонирования |
+| TrustTunnel (`trusttunnel`) | стабильные GitHub Releases `TrustTunnel/TrustTunnel` | образ `trusttunnel-manager` с `trusttunnel-v<v>-linux-x86_64.tar.gz` | опубликованный `sha256` asset релиза |
 | Панель | GitHub Releases `dubr1k/proxy-control` | архив выпуска | строка архива в `SHA256SUMS` |
 
 **Что подтверждает хэш из релиза и чего не подтверждает.** Совпадение с
