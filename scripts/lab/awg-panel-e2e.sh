@@ -203,15 +203,15 @@ done
 
 say "disable, enable and rotate from the panel"
 s=20; v=2.0; user=e2e-awg20; gw=$(api GET /v1/instances | body_of | jq_py "[i['gateway'] for i in d['instances'] if i['version']=='$v'][0]")
-"$VENV_PY" "$REPO/scripts/lab/awg_panel_issue.py" action "$REPO" "$SOCK" "$WORK/token" "$OUT" disable "$v" >/dev/null && ok "panel disabled $user" || bad "panel disable failed"
+if "$VENV_PY" "$REPO/scripts/lab/awg_panel_issue.py" action "$REPO" "$SOCK" "$WORK/token" "$OUT" disable "$v" >/dev/null; then ok "panel disabled $user"; else bad "panel disable failed"; fi
 check "manager shows the peer disabled" test "$(api GET /v1/peers | body_of | jq_py "[p['enabled'] for p in d['peers'] if p['username']=='$user'][0]")" = False
 run_client "e2ec$s" "ec$s" "$v" h
 if ip netns exec "e2ec$s" ping -c2 -W2 "$gw" >/dev/null 2>&1; then bad "$v: a disabled access still reaches the gateway"; else ok "$v: a disabled access does not connect"; fi
 stop_clients; drop_client "e2ec$s" "vh$s" "/var/run/amneziawg/ec$s.sock"
 
-"$VENV_PY" "$REPO/scripts/lab/awg_panel_issue.py" action "$REPO" "$SOCK" "$WORK/token" "$OUT" enable "$v" >/dev/null && ok "panel enabled $user" || bad "panel enable failed"
+if "$VENV_PY" "$REPO/scripts/lab/awg_panel_issue.py" action "$REPO" "$SOCK" "$WORK/token" "$OUT" enable "$v" >/dev/null; then ok "panel enabled $user"; else bad "panel enable failed"; fi
 cp "$OUT/$v.conf" "$WORK/old-$v.conf"
-"$VENV_PY" "$REPO/scripts/lab/awg_panel_issue.py" action "$REPO" "$SOCK" "$WORK/token" "$OUT" rotate "$v" >/dev/null && ok "panel rotated the keys of $user" || bad "panel rotate failed"
+if "$VENV_PY" "$REPO/scripts/lab/awg_panel_issue.py" action "$REPO" "$SOCK" "$WORK/token" "$OUT" rotate "$v" >/dev/null; then ok "panel rotated the keys of $user"; else bad "panel rotate failed"; fi
 check "the rotated config has a new private key" test "$(sed -n 's/^PrivateKey = //p' "$OUT/$v.conf")" != "$(sed -n 's/^PrivateKey = //p' "$WORK/old-$v.conf")"
 cp "$OUT/$v.conf" "$WORK/new-$v.conf"; cp "$WORK/old-$v.conf" "$OUT/$v.conf"
 run_client "e2ec$s" "ec$s" "$v" h
