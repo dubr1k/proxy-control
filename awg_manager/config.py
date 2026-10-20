@@ -1,8 +1,9 @@
 """Environment configuration, validated fail-closed at startup."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ipaddress
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
@@ -39,6 +40,9 @@ class Config:
     nat: bool
     log_level: str
     obfuscation_file: Path | None
+    # v2.3.0: the persistent TUN device the Xray-router reads (variant 2), owned by the router's uid.
+    router_tun: str | None = None
+    router_uid: int = 10006
 
 
 def _pairs(raw: str, name: str, defaults: Mapping[str, object]) -> dict[str, str]:
@@ -135,6 +139,12 @@ def from_env(env: Mapping[str, str]) -> Config:
     if not sock.is_absolute() or not state_dir.is_absolute():
         raise ConfigError("AWG_MANAGER_SOCKET and AWG_STATE_DIR must be absolute")
     obf = get("AWG_OBFUSCATION_FILE")
+    router_tun = get("AWG_EGRESS_ROUTER_TUN") or None
+    if router_tun is not None and re.fullmatch(r"[a-z][a-z0-9]{1,14}", router_tun) is None:
+        raise ConfigError("AWG_EGRESS_ROUTER_TUN: a short interface name")
+    router_uid = _int(get("AWG_EGRESS_ROUTER_UID", "10006"), "AWG_EGRESS_ROUTER_UID")
+    if not 1 <= router_uid <= 65534:
+        raise ConfigError("AWG_EGRESS_ROUTER_UID: a uid")
     return Config(
         token_file=Path(get("AWG_MANAGER_TOKEN_FILE")),
         socket=sock,
@@ -148,4 +158,6 @@ def from_env(env: Mapping[str, str]) -> Config:
         nat=_bool(get("AWG_NAT", "true"), "AWG_NAT"),
         log_level=log_level,
         obfuscation_file=Path(obf) if obf else None,
+        router_tun=router_tun,
+        router_uid=router_uid,
     )

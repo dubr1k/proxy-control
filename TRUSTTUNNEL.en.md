@@ -79,7 +79,8 @@ port, `--dir` the project directory.
 The left menu of a server with the protocol has a «TrustTunnel» item (shown only where the protocol is
 enabled). It shows the domain and the endpoint's state, the version and certificate, the number of accesses,
 sessions and traffic, and lists all accesses of the server with the client that holds each. A new access opens
-with the «+ TrustTunnel access» button; the same access can be issued from a client's card. A row on the
+with the «+ TrustTunnel access» button; the same access can be issued from a client's card. A row disables or enables
+its access, issues a new password («New password») and deletes it, after a confirmation and without a page reload. A row on the
 dashboard card shows the number of accesses and the traffic. In the «Nodes and access» matrix a client has a
 TrustTunnel column of its own.
 
@@ -114,8 +115,8 @@ verified by us»** means the panel has not run that client itself.
 | [TrustTunnel CLI](https://github.com/TrustTunnel/TrustTunnelClient) | Linux, macOS, Windows | the TOML file | yes (official client) |
 | Throne | Windows, Linux, macOS, Android | **by hand**: Ctrl+N → Type «TrustTunnel» → address, port, username, password, SNI → OK; leave QUIC off | no |
 | [Surge](https://manual.nssurge.com/policies/trust-tunnel.html) | macOS 6.4.4+, iOS | the policy line `Proxy-TrustTunnel = trust-tunnel, <host>, <port>, username=<user>, password=<password>` (no `h3=true`: we are TCP-only) | no |
-| Clash Verge Rev, FlClash, Mihomo Party, ClashMi and other mihomo-core clients | Windows, macOS, Linux, Android, iOS | a Clash subscription (`?format=clash`); the bundled mihomo core must be recent | no |
-| Hiddify | Windows, macOS, Linux, Android, iOS | a sing-box subscription (`?format=singbox`; Hiddify is recognised by its User-Agent, or add `&client=hiddify`) | yes, on a core built from source (below) |
+| Clash Verge Rev, FlClash, Mihomo Party, ClashMi and other mihomo-core clients | Windows, macOS, Linux, Android, iOS | a Clash subscription (`?format=clash`); the bundled mihomo core must be recent | yes, mihomo core v1.19.32 (2026-10-20) |
+| Hiddify | Windows, macOS, Linux, Android, iOS | a sing-box subscription (`?format=singbox`; Hiddify is recognised by its User-Agent, or add `&client=hiddify`) | no: only a core built from source was run; the app's releases (4.1.1) lack the outbound (below) |
 | NekoBox (NyameBox fork), NekoRay | Android, Windows, Linux | a sing-box subscription (recognised by User-Agent, or add `&client=nekobox`) | no |
 | Shadowrocket | iOS | unverified: check whether it imports the `tt://` link, or enter the details by hand | no |
 | Trusty, TrustTunnel-GUI-Client, FireTunnel, FreeTunnel | Windows, macOS, Linux | unverified: check whether it imports the `tt://` link or TOML, or enter the details by hand | no |
@@ -125,9 +126,11 @@ Community links: [Trusty](https://github.com/Meddelin/trusty), [TrustTunnel-GUI-
 
 ### Details for manual setup
 
-For Throne, Surge, Shadowrocket and the like, the access window (and the subscription page) shows a card: server,
+For Throne, Surge, Shadowrocket and the like, the access window shows a card: server,
 port, username, password (hidden until you press «Show»; the button copies it), SNI, protocol (**HTTP/2, QUIC off**),
-the certificate in PEM when the domain has its own, and the Surge policy line. It is the `trusttunnel_manual`
+the certificate in PEM when the domain has its own, and the Surge policy line. The subscription page shows the same
+fields without the Surge line: it names verified apps only (AdGuard TrustTunnel, TrustTunnel CLI, mihomo-core clients).
+It is the `trusttunnel_manual`
 artifact (`application/json`, no QR), built from the panel's store on request like the link and the TOML. Do not tick
 QUIC in the app: the server is TCP-only (HTTP/2); users reported QUIC problems with uTLS. A domain with a certificate
 from a trusted authority needs nothing more; otherwise the client has to trust the PEM shown.
@@ -166,8 +169,8 @@ subscription import, so their cells in the compatibility matrix are `unproven`. 
 the subscription, the fallback is the «Details for manual setup» card and a profile created by hand.**
 
 Compatibility per subscription client (`supported` / `unproven` / `unsupported`) is in
-[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): for `trusttunnel` mihomo is `supported` (by the core's documentation),
-Hiddify `supported` (verified on a core built from source); Karing, Shadowrocket, NekoBox, Throne and v2rayN are
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): for `trusttunnel` mihomo is `supported` (verified on core v1.19.32);
+Karing, Shadowrocket, NekoBox, Throne, v2rayN and Hiddify (its core was run only as built from source) are
 `unproven`; sing-box, Mieru CLI and Telegram are `unsupported`.
 
 ## Routing

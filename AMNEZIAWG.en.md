@@ -94,7 +94,7 @@ chosen UDP ports forwarded to it.
 
 ## The AmneziaWG screen
 
-The left menu has an «AmneziaWG» item on a server that runs the protocol. It shows the version cards (port, subnet, state, number of accesses), the manager's state and every access of this server with the client that holds it, the last connection and the traffic; «Open access» opens the access window. The screen only reads: accesses are given to clients, below.
+The left menu has an «AmneziaWG» item on a server that runs the protocol. It shows the version cards (port, subnet, state, number of accesses), the manager's state and every access of this server with the client that holds it, the last connection and the traffic; «Open access» opens the access window. A row disables or enables its access, issues a new key («New key») and deletes it, after a confirmation and without a page reload. New accesses are given to clients, below.
 
 ## Giving access
 
@@ -110,13 +110,49 @@ is named `<name>-awg<ver>` by the panel and MCP tools. **Rotate** issues a new k
 config stops working. **Disable** removes the peer from the live interface and keeps its address;
 **Delete** frees the address.
 
+## Exit through WARP
+
+By default the clients' traffic leaves from the server's IP. To send all of it through WARP (Cloudflare),
+open **Routing** → **AmneziaWG**, pick «Through an exit» → «WARP of this node», then «Save» and «Apply».
+On the AmneziaWG screen the **«Internet exit»** card shows what runs now and links there.
+
+- It is a separate WireGuard tunnel of the AmneziaWG manager (interface `awgwarp`) with **a WARP
+  account of its own**: the node's `warp-svc` proxy carries TCP only, while AmneziaWG clients send UDP
+  too (DNS, QUIC, calls). On the first apply the manager registers a WARP device itself and keeps its
+  key in its state (`/var/lib/awg-manager/state.json`, 0600); later applies reuse it.
+- The **whole** tunnel goes through WARP, TCP and UDP. AmneziaWG has no rules by site, address or port,
+  no custom exits, no chains through other nodes and no client lanes: the tunnel sees packets, not names.
+- Private networks (RFC 1918), CGNAT `100.64.0.0/10` (Tailscale included), link-local and loopback stay
+  on the server's main route.
+- An apply waits up to 12 seconds for the tunnel's first handshake; without one it puts the previous exit
+  back and reports an error. If the tunnel drops later, the clients' traffic is **dropped** rather than
+  sent from the server's IP until the tunnel is back (the manager restarts it by itself).
+- The node needs outbound access to `api.cloudflareclient.com:443` (registration) and to WARP over UDP 2408.
+- Technically: a rule `from <version subnet> lookup 51870` at priority 5150 per version; table 51870 holds
+  the default route into `awgwarp`, a fallback `blackhole` and exceptions for private networks.
+
+### Through the Xray-router (per-site rules)
+
+If the node runs the Xray-router, AmneziaWG can be attached to it: **Routing** → **AmneziaWG** → «Node
+capabilities» → «Attach to Xray-router». The tunnels' traffic then enters the router as a `tun` inbound and
+follows its rules: domains (recognised by the sniffer from TLS, HTTP and QUIC), geosite and geoip lists,
+addresses, ports, torrent and ad blocking, custom exits and other nodes of the fleet. The WARP exit there is the
+router's WireGuard outbound with a WARP account of its own (registered on the first apply), so both TCP and UDP
+go through it.
+
+- The AmneziaWG manager keeps a persistent TUN device `awgxr` (owned by the router's uid 10006, address
+  198.18.0.1/30); the router opens it and hands Xray the descriptor, so the router needs no capability.
+- While the router is down the device has no reader and client traffic is dropped, never sent from the server's IP.
+- There are no per-client lanes: the router sees all tunnels as one source.
+- «Detach from Xray-router» puts AmneziaWG back on its own exit, direct.
+
 ## What it does not do
 
 - It is not part of any subscription (no client consumes it there) and appears in no feed.
 - Accesses already existing on a node cannot be imported: the node holds no client private key, so
   such a config cannot be rebuilt.
-- No traffic quota, no routing policy and no egress: the tunnel leaves through the server's own
-  route. Expiry (`valid_until`) works, as for the other protocols, by disabling the access.
+- No traffic quota. Without the Xray-router, routing is only «the whole tunnel directly or through WARP» (above).
+  Expiry (`valid_until`) works, as for the other protocols, by disabling the access.
 - IPv4 inside the tunnel only (`::/0` is routed into the tunnel and dropped, so IPv6 does not leak).
 
 ## Troubleshooting

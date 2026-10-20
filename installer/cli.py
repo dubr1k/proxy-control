@@ -440,6 +440,11 @@ def _write_reports(
                 "AmneziaWG: the installer does not manage the firewall here; keep these UDP ports open "
                 "and forwarding allowed on the awg interfaces"
             )
+        # v2.3.0: the tunnels may leave through WARP — a policy in «Маршрутизация», not an install option.
+        operator_notes.append(
+            "AmneziaWG: the exit is direct; «Routing» can send the whole tunnel through WARP (the manager's own "
+            "WireGuard tunnel, TCP and UDP), which needs outbound api.cloudflareclient.com:443 and UDP 2408"
+        )
     if config.trusttunnel is not None:
         tt = config.trusttunnel
         operator_notes.append(

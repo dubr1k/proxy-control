@@ -16,6 +16,9 @@ VNEXT_ROUTING_ENGINE.md`), plus the constraints that no capability flag can expr
   own policy can only be «direct, no rules»; the rest is `not_attached`. On the router,
   Telemt dials Telegram's data centres by address and speaks MTProto, which no sniffer
   names: a rule on a domain, a `geosite` or a protocol could never match, so it is refused.
+- `amneziawg_native` (v2.3.0) — the AWG manager's own WARP WireGuard tunnel: the whole tunnel
+  direct or through WARP (TCP and UDP), no rules. Attached to the router (the tunnels steered into
+  its `tun` inbound) it takes the router's rules, its `warp` a WireGuard outbound; no client lanes.
 - `trusttunnel_native` (v1.6) — the endpoint's forward protocol: direct, or handed whole to the
   router's loopback ingress. Its own policy can only be «direct, no rules»; the rest is
   `not_attached`. The endpoint's SOCKS5 client presents no username, so the router sees one
@@ -33,11 +36,19 @@ import json
 
 from ..protocols.base import EgressTarget, RouterTarget
 from .adapters.xray_router import ChainHop, compile_intent
-from .document import ROUTER_DIRECT_INTENT, TELEMT_DIRECT_DOCUMENT, TRUSTTUNNEL_DIRECT_DOCUMENT, canonical, document_digest
+from .document import (
+    ROUTER_DIRECT_INTENT,
+    TELEMT_DIRECT_DOCUMENT,
+    TRUSTTUNNEL_DIRECT_DOCUMENT,
+    canonical,
+    document_digest,
+)
 from .models import (
+    AMNEZIAWG_WHOLE_ONLY,
     BACKEND_FOR,
     COMPILER_VERSION,
     LANE_SERVICE,
+    LANES_UNSUPPORTED_AMNEZIAWG,
     LANES_UNSUPPORTED_TRUSTTUNNEL,
     Compiled,
     Reason,
@@ -94,6 +105,10 @@ def _naive_document(default_action: str, rules: list[RoutingRule]) -> dict:
     return {"schema": 1, "upstream": {"provider": "warp"} if default_action == "egress" else None, "acl": acl}
 
 
+def _amneziawg_document(default_action: str) -> dict:
+    return {"schema": 1, "upstream": {"provider": "warp"} if default_action == "egress" else None}
+
+
 def direct_document(backend: str) -> dict:
     """What «reset» applies: the whole service direct, no rules — the state a policy may be
     deleted in (spec §8.1). On the router (v0.5) that is the pass-through intent."""
@@ -103,6 +118,8 @@ def direct_document(backend: str) -> dict:
         return json.loads(json.dumps(TELEMT_DIRECT_DOCUMENT))
     if backend == "trusttunnel_native":
         return json.loads(json.dumps(TRUSTTUNNEL_DIRECT_DOCUMENT))
+    if backend == "amneziawg_native":
+        return _amneziawg_document("direct")
     return (_naive_document if backend == "naive_native" else _mieru_document)("direct", [])
 
 
@@ -160,6 +177,9 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
                                           message=f"{policy.protocol} reports no egress target on this node"))
         return unsupported
     is_lane = policy.lane != LANE_SERVICE or any(other.lane != LANE_SERVICE for other in (lanes or []))
+    if is_lane and policy.protocol == "amneziawg":
+        unsupported.reasons.append(Reason(code="lanes_unsupported", message=LANES_UNSUPPORTED_AMNEZIAWG))
+        return unsupported
     if is_lane and policy.protocol == "trusttunnel":
         unsupported.reasons.append(Reason(code="lanes_unsupported", message=LANES_UNSUPPORTED_TRUSTTUNNEL))
         return unsupported
@@ -207,6 +227,9 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
     whole = "whole_warp" if default_action == "egress" else "whole_direct"
     if whole not in target.capabilities:
         reasons.append(Reason(code="backend_capability_missing", message=f"{target.backend} lacks {whole}"))
+    if target.backend == "amneziawg_native" and rules:
+        reasons.append(Reason(code="rule_kind_unsupported", rule_id=rules[0].id, message=AMNEZIAWG_WHOLE_ONLY))
+        rules = []
     if is_node_exit(policy.default_egress) or is_custom_exit(policy.default_egress):
         reasons.append(Reason(code="rule_kind_unsupported",
                               message="an exit through another node or a custom outbound is enforced only by xray_router"))
@@ -251,7 +274,10 @@ def compile(policy: RoutingPolicy, target: EgressTarget | None, *, node_egress_v
         unsupported.reasons, unsupported.warnings = reasons, warnings
         return unsupported
 
-    document = (_naive_document if target.backend == "naive_native" else _mieru_document)(default_action, rules)
+    if target.backend == "amneziawg_native":
+        document = _amneziawg_document(default_action)
+    else:
+        document = (_naive_document if target.backend == "naive_native" else _mieru_document)(default_action, rules)
     if len(canonical(document)) > MAX_DOCUMENT_BYTES:
         unsupported.reasons = [Reason(code="document_too_large", message="the compiled document exceeds 16 KiB")]
         unsupported.warnings = warnings

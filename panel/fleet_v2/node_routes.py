@@ -44,8 +44,11 @@ APPLY_DEADLINE = 25.0
 # and the MTProxy section of its router) and reports its MTProxy egress target.
 # `egress.trusttunnel.v1` (v1.6): the same for TrustTunnel (the endpoint's SOCKS5 upstream and the
 # `trusttunnel` section of its router).
+# `egress.amneziawg.v1` (v2.3.0): this node applies an `amneziawg` egress section (the AWG manager's own
+# WARP tunnel) and reports its AmneziaWG egress target.
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1",
-                "egress.mtproxy.v1", "protocol.amneziawg.v1", "protocol.trusttunnel.v1", "egress.trusttunnel.v1")
+                "egress.mtproxy.v1", "protocol.amneziawg.v1", "protocol.trusttunnel.v1", "egress.trusttunnel.v1",
+                "egress.amneziawg.v1")
 # `metrics.v1` (v2.0): this node serves its live meters, history and summary under
 # `/api/fleet/v2/metrics*`; advertised only while `PANEL_METRICS_ENABLED` is on.
 METRICS_CAPABILITY = "metrics.v1"
@@ -160,19 +163,21 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
         if router is None:
             return None
         sections, lanes = {}, {}
-        for service in ("naive", "mieru", "mtproxy", "trusttunnel"):
+        for service in ("naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"):
             target = await router.target(service)
             if service == "mtproxy" and target.reason == "router_lacks_mtproxy":
                 continue  # a router not rebuilt since v1.1 still serves the other two
             if service == "trusttunnel" and target.reason == "router_lacks_trusttunnel":
                 continue  # a router not rebuilt since v1.6 serves the rest
+            if service == "amneziawg" and target.reason == "router_lacks_amneziawg":
+                continue  # a router not rebuilt since v2.3.0 (or a node without AmneziaWG) serves the rest
             if not target.available:
                 return {"available": False, "reason": target.reason or "router_unavailable"}
             sections[service] = {"revision": target.revision,
                                  "applied_digest": target.applied["digest"] if target.applied else None}
             capabilities, providers, xray_version = target.capabilities, target.providers, target.xray_version
-            if service in ("mtproxy", "trusttunnel"):
-                continue  # no lanes on MTProxy or TrustTunnel
+            if service in ("mtproxy", "trusttunnel", "amneziawg"):
+                continue  # no lanes on MTProxy, TrustTunnel or AmneziaWG
             try:
                 lanes[service] = sorted((await router.lanes(service)).get("lanes", []))
             except AdapterError:

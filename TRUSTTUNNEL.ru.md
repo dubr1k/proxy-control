@@ -78,7 +78,8 @@ sudo scripts/enable-trusttunnel.sh --host gate.example.org
 В меню слева на сервере с протоколом есть пункт «TrustTunnel» (он появляется только там, где протокол
 включён). Он показывает домен и состояние endpoint, версию и сертификат, число доступов, сессий и трафик,
 а в списке — все доступы сервера с клиентом-владельцем. Новый доступ открывается кнопкой «+ TrustTunnel
-доступ», тот же доступ можно выдать из карточки клиента. Строка в карточке дашборда показывает число
+доступ», тот же доступ можно выдать из карточки клиента. В строке доступ можно отключить или включить, сменить пароль
+(«Новый пароль») и удалить — с подтверждением, без перезагрузки страницы. Строка в карточке дашборда показывает число
 доступов и трафик. В матрице «Узлы и доступы» у клиента для TrustTunnel есть своя колонка.
 
 ## Выдача доступа
@@ -112,8 +113,8 @@ sudo scripts/enable-trusttunnel.sh --host gate.example.org
 | [TrustTunnel CLI](https://github.com/TrustTunnel/TrustTunnelClient) | Linux, macOS, Windows | файл TOML | да (официальный клиент) |
 | Throne | Windows, Linux, macOS, Android | **вручную**: Ctrl+N → Тип «TrustTunnel» → адрес, порт, логин, пароль, SNI → OK; QUIC не включать | нет |
 | [Surge](https://manual.nssurge.com/policies/trust-tunnel.html) | macOS 6.4.4+, iOS | строка политики `Proxy-TrustTunnel = trust-tunnel, <хост>, <порт>, username=<логин>, password=<пароль>` (+ `h3=true` не нужен: у нас TCP) | нет |
-| Clash Verge Rev, FlClash, Mihomo Party, ClashMi и другие на ядре mihomo | Windows, macOS, Linux, Android, iOS | подписка Clash (`?format=clash`); ядро mihomo должно быть свежим | нет |
-| Hiddify | Windows, macOS, Linux, Android, iOS | подписка sing-box (`?format=singbox`, Hiddify опознаётся по User-Agent, либо `&client=hiddify`) | да, на ядре из исходников (см. ниже) |
+| Clash Verge Rev, FlClash, Mihomo Party, ClashMi и другие на ядре mihomo | Windows, macOS, Linux, Android, iOS | подписка Clash (`?format=clash`); ядро mihomo должно быть свежим | да, ядро mihomo v1.19.32 (2026-10-20) |
+| Hiddify | Windows, macOS, Linux, Android, iOS | подписка sing-box (`?format=singbox`, Hiddify опознаётся по User-Agent, либо `&client=hiddify`) | нет: проверено только ядро, собранное из исходников; в выпусках приложения (4.1.1) исходящего нет (см. ниже) |
 | NekoBox (форк NyameBox), NekoRay | Android, Windows, Linux | подписка sing-box (опознаётся по User-Agent, либо `&client=nekobox`) | нет |
 | Shadowrocket | iOS | не проверено: проверьте импорт ссылки `tt://` или введите данные вручную | нет |
 | Trusty, TrustTunnel-GUI-Client, FireTunnel, FreeTunnel | Windows, macOS, Linux | не проверено: проверьте импорт ссылки `tt://` или TOML либо введите вручную | нет |
@@ -123,9 +124,10 @@ sudo scripts/enable-trusttunnel.sh --host gate.example.org
 
 ### Данные для ручной настройки
 
-Для Throne, Surge, Shadowrocket и им подобных окно доступа (и страница подписки) показывает карточку: сервер, порт,
+Для Throne, Surge, Shadowrocket и им подобных окно доступа показывает карточку: сервер, порт,
 логин, пароль (скрыт, пока не нажмёте «Показать»; копируется кнопкой), SNI, протокол (**HTTP/2, QUIC выключен**), сертификат
-в PEM, если у домена свой, и строку политики Surge. Это артефакт `trusttunnel_manual` (`application/json`, без QR),
+в PEM, если у домена свой, и строку политики Surge. Страница подписки показывает те же поля без строки Surge: на ней
+названы только проверенные приложения (AdGuard TrustTunnel, TrustTunnel CLI, клиенты на ядре mihomo). Это артефакт `trusttunnel_manual` (`application/json`, без QR),
 он собирается из хранилища панели по запросу, как ссылка и TOML. Галочку QUIC в приложении не включайте: сервер
 работает только по TCP (HTTP/2); с uTLS пользователи сообщали о проблемах с QUIC. Если у домена сертификат от
 доверенного центра, ничего добавлять не нужно; иначе клиент должен доверять показанному PEM.
@@ -164,8 +166,8 @@ NekoBox и Throne: ядро в них содержит исходящее, но 
 «Данные для ручной настройки» и профиль, созданный вручную.**
 
 Совместимость по клиентам подписок (`supported` / `unproven` / `unsupported`) — в
-[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): `trusttunnel` — mihomo `supported` (по документации ядра), Hiddify
-`supported` (проверено на ядре из исходников); Karing, Shadowrocket, NekoBox, Throne, v2rayN — `unproven`; sing-box,
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md): `trusttunnel` — mihomo `supported` (проверено на ядре v1.19.32);
+Karing, Shadowrocket, NekoBox, Throne, v2rayN и Hiddify (ядро проверено только собранным из исходников) — `unproven`; sing-box,
 Mieru CLI и Telegram — `unsupported`.
 
 ## Маршрутизация

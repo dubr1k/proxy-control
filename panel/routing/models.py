@@ -14,9 +14,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-Protocol = Literal["naive", "mieru", "mtproxy", "trusttunnel"]
+Protocol = Literal["naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"]
 # The native backend of each data plane (v0.4) or the node's dedicated Xray-router (v0.5).
-Backend = Literal["naive_native", "mieru_native", "mtproxy_native", "trusttunnel_native", "xray_router"]
+Backend = Literal["naive_native", "mieru_native", "mtproxy_native", "trusttunnel_native", "amneziawg_native", "xray_router"]
 Action = Literal["direct", "block", "egress"]
 DefaultAction = Literal["direct", "egress"]
 # An egress names where the connection leaves (v0.7): this node's WARP, or a chain of other
@@ -30,8 +30,14 @@ State = Literal["draft", "applying", "applied", "failed", "rolled_back"]
 # service does goes through the router once it is attached.
 # v1.6: TrustTunnel's own backend is the endpoint's forward protocol — direct, or a SOCKS5 upstream that
 # is the router's loopback ingress; like MTProxy, everything else the service does goes through the router.
+# v2.3.0: AmneziaWG's own backend is the manager's WARP tunnel — the whole tunnel direct or through
+# WARP, TCP and UDP alike; it has no rules (the tunnel carries packets, not names) and no router.
 BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native", "mtproxy": "mtproxy_native",
-                               "trusttunnel": "trusttunnel_native"}
+                               "trusttunnel": "trusttunnel_native", "amneziawg": "amneziawg_native"}
+AMNEZIAWG_WHOLE_ONLY = ("On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, "
+                        "address, port or protocol, custom exits and other nodes attach it to the node's Xray-router")
+LANES_UNSUPPORTED_AMNEZIAWG = ("AmneziaWG has no client lanes: the router sees its tunnels as one source, so the "
+                               "route is set for the whole service")
 # Protocols whose users may get a lane of their own on the router (v0.7): Telemt cannot tell
 # its users apart upstream, and neither can the TrustTunnel endpoint (its SOCKS5 client offers
 # no username to the router), so MTProxy and TrustTunnel have none.

@@ -45,6 +45,8 @@ ATTACH_DOCUMENTS = {
     # v1.6: the TrustTunnel manager's own document — the endpoint's SOCKS5 forward protocol, pointed at the
     # router's no-auth loopback ingress (`xray_router_manager.intent.TRUSTTUNNEL_PORT`).
     "trusttunnel": {"mode": "socks5", "address": "127.0.0.1:45104"},
+    # v2.3.0: the AWG manager steers the tunnels into the router's `tun` inbound device (`awgxr`).
+    "amneziawg": {"schema": 1, "upstream": {"provider": "router"}},
 }
 # The TrustTunnel manager's document (v1.6) for «direct»: the endpoint dials destinations itself.
 TRUSTTUNNEL_DIRECT_DOCUMENT = {"mode": "direct"}
@@ -63,7 +65,7 @@ def attached_to_router(protocol: str, document: dict | None) -> bool:
     """Whether a native manager's applied document hands the service to the router."""
     if not isinstance(document, dict):
         return False
-    if protocol in ("naive", "mtproxy"):
+    if protocol in ("naive", "mtproxy", "amneziawg"):
         return document.get("upstream") == {"provider": "router"}
     if protocol == "trusttunnel":
         return document == ATTACH_DOCUMENTS["trusttunnel"]

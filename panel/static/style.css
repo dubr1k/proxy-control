@@ -410,6 +410,7 @@
 .awg-overview>article>small,.tt-overview>article>small{color:var(--text-2);overflow-wrap:anywhere}
 .awg-overview>article>strong,.tt-overview>article>strong{font-size:22px;line-height:1.1}
 .awg-overview>article .status-pill,.tt-overview>article .status-pill{justify-self:start}
+.awg-overview>article.awg-egress button{justify-self:start}
 .awg-versions{display:grid;gap:8px;margin:0;padding:0;border:0}.awg-versions legend{padding:0;margin-bottom:6px;color:var(--text-2)}.awg-versions label{display:flex;align-items:center;gap:8px}
 .tt-toml{min-height:7rem;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:640px){.tt-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}

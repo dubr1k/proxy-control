@@ -39,8 +39,16 @@ services:
       # v1.6: the TrustTunnel ingress (no-auth SOCKS5 on this loopback port); the endpoint's manager
       # is pointed at it when the panel attaches TrustTunnel to the router. Empty turns it off.
       XRAY_ROUTER_PORT_TRUSTTUNNEL: "45104"
+      # v2.3.0: the AmneziaWG ingress, a `tun` inbound on this device. The AWG manager makes it
+      # (persistent, owned by uid 10006) and steers the tunnels into it once the panel attaches
+      # AmneziaWG; the manager here opens it and hands Xray the descriptor, so no capability is
+      # needed. Without the AWG overlay the device never appears and nothing of it is rendered.
+      XRAY_ROUTER_TUN_AMNEZIAWG: awgxr
       TMPDIR: /tmp
     secrets: [xray-router-manager-token, xray-router-ingress-naive, xray-router-ingress-mieru]
+    # v2.3.0: opening the AmneziaWG device needs the clone device (no capability: the device is ours).
+    devices:
+      - /dev/net/tun:/dev/net/tun
     volumes:
       - type: bind
         source: ${XRAY_ROUTER_BIN_DIR:-/usr/local/lib/proxy-control/xray-router}

@@ -119,3 +119,30 @@ def test_placement_has_a_fixed_trusttunnel_column_that_issues_plain_grants():
     assert out["cols"] == ["mtproxy", "naive", "mieru", "trusttunnel"]
     assert out["diff"]["create"] == [{"protocol": "trusttunnel", "node_id": "local", "runtime_username": "alice", "options": {}}]
     assert out["name"] == "TrustTunnel"
+
+
+def test_a_change_in_the_grant_window_redraws_the_protocol_page_behind_it():
+    """The grant window opens from «Клиенты», AmneziaWG and TrustTunnel. A deleted access used to stay
+    on the AmneziaWG/TrustTunnel list until the page was reloaded: only «Клиенты» was re-rendered."""
+    source = read("grant.js")
+    assert 'const LISTS_BEHIND = new Set(["clients", "amneziawg", "trusttunnel"]);' in source
+    assert "if (LISTS_BEHIND.has(context.state.view)) await context.navigate(context.state.view);" in source
+    assert 'if (context.state.view === "clients") await context.navigate("clients");' not in source
+    # every screen that opens the window is in the set
+    for module, view in (("amneziawg.js", "amneziawg"), ("trusttunnel.js", "trusttunnel"), ("clients.js", "clients")):
+        assert "context.grants.open(" in read(module) and f'"{view}"' in source
+
+
+def test_amneziawg_and_trusttunnel_rows_disable_rekey_and_delete_in_place():
+    """Like the Mieru and NaiveProxy rows (owner, 2.3.0): an AmneziaWG or TrustTunnel access is disabled,
+    re-keyed or deleted from its row, through the grant API, after a confirmation, and the page redraws."""
+    actions = read("grant-row-actions.js")
+    for verb in ("disable", "enable", "rotate", "delete"):
+        assert f'data-grant-row-action="{verb}"' in actions or 'data-grant-row-action="${toggle}"' in actions
+    assert "/api/clients/grants/${encodeURIComponent(grant)}/${action}" in actions
+    assert "context.ui.confirmed(" in actions and "await context.navigate(context.state.view);" in actions
+    assert 'if (!row.grant_id) return "";' in actions  # an account the panel does not hold has no actions
+    for module, protocol in (("amneziawg.js", "amneziawg"), ("trusttunnel.js", "trusttunnel")):
+        source = read(module)
+        assert 'from "./grant-row-actions.js"' in source and f'grantRowActions(row, "{protocol}")' in source
+        assert "if (button.dataset.grantRowAction) return handleGrantRowAction(context, button);" in source

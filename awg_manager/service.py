@@ -14,6 +14,7 @@ from typing import Callable
 
 from . import obfuscation
 from .config import KNOWN_VERSIONS, Config, interface_name
+from .egress import Egress, EgressError
 from .host import Host, HostError, Process, UapiError
 from .keys import b64, generate_private, hexkey, public_key, unb64
 from .state import StateError, StateStore
@@ -100,6 +101,8 @@ class AwgManager:
         clock: Callable[[], float] = time.monotonic,
         wall: Callable[[], float] = time.time,
         rng=None,
+        warp_opener=None,
+        sleep=None,
     ):
         self.config, self.host = config, host
         self.overrides = overrides or {}
@@ -111,12 +114,15 @@ class AwgManager:
             for v in config.versions
         }
         self.last_nft = 0.0
+        # Where the clients' traffic leaves the node (v2.3.0): direct, or a WARP tunnel of its own.
+        self.egress = Egress(self, opener=warp_opener, sleep=sleep)
 
     # ----- lifecycle -------------------------------------------------------------------
 
     def bootstrap(self) -> None:
         with self.lock:
             self.store.load()
+            self.egress.load()
             changed = False
             for version in self.config.versions:
                 changed |= self._ensure_instance_state(version)
@@ -164,6 +170,7 @@ class AwgManager:
                     proc.wait(5)
                 except Exception:  # noqa: BLE001 - escalate whatever the wait failed with
                     proc.kill()
+            self.egress.teardown()
             self.host.nft_delete()
 
     # ----- supervision -----------------------------------------------------------------
@@ -179,6 +186,10 @@ class AwgManager:
                     LOGGER.exception("supervision of %s failed", inst.iface)
             if now - self.last_nft >= FULL_RECONCILE_SECONDS:
                 self._apply_nft()
+            try:
+                self.egress.converge(now)
+            except Exception:  # noqa: BLE001 - the egress must not stop the tunnels
+                LOGGER.exception("egress supervision failed")
 
     def _supervise(self, inst: Instance, now: float) -> None:
         proc = inst.process
@@ -347,7 +358,38 @@ class AwgManager:
                     "peers": sum(1 for r in self.store.peers.values() if r["version"] == v),
                 }
             ok = forward and all(i["running"] for i in out.values())
-            return {"status": "ok" if ok else "degraded", "ip_forward": forward, "instances": out}
+            # The egress is reported beside the status, not folded into it: a WARP tunnel without a
+            # handshake keeps the clients' traffic dropped (fail-closed), the tunnels themselves run.
+            return {"status": "ok" if ok else "degraded", "ip_forward": forward, "instances": out,
+                    "egress": self.egress.health()}
+
+    # ----- egress (v2.3.0) -----------------------------------------------------------
+
+    def egress_view(self) -> dict:
+        with self.lock:
+            return self.egress.view()
+
+    def egress_plan(self, body: dict) -> dict:
+        self._fields(body, {"expected_revision", "document"})
+        with self.lock:
+            return self._egress_call(self.egress.plan, body["expected_revision"], body["document"])
+
+    def egress_apply(self, body: dict) -> dict:
+        self._fields(body, {"expected_revision", "document", "operation_id"})
+        with self.lock:
+            return self._egress_call(self.egress.apply, body["expected_revision"], body["document"], body["operation_id"])
+
+    def egress_rollback(self, body: dict) -> dict:
+        self._fields(body, {"expected_revision"})
+        with self.lock:
+            return self._egress_call(self.egress.rollback, body["expected_revision"])
+
+    @staticmethod
+    def _egress_call(method, *args) -> dict:
+        try:
+            return method(*args)
+        except EgressError as exc:
+            raise ApiError(exc.status, exc.code, exc.detail) from exc
 
     def list_instances(self) -> dict:
         with self.lock:

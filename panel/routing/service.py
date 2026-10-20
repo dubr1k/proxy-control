@@ -20,11 +20,12 @@ from ..protocols.base import AdapterError, AppliedEgress, EgressTarget, RouterTa
 from .compiler import compile as compile_policy
 from .compiler import direct_document, explain
 from .document import ROUTER_DIRECT_INTENT, attach_document, document_digest
-from .exits import ExitInUse, ExitInput, ExitStore, parse_share_link
+from .exits import ExitInput, ExitInUse, ExitStore, parse_share_link
 from .lanes import DEFAULT_RELAY_PORT, ChainResolver, RelayRegistry, lane_policies
 from .models import (
     BACKEND_FOR,
     LANE_SERVICE,
+    LANES_UNSUPPORTED_AMNEZIAWG,
     LANES_UNSUPPORTED_TRUSTTUNNEL,
     ROUTER_BACKEND,
     Compiled,
@@ -39,7 +40,7 @@ from .store import PolicyConflict, RoutingStore
 
 GEODATA_REFUSALS = ("geodata_invalid", "geodata_corrupt", "geodata_rejected", "geodata_busy")
 
-PROTOCOLS = ("mtproxy", "naive", "mieru", "trusttunnel")
+PROTOCOLS = ("mtproxy", "naive", "mieru", "trusttunnel", "amneziawg")
 # What an apply failure costs the caller: the manager's own refusals are conflicts, an
 # unrecoverable runtime is a 503, a manager that does not answer a 502.
 ERROR_STATUS = {"manual_intervention_required": 503, "manager_unavailable": 502, "artifact_mismatch": 503}
@@ -89,6 +90,9 @@ def router_target_from_identity(protocol: str, router: dict | None) -> RouterTar
     if protocol == "trusttunnel" and "trusttunnel" not in (router.get("services") or {}):
         # The node's router manager is from before v1.6 (it reports the service once rebuilt).
         return RouterTarget(available=False, service=protocol, reason="router_lacks_trusttunnel")
+    if protocol == "amneziawg" and "amneziawg" not in (router.get("services") or {}):
+        # The node's router manager is from before v2.3.0 (it reports the service once rebuilt).
+        return RouterTarget(available=False, service=protocol, reason="router_lacks_amneziawg")
     section = (router.get("services") or {}).get(protocol) or {}
     revision = str(section.get("revision") or "")
     digest = section.get("applied_digest")
@@ -173,6 +177,8 @@ class RoutingService:
             raise AdapterError("the node must be updated to v1.1 to route MTProxy", code="node_lacks_mtproxy_egress")
         if protocol == "trusttunnel" and "egress.trusttunnel.v1" not in (identity.get("capabilities") or []):
             raise AdapterError("the node must be updated to v1.6 to route TrustTunnel", code="node_lacks_trusttunnel_egress")
+        if protocol == "amneziawg" and "egress.amneziawg.v1" not in (identity.get("capabilities") or []):
+            raise AdapterError("the node must be updated to v2.3.0 to route AmneziaWG", code="node_lacks_amneziawg_egress")
         return target_from_identity(protocol, (identity.get("protocols") or {}).get(protocol, {}).get("egress")), True
 
     async def _router_target(self, row: dict, protocol: str) -> RouterTarget | None:
@@ -539,6 +545,8 @@ class RoutingService:
         self._node(db, node_id)
         if protocol == "trusttunnel" and self._lane(lane) != LANE_SERVICE:
             raise RoutingError(422, "lanes_unsupported", LANES_UNSUPPORTED_TRUSTTUNNEL)
+        if protocol == "amneziawg" and self._lane(lane) != LANE_SERVICE:
+            raise RoutingError(422, "lanes_unsupported", LANES_UNSUPPORTED_AMNEZIAWG)
         policy = self.store.get(db, node_id, protocol, lane=self._lane(lane))
         if policy is None:
             raise RoutingError(404, "policy_not_found", "no routing policy for this node, protocol and lane")
@@ -559,6 +567,8 @@ class RoutingService:
             return
         if protocol == "trusttunnel":
             raise RoutingError(422, "lanes_unsupported", LANES_UNSUPPORTED_TRUSTTUNNEL)
+        if protocol == "amneziawg":
+            raise RoutingError(422, "lanes_unsupported", LANES_UNSUPPORTED_AMNEZIAWG)
         row = db.execute("SELECT routing_lane FROM access_grants WHERE id=? AND node_id=? AND protocol=?",
                          (lane[6:], node_id, protocol)).fetchone()
         if row is None or row["routing_lane"] != "own":

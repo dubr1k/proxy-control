@@ -60,16 +60,30 @@ def test_varints_follow_rfc_9000():
 
 
 def test_a_known_vector_derived_by_hand():
-    """version=2 (00 01 02), hostname "h" (01 01 68), address "a:1" (02 03 61 3a 31), username "u"
-    (05 01 75), password "p" (06 01 70), upstream http2 (09 01 01): 20 bytes, base64url, no padding."""
-    payload = bytes.fromhex("000102" "010168" "0203613a31" "050175" "060170" "090101")
-    assert base64.urlsafe_b64encode(payload).rstrip(b"=").decode() == "AAECAQFoAgNhOjEFAXUGAXAJAQE"
+    """version=1 (00 01 01), hostname "h" (01 01 68), address "a:1" (02 03 61 3a 31), username "u"
+    (05 01 75), password "p" (06 01 70), upstream http2 (09 01 01): 20 bytes, base64url, no padding.
+    Version 1, not 2: the stable official client (TrustTunnelClient 1.1.11, deep-link decoder 1.0.33)
+    refuses a version-2 link outright, and the panel never writes the one field version 2 adds."""
+    payload = bytes.fromhex("000101" "010168" "0203613a31" "050175" "060170" "090101")
+    assert base64.urlsafe_b64encode(payload).rstrip(b"=").decode() == "AAEBAQFoAgNhOjEFAXUGAXAJAQE"
     link = encode_deeplink(hostname="h", addresses=["a:1"], username="u", password="p")
-    assert link == "tt://?AAECAQFoAgNhOjEFAXUGAXAJAQE"
+    assert link == "tt://?AAEBAQFoAgNhOjEFAXUGAXAJAQE"
     decoded = decode_deeplink(link)
-    assert (decoded["version"], decoded["hostname"], decoded["addresses"]) == (2, "h", ["a:1"])
+    assert (decoded["version"], decoded["hostname"], decoded["addresses"]) == (1, "h", ["a:1"])
     assert (decoded["username"], decoded["password"], decoded["upstream_protocol"]) == ("u", "p", 1)
     assert decoded["has_ipv6"] is True and decoded["skip_verification"] is False and "certificate" not in decoded
+
+
+def test_the_panel_writes_a_link_the_stable_official_client_reads():
+    """The decoder of TrustTunnelClient 1.1.11 stops at «Unsupported deep link version: 2 (max
+    supported: 1)»: the AdGuard app and the CLI then import nothing. The panel writes version 1
+    and still reads version 2 links (a subscription_url link) back."""
+    link = encode_deeplink(hostname="h", addresses=["a:1"], username="u", password="secret-1", name="n",
+                           certificate_der=_certificate(), skip_verification=True)
+    body = link[len("tt://?"):]
+    payload = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
+    assert payload[:3] == b"\x00\x01\x01"
+    assert decode_deeplink(link)["version"] == 1
 
 
 def test_a_link_round_trips_with_a_certificate_a_name_and_unicode():

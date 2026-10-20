@@ -1,12 +1,13 @@
 // The TrustTunnel screen: the endpoint this server's manager runs (domain, port, version,
-// certificate), every access with who holds it, its live sessions and traffic. Read-only like the
-// AmneziaWG screen: an access is changed in its own window (the one the client card opens),
-// because the panel owns the password. «+ TrustTunnel доступ» issues a new one through the same
+// certificate), every access with who holds it, its live sessions and traffic. A row disables,
+// re-keys or deletes its access in place (v2.3.0); the link and config are in the access window
+// (the one the client card opens), because the panel owns the password. «+ TrustTunnel доступ» issues a new one through the same
 // grant API the client card uses.
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { proposeUsername } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
+import { grantRowActions, handleGrantRowAction } from "./grant-row-actions.js";
 
 const STATUS = { ok: ["active", "Работает"], degraded: ["blocked", "Есть неполадки"], down: ["blocked", "Менеджер недоступен"] };
 
@@ -52,7 +53,7 @@ function accessRow(context, row) {
     <div class="identity"><span class="user-glyph">${esc(initials(row.client_name || row.username))}</span><span><b>${esc(row.username)}</b><small>TrustTunnel</small>${holder}</span></div>
     <div class="cell"><span class="status-pill ${row.enabled ? "active" : "blocked"}"><i></i>${row.enabled ? "Включён" : "Выключен"}</span><small>Сессий: ${number(row.sessions)}</small></div>
     <div class="cell"><b>↑ ${bytes(row.upload_bytes)} · ↓ ${bytes(row.download_bytes)}</b><small>отправлено / получено клиентом</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
-    <div class="row-actions">${open || "—"}</div>
+    <div class="row-actions">${open || "—"}${writer ? grantRowActions(row, "trusttunnel") : ""}</div>
   </div>`;
 }
 
@@ -74,6 +75,7 @@ export async function renderTrusttunnel(context, generation) {
 }
 
 export function handleTrusttunnelClick(context, button) {
+  if (button.dataset.grantRowAction) return handleGrantRowAction(context, button);
   if (button.dataset.ttAction !== "open") return false;
   const { client, grant } = button.dataset;
   void (async () => {

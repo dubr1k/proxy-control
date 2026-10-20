@@ -16,6 +16,8 @@ Files under the state directory (all `0600`, directory `0700`):
     state.json             {phase: idle|swapping|broken, candidate, failures}
     lanes.json             {svc: {lane: {user, password, issued_at}}} — the grant lanes' accounts (v0.7)
     relay.json             {enabled, port, server_name, private_key, public_key, short_ids, accounts} (v0.7)
+    warp-wg.json           {id, token, private_key, address, peer_public_key, endpoint} — the WARP
+                           device AmneziaWG's `warp` uses (v2.3.0), registered on first use
     ingress-mtproxy.json   {uuid, username, password} — the MTProxy ingress (v1.1), minted here once;
                            a copy for the `xray-router-ingress` bridge sits next to the socket
 
@@ -27,13 +29,15 @@ from __future__ import annotations
 
 import copy
 import difflib
+import fcntl
 import hashlib
 import json
 import os
 import re
 import secrets
-import socket
 import shutil
+import socket
+import struct
 import subprocess
 import tempfile
 import threading
@@ -44,6 +48,9 @@ from pathlib import Path
 from typing import Protocol
 
 from . import intent as intent_module
+from . import render as render_module
+from . import warp as warp_module
+from .geodata import GeodataError, GeodataStore
 from .intent import (
     CAPABILITIES,
     MTPROXY_BRIDGE_ADDRESS,
@@ -52,6 +59,7 @@ from .intent import (
     PORTS,
     SCHEMA_V2,
     SERVICES,
+    TUN_SERVICES,
     EgressInvalid,
     EgressUnreachable,
     canonical,
@@ -61,10 +69,16 @@ from .intent import (
     uses_provider,
     validate_document,
 )
-from .geodata import GeodataError, GeodataStore
 from .probe import probe_trace
-from . import render as render_module
-from .render import RENDER_VERSION, Ingress, LaneAccount, Relay, config_bytes, generation_digest, render_config
+from .render import (
+    RENDER_VERSION,
+    Ingress,
+    LaneAccount,
+    Relay,
+    config_bytes,
+    generation_digest,
+    render_config,
+)
 
 OPERATION_ID = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 CREDENTIAL = re.compile(r"([A-Za-z0-9._-]{1,64}):([A-Za-z0-9._~-]{16,128})")
@@ -103,11 +117,26 @@ class ValidationError(ValueError):
     pass
 
 
+TUNSETIFF, IFF_TUN, IFF_NO_PI = 0x400454CA, 0x0001, 0x1000
+
+
+def open_tun(name: str) -> int:
+    """Attach to the persistent TUN device the AWG manager made for this uid (TUNSETIFF on a device
+    one owns needs no capability); the descriptor goes to Xray as `XRAY_TUN_FD`."""
+    fd = os.open("/dev/net/tun", os.O_RDWR)
+    try:
+        fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", name.encode(), IFF_TUN | IFF_NO_PI))
+    except OSError:
+        os.close(fd)
+        raise
+    return fd
+
+
 class XrayRunner(Protocol):
     def version(self) -> str: ...
     def x25519(self) -> tuple[str, str]: ...
     def test(self, config_path: Path) -> None: ...
-    def start(self, config_path: Path) -> object: ...
+    def start(self, config_path: Path, tun: str | None = None) -> object: ...
     def stop(self, handle: object) -> None: ...
     def alive(self, handle: object) -> bool: ...
     def wait_ready(self, ports: list[int], timeout: float, sockets: tuple[str, ...] = ()) -> None: ...
@@ -156,14 +185,24 @@ class SubprocessXrayRunner:
         if completed.returncode != 0:
             raise XrayError((completed.stdout + completed.stderr).strip()[-600:])
 
-    def start(self, config_path: Path) -> object:
+    def start(self, config_path: Path, tun: str | None = None) -> object:
+        fd = None
         try:
+            env, fds = self.env, ()
+            if tun is not None:
+                # v2.3.0: the AmneziaWG ingress — Xray takes the device as a descriptor and touches
+                # neither the link nor its addresses, so it needs no capability.
+                fd = open_tun(tun)
+                env, fds = {**self.env, "XRAY_TUN_FD": str(fd)}, (fd,)
             # Nothing of Xray's own output is kept: `-test` already said everything a config
             # has to say, and a pipe nobody drains would stall the process.
             return subprocess.Popen([str(self.binary), "run", "-config", str(config_path)],
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=self.env)
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, pass_fds=fds)
         except OSError as exc:
             raise XrayError(f"xray did not start: {exc}") from exc
+        finally:
+            if fd is not None:
+                os.close(fd)  # the child holds its own copy
 
     def stop(self, handle: object) -> None:
         process: subprocess.Popen = handle  # type: ignore[assignment]
@@ -290,7 +329,8 @@ class XrayRouterManager:
     def __init__(self, *, state_dir: Path, runner: XrayRunner, ingress_files: dict[str, Path], warp_url: str | None,
                  artifacts: dict[str, tuple[Path, str]], ports: dict[str, int] | None = None,
                  ready_timeout: float = 10.0, reachability=None, mtproxy_socket: Path | str | None = None,
-                 trusttunnel_port: int | None = None):
+                 trusttunnel_port: int | None = None, amneziawg_tun: str | None = None, warp_opener=None,
+                 net_root: Path | str = "/sys/class/net"):
         self.state_dir = Path(state_dir)
         # v1.1: the MTProxy ingress (a `vless` inbound on this Unix socket) — None keeps the
         # router what it was before: naive and mieru only.
@@ -298,9 +338,18 @@ class XrayRouterManager:
         # v1.6: the TrustTunnel ingress (a no-auth SOCKS inbound on this loopback port) — None keeps
         # the router what it was before.
         self.trusttunnel_port = trusttunnel_port
+        # v2.3.0: the AmneziaWG ingress (a `tun` inbound on this device, made by the AWG manager) —
+        # None keeps the router what it was before. Its `warp` registers a WARP device on first use.
+        self.amneziawg_tun = amneziawg_tun or None
+        self.warp_opener = warp_opener
+        self.net_root = Path(net_root)
         self.services: tuple[str, ...] = tuple(
             tag for tag in SERVICES
-            if (tag != "mtproxy" or self.mtproxy_socket is not None) and (tag != "trusttunnel" or trusttunnel_port is not None))
+            if (tag != "mtproxy" or self.mtproxy_socket is not None) and (tag != "trusttunnel" or trusttunnel_port is not None)
+            and (tag != "amneziawg" or self.amneziawg_tun is not None))
+        # What the running generation was started with: the AWG device's presence and ifindex.
+        self._tun_rendered: bool | None = None
+        self._tun_ifindex: str | None = None
         self.runner = runner
         self.ingress_files = {tag: Path(path) for tag, path in ingress_files.items()}
         self.warp_url = warp_url or None
@@ -375,9 +424,57 @@ class XrayRouterManager:
 
     # ------------------------------------------------------------- credentials
 
+    def _tun_present(self) -> bool:
+        return self.amneziawg_tun is not None and (self.net_root / self.amneziawg_tun).exists()
+
+    def _tun_index(self) -> str | None:
+        if self.amneziawg_tun is None:
+            return None
+        try:
+            return (self.net_root / self.amneziawg_tun / "ifindex").read_text().strip()
+        except OSError:
+            return None
+
+    def _warp_wg(self) -> dict | None:
+        account = self._read_json("warp-wg.json", None)
+        if account is not None and not warp_module.valid_account(account):
+            raise ManualInterventionRequired("warp-wg.json is malformed")
+        return account
+
+    def _ensure_warp_wg(self) -> dict:
+        """The WARP device AmneziaWG's `warp` uses, registered on first use and kept."""
+        account = self._warp_wg()
+        if account is not None:
+            return account
+        try:
+            account = warp_module.register(self.runner.x25519(), self.warp_opener)
+        except (warp_module.WarpError, XrayError) as exc:
+            raise EgressUnreachable(f"WARP registration for AmneziaWG failed: {exc}") from exc
+        self._write_json("warp-wg.json", account)
+        return account
+
+    def _needs_warp(self, service: str, document: dict) -> None:
+        """Before an apply: a SOCKS service's `warp` must answer; AmneziaWG's needs its account."""
+        if not uses_provider(document):
+            return
+        if service in TUN_SERVICES:
+            self._ensure_warp_wg()
+        elif not self.reachability(self.warp_url, 3.0):
+            raise EgressUnreachable("egress provider warp is unreachable")
+
+    def _render(self, intents: dict[str, dict], *, warp_wg: dict | None = None) -> dict:
+        return render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
+                             lanes=self._lane_accounts(), relay=self._relay(), warp_wg=warp_wg or self._warp_wg())
+
     def _ingresses(self) -> list[Ingress]:
         ingresses = []
         for tag in self.services:
+            if tag in TUN_SERVICES:
+                # Only while the device exists: the router cannot make it, and a tun inbound Xray
+                # had to open itself would need a capability. The watchdog re-renders on a change.
+                if self._tun_present():
+                    ingresses.append(Ingress(tag=tag, port=0, user="", password="", tun=self.amneziawg_tun))
+                continue
             if tag == "mtproxy":
                 record = self._mtproxy_credential()
                 ingresses.append(Ingress(tag=tag, port=0, user=record["username"], password=record["password"],
@@ -648,8 +745,7 @@ class XrayRouterManager:
                 self._commit_generation(1, intents, operation_ids={}, rollback_of=None)
                 return
             intents = self._current_intents(current)
-            config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
-                                   lanes=self._lane_accounts(), relay=self._relay())
+            config = self._render(intents)
             if generation_digest(config) != current["digest"] or not self._generation_path(current["generation"]).exists():
                 # The credential files (or the renderer) changed since this generation was
                 # written: the same intents, re-rendered, as a new generation.
@@ -680,7 +776,10 @@ class XrayRouterManager:
             # 26.3.27: `bind: address already in use`); the previous process is stopped by now.
             self.mtproxy_socket.unlink(missing_ok=True)
             sockets = (str(self.mtproxy_socket),)
-        handle = self.runner.start(path)
+        tun = self._tun_of(path)
+        handle = self.runner.start(path, tun) if tun is not None else self.runner.start(path)
+        self._tun_rendered = (tun is not None) if self.amneziawg_tun is not None else None
+        self._tun_ifindex = self._tun_index() if tun is not None else None
         try:
             ports = [self.ports[tag] for tag in self.services if tag in self.ports]
             if sockets:
@@ -692,6 +791,28 @@ class XrayRouterManager:
             raise
         self.handle = handle
         self.started_at = _now()
+
+    @staticmethod
+    def _tun_of(path: Path) -> str | None:
+        """The device the generation's `tun` inbound names, if it has one."""
+        try:
+            config = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
+        for inbound in config.get("inbounds", []):
+            if inbound.get("protocol") == "tun":
+                return inbound["settings"]["name"]
+        return None
+
+    def _tun_changed(self) -> bool:
+        """The AmneziaWG device appeared, went away or was made anew since the running generation
+        started: the router re-renders (or restarts with the new device)."""
+        if self.amneziawg_tun is None or self._tun_rendered is None:
+            return False
+        present = self._tun_present()
+        if present != self._tun_rendered:
+            return True
+        return present and self._tun_index() != self._tun_ifindex
 
     def close(self) -> None:
         with self.lock:
@@ -707,10 +828,18 @@ class XrayRouterManager:
             state = self._state()
             if state.get("phase") != "idle" or self.artifact_error:
                 return
-            if self.handle is not None and self.runner.alive(self.handle):
+            alive = self.handle is not None and self.runner.alive(self.handle)
+            if alive and not self._tun_changed():
                 return
             current = self._current()
             if current is None:
+                return
+            if alive:
+                # v2.3.0: the AmneziaWG device changed under the running process.
+                try:
+                    self._rerender_current()
+                except (XrayError, ManualInterventionRequired, EgressInvalid):
+                    pass
                 return
             try:
                 self._start_generation(current["generation"])
@@ -923,7 +1052,14 @@ class XrayRouterManager:
             journal = self._journal()[service]
             view = self._service_view(current, service)
             document = view["document"]
+            extra = {}
+            if service in TUN_SERVICES:
+                # v2.3.0: whether the device exists and the running Xray reads it.
+                extra["tun"] = {"device": self.amneziawg_tun, "present": self._tun_present(),
+                                "attached": bool(self._tun_rendered) and self.handle is not None and self.runner.alive(self.handle),
+                                "warp_registered": self._warp_wg() is not None}
             return {
+                **extra,
                 "revision": view["revision"], "document": document,
                 "mode": "proxy" if document is not None and uses_provider(document) else "direct",
                 "generation": None if current is None else current["generation"],
@@ -964,8 +1100,12 @@ class XrayRouterManager:
         self._service(service)
         with self.lock:
             current, normalised, intents = self._target(service, expected_revision, document)
-            config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
-                                   lanes=self._lane_accounts(), relay=self._relay())
+            stand_in = None
+            if service in TUN_SERVICES and uses_provider(normalised) and self._warp_wg() is None:
+                # Not registered yet (the apply registers): the plan renders with a stand-in account.
+                stand_in = {"id": "plan", "token": "plan", "private_key": "A" * 43 + "=", "address": "172.16.0.2",
+                            "peer_public_key": "A" * 43 + "=", "endpoint": "162.159.192.1:2408"}
+            config = self._render(intents, warp_wg=stand_in)
             candidate = self.state_dir / ".plan.json"
             _atomic_write(candidate, config_bytes(config))
             try:
@@ -976,7 +1116,8 @@ class XrayRouterManager:
                 candidate.unlink(missing_ok=True)
             reachability = {}
             if uses_provider(normalised):
-                reachability["warp"] = self.reachability(self.warp_url, 3.0)
+                reachability["warp"] = (True if self._warp_wg() is not None else None) if service in TUN_SERVICES \
+                    else self.reachability(self.warp_url, 3.0)
             reachability.update(self._check_hops(normalised))
             generation = current["generation"] + 1
             return {
@@ -1002,8 +1143,7 @@ class XrayRouterManager:
                         "readback_sha256": current_entry["generation_digest"], "generation": current_entry["generation"],
                         "replayed": True}
             current, normalised, intents = self._target(service, expected_revision, document)
-            if uses_provider(normalised) and not self.reachability(self.warp_url, 3.0):
-                raise EgressUnreachable("egress provider warp is unreachable")
+            self._needs_warp(service, normalised)
             for key, reachable in self._check_hops(normalised).items():
                 if not reachable:
                     _prefix, chain_id, index = key.split(":")
@@ -1031,8 +1171,7 @@ class XrayRouterManager:
             intents = self._current_intents(current)
             known = set(self._lanes().get(service, {}))
             intents[service] = self._without_lanes(previous["document"], known)
-            if uses_provider(intents[service]) and not self.reachability(self.warp_url, 3.0):
-                raise EgressUnreachable("egress provider warp is unreachable")
+            self._needs_warp(service, intents[service])
             entry = self._commit_generation(current["generation"] + 1, intents, operation_ids={},
                                             rollback_of=service, keep_journal=True)[service]
             return {"revision": entry["revision"], "applied": entry["document"], "readback_sha256": entry["generation_digest"],
@@ -1041,8 +1180,7 @@ class XrayRouterManager:
     def _commit_generation(self, generation: int, intents: dict[str, dict], *, operation_ids: dict[str, str],
                            rollback_of: str | None, keep_journal: bool = False) -> dict[str, dict]:
         """Render → test → swap → `current.json` → journal. The journal entry per service."""
-        config = render_config(intents, self._ingresses(), warp_url=self.warp_url, ports=self.ports,
-                               lanes=self._lane_accounts(), relay=self._relay())
+        config = self._render(intents)
         path = self._generation_path(generation)
         _atomic_write(path, config_bytes(config))
         try:

@@ -299,11 +299,11 @@ call ([FLEET.en.md](FLEET.en.md)).
 
 ## The TrustTunnel screen
 
-The «TrustTunnel» menu item is visible only where the protocol is enabled (`TRUSTTUNNEL_ENABLED=true`, set by the installer). The screen only reads the state of the server this panel runs on: domain and port, the endpoint's state
+The «TrustTunnel» menu item is visible only where the protocol is enabled (`TRUSTTUNNEL_ENABLED=true`, set by the installer). The screen shows the state of the server this panel runs on: domain and port, the endpoint's state
 (`ok`/`degraded`), the version and whether the certificate is trusted, the number of accesses and sessions, the traffic
 (downloaded/uploaded from the client's point of view), and lists the node's accesses with the client that holds each; accesses
 the panel is waiting for from the manager are listed separately. An access is issued with the «+ TrustTunnel access» button or
-from a client's card («Nodes and access»: TrustTunnel has a column of its own in the matrix); the access window shows the
+from a client's card («Nodes and access»: TrustTunnel has a column of its own in the matrix). An access row disables or enables it, issues a new password («New password») and deletes it, after a confirmation and without a page reload; the access window shows the
 `tt://` link, its QR and the TOML config. The panel makes the password and keeps it in its store (capture and import of existing
 users are not supported); rotation issues a new password. Any credential change briefly restarts the endpoint:
 [TRUSTTUNNEL.en.md](TRUSTTUNNEL.en.md). The overview has a card for the protocol.

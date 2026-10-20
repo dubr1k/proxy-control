@@ -322,7 +322,7 @@ CURATED: tuple[CuratedTool, ...] = (
         "POST /api/routing/policies/{node_id}/{protocol}/preview; `policy` is the policy body (omit it to preview "
         "the saved one); `lane` is `svc` (default) or `grant:<grant_id>`.",
         _schema({
-            "node_id": {"type": "string"}, "protocol": {"type": "string", "enum": ["naive", "mieru", "mtproxy", "trusttunnel"]},
+            "node_id": {"type": "string"}, "protocol": {"type": "string", "enum": ["naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"]},
             "policy": {"type": ["object", "null"], "description": "The policy to preview; null = the saved policy."},
             "lane": {"type": "string", "default": "svc"},
         }, ["node_id", "protocol"]),
@@ -333,7 +333,7 @@ CURATED: tuple[CuratedTool, ...] = (
         "Apply the saved routing policy revision to the node's backend (transactional, with rollback). "
         "POST /api/routing/policies/{node_id}/{protocol}/apply with `expected_revision`. Requires confirm=true.",
         _schema({
-            "node_id": {"type": "string"}, "protocol": {"type": "string", "enum": ["naive", "mieru", "mtproxy", "trusttunnel"]},
+            "node_id": {"type": "string"}, "protocol": {"type": "string", "enum": ["naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"]},
             "expected_revision": {"type": "integer", "minimum": 1},
             "lane": {"type": "string", "default": "svc"},
             "confirm": dict(CONFIRM_SCHEMA),

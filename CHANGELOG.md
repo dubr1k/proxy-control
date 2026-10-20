@@ -4,6 +4,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-20
+
+- **AmneziaWG through WARP.** Backend `amneziawg_native`: the AWG manager brings up its own WireGuard tunnel `awgwarp` to WARP (an account of its own, registered on the first apply), rules `from <subnet> lookup 51870` at priority 5150, a `blackhole` in the table for when the tunnel is gone and exceptions for private networks. Manager API `GET /v1/egress`, `POST /v1/egress/plan|apply|rollback`; an apply waits for the handshake and otherwise puts the previous exit back. Node capability `egress.amneziawg.v1`, migration 26. An AmneziaWG tab in «Routing» and an «Internet exit» card on the AmneziaWG screen.
+- **AmneziaWG through the Xray-router (optional).** The AWG manager keeps a persistent TUN device `awgxr` (uid 10006) and with `{"provider": "router"}` steers the subnets into it; the router (service `amneziawg`, `XRAY_ROUTER_TUN_AMNEZIAWG`) opens the device and hands Xray the descriptor (`XRAY_TUN_FD`) for a sniffing `tun` inbound; that service's `warp` is a WireGuard outbound to WARP with the router's own account (`warp-wg.json`). The router gets the `/dev/net/tun` device.
+- **The `tt://` link in the official TrustTunnel apps.** The panel writes the link in version 1 of the format: the official client (TrustTunnelClient 1.1.11, the AdGuard TrustTunnel apps) refused version 2 outright («Unsupported deep link version: 2»). The panel's decoder still reads version 2.
+- **Subscription page: verified only.** For TrustTunnel — AdGuard TrustTunnel, the TrustTunnel CLI and mihomo-core apps; the compatibility table is replaced by a list of the apps verified to refresh the subscription, per protocol of this subscription; no Surge line. Long values wrap and the page is never wider than a phone screen.
+- **Row actions on the AmneziaWG and TrustTunnel screens:** disable/enable, a new key (TrustTunnel: a new password) and delete through the grant API, after a confirmation; the list redraws at once. The access window opened from these screens also redraws the list behind it.
+- **Compatibility:** TrustTunnel with mihomo verified on core v1.19.32; Hiddify is `unproven` (no app release has the outbound).
+- No breaking changes; installer: a report note on AmneziaWG's WARP exit.
+
 ## [2.2.1] - 2026-10-19
 
 - **«Состояние сервисов» on the overview** lists every protocol that is switched on: Mieru, AmneziaWG and TrustTunnel join MTProxy and NaiveProxy (by their managers' state).

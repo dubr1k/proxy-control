@@ -1,9 +1,11 @@
 """The TrustTunnel deep link: `tt://?` + base64url (no padding) of a TLV payload.
 
 The format is the vendor's (TrustTunnel `DEEP_LINK.md`, version 2): every field is a tag, a
-length and a value, tag and length as QUIC variable-length integers (RFC 9000 section 16). An
-encoder emits version 2; a decoder ignores tags it does not know and rejects a version higher
-than it understands. Only the fields the panel hands out are written (hostname, addresses,
+length and a value, tag and length as QUIC variable-length integers (RFC 9000 section 16). The
+decoder reads up to version 2, ignores tags it does not know and rejects a higher version. The
+encoder writes version 1: version 2 only adds `subscription_url`, which the panel never writes,
+and the stable official client (TrustTunnelClient 1.1.11, the AdGuard apps' decoder) refuses a
+version-2 link outright — «Unsupported deep link version: 2 (max supported: 1)». Only the fields the panel hands out are written (hostname, addresses,
 username, password, certificate, upstream protocol, name, plus the optional flags); every field
 of the specification is read back.
 """
@@ -13,7 +15,8 @@ import base64
 import binascii
 
 SCHEME = "tt://?"
-VERSION = 2
+VERSION = 2  # the highest version the decoder reads
+WRITE_VERSION = 1  # what the encoder writes: every official client reads it
 UPSTREAM_HTTP2, UPSTREAM_HTTP3 = 1, 2
 
 TAG_VERSION, TAG_HOSTNAME, TAG_ADDRESSES, TAG_CUSTOM_SNI, TAG_HAS_IPV6 = 0x00, 0x01, 0x02, 0x03, 0x04
@@ -77,7 +80,7 @@ def encode_deeplink(
         raise DeepLinkError("hostname, addresses, username and password are required")
     if upstream_protocol not in (UPSTREAM_HTTP2, UPSTREAM_HTTP3):
         raise DeepLinkError("unknown upstream protocol")
-    parts = [_field(TAG_VERSION, encode_varint(VERSION)), _text(TAG_HOSTNAME, hostname)]
+    parts = [_field(TAG_VERSION, encode_varint(WRITE_VERSION)), _text(TAG_HOSTNAME, hostname)]
     parts += [_text(TAG_ADDRESSES, address) for address in addresses]
     parts += [_text(TAG_USERNAME, username), _text(TAG_PASSWORD, password)]
     if skip_verification:

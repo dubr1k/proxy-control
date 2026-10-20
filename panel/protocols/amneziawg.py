@@ -33,6 +33,9 @@ from .base import (
     ObservedGrant,
     ObservedInventory,
     Preflight,
+    applied_egress_from_view,
+    egress_error,
+    egress_target_from_view,
 )
 
 CONF_MEDIA_TYPE = "text/x-amneziawg-conf"
@@ -218,16 +221,33 @@ class AmneziawgAdapter:
                                media_type=CONF_MEDIA_TYPE,
                                value=render_conf(grant, credential, public_host=public_host))]
 
-    # No egress: the tunnel leaves through the host's own route.
+    # Egress (v2.3.0): the whole tunnel directly, or through a WARP WireGuard tunnel the manager
+    # runs (`amneziawg_native`: whole_direct, whole_warp; TCP and UDP alike, no rules by name).
     async def egress_target(self) -> EgressTarget | None:
-        return None
+        try:
+            view = await self.client.egress()
+        except AmneziawgError as exc:
+            if exc.status_code == 404:
+                return None  # a manager older than v2.3.0 has no egress
+            raise egress_error("AmneziaWG", exc.status_code, exc.code) from exc
+        return egress_target_from_view(self.protocol, "amneziawg_native", view)
 
     async def plan_egress(self, document: dict, *, expected_revision: str) -> dict:
-        raise AdapterError("AmneziaWG has no egress control", code="egress_unsupported")
+        try:
+            return await self.client.egress_plan(expected_revision, document)
+        except AmneziawgError as exc:
+            raise egress_error("AmneziaWG", exc.status_code, exc.code) from exc
 
     async def apply_egress(self, document: dict, *, expected_revision: str, operation_id: str) -> AppliedEgress:
-        raise AdapterError("AmneziaWG has no egress control", code="egress_unsupported")
+        try:
+            view = await self.client.egress_apply(expected_revision, document, operation_id)
+        except AmneziawgError as exc:
+            raise egress_error("AmneziaWG", exc.status_code, exc.code) from exc
+        return applied_egress_from_view(view)
 
     async def rollback_egress(self, *, expected_revision: str) -> AppliedEgress:
-        raise AdapterError("AmneziaWG has no egress control", code="egress_unsupported")
-
+        try:
+            view = await self.client.egress_rollback(expected_revision)
+        except AmneziawgError as exc:
+            raise egress_error("AmneziaWG", exc.status_code, exc.code) from exc
+        return applied_egress_from_view(view)

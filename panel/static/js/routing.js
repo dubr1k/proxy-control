@@ -7,7 +7,13 @@ import { date, esc, locale, number, query, queryAll } from "./common.js";
 import { capabilityList, guideHtml } from "./routing-guide.js";
 import { isCurrent } from "./state.js";
 
-const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy", trusttunnel: "TrustTunnel" };
+const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy", trusttunnel: "TrustTunnel", amneziawg: "AmneziaWG" };
+// AmneziaWG (v2.3.0): on its own, the whole tunnel directly or through the AWG manager's own WARP tunnel —
+// no rules; attached to the Xray-router, the router's rules (its WARP a WireGuard outbound). No lanes either way.
+const WHOLE_ONLY = new Set(["amneziawg"]);
+function wholeOnly(target) {
+  return WHOLE_ONLY.has(target?.protocol) && target?.backend !== "xray_router";
+}
 const PREVIEW_DEBOUNCE_MS = 400;
 const REASON_TEXT = {
   protocol_out_of_scope: "вне области маршрутизации",
@@ -64,6 +70,8 @@ const REASON_TEXT = {
   // TrustTunnel through the router (v1.6): one policy for the whole service, no client lanes.
   router_lacks_trusttunnel: "Xray-router узла старше v1.6 — пересоберите xray-router, чтобы у него появился вход для TrustTunnel",
   node_lacks_trusttunnel_egress: "узел нужно обновить до v1.6 для маршрутизации TrustTunnel",
+  node_lacks_amneziawg_egress: "узел нужно обновить до v2.3.0, чтобы направить AmneziaWG через WARP",
+  router_lacks_amneziawg: "Xray-router узла старше v2.3.0 — пересоберите xray-router, чтобы у него появился вход для AmneziaWG",
   lanes_unsupported: "у TrustTunnel нет полос для клиентов: узел видит от него одного анонимного клиента, поэтому маршрут задаётся для всего сервиса",
 };
 const WARNING_TEXT = {
@@ -95,7 +103,7 @@ const WARNING_TEXT = {
   geodata_invalid: "источник geodata задан неверно",
   geodata_install_failed: "списки не удалось положить на место",
 };
-const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", mtproxy_native: "Telemt", trusttunnel_native: "TrustTunnel", xray_router: "Xray-router" };
+const BACKEND_NAMES = { naive_native: "Caddy", mieru_native: "mita", mtproxy_native: "Telemt", trusttunnel_native: "TrustTunnel", amneziawg_native: "WARP-туннель AmneziaWG", xray_router: "Xray-router" };
 const EXIT_PROTOCOL_NAMES = { vless: "VLESS", trojan: "Trojan", shadowsocks: "Shadowsocks", socks: "SOCKS5", http: "HTTP" };
 const SNIFFED_PROTOCOLS = ["tls", "http", "quic", "bittorrent"];
 const STATE_TEXT = {
@@ -136,6 +144,7 @@ function laneQuery(context) {
 // Plain-text labels (data, not markup): every place that paints one passes it through esc().
 function exitOptions(target) {
   const options = [{ value: "warp", label: "WARP этого узла" }];
+  if (wholeOnly(target)) return options;
   for (const exit of target?.custom_exits || []) {
     options.push({ value: "exit:" + exit.id, label: "⇢ " + exit.name + " (" + (EXIT_PROTOCOL_NAMES[exit.protocol] || exit.protocol) + ")" + (exit.enabled ? "" : " — выключен") });
   }
@@ -336,10 +345,10 @@ function editor(context, target, draft, editable) {
           <option value="approved_direct"${draft.fallback === "approved_direct" ? " selected" : ""}>напрямую</option>
         </select></label>
     </div>
-    ${presetsLine(context, target, draft, editable)}
-    ${table}
+    ${wholeOnly(target) ? '<p class="form-hint routing-whole-only">Правил у AmneziaWG нет: туннель пропускает пакеты, а не имена сайтов. Выберите выход для всего туннеля — напрямую с IP сервера или через WARP. В WARP идёт и TCP, и UDP (DNS, QUIC, звонки).</p>' : `${presetsLine(context, target, draft, editable)}
+    ${table}`}
     <div class="routing-editor-actions">
-      <button type="button" class="secondary" data-routing-action="rule-add"${editable ? "" : " disabled"}>Добавить правило</button>
+      ${wholeOnly(target) ? "" : `<button type="button" class="secondary" data-routing-action="rule-add"${editable ? "" : " disabled"}>Добавить правило</button>`}
       <button type="button" class="secondary" data-routing-action="reset"${editable ? "" : " disabled"}>Сбросить</button>
       <button type="submit" class="primary" id="routing-save"${editable ? "" : " disabled"}>Сохранить</button>
     </div>
@@ -417,6 +426,9 @@ function cardActions(context, policy, compiled, dirty, editable) {
 // one action that moves it — an explicit, confirmed step, never a side effect of a policy.
 function routerLine(context, target) {
   const router = target.router;
+  if (target.protocol === "amneziawg" && !router) {
+    return "<p class='form-hint routing-router-line'>Xray-router: не установлен — AmneziaWG выходит напрямую или через собственный WireGuard-туннель менеджера к WARP (своя учётная запись WARP, менеджер регистрирует её при первом применении).</p>";
+  }
   if (!router) {
     return target.protocol === "mtproxy"
       ? "<p class='form-hint routing-router-line'>Xray-router: не установлен — без него MTProxy ходит только напрямую.</p>"
@@ -443,8 +455,8 @@ function exitsLine(context, target) {
   const chips = [
     '<span class="routing-exit-chip" data-exit="direct">Напрямую</span>',
     `<span class="routing-exit-chip ${warpTone}" data-exit="warp">WARP${warpNote}</span>`,
-    '<span class="routing-exit-chip" data-exit="block">Блок</span>',
-    ...(target.exits || []).map((exit) => {
+    ...(wholeOnly(target) ? [] : ['<span class="routing-exit-chip" data-exit="block">Блок</span>']),
+    ...(wholeOnly(target) ? [] : target.exits || []).map((exit) => {
       // `pending`: the relay is enabled but the node has not reported its public key yet —
       // the resolver refuses such a hop (node_lacks_relay), so the chip must not promise it.
       const tone = !exit.online ? "blocked" : exit.enabled && !exit.pending ? "" : "muted";
@@ -689,6 +701,8 @@ function targetCard(context) {
     ${target.protocol === "mtproxy" && target.router?.attached ? '<p class="form-hint">Telemt ходит к дата-центрам Telegram по IP: правила по CIDR, geoip и порту работают, по домену, geosite и протоколу — нет.</p>' : ""}
     ${target.protocol === "trusttunnel" && !target.router?.attached ? '<p class="form-hint routing-reason-line">TrustTunnel маршрутизируется только через Xray-router: подключите сервис в «Возможностях узла» ниже, затем выберите выход — WARP, свой выход или другой узел.</p>' : ""}
     ${target.protocol === "trusttunnel" && target.router?.attached ? '<p class="form-hint">Все клиенты TrustTunnel идут по одной политике сервиса: полос для отдельных клиентов здесь нет.</p>' : ""}
+    ${target.protocol === "amneziawg" && !target.router?.attached ? '<p class="form-hint">Весь трафик клиентов AmneziaWG идёт по одной политике: напрямую или через WARP. Если туннель WARP пропадает, трафик клиентов не выпускается с IP сервера, а отбрасывается, пока туннель не вернётся. Для правил по сайтам, своих выходов и других узлов подключите AmneziaWG к Xray-router в «Возможностях узла» ниже.</p>' : ""}
+    ${target.protocol === "amneziawg" && target.router?.attached ? '<p class="form-hint">AmneziaWG идёт через Xray-router: правила по доменам (их узнаёт сниффер), спискам geosite и geoip, адресам и портам, свои выходы и другие узлы. WARP здесь — WireGuard-выход роутера, через него идут и TCP, и UDP. Пока роутер не работает, трафик клиентов отбрасывается. Полос для отдельных клиентов нет.</p>' : ""}
     ${reason}
     <section class="routing-step">
       ${stepHead(1, "Для кого", "Весь сервис или отдельный клиент со своей полосой: его трафик живёт по своей политике.")}

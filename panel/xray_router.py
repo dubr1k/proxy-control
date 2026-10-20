@@ -15,7 +15,7 @@ from .routing.document import EGRESS_REASON_CODES, ROUTER_DIRECT_INTENT, canonic
 
 # v1.0.1: the sources the router manager knows (`xray_router_manager.geodata.SOURCE_KINDS`).
 GEODATA_SOURCE_KINDS = ("xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom")
-ROUTER_SERVICES = ("naive", "mieru", "mtproxy", "trusttunnel")
+ROUTER_SERVICES = ("naive", "mieru", "mtproxy", "trusttunnel", "amneziawg")
 # What the spike proved the router enforces (xray_router_manager/intent.py).
 ROUTER_CAPABILITIES = (
     "whole_direct", "whole_warp",
@@ -102,12 +102,14 @@ class MemoryXrayRouter:
     a journal per service, the manager's codes on demand (`fail_next`)."""
 
     def __init__(self, *, warp_url: str | None = "socks5://127.0.0.1:40000", available: bool = True,
-                 mtproxy: bool = True, trusttunnel: bool = True):
+                 mtproxy: bool = True, trusttunnel: bool = True, amneziawg: bool = True):
         self.warp_url = warp_url
         # `mtproxy` False = a router manager from before v1.1 (no MTProxy ingress).
         self.mtproxy = mtproxy
         # `trusttunnel` False = a router manager from before v1.6 (no TrustTunnel ingress).
         self.trusttunnel = trusttunnel
+        # `amneziawg` False = a router manager from before v2.3.0 (no AmneziaWG `tun` ingress).
+        self.amneziawg = amneziawg
         self.mtproxy_credential = {"address": "xray-router-ingress:45103", "username": "telemt", "password": "m" * 43}
         self.reachable = True
         # `available` False = the manager does not answer at all (container down).
@@ -145,7 +147,7 @@ class MemoryXrayRouter:
         if not self.available:
             raise XrayRouterError("Xray-router manager unavailable")
         if (service not in ROUTER_SERVICES or (service == "mtproxy" and not self.mtproxy)
-                or (service == "trusttunnel" and not self.trusttunnel)):
+                or (service == "trusttunnel" and not self.trusttunnel) or (service == "amneziawg" and not self.amneziawg)):
             raise XrayRouterError("not found", 404)
         if self.artifact_error:
             raise XrayRouterError("Xray-router manager rejected request", 503, "artifact_mismatch")
@@ -203,7 +205,7 @@ class MemoryXrayRouter:
 
     async def lane_issue(self, service, lane):
         self._check(service)
-        if service in ("mtproxy", "trusttunnel"):
+        if service in ("mtproxy", "trusttunnel", "amneziawg"):
             raise XrayRouterError("invalid request", 422)
         if not isinstance(lane, str) or not lane.startswith("grant:"):
             raise XrayRouterError("invalid request", 422)
@@ -351,10 +353,11 @@ class MemoryXrayRouter:
                 "running": {"generation": self.generation, "digest": "0" * 64, "since": None},
                 "services": {service: {"revision": self._revision(service), "digest": self._digest(service),
                                        "document": copy.deepcopy(self.documents[service])} for service in ROUTER_SERVICES
-                             if (service != "mtproxy" or self.mtproxy) and (service != "trusttunnel" or self.trusttunnel)},
+                             if (service != "mtproxy" or self.mtproxy) and (service != "trusttunnel" or self.trusttunnel)
+                             and (service != "amneziawg" or self.amneziawg)},
                 "providers": self._providers(), "capabilities": [*ROUTER_CAPABILITIES, "lanes", "chains", "relay"],
                 "restart_required": True, "lanes": {service: sorted(self.lane_accounts[service]) for service in ROUTER_SERVICES
-                                                    if service not in ("mtproxy", "trusttunnel")},
+                                                    if service not in ("mtproxy", "trusttunnel", "amneziawg")},
                 "relay": self._relay_view(),
                 "geodata": {key: self.geodata_state[key] for key in ("source", "origin", "version", "updated_at", "auto_update",
                                                                        "interval_hours", "update_hour", "last_error", "files")}}

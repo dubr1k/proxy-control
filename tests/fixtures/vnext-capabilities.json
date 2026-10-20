@@ -145,7 +145,7 @@
       "mtproxy": {"status": "unsupported", "note": "mihomo has no MTProto proxy type"},
       "naive": {"status": "unsupported", "note": "naiveproxy support is an open feature request, MetaCubeX/mihomo#273"},
       "mieru": {"status": "supported", "note": "proxy type mieru with server, port/port-range, transport, username, password, multiplexing, udp"},
-      "trusttunnel": {"status": "supported", "note": "proxy type trusttunnel with server, port, username, password, udp, quic, skip-cert-verify (MetaCubeX wiki, config/proxies/trusttunnel); documented by the core vendor, not verified by us; Clash Verge Rev, FlClash, Mihomo Party, ClashMi and the other Mihomo-core clients take it while their bundled core is recent"}
+      "trusttunnel": {"status": "supported", "note": "proxy type trusttunnel with server, port, username, password, udp, quic, skip-cert-verify (MetaCubeX wiki, config/proxies/trusttunnel); verified 2026-10-20 with mihomo v1.19.32 on the lab host: the proxy from our Clash feed carried a request (200) out through the node; Clash Verge Rev, FlClash, Mihomo Party, ClashMi and the other Mihomo-core clients take it while their bundled core is recent"}
     },
     "mieru_cli": {
       "mtproxy": {"status": "unsupported", "note": "single-protocol client"},
@@ -181,7 +181,7 @@
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},
       "naive": {"status": "unproven", "note": "sing-box based, but the shipped core version and naive build variant are unverified"},
       "mieru": {"status": "unsupported", "note": "sing-box based; the official core has no mieru outbound"},
-      "trusttunnel": {"status": "supported", "note": "delivered by default in the sing-box subscription (a Hiddify User-Agent or ?format=singbox&client=hiddify); verified 2026-10-19 against hiddify-sing-box built from master ae5cb1488 (no release has the outbound yet): sing-box check passes, an official sing-box 1.14.3 refuses it as an unknown outbound type, and a request through it returned 200 with the traffic counted on the gate; health_check is not emitted because that build panicked with it on"}
+      "trusttunnel": {"status": "unproven", "note": "delivered by default in the sing-box subscription (a Hiddify User-Agent or ?format=singbox&client=hiddify); verified 2026-10-19 only against hiddify-sing-box built from master ae5cb1488: no Hiddify app release carries the outbound yet (the app's latest release, 4.1.1, is from 2026-03), so the app itself is unverified: sing-box check passes, an official sing-box 1.14.3 refuses it as an unknown outbound type, and a request through it returned 200 with the traffic counted on the gate; health_check is not emitted because that build panicked with it on"}
     },
     "throne": {
       "mtproxy": {"status": "unsupported", "note": "no MTProto import path"},

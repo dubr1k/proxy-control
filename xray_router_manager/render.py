@@ -39,7 +39,17 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 
-from .intent import NOAUTH_SERVICES, PORTS, SCHEMA_V2, SERVICES, EgressInvalid, provider_endpoint, uses_provider
+from .intent import (
+    NOAUTH_SERVICES,
+    PORTS,
+    SCHEMA_V2,
+    SERVICES,
+    TUN_SERVICES,
+    WARP_WG_TAG,
+    EgressInvalid,
+    provider_endpoint,
+    uses_provider,
+)
 
 # What Telemt itself dials through its upstream besides Telegram: the TLS front of the `mask`
 # container on the Compose network. Loopback and link-local stay blocked.
@@ -60,6 +70,21 @@ class Ingress:
     # v1.1, `mtproxy`: the inbound listens on this Unix socket and admits this VLESS client.
     socket: str | None = None
     uuid: str | None = None
+    # v2.3.0, `amneziawg`: a `tun` inbound on this device (the router passes Xray its descriptor).
+    tun: str | None = None
+
+
+TUN_MTU = 1280
+
+
+def warp_wg_outbound(account: dict) -> dict:
+    """The WireGuard outbound to WARP the `amneziawg` service's `warp` lands on (TCP and UDP);
+    Xray's own userspace stack (`noKernelTun`), so the router needs no capability for it."""
+    return {"tag": WARP_WG_TAG, "protocol": "wireguard", "settings": {
+        "secretKey": account["private_key"], "address": [account["address"] + "/32"],
+        "peers": [{"publicKey": account["peer_public_key"], "endpoint": account["endpoint"],
+                   "allowedIPs": ["0.0.0.0/0"], "keepAlive": 25}],
+        "mtu": TUN_MTU, "noKernelTun": True}}
 
 
 @dataclass(frozen=True)
@@ -239,7 +264,7 @@ def _relay_inbound(relay: Relay) -> dict:
 
 def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_url: str | None,
                   ports: dict[str, int] | None = None, lanes: dict[str, list[LaneAccount]] | None = None,
-                  relay: Relay | None = None) -> dict:
+                  relay: Relay | None = None, warp_wg: dict | None = None) -> dict:
     """The full Xray config for these intents. `intents` holds a validated document per
     service (a missing service runs pass-through); `lanes` the grant lanes' accounts per
     service; `relay` this node's relay inbound when enabled. `EgressInvalid` when something
@@ -251,6 +276,12 @@ def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_ur
     inbounds = []
     for tag in services:
         ingress = by_tag[tag]
+        if ingress.tun is not None:
+            inbounds.append({
+                "tag": tag, "port": 0, "protocol": "tun", "settings": {"name": ingress.tun, "mtu": TUN_MTU},
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"], "routeOnly": True},
+            })
+            continue
         if ingress.socket is not None:
             inbounds.append({
                 "tag": tag, "listen": ingress.socket, "port": 0, "protocol": "vless",
@@ -279,10 +310,14 @@ def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_ur
     outbounds = [{"tag": "block", "protocol": "blackhole"},
                  {"tag": "direct", "protocol": "freedom", "settings": {"domainStrategy": "UseIP"}}]
     relay_warp = [email for email, _uuid in (relay.accounts if relay else []) if email.endswith(":warp")]
-    needs_warp = [tag for tag in services if tag in intents and uses_provider(intents[tag])] or relay_warp
+    needs_warp = [tag for tag in services if tag in intents and tag not in TUN_SERVICES and uses_provider(intents[tag])] or relay_warp
     if needs_warp:
         host, port = provider_endpoint(warp_url)
         outbounds.append({"tag": "warp", "protocol": "socks", "settings": {"servers": [{"address": host, "port": port}]}})
+    if any(tag in intents and tag in TUN_SERVICES and uses_provider(intents[tag]) for tag in services):
+        if warp_wg is None:
+            raise EgressInvalid("this node has no WARP WireGuard account for AmneziaWG yet", code="egress_unreachable")
+        outbounds.append(warp_wg_outbound(warp_wg))
     rules = []
     for tag in services:
         intent = intents.get(tag) or {"default": {"action": "direct", "egress": None}, "rules": []}
@@ -291,11 +326,17 @@ def render_config(intents: dict[str, dict], ingresses: list[Ingress], *, warp_ur
         if by_tag[tag].socket is not None:
             rules.append({"inboundTag": [tag], "ip": list(MTPROXY_PRIVATE_EXCEPTION), "port": "443", "outboundTag": "direct"})
         rules.extend(_bypass(tag))
+        start = len(rules)
         if intent.get("schema") == SCHEMA_V2:
             rules.extend(_lane_rules(tag, by_tag[tag], intent, {a.lane: a for a in lanes.get(tag, [])}, chain_tags))
         else:
             rules.extend(_rule(tag, rule) for rule in intent["rules"])
             rules.append({"inboundTag": [tag], "outboundTag": OUTBOUND_FOR[intent["default"]["action"]]})
+        if tag in TUN_SERVICES:
+            # The tunnels carry UDP as much as TCP: their `warp` is the WireGuard outbound.
+            for rule in rules[start:]:
+                if rule.get("outboundTag") == "warp":
+                    rule["outboundTag"] = WARP_WG_TAG
     if relay is not None:
         rules.extend(_bypass(RELAY_TAG))
         if relay_warp:
@@ -334,6 +375,8 @@ def redact(config: dict) -> dict:
         if "privateKey" in reality:
             reality["privateKey"] = "***"
     for outbound in masked.get("outbounds", []):
+        if "secretKey" in outbound.get("settings", {}):
+            outbound["settings"]["secretKey"] = "***"
         for server in outbound.get("settings", {}).get("vnext", []):
             for user in server.get("users", []):
                 user["id"] = "***"

@@ -1,6 +1,7 @@
 """Everything the manager does to the machine, behind one injectable seam."""
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -29,6 +30,7 @@ class Process(Protocol):
 class Host(Protocol):
     def start_process(self, iface: str, log_level: str) -> Process: ...
     def ip(self, *args: str) -> None: ...
+    def ip_json(self, *args: str) -> list: ...
     def nft_apply(self, script: str) -> None: ...
     def nft_delete(self) -> None: ...
     def uapi_set(self, iface: str, body: str) -> None: ...
@@ -77,6 +79,20 @@ class RealHost:
 
     def ip(self, *args: str) -> None:
         self._run(["ip", *args])
+
+    def ip_json(self, *args: str) -> list:
+        """`ip -j …` parsed (the WARP egress reads its own rules back this way)."""
+        try:
+            done = subprocess.run(["ip", "-j", *args], capture_output=True, text=True, timeout=15, check=False)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise HostError(f"ip failed to run: {exc}") from exc
+        if done.returncode != 0:
+            raise HostError(f"ip -j {' '.join(args[:3])} failed: {done.stderr.strip()[:300]}")
+        try:
+            value = json.loads(done.stdout or "[]")
+        except ValueError as exc:
+            raise HostError("ip -j answered something that is not JSON") from exc
+        return value if isinstance(value, list) else []
 
     def nft_apply(self, script: str) -> None:
         self._run(["nft", "-f", "-"], script)

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 SCHEMA = 1
 MAX_OPERATIONS = 2000

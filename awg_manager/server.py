@@ -91,6 +91,12 @@ class ManagerHandler(BaseHTTPRequestHandler):
             return 200, manager.list_peers()
         if cmd == "POST" and path == "/v1/peers":
             return manager.create_peer(self._body())
+        if cmd == "GET" and path == "/v1/egress":
+            return 200, manager.egress_view()
+        if cmd == "POST" and path in ("/v1/egress/plan", "/v1/egress/apply", "/v1/egress/rollback"):
+            method = {"plan": manager.egress_plan, "apply": manager.egress_apply,
+                      "rollback": manager.egress_rollback}[path.rsplit("/", 1)[1]]
+            return 200, method(self._body())
         prefix = "/v1/peers/"
         if path.startswith(prefix):
             tail = path[len(prefix):].split("/")

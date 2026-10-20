@@ -27,6 +27,8 @@ const OBSERVED = {
 const APPS = ["karing", "singbox", "mihomo", "throne", "hiddify", "nekobox"];
 const AUTO_REFRESH = { supported: "обновляется", unsupported: "не поддерживает", unproven: "не проверено" };
 const LANE_PROTOCOLS = new Set(["naive", "mieru"]);
+// Views a grant window opens from: each re-renders after a change made in the window.
+const LISTS_BEHIND = new Set(["clients", "amneziawg", "trusttunnel"]);
 
 // What a grant is in one phrase, for its row: the node's report when it is not yet what was
 // asked, the ask otherwise; a missing secret is a second, independent fact.
@@ -336,7 +338,9 @@ export function createGrantDialog(context) {
     if (index >= 0) list[index] = data;
     state.fallback = data;
     if (!render()) query("#grant-window", root).close();
-    if (context.state.view === "clients") await context.navigate("clients");
+    // The window opens from «Клиенты», AmneziaWG and TrustTunnel: the list behind it follows the
+    // change at once (a deleted access used to stay on the protocol page until a reload).
+    if (LISTS_BEHIND.has(context.state.view)) await context.navigate(context.state.view);
     await context.subscriptions.reloadIfOpen?.(state.clientId);
   }
 

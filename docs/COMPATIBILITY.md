@@ -109,8 +109,8 @@ node simply does not declare the capabilities below.
   extra tokens, or an explicit `client=throne|nekobox|nyamebox|hiddify`. `GET /s/{token}` now varies on `User-Agent` and the
   reveal's `variants` gain `singbox-hiddify` and `singbox-nekobox`.
 - **Subscription compatibility matrix** (`panel/subscriptions/compatibility.py`, vocabulary `supported | unproven | unsupported`),
-  row `trusttunnel`: `mihomo` supported (documented by the core vendor, not verified by us); `hiddify` supported (verified 2026-10-19
-  against hiddify-sing-box built from master `ae5cb1488`); `karing`, `shadowrocket`, `nekobox`, `throne`, `v2rayn` unproven (Throne:
+  row `trusttunnel`: `mihomo` supported (verified 2026-10-20 with mihomo v1.19.32 against the Clash feed); `hiddify` unproven (only
+  hiddify-sing-box built from master `ae5cb1488` was run, 2026-10-19; no app release has the outbound); `karing`, `shadowrocket`, `nekobox`, `throne`, `v2rayn` unproven (Throne:
   profile type but no `tt://` import, manual steps in the note); `singbox`, `mieru_cli`, `telegram` unsupported. Upstream sing-box has
   no TrustTunnel outbound (SagerNet/sing-box#3723), so the feed leaves it out with a note for official and unknown clients.
 

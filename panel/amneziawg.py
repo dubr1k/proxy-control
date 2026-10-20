@@ -26,11 +26,11 @@ class AmneziawgClient:
     def __init__(self, socket_path: str, token: str, *, timeout: float = 10, transport=None):
         self.socket_path, self.token, self.timeout, self.transport = socket_path, token, timeout, transport
 
-    async def _request(self, method, path, payload=None):
+    async def _request(self, method, path, payload=None, *, timeout: float | None = None):
         transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
         try:
             async with httpx.AsyncClient(
-                base_url="http://awg-manager", timeout=self.timeout, transport=transport,
+                base_url="http://awg-manager", timeout=timeout or self.timeout, transport=transport,
                 headers={"X-Awg-Token": self.token}, trust_env=False,
             ) as client:
                 response = await client.request(method, path, json=payload)
@@ -76,6 +76,24 @@ class AmneziawgClient:
     async def delete_peer(self, username):
         return await self._request("DELETE", f"/v1/peers/{quote(username, safe='')}")
 
+    # -- egress (v2.3.0): direct, or a WARP tunnel of the manager's own ------------------
+    # An apply through WARP may register a WARP device and waits for the tunnel's first
+    # handshake (up to 12 s on the manager), hence the longer timeout.
+
+    async def egress(self):
+        return await self._request("GET", "/v1/egress")
+
+    async def egress_plan(self, expected_revision, document):
+        return await self._request("POST", "/v1/egress/plan", {"expected_revision": expected_revision, "document": document})
+
+    async def egress_apply(self, expected_revision, document, operation_id):
+        return await self._request("POST", "/v1/egress/apply", {"expected_revision": expected_revision,
+                                                                "document": document, "operation_id": operation_id},
+                                   timeout=45)
+
+    async def egress_rollback(self, expected_revision):
+        return await self._request("POST", "/v1/egress/rollback", {"expected_revision": expected_revision}, timeout=45)
+
 
 _PORTS = {"1.5": 51820, "2.0": 51821, "3.1": 51822}
 _SUBNETS = {"1.5": "10.66.15", "2.0": "10.66.20", "3.1": "10.66.31"}
@@ -104,6 +122,13 @@ class MemoryAmneziawg:
         self.broken = False
         # {"create": "lose_response"} performs the mutation and then raises.
         self.faults: dict[str, str] = {}
+        # egress (v2.3.0): the manager's document history; `warp_reachable` is the tunnel's state.
+        self.egress_history: list[dict] = []
+        self.egress_revision = 0
+        self.warp_reachable: bool | None = True
+        self.warp_registered = False
+        # v2.3.0 variant 2: the device the Xray-router reads (None = no router device on this node).
+        self.router_attached: bool | None = True
 
     def _guard(self):
         if self.broken:
@@ -124,7 +149,69 @@ class MemoryAmneziawg:
 
     async def health(self):
         self._guard()
-        return {"status": "ok", "ip_forward": True, "instances": {v: {"running": True} for v in self.versions}}
+        warp = self._egress_document()["upstream"] is not None
+        return {"status": "ok", "ip_forward": True, "instances": {v: {"running": True} for v in self.versions},
+                "egress": {"mode": "proxy" if warp else "direct",
+                           "tunnel": ("up" if self.warp_reachable else "down") if warp else "off"}}
+
+    def _egress_document(self):
+        return copy.deepcopy(self.egress_history[-1]) if self.egress_history else {"schema": 1, "upstream": None}
+
+    async def egress(self):
+        self._guard()
+        document = self._egress_document()
+        warp = document["upstream"] is not None
+        providers = {"warp": {"reachable": self.warp_reachable if document["upstream"] == {"provider": "warp"} else None}}
+        if self.router_attached is not None:
+            providers["router"] = {"reachable": self.router_attached}
+        return {"revision": str(self.egress_revision), "mode": "proxy" if warp else "direct", "document": document,
+                "managed": bool(self.egress_history), "providers": providers,
+                "router": None if self.router_attached is None else {"device": "awgxr", "present": True,
+                                                                     "attached": self.router_attached},
+                "capabilities": ["whole_direct", "whole_warp"], "restart_required": False, "warnings": [],
+                "warp": {"registered": self.warp_registered, "address": "172.16.0.2" if self.warp_registered else None,
+                         "endpoint": "162.159.192.9:2408" if self.warp_registered else None, "account_type": "free",
+                         "tunnel": ("up" if self.warp_reachable else "down") if warp else "off",
+                         "latest_handshake": 1_700_000_000 if warp and self.warp_reachable else None, "rx": 0, "tx": 0}}
+
+    def _egress_check(self, expected_revision, document=None):
+        if document is not None and (not isinstance(document, dict) or set(document) != {"schema", "upstream"}
+                                     or document["upstream"] not in (None, {"provider": "warp"}, {"provider": "router"})):
+            raise AmneziawgError("AmneziaWG manager rejected request", 422, "egress_invalid")
+        if expected_revision != str(self.egress_revision):
+            raise AmneziawgError("AmneziaWG manager rejected request", 409, "egress_conflict")
+
+    async def egress_plan(self, expected_revision, document):
+        self._guard()
+        self._egress_check(expected_revision, document)
+        return {"revision": str(self.egress_revision), "target": document, "diff": [], "restart_required": False,
+                "warnings": [], "reachability": {"warp": self.warp_reachable}}
+
+    async def egress_apply(self, expected_revision, document, operation_id):
+        self._guard()
+        self.calls.append(("egress_apply", operation_id))
+        self._egress_check(expected_revision, document)
+        if document["upstream"] == {"provider": "router"}:
+            if self.router_attached is None:
+                raise AmneziawgError("AmneziaWG manager rejected request", 422, "egress_invalid")
+            if not self.router_attached:
+                raise AmneziawgError("AmneziaWG manager rejected request", 502, "egress_unreachable")
+        elif document["upstream"] is not None:
+            if self.warp_reachable is False:
+                raise AmneziawgError("AmneziaWG manager rejected request", 502, "egress_unreachable")
+            self.warp_registered = True
+        self.egress_history.append(copy.deepcopy(document))
+        self.egress_revision += 1
+        return {"revision": str(self.egress_revision), "applied": document, "replayed": False}
+
+    async def egress_rollback(self, expected_revision):
+        self._guard()
+        self._egress_check(expected_revision)
+        if not self.egress_history:
+            raise AmneziawgError("AmneziaWG manager rejected request", 409, "egress_no_previous")
+        self.egress_history.pop()
+        self.egress_revision += 1
+        return {"revision": str(self.egress_revision), "applied": self._egress_document(), "replayed": False}
 
     async def instances(self):
         self._guard()

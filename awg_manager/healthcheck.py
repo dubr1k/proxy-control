@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import socket
+from pathlib import Path
 
 
 def check(socket_path: Path | str, token_path: Path | str, *, timeout: float = 2) -> bool:

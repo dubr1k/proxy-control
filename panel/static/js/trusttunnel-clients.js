@@ -1,6 +1,6 @@
 // Which apps take a TrustTunnel access and how (v2.1): the «Как подключить» table and the card with the
 // fields for apps that import neither the tt:// link nor the TOML. Shown in the grant window next to the
-// link; the subscription page (renderers/html.py) carries the same list in compact form.
+// link; the subscription page (renderers/html.py) carries only the entries marked `verified: true`.
 import { esc } from "./common.js";
 
 const HIDDIFY_QUERY = "?format=singbox&client=hiddify";
@@ -26,11 +26,11 @@ export const TT_APPS = [
   },
   {
     name: "Clash Verge Rev, FlClash, Mihomo Party, ClashMi", platforms: "Windows, macOS, Linux, Android, iOS",
-    how: "подписка Clash (ядро mihomo должно быть свежим)", verified: false, links: [],
+    how: "подписка Clash (ядро mihomo должно быть свежим; проверено на mihomo v1.19.32)", verified: true, links: [],
   },
   {
     name: "Hiddify, NekoBox", platforms: "по клиенту",
-    how: `подписка sing-box: ссылка подписки с ${HIDDIFY_QUERY} / ${NEKOBOX_QUERY}; Hiddify проверен нами на ядре из исходников, NekoBox нет`, verified: false, links: [],
+    how: `подписка sing-box: ссылка подписки с ${HIDDIFY_QUERY} / ${NEKOBOX_QUERY}; ядро Hiddify проверено нами только собранным из исходников (в выпусках приложения исходящего нет), NekoBox не проверен`, verified: false, links: [],
   },
   {
     name: "Shadowrocket, Trusty, FreeTunnel, FireTunnel, TrustTunnel-GUI-Client", platforms: "iOS, Windows, macOS, Linux",

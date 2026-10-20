@@ -154,6 +154,7 @@ export function guideHtml(target) {
         <tr><td>Mieru без Xray-router</td><td>всё, что Naive, и выборочно пускать домены и IP в другой выход</td><td>списки geosite/geoip, порты, протоколы, цепи</td></tr>
         <tr><td>Любой сервис через Xray-router</td><td>всё: списки, порты, протоколы, цепи, свои выходы; полосы для клиентов — у NaiveProxy и Mieru</td><td>—</td></tr>
         <tr><td>TrustTunnel</td><td>через Xray-router: одна политика на весь сервис — напрямую, WARP, свой выход, другой узел, блокировка торрентов и рекламы, правила по доменам, спискам, портам и протоколам</td><td>полосы для отдельных клиентов; без Xray-router — только напрямую</td></tr>
+        <tr><td>AmneziaWG</td><td>весь туннель напрямую или через WARP — собственный WireGuard-туннель менеджера к Cloudflare, TCP и UDP</td><td>правила по сайтам, адресам и портам, свои выходы, другие узлы, полосы для клиентов, Xray-router</td></tr>
         <tr><td>MTProxy</td><td colspan="2">вне маршрутизации: Telegram-трафик идёт напрямую</td></tr>
       </tbody>
     </table></div>

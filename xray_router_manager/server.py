@@ -13,7 +13,13 @@ from urllib.parse import urlsplit
 
 from .geodata import GeodataError
 from .intent import NO_LANE_SERVICES, EgressInvalid, EgressUnreachable
-from .service import ArtifactMismatch, ManagerConflict, ManualInterventionRequired, ValidationError, XrayError
+from .service import (
+    ArtifactMismatch,
+    ManagerConflict,
+    ManualInterventionRequired,
+    ValidationError,
+    XrayError,
+)
 
 LOGGER = logging.getLogger("xray_router_manager")
 CONNECTION_LOST = (BrokenPipeError, ConnectionResetError)

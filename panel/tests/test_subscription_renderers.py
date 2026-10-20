@@ -298,7 +298,11 @@ def test_html_escapes_every_value_and_carries_qr_codes(manifest, artifacts):
     assert "tg://proxy?server=proxy.example.com&amp;port=443&amp;secret=ee" in text
     assert "no stored credential" in text and "dave" in text
     assert "naive-pass-02" not in text
-    assert "unsupported" in text and "supported" in text  # the compatibility matrix is on the page
+    # the page names only verified apps, per protocol of this subscription; never an unverified cell
+    assert "Подписка обновляется сама в приложениях" in text and "не проверено" not in text and "unproven" not in text
+    assert "<table><tr><th></th>" not in text  # the ten-column matrix that made phones zoom out is gone
+    # long values wrap inside their cell; a row label never breaks mid-word («Серве р»)
+    assert "td{overflow-wrap:anywhere}th{white-space:nowrap}" in text and 'class="scroll"' not in text
 
 
 # --- secrets and bounds ---------------------------------------------------------------
@@ -525,10 +529,12 @@ def test_html_shows_the_manual_fields_and_the_app_table_for_trusttunnel(tt_feed)
     manifest, artifacts = tt_feed
     text = RENDERERS["html"].render(manifest, artifacts).decode()
     assert "Данные для ручной настройки" in text and "HTTP/2, QUIC выключен" in text
-    assert "Proxy-TrustTunnel = trust-tunnel, gate.example.com, 443, username=trusted, password=" in text
+    assert "Proxy-TrustTunnel" not in text and "Surge" not in text  # the Surge line was never run by us
     assert text.count("Как подключить") == 2  # one per enabled TrustTunnel access
-    for name in ("AdGuard TrustTunnel", "TrustTunnel CLI", "Throne", "Surge", "Hiddify, NekoBox", "Shadowrocket, Trusty"):
+    for name in ("AdGuard TrustTunnel", "TrustTunnel CLI", "mihomo"):
         assert name in text
+    for unverified in ("Throne", "Hiddify", "NekoBox", "Shadowrocket", "Trusty", "не проверено"):
+        assert unverified not in text
     assert "https://apps.apple.com/us/app/trusttunnel/id6755807890" in text
     assert 'rel="noopener noreferrer"' in text and "style=\"" not in text
     assert "BEGIN CERTIFICATE" in text  # the self-signed access carries its certificate
@@ -561,8 +567,10 @@ def test_trusttunnel_matrix_row_is_evidence_honest():
     assert set(row) == set(MATRIX["mtproxy"]) and set(NOTES["trusttunnel"]) == set(row)
     assert row["mihomo"] == "supported"
     assert row["singbox"] == row["mieru_cli"] == row["telegram"] == "unsupported"
-    # Hiddify's core was run against the feed; NekoBox's and Throne's cells stay unproven and say so.
-    assert row["hiddify"] == "supported" and row["nekobox"] == row["throne"] == "unproven"
-    assert "not verified by us" in NOTES["trusttunnel"]["mihomo"] and "verified 2026-10-19" in NOTES["trusttunnel"]["hiddify"]
+    # mihomo was run against the Clash feed; Hiddify's core only as built from source (no app release has
+    # the outbound), NekoBox's and Throne's not at all: those cells stay unproven and say so.
+    assert row["hiddify"] == row["nekobox"] == row["throne"] == "unproven"
+    assert "verified 2026-10-20 with mihomo v1.19.32" in NOTES["trusttunnel"]["mihomo"]
+    assert "verified 2026-10-19 only" in NOTES["trusttunnel"]["hiddify"]
     assert "unverified" in NOTES["trusttunnel"]["nekobox"] and "unverified" in NOTES["trusttunnel"]["throne"]
-    assert "supported" not in {v for k, v in row.items() if k not in ("mihomo", "hiddify")}
+    assert "supported" not in {v for k, v in row.items() if k != "mihomo"}

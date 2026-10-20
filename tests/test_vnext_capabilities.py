@@ -63,11 +63,12 @@ def test_named_client_matrix_is_explicit_and_matches_the_owner_decision():
     assert all(cells["mtproxy"]["status"] == "unsupported" for cells in clients.values())
     assert clients["mihomo"]["trusttunnel"]["status"] == "supported"  # type: trusttunnel
     assert clients["singbox"]["trusttunnel"]["status"] == "unsupported"  # no sing-box outbound
-    # Hiddify's core was run against the feed; NekoBox's and Throne's were not (Throne has a profile type
-    # but no tt:// import, so its fallback is manual steps).
-    assert clients["hiddify"]["trusttunnel"]["status"] == "supported"
-    assert "verified 2026-10-19 against hiddify-sing-box" in clients["hiddify"]["trusttunnel"]["note"]
-    for unrun in ("nekobox", "throne"):
+    assert "verified 2026-10-20 with mihomo v1.19.32" in clients["mihomo"]["trusttunnel"]["note"]
+    # Hiddify's core was run only as built from source (no app release has the outbound); NekoBox's and
+    # Throne's were not run (Throne has a profile type but no tt:// import, so its fallback is manual steps).
+    assert clients["hiddify"]["trusttunnel"]["status"] == "unproven"
+    assert "verified 2026-10-19 only against hiddify-sing-box" in clients["hiddify"]["trusttunnel"]["note"]
+    for unrun in ("nekobox", "throne", "hiddify"):
         assert clients[unrun]["trusttunnel"]["status"] == "unproven"
         assert "unverified" in clients[unrun]["trusttunnel"]["note"]
     assert "client=nekobox" in clients["nekobox"]["trusttunnel"]["note"] and "client=throne" in clients["throne"]["trusttunnel"]["note"]

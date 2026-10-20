@@ -344,6 +344,24 @@ def test_status_json_is_deterministic_and_omits_legacy_payload():
     assert "hunter2" not in first[1]
 
 
+def test_report_tells_how_amneziawg_reaches_warp(tmp_path):
+    """v2.3.0: AmneziaWG's exit through WARP is a routing policy, not an install option; the report
+    says where it lives and what the node must reach for it."""
+    config_path = ROOT / "examples" / "installer" / "core-amneziawg.toml"
+    config = load_config(config_path)
+    services, _engine = _services(config)
+    output = tmp_path / "reports"
+
+    result, _stdout, stderr = _run(
+        ["--root", str(tmp_path), "report", "--config", str(config_path), "--output", str(output), "--json"], services
+    )
+
+    assert result == 0, stderr
+    notes = json.loads((output / "report.json").read_text())["operator_notes"]
+    assert any("send the whole tunnel through WARP" in note and "api.cloudflareclient.com:443" in note
+               and "UDP 2408" in note for note in notes)
+
+
 def test_report_puts_the_mcp_address_and_token_in_the_handoff_only(tmp_path):
     """v0.11 §9a: the public report says MCP is enabled; the root-only handoff holds
     `https://<domain>/mcp` and the bearer token, and nothing of it leaks to the report."""

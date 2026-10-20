@@ -444,7 +444,7 @@ async def test_versions_and_routing_and_audit_curated_tools(registry, fake):
 async def test_the_curated_routing_tools_accept_trusttunnel(registry, fake):
     for name in ("routing_preview", "routing_apply"):
         tool = next(item for item in registry.tools() if item.name == name)
-        assert tool.input_schema["properties"]["protocol"]["enum"] == ["naive", "mieru", "mtproxy", "trusttunnel"]
+        assert tool.input_schema["properties"]["protocol"]["enum"] == ["naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"]
     preview = _text(await registry.call("routing_preview", {"node_id": "local", "protocol": "trusttunnel"}))
     assert fake.calls[-1][1] == "/api/routing/policies/local/trusttunnel/preview?lane=svc" and preview["lane"] == ["svc"]
 

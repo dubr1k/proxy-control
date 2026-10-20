@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-
 from typing import Literal
 
 from fastapi import Depends, Query, Request
@@ -11,8 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..web_context import RequestContext
 from .document import redact_document
-from .lanes import DEFAULT_RELAY_PORT, LaneError
 from .exits import ExitInput
+from .lanes import DEFAULT_RELAY_PORT, LaneError
 from .models import LANE_SERVICE, PolicyInput, RoutingPolicy
 from .presets import PRESETS
 from .service import RoutingError

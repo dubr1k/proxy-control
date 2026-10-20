@@ -32,7 +32,13 @@ from ..protocols.base import AdapterError
 from ..secrets_store import SecretError, SecretRef, SecretStore
 from .adapters.xray_router import ChainHop
 from .document import document_digest, without_lane
-from .models import LANE_SERVICE, LANES_UNSUPPORTED_TRUSTTUNNEL, PolicyInput, Reason, RoutingPolicy
+from .models import (
+    LANE_SERVICE,
+    LANES_UNSUPPORTED_TRUSTTUNNEL,
+    PolicyInput,
+    Reason,
+    RoutingPolicy,
+)
 from .store import RoutingStore
 
 RELAY_PURPOSE = "relay-account"

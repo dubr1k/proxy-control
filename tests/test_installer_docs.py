@@ -637,3 +637,13 @@ def test_the_release_note_for_2_2_1_is_a_patch_and_says_the_installer_did_not_ch
     assert "install-release.sh --update" in note and "releases/download/v2.2.1/install-release.sh.sha256" in note
     assert "releases/download/v2.2.0" not in note
     assert "(releases/v2.2.1.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")
+
+
+def test_the_release_note_for_2_3_0_says_what_the_installer_gained():
+    note = (ROOT / "docs/releases/v2.3.0.md").read_text(encoding="utf-8")
+    assert "v2.3.0" in note and "v2.2.1" in note
+    assert "Установщик: в отчёт добавлена заметка" in note and "Installer: the report gains a note" in note
+    assert "api.cloudflareclient.com:443" in note and "миграцию 26" in note
+    assert "install-release.sh --update" in note and "releases/download/v2.3.0/install-release.sh.sha256" in note
+    assert "releases/download/v2.2.1" not in note
+    assert "(releases/v2.3.0.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")

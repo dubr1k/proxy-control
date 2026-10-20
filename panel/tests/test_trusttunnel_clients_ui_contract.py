@@ -1,8 +1,8 @@
 """«Как подключить» and the manual-setup card (v2.1): the apps that take a TrustTunnel access, how each
 imports it, and the fields for those that import neither the link nor the TOML.
 
-The same list lives twice — the panel's JS (grant window, bundle) and the subscription page's Python — so
-a test keeps the app names and links in step. No inline `style=`, links open in a new tab without an opener."""
+The panel's JS (grant window, bundle) lists every app, the unverified ones marked; the subscription page's
+Python lists only the verified ones (owner rule, 2.3.0) — a test keeps the two in step. No inline `style=`, links open in a new tab without an opener."""
 
 from __future__ import annotations
 
@@ -37,16 +37,18 @@ def test_every_external_link_is_https_and_opens_without_an_opener():
     assert urls and all(url.startswith("https://") for url in urls)
 
 
-def test_the_javascript_and_python_lists_name_the_same_apps_and_links():
-    names = re.findall(r'^\s+name: "([^"]+)"', SOURCE, re.M)
-    assert names == [name for name, *_ in TRUSTTUNNEL_APPS]
-    python_urls = {url for *_, links in TRUSTTUNNEL_APPS for _, url in links}
-    assert python_urls == set(re.findall(r'"(https://[^"]+)"', SOURCE))
+def test_the_subscription_page_lists_exactly_the_verified_apps_of_the_panel():
+    entries = re.findall(r'\{\n    name: "([^"]+)".*?verified: (true|false),\s*links: \[(.*?)\],?\n  \}', SOURCE, re.S)
+    verified = [(name, set(re.findall(r'"(https://[^"]+)"', links))) for name, flag, links in entries if flag == "true"]
+    assert len(entries) == 7 and len(verified) == len(TRUSTTUNNEL_APPS) == 3
+    for (js_name, js_urls), (py_name, _, _, py_links) in zip(verified, TRUSTTUNNEL_APPS):
+        assert js_urls == {url for _, url in py_links}
+        assert js_name == py_name or ("mihomo" in py_name and "Clash" in js_name)
 
 
 def test_unverified_claims_are_worded_as_unverified():
     unverified = [app for app in re.findall(r"\{\n    name:.*?verified: (true|false)", SOURCE, re.S)]
-    assert unverified.count("true") == 2  # the two official clients only
+    assert unverified.count("true") == 3  # the two official clients and the mihomo core (v1.19.32)
     assert "не проверено нами" in SOURCE and "не проверено: проверьте импорт ссылки tt:// или TOML" in SOURCE
 
 

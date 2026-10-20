@@ -118,7 +118,7 @@ def test_migration_12_rebuilds_provisioning_operations_with_existing_rows(tmp_pa
             db.execute("INSERT INTO provisioning_operations(operation_id,client_id,status,steps_json,created_at,updated_at)"
                        " VALUES('op-x','c1','pending_remote','[]',9,9)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+    assert apply_migrations(database) == [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
     with database.transaction() as db:
         rows = db.execute("SELECT operation_id,status,steps_json,created_at FROM provisioning_operations ORDER BY created_at").fetchall()
         assert [tuple(row) for row in rows] == [
@@ -160,7 +160,7 @@ def test_migration_20_adds_escrow_columns_and_keeps_old_subscriptions_readable(t
             " VALUES('s1','c1','hash-1',1,'active',12,1,1)"
         )
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [20, 21, 22, 23, 24, 25]
+    assert apply_migrations(database) == [20, 21, 22, 23, 24, 25, 26]
     with database.connect() as db:
         columns = {row[1] for row in db.execute("PRAGMA table_info(client_subscriptions)")}
         assert {"secret_id", "secret_version"} <= columns
@@ -342,7 +342,7 @@ def test_migration_24_widens_grants_routing_and_egress_and_keeps_every_row(tmp_p
                    " VALUES('r1','p1',1,'{}','direct',1,1)")
         db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('naive',1,'converged',1)")
     monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
-    assert apply_migrations(database) == [24, 25]
+    assert apply_migrations(database) == [24, 25, 26]
     with database.transaction() as db:
         assert db.execute("SELECT label,protocol FROM access_grants WHERE id='g1'").fetchone()[:] == ("L", "amneziawg")
         assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p1'").fetchone()[0] == 1
@@ -362,6 +362,43 @@ def test_migration_24_widens_grants_routing_and_egress_and_keeps_every_row(tmp_p
         # the children follow the new parent: deleting a policy cascades
         db.execute("DELETE FROM routing_policies WHERE id='p2'")
         assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p2'").fetchone()[0] == 0
+
+
+def test_migration_26_admits_amneziawg_egress_and_keeps_every_row(tmp_path, monkeypatch):
+    """AmneziaWG egress (v2.3.0): routing policies and the node's egress record take `amneziawg` and
+    `amneziawg_native`; policies, their rules and applies, and the egress rows survive the rebuild."""
+    from panel import migrations as module
+
+    database = Database(tmp_path / "panel.sqlite3")
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS[:25])
+    apply_migrations(database)
+    with database.transaction() as db:
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
+                       " VALUES('px','local','amneziawg','amneziawg_native','direct','fail_closed',1,1)")
+        db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
+                   " VALUES('p1','local','trusttunnel','xray_router','egress','fail_closed',1,1)")
+        db.execute("INSERT INTO routing_rules(id,policy_id,position,match_json,action,created_at,updated_at)"
+                   " VALUES('r1','p1',1,'{}','direct',1,1)")
+        db.execute("INSERT INTO routing_applies(policy_id,revision,backend,compiler_version,outcome,actor,created_at)"
+                   " VALUES('p1',1,'xray_router','3','applied','owner',1)")
+        db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('trusttunnel',1,'converged',1)")
+    monkeypatch.setattr(module, "MIGRATIONS", MIGRATIONS)
+    assert apply_migrations(database) == [26]
+    with database.transaction() as db:
+        assert db.execute("SELECT default_action FROM routing_policies WHERE id='p1'").fetchone()[0] == "egress"
+        assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p1'").fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM routing_applies WHERE policy_id='p1'").fetchone()[0] == 1
+        db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
+                   " VALUES('p2','local','amneziawg','amneziawg_native','egress','fail_closed',1,1)")
+        db.execute("INSERT INTO managed_egress(protocol,generation,state,updated_at) VALUES('amneziawg',1,'converged',1)")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO routing_policies(id,node_id,protocol,backend,default_action,fallback,created_at,updated_at)"
+                       " VALUES('p3','local','socks','naive_native','direct','fail_closed',1,1)")
+        assert db.execute("SELECT count(*) FROM sqlite_master WHERE name LIKE '%\\_old' ESCAPE '\\'").fetchone()[0] == 0
+        assert "routing_applies_policy" in {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+        db.execute("DELETE FROM routing_policies WHERE id='p1'")
+        assert db.execute("SELECT count(*) FROM routing_rules WHERE policy_id='p1'").fetchone()[0] == 0
 
 
 def test_migration_25_creates_metric_rollups_without_rowid(tmp_path):
