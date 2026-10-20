@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import logging
 import os
@@ -310,6 +311,16 @@ def caddy_adapt(path: Path) -> dict:
     return config
 
 
+@functools.cache
+def _probe_context() -> ssl.SSLContext:
+    """Built once and without a CA store: the probe verifies nothing, and loading the store
+    on every health check was most of this manager's idle CPU."""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
 def https_probe(host: str, port: int = 4443) -> None:
     """Prove the private listener still serves the cover site for this SNI.
 
@@ -320,11 +331,8 @@ def https_probe(host: str, port: int = 4443) -> None:
     the installer acceptance's responsibility, both of which check it from the
     host against the system trust store.
     """
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
     with socket.create_connection(("127.0.0.1", port), timeout=5) as raw:
-        with context.wrap_socket(raw, server_hostname=host) as tls:
+        with _probe_context().wrap_socket(raw, server_hostname=host) as tls:
             tls.sendall(f"GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
             status = tls.recv(128).split(b"\r\n", 1)[0]
             if not status.startswith((b"HTTP/1.1 200", b"HTTP/2 200")):

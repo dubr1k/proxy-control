@@ -44,7 +44,7 @@ APPLY_DEADLINE = 25.0
 # and the MTProxy section of its router) and reports its MTProxy egress target.
 # `egress.trusttunnel.v1` (v1.6): the same for TrustTunnel (the endpoint's SOCKS5 upstream and the
 # `trusttunnel` section of its router).
-# `egress.amneziawg.v1` (v2.3.0): this node applies an `amneziawg` egress section (the AWG manager's own
+# `egress.amneziawg.v1` (v3.0.0): this node applies an `amneziawg` egress section (the AWG manager's own
 # WARP tunnel) and reports its AmneziaWG egress target.
 CAPABILITIES = ("generation.v1", "credentials.capture", "versions.update", "versions.check", "unlink", "egress.v1",
                 "egress.mtproxy.v1", "protocol.amneziawg.v1", "protocol.trusttunnel.v1", "egress.trusttunnel.v1",
@@ -170,7 +170,7 @@ def register_fleet_v2_node_routes(app, context: RequestContext) -> None:
             if service == "trusttunnel" and target.reason == "router_lacks_trusttunnel":
                 continue  # a router not rebuilt since v1.6 serves the rest
             if service == "amneziawg" and target.reason == "router_lacks_amneziawg":
-                continue  # a router not rebuilt since v2.3.0 (or a node without AmneziaWG) serves the rest
+                continue  # a router not rebuilt since v3.0.0 (or a node without AmneziaWG) serves the rest
             if not target.available:
                 return {"available": False, "reason": target.reason or "router_unavailable"}
             sections[service] = {"revision": target.revision,

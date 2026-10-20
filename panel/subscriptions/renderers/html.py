@@ -17,7 +17,7 @@ from ..names import grant_names
 from .base import check, credential_reason, finish, named_share_url
 
 PROTOCOL_TITLES = {"mtproxy": "MTProxy", "naive": "NaiveProxy", "mieru": "Mieru", "amneziawg": "AmneziaWG", "trusttunnel": "TrustTunnel"}
-# The apps a cell names when it is `supported` — the only cells the page shows (owner rule, 2.3.0:
+# The apps a cell names when it is `supported` — the only cells the page shows (owner rule, 3.0.0:
 # what was not verified is not written on the subscription page at all).
 CLIENT_TITLES = {
     "karing": "Karing", "singbox": "sing-box", "mihomo": "приложения на ядре mihomo (Clash Meta)",

@@ -16,7 +16,7 @@ VNEXT_ROUTING_ENGINE.md`), plus the constraints that no capability flag can expr
   own policy can only be «direct, no rules»; the rest is `not_attached`. On the router,
   Telemt dials Telegram's data centres by address and speaks MTProto, which no sniffer
   names: a rule on a domain, a `geosite` or a protocol could never match, so it is refused.
-- `amneziawg_native` (v2.3.0) — the AWG manager's own WARP WireGuard tunnel: the whole tunnel
+- `amneziawg_native` (v3.0.0) — the AWG manager's own WARP WireGuard tunnel: the whole tunnel
   direct or through WARP (TCP and UDP), no rules. Attached to the router (the tunnels steered into
   its `tun` inbound) it takes the router's rules, its `warp` a WireGuard outbound; no client lanes.
 - `trusttunnel_native` (v1.6) — the endpoint's forward protocol: direct, or handed whole to the

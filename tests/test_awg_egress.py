@@ -1,4 +1,4 @@
-"""AmneziaWG egress through a WARP tunnel of its own (v2.3.0): the document, the registration, the
+"""AmneziaWG egress through a WARP tunnel of its own (v3.0.0): the document, the registration, the
 `awgwarp` device, the source rules and the fail-closed table, the handshake gate and the rollback."""
 from __future__ import annotations
 

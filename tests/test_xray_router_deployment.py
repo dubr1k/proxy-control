@@ -105,7 +105,10 @@ def test_router_overlay_without_mieru_still_renders():
 def test_dockerfile_and_entrypoint_use_the_reserved_identity():
     dockerfile = (ROOT / "xray_router_manager" / "Dockerfile").read_text()
     assert "--uid 10006" in dockerfile and "--gid 10006" in dockerfile and "USER 10006:10006" in dockerfile
-    assert dockerfile.splitlines()[0] == (ROOT / "mieru_manager" / "Dockerfile").read_text().splitlines()[0]
+    # The runtime stage is the same pinned Python as every manager's (3.0: after the Go stage of the bridge).
+    runtime = [line for line in dockerfile.splitlines() if line.startswith("FROM python:")]
+    assert runtime == [(ROOT / "mieru_manager" / "Dockerfile").read_text().splitlines()[0]]
+    assert "COPY --from=bridge /out/mtproxy-bridge /usr/local/bin/mtproxy-bridge" in dockerfile
     entrypoint = (ROOT / "panel" / "entrypoint.sh").read_text()
     assert "10001,10005,10006" in entrypoint and "xray-router-manager-token" in entrypoint
 

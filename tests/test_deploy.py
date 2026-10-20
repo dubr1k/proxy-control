@@ -735,7 +735,7 @@ class DeployCliTests(unittest.TestCase):
         for compose_file in compose_files:
             self.assertEqual(
                 (ROOT / compose_file).read_text().splitlines()[0],
-                "name: mtproxy",
+                "name: proxy_panel_by_dubr1k",
                 f"{compose_file} could create a separate Docker stack",
             )
 
@@ -794,7 +794,7 @@ class DeployCliTests(unittest.TestCase):
             if proc.returncode:
                 self.fail(f"unified stack render failed ({proc.returncode}): {proc.stderr}")
             model = json.loads(proc.stdout)
-            self.assertEqual(model["name"], "mtproxy")
+            self.assertEqual(model["name"], "proxy_panel_by_dubr1k")
             self.assertEqual(
                 set(model["services"]),
                 {"mask", "mtproxy", "panel", "naive-manager", "mieru-manager", "xray-router", "xray-router-ingress", "fleet-agent",
@@ -863,7 +863,7 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("compose.amneziawg.yaml", core._COPY_FILES)
         self.assertIn("awg_manager", core._COPY_DIRECTORIES)
         compose = (ROOT / "compose.amneziawg.yaml").read_text()
-        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertEqual(compose.splitlines()[0], "name: proxy_panel_by_dubr1k")
         self.assertIn("container_name: proxy-control-awg-manager", compose)
         self.assertIn("dockerfile: awg_manager/Dockerfile", compose)
         self.assertIn("awg-manager-run:", compose)
@@ -875,7 +875,7 @@ class DeployCliTests(unittest.TestCase):
 
     def test_trusttunnel_overlay_is_a_documented_hardened_manager(self):
         compose = (ROOT / "compose.trusttunnel.yaml").read_text()
-        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertEqual(compose.splitlines()[0], "name: proxy_panel_by_dubr1k")
         self.assertIn("container_name: proxy-control-trusttunnel-manager", compose)
         self.assertIn("dockerfile: trusttunnel_manager/Dockerfile", compose)
         self.assertIn("trusttunnel-manager-run:", compose)
@@ -943,7 +943,7 @@ class DeployCliTests(unittest.TestCase):
         from xray_router_manager.intent import PORTS
 
         compose = (ROOT / "compose.xray-router.yaml").read_text()
-        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertEqual(compose.splitlines()[0], "name: proxy_panel_by_dubr1k")
         self.assertIn("container_name: proxy-control-xray-router", compose)
         self.assertIn('user: "10006:10006"', compose)
         self.assertIn("network_mode: host", compose)
@@ -971,7 +971,7 @@ class DeployCliTests(unittest.TestCase):
         secrets and the health check: the installer adapter, the docs and the lab spell them
         the same, and the image runs unprivileged from a digest-pinned base."""
         compose = (ROOT / "compose.mcp.yaml").read_text()
-        self.assertEqual(compose.splitlines()[0], "name: mtproxy")
+        self.assertEqual(compose.splitlines()[0], "name: proxy_panel_by_dubr1k")
         self.assertIn("container_name: proxy-control-mcp", compose)
         self.assertIn('user: "10007:10007"', compose)
         self.assertIn('"127.0.0.1:8793:8793/tcp"', compose)

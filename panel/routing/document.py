@@ -45,7 +45,7 @@ ATTACH_DOCUMENTS = {
     # v1.6: the TrustTunnel manager's own document — the endpoint's SOCKS5 forward protocol, pointed at the
     # router's no-auth loopback ingress (`xray_router_manager.intent.TRUSTTUNNEL_PORT`).
     "trusttunnel": {"mode": "socks5", "address": "127.0.0.1:45104"},
-    # v2.3.0: the AWG manager steers the tunnels into the router's `tun` inbound device (`awgxr`).
+    # v3.0.0: the AWG manager steers the tunnels into the router's `tun` inbound device (`awgxr`).
     "amneziawg": {"schema": 1, "upstream": {"provider": "router"}},
 }
 # The TrustTunnel manager's document (v1.6) for «direct»: the endpoint dials destinations itself.

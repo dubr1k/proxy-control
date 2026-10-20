@@ -1188,10 +1188,14 @@ host_setup() {
         uninstall --purge-data >/dev/null 2>&1 ) || true
     # Remove the Compose project the same way the installer detects it: by
     # label, not by container name.
-    local label=label=com.docker.compose.project=mtproxy
-    docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
-    docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
-    docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+    # Both projects: 3.0 renamed the stack `mtproxy` to `proxy_panel_by_dubr1k`.
+    local project label
+    for project in proxy_panel_by_dubr1k mtproxy; do
+      label=label=com.docker.compose.project=$project
+      docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
+      docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
+      docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+    done
     # A managed 3x-ui of a real install keeps `/usr/local/x-ui/x-ui` busy, and the
     # existing-mode fixture cannot overwrite a running binary (found live).
     systemctl disable --now caddy-naive mita version-agent x-ui >/dev/null 2>&1 || true

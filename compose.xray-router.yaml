@@ -1,4 +1,4 @@
-name: mtproxy
+name: proxy_panel_by_dubr1k
 
 # The dedicated Xray egress router (v0.5, ADR 007): one supervised Xray process behind a
 # manager on a Unix socket, two authenticated SOCKS5 ingresses on the host loopback
@@ -39,14 +39,14 @@ services:
       # v1.6: the TrustTunnel ingress (no-auth SOCKS5 on this loopback port); the endpoint's manager
       # is pointed at it when the panel attaches TrustTunnel to the router. Empty turns it off.
       XRAY_ROUTER_PORT_TRUSTTUNNEL: "45104"
-      # v2.3.0: the AmneziaWG ingress, a `tun` inbound on this device. The AWG manager makes it
+      # v3.0.0: the AmneziaWG ingress, a `tun` inbound on this device. The AWG manager makes it
       # (persistent, owned by uid 10006) and steers the tunnels into it once the panel attaches
       # AmneziaWG; the manager here opens it and hands Xray the descriptor, so no capability is
       # needed. Without the AWG overlay the device never appears and nothing of it is rendered.
       XRAY_ROUTER_TUN_AMNEZIAWG: awgxr
       TMPDIR: /tmp
     secrets: [xray-router-manager-token, xray-router-ingress-naive, xray-router-ingress-mieru]
-    # v2.3.0: opening the AmneziaWG device needs the clone device (no capability: the device is ours).
+    # v3.0.0: opening the AmneziaWG device needs the clone device (no capability: the device is ours).
     devices:
       - /dev/net/tun:/dev/net/tun
     volumes:
@@ -78,13 +78,15 @@ services:
 
   # The MTProxy ingress bridge (v1.1): Telemt's upstream is `socks5 xray-router-ingress:45103`
   # on the Compose network (never published); the bridge hands each connection to the
-  # router's socket as VLESS. The same image as the router, so nothing new to pin or build.
+  # router's socket as VLESS. The same image as the router: since 3.0 the bridge is the static Go
+  # binary `/usr/local/bin/mtproxy-bridge` built in that image (the Go toolchain is the one pinned
+  # for amneziawg-go).
   xray-router-ingress:
     container_name: proxy-control-xray-router-ingress
     build:
       context: .
       dockerfile: xray_router_manager/Dockerfile
-    entrypoint: ["python", "-m", "xray_router_manager.bridge"]
+    entrypoint: ["/usr/local/bin/mtproxy-bridge"]
     restart: unless-stopped
     depends_on:
       xray-router:
@@ -102,7 +104,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD", "python", "-m", "xray_router_manager.bridge", "--check"]
+      test: ["CMD", "/usr/local/bin/mtproxy-bridge", "--check"]
       interval: 20s
       timeout: 3s
       retries: 3

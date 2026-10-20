@@ -670,7 +670,7 @@ METRICS_V25 = Migration(25, "metrics", (
     "CREATE INDEX metric_rollups_series ON metric_rollups(node_id, series, resolution, bucket)",
 ))
 
-# AmneziaWG egress (v2.3.0): the tunnel goes directly or through a WARP tunnel of the AWG manager's own
+# AmneziaWG egress (v3.0.0): the tunnel goes directly or through a WARP tunnel of the AWG manager's own
 # (`amneziawg_native`). The protocol and backend CHECKs widen; the tables are rebuilt as in v24.
 AMNEZIAWG_EGRESS_V26 = Migration(26, "amneziawg_egress", (
     "ALTER TABLE routing_policies RENAME TO routing_policies_old",

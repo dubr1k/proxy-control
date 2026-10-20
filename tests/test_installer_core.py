@@ -202,7 +202,7 @@ def test_core_refuses_orphaned_volumes_before_creating_credentials(tmp_path):
 def test_core_render_uses_secret_files_and_internal_telemt_api(tmp_path):
     rendered = CoreAdapter(root=tmp_path, source_dir=ROOT).render(core_action())
 
-    assert rendered.compose_yaml.startswith("name: mtproxy\n")
+    assert rendered.compose_yaml.startswith("name: proxy_panel_by_dubr1k\n")
     assert "9091:" not in rendered.compose_yaml
     assert rendered.mode("secrets/users.conf") == 0o600
     assert rendered.mode("secrets/telemt-api-token") == 0o600

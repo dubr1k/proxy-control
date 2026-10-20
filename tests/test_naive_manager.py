@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import ssl
 import stat
 import subprocess
 import threading
@@ -1588,6 +1589,15 @@ def test_cover_probe_accepts_a_locally_untrusted_cover_certificate(tmp_path):
     finally:
         server.join(timeout=5)
         listener.close()
+
+
+def test_https_probe_reuses_one_context_without_a_ca_store():
+    from naive_manager.server import _probe_context
+
+    context = _probe_context()
+    assert context is _probe_context()
+    assert context.verify_mode == ssl.CERT_NONE and not context.check_hostname
+    assert context.cert_store_stats()["x509_ca"] == 0
 
 
 def _bootstrapped(tmp_path: Path) -> NaiveCredentialManager:

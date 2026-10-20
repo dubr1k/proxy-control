@@ -37,7 +37,7 @@ ingress роутер применяет **секцию** этого сервис
 Telemt работает в сети Compose, а не в сети хоста, и loopback хоста ему не виден. Поэтому вход
 `mtproxy` — это VLESS на Unix-сокете `/run/xray-router/ingress-mtproxy.sock` в томе
 `xray-router-run`, а рядом в сети Compose работает мост **`xray-router-ingress`** (тот же образ
-менеджера, `python -m xray_router_manager.bridge`): он принимает от Telemt SOCKS5 с логином на
+менеджера, статический Go-бинарник `mtproxy-bridge`): он принимает от Telemt SOCKS5 с логином на
 `xray-router-ingress:45103` (порт не публикуется) и передаёт каждое соединение в сокет.
 
 ```text

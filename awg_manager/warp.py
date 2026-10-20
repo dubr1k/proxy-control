@@ -1,4 +1,4 @@
-"""The WARP account the AmneziaWG egress tunnel uses (v2.3.0).
+"""The WARP account the AmneziaWG egress tunnel uses (v3.0.0).
 
 The host's own WARP client (`warp-svc`, proxy mode) runs MASQUE with ECDSA keys and offers SOCKS5
 without UDP, so AmneziaWG — whose clients send UDP as much as TCP (DNS, QUIC, calls) — gets a WARP

@@ -54,6 +54,7 @@ class MetricsStore:
         self.clock, self.node_id = clock, node_id
         self.flushed_until = 0.0
         self.last_prune = 0.0
+        self._baseline_memo: tuple[int, float | None] | None = None
 
     # ---- write side -------------------------------------------------------------------------
     def pending(self) -> list[tuple[str, float, float]]:
@@ -290,9 +291,15 @@ class MetricsStore:
         return found
 
     def _baseline(self, now: int) -> float | None:
-        """p95 of the last 24 h of rx+tx, from the 60 s rollups; None until there is a day-ish of shape."""
+        """p95 of the last 24 h of rx+tx, from the 60 s rollups; None until there is a day-ish of shape.
+        A day of minute buckets moves once a minute, so it is read once a minute, not every tick."""
+        minute = now // 60
+        if self._baseline_memo is not None and self._baseline_memo[0] == minute:
+            return self._baseline_memo[1]
         rows = self._read(["net.rx_bps", "net.tx_bps"], 60, (now - 86400) // 60 * 60, now)
         by_bucket: dict[int, float] = {}
         for _name, bucket, total, count, _peak, _last in rows:
             by_bucket[bucket] = by_bucket.get(bucket, 0.0) + total / count
-        return percentile(list(by_bucket.values()), 0.95) if len(by_bucket) >= 60 else None
+        value = percentile(list(by_bucket.values()), 0.95) if len(by_bucket) >= 60 else None
+        self._baseline_memo = (minute, value)
+        return value

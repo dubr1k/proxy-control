@@ -8,7 +8,7 @@ import { capabilityList, guideHtml } from "./routing-guide.js";
 import { isCurrent } from "./state.js";
 
 const PROTOCOL_NAMES = { naive: "NaiveProxy", mieru: "Mieru", mtproxy: "MTProxy", trusttunnel: "TrustTunnel", amneziawg: "AmneziaWG" };
-// AmneziaWG (v2.3.0): on its own, the whole tunnel directly or through the AWG manager's own WARP tunnel —
+// AmneziaWG (v3.0.0): on its own, the whole tunnel directly or through the AWG manager's own WARP tunnel —
 // no rules; attached to the Xray-router, the router's rules (its WARP a WireGuard outbound). No lanes either way.
 const WHOLE_ONLY = new Set(["amneziawg"]);
 function wholeOnly(target) {
@@ -70,8 +70,8 @@ const REASON_TEXT = {
   // TrustTunnel through the router (v1.6): one policy for the whole service, no client lanes.
   router_lacks_trusttunnel: "Xray-router узла старше v1.6 — пересоберите xray-router, чтобы у него появился вход для TrustTunnel",
   node_lacks_trusttunnel_egress: "узел нужно обновить до v1.6 для маршрутизации TrustTunnel",
-  node_lacks_amneziawg_egress: "узел нужно обновить до v2.3.0, чтобы направить AmneziaWG через WARP",
-  router_lacks_amneziawg: "Xray-router узла старше v2.3.0 — пересоберите xray-router, чтобы у него появился вход для AmneziaWG",
+  node_lacks_amneziawg_egress: "узел нужно обновить до v3.0.0, чтобы направить AmneziaWG через WARP",
+  router_lacks_amneziawg: "Xray-router узла старше v3.0.0 — пересоберите xray-router, чтобы у него появился вход для AmneziaWG",
   lanes_unsupported: "у TrustTunnel нет полос для клиентов: узел видит от него одного анонимного клиента, поэтому маршрут задаётся для всего сервиса",
 };
 const WARNING_TEXT = {

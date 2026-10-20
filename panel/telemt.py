@@ -9,6 +9,8 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 import httpx
 
+from .local_http import tls_context
+
 
 class TelemtError(RuntimeError):
     def __init__(self, message: str, status_code: int | None = None):
@@ -95,7 +97,7 @@ class TelemtClient:
             headers["If-Match"] = if_match
         try:
             async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout, transport=self.transport,
-                                         headers=headers) as client:
+                                         headers=headers, verify=tls_context()) as client:
                 response = await client.request(method, path, json=json)
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             # The connection was never established, so nothing was sent: a plain

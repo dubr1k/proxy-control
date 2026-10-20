@@ -50,6 +50,11 @@ class ConflictError(UpdateError):
     """The runtime changed since the panel read its current revision."""
 
 TELEMT_LOCAL_REPOSITORY = "proxy-control-telemt"
+# 3.0: the Compose project (the stack) is `proxy_panel_by_dubr1k`. A host installed earlier runs
+# `mtproxy` until `scripts/migrate-compose-project.sh` moves it (update-host.sh does, at its end);
+# until then every command here addresses the project the running panel belongs to.
+COMPOSE_PROJECT = "proxy_panel_by_dubr1k"
+LEGACY_COMPOSE_PROJECT = "mtproxy"
 TELEMT_BINARY_MAX = 64 * 1024 * 1024
 Runner = Callable[..., str]
 Downloader = Callable[[str], bytes]
@@ -248,9 +253,9 @@ class VersionAgent:
         caddy_build_dir: Path = Path("/var/lib/proxy-control/version-agent/caddy-build"),
         caddy_image: str = "proxy-control/caddy-naive:agent",
         agent_dir: Path = Path("/opt/proxy-control"),
-        panel_image: str = "mtproxy-panel",
+        panel_image: str | None = None,
         panel_container: str = "proxy-control-panel",
-        panel_volume: str = "mtproxy_panel-data",
+        panel_volume: str | None = None,
         synchronous: bool = False,
         installer_root: Path | None = None,
         auto_rebuild_managers: bool = True,
@@ -285,9 +290,11 @@ class VersionAgent:
         self.caddy_build_dir = caddy_build_dir
         self.caddy_image = caddy_image
         self.agent_dir = agent_dir
-        self.panel_image = panel_image
+        # None: named after the Compose project (`<project>-panel`, `<project>_panel-data`). The
+        # names an older installer wrote into the agent's environment mean the same thing.
+        self._panel_image = None if panel_image in (None, f"{LEGACY_COMPOSE_PROJECT}-panel") else panel_image
         self.panel_container = panel_container
-        self.panel_volume = panel_volume
+        self._panel_volume = None if panel_volume in (None, f"{LEGACY_COMPOSE_PROJECT}_panel-data") else panel_volume
         self.installer_root = installer_root
         # The panel update restarts the panel, which drops the request that asked for it:
         # it runs in a thread and the request returns first. Tests run it inline.
@@ -295,6 +302,36 @@ class VersionAgent:
         self.panel_thread: threading.Thread | None = None
         self.check_all = _check_all
         self.lock_path = state_path.with_suffix(state_path.suffix + ".lock")
+
+    def project(self) -> str:
+        """The Compose project the panel runs in: `mtproxy` on a host not migrated yet, else the
+        current one. Read from the panel container's label (or, without one, from any container
+        of the legacy project) on every call — the migration happens while the agent runs."""
+        try:
+            label = self.runner(
+                ["docker", "inspect", "--format", '{{index .Config.Labels "com.docker.compose.project"}}',
+                 self.panel_container], timeout=30,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            label = ""
+        if label:
+            return LEGACY_COMPOSE_PROJECT if label == LEGACY_COMPOSE_PROJECT else COMPOSE_PROJECT
+        try:
+            legacy = self.runner(
+                ["docker", "ps", "-a", "-q", "--filter", f"label=com.docker.compose.project={LEGACY_COMPOSE_PROJECT}"],
+                timeout=30,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            legacy = ""
+        return LEGACY_COMPOSE_PROJECT if legacy else COMPOSE_PROJECT
+
+    @property
+    def panel_image(self) -> str:
+        return self._panel_image or f"{self.project()}-panel"
+
+    @property
+    def panel_volume(self) -> str:
+        return self._panel_volume or f"{self.project()}_panel-data"
 
     def _locked(self):
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -573,7 +610,7 @@ class VersionAgent:
             raise UpdateError("Compose deployment is not configured")
         try:
             running = self.runner(
-                ["docker", "ps", "--filter", "label=com.docker.compose.project=mtproxy",
+                ["docker", "ps", "--filter", f"label=com.docker.compose.project={self.project()}",
                  "--format", '{{.Label "com.docker.compose.service"}}'], timeout=30,
             )
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
@@ -664,7 +701,7 @@ class VersionAgent:
 
     def _service_containers(self, service: str) -> list[str]:
         listed = self.runner(
-            ["docker", "ps", "-a", "--filter", "label=com.docker.compose.project=mtproxy",
+            ["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={self.project()}",
              "--filter", f"label=com.docker.compose.service={service}", "-q"], timeout=30,
         )
         return [line.strip() for line in listed.splitlines() if line.strip()]
@@ -808,6 +845,7 @@ class VersionAgent:
 
     def _rebuild_services(self, services: list[str]) -> None:
         stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+        project = self.project()
         saved: dict[str, str] = {}
         running: list[str] = []
         for service in services:
@@ -815,7 +853,7 @@ class VersionAgent:
             if containers:
                 image = self.runner(["docker", "inspect", "--format", "{{.Image}}", containers[0]], timeout=30).strip()
                 if re.fullmatch(r"sha256:[0-9a-f]{64}", image):
-                    tag = f"mtproxy-{service}:rollback-{stamp}"
+                    tag = f"{project}-{service}:rollback-{stamp}"
                     self.runner(["docker", "tag", image, tag], timeout=60)
                     saved[service] = tag
                     running.append(service)
@@ -828,7 +866,7 @@ class VersionAgent:
         except Exception:
             try:
                 for service, tag in saved.items():
-                    self.runner(["docker", "tag", tag, f"mtproxy-{service}:latest"], timeout=60)
+                    self.runner(["docker", "tag", tag, f"{project}-{service}:latest"], timeout=60)
                 if running:
                     self.runner(
                         self._compose_command("up", "-d", "--no-build", "--no-deps", *running,
@@ -1561,7 +1599,7 @@ class VersionAgent:
     ) -> list[str]:
         if self.compose_dir is None or not self.compose_files:
             raise UpdateError("Compose deployment is not configured")
-        command = ["docker", "compose", "--project-name", "mtproxy"]
+        command = ["docker", "compose", "--project-name", self.project()]
         if env_files:
             for env_file in self._env_files():
                 command.extend(["--env-file", str(env_file)])
@@ -1783,8 +1821,8 @@ def agent_from_env() -> VersionAgent:
             os.getenv("PROXY_CONTROL_CADDY_BUILD_DIR", "/var/lib/proxy-control/version-agent/caddy-build")
         ),
         agent_dir=Path(os.getenv("PROXY_CONTROL_AGENT_DIR", "/opt/proxy-control")),
-        panel_image=os.getenv("PROXY_CONTROL_PANEL_IMAGE", "mtproxy-panel"),
+        panel_image=os.getenv("PROXY_CONTROL_PANEL_IMAGE") or None,
         panel_container=os.getenv("PROXY_CONTROL_PANEL_CONTAINER", "proxy-control-panel"),
-        panel_volume=os.getenv("PROXY_CONTROL_PANEL_VOLUME", "mtproxy_panel-data"),
+        panel_volume=os.getenv("PROXY_CONTROL_PANEL_VOLUME") or None,
         auto_rebuild_managers=os.getenv("VERSION_AGENT_AUTO_REBUILD_MANAGERS", "1").strip() != "0",
     )

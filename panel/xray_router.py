@@ -11,6 +11,7 @@ import hashlib
 
 import httpx
 
+from .local_http import uds_transport
 from .routing.document import EGRESS_REASON_CODES, ROUTER_DIRECT_INTENT, canonical
 
 # v1.0.1: the sources the router manager knows (`xray_router_manager.geodata.SOURCE_KINDS`).
@@ -50,7 +51,7 @@ class XrayRouterClient:
         return payload.get("code") if isinstance(payload, dict) else None
 
     async def _request(self, method: str, path: str, payload=None):
-        transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
+        transport = self.transport or uds_transport(self.socket_path)
         try:
             async with httpx.AsyncClient(base_url="http://xray-router", timeout=self.timeout, transport=transport,
                                          headers={"X-Xray-Router-Token": self.token}) as client:
@@ -108,7 +109,7 @@ class MemoryXrayRouter:
         self.mtproxy = mtproxy
         # `trusttunnel` False = a router manager from before v1.6 (no TrustTunnel ingress).
         self.trusttunnel = trusttunnel
-        # `amneziawg` False = a router manager from before v2.3.0 (no AmneziaWG `tun` ingress).
+        # `amneziawg` False = a router manager from before v3.0.0 (no AmneziaWG `tun` ingress).
         self.amneziawg = amneziawg
         self.mtproxy_credential = {"address": "xray-router-ingress:45103", "username": "telemt", "password": "m" * 43}
         self.reachable = True

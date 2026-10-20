@@ -560,6 +560,7 @@ class MitaCLI:
         self.max_output = max_output
         self.expected_sha256 = expected_sha256
         self._write_verb: tuple[tuple, str] | None = None
+        self._verified_stamp: tuple | None = None
 
     def _whole_config_verb(self) -> str:
         """The verb that stores a config as a whole. Up to 3.37 `apply config` did; 3.38
@@ -589,6 +590,13 @@ class MitaCLI:
             info = os.stat(self.executable, follow_symlinks=False)
             if not stat.S_ISREG(info.st_mode) or not info.st_mode & 0o111:
                 raise OSError("unsafe executable")
+            # The panel asks for status and traffic every second: hashing the binary each time
+            # was nine tenths of this manager's CPU. The pin is rechecked whenever the file is
+            # touched at all — a write or a swap moves the inode, the times or the size, and the
+            # change time cannot be set back from userspace.
+            stamp = (info.st_dev, info.st_ino, info.st_size, info.st_mode, info.st_mtime_ns, info.st_ctime_ns)
+            if stamp == self._verified_stamp:
+                return
             digest = hashlib.sha256()
             with open(self.executable, "rb") as stream:
                 while chunk := stream.read(1024 * 1024):
@@ -597,6 +605,7 @@ class MitaCLI:
             raise MitaError("pinned mita executable is unavailable") from exc
         if not secrets.compare_digest(digest.hexdigest(), self.expected_sha256):
             raise MitaError("pinned mita executable digest mismatch")
+        self._verified_stamp = stamp
 
     def _run(
         self, args: list[str], *, input_value: Any | None = None, output: bool = False

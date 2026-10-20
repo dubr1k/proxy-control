@@ -30,6 +30,7 @@ from installer.adapters.core import _DOMAIN, _DefaultCoreRunner, _file_sha256
 from installer.model import TT_METRICS_PORT, InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.transaction import atomic_write, durable_mkdir, durable_remove
+from installer.compose_project import COMPOSE_PROJECTS
 
 if TYPE_CHECKING:
     from installer.audit import CommandRunner
@@ -99,14 +100,17 @@ class _DefaultTrustTunnelRunner(_DefaultCoreRunner):
     """Real host commands and probes for the TrustTunnel boundary."""
 
     def compose_service_present(self, service: str) -> bool:
-        output = self.capture(
-            ("docker", "container", "ls", "--all", "--quiet",
-             "--filter", "label=com.docker.compose.project=mtproxy",
-             "--filter", f"label=com.docker.compose.service={service}"),
-            max_chars=512,
-        )
-        stripped = output.strip()
-        return bool(stripped) and not stripped.startswith(("exit=", "diagnostic "))
+        for project in COMPOSE_PROJECTS:
+            output = self.capture(
+                ("docker", "container", "ls", "--all", "--quiet",
+                 "--filter", f"label=com.docker.compose.project={project}",
+                 "--filter", f"label=com.docker.compose.service={service}"),
+                max_chars=512,
+            )
+            stripped = output.strip()
+            if stripped and not stripped.startswith(("exit=", "diagnostic ")):
+                return True
+        return False
 
     def container_health(self) -> str:
         output = self.capture(

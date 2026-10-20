@@ -142,7 +142,7 @@ def test_rollback_image_is_the_running_container_even_when_latest_was_rebuilt(tm
         agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
     tags = [command for command in host.commands if command[:2] == ["docker", "tag"]]
     assert tags[0][2] == running_image  # latest may already name a different image
-    assert tags[1][2] == tags[0][3] and tags[1][3] == "mtproxy-panel:latest"
+    assert tags[1][2] == tags[0][3] and tags[1][3] == "proxy_panel_by_dubr1k-panel:latest"
 
 
 @pytest.mark.parametrize("failure", ["identity", "tag"])

@@ -135,7 +135,7 @@ def egress_section(db, routing, node_id: str) -> dict[str, EgressDocument] | Non
         # A node before v1.6: its strict model has no `trusttunnel` egress (its apply was refused earlier).
         desired.pop("trusttunnel", None)
     if "egress.amneziawg.v1" not in capabilities:
-        # A node before v2.3.0: its strict model has no `amneziawg` egress (its apply was refused earlier).
+        # A node before v3.0.0: its strict model has no `amneziawg` egress (its apply was refused earlier).
         desired.pop("amneziawg", None)
     return desired or None
 

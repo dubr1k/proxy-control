@@ -1,4 +1,4 @@
-name: mtproxy
+name: proxy_panel_by_dubr1k
 
 services:
   fleet-agent:

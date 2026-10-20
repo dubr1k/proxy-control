@@ -1,4 +1,4 @@
-"""AmneziaWG routing (v2.3.0): the whole tunnel directly or through the AWG manager's own WARP tunnel
+"""AmneziaWG routing (v3.0.0): the whole tunnel directly or through the AWG manager's own WARP tunnel
 (`amneziawg_native`: whole_direct, whole_warp) — no rules, no lanes, no router — and the fleet's
 capability gate, the overview's egress state and the UI wiring."""
 from __future__ import annotations

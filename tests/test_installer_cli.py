@@ -345,7 +345,7 @@ def test_status_json_is_deterministic_and_omits_legacy_payload():
 
 
 def test_report_tells_how_amneziawg_reaches_warp(tmp_path):
-    """v2.3.0: AmneziaWG's exit through WARP is a routing policy, not an install option; the report
+    """v3.0.0: AmneziaWG's exit through WARP is a routing policy, not an install option; the report
     says where it lives and what the node must reach for it."""
     config_path = ROOT / "examples" / "installer" / "core-amneziawg.toml"
     config = load_config(config_path)

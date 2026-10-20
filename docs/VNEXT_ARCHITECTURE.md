@@ -84,10 +84,10 @@ Ownership vocabulary used across the model: `managed`, `adopted`, `foreign`,
 - **Fleet v1 is frozen and byte-compatible**: the `OPERATIONS` set, the
   `TypedCommand` shape, sequence/outbox semantics, mTLS enrollment and the
   `GET /agent/v1/...` paths. It stays Telemt-only.
-- **Frozen runtime identifiers** (see `COMPATIBILITY.md`): Compose project
-  `mtproxy`, volume `mtproxy_panel-data`, `/opt/mtproxy-shared443`,
+- **Frozen runtime identifiers** (see `COMPATIBILITY.md`): `/opt/mtproxy-shared443`,
   `/var/lib/mtproxy-panel`, `/etc/mtproxy-agent`, the unit file names and the
-  `urn:mtproxy-panel:node:` prefix.
+  `urn:mtproxy-panel:node:` prefix. The Compose project was renamed in 3.0 to
+  `proxy_panel_by_dubr1k` (`docs/COMPATIBILITY.md`).
 - **One database**: new tables are added to the existing `panel.sqlite3`;
   existing tables are not renamed. Migrations are safe across the two processes
   that open that file (panel and fleet-ingress).

@@ -1,4 +1,4 @@
-"""The AmneziaWG ingress of the Xray-router (v2.3.0, variant 2): a `tun` inbound on the device the AWG
+"""The AmneziaWG ingress of the Xray-router (v3.0.0, variant 2): a `tun` inbound on the device the AWG
 manager makes (the router passes Xray its descriptor), rendered only while the device exists, a WARP
 WireGuard outbound for the service's `warp` (TCP and UDP) registered on first use, no client lanes."""
 from __future__ import annotations

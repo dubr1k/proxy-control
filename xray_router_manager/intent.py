@@ -44,7 +44,7 @@ PORTS = {"naive": 45101, "mieru": 45102}
 TRUSTTUNNEL_PORT = 45104
 NOAUTH_SERVICES = ("trusttunnel",)
 NO_LANE_SERVICES = ("mtproxy", "trusttunnel", "amneziawg")
-# v2.3.0: AmneziaWG's ingress is a `tun` inbound on a device the AWG manager creates (owned by this
+# v3.0.0: AmneziaWG's ingress is a `tun` inbound on a device the AWG manager creates (owned by this
 # router's uid) and steers the tunnels' subnets into; the router opens it and hands Xray the file
 # descriptor, so Xray needs no capability. Its `warp` is a WireGuard outbound to WARP (the host's
 # warp-svc SOCKS5 carries no UDP), with a WARP account of the router's own.

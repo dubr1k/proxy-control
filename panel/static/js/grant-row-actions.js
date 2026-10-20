@@ -1,4 +1,4 @@
-// Row actions on the AmneziaWG and TrustTunnel screens (v2.3.0): disable/enable, a new key or password
+// Row actions on the AmneziaWG and TrustTunnel screens (v3.0.0): disable/enable, a new key or password
 // and delete, right in the list — like the Mieru and NaiveProxy rows — through the same grant API the
 // access window uses. An account the panel does not hold (no grant) has no actions here.
 import { esc } from "./common.js";

@@ -37,7 +37,7 @@ itself; the seed `[egress] naive = "router"` at install time is the same attach,
 Telemt runs on the Compose network, not the host's, and cannot see the host loopback. So the
 `mtproxy` ingress is a VLESS inbound on the Unix socket `/run/xray-router/ingress-mtproxy.sock` in
 the `xray-router-run` volume, and the **`xray-router-ingress`** bridge (the same manager image,
-`python -m xray_router_manager.bridge`) runs beside it on the Compose network: it takes Telemt's
+a static Go binary, `mtproxy-bridge`) runs beside it on the Compose network: it takes Telemt's
 SOCKS5 with a login on `xray-router-ingress:45103` (never published) and hands each connection to
 the socket.
 

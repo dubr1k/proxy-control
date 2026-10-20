@@ -49,6 +49,9 @@ versions=$(agent http://agent/v1/versions) || fail "version-agent не отве�
 current=$(json 'import json,sys; print(json.loads(sys.argv[1])["components"]["panel"].get("current") or "")' "$versions")
 say "панель сейчас: ${current:-?}; цель: $VERSION" "panel now: ${current:-?}; target: $VERSION"
 
+# 3.0: the Compose project is `proxy_panel_by_dubr1k`; a host installed earlier runs `mtproxy` until
+# scripts/migrate-compose-project.sh moves it at the end of this script. Until then this script
+# addresses the project the panel runs in.
 # Query only containers belonging to this Compose project. A running optional
 # service omitted from the agent's overlay list would otherwise keep old code.
 DIR=$(sed -n 's/^PROXY_CONTROL_COMPOSE_DIR=//p' "$ENV_FILE" 2>/dev/null | tail -n1)
@@ -57,7 +60,9 @@ DIR=${DIR:-/opt/mtproxy-shared443}
 FILES=${FILES:-compose.yaml}
 has() { case ":$FILES:" in *":$1:"*) return 0 ;; esac; return 1; }
 preflight_compose_scope() {
-running=$(docker ps --filter label=com.docker.compose.project=mtproxy \
+PROJECT=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' proxy-control-panel 2>/dev/null) || PROJECT=
+[[ $PROJECT == mtproxy ]] || PROJECT=proxy_panel_by_dubr1k
+running=$(docker ps --filter "label=com.docker.compose.project=$PROJECT" \
     --format '{{.Label "com.docker.compose.service"}}') \
     || fail "не удалось определить работающие Compose-службы" "could not determine running Compose services"
 while IFS= read -r service; do
@@ -126,7 +131,7 @@ for _ in $(seq 1 10); do
 done
 [[ -n ${pending+x} ]] || fail "version-agent не отвечает" "the version-agent does not answer"
 cd -- "$DIR" || fail "нет каталога проекта $DIR" "no project directory $DIR"
-compose=(docker compose --project-name mtproxy --env-file .env)
+compose=(docker compose --project-name "$PROJECT" --env-file .env)
 [[ -f .optional.env ]] && compose+=(--env-file .optional.env)
 for sibling in naive mieru xray-router amneziawg trusttunnel mcp; do [[ -f .env.$sibling ]] && compose+=(--env-file ".env.$sibling"); done
 IFS=: read -r -a overlays <<< "$FILES"
@@ -218,17 +223,17 @@ if ((${#services[@]})); then
                 || fail "неверный ID образа $service" "invalid $service image ID"
         else
             # Preserve a cached tag too, but it cannot prove a new service ever worked.
-            image=$(docker image inspect --format '{{.Id}}' "mtproxy-$service:latest" 2>/dev/null) || image=
+            image=$(docker image inspect --format '{{.Id}}' "$PROJECT-$service:latest" 2>/dev/null) || image=
             [[ -z $image || $image =~ ^sha256:[0-9a-f]{64}$ ]] \
                 || fail "неверный ID сохранённого образа $service" "invalid cached $service image ID"
             say "служба $service новая: прежний runtime не проверен" "new service $service: previous runtime unverified"
         fi
         if [[ -n $image ]]; then
-            docker tag "$image" "mtproxy-$service:rollback-$stamp" \
+            docker tag "$image" "$PROJECT-$service:rollback-$stamp" \
                 || fail "не удалось сохранить образ $service" "could not save the $service image"
             saved_images+=("$service")
             [[ -z $container ]] || rollback_services+=("$service")
-            say "точка отката: mtproxy-$service:rollback-$stamp" "rollback image: mtproxy-$service:rollback-$stamp"
+            say "точка отката: $PROJECT-$service:rollback-$stamp" "rollback image: $PROJECT-$service:rollback-$stamp"
         fi
     done
     say "пересобираю: ${services[*]}" "rebuilding: ${services[*]}"
@@ -244,7 +249,7 @@ os.replace(sys.argv[2], sys.argv[1])
 PY
         fi
         for service in "${saved_images[@]}"; do
-            docker tag "mtproxy-$service:rollback-$stamp" "mtproxy-$service:latest" \
+            docker tag "$PROJECT-$service:rollback-$stamp" "$PROJECT-$service:latest" \
                 || fail "откат образа $service не удался" "the $service image rollback failed"
         done
         if ((${#rollback_services[@]})); then
@@ -272,6 +277,10 @@ fi
 (cd -- "$RELEASE_DIR" && python3 -m installer.ingress_upgrade --project-dir "$DIR" --apply) \
     || fail "миграция ingress не прошла; проверьте её отчёт и резервную копию" \
         "ingress migration failed; inspect its report and backup"
+
+# 3.0: the stack becomes the Compose project `proxy_panel_by_dubr1k` (once; a moved host is left as is).
+bash "$RELEASE_DIR/scripts/migrate-compose-project.sh" --dir "$DIR" --lang "$LANGUAGE" \
+    || fail "перевод стека в проект proxy_panel_by_dubr1k не прошёл" "moving the stack to the proxy_panel_by_dubr1k project failed"
 
 bad=$(docker ps -a --format '{{.Names}}' | grep '^proxy-control-' | while read -r name; do
     state=$(health "$name"); case $state in healthy|running) ;; *) echo "$name=$state" ;; esac; done)

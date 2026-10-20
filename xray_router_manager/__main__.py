@@ -43,7 +43,7 @@ def build_manager() -> XrayRouterManager:
         mtproxy_socket=os.getenv("XRAY_ROUTER_INGRESS_MTPROXY_SOCKET", MTPROXY_SOCKET).strip() or None,
         # v1.6: the TrustTunnel ingress, a no-auth SOCKS inbound on this loopback port; empty turns it off.
         trusttunnel_port=int(os.getenv("XRAY_ROUTER_PORT_TRUSTTUNNEL", "").strip() or 0) or None,
-        # v2.3.0: the AmneziaWG ingress, a `tun` inbound on this device (made by the AWG manager, owned
+        # v3.0.0: the AmneziaWG ingress, a `tun` inbound on this device (made by the AWG manager, owned
         # by this container's uid); empty turns it off.
         amneziawg_tun=os.getenv("XRAY_ROUTER_TUN_AMNEZIAWG", "").strip() or None,
     )

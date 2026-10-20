@@ -15,6 +15,8 @@ from urllib.parse import quote
 
 import httpx
 
+from .local_http import uds_transport
+
 
 class TrusttunnelError(RuntimeError):
     def __init__(self, message: str, status_code: int = 502, code: str | None = None):
@@ -28,7 +30,7 @@ class TrusttunnelClient:
         self.socket_path, self.token, self.timeout, self.transport = socket_path, token, timeout, transport
 
     async def _request(self, method, path, payload=None):
-        transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
+        transport = self.transport or uds_transport(self.socket_path)
         try:
             async with httpx.AsyncClient(
                 base_url="http://trusttunnel-manager", timeout=self.timeout, transport=transport,

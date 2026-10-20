@@ -48,7 +48,7 @@ install -m 0600 /opt/mtproxy-shared443/secrets/panel-master-key \
 
 ```bash
 docker run --rm -v "$restored_data":/data -v "$restored_key":/key:ro \
-  --entrypoint python mtproxy-panel:latest -m panel.cli \
+  --entrypoint python proxy_panel_by_dubr1k-panel:latest -m panel.cli \
   --database /data/panel.sqlite3 master-key-verify --path /key/panel-master-key
 ```
 

@@ -114,7 +114,7 @@ class AwgManager:
             for v in config.versions
         }
         self.last_nft = 0.0
-        # Where the clients' traffic leaves the node (v2.3.0): direct, or a WARP tunnel of its own.
+        # Where the clients' traffic leaves the node (v3.0.0): direct, or a WARP tunnel of its own.
         self.egress = Egress(self, opener=warp_opener, sleep=sleep)
 
     # ----- lifecycle -------------------------------------------------------------------
@@ -363,7 +363,7 @@ class AwgManager:
             return {"status": "ok" if ok else "degraded", "ip_forward": forward, "instances": out,
                     "egress": self.egress.health()}
 
-    # ----- egress (v2.3.0) -----------------------------------------------------------
+    # ----- egress (v3.0.0) -----------------------------------------------------------
 
     def egress_view(self) -> dict:
         with self.lock:

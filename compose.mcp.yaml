@@ -1,4 +1,4 @@
-name: mtproxy
+name: proxy_panel_by_dubr1k
 
 # The MCP server (v0.11, spec §9a): the panel's API as Model Context Protocol tools for
 # Claude Code / Claude Desktop, on the central panel only. Streamable HTTP on the host

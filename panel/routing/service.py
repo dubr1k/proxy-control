@@ -91,7 +91,7 @@ def router_target_from_identity(protocol: str, router: dict | None) -> RouterTar
         # The node's router manager is from before v1.6 (it reports the service once rebuilt).
         return RouterTarget(available=False, service=protocol, reason="router_lacks_trusttunnel")
     if protocol == "amneziawg" and "amneziawg" not in (router.get("services") or {}):
-        # The node's router manager is from before v2.3.0 (it reports the service once rebuilt).
+        # The node's router manager is from before v3.0.0 (it reports the service once rebuilt).
         return RouterTarget(available=False, service=protocol, reason="router_lacks_amneziawg")
     section = (router.get("services") or {}).get(protocol) or {}
     revision = str(section.get("revision") or "")
@@ -178,7 +178,7 @@ class RoutingService:
         if protocol == "trusttunnel" and "egress.trusttunnel.v1" not in (identity.get("capabilities") or []):
             raise AdapterError("the node must be updated to v1.6 to route TrustTunnel", code="node_lacks_trusttunnel_egress")
         if protocol == "amneziawg" and "egress.amneziawg.v1" not in (identity.get("capabilities") or []):
-            raise AdapterError("the node must be updated to v2.3.0 to route AmneziaWG", code="node_lacks_amneziawg_egress")
+            raise AdapterError("the node must be updated to v3.0.0 to route AmneziaWG", code="node_lacks_amneziawg_egress")
         return target_from_identity(protocol, (identity.get("protocols") or {}).get(protocol, {}).get("egress")), True
 
     async def _router_target(self, row: dict, protocol: str) -> RouterTarget | None:

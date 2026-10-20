@@ -2,7 +2,7 @@
 imports it, and the fields for those that import neither the link nor the TOML.
 
 The panel's JS (grant window, bundle) lists every app, the unverified ones marked; the subscription page's
-Python lists only the verified ones (owner rule, 2.3.0) — a test keeps the two in step. No inline `style=`, links open in a new tab without an opener."""
+Python lists only the verified ones (owner rule, 3.0.0) — a test keeps the two in step. No inline `style=`, links open in a new tab without an opener."""
 
 from __future__ import annotations
 

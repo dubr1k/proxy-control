@@ -1,6 +1,7 @@
 """The central panel's typed HTTP client to one node panel (spec §6, ADR 008)."""
 from __future__ import annotations
 
+import functools
 import hashlib
 import ipaddress
 import json as json_module
@@ -163,13 +164,21 @@ class _NodeBackend(httpcore.AsyncNetworkBackend):
         await self._inner.sleep(seconds)
 
 
+@functools.cache
+def _node_tls_context(pinned: bool) -> ssl.SSLContext:
+    """One context per mode, shared by every node: building one loads the CA store, and the
+    central builds a client per node sync. The pin itself is checked by `_NodeBackend`."""
+    context = ssl.create_default_context()
+    if pinned:
+        context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
+    return context
+
+
 class _NodeTransport(httpx.AsyncHTTPTransport):
     """Apply the address policy with normal TLS verification or a handshake-time leaf pin."""
 
     def __init__(self, *, allow_private: bool, expected: str | None = None):
-        context = ssl.create_default_context()
-        if expected is not None:
-            context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
+        context = _node_tls_context(expected is not None)
         super().__init__(verify=context, trust_env=False)
         # Replace httpx's pool with one whose network backend pins the handshake (httpx exposes no hook
         # for the backend); the pool limits are httpx's defaults (100 / 20 / 5 s), HTTP/1.1 only.

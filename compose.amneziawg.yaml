@@ -1,4 +1,4 @@
-name: mtproxy
+name: proxy_panel_by_dubr1k
 
 services:
   awg-manager:
@@ -26,7 +26,7 @@ services:
       AWG_DNS: ${AWG_DNS:-1.1.1.1,1.0.0.1}
       AWG_NAT: ${AWG_NAT:-true}
       AWG_LOG_LEVEL: ${AWG_LOG_LEVEL:-error}
-      # v2.3.0: the persistent TUN device the Xray-router reads when the panel attaches AmneziaWG to it,
+      # v3.0.0: the persistent TUN device the Xray-router reads when the panel attaches AmneziaWG to it,
       # owned by the router's uid. Kept (idle, no routes) on a node without a router.
       AWG_EGRESS_ROUTER_TUN: awgxr
       AWG_EGRESS_ROUTER_UID: "10006"

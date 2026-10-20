@@ -1,6 +1,6 @@
 // The TrustTunnel screen: the endpoint this server's manager runs (domain, port, version,
 // certificate), every access with who holds it, its live sessions and traffic. A row disables,
-// re-keys or deletes its access in place (v2.3.0); the link and config are in the access window
+// re-keys or deletes its access in place (v3.0.0); the link and config are in the access window
 // (the one the client card opens), because the panel owns the password. «+ TrustTunnel доступ» issues a new one through the same
 // grant API the client card uses.
 import { bytes, esc, initials, number, query } from "./common.js";

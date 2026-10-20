@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import httpx
 
+from .local_http import uds_transport
+
 
 class VersionAgentError(RuntimeError):
     def __init__(self, message: str, status_code: int = 502):
@@ -16,7 +18,7 @@ class VersionClient:
         self.transport = transport
 
     async def _request(self, method: str, path: str, payload=None, *, timeout=None):
-        transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
+        transport = self.transport or uds_transport(self.socket_path)
         try:
             async with httpx.AsyncClient(
                 base_url="http://version-agent",

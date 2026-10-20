@@ -33,6 +33,7 @@ from installer.transaction import (
     durable_remove,
     fsync_directory,
 )
+from installer.compose_project import COMPOSE_PROJECTS
 
 if TYPE_CHECKING:
     from installer.audit import CommandRunner
@@ -263,24 +264,25 @@ class _DefaultMieruRunner(_DefaultCoreRunner):
         Core owns the shared `mtproxy` project, so a project-wide check would
         see Core's containers and refuse a first install of this protocol.
         """
-        output = self.capture(
-            (
-                "docker",
-                "container",
-                "ls",
-                "--all",
-                "--quiet",
-                "--filter",
-                "label=com.docker.compose.project=mtproxy",
-                "--filter",
-                f"label=com.docker.compose.service={service}",
-            ),
-            max_chars=512,
-        )
-        stripped = output.strip()
-        if not stripped or stripped.startswith(("exit=", "diagnostic ")):
-            return False
-        return True
+        for project in COMPOSE_PROJECTS:
+            output = self.capture(
+                (
+                    "docker",
+                    "container",
+                    "ls",
+                    "--all",
+                    "--quiet",
+                    "--filter",
+                    f"label=com.docker.compose.project={project}",
+                    "--filter",
+                    f"label=com.docker.compose.service={service}",
+                ),
+                max_chars=512,
+            )
+            stripped = output.strip()
+            if stripped and not stripped.startswith(("exit=", "diagnostic ")):
+                return True
+        return False
 
     def dpkg_extract(self, package: str, destination: str) -> None:
         self._run_checked(

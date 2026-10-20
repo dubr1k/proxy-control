@@ -935,6 +935,33 @@ def test_cli_refuses_unpinned_or_changed_executable_before_launch(tmp_path):
     assert digest not in str(error.value)
 
 
+def test_cli_hashes_an_unchanged_executable_once_and_any_change_again(tmp_path, monkeypatch):
+    fake = tmp_path / "mita"
+    fake.write_text("#!/bin/sh\nprintf 'mita 3.35.0\\n'\n")
+    fake.chmod(0o755)
+    cli = MitaCLI(executable=fake, expected_sha256=hashlib.sha256(fake.read_bytes()).hexdigest())
+    hashed = []
+    real_sha256 = hashlib.sha256
+    monkeypatch.setattr("mieru_manager.service.hashlib.sha256", lambda *a: hashed.append(1) or real_sha256(*a))
+    for _ in range(5):
+        cli.verify_executable()
+    assert len(hashed) == 1
+
+    # Same size, new bytes in place: the stamp (mtime/ctime) moves, so the pin is checked again.
+    time.sleep(0.05)  # file times tick with the kernel's coarse clock
+    fake.write_text("#!/bin/sh\nprintf 'mita 3.35.1\\n'\n")
+    with pytest.raises(Exception, match="digest mismatch"):
+        cli.verify_executable()
+    # A file swapped in under the same name is a new inode: checked again, refused again.
+    swapped = tmp_path / "other"
+    swapped.write_text("#!/bin/sh\nexit 0\n")
+    swapped.chmod(0o755)
+    swapped.replace(fake)
+    with pytest.raises(Exception, match="digest mismatch"):
+        cli.verify_executable()
+    assert len(hashed) == 3
+
+
 def test_cli_passes_complete_config_through_anonymous_fd_and_bounds_output(tmp_path):
     log = tmp_path / "argv.json"
     fake = tmp_path / "mita"

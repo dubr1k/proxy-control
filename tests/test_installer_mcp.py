@@ -218,7 +218,7 @@ def test_apply_writes_env_token_key_starts_the_service_and_marks_ownership(tmp_p
 
     create = next(call for call in runner.calls if "api-key-create" in call)
     project = PATHS.project_dir
-    assert create[:6] == ("docker", "compose", "--project-name", "mtproxy", "--project-directory", project)
+    assert create[:6] == ("docker", "compose", "--project-name", "proxy_panel_by_dubr1k", "--project-directory", project)
     env_files = [create[index + 1] for index, item in enumerate(create) if item == "--env-file"]
     assert env_files == [f"{project}/.env", f"{project}/.env.naive", f"{project}/.env.mcp"]
     compose_files = [create[index + 1] for index, item in enumerate(create) if item == "-f"]
@@ -336,10 +336,9 @@ def test_rollback_removes_the_service_the_key_the_secrets_and_the_marker(tmp_pat
     runner.calls.clear()
     evidence = instance.rollback(action, checkpoint)
     assert evidence.success and evidence.details == {"persistent_data_preserved": True}
-    remove = runner.calls[0]
-    assert remove[-3:] == ("rm", "-sf", "mcp") and remove[:4] == ("docker", "compose", "--project-name", "mtproxy")
+    remove, revoke = [call for call in runner.calls if call[:2] == ("docker", "compose")][:2]
+    assert remove[-3:] == ("rm", "-sf", "mcp") and remove[:4] == ("docker", "compose", "--project-name", "proxy_panel_by_dubr1k")
     assert runner.keys_revoked == 1
-    revoke = runner.calls[1]
     assert revoke[-9:] == ("exec", "-T", "panel", "python", "-m", "panel.cli", "api-key-revoke", "--name", "mcp")
     for absolute in (PATHS.env_overlay, PATHS.token, PATHS.panel_key, PATHS.marker):
         assert not host(tmp_path, absolute).exists(), absolute
@@ -377,3 +376,17 @@ def test_repair_reapplies_and_keeps_the_marker_and_the_token(tmp_path):
     assert any(call[-6:] == ("up", "-d", "--build", "--no-deps", "--wait", "mcp") for call in runner.calls)
     assert repaired["marker_value"] == checkpoint["marker_value"]
     assert runner.keys_created == 1
+
+
+@pytest.mark.parametrize(("label", "project"), [("mtproxy\n", "mtproxy"), ("proxy_panel_by_dubr1k\n", "proxy_panel_by_dubr1k"),
+                                               ("exit=1 no such container", "proxy_panel_by_dubr1k")])
+def test_compose_addresses_the_project_the_panel_runs_in(tmp_path, label, project):
+    """3.0: a host not moved to `proxy_panel_by_dubr1k` yet keeps MCP in its `mtproxy` stack."""
+
+    class Runner(FakeRunner):
+        def capture(self, argv, *, max_chars):
+            if tuple(argv)[:2] == ("docker", "inspect"):
+                return label
+            return super().capture(argv, max_chars=max_chars)
+
+    assert McpAdapter(root=tmp_path, runner=Runner())._compose_project() == project

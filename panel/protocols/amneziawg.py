@@ -221,14 +221,14 @@ class AmneziawgAdapter:
                                media_type=CONF_MEDIA_TYPE,
                                value=render_conf(grant, credential, public_host=public_host))]
 
-    # Egress (v2.3.0): the whole tunnel directly, or through a WARP WireGuard tunnel the manager
+    # Egress (v3.0.0): the whole tunnel directly, or through a WARP WireGuard tunnel the manager
     # runs (`amneziawg_native`: whole_direct, whole_warp; TCP and UDP alike, no rules by name).
     async def egress_target(self) -> EgressTarget | None:
         try:
             view = await self.client.egress()
         except AmneziawgError as exc:
             if exc.status_code == 404:
-                return None  # a manager older than v2.3.0 has no egress
+                return None  # a manager older than v3.0.0 has no egress
             raise egress_error("AmneziaWG", exc.status_code, exc.code) from exc
         return egress_target_from_view(self.protocol, "amneziawg_native", view)
 

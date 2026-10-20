@@ -147,9 +147,9 @@ def test_successful_panel_update_rebuilds_managers_in_one_compose_call_before_th
     assert len(builds) == 1
     assert builds[0][-4:] == ["--no-deps", "naive-manager", "xray-router", "xray-router-ingress"]
     assert "--env-file" in builds[0] and "up" in builds[0]
-    tags = [c for c in host.commands if c[:2] == ["docker", "tag"] and c[3].startswith("mtproxy-") and not c[3].startswith("mtproxy-panel")]
-    assert {c[3].split(":")[0] for c in tags} == {"mtproxy-naive-manager", "mtproxy-xray-router",
-                                                  "mtproxy-xray-router-ingress"}
+    tags = [c for c in host.commands if c[:2] == ["docker", "tag"] and c[3].startswith("proxy_panel_by_dubr1k-") and not c[3].startswith("proxy_panel_by_dubr1k-panel")]
+    assert {c[3].split(":")[0] for c in tags} == {"proxy_panel_by_dubr1k-naive-manager", "proxy_panel_by_dubr1k-xray-router",
+                                                  "proxy_panel_by_dubr1k-xray-router-ingress"}
     panel = _state(tmp_path)
     assert panel["status"] == "ready" and panel["pending_rebuild"] == []
     assert isinstance(panel["managers_rebuilt_at"], int) and "rebuilding_managers" not in panel
@@ -164,7 +164,7 @@ def test_failed_manager_rebuild_keeps_the_panel_pending_and_records_the_error(tm
     assert panel["status"] == "ready" and panel["version"] == NEW_PANEL  # panel never rolled back
     assert panel["pending_rebuild"] == ["naive_manager"] and "build failed" in panel["rebuild_error"]
     assert "rebuilding_managers" not in panel
-    restored = [c for c in host.commands if c[:2] == ["docker", "tag"] and c[-1] == "mtproxy-naive-manager:latest"]
+    restored = [c for c in host.commands if c[:2] == ["docker", "tag"] and c[-1] == "proxy_panel_by_dubr1k-naive-manager:latest"]
     assert restored and host.commands[-1][0] == "systemd-run"
 
 

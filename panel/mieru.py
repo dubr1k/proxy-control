@@ -6,6 +6,7 @@ from urllib.parse import quote
 
 import httpx
 
+from .local_http import uds_transport
 from .routing.document import EGRESS_REASON_CODES, document_digest
 
 # What the pinned mita build enforces (mieru_manager/egress.py, from the spike).
@@ -34,7 +35,7 @@ class MieruClient:
         )
 
     async def _request(self, method, path, payload=None):
-        transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
+        transport = self.transport or uds_transport(self.socket_path)
         try:
             async with httpx.AsyncClient(
                 base_url="http://mieru-manager",

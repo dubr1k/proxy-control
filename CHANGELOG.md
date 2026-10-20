@@ -4,15 +4,20 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-## [2.3.0] - 2026-10-20
+## [3.0.0] - 2026-10-20
 
+- **Faster and lighter.** The MTProxy ingress bridge (`xray-router-ingress`) is the static Go binary `mtproxy-bridge` (standard library only, built in the router image with the Go toolchain pinned for amneziawg-go) instead of a Python asyncio module; the protocol is unchanged (SOCKS5 login compared in constant time, VLESS over the router's socket, half-close, 4096 connections, a 10-second handshake), the kernel moves the bytes (splice) and its health check costs a millisecond.
+- The panel's manager clients share one TLS context (`panel/local_http.py`): httpx built a new one, loading the whole CA bundle, for every request, and the monitor polls every manager once a second. The central's node clients share one context per TLS mode.
+- The monitor reads the network-spike baseline (the p95 of a day of minute rollups) once a minute instead of on every tick.
+- The Mieru manager hashes the pinned mita binary again only when the file changes (inode, size, mode, times), not on every status or traffic call; the NaiveProxy manager's cover probe uses one context without a CA store.
+- Every Python image ships bytecode (`python -m compileall` right after `FROM`, a layer the images share): the base image has none and the containers' root is read-only, so each Python start — every health check — compiled the standard library again.
 - **AmneziaWG through WARP.** Backend `amneziawg_native`: the AWG manager brings up its own WireGuard tunnel `awgwarp` to WARP (an account of its own, registered on the first apply), rules `from <subnet> lookup 51870` at priority 5150, a `blackhole` in the table for when the tunnel is gone and exceptions for private networks. Manager API `GET /v1/egress`, `POST /v1/egress/plan|apply|rollback`; an apply waits for the handshake and otherwise puts the previous exit back. Node capability `egress.amneziawg.v1`, migration 26. An AmneziaWG tab in «Routing» and an «Internet exit» card on the AmneziaWG screen.
 - **AmneziaWG through the Xray-router (optional).** The AWG manager keeps a persistent TUN device `awgxr` (uid 10006) and with `{"provider": "router"}` steers the subnets into it; the router (service `amneziawg`, `XRAY_ROUTER_TUN_AMNEZIAWG`) opens the device and hands Xray the descriptor (`XRAY_TUN_FD`) for a sniffing `tun` inbound; that service's `warp` is a WireGuard outbound to WARP with the router's own account (`warp-wg.json`). The router gets the `/dev/net/tun` device.
 - **The `tt://` link in the official TrustTunnel apps.** The panel writes the link in version 1 of the format: the official client (TrustTunnelClient 1.1.11, the AdGuard TrustTunnel apps) refused version 2 outright («Unsupported deep link version: 2»). The panel's decoder still reads version 2.
 - **Subscription page: verified only.** For TrustTunnel — AdGuard TrustTunnel, the TrustTunnel CLI and mihomo-core apps; the compatibility table is replaced by a list of the apps verified to refresh the subscription, per protocol of this subscription; no Surge line. Long values wrap and the page is never wider than a phone screen.
 - **Row actions on the AmneziaWG and TrustTunnel screens:** disable/enable, a new key (TrustTunnel: a new password) and delete through the grant API, after a confirmation; the list redraws at once. The access window opened from these screens also redraws the list behind it.
 - **Compatibility:** TrustTunnel with mihomo verified on core v1.19.32; Hiddify is `unproven` (no app release has the outbound).
-- No breaking changes; installer: a report note on AmneziaWG's WARP exit.
+- No breaking changes: the API, the configuration and the data stay compatible; the major number marks the new bridge runtime and the rebuilt images. Installer: a report note on AmneziaWG's WARP exit; the bridge check it runs inside the container takes the Go binary (and the Python module of an older image).
 
 ## [2.2.1] - 2026-10-19
 

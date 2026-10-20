@@ -30,7 +30,7 @@ class RouterAdapter:
                 # A router manager from before v1.6 (or one started without the TrustTunnel ingress port).
                 return RouterTarget(available=False, service=service, reason="router_lacks_trusttunnel")
             if service == "amneziawg" and exc.status_code == 404:
-                # A router manager from before v2.3.0 (or one started without the AmneziaWG device name).
+                # A router manager from before v3.0.0 (or one started without the AmneziaWG device name).
                 return RouterTarget(available=False, service=service, reason="router_lacks_amneziawg")
             reason = exc.code or ("router_unavailable" if exc.status_code == 502 else UNAVAILABLE_REASONS.get(
                 exc.status_code, "router_unavailable"))

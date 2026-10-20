@@ -1,4 +1,4 @@
-"""Where AmneziaWG clients' traffic leaves the node (v2.3.0): directly, or through WARP.
+"""Where AmneziaWG clients' traffic leaves the node (v3.0.0): directly, or through WARP.
 
 The panel sends the compiled document `{"schema": 1, "upstream": {"provider": "warp"} | null}`, in
 the same vocabulary as the NaiveProxy and Mieru managers (`GET /v1/egress`, plan, apply, rollback).

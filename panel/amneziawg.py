@@ -14,6 +14,8 @@ from urllib.parse import quote
 
 import httpx
 
+from .local_http import uds_transport
+
 
 class AmneziawgError(RuntimeError):
     def __init__(self, message: str, status_code: int = 502, code: str | None = None):
@@ -27,7 +29,7 @@ class AmneziawgClient:
         self.socket_path, self.token, self.timeout, self.transport = socket_path, token, timeout, transport
 
     async def _request(self, method, path, payload=None, *, timeout: float | None = None):
-        transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
+        transport = self.transport or uds_transport(self.socket_path)
         try:
             async with httpx.AsyncClient(
                 base_url="http://awg-manager", timeout=timeout or self.timeout, transport=transport,
@@ -76,7 +78,7 @@ class AmneziawgClient:
     async def delete_peer(self, username):
         return await self._request("DELETE", f"/v1/peers/{quote(username, safe='')}")
 
-    # -- egress (v2.3.0): direct, or a WARP tunnel of the manager's own ------------------
+    # -- egress (v3.0.0): direct, or a WARP tunnel of the manager's own ------------------
     # An apply through WARP may register a WARP device and waits for the tunnel's first
     # handshake (up to 12 s on the manager), hence the longer timeout.
 
@@ -122,12 +124,12 @@ class MemoryAmneziawg:
         self.broken = False
         # {"create": "lose_response"} performs the mutation and then raises.
         self.faults: dict[str, str] = {}
-        # egress (v2.3.0): the manager's document history; `warp_reachable` is the tunnel's state.
+        # egress (v3.0.0): the manager's document history; `warp_reachable` is the tunnel's state.
         self.egress_history: list[dict] = []
         self.egress_revision = 0
         self.warp_reachable: bool | None = True
         self.warp_registered = False
-        # v2.3.0 variant 2: the device the Xray-router reads (None = no router device on this node).
+        # v3.0.0 variant 2: the device the Xray-router reads (None = no router device on this node).
         self.router_attached: bool | None = True
 
     def _guard(self):

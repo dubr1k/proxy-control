@@ -70,7 +70,7 @@ class Ingress:
     # v1.1, `mtproxy`: the inbound listens on this Unix socket and admits this VLESS client.
     socket: str | None = None
     uuid: str | None = None
-    # v2.3.0, `amneziawg`: a `tun` inbound on this device (the router passes Xray its descriptor).
+    # v3.0.0, `amneziawg`: a `tun` inbound on this device (the router passes Xray its descriptor).
     tun: str | None = None
 
 

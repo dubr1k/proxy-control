@@ -78,6 +78,17 @@ def test_url_validation_refuses_http_query_and_private_hosts():
     assert validate_panel_url("https://10.0.0.1:8443", allow_private=True) == "https://10.0.0.1:8443"
 
 
+def test_node_clients_share_one_tls_context_per_mode():
+    def context(**kw):
+        return NodeClient("https://node.example", "k", **kw).transport._pool._ssl_context
+
+    verified = context()
+    assert verified is context() and verified.verify_mode == ssl.CERT_REQUIRED and verified.check_hostname
+    pinned = context(tls_verify="pin", pinned_sha256="ab" * 32)
+    assert pinned is context(tls_verify="pin", pinned_sha256="cd" * 32) and pinned is not verified
+    assert pinned.verify_mode == ssl.CERT_NONE and not pinned.check_hostname
+
+
 def test_pin_mode_requires_a_fingerprint():
     with pytest.raises(ValueError):
         NodeClient("https://node.example", "k", tls_verify="pin")

@@ -1,6 +1,6 @@
 """The AmneziaWG screen: what this server's manager runs, joined with who holds each access.
 
-Read-only on purpose (v2.3.0 adds the egress state, read from the manager). Every change to an access (issue, switch off, new keys, delete, show the config)
+Read-only on purpose (v3.0.0 adds the egress state, read from the manager). Every change to an access (issue, switch off, new keys, delete, show the config)
 is a grant operation and goes through the clients' API, because the panel owns the client keys; this
 route only answers «what is running and for whom». It carries no key and no obfuscation parameter.
 """
@@ -72,9 +72,9 @@ def register_amneziawg_routes(app, context: RequestContext) -> None:
                 "egress": await _egress()}
 
     async def _egress() -> dict | None:
-        """Where the tunnels' traffic leaves (v2.3.0): direct, or the manager's WARP tunnel with its
+        """Where the tunnels' traffic leaves (v3.0.0): direct, or the manager's WARP tunnel with its
         state. Secret-free: the WARP account's keys and token never leave the manager. None from a
-        manager older than v2.3.0."""
+        manager older than v3.0.0."""
         try:
             view = await app.state.amneziawg.egress()
         except AmneziawgError:

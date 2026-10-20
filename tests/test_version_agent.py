@@ -344,7 +344,7 @@ def test_xray_update_replaces_members_rewrites_overlay_and_verifies_the_running_
     assert f"XRAY_ROUTER_XRAY_SHA256={hashlib.sha256(b'xray-new').hexdigest()}" in text
     assert f"XRAY_ROUTER_GEOSITE_SHA256={hashlib.sha256(b'geosite').hexdigest()}" in text
     assert "XRAY_ROUTER_EGRESS_WARP=" in text and "XRAY_ROUTER_BIN_DIR=" in text and "0" * 64 not in text
-    [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
+    [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "proxy_panel_by_dubr1k"]]
     assert up[-5:] == ["up", "-d", "--no-deps", "--wait", "xray-router"]
     assert [up[i + 1] for i, part in enumerate(up) if part == "--env-file"] == [str(tmp_path / ".env"), str(overlay)]
     assert commands.index(up) < commands.index(XRAY_STATUS)
@@ -722,7 +722,7 @@ def test_mita_update_rewrites_the_consumer_pin_restarts_slots_and_recreates_the_
     assert "0" * 64 not in text
     assert ["systemctl", "restart", "mita"] in commands and ["systemctl", "restart", "mita@1"] in commands
     assert ["systemctl", "is-active", "mita@1"] in commands
-    [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "mtproxy"]]
+    [up] = [c for c in commands if c[:4] == ["docker", "compose", "--project-name", "proxy_panel_by_dubr1k"]]
     assert up[-5:] == ["up", "-d", "--no-deps", "--wait", "mieru-manager"]
     env_files = [up[i + 1] for i, part in enumerate(up) if part == "--env-file"]
     # `.optional.env` (a host keeps its WARP egress there) rides right after `.env`.

@@ -13,6 +13,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 
 from .fleet import ProtocolError, TypedCommand, validate_result
+from .local_http import tls_context
 
 
 class ExecutionIndeterminate(RuntimeError):
@@ -174,7 +175,7 @@ class LocalTelemtExecutor:
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url, timeout=self.timeout, transport=self.transport,
-                headers={"Authorization": self.auth_header}, trust_env=False,
+                headers={"Authorization": self.auth_header}, trust_env=False, verify=tls_context(),
             ) as client:
                 headers = {} if method == "GET" else {"If-Match": item.expected_telemt_revision}
                 response = await client.request(method, path, json=body, headers=headers)

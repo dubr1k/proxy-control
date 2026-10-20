@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from installer.adapters.core import _DefaultCoreRunner, _file_sha256
+from installer.compose_project import COMPOSE_PROJECT, LEGACY_COMPOSE_PROJECT
 from installer.model import InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence, compose_file_list
 from installer.transaction import atomic_write, durable_mkdir, durable_remove
@@ -34,7 +35,6 @@ if TYPE_CHECKING:
 
 _PROJECT = "/opt/mtproxy-shared443"
 _MARKER = "/etc/proxy-control/mcp-owned"
-_COMPOSE_PROJECT = "mtproxy"
 _SERVICE = "mcp"
 _CONTAINER = "proxy-control-mcp"
 _COMPOSE_OVERLAY = "compose.mcp.yaml"
@@ -415,10 +415,20 @@ class McpAdapter:
             return ""
         return output.strip()
 
+    def _compose_project(self) -> str:
+        """The project the panel runs in: `mtproxy` on a host the 3.0 migration has not moved yet."""
+        capture = getattr(self.runner, "capture", None)
+        if capture is not None:
+            label = str(capture(("docker", "inspect", "--format", '{{index .Config.Labels "com.docker.compose.project"}}',
+                                 "proxy-control-panel"), max_chars=128)).strip()
+            if label == LEGACY_COMPOSE_PROJECT:
+                return label
+        return COMPOSE_PROJECT
+
     def _compose_argv(self, selected: Mapping[str, object], *args: str) -> tuple[str, ...]:
         """One Compose invocation over the profile's files and every env overlay present."""
         project = self.paths.project_dir
-        argv: list[str] = ["docker", "compose", "--project-name", _COMPOSE_PROJECT, "--project-directory", project,
+        argv: list[str] = ["docker", "compose", "--project-name", self._compose_project(), "--project-directory", project,
                            "--env-file", f"{project}/.env"]
         for sibling in _ENV_SIBLINGS:
             env = f"{project}/.env.{sibling}"

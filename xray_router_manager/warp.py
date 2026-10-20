@@ -1,4 +1,4 @@
-"""The router's own WARP device for AmneziaWG's `warp` (v2.3.0): a WireGuard key pair, registered once
+"""The router's own WARP device for AmneziaWG's `warp` (v3.0.0): a WireGuard key pair, registered once
 at Cloudflare's client API (the call the 1.1.1.1 app makes) and kept in the router's state directory
 (`warp-wg.json`, 0600). The host's warp-svc stays what every other service uses; this account exists
 because warp-svc's SOCKS5 refuses UDP, and AmneziaWG's tunnels carry UDP as much as TCP.

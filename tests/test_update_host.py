@@ -101,7 +101,8 @@ def host(tmp_path):
     (bin_dir / "docker").write_text(f"""#!/bin/sh
 echo "$*" >> {log}
 case "$*" in
-  *"ps --filter label=com.docker.compose.project=mtproxy --format "*) cat {running_services}; exit 0 ;;
+  "ps -a -q --filter label=com.docker.compose.project=mtproxy") exit 0 ;;  # 3.0: nothing left to move
+  *"ps --filter label=com.docker.compose.project=proxy_panel_by_dubr1k --format "*) cat {running_services}; exit 0 ;;
   *" ps -a -q "*) echo {CONTAINER}; exit 0 ;;
 esac
 case "$1 $2" in
@@ -141,6 +142,23 @@ def test_updates_the_panel_then_rebuilds_the_router_and_starts_the_bridge(host):
     assert len(up) == 1 and up[0].endswith("xray-router xray-router-ingress")
     assert "--env-file .env.xray-router" in up[0] and f"-f {host['project']}/compose.xray-router.yaml" in up[0]
     assert "done: Proxy Control 1.1.0" in result.stdout
+
+
+def test_a_host_not_moved_yet_is_updated_in_its_old_project(host):
+    """3.0: until the migration at the end, the script addresses the project the panel runs in."""
+    docker = host["bin"] / "docker"
+    legacy = (
+        "case \"$*\" in\n"
+        "  *'compose.project\"}} proxy-control-panel') echo mtproxy; exit 0 ;;\n"
+        f"  *\"ps --filter label=com.docker.compose.project=mtproxy --format \"*) cat {host['running_services']}; exit 0 ;;\n"
+    )
+    docker.write_text(docker.read_text().replace("case \"$*\" in\n", legacy, 1))
+    result = _run(host, Agent())
+    assert result.returncode == 0, result.stderr
+    calls = host["log"].read_text().splitlines()
+    [up] = [line for line in calls if " up -d --build --no-deps --wait " in line]
+    assert up.startswith("compose --project-name mtproxy ")
+    assert any(line.startswith("tag ") and "mtproxy-xray-router:rollback-" in line for line in calls)
 
 
 def test_a_digest_other_than_the_verified_one_changes_nothing(host):
@@ -209,8 +227,8 @@ def test_mcp_changes_are_rebuilt_with_the_installed_overlay(host):
     calls = host["log"].read_text().splitlines()
     up = next(line for line in calls if " up -d --build --no-deps --wait " in line)
     assert up.endswith("--wait mcp") and "--env-file .env.mcp" in up
-    assert any(line.startswith(f"tag {RUNNING_IMAGE} mtproxy-mcp:rollback-") for line in calls)
-    assert not any(line.startswith("tag mtproxy-mcp:latest ") for line in calls)
+    assert any(line.startswith(f"tag {RUNNING_IMAGE} proxy_panel_by_dubr1k-mcp:rollback-") for line in calls)
+    assert not any(line.startswith("tag proxy_panel_by_dubr1k-mcp:latest ") for line in calls)
 
 
 def test_failed_mcp_rebuild_restores_previous_image_and_reports_failure(host):
@@ -222,9 +240,9 @@ def test_failed_mcp_rebuild_restores_previous_image_and_reports_failure(host):
     result = _run(host, Agent(pending=("mcp_server",)))
     assert result.returncode != 0 and "done:" not in result.stdout
     calls = host["log"].read_text().splitlines()
-    assert any(line.startswith(f"tag {RUNNING_IMAGE} mtproxy-mcp:rollback-") for line in calls)
+    assert any(line.startswith(f"tag {RUNNING_IMAGE} proxy_panel_by_dubr1k-mcp:rollback-") for line in calls)
     assert not any(line.startswith(f"tag {CACHED_IMAGE} ") for line in calls)
-    assert any(line.startswith("tag mtproxy-mcp:rollback-") and line.endswith(" mtproxy-mcp:latest") for line in calls)
+    assert any(line.startswith("tag proxy_panel_by_dubr1k-mcp:rollback-") and line.endswith(" proxy_panel_by_dubr1k-mcp:latest") for line in calls)
     assert any(" up -d --no-build --no-deps --wait mcp" in line for line in calls)
     assert "previous images restored" in result.stderr
 
@@ -250,9 +268,9 @@ def test_new_service_cached_image_is_preserved_but_never_claimed_as_restored(hos
     result = _run(host, Agent())
     assert result.returncode != 0
     calls = host["log"].read_text().splitlines()
-    assert any(line.startswith(f"tag {CACHED_IMAGE} mtproxy-xray-router:rollback-") for line in calls)
-    assert any(line.startswith("tag mtproxy-xray-router:rollback-")
-               and line.endswith(" mtproxy-xray-router:latest") for line in calls)
+    assert any(line.startswith(f"tag {CACHED_IMAGE} proxy_panel_by_dubr1k-xray-router:rollback-") for line in calls)
+    assert any(line.startswith("tag proxy_panel_by_dubr1k-xray-router:rollback-")
+               and line.endswith(" proxy_panel_by_dubr1k-xray-router:latest") for line in calls)
     assert not any(" up -d --no-build " in line for line in calls)
     assert "previous images restored" not in result.stderr
     assert "new services need operator recovery" in result.stderr
@@ -279,6 +297,7 @@ def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
     shutil.copytree(ROOT / "installer", release / "installer")
     host["script"] = release / "scripts/update-host.sh"
     shutil.copy2(SCRIPT, host["script"])
+    shutil.copy2(ROOT / "scripts" / "migrate-compose-project.sh", release / "scripts")
     source = host["project"] / "mcp_server"
     source.mkdir()
     (source / "server.py").write_text("old mcp")
@@ -323,7 +342,7 @@ def test_amneziawg_manager_changes_are_rebuilt_with_the_installed_overlay(host):
     up = next(line for line in calls if " up -d --build --no-deps --wait " in line)
     assert up.endswith("--wait awg-manager") and "--env-file .env.amneziawg" in up
     assert f"-f {host['project']}/compose.amneziawg.yaml" in up
-    assert any(line.startswith(f"tag {RUNNING_IMAGE} mtproxy-awg-manager:rollback-") for line in calls)
+    assert any(line.startswith(f"tag {RUNNING_IMAGE} proxy_panel_by_dubr1k-awg-manager:rollback-") for line in calls)
     assert not any("/var/lib/awg-manager" in line for line in calls)
 
 

@@ -134,7 +134,7 @@ def test_a_change_in_the_grant_window_redraws_the_protocol_page_behind_it():
 
 
 def test_amneziawg_and_trusttunnel_rows_disable_rekey_and_delete_in_place():
-    """Like the Mieru and NaiveProxy rows (owner, 2.3.0): an AmneziaWG or TrustTunnel access is disabled,
+    """Like the Mieru and NaiveProxy rows (owner, 3.0.0): an AmneziaWG or TrustTunnel access is disabled,
     re-keyed or deleted from its row, through the grant API, after a confirmation, and the page redraws."""
     actions = read("grant-row-actions.js")
     for verb in ("disable", "enable", "rotate", "delete"):

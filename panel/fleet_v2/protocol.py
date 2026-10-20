@@ -127,7 +127,7 @@ class GenerationDocument(_Strict):
     # left out of the wire form and the digest when None, so a v0.3 central and a v0.4 node
     # (or the reverse) agree on every document that carries no egress.
     # `mtproxy` (v1.1) only for a node that declared `egress.mtproxy.v1`, `trusttunnel` (v1.6) only for
-    # one that declared `egress.trusttunnel.v1`, `amneziawg` (v2.3.0) only for one that declared
+    # one that declared `egress.trusttunnel.v1`, `amneziawg` (v3.0.0) only for one that declared
     # `egress.amneziawg.v1`.
     egress: dict[Literal["naive", "mieru", "mtproxy", "trusttunnel", "amneziawg"], EgressDocument] | None = None
     # The node's relay (v0.7). Absent = leave it as it is; never sent to a node without

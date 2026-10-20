@@ -69,7 +69,7 @@ async def test_targets_lists_local_protocols_with_backends_and_mtproxy_direct_on
     assert [(i["node_id"], i["protocol"]) for i in items] == [("local", "mtproxy"), ("local", "naive"), ("local", "mieru"),
                                                                        ("local", "trusttunnel"), ("local", "amneziawg")]
     mtproxy, naive, mieru, trusttunnel, amneziawg = items
-    # v2.3.0: AmneziaWG is a target too; this stand runs no AWG manager.
+    # v3.0.0: AmneziaWG is a target too; this stand runs no AWG manager.
     assert amneziawg["reason"] == "protocol_disabled_on_node" and amneziawg["router"] is None
     # v1.6: TrustTunnel is a target too; this stand runs no endpoint for it.
     assert trusttunnel["reason"] == "protocol_disabled_on_node" and trusttunnel["backend"] is None

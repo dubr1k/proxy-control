@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from installer.audit import CommandRunner as AuditCommandRunner
 from installer.audit import parse_nginx_observation
+from installer.compose_project import COMPOSE_PROJECT, COMPOSE_PROJECTS
 from installer.model import InstallerConfig
 from installer.planner import Action, AuditFacts, Evidence
 from installer.transaction import (
@@ -265,31 +266,34 @@ class _DefaultCoreRunner:
         return output[-limit:]
 
     def compose_project_present(self, _project_dir: str) -> bool:
-        containers = self._capture_checked(
-            (
-                "docker",
-                "container",
-                "ls",
-                "--all",
-                "--quiet",
-                "--filter",
-                "label=com.docker.compose.project=mtproxy",
+        for project in COMPOSE_PROJECTS:
+            containers = self._capture_checked(
+                (
+                    "docker",
+                    "container",
+                    "ls",
+                    "--all",
+                    "--quiet",
+                    "--filter",
+                    f"label=com.docker.compose.project={project}",
+                )
             )
-        )
-        networks = self._capture_checked(
-            (
-                "docker",
-                "network",
-                "ls",
-                "--quiet",
-                "--filter",
-                "label=com.docker.compose.project=mtproxy",
+            networks = self._capture_checked(
+                (
+                    "docker",
+                    "network",
+                    "ls",
+                    "--quiet",
+                    "--filter",
+                    f"label=com.docker.compose.project={project}",
+                )
             )
-        )
-        return bool(containers.strip() or networks.strip())
+            if containers.strip() or networks.strip():
+                return True
+        return False
 
     def compose_project_volumes_present(self, _project_dir: str) -> bool:
-        return bool(
+        return any(
             self._capture_checked(
                 (
                     "docker",
@@ -297,34 +301,37 @@ class _DefaultCoreRunner:
                     "ls",
                     "--quiet",
                     "--filter",
-                    "label=com.docker.compose.project=mtproxy",
+                    f"label=com.docker.compose.project={project}",
                 )
             ).strip()
+            for project in COMPOSE_PROJECTS
         )
 
     def purge_runtime_volumes(self) -> None:
-        """Remove only the fixed optional-manager socket volumes after teardown."""
-        present = set(self._capture_checked((
-            "docker", "volume", "ls", "--quiet", "--filter",
-            "label=com.docker.compose.project=mtproxy",
-        )).split())
+        """Remove only the fixed optional-manager socket volumes after teardown (of either project)."""
         selected = []
-        for volume in ("naive-manager-run", "mieru-manager-run", "xray-router-run", "awg-manager-run", "trusttunnel-manager-run"):
-            name = f"mtproxy_{volume}"
-            if name not in present:
-                continue
-            try:
-                records = json.loads(self._capture_checked(("docker", "volume", "inspect", name)))
-                record, = records
-                labels = record.get("Labels") or {}
-                owned = (record.get("Name") == name
-                         and labels.get("com.docker.compose.project") == "mtproxy"
-                         and labels.get("com.docker.compose.volume") == volume)
-            except (ValueError, TypeError, AttributeError) as exc:
-                raise CoreError("runtime volume ownership could not be verified") from exc
-            if not owned:
-                raise CoreError("runtime volume ownership does not match")
-            selected.append(name)
+        for project in COMPOSE_PROJECTS:
+            present = set(self._capture_checked((
+                "docker", "volume", "ls", "--quiet", "--filter",
+                f"label=com.docker.compose.project={project}",
+            )).split())
+            for volume in ("naive-manager-run", "mieru-manager-run", "xray-router-run", "awg-manager-run",
+                           "trusttunnel-manager-run"):
+                name = f"{project}_{volume}"
+                if name not in present:
+                    continue
+                try:
+                    records = json.loads(self._capture_checked(("docker", "volume", "inspect", name)))
+                    record, = records
+                    labels = record.get("Labels") or {}
+                    owned = (record.get("Name") == name
+                             and labels.get("com.docker.compose.project") == project
+                             and labels.get("com.docker.compose.volume") == volume)
+                except (ValueError, TypeError, AttributeError) as exc:
+                    raise CoreError("runtime volume ownership could not be verified") from exc
+                if not owned:
+                    raise CoreError("runtime volume ownership does not match")
+                selected.append(name)
         for name in selected:
             # Docker refuses an in-use volume; never force or prune.
             self._capture_checked(("docker", "volume", "rm", name))
@@ -1193,7 +1200,7 @@ class CoreAdapter:
             compose = compose_path.read_text()
         except OSError as exc:
             raise CoreError("Core Compose source is unavailable") from exc
-        if not compose.startswith("name: mtproxy\n"):
+        if not compose.startswith(f"name: {COMPOSE_PROJECT}\n"):
             raise CoreError("Core Compose project identity is invalid")
         if _compose_publishes_telemt_api(compose):
             raise CoreError("Telemt API must not be host-published")

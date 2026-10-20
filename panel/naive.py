@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 import httpx
 
+from .local_http import uds_transport
 from .routing.document import EGRESS_REASON_CODES, canonical
 
 # Reasons the manager may report for a refusal (plus the egress API's bounded set, v0.4).
@@ -41,7 +42,7 @@ class NaiveClient:
         return payload.get("code") if isinstance(payload, dict) else None
 
     async def _request(self, method: str, path: str, payload=None):
-        transport = self.transport or httpx.AsyncHTTPTransport(uds=self.socket_path)
+        transport = self.transport or uds_transport(self.socket_path)
         try:
             async with httpx.AsyncClient(
                 base_url="http://naive-manager",

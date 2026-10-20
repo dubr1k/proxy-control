@@ -30,7 +30,7 @@ State = Literal["draft", "applying", "applied", "failed", "rolled_back"]
 # service does goes through the router once it is attached.
 # v1.6: TrustTunnel's own backend is the endpoint's forward protocol — direct, or a SOCKS5 upstream that
 # is the router's loopback ingress; like MTProxy, everything else the service does goes through the router.
-# v2.3.0: AmneziaWG's own backend is the manager's WARP tunnel — the whole tunnel direct or through
+# v3.0.0: AmneziaWG's own backend is the manager's WARP tunnel — the whole tunnel direct or through
 # WARP, TCP and UDP alike; it has no rules (the tunnel carries packets, not names) and no router.
 BACKEND_FOR: dict[str, str] = {"naive": "naive_native", "mieru": "mieru_native", "mtproxy": "mtproxy_native",
                                "trusttunnel": "trusttunnel_native", "amneziawg": "amneziawg_native"}

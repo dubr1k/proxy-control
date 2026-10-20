@@ -33,6 +33,12 @@ jobs:
           # exercise root-only kernel/filesystem contracts in the ephemeral runner.
           sudo .venv/bin/python -m pytest -q
           .venv/bin/python -m unittest -v tests/test_deploy.py
+      - name: MTProxy bridge (Go)
+        run: |
+          # The toolchain the router image builds the bridge with (xray_router_manager/Dockerfile).
+          docker run --rm -v "$PWD/xray_router_manager/mtproxy-bridge:/src" -w /src \
+            golang:1.25.12@sha256:dbeddb5e728ea4b5ba7920574413e311025ffa42d196793857e4d160e8dfe60d \
+            sh -ec 'test -z "$(gofmt -l .)"; go vet ./...; go test -race -count=1 ./...'
       - name: Every tracked shell script
         run: |
           mapfile -d '' -t shell_files < <(git ls-files -z '*.sh')

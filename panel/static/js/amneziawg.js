@@ -1,6 +1,6 @@
 // The AmneziaWG screen: the versions this server serves (port, subnet, state), every access with
 // who holds it, when it last connected and how much it carried. A row disables, re-keys or deletes
-// its access in place (v2.3.0); the config with the key is in the access window (the same one the
+// its access in place (v3.0.0); the config with the key is in the access window (the same one the
 // client card opens), because the panel owns the client's keys.
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
@@ -29,7 +29,7 @@ function versionCard(item) {
   </article>`;
 }
 
-// Where the tunnels' traffic leaves (v2.3.0): directly from the server, or through the manager's own
+// Where the tunnels' traffic leaves (v3.0.0): directly from the server, or through the manager's own
 // WARP tunnel (TCP and UDP). The choice itself lives in «Маршрутизация»; this card says what runs.
 function egressCard(context, egress) {
   if (!egress) return "";

@@ -22,7 +22,7 @@ NaiveProxy/Caddy, Mieru/mita and the Xray-router — as a separate change bounda
 5. For any step taken by hand, render the Compose model and the installer plan without applying
    them, and review image and binary digests, numeric identities, ports, mounts and SNI routes.
    Confirm that every running project container carries the Compose label
-   `com.docker.compose.project=mtproxy`, and use the exact persisted `COMPOSE_FILE` overlay set
+   `com.docker.compose.project=proxy_panel_by_dubr1k` (`mtproxy` on a host not updated to 3.0 yet), and use the exact persisted `COMPOSE_FILE` overlay set
    for the whole change. Never use `--remove-orphans` from a partial model.
 6. Change one boundary at a time inside that one stack. After each change check the
    configuration, service health, protocol behaviour, accounting and the adjacent SNI routes
@@ -224,7 +224,7 @@ the root-owned state; everything needed is in `/var/lib/proxy-control/version-ag
 **By hand:**
 
 1. Stop the changed boundary and keep the failed generation for investigation.
-2. Restore the complete previous generation: the images (`mtproxy-panel:rollback-<timestamp>`,
+2. Restore the complete previous generation: the images (`proxy_panel_by_dubr1k-panel:rollback-<timestamp>`,
    `mtproxy-<service>:rollback-<timestamp>`), the database with its WAL/SHM, the tree, the binaries,
    units and the overlay set.
 3. Validate before start or reload, then run health and real protocol probes and confirm adjacent
@@ -416,11 +416,11 @@ What the agent does, in order:
    `install.sh`, `install-bootstrap`, `CHANGELOG*`, `README*`, `THIRD_PARTY_NOTICES.md`, `LICENSE`.
    **Not touched**: `secrets/`, `.env*`, `version-overrides/`, certificates, anything else in the
    directory. `version_agent/` goes into `/opt/proxy-control` the same way (backed up too);
-3. tags the running container's immutable image ID `mtproxy-panel:rollback-<timestamp>` (even if a
-   separate build has already moved `mtproxy-panel:latest`), runs `docker compose … build panel`,
+3. tags the running container's immutable image ID `proxy_panel_by_dubr1k-panel:rollback-<timestamp>` (even if a
+   separate build has already moved `proxy_panel_by_dubr1k-panel:latest`), runs `docker compose … build panel`,
    stops the panel and the legacy `fleet-ingress` service when installed, checks that no running
    container still mounts the panel volume, copies `panel.sqlite3`, `-wal` and `-shm` from the
-   `mtproxy_panel-data` volume into `backups/panel-db.previous/` (owner and mode kept), starts the
+   `proxy_panel_by_dubr1k_panel-data` volume into `backups/panel-db.previous/` (owner and mode kept), starts the
    panel with `up -d --wait` (legacy ingress after it) and checks
    `docker exec proxy-control-panel cat /app/VERSION`.
 
@@ -447,9 +447,9 @@ changed, the agent schedules its restart (`systemd-run --on-active=5 … systemc
 version-agent`) as the very last step, after the state is written.
 
 Variables in `version-agent.env` (defaults match the installer):
-`PROXY_CONTROL_AGENT_DIR=/opt/proxy-control`, `PROXY_CONTROL_PANEL_IMAGE=mtproxy-panel`,
-`PROXY_CONTROL_PANEL_CONTAINER=proxy-control-panel`,
-`PROXY_CONTROL_PANEL_VOLUME=mtproxy_panel-data`.
+`PROXY_CONTROL_AGENT_DIR=/opt/proxy-control`, `PROXY_CONTROL_PANEL_CONTAINER=proxy-control-panel`;
+`PROXY_CONTROL_PANEL_IMAGE` and `PROXY_CONTROL_PANEL_VOLUME` default to the names of the Compose
+project the panel runs in (`proxy_panel_by_dubr1k-panel`, `proxy_panel_by_dubr1k_panel-data`).
 
 ### Installing the version-agent by hand
 
@@ -507,7 +507,7 @@ Client credentials, kept subscription copies and node keys are stored encrypted 
 
 ```bash
 umask 077
-docker run --rm -v "$PWD/secrets":/out --entrypoint python mtproxy-panel:latest \
+docker run --rm -v "$PWD/secrets":/out --entrypoint python proxy_panel_by_dubr1k-panel:latest \
   -m panel.cli master-key-init --path /out/panel-master-key
 ```
 
@@ -688,3 +688,28 @@ configured, and the API, the configuration and the installer TOML have no breaki
 - **Fleet.** Update the nodes first, then the central panel. A central panel shows a node older than 2.0 as `unsupported` on
   the monitoring screen (no capability `metrics.v1`); everything else works as before.
 - **Switching it off.** `PANEL_METRICS_ENABLED=0` stops the collector and the routes; `/api/metrics/*` then answers `404`.
+
+## Upgrading to 3.0
+
+3.0 renames the stack and moves part of the runtime to Go; the API, the configuration and the installer's TOML do
+not change. The update is the usual `bash install-release.sh --update`.
+
+- **The stack is now `proxy_panel_by_dubr1k`.** The Compose project was `mtproxy`; with it the network, the images
+  (`proxy_panel_by_dubr1k-<service>`) and the volumes (`proxy_panel_by_dubr1k_panel-data`, `…_telemt-config`) are
+  renamed. Container names (`proxy-control-*`) stay. At the very end of the update, once everything is healthy,
+  `scripts/migrate-compose-project.sh` moves the host once: it tags the running images with the new names (no
+  rebuild), stops the stack, copies the data volumes into the new project's volumes, removes the old containers and
+  starts the same model — the Compose and env files the old containers were created from — under the new name. The
+  services are down for the time of the copy, seconds. A failure at any step brings the old project back.
+- **The way back stays.** The old volumes `mtproxy_panel-data` and `mtproxy_telemt-config` and the `mtproxy-*`
+  images are kept as they were at the moment of the move. The script prints the command that removes the volumes;
+  run it once you no longer need a rollback. The version-agent's `PROXY_CONTROL_PANEL_IMAGE` and
+  `PROXY_CONTROL_PANEL_VOLUME`, when the installer wrote the old names there, are rewritten to the new ones.
+- **An update from the panel's screen** (the version-agent alone) updates the panel and the managers inside the old
+  project; the host keeps running as `mtproxy` until `install-release.sh --update` moves it. Everything works in both.
+- **The MTProxy bridge is a Go binary.** `xray-router-ingress` runs `/usr/local/bin/mtproxy-bridge`, built in the
+  router's image with the Go toolchain pinned for amneziawg-go (`golang:1.25.12`); a host that never built the
+  AmneziaWG manager downloads that image once (about 300 MB). The protocol and the port (`:45103`) did not change.
+- **Images carry bytecode.** Every Python image is built with `python -m compileall`: health checks and
+  `docker exec` start several times faster and no longer compile the standard library on every run.
+- **Fleet.** Nodes first, then the central panel, as always. A 2.x node and a 3.0 central work together.

@@ -82,6 +82,7 @@ class _PanelHost:
         self.volume = tmp_path / "volume"
         self.commands: list[list[str]] = []
         self.running_services: list[str] = []
+        self.project = "proxy_panel_by_dubr1k"  # 3.0; `mtproxy` = a host not moved yet
         self.container_version = container_version
         self.migrate = migrate
         for name, text in {
@@ -100,8 +101,11 @@ class _PanelHost:
         self.running = f"{OLD_PANEL}\n"
 
     def run(self, command, *, env=None, cwd=None, timeout=None):
+        if command[:3] == ["docker", "inspect", "--format"] and command[-1] == "proxy-control-panel" \
+                and "com.docker.compose.project" in command[3]:
+            return self.project
         self.commands.append(list(command))
-        if command == ["docker", "ps", "--filter", "label=com.docker.compose.project=mtproxy",
+        if command == ["docker", "ps", "--filter", f"label=com.docker.compose.project={self.project}",
                        "--format", '{{.Label "com.docker.compose.service"}}']:
             return "\n".join(self.running_services)
         if command[:3] == ["docker", "volume", "inspect"]:
@@ -468,11 +472,11 @@ def test_panel_update_syncs_the_tree_backs_up_the_db_rebuilds_and_verifies(tmp_p
     assert (host.agent_dir / "version_agent/service.py").read_text() == "new agent\n"
     assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "systemd-run"]
     tag = next(c for c in host.commands if c[:2] == ["docker", "tag"])
-    assert tag[2] == PANEL_IMAGE_ID and tag[3].startswith("mtproxy-panel:rollback-")
+    assert tag[2] == PANEL_IMAGE_ID and tag[3].startswith("proxy_panel_by_dubr1k-panel:rollback-")
     build = next(c for c in host.commands if "build" in c)
-    assert build[:4] == ["docker", "compose", "--project-name", "mtproxy"] and "--env-file" in build
+    assert build[:4] == ["docker", "compose", "--project-name", "proxy_panel_by_dubr1k"] and "--env-file" in build
     assert build[-2:] == ["build", "panel"]
-    assert ["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "mtproxy_panel-data"] in host.commands
+    assert ["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "proxy_panel_by_dubr1k_panel-data"] in host.commands
     assert host.commands[-1] == ["systemd-run", "--on-active=5", "--unit=proxy-control-version-agent-restart",
                                  "systemctl", "restart", "version-agent"]
     state = _state(tmp_path)
@@ -508,6 +512,24 @@ def test_panel_update_restarts_agent_when_only_loaded_installer_dependency_chang
     assert _verbs(host.commands)[-1] == "systemd-run"
 
 
+def test_a_host_not_moved_to_the_new_project_is_updated_in_its_old_one(tmp_path):
+    """3.0: until scripts/migrate-compose-project.sh moves a host, the agent addresses the project the
+    panel runs in — the old installer's image and volume names in its environment mean the same."""
+    host = _PanelHost(tmp_path)
+    host.project = "mtproxy"
+    agent = host.agent(_panel_archive(), panel_image="mtproxy-panel", panel_volume="mtproxy_panel-data")
+    agent.update("panel", NEW_PANEL, expected_current=OLD_PANEL)
+    tag = next(c for c in host.commands if c[:2] == ["docker", "tag"])
+    assert tag[3].startswith("mtproxy-panel:rollback-")
+    build = next(c for c in host.commands if "build" in c)
+    assert build[:4] == ["docker", "compose", "--project-name", "mtproxy"]
+    assert ["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", "mtproxy_panel-data"] in host.commands
+    assert agent.panel_image == "mtproxy-panel" and agent.panel_volume == "mtproxy_panel-data"
+    host.project = "proxy_panel_by_dubr1k"  # moved while the agent runs
+    assert agent.panel_image == "proxy_panel_by_dubr1k-panel"
+    assert agent.panel_volume == "proxy_panel_by_dubr1k_panel-data"
+
+
 def test_panel_update_rolls_back_files_db_and_image_when_the_container_reports_the_old_version(tmp_path: Path):
     host = _PanelHost(tmp_path, container_version=f"{OLD_PANEL}\n", migrate=True)
     agent = host.agent(_panel_archive())
@@ -524,7 +546,7 @@ def test_panel_update_rolls_back_files_db_and_image_when_the_container_reports_t
     assert not (host.volume / "panel.sqlite3-shm").exists()  # the migrated generation's leftovers are gone
     assert _verbs(host.commands) == ["exec", "tag", "build", "stop", "up", "exec", "stop", "tag", "up", "exec"]
     tags = [c for c in host.commands if c[:2] == ["docker", "tag"]]
-    assert tags[1][2] == tags[0][3] and tags[1][3] == "mtproxy-panel:latest"
+    assert tags[1][2] == tags[0][3] and tags[1][3] == "proxy_panel_by_dubr1k-panel:latest"
     state = _state(tmp_path)
     assert state["version"] == OLD_PANEL and state["status"] == "ready" and "restored" in state["last_error"]
     listed = agent.list_versions()["components"]["panel"]

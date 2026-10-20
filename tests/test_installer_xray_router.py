@@ -581,7 +581,9 @@ def test_the_real_runner_sees_only_the_router_compose_service(monkeypatch):
     assert runner.compose_service_present("xray-router") is True
     assert runner.compose_service_present("naive-manager") is False
     assert seen[0][:5] == ("docker", "container", "ls", "--all", "--quiet")
-    assert "label=com.docker.compose.project=mtproxy" in seen[0]
+    assert "label=com.docker.compose.project=proxy_panel_by_dubr1k" in seen[0]
+    # 3.0: a host not moved yet keeps its router in the `mtproxy` project, so both are asked.
+    assert any("label=com.docker.compose.project=mtproxy" in call for call in seen)
     monkeypatch.setattr(runner, "capture", lambda argv, *, max_chars: "diagnostic unavailable")
     assert runner.compose_service_present("xray-router") is False
 

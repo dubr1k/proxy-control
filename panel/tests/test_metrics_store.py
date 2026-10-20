@@ -203,3 +203,20 @@ async def test_network_spike_is_three_times_the_p95_of_the_last_day(rig):
         await rig.step()
     [alert] = rig.collector.latest["alerts"]
     assert alert["kind"] == "net_spike" and alert["severity"] == "warn"
+
+
+async def test_the_spike_baseline_is_read_once_a_minute_not_every_tick(rig, monkeypatch):
+    now = int(rig.clock.time()) // 60 * 60
+    for i in range(1, 200):
+        put(rig.store, "net.rx_bps", now - i * 60, 100_000.0)
+        put(rig.store, "net.tx_bps", now - i * 60, 100_000.0)
+    reads = []
+    original = rig.store._read
+    monkeypatch.setattr(rig.store, "_read", lambda *a: reads.append(a) or original(*a))
+    rig.agent.rx_bps = rig.agent.tx_bps = 400_000.0
+    start = rig.clock.time()
+    while rig.clock.time() - start < 180:
+        await rig.step()
+    assert rig.collector.latest["alerts"][0]["kind"] == "net_spike"
+    day_reads = [a for a in reads if a[0] == ["net.rx_bps", "net.tx_bps"]]
+    assert 1 <= len(day_reads) <= 4  # three minutes of ticks, a fresh day window per minute

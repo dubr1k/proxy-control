@@ -22,7 +22,7 @@ NaiveProxy/Caddy, Mieru/mita и Xray-router — рассматривайте к�
 5. Для любого шага вручную отрендерите модель Compose и план установщика без применения и
    проверьте digest образов и бинарников, numeric identities, порты, mounts и SNI-маршруты.
    Убедитесь, что у всех работающих контейнеров проекта есть label
-   `com.docker.compose.project=mtproxy`, и используйте точный сохранённый набор overlays
+   `com.docker.compose.project=proxy_panel_by_dubr1k` (`mtproxy` на узле, ещё не обновлённом до 3.0), и используйте точный сохранённый набор overlays
    `COMPOSE_FILE` на всё изменение. Не применяйте `--remove-orphans` к неполной модели.
 6. Меняйте одну границу за раз внутри одного стека. После каждого изменения проверяйте
    конфигурацию, health служб, поведение протокола, учёт трафика и соседние SNI-маршруты
@@ -222,7 +222,7 @@ runtime-path.
 **Вручную:**
 
 1. Остановите изменённую границу и сохраните неудачную генерацию для разбора.
-2. Восстановите полную предыдущую генерацию: образы (`mtproxy-panel:rollback-<время>`,
+2. Восстановите полную предыдущую генерацию: образы (`proxy_panel_by_dubr1k-panel:rollback-<время>`,
    `mtproxy-<служба>:rollback-<время>`), базу с её WAL/SHM, дерево, бинарники, units и набор
    overlays.
 3. Проверьте конфигурацию до старта или reload, затем health и реальные protocol-пробы, соседние
@@ -414,11 +414,11 @@ URL невозможен ни из браузера, ни из конфигур�
    `CHANGELOG*`, `README*`, `THIRD_PARTY_NOTICES.md`, `LICENSE`. **Не трогает**: `secrets/`,
    `.env*`, `version-overrides/`, сертификаты и всё остальное в каталоге. `version_agent/` так же
    уходит в `/opt/proxy-control` (с резервной копией);
-3. помечает неизменяемый ID образа работающего контейнера тегом `mtproxy-panel:rollback-<время>`
-   (даже если отдельная сборка уже передвинула `mtproxy-panel:latest`), выполняет
+3. помечает неизменяемый ID образа работающего контейнера тегом `proxy_panel_by_dubr1k-panel:rollback-<время>`
+   (даже если отдельная сборка уже передвинула `proxy_panel_by_dubr1k-panel:latest`), выполняет
    `docker compose … build panel`, останавливает панель и установленный legacy `fleet-ingress`,
    проверяет, что ни один работающий контейнер больше не монтирует том панели, копирует
-   `panel.sqlite3`, `-wal` и `-shm` из volume `mtproxy_panel-data` в `backups/panel-db.previous/`
+   `panel.sqlite3`, `-wal` и `-shm` из volume `proxy_panel_by_dubr1k_panel-data` в `backups/panel-db.previous/`
    (владелец и права сохраняются), поднимает панель `up -d --wait` (legacy ingress — после неё) и
    сверяет `docker exec proxy-control-panel cat /app/VERSION`.
 
@@ -447,9 +447,9 @@ writer запрещают восстановление, и резервная к
 version-agent`) самым последним шагом, после записи состояния.
 
 Переменные в `version-agent.env` (значения по умолчанию совпадают с установщиком):
-`PROXY_CONTROL_AGENT_DIR=/opt/proxy-control`, `PROXY_CONTROL_PANEL_IMAGE=mtproxy-panel`,
-`PROXY_CONTROL_PANEL_CONTAINER=proxy-control-panel`,
-`PROXY_CONTROL_PANEL_VOLUME=mtproxy_panel-data`.
+`PROXY_CONTROL_AGENT_DIR=/opt/proxy-control`, `PROXY_CONTROL_PANEL_CONTAINER=proxy-control-panel`;
+`PROXY_CONTROL_PANEL_IMAGE` и `PROXY_CONTROL_PANEL_VOLUME` по умолчанию названы по проекту Compose,
+в котором работает панель (`proxy_panel_by_dubr1k-panel`, `proxy_panel_by_dubr1k_panel-data`).
 
 ### Установка version-agent вручную
 
@@ -507,7 +507,7 @@ numeric group должен быть доступен UID панели `10001`, �
 
 ```bash
 umask 077
-docker run --rm -v "$PWD/secrets":/out --entrypoint python mtproxy-panel:latest \
+docker run --rm -v "$PWD/secrets":/out --entrypoint python proxy_panel_by_dubr1k-panel:latest \
   -m panel.cli master-key-init --path /out/panel-master-key
 ```
 
@@ -688,3 +688,28 @@ TrustTunnel (VPN от AdGuard, HTTP/2 поверх TLS, только TCP) нео
 - **Парк.** Сначала обновите узлы, потом центр. Узел старее 2.0 центральная панель показывает как `unsupported`
   (нет возможности `metrics.v1`); остальное работает как раньше.
 - **Выключение.** `PANEL_METRICS_ENABLED=0` останавливает сборщик и маршруты; `/api/metrics/*` тогда отвечает `404`.
+
+## Обновление до 3.0
+
+3.0 переименовывает стек и переносит часть среды выполнения на Go; API, конфигурация и TOML установщика не меняются.
+Обновление — обычный `bash install-release.sh --update`.
+
+- **Стек теперь называется `proxy_panel_by_dubr1k`.** Проект Compose назывался `mtproxy`; вместе с ним переименованы
+  сеть, образы (`proxy_panel_by_dubr1k-<служба>`) и тома (`proxy_panel_by_dubr1k_panel-data`, `…_telemt-config`).
+  Имена контейнеров (`proxy-control-*`) прежние. В самом конце обновления, когда всё здорово,
+  `scripts/migrate-compose-project.sh` один раз переводит узел: помечает работающие образы новыми именами (без
+  пересборки), останавливает стек, копирует тома с данными в тома нового проекта, удаляет старые контейнеры и
+  поднимает ту же модель — те Compose- и env-файлы, из которых были созданы старые контейнеры, — под новым именем.
+  Службы стоят на время копирования, секунды. Сбой на любом шаге возвращает старый проект.
+- **Путь назад остаётся.** Прежние тома `mtproxy_panel-data` и `mtproxy_telemt-config` и образы `mtproxy-*`
+  сохраняются такими, какими были в момент перевода. Скрипт печатает команду, которая удаляет тома; выполните её, когда
+  откат больше не понадобится. `PROXY_CONTROL_PANEL_IMAGE` и `PROXY_CONTROL_PANEL_VOLUME` агента обновлений, если
+  установщик записал туда старые имена, переписываются на новые.
+- **Обновление с экрана панели** (одним агентом обновлений) обновляет панель и менеджеры внутри старого проекта; узел
+  работает как `mtproxy`, пока его не переведёт `install-release.sh --update`. Работает и так, и так.
+- **Мост MTProxy — Go-бинарник.** `xray-router-ingress` запускает `/usr/local/bin/mtproxy-bridge`, который собирается
+  в образе роутера тем же закреплённым Go, что и amneziawg-go (`golang:1.25.12`); узел, где менеджер AmneziaWG ни разу
+  не собирался, один раз скачает этот образ (около 300 МБ). Протокол и порт (`:45103`) не изменились.
+- **В образах есть байткод.** Все Python-образы собираются с `python -m compileall`: проверки здоровья и `docker exec`
+  стартуют в несколько раз быстрее и больше не компилируют стандартную библиотеку при каждом запуске.
+- **Парк.** Как всегда: сначала узлы, потом центр. Узел 2.x и центр 3.0 работают вместе.

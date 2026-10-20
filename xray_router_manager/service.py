@@ -17,7 +17,7 @@ Files under the state directory (all `0600`, directory `0700`):
     lanes.json             {svc: {lane: {user, password, issued_at}}} — the grant lanes' accounts (v0.7)
     relay.json             {enabled, port, server_name, private_key, public_key, short_ids, accounts} (v0.7)
     warp-wg.json           {id, token, private_key, address, peer_public_key, endpoint} — the WARP
-                           device AmneziaWG's `warp` uses (v2.3.0), registered on first use
+                           device AmneziaWG's `warp` uses (v3.0.0), registered on first use
     ingress-mtproxy.json   {uuid, username, password} — the MTProxy ingress (v1.1), minted here once;
                            a copy for the `xray-router-ingress` bridge sits next to the socket
 
@@ -190,7 +190,7 @@ class SubprocessXrayRunner:
         try:
             env, fds = self.env, ()
             if tun is not None:
-                # v2.3.0: the AmneziaWG ingress — Xray takes the device as a descriptor and touches
+                # v3.0.0: the AmneziaWG ingress — Xray takes the device as a descriptor and touches
                 # neither the link nor its addresses, so it needs no capability.
                 fd = open_tun(tun)
                 env, fds = {**self.env, "XRAY_TUN_FD": str(fd)}, (fd,)
@@ -338,7 +338,7 @@ class XrayRouterManager:
         # v1.6: the TrustTunnel ingress (a no-auth SOCKS inbound on this loopback port) — None keeps
         # the router what it was before.
         self.trusttunnel_port = trusttunnel_port
-        # v2.3.0: the AmneziaWG ingress (a `tun` inbound on this device, made by the AWG manager) —
+        # v3.0.0: the AmneziaWG ingress (a `tun` inbound on this device, made by the AWG manager) —
         # None keeps the router what it was before. Its `warp` registers a WARP device on first use.
         self.amneziawg_tun = amneziawg_tun or None
         self.warp_opener = warp_opener
@@ -835,7 +835,7 @@ class XrayRouterManager:
             if current is None:
                 return
             if alive:
-                # v2.3.0: the AmneziaWG device changed under the running process.
+                # v3.0.0: the AmneziaWG device changed under the running process.
                 try:
                     self._rerender_current()
                 except (XrayError, ManualInterventionRequired, EgressInvalid):
@@ -1054,7 +1054,7 @@ class XrayRouterManager:
             document = view["document"]
             extra = {}
             if service in TUN_SERVICES:
-                # v2.3.0: whether the device exists and the running Xray reads it.
+                # v3.0.0: whether the device exists and the running Xray reads it.
                 extra["tun"] = {"device": self.amneziawg_tun, "present": self._tun_present(),
                                 "attached": bool(self._tun_rendered) and self.handle is not None and self.runner.alive(self.handle),
                                 "warp_registered": self._warp_wg() is not None}

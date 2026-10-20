@@ -365,7 +365,7 @@ def test_migration_24_widens_grants_routing_and_egress_and_keeps_every_row(tmp_p
 
 
 def test_migration_26_admits_amneziawg_egress_and_keeps_every_row(tmp_path, monkeypatch):
-    """AmneziaWG egress (v2.3.0): routing policies and the node's egress record take `amneziawg` and
+    """AmneziaWG egress (v3.0.0): routing policies and the node's egress record take `amneziawg` and
     `amneziawg_native`; policies, their rules and applies, and the egress rows survive the rebuild."""
     from panel import migrations as module
 

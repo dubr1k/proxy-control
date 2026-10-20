@@ -40,7 +40,7 @@ class Config:
     nat: bool
     log_level: str
     obfuscation_file: Path | None
-    # v2.3.0: the persistent TUN device the Xray-router reads (variant 2), owned by the router's uid.
+    # v3.0.0: the persistent TUN device the Xray-router reads (variant 2), owned by the router's uid.
     router_tun: str | None = None
     router_uid: int = 10006
 

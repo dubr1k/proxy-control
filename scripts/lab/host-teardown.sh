@@ -19,10 +19,13 @@ RELEASE_ROOT=${RELEASE_ROOT:-/tmp/proxy-control-release/proxy-control}
 if [[ -d $RELEASE_ROOT ]]; then
   ( cd "$RELEASE_ROOT" && PYTHONPATH="$RELEASE_ROOT" python3 -m installer.cli --root / uninstall --purge-data >/dev/null 2>&1 ) || true
 fi
-label=label=com.docker.compose.project=mtproxy
-docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
-docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
-docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+# Both projects: 3.0 renamed the stack `mtproxy` to `proxy_panel_by_dubr1k`.
+for project in proxy_panel_by_dubr1k mtproxy; do
+  label=label=com.docker.compose.project=$project
+  docker container ls -aq --filter "$label" | xargs -r docker rm -f >/dev/null 2>&1 || true
+  docker network ls -q --filter "$label" | xargs -r docker network rm >/dev/null 2>&1 || true
+  docker volume ls -q --filter "$label" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+done
 
 # 2. Lab-only services and units — the Mieru lane slots (v0.7, `mita@<n>`) included: an
 # uninstall that did not run to its end leaves them restarting forever without the binary.

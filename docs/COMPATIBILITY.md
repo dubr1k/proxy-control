@@ -2,7 +2,9 @@
 
 Proxy Control product naming does not rename deployed runtime contracts.
 
-The following remain supported unchanged: `/opt/mtproxy-shared443`, `.mtproxy-owned`, marker `mtproxy-shared443`, `/etc/nginx/mtproxy-stream`, `.mtproxy-backup`, Compose project `mtproxy`, volume `mtproxy_panel-data`, `/var/lib/mtproxy-panel`, `/opt/mtproxy-panel`, `/etc/mtproxy-agent`, `/var/lib/mtproxy-agent`, unit filenames `mtproxy-agent.service` and `mtproxy-fleet-ingress.service`, fleet URI `urn:mtproxy-panel:node:`, and installed `scripts/mtproxy-deploy`.
+The following remain supported unchanged: `/opt/mtproxy-shared443`, `.mtproxy-owned`, marker `mtproxy-shared443`, `/etc/nginx/mtproxy-stream`, `.mtproxy-backup`, `/var/lib/mtproxy-panel`, `/opt/mtproxy-panel`, `/etc/mtproxy-agent`, `/var/lib/mtproxy-agent`, unit filenames `mtproxy-agent.service` and `mtproxy-fleet-ingress.service`, fleet URI `urn:mtproxy-panel:node:`, and installed `scripts/mtproxy-deploy`.
+
+**3.0 renamed the stack.** The Compose project is `proxy_panel_by_dubr1k` (it was `mtproxy`), and with it the network, the images (`proxy_panel_by_dubr1k-<service>`) and the volumes (`proxy_panel_by_dubr1k_panel-data`, `proxy_panel_by_dubr1k_telemt-config`, …). Container names (`proxy-control-*`) did not change. `scripts/update-host.sh` moves an installed host once, at the end of the update (`scripts/migrate-compose-project.sh`): it tags the running images with the new names, copies the data volumes while the stack stops for seconds, and keeps the old `mtproxy_*` volumes and images as the way back. Until a host is moved, the version-agent, `update-host.sh` and the installer address the project the panel runs in.
 
 Protocol names (`mtproxy`, `protocols.mtproxy`, `MTPROXY_*`) remain protocol-specific and are not deprecated. Historical changelog entries are not rewritten.
 

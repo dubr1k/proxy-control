@@ -28,6 +28,7 @@ from installer.planner import Action, AuditFacts, Evidence, PlanError
 from installer.release import ArtifactPin, MemberPin, ReleaseError, safe_extract_zip, verify_artifact
 from installer.runtime_state import accepted_sha256
 from installer.transaction import atomic_write, durable_mkdir, durable_remove, fsync_directory
+from installer.compose_project import COMPOSE_PROJECTS
 
 if TYPE_CHECKING:
     from installer.audit import CommandRunner
@@ -130,14 +131,17 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
     def compose_service_present(self, service: str) -> bool:
         """Only the router's own Compose service, never the shared project: prepare must
         see a stale container and rollback must stop the one it started (Core owns `mtproxy`)."""
-        output = self.capture(
-            ("docker", "container", "ls", "--all", "--quiet",
-             "--filter", "label=com.docker.compose.project=mtproxy",
-             "--filter", f"label=com.docker.compose.service={service}"),
-            max_chars=512,
-        )
-        stripped = output.strip()
-        return bool(stripped) and not stripped.startswith(("exit=", "diagnostic "))
+        for project in COMPOSE_PROJECTS:
+            output = self.capture(
+                ("docker", "container", "ls", "--all", "--quiet",
+                 "--filter", f"label=com.docker.compose.project={project}",
+                 "--filter", f"label=com.docker.compose.service={service}"),
+                max_chars=512,
+            )
+            stripped = output.strip()
+            if stripped and not stripped.startswith(("exit=", "diagnostic ")):
+                return True
+        return False
 
     def router_status(self) -> Mapping[str, object]:
         """The manager's `/v1/status`, asked from inside the container over its own UDS."""
@@ -194,7 +198,9 @@ class _DefaultXrayRouterRunner(_DefaultCoreRunner):
         try:
             output = self.capture(
                 ("docker", "exec", _BRIDGE_CONTAINER, "sh", "-c",
-                 "python -m xray_router_manager.bridge --check && echo bridge-ok"), max_chars=512)
+                 # 3.0 runs the Go binary; a container still on an older image has the Python bridge.
+                 "if [ -x /usr/local/bin/mtproxy-bridge ]; then /usr/local/bin/mtproxy-bridge --check; "
+                 "else python -m xray_router_manager.bridge --check; fi && echo bridge-ok"), max_chars=512)
         except Exception:
             return False
         return output.strip().endswith("bridge-ok")
