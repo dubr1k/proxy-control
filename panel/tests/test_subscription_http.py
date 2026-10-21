@@ -167,6 +167,13 @@ async def test_a_fork_core_client_is_recognised_by_user_agent_and_the_official_c
                           ("nekoray/4.0", "nekobox")):
         body = (await public.get(f"/s/{token}", headers={"User-Agent": agent})).json()
         assert body["proxy_control"]["client"] == client, agent
+        if client == "nekobox":
+            assert {o["type"] for o in body["outbounds"]} == {"naive", "mieru"}, agent
+            explicit = await public.get(
+                f"/s/{token}", params={"format": "singbox", "client": "nekobox"},
+                headers={"User-Agent": agent},
+            )
+            assert {o["type"] for o in explicit.json()["outbounds"]} == {"naive", "mieru"}, agent
     for agent in ("sing-box 1.13.0", "SFA/1.13", "SFI/1.13", "curl/8", ""):
         plain = await public.get(f"/s/{token}", headers={"User-Agent": agent})
         assert plain.headers["content-type"].startswith("text/plain"), agent  # nothing changed for them

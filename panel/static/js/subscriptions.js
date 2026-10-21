@@ -31,8 +31,8 @@ const VARIANTS = [
     format: "singbox-nekobox",
     label: "sing-box JSON с TrustTunnel для NekoBox",
     clients: "NekoBox на форке NyameBox (и NekoRay), у которого есть TrustTunnel; без параметра client опознаётся по User-Agent",
-    carries: "TrustTunnel (HTTP/2 поверх TCP, QUIC выключен); документировано производителем, нами не проверено",
-    leaves: "NaiveProxy, Mieru и MTProxy — в unsupported; в официальный sing-box этот вариант не загружать",
+    carries: "NaiveProxy, Mieru и TrustTunnel (HTTP/2 поверх TCP, QUIC выключен); поддержка зависит от сборки NekoBox",
+    leaves: "MTProxy и Mieru с диапазоном портов — в unsupported; в официальный sing-box этот вариант не загружать",
   },
   {
     format: "singbox-official",
