@@ -21,7 +21,9 @@ TrustTunnel has no outbound in upstream sing-box (planned: SagerNet/sing-box#372
 it. Two fork cores do: hiddify-sing-box ("Since sing-box 1.14.0", used by Hiddify) and the
 NekoBox fork NyameBox. Only a request that names one of them (`client=hiddify|nekobox`) gets the
 `trusttunnel` outbound; `karing`, `singbox` and every other request keep the "no outbound" note.
-The cells come from the compatibility matrix as for every other protocol.
+NekoBox keeps the Naive and Mieru fork outbounds as well: an unverified matrix cell
+is not grounds to silently remove previously delivered profiles. The matrix still
+describes verification evidence, not a guarantee for every NekoBox build.
 """
 from __future__ import annotations
 
@@ -94,9 +96,12 @@ def _place(grant: ManifestGrant, artifacts: dict, client: str, name: str) -> tup
         if client not in TRUSTTUNNEL_CLIENTS:
             return [], NOTES["trusttunnel"].get(client, f"no sing-box outbound for {grant.protocol}")
         return [_trusttunnel_outbound(grant, link_of(grant, artifacts), name)], None
-    if MATRIX.get(grant.protocol, {}).get(client if client != "fork" else "karing") != "supported":
+    matrix_client = "karing" if client == "fork" or (
+        client == "nekobox" and grant.protocol in ("naive", "mieru")
+    ) else client
+    if MATRIX.get(grant.protocol, {}).get(matrix_client) != "supported":
         # The matrix is the source: what this client cannot load is named, not shipped.
-        return [], NOTES.get(grant.protocol, {}).get(client if client != "fork" else "karing", f"{client} cannot consume {grant.protocol}")
+        return [], NOTES.get(grant.protocol, {}).get(matrix_client, f"{client} cannot consume {grant.protocol}")
     if grant.protocol == "naive":
         return [_naive_outbound(grant, link_of(grant, artifacts), name)], None
     if grant.protocol == "mieru":
@@ -108,7 +113,7 @@ def _place(grant: ManifestGrant, artifacts: dict, client: str, name: str) -> tup
 class SingboxRenderer:
     name = "singbox"
     media_type = "application/json"
-    version = 3
+    version = 4
 
     def render(self, manifest: Manifest, artifacts: dict, *, client: str = "karing") -> bytes:
         if client not in CLIENTS:

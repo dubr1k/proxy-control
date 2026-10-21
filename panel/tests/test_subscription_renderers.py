@@ -358,6 +358,23 @@ def test_compatibility_matrix_follows_the_fixture_and_never_claims_telegram_auto
     } == NOTES
 
 
+def test_nekobox_preserves_naive_and_mieru_in_a_mixed_subscription(manifest, artifacts):
+    data = json.loads(RENDERERS["singbox"].render(manifest, artifacts, client="nekobox"))
+    assert {item["type"] for item in data["outbounds"]} == {"naive", "mieru"}
+    assert {item["username"] for item in data["outbounds"]} == {"bob", "carol"}
+    reasons = {item["runtime_username"]: item["reason"] for item in data["proxy_control"]["unsupported"]}
+    assert set(reasons) == {"alice", "dave", "frank"}
+    assert reasons["dave"] == "no stored credential"
+    assert "port range" in reasons["frank"]
+
+
+def test_nekobox_mixed_subscription_keeps_trusttunnel_too(manifest, artifacts, tt_feed):
+    tt_manifest, tt_artifacts = tt_feed
+    mixed = dataclasses.replace(manifest, grants=manifest.grants + tt_manifest.grants)
+    data = json.loads(RENDERERS["singbox"].render(mixed, {**artifacts, **tt_artifacts}, client="nekobox"))
+    assert {item["type"] for item in data["outbounds"]} == {"naive", "mieru", "trusttunnel"}
+
+
 # --- TrustTunnel ----------------------------------------------------------------------
 
 SELF_SIGNED_DER_B64 = "MAMCAQU="  # a DER SEQUENCE the adapter can split; the content is irrelevant here
