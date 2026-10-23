@@ -1839,5 +1839,16 @@
  "в прямом эфире": "live",
  "версии доступов": "access versions",
  "Образ менеджера AmneziaWG будет пересобран на хосте с amneziawg-go этой версии (несколько минут); туннели оборвутся на несколько секунд и клиенты переподключатся сами.": "The AmneziaWG manager image will be rebuilt on the host with this amneziawg-go version (a few minutes); tunnels drop for a few seconds and the clients reconnect by themselves.",
- "Образ менеджера TrustTunnel будет пересобран на хосте с endpoint этой версии (около минуты); сессии оборвутся на несколько секунд.": "The TrustTunnel manager image will be rebuilt on the host with this endpoint version (about a minute); sessions drop for a few seconds."
+ "Образ менеджера TrustTunnel будет пересобран на хосте с endpoint этой версии (около минуты); сессии оборвутся на несколько секунд.": "The TrustTunnel manager image will be rebuilt on the host with this endpoint version (about a minute); sessions drop for a few seconds.",
+ "Имя учётной записи уже занято на узле": "The account name is already taken on the node",
+ "Неверный логин или пароль": "Wrong login or password",
+ "У клиента остались неудалённые доступы": "The client still has accesses that are not deleted",
+ "Удалить доступы": "Delete accesses",
+ "Узел ещё не подтвердил удаление доступов: повторите архивацию позже": "The node has not yet confirmed the deletion of the accesses: archive again later",
+ "Это имя учётной записи уже выдано на узле": "This account name has already been issued on the node",
+ "и архивировать": "and archive",
+ "исправьте имя учётной записи и нажмите «Создать» ещё раз: клиент второй раз не создаётся.": "fix the account name and press “Create” again: the client is not created a second time.",
+ "исчезнет из активных.": "will disappear from the active ones.",
+ "исчезнет из активных. Сначала панель удалит доступы клиента на узлах": "will disappear from the active ones. First the panel will delete the client's accesses on the nodes",
+ "их ссылки и ключи перестанут работать.": "their links and keys will stop working."
 }

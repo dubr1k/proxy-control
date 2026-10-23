@@ -1,6 +1,6 @@
 import { esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, query, queryAll } from "./common.js";
 import { grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
-import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
+import { awgAccount, placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { isCurrent } from "./state.js";
 
 const CLIENT_STATE = {
@@ -396,6 +396,8 @@ export async function openClientModal(context) {
   query("#client-error", context.root).textContent = "";
   query("#client-username-row", context.root).hidden = true;
   query("#client-username", context.root).dataset.typed = "";
+  delete form.dataset.clientId;
+  query("#client-name", context.root).readOnly = false;
   query("#client-placement", context.root).innerHTML = '<p class="form-hint">Читаем узлы…</p>';
   context.ui.openModal("#client-modal", "#client-name");
   try {
@@ -422,6 +424,29 @@ export function proposeUsername(displayName) {
   const latin = String(displayName || "").toLowerCase().split("").map((char) => TRANSLIT[char] ?? char).join("");
   const slug = latin.replace(/[^a-z0-9_.-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").replace(/-{2,}/g, "-");
   return slug.slice(0, 64) || "client";
+}
+
+// The proposal skips names the panel already knows on a ticked cell's node and protocol:
+// `name`, then `name-2`, `name-3`… The managers stay the authority — a name the panel does not
+// know about (another page of clients, an account made behind its back) is refused by them.
+function takenOnTicked(context, name, ticked) {
+  const live = (context.state.clients || []).flatMap((entry) => entry.grants || []).filter((grant) => grant.desired_state !== "deleted");
+  return [...ticked].some((key) => {
+    const split = key.indexOf(":");
+    const nodeId = key.slice(0, split);
+    const [protocol, version] = key.slice(split + 1).split(":");
+    const account = version ? awgAccount(name, version) : name;
+    return live.some((grant) => grant.node_id === nodeId && grant.protocol === protocol && grant.runtime_username === account);
+  });
+}
+
+export function proposeFreeUsername(context, displayName, ticked) {
+  const base = proposeUsername(displayName);
+  let name = base;
+  for (let number = 2; number < 1000 && takenOnTicked(context, name, ticked); number += 1) {
+    name = `${base.slice(0, 60)}-${number}`;
+  }
+  return name;
 }
 
 function proposalRow(proposal, clients) {
@@ -543,15 +568,19 @@ export async function issueOnNode(context, { protocol, username, nodeId, options
 export function bindClients(context) {
   const { api, root, ui } = context;
   // Ticking a cell reveals the account name, proposed from the display name until the
-  // operator types their own; unticking every cell hides it again.
-  query("#client-form", root)?.addEventListener("change", (event) => {
-    if (!event.target.matches?.("#client-placement input[type=checkbox]")) return;
+  // operator types their own; unticking every cell hides it again. The name typed after the
+  // ticks refreshes the proposal too, so the order of the two never matters.
+  const refreshUsername = () => {
     const row = query("#client-username-row", root);
     const input = query("#client-username", root);
-    const any = readPlacement(query("#client-placement", root)).size > 0;
-    row.hidden = !any;
-    if (any && !input.dataset.typed) input.value = proposeUsername(query("#client-name", root).value);
+    const ticked = readPlacement(query("#client-placement", root));
+    row.hidden = ticked.size === 0;
+    if (ticked.size && !input.dataset.typed) input.value = proposeFreeUsername(context, query("#client-name", root).value, ticked);
+  };
+  query("#client-form", root)?.addEventListener("change", (event) => {
+    if (event.target.matches?.("#client-placement input[type=checkbox]")) refreshUsername();
   });
+  query("#client-name", root)?.addEventListener("input", refreshUsername);
   query("#client-username", root)?.addEventListener("input", ({ currentTarget: input }) => {
     input.dataset.typed = input.value ? "1" : "";
   });
@@ -577,15 +606,22 @@ export function bindClients(context) {
     usernameInput.required = needsUsername;
     if (!form.reportValidity()) return;
     error.textContent = "";
-    const displayName = query("#client-name", root).value.trim();
-    let client = null;
+    // A client made by an earlier press whose grants were refused stays this dialog's client:
+    // the retry issues the grants for it instead of creating a second one.
+    const nameInput = query("#client-name", root);
+    const displayName = nameInput.value.trim();
+    let client = form.dataset.clientId ? { id: form.dataset.clientId } : null;
     let subscription = null;
     try {
       ui.setBusy(button, true, "Создаём…");
-      client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: displayName }) });
-      // The subscription is issued with the client; its reveal is consumed once, here.
-      if (client.subscription_reveal_token) {
-        subscription = await api(`/api/reveal/${encodeURIComponent(client.subscription_reveal_token)}`);
+      if (!client) {
+        client = await api("/api/clients", { method: "POST", body: JSON.stringify({ display_name: displayName }) });
+        form.dataset.clientId = client.id;
+        nameInput.readOnly = true;
+        // The subscription is issued with the client; its reveal is consumed once, here.
+        if (client.subscription_reveal_token) {
+          subscription = await api(`/api/reveal/${encodeURIComponent(client.subscription_reveal_token)}`);
+        }
       }
       if (!diff.create.length) {
         query("#client-modal", root).close();
@@ -610,9 +646,11 @@ export function bindClients(context) {
       else if (subscription) await context.subscriptions.open(client.id, displayName, subscription);
       await context.navigate("clients");
     } catch (exception) {
-      // The client may already exist when the grants are refused: say so, and let the list
-      // behind the dialog show the card, so nothing is created twice on a retry.
-      error.textContent = client ? `Клиент «${displayName}» создан, но доступы не выданы: ${exception.message}. Выдайте их из окна клиента.` : exception.message;
+      // The client may already exist when the grants are refused: say so. The dialog keeps
+      // the client, so «Создать» once more issues the grants and creates nothing twice.
+      error.textContent = client
+        ? `Клиент «${displayName}» создан, но доступы не выданы: ${exception.message} — исправьте имя учётной записи и нажмите «Создать» ещё раз: клиент второй раз не создаётся.`
+        : exception.message;
       if (client) await context.navigate("clients");
     } finally {
       ui.setBusy(button, false);
@@ -661,29 +699,56 @@ async function renameClient(context, clientId) {
   }
 }
 
+// Archiving ends the client's life, so the server refuses while any grant row is left. The
+// operator is offered to delete the accesses first; a remote node confirms a deletion on its
+// own tick, so the client is re-read (bounded) until the rows are gone.
+const GRANT_GONE_DELAYS = [500, 1000, 2000, 3000, 5000, 8000, 12000, 20000, 30000];
+
+async function waitGrantsGone(context, clientId) {
+  for (const delay of GRANT_GONE_DELAYS) {
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    const data = await context.api(`/api/clients/${encodeURIComponent(clientId)}`);
+    if (!(data.grants || []).length) return;
+  }
+  throw new Error("Узел ещё не подтвердил удаление доступов: повторите архивацию позже");
+}
+
+async function archiveClient(context, entry) {
+  const grants = entry.grants || [];
+  const live = grants.filter((grant) => grant.desired_state !== "deleted");
+  const name = entry.client.display_name;
+  const confirmed = grants.length
+    ? await context.ui.confirmed(
+      "Архивировать клиента?",
+      `${name} исчезнет из активных. Сначала панель удалит доступы клиента на узлах (${grants.length}): их ссылки и ключи перестанут работать.`,
+      `Удалить доступы (${grants.length}) и архивировать`,
+    )
+    : await context.ui.confirmed("Архивировать клиента?", `${name} исчезнет из активных.`, "Архивировать");
+  if (!confirmed) return false;
+  for (const grant of live) {
+    await context.api(`/api/clients/grants/${encodeURIComponent(grant.id)}/delete`, { method: "POST" });
+  }
+  if (grants.length) await waitGrantsGone(context, entry.client.id);
+  return true;
+}
+
 async function lifecycle(context, clientId, action) {
   const entry = context.state.clients.find((item) => item.client.id === clientId);
   if (!entry) return;
   const state = { suspend: "suspended", resume: "active", archive: "archived" }[action];
   if (!state) return;
   try {
-    if (action === "archive") {
-      const confirmed = await context.ui.confirmed(
-        "Архивировать клиента?",
-        `${entry.client.display_name} исчезнет из активных. Панель откажет, пока у клиента есть неудалённые доступы.`,
-        "Архивировать",
-      );
-      if (!confirmed) return;
-    }
+    if (action === "archive" && !(await archiveClient(context, entry))) return;
     await context.api(`/api/clients/${encodeURIComponent(clientId)}/state`, {
       method: "POST",
       body: JSON.stringify({ state }),
     });
     context.ui.toast("Состояние клиента обновлено");
-    await context.navigate("clients");
   } catch (exception) {
     context.ui.toast(exception.message, "error");
   }
+  // Also after a refusal: grants deleted before it are gone from the card, not half-shown.
+  await context.navigate("clients");
 }
 
 async function adopt(context, button) {

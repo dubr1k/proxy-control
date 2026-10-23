@@ -1,3 +1,5 @@
+import { PROTOCOL_NAMES } from "./placement.js";
+
 function cookie(name) {
   return document.cookie
     .split("; ")
@@ -14,6 +16,21 @@ const API_REASONS = {
 // rejected): it follows the operator's words in parentheses.
 const DETAIL_WORTH_SHOWING = new Set(["exit_invalid", "egress_invalid", "lanes_invalid", "geodata_rejected", "geodata_fetch_failed", "geodata_invalid", "exit_link_invalid"]);
 
+// The managers' and the panel's English refusals that reach the operator in the client and
+// login flows, in the operator's words. Anything unknown keeps the server's own text.
+const DETAIL_TEXT = {
+  "client still has grants that are not deleted": "У клиента остались неудалённые доступы",
+  "invalid credentials": "Неверный логин или пароль",
+  "runtime_username is already granted on this endpoint": "Это имя учётной записи уже выдано на узле",
+};
+const TAKEN_NAME = /^(mtproxy|naive|mieru|amneziawg|trusttunnel): runtime username already exists$/;
+
+function detailText(detail) {
+  if (Object.hasOwn(DETAIL_TEXT, detail)) return DETAIL_TEXT[detail];
+  const taken = TAKEN_NAME.exec(detail);
+  return taken ? `Имя учётной записи уже занято на узле: ${PROTOCOL_NAMES[taken[1]]}` : detail;
+}
+
 // A screen registers the operator's words for the refusal codes its API speaks (v0.9):
 // a `{detail, code}` refusal is then shown in those words, not as the server's English.
 export function registerReasons(reasons) {
@@ -28,7 +45,7 @@ export function problemText(body) {
     const detail = typeof body.detail === "string" && DETAIL_WORTH_SHOWING.has(body.code) && body.detail !== body.code ? ` (${body.detail})` : "";
     return API_REASONS[body.code] + detail;
   }
-  if (typeof body.detail === "string") return body.detail;
+  if (typeof body.detail === "string") return detailText(body.detail);
   if (!Array.isArray(body.detail)) return "";
 
   return body.detail

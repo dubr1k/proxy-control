@@ -26,7 +26,9 @@ export function createUi(root) {
   function setBusy(button, busy, label = "Подождите…") {
     if (!button) return;
     if (busy) {
-      button.dataset.label = button.textContent;
+      // A second busy call (a new label for the next step) must not take the first busy
+      // label for the original one: that is what the button would be restored to.
+      if (button.getAttribute("aria-busy") !== "true") button.dataset.label = button.textContent;
       button.textContent = label;
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
