@@ -418,6 +418,10 @@ async def test_subscription_management_needs_a_writer_role_and_a_configured_url(
         assert (await viewer.post(f"/api/clients/{client_id}/subscription/reveal")).status_code == 403
         compat = await viewer.get("/api/subscriptions/compatibility")
         assert compat.status_code == 200 and set(compat.json()["matrix"]) == {"mtproxy", "naive", "mieru", "trusttunnel"}
+        # The app catalogue rides along additively: the chooser reads it, matrix and notes keep their shape.
+        body = compat.json()
+        assert set(body) == {"matrix", "notes", "platforms", "apps"} and body["apps"] and body["platforms"]
+        assert {app["variant"] for app in body["apps"]} <= {"singbox", "singbox-hiddify", "singbox-official", "clash"}
 
     app.state.subscriptions.public_base = ""  # what an empty PANEL_SUBSCRIPTION_URL leaves behind
     async with httpx.AsyncClient(

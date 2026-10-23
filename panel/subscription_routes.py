@@ -25,6 +25,7 @@ from .events import MAX_PAGE
 from .fleet_v2.central_routes import public_hosts_for
 from .reveals import qr_data
 from .secrets_store import SecretError
+from .subscriptions.apps import catalogue
 from .subscriptions.compatibility import MATRIX, NOTES
 from .subscriptions.renderers import RENDERERS, resolve_artifacts
 from .subscriptions.service import SubscriptionService
@@ -153,7 +154,7 @@ def register_subscription_admin_routes(app, context: RequestContext) -> None:
 
     @app.get("/api/subscriptions/compatibility")
     async def compatibility(_user=Depends(context.current)):
-        return {"matrix": MATRIX, "notes": NOTES}
+        return {"matrix": MATRIX, "notes": NOTES, **catalogue()}
 
     @app.get("/api/events")
     async def events(

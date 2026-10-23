@@ -3,6 +3,7 @@ import { placementDiff, placementRows, readPlacement, renderPlacement, settling 
 import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
 import { AUTO_REFRESH, grantRowHtml } from "./grant.js";
+import { renderChooser, resetChooser } from "./link-chooser.js";
 
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
@@ -105,7 +106,7 @@ export function createSubscriptionDialog(context) {
   const { api, root, ui } = context;
   // `generation` counts the openings: an answer that comes back after the window was
   // reopened for another client belongs to nobody and is dropped.
-  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, links: null, format: "singbox", matrix: {}, generation: 0, settling: false };
+  const state = { clientId: null, name: "", client: null, grants: [], rows: [], reveal: null, links: null, format: "singbox", matrix: {}, catalogue: { platforms: [], apps: [] }, generation: 0, settling: false };
 
   function liveGrants() {
     return state.grants.filter((grant) => grant.desired_state !== "deleted");
@@ -147,7 +148,7 @@ export function createSubscriptionDialog(context) {
     }
     if (!current) {
       status.textContent = "Подписка не создана.";
-      actions.innerHTML = canWrite() ? '<button type="button" class="primary" data-subscription-action="create">Создать URL</button>' : "";
+      actions.innerHTML = canWrite() ? '<button type="button" class="primary" data-subscription-action="create">Создать ссылку</button>' : "";
       return;
     }
     status.innerHTML = `URL выдан ${esc(formatDate(current.created_at))}, поколение <b>${esc(String(current.generation))}</b>.
@@ -162,10 +163,10 @@ export function createSubscriptionDialog(context) {
     if (!overview.secret_store) {
       show = '<small class="form-hint">Панель без хранилища секретов показывает ссылку один раз — при создании и ротации.</small>';
     } else if (!overview.escrowed) {
-      show = '<small class="form-hint">Ссылка выдана до включения хранилища — ротируйте, новая будет доступна для показа.</small>';
+      show = '<small class="form-hint">Ссылка выдана до включения хранилища — выпустите новую, она будет доступна для показа.</small>';
     }
     actions.innerHTML = `${show}
-      <button type="button" class="secondary" data-subscription-action="rotate">Ротировать URL</button>
+      <button type="button" class="secondary" data-subscription-action="rotate">Выпустить новую ссылку</button>
       <button type="button" class="danger ghost" data-subscription-action="revoke">Отозвать</button>`;
   }
 
@@ -232,11 +233,18 @@ export function createSubscriptionDialog(context) {
       box.hidden = true;
       query("#subscription-url", root).value = "";
       query("#subscription-qr", root).removeAttribute("src");
+      resetChooser(query("#subscription-chooser", root));
       return;
     }
     const variant = state.reveal.variants?.[state.format] || { url: state.reveal.url, qr: state.reveal.qr };
     query("#subscription-url", root).value = variant.url;
     query("#subscription-qr", root).src = variant.qr;
+    renderChooser(query("#subscription-chooser", root), {
+      catalogue: state.catalogue,
+      payload: state.reveal,
+      protocols: [...new Set(liveGrants().map((grant) => grant.protocol).filter((protocol) => SUBSCRIBABLE.has(protocol)))],
+      name: state.name,
+    });
     box.hidden = false;
   }
 
@@ -257,6 +265,7 @@ export function createSubscriptionDialog(context) {
     state.name = detail.client.display_name;
     context.state.nodes = nodes.items || [];
     state.matrix = compatibility.matrix || {};
+    state.catalogue = { platforms: compatibility.platforms || [], apps: compatibility.apps || [] };
     render(overview);
     void settle();
   }
@@ -410,12 +419,12 @@ export function createSubscriptionDialog(context) {
     if (action === "show") return issue(`${base}/subscription/reveal`, button, "Показываем…");
     if (action === "rotate") {
       const confirmed = await ui.confirmed(
-        "Ротировать URL подписки?",
-        "Старая ссылка перестанет открываться в тот же момент. Новую придётся отправить клиенту заново.",
-        "Ротировать",
+        "Выпустить новую ссылку?",
+        "Старая ссылка перестанет открываться сразу же, и приложения клиента по ней обновляться не смогут. Новую ссылку придётся отправить клиенту заново.",
+        "Выпустить",
       );
       if (!confirmed) return undefined;
-      return issue(`${base}/subscription/rotate`, button, "Ротируем…");
+      return issue(`${base}/subscription/rotate`, button, "Выпускаем…");
     }
     if (action === "revoke") {
       const confirmed = await ui.confirmed(
@@ -471,7 +480,13 @@ export function createSubscriptionDialog(context) {
         ui.toast("Состав клиента обновлён");
       }
       await load();
-      if (result?.status === "succeeded") await context.access.openOperationBundle(result.operation_id);
+      if (result?.status === "succeeded") {
+        await context.access.openOperationBundle(result.operation_id, {
+          subscription: state.reveal,
+          protocols: liveGrants().map((grant) => grant.protocol),
+          name: state.name,
+        });
+      }
     } catch (exception) {
       error.textContent = explain(exception);
       await load().catch(() => {});

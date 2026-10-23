@@ -654,7 +654,8 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
         document.querySelector("#subscription-url").value = "https://eclipse.sky.dubr1kkk.uk/s/{token}?format=singbox";
         document.querySelector("#subscription-qr").src = "data:image/svg+xml;base64," + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>');
         document.querySelector("#subscription-reveal").hidden = false;
-        document.querySelector("#subscription-actions").innerHTML = '<button type="button" class="primary">Показать</button><button type="button" class="secondary">Ротировать URL</button><button type="button" class="danger ghost">Отозвать</button>';
+        document.querySelector(".subscription-all").open = true;
+        document.querySelector("#subscription-actions").innerHTML = '<button type="button" class="primary">Показать</button><button type="button" class="secondary">Выпустить новую ссылку</button><button type="button" class="danger ghost">Отозвать</button>';
         document.querySelector("#placement-body").innerHTML = {json.dumps(placement)};
         document.querySelector("#placement-actions").innerHTML = '<button type="button" class="primary">Применить</button>';
         dialog.showModal();
@@ -668,7 +669,7 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
         }}
         const reveal = document.querySelector("#subscription-reveal").getBoundingClientRect();
         const variantsBox = document.querySelector(".subscription-formats").getBoundingClientRect();
-        if (reveal.top + tolerance < variantsBox.bottom) errors.push("reveal overlaps the variants");
+        if (variantsBox.top + tolerance < reveal.top || variantsBox.bottom > reveal.bottom + tolerance) errors.push("the variants leave the reveal block");
         if (form.scrollWidth > form.clientWidth + tolerance) errors.push("dialog scrolls horizontally");
         const scroll = document.querySelector(".placement-scroll");
         if (scroll.scrollWidth > scroll.clientWidth && form.scrollWidth > form.clientWidth + tolerance) errors.push("matrix scrolls the dialog instead of itself");

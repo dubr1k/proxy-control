@@ -685,7 +685,7 @@ export function bindClients(context) {
       }
       // The bundle carries the subscription on top; when there is no bundle to show, the
       // client window does — the link must not be lost on the way either way.
-      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id, { subscription });
+      if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id, { subscription, name: displayName });
       else if (subscription) await context.subscriptions.open(client.id, displayName, subscription);
       await context.navigate("clients");
     } catch (exception) {

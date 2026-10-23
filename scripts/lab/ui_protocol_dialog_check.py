@@ -54,6 +54,10 @@ def require(ok, message):
         raise AssertionError(message)
 
 
+# A browser test that needs client links sets this before opening the panel: no subscription URL, no links.
+SUBSCRIPTION_URL = ""
+
+
 def make_panel(work, name, versions, port):
     key = work / f"{name}.key"
     Keyring.generate().save(key)
@@ -68,7 +72,7 @@ def make_panel(work, name, versions, port):
         amneziawg_enabled=True, amneziawg_public_host=f"awg.{name}.example",
         trusttunnel_enabled=True, trusttunnel_public_host=f"tt.{name}.example",
         mtproxy_public_host=f"{name}.example", naive_public_host="",
-        subscription_url="", subscription_host="", version_agent_socket=absent,
+        subscription_url=SUBSCRIPTION_URL, subscription_host="", version_agent_socket=absent,
     )
     return create_app(
         settings, telemt=MemoryTelemt(public_host=f"{name}.example"),

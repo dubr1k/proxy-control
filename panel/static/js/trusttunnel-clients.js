@@ -72,33 +72,19 @@ export function parseManual(value) {
   };
 }
 
-function field(label, value, { secret = false } = {}) {
-  const shown = secret
-    ? `<code class="tt-secret" data-tt-secret="${esc(value)}">••••••••</code><button type="button" class="secondary" data-tt-reveal aria-pressed="false">Показать</button>`
-    : `<code>${esc(value)}</code>`;
-  return `<div class="tt-field"><dt>${esc(label)}</dt><dd>${shown}<button type="button" class="secondary button copy" data-copy="${esc(value)}" aria-label="Копировать: ${esc(label)}">Копировать</button></dd></div>`;
+// Every value is shown as it is: the same password is in the tt:// link and the TOML next to it, so a mask
+// on one field would only hide it from the person who needs to copy it.
+function field(label, value) {
+  return `<div class="tt-field"><dt>${esc(label)}</dt><dd><code>${esc(value)}</code><button type="button" class="secondary button copy" data-copy="${esc(value)}" aria-label="Копировать: ${esc(label)}">Копировать</button></dd></div>`;
 }
 
 export function manualHtml(manual) {
   const certificate = manual.certificate
     ? `<div class="tt-field wide"><dt>Сертификат (PEM)</dt><dd><code class="tt-pem">${esc(manual.certificate)}</code><button type="button" class="secondary button copy" data-copy="${esc(manual.certificate)}">Копировать</button></dd></div>`
     : "";
-  const surge = manual.surge ? field("Строка политики Surge", `Proxy-TrustTunnel = ${manual.surge}`, { secret: true }) : "";
+  const surge = manual.surge ? field("Строка политики Surge", `Proxy-TrustTunnel = ${manual.surge}`) : "";
   return `<section class="tt-manual" aria-label="Данные для ручной настройки"><h3>Данные для ручной настройки</h3>
-    <dl>${field("Сервер", manual.server)}${field("Порт", manual.port)}${field("Логин", manual.username)}${field("Пароль", manual.password, { secret: true })}${field("SNI", manual.sni)}
+    <dl>${field("Сервер", manual.server)}${field("Порт", manual.port)}${field("Логин", manual.username)}${field("Пароль", manual.password)}${field("SNI", manual.sni)}
       <div class="tt-field"><dt>Протокол</dt><dd><code>${esc(manual.protocol)}</code></dd></div>${certificate}${surge}</dl>
     <p class="form-hint">Throne: Ctrl+N → Тип «TrustTunnel» → адрес, порт, логин, пароль, SNI → OK. Галочку QUIC не включайте: сервер работает по TCP (HTTP/2).</p></section>`;
-}
-
-// One delegated click for the «Показать» buttons: the password is in the page only as masked dots until pressed.
-export function bindReveal(container) {
-  container.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-tt-reveal]");
-    if (!button) return;
-    const code = button.parentElement.querySelector("[data-tt-secret]");
-    const open = button.getAttribute("aria-pressed") !== "true";
-    code.textContent = open ? code.dataset.ttSecret : "••••••••";
-    button.setAttribute("aria-pressed", String(open));
-    button.textContent = open ? "Скрыть" : "Показать";
-  });
 }

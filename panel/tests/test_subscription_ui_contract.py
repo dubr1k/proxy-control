@@ -26,7 +26,7 @@ def test_the_client_window_shows_the_url_on_request_and_never_keeps_it():
     assert "localStorage" not in javascript and "sessionStorage" not in javascript
     assert javascript.count("ui.confirmed(") == 3  # rotate, revoke, delete a cell — never show/apply
     assert 'data-subscription-action="show"' in javascript and "state.reveal = null" in javascript
-    assert "ротируйте" in javascript and "показывает ссылку один раз" in javascript
+    assert "выпустите новую" in javascript and "показывает ссылку один раз" in javascript
     # The matrix and its diff come from placement.js; the diff goes to the existing endpoints.
     assert 'from "./placement.js"' in javascript and "placementDiff(" in javascript
     assert "/grants`" in javascript and "/enable`" in javascript and "/disable`" in javascript and "/delete`" in javascript
@@ -63,7 +63,7 @@ def test_the_client_card_opens_the_window_and_main_wires_it():
     # v0.11: «Узлы и доступы» on the card opens the same window on its matrix, for writers
     # of a live client only (it sits after the viewer/archived early return).
     assert 'data-client-action="placement"' in clients and "Узлы и доступы" in clients
-    assert clients.index('data-client-action="placement"') > clients.index('role === "viewer" || client.state === "archived"')
+    assert clients.index('data-client-action="placement"') > clients.index('if (client.state === "archived")')
     assert '{ focus: action === "placement" ? "placement" : null }' in clients
     subscriptions = (ROOT / "static/js/subscriptions.js").read_text()
     assert 'focus !== "placement"' in subscriptions and ".placement-box" in subscriptions and "scrollIntoView" in subscriptions
@@ -73,7 +73,7 @@ def test_the_window_is_reachable_by_viewers_but_only_writers_get_the_buttons():
     javascript = (ROOT / "static/js/subscriptions.js").read_text()
     clients = (ROOT / "static/js/clients.js").read_text()
     # The card button is emitted before the viewer early-return...
-    assert clients.index('data-client-action="open"') < clients.index('role === "viewer" || client.state === "archived"')
+    assert clients.index('data-client-action="open"') < clients.index('if (client.state === "archived")')
     # ...and the window itself hides create/show/rotate/revoke and the matrix controls from viewers.
     assert 'role !== "viewer"' in javascript and "canWrite" in javascript
     assert "renderPlacement(rows, { canWrite" in javascript
@@ -114,8 +114,9 @@ def test_new_client_places_grants_by_matrix_and_hands_the_subscription_over():
     assert 'id="grant-modal"' not in html
     assert 'from "./placement.js"' in clients and "placementDiff(" in clients
     assert "subscription_reveal_token" in clients and "openOperationBundle(" in clients
-    # The bundle dialog carries the subscription block when a reveal came with the client.
-    assert 'id="bundle-subscription"' in html and "bundle-subscription" in access and "subscription.qr" in access
+    # The bundle dialog carries the chooser block when a reveal came with the client.
+    assert 'id="bundle-subscription"' in html and 'id="bundle-chooser"' in html
+    assert "showBundleSubscription(subscription" in access and "renderChooser(host" in access
 
 
 def test_service_screens_issue_clients_without_a_subscription():

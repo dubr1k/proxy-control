@@ -1,5 +1,6 @@
 import { esc, query } from "./common.js";
-import { appsHtml, bindReveal, manualHtml, parseManual } from "./trusttunnel-clients.js";
+import { appsHtml, manualHtml, parseManual } from "./trusttunnel-clients.js";
+import { renderChooser, resetChooser, subscriptionProtocols } from "./link-chooser.js";
 
 function validServer(value) {
   if (/^[A-Za-z0-9.-]{1,253}$/.test(value)) return true;
@@ -329,6 +330,9 @@ export function normaliseAccessPayload(data, service, username) {
 
 export function createAccessDialogs(context) {
   const { root, api, ui } = context;
+  // Whether the operator took anything out of the open bundle (copied, downloaded, opened an app).
+  let bundleTaken = false;
+  let bundleAsking = false;
   const dialogs = {
     naive: { data: null, selected: "", objectUrl: "" },
     mieru: { data: null, selected: "", objectUrl: "" },
@@ -498,8 +502,6 @@ export function createAccessDialogs(context) {
       else await navigator.clipboard?.writeText(button.dataset.copy);
       ui.toast("Скопировано");
     });
-    // One delegated handler for every «Показать» of a TrustTunnel card, in the grant window and the bundle.
-    bindReveal(root);
     query("#access-modal", root)?.addEventListener("close", () => {
       query("#access-link", root).value = "";
       query("#qr-image", root).removeAttribute("src");
@@ -508,22 +510,61 @@ export function createAccessDialogs(context) {
     });
     // Nothing of a bundle survives its window: the artifacts and the subscription block
     // both go, so the next operation never shows the previous one's secrets for a frame.
-    query("#bundle-modal", root)?.addEventListener("close", () => {
+    const bundle = query("#bundle-modal", root);
+    bundle?.addEventListener("close", () => {
       query("#bundle-body", root).innerHTML = "";
       clearBundleSubscription();
+    });
+    // Anything the operator took with him — a copied value, a downloaded file, the app opened — makes
+    // closing the window harmless; until then it asks once, because the secrets are shown only here.
+    bundle?.addEventListener("click", (event) => {
+      if (event.target.closest("button[data-copy], a[download], a[data-chooser-open]")) bundleTaken = true;
+      if (!event.target.closest('button[value="cancel"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void closeBundle(bundle);
+    });
+    bundle?.addEventListener("cancel", (event) => {
+      if (bundleTaken) return;
+      event.preventDefault();
+      void closeBundle(bundle);
     });
     bindClientDialog("mieru");
     bindClientDialog("naive");
   }
 
-  function clearBundleSubscription() {
-    query("#bundle-subscription", root).hidden = true;
-    query("#bundle-subscription-url", root).value = "";
-    query("#bundle-subscription-qr", root).removeAttribute("src");
-    query("#bundle-subscription button.copy", root).dataset.copy = "";
+  async function closeBundle(dialog) {
+    if (!bundleTaken) {
+      if (bundleAsking) return;
+      bundleAsking = true;
+      const close = await ui.confirmed("Ссылки больше не покажутся. Закрыть?", "Вы ничего не скопировали и не скачали.", "Закрыть");
+      bundleAsking = false;
+      if (!close) return;
+    }
+    dialog.close("cancel");
   }
 
-  async function openOperationBundle(operationId, { subscription = null } = {}) {
+  function clearBundleSubscription() {
+    resetChooser(query("#bundle-chooser", root));
+    query("#bundle-subscription", root).hidden = true;
+  }
+
+  // The subscription block of the bundle: the chooser; without the catalogue (the request failed)
+  // the plain link still reaches the operator, because the reveal is the only time he sees it.
+  async function showBundleSubscription(subscription, protocols, name) {
+    const host = query("#bundle-chooser", root);
+    try {
+      const catalogue = await api("/api/subscriptions/compatibility");
+      renderChooser(host, { catalogue, payload: subscription, protocols, name });
+    } catch {
+      host.innerHTML = `<label>URL подписки<span class="copy-field"><input readonly value="${esc(subscription.url)}"><button type="button" class="copy" data-copy="${esc(subscription.url)}">Копировать</button></span></label>`;
+    }
+    query("#bundle-subscription", root).hidden = false;
+  }
+
+  // `subscription` is the reveal payload of the client's link; `protocols` are all the client's
+  // accesses (the link carries them all, not only those issued by this operation).
+  async function openOperationBundle(operationId, { subscription = null, protocols = null, name = "" } = {}) {
     // One reveal for the whole operation: the token is consumed on first read, so the
     // dialog renders everything it received and never re-fetches.
     const { reveal_token: token } = await api(
@@ -535,17 +576,12 @@ export function createAccessDialogs(context) {
       <h3>${esc(BUNDLE_PROTOCOLS[grant.protocol] || grant.protocol)} · ${esc(grant.runtime_username)}</h3>
       ${(grant.artifacts || []).map(bundleArtifact(grant)).join("")}${grant.protocol === "trusttunnel" ? appsHtml() : ""}
     </section>`).join("") || "<p class=\"form-hint\">Артефактов нет.</p>";
-    // The client's subscription, when one came with it: the same reveal payload the client
-    // window renders, shown here once so the operator copies link and artifacts together.
-    if (subscription) {
-      const variant = subscription.variants?.singbox || { url: subscription.url, qr: subscription.qr };
-      query("#bundle-subscription-url", root).value = variant.url;
-      query("#bundle-subscription-qr", root).src = variant.qr;
-      query("#bundle-subscription button.copy", root).dataset.copy = variant.url;
-      query("#bundle-subscription", root).hidden = false;
-    } else {
-      clearBundleSubscription();
-    }
+    const carried = subscriptionProtocols(protocols || (bundle.grants || []).map((grant) => grant.protocol));
+    if (subscription && carried.length) await showBundleSubscription(subscription, carried, name || "Proxy Control");
+    else clearBundleSubscription();
+    // With the chooser on top the per-protocol data stay folded; without it they are all there is.
+    query("#bundle-details", root).open = query("#bundle-subscription", root).hidden;
+    bundleTaken = false;
     ui.openModal("#bundle-modal");
   }
 

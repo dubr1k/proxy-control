@@ -287,15 +287,16 @@
 
   <dialog id="bundle-modal" class="access-dialog">
     <form method="dialog">
-      <div class="modal-head"><div><span class="eyebrow">ДОСТУПЫ ВЫДАНЫ</span><h2 id="bundle-title">Ссылки доступа</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Ссылки доступов показываются один раз. Скопируйте всё нужное сейчас: панель хранит секреты в шифрованном виде, но эта страница больше не откроется по той же ссылке. Ссылку подписки можно показать снова из окна клиента.</p>
-      <section id="bundle-subscription" class="subscription-reveal" hidden>
-        <h3>Подписка</h3>
-        <label>URL подписки<span class="copy-field"><input id="bundle-subscription-url" readonly><button type="button" class="copy" data-copy="">Копировать</button></span></label>
-        <img id="bundle-subscription-qr" alt="QR-код подписки" class="subscription-qr">
-        <small>Одна ссылка на все доступы клиента; потом она снова доступна в окне клиента по кнопке «Показать».</small>
+      <div class="modal-head"><div><span class="eyebrow">ДОСТУПЫ ВЫДАНЫ</span><h2 id="bundle-title">Ссылки доступа</h2></div><div class="modal-head-actions"><button class="primary" value="cancel" formnovalidate>Готово</button><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div></div>
+      <p class="modal-copy">Ссылки показываются один раз: скопируйте нужное сейчас, эта страница больше не откроется. Панель хранит секреты в шифрованном виде, а ссылку для клиента можно показать снова из окна клиента.</p>
+      <section id="bundle-subscription" class="bundle-link" hidden>
+        <h3>Ссылка для клиента</h3>
+        <div id="bundle-chooser"></div>
       </section>
-      <div id="bundle-body"></div>
+      <details id="bundle-details" class="bundle-details">
+        <summary>Отдельные ссылки и данные для ручной настройки</summary>
+        <div id="bundle-body"></div>
+      </details>
       <footer><button class="primary" value="cancel" formnovalidate>Готово</button></footer>
     </form>
   </dialog>
@@ -304,20 +305,24 @@
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2 id="subscription-title">Клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <div id="subscription-box">
-        <p class="modal-copy">Одна ссылка на все доступы клиента на всех узлах. Панель рендерит её из собственного хранилища; доступ без сохранённого секрета попадает в неё как unsupported.</p>
+        <p class="modal-copy">Одна ссылка на все доступы клиента на всех узлах. Выберите, на чём клиент, — панель даст ссылку под это приложение. Доступ без сохранённого секрета в ссылку не попадёт.</p>
         <p class="form-hint" id="subscription-status"></p>
-        <fieldset class="subscription-formats">
-          <legend>Вариант ссылки под клиента</legend>
-          <div id="subscription-variants"></div>
-        </fieldset>
+        <div class="client-actions" id="subscription-actions"></div>
         <div id="subscription-reveal" class="subscription-reveal" hidden>
-          <label>URL подписки
-            <span class="copy-field"><input id="subscription-url" readonly><button type="button" id="copy-subscription-url">Копировать</button></span>
-          </label>
-          <img id="subscription-qr" alt="QR-код подписки" class="subscription-qr">
+          <div id="subscription-chooser"></div>
+          <details class="subscription-all">
+            <summary>Все варианты ссылки</summary>
+            <fieldset class="subscription-formats">
+              <legend>Вариант ссылки под клиента</legend>
+              <div id="subscription-variants"></div>
+            </fieldset>
+            <label>URL подписки
+              <span class="copy-field"><input id="subscription-url" readonly><button type="button" id="copy-subscription-url">Копировать</button></span>
+            </label>
+            <img id="subscription-qr" alt="QR-код подписки" class="subscription-qr">
+          </details>
         </div>
         <p class="form-hint subscription-warning">Telegram и часть native-клиентов не обновляют подписку автоматически — после изменений отправьте клиенту ссылку заново.</p>
-        <div class="client-actions" id="subscription-actions"></div>
       </div>
       <p class="form-hint" id="subscription-unavailable" hidden></p>
       <fieldset class="links-box" id="links-box" hidden>

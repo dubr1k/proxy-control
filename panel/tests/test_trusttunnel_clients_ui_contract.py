@@ -27,7 +27,7 @@ def test_the_grant_window_and_the_bundle_use_the_shared_module():
     grant, access = (JS / "grant.js").read_text(), (JS / "access.js").read_text()
     assert 'from "./trusttunnel-clients.js"' in grant and 'from "./trusttunnel-clients.js"' in access
     assert 'kind === "trusttunnel_manual"' in grant and "appsHtml()" in grant and "manualHtml(" in grant
-    assert 'media_type === "application/json"' in access and "bindReveal(root)" in access
+    assert 'media_type === "application/json"' in access and "bindReveal" not in access
     assert "style=" not in SOURCE
 
 
@@ -60,7 +60,7 @@ def test_mobile_css_stacks_the_app_rows_and_never_scrolls_sideways():
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not installed")
-def test_the_markup_escapes_masks_the_password_and_drops_a_malformed_artifact():
+def test_the_markup_escapes_shows_every_value_and_drops_a_malformed_artifact():
     tmp = Path(tempfile.mkdtemp())
     shutil.copy(JS / "common.js", tmp / "common.mjs")
     (tmp / "tt.mjs").write_text(SOURCE.replace("./common.js", "./common.mjs"))
@@ -76,8 +76,7 @@ console.log(JSON.stringify({
   parsed: manual && [manual.server, manual.port, manual.username],
   badJson: tt.parseManual("{"), noPort: tt.parseManual(JSON.stringify({ server: "a", username: "b", password: "c" })), huge: tt.parseManual("x".repeat(70000)),
   escaped: html.includes("al&lt;ice&gt;") && !html.includes("al<ice>"),
-  masked: html.includes('class="tt-secret" data-tt-secret="pw-CANARY-1">••••••••</code>') && !html.replace(/data-(tt-secret|copy)="[^"]*"/g, "").includes("pw-CANARY-1"),
-  surgeMasked: html.includes('data-tt-secret="Proxy-TrustTunnel = trust-tunnel'),
+  shown: html.includes("<code>pw-CANARY-1</code>") && !html.includes("••••") && !html.includes("data-tt-"),
   copyButtons: (html.match(/data-copy=/g) || []).length,
   labels: ["Сервер", "Порт", "Логин", "Пароль", "SNI", "Протокол", "Сертификат (PEM)", "Строка политики Surge"].filter((l) => html.includes(l)).length,
   quicOff: html.includes("HTTP/2, QUIC выключен"),
@@ -90,7 +89,7 @@ console.log(JSON.stringify({
     out = json.loads(subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True).stdout)
     assert out["parsed"] == ["gate.example.com", "443", "al<ice>"]
     assert out["badJson"] is None and out["noPort"] is None and out["huge"] is None
-    assert out["surgeMasked"]  # the policy line carries the password: masked until pressed
-    assert out["escaped"] and out["masked"] and out["quicOff"] and out["surge"] and out["heading"]
+    # the password and the policy line are shown as they are: the same secret is in the link and the TOML next to them
+    assert out["escaped"] and out["shown"] and out["quicOff"] and out["surge"] and out["heading"]
     assert out["labels"] == 8 and out["copyButtons"] == 7 and out["inlineStyle"] is False
     assert out["appRows"] == 7 and out["safeLinks"] == 8
