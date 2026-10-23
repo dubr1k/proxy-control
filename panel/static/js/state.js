@@ -8,7 +8,7 @@ export function createPanelState() {
     me: null,
     clients: [],
     // «Клиенты» (v1.0.2): the search and the filters survive a repaint after any change.
-    clientFilter: { query: "", state: "all", protocol: "", node: "", issue: "" },
+    clientFilter: { query: "", state: "active", protocol: "", node: "", issue: "" },
     users: [],
     userFilter: "all",
     userQuery: "",

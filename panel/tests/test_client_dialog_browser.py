@@ -157,3 +157,52 @@ def test_known_server_refusals_read_in_russian(clients_browser):
         "Имя учётной записи уже занято на узле: NaiveProxy",
         "something unknown",
     ]
+
+
+def test_clients_open_on_active_and_the_badge_skips_the_archive(clients_browser):
+    browser = clients_browser
+    api = browser.fixture.api
+    live = api("/api/clients", "POST", {"display_name": "Рабочий", "subscription": False})["id"]
+    gone = api("/api/clients", "POST", {"display_name": "Ушедший", "subscription": False})["id"]
+    api(f"/api/clients/{gone}/state", "POST", {"state": "archived"})
+    open_clients(browser)
+    browser.wait("document.querySelectorAll('.client-card').length >= 1", "cards")
+    ids = browser.js("[...document.querySelectorAll('.client-card')].map(c => c.dataset.clientId)")
+    assert live in ids and gone not in ids
+    assert browser.js("document.querySelector('[data-client-filter-state=active]').getAttribute('aria-pressed')") == "true"
+    active = len([e for e in api("/api/clients")["items"] if e["client"]["state"] != "archived"])
+    browser.wait(f"document.querySelector('#clients-count').textContent === '{active}'", "badge without the archive")
+    browser.healthy()
+
+
+def test_card_menu_opens_closes_and_acts_on_a_phone(clients_browser):
+    browser = clients_browser
+    client_id = browser.fixture.api("/api/clients", "POST", {"display_name": "Меню", "subscription": False})["id"]
+    browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True})
+    open_clients(browser)
+    card = '[data-client-id="%s"]' % client_id
+    browser.wait(f"!!document.querySelector('{card} .client-menu-button')", "menu button")
+    state = f"""(() => {{ const b = document.querySelector('{card} .client-menu-button');
+      return [b.getAttribute('aria-expanded'), document.querySelector('{card} .client-menu-list').hidden]; }})()"""
+    assert browser.js(state) == ["false", True]
+    # the card is only «Открыть», «Узлы и доступы» and «⋯»; nothing runs out of a 390 px screen
+    assert browser.js(f"document.querySelectorAll('{card} .client-actions > button').length") == 2
+    assert browser.js("document.documentElement.scrollWidth <= window.innerWidth + 1") is True
+    browser.click(f"{card} .client-menu-button")
+    assert browser.js(state) == ["true", False]
+    assert browser.js("document.activeElement.dataset.clientAction") == "rename"
+    assert browser.js(f"""(() => {{ const r = document.querySelector('{card} .client-menu-list').getBoundingClientRect();
+      return r.left >= 0 && r.right <= window.innerWidth; }})()""") is True
+    browser.js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); true")
+    assert browser.js(state) == ["false", True]
+    assert browser.js(f"document.activeElement === document.querySelector('{card} .client-menu-button')") is True
+    browser.click(f"{card} .client-menu-button")
+    browser.js("document.body.click(); true")
+    assert browser.js(state) == ["false", True]
+    # an item runs the same action as before: suspending goes through the lifecycle call
+    browser.click(f"{card} .client-menu-button")
+    browser.click(f'{card} [data-client-action="suspend"]')
+    toasts = "[...document.querySelectorAll('.toast')].map(t => t.textContent).join('|')"
+    browser.wait(f"({toasts}).includes('Состояние клиента обновлено')", "suspended toast")
+    assert browser.fixture.api(f"/api/clients/{client_id}")["client"]["state"] == "suspended"
+    browser.healthy()

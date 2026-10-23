@@ -48,18 +48,47 @@ function actions(context, client) {
     return `<div class="client-actions">${open}</div>`;
   }
   const toggle = client.state === "suspended"
-    ? '<button class="secondary" data-client-action="resume">Возобновить</button>'
-    : '<button class="secondary" data-client-action="suspend">Приостановить</button>';
+    ? '<button type="button" role="menuitem" data-client-action="resume">Возобновить</button>'
+    : '<button type="button" role="menuitem" data-client-action="suspend">Приостановить</button>';
   // The same window, opened on its node × protocol matrix: add a node with a tick, take one
   // away with the cross — without hunting for it below the subscription block (v0.11).
   const placement = '<button class="secondary" data-client-action="placement">Узлы и доступы</button>';
   return `<div class="client-actions">
     ${open}
     ${placement}
-    <button class="secondary" data-client-action="rename">Переименовать</button>
-    ${toggle}
-    <button class="danger ghost" data-client-action="archive">Архивировать</button>
+    ${moreMenu([
+      '<button type="button" role="menuitem" data-client-action="rename">Переименовать</button>',
+      toggle,
+      '<button type="button" role="menuitem" class="danger-text" data-client-action="archive">Архивировать</button>',
+    ])}
   </div>`;
+}
+
+// The rarer actions live behind «⋯» so a card stays two buttons wide (390 px phones). An
+// archived card passes its own items here (permanent delete) — no items, no button.
+function moreMenu(items) {
+  if (!items.length) return "";
+  return `<span class="client-menu">
+    <button type="button" class="secondary client-menu-button" data-client-action="menu" aria-label="Ещё действия" aria-haspopup="menu" aria-expanded="false">⋯</button>
+    <span class="client-menu-list" role="menu" hidden>${items.join("")}</span>
+  </span>`;
+}
+
+function closeClientMenus(root, except = null) {
+  for (const list of root.querySelectorAll?.(".client-menu-list:not([hidden])") || []) {
+    if (list === except) continue;
+    list.hidden = true;
+    list.parentElement.querySelector(".client-menu-button")?.setAttribute("aria-expanded", "false");
+  }
+}
+
+function toggleClientMenu(button) {
+  const list = button.parentElement.querySelector(".client-menu-list");
+  const open = list.hidden;
+  closeClientMenus(button.closest(".client-list") || document, list);
+  list.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+  if (open) list.querySelector("button")?.focus();
 }
 
 function plural(count, one, few, many) {
@@ -125,7 +154,7 @@ function safeCard(context, entry) {
 
 // --- Search and filters (v1.0.2): by name, account, node, protocol and the state of grants. ---
 
-export const CLIENT_FILTER_DEFAULT = { query: "", state: "all", protocol: "", node: "", issue: "" };
+export const CLIENT_FILTER_DEFAULT = { query: "", state: "active", protocol: "", node: "", issue: "" };
 
 const ISSUES = {
   problem: ["С проблемами", (grant) => ["failed", "pending", "drifted", "missing"].includes(grant.observed_state) || grant.secret_ref === null],
@@ -220,7 +249,7 @@ function listHtml(context) {
   const items = filtered(context);
   return items.length
     ? items.map((entry) => safeCard(context, entry)).join("") + pager(context)
-    : '<div class="empty-state"><span>◇</span><h3>Никто не подходит</h3><p>Измените запрос или сбросьте фильтры.</p><button class="secondary" data-client-action="reset-filters">Сбросить фильтры</button></div>';
+    : `<div class="empty-state"><span>◇</span><h3>Никто не подходит</h3><p>Измените запрос или сбросьте фильтры.</p><button class="secondary" data-client-action="reset-filters">Сбросить фильтры</button>${filters(context).state === "all" ? "" : '<button class="secondary" data-client-action="show-all">Показать всех клиентов</button>'}</div>`;
 }
 
 // A keystroke repaints the list and the counter only — the search field keeps its focus.
@@ -276,7 +305,8 @@ function acceptPage(context, data, cursor = null, history = []) {
   state.clientPageHistory = history;
   state.clientPageError = "";
   state.clientLoading = false;
-  paintClientsCount(context, state.clientPage.total);
+  // The sidebar counts working clients; the archive has its own pill.
+  paintClientsCount(context, state.clientPage.total - (state.clientPage.counts?.archived ?? 0));
 }
 
 async function loadPage(context, cursor = null, history = []) {
@@ -567,6 +597,17 @@ export async function issueOnNode(context, { protocol, username, nodeId, options
 
 export function bindClients(context) {
   const { api, root, ui } = context;
+  // «⋯» closes on a click elsewhere and on Escape, the focus going back to its button.
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest?.(".client-menu")) closeClientMenus(document);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const open = document.querySelector?.(".client-menu-list:not([hidden])");
+    if (!open) return;
+    closeClientMenus(document);
+    open.parentElement.querySelector(".client-menu-button")?.focus();
+  });
   // Ticking a cell reveals the account name, proposed from the display name until the
   // operator types their own; unticking every cell hides it again. The name typed after the
   // ticks refreshes the proposal too, so the order of the two never matters.
@@ -815,6 +856,16 @@ export function handleClientsClick(context, button) {
     resetFilters(context);
     return true;
   }
+  if (action === "show-all") {
+    filters(context).state = "all";
+    refreshFilters(context);
+    return true;
+  }
+  if (action === "menu") {
+    toggleClientMenu(button);
+    return true;
+  }
+  if (button.closest(".client-menu-list")) closeClientMenus(button.closest(".client-list") || document);
   if (action === "import") {
     void openImportModal(context);
     return true;

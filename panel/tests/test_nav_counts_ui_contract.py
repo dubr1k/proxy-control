@@ -44,6 +44,7 @@ def test_the_overview_reuses_the_shared_painter_instead_of_its_own_copy():
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not installed")
+# The Clients badge counts working clients only: archived ones have their own pill.
 def test_all_badges_fill_without_visiting_any_section_and_a_failed_list_shows_a_dash():
     tmp = Path(tempfile.mkdtemp())
     shutil.copy(JS / "common.js", tmp / "common.mjs")
@@ -60,7 +61,7 @@ const answers = {
     amneziawg: { available: true, credentials: { total: 0 } },
     trusttunnel: { available: true, credentials: { total: 3 } } } },
   "/api/users": { items: new Array(10).fill({}) },
-  "/api/clients": { items: new Array(41).fill({}) },
+  "/api/clients": { items: [...new Array(25).fill({ client: { state: "active" } }), ...new Array(16).fill({ client: { state: "archived" } })] },
   "/api/fleet/nodes": { items: new Array(4).fill({}) },
 };
 const ok = { root, api: async (path) => answers[path] };
@@ -73,7 +74,7 @@ console.log(JSON.stringify({ first, clientsWhenDown: String(badges["#clients-cou
 """ % json.dumps((tmp / "nav.mjs").as_uri())
     out = json.loads(subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True).stdout)
     assert out["first"] == {
-        "#clients-count": "41", "#users-count": "10", "#mieru-count": "10", "#naive-count": "7",
+        "#clients-count": "25", "#users-count": "10", "#mieru-count": "10", "#naive-count": "7",
         "#amneziawg-count": "0", "#trusttunnel-count": "3", "#fleet-count": "4",
     }
     assert out["clientsWhenDown"] == "—"

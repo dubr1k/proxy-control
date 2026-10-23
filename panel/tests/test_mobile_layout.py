@@ -355,7 +355,8 @@ def test_access_cards_and_navigation_do_not_collide_on_phone(tmp_path: Path) -> 
             <span class="status-pill active"><i></i>Активен</span>
             <div class="client-actions">
               <button class="secondary">Открыть</button><button class="secondary">Узлы и доступы</button>
-              <button class="secondary">Приостановить</button><button class="danger ghost">Архивировать</button>
+              <span class="client-menu"><button class="secondary client-menu-button" aria-label="Ещё действия" aria-expanded="false">⋯</button>
+                <span class="client-menu-list" hidden><button>Переименовать</button><button>Приостановить</button><button class="danger-text">Архивировать</button></span></span>
             </div>
             <ul class="client-grants">{grants}</ul>
             <div class="client-note"><p class="form-hint">Нет сохранённого секрета у доступов: 1. Такой доступ не попадает в подписку и не даёт ссылку.</p>

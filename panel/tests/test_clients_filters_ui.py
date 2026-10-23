@@ -36,7 +36,7 @@ def _node(tmp_path: Path, body: str) -> dict:
     shutil.copytree(STATIC / "js", tmp_path / "js")
     (tmp_path / "package.json").write_text('{"type":"module"}')
     script = f"""
-      import {{ matchesClient, renderClients, handleClientsClick, handleClientsInput, openImportModal }} from './js/clients.js';
+      import {{ matchesClient, CLIENT_FILTER_DEFAULT, renderClients, handleClientsClick, handleClientsInput, openImportModal }} from './js/clients.js';
       globalThis.window = {{ location: {{ origin: 'https://example.test' }} }};
       const clients = {json.dumps(CLIENTS)};
       const nodes = {json.dumps(NODES)};
@@ -93,6 +93,36 @@ def test_search_and_filters_select_the_right_clients(tmp_path: Path) -> None:
     assert found["empty"] == ["c3"]
     assert found["noNaive"] == ["c1", "c3"]
     assert found["deletedIsNotOrphan"] == []
+
+
+def test_the_screen_opens_on_active_clients_and_the_card_keeps_two_buttons_and_a_menu(tmp_path: Path) -> None:
+    result = _node(tmp_path, """
+      await renderClients(context, 1);
+      const cards = view.innerHTML.split('<article').slice(1);
+      const buttons = (html) => (html.match(/<button[^>]*data-client-action="[a-z]+"/g) || []).length;
+      state.clientFilter = { ...CLIENT_FILTER_DEFAULT, query: 'нет такого' };
+      context.api = async (path) => path.startsWith('/api/clients') ? { items: [], total: 3, matched: 0, counts: {} } : { items: nodes };
+      await renderClients(context, 1);
+      console.log(JSON.stringify({ initial: CLIENT_FILTER_DEFAULT.state, cards, empty: view.innerHTML }));
+    """)
+    assert result["initial"] == "active"
+    # the state the panel starts with and the one «Сбросить» restores are the same
+    assert 'clientFilter: { query: "", state: "active"' in (STATIC / "js" / "state.js").read_text()
+    active, suspended, archived = result["cards"]
+    for card in (active, suspended):
+        menu = card[card.index('class="client-menu"'):]
+        assert 'aria-label="Ещё действия"' in menu and 'aria-expanded="false"' in menu and 'aria-haspopup="menu"' in menu
+        assert 'role="menu" hidden' in menu
+        # the three rarer actions sit inside the menu, not beside «Открыть»
+        outside = card[:card.index('class="client-menu"')]
+        for action in ("rename", "suspend", "resume", "archive"):
+            assert f'data-client-action="{action}"' not in outside
+        assert 'data-client-action="rename"' in menu and 'data-client-action="archive"' in menu
+    assert 'data-client-action="resume"' in suspended and 'data-client-action="suspend"' in active
+    # an archived card has no menu until it has something to put in it
+    assert "client-menu" not in archived
+    # an empty list under a narrowed state offers the whole list
+    assert 'data-client-action="show-all"' in result["empty"]
 
 
 def test_the_card_lists_clickable_grant_rows_and_escapes_names(tmp_path: Path) -> None:

@@ -1446,6 +1446,8 @@
  "Панель вернула некорректную ссылку доступа": "The panel returned an invalid access link",
  "Панель не хранит секрет этого доступа, поэтому ссылку собрать не может.": "The panel does not keep this access's secret, so it cannot build the link.",
  "Поиск клиентов": "Search clients",
+ "Ещё действия": "More actions",
+ "Показать всех клиентов": "Show all clients",
  "Поиск: клиент, учётная запись, узел": "Search: client, account, node",
  "Показать ссылку": "Show link",
  "Принять доступ": "Adopt access",
