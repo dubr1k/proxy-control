@@ -5,6 +5,7 @@
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
 import { AWG_VERSIONS, awgAccount, awgVersions } from "./placement.js";
+import { loadNodeOptions } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
 import { grantRowActions, handleGrantRowAction } from "./grant-row-actions.js";
 
@@ -85,7 +86,7 @@ export async function renderAmneziawg(context, generation) {
   context.ui.view.innerHTML = `${note}${waiting}
   <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code> и порту своей версии. Новый доступ — кнопка «+ AmneziaWG доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Конфиг с ключом показывает окно доступа.</div>
   <div class="awg-overview"><article><small>Менеджер AmneziaWG</small><strong>${esc(word)}</strong><span class="status-pill ${tone}"><i></i>${esc(word)}</span></article>${egressCard(context, data.egress)}${(data.versions || []).map(versionCard).join("")}</div>
-  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><b>Доступов AmneziaWG пока нет</b><small>Нажмите «+ AmneziaWG доступ» вверху справа.</small></div>'}</section>`;
+  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${(data.peers || []).length ? data.peers.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов AmneziaWG пока нет</h3><p>Нажмите «+ AmneziaWG доступ» вверху справа.</p></div>'}</section>`;
   startLiveRates(context, generation, "amneziawg", "amneziawg");
 }
 
@@ -111,28 +112,22 @@ export function handleAmneziawgClick(context, button) {
 }
 
 // «+ AmneziaWG доступ»: a client with the given name and one grant per ticked version on the node.
-function offeredNodes(context) {
-  return (context.state.nodes || []).filter((node) => node.node_id === "local" || (node.transport === "panel" && node.link?.enabled === true));
-}
-
 function syncAwgCreate(context) {
   const root = context.root;
   const name = query("#new-awg-user", root).value.trim();
   const picked = [...root.querySelectorAll("[data-awg-version]:checked")].length;
-  query("#create-awg", root).disabled = !name || !picked || !query("#new-awg-user", root).validity.valid;
+  query("#create-awg", root).disabled = query("#awg-node", root).disabled || !name || !picked || !query("#new-awg-user", root).validity.valid;
 }
 
-export function openAwgModal(context) {
+export async function openAwgModal(context) {
   const root = context.root;
   query("#awg-form", root).reset();
   query("#awg-error", root).textContent = "";
-  const nodes = offeredNodes(context);
-  const select = query("#awg-node", root);
-  select.innerHTML = (nodes.length ? nodes : [{ node_id: "local", display_name: "Этот сервер" }])
-    .map((node) => `<option value="${esc(node.node_id)}">${esc(node.node_id === "local" ? "Этот сервер" : node.display_name || node.node_id)}</option>`).join("");
-  paintVersions(context);
   syncAwgCreate(context);
   context.ui.openModal("#awg-modal", "#new-awg-user");
+  if (!await loadNodeOptions(context, "#awg-modal", query("#awg-node", root))) return;
+  paintVersions(context);
+  syncAwgCreate(context);
 }
 
 // A node that reports the versions it serves offers exactly those; one that reports none (older

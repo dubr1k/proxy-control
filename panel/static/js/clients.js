@@ -495,17 +495,28 @@ function nodeOptions(nodes) {
     .join("");
 }
 
+const nodeLoads = new WeakMap();
+
 // The node list is read when the dialog opens, so a panel linked a moment ago is offered;
 // the dialog keeps its «Этот сервер» default while the list loads or when it fails.
 export async function loadNodeOptions(context, dialogSelector, select) {
+  const request = {};
+  nodeLoads.set(select, request);
+  const current = () => nodeLoads.get(select) === request && query(dialogSelector, context.root).open;
+  select.disabled = true;
   select.innerHTML = '<option value="local">Этот сервер</option>';
   try {
     const nodes = await context.api("/api/nodes");
+    if (!current()) return false;
     context.state.nodes = nodes.items || [];
-    if (query(dialogSelector, context.root).open) select.innerHTML = nodeOptions(context.state.nodes) || select.innerHTML;
+    select.innerHTML = nodeOptions(context.state.nodes) || select.innerHTML;
   } catch (exception) {
+    if (!current()) return false;
     context.ui.toast(`Список узлов не загружен: ${exception.message}`, "error");
+  } finally {
+    if (current()) select.disabled = false;
   }
+  return true;
 }
 
 // The protocol screens («MTProxy», «NaiveProxy», «Mieru») manage this server's own

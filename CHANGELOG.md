@@ -4,6 +4,24 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-10-23
+
+### Fixed
+- **AmneziaWG and TrustTunnel node selection on their protocol screens.** Each access dialog loads the current node list when opened instead of relying on a previously visited screen. TrustTunnel submits the selected node rather than always using the local node; AmneziaWG takes the supported versions from the selected node's identity.
+- Reopening either dialog ignores earlier load responses; AmneziaWG creation stays disabled until node capabilities arrive.
+- Empty states on both protocol screens use the existing heading and paragraph layout, keeping the title and explanation on separate lines.
+- English translations cover the two NekoBox subscription descriptions for supported and omitted protocols.
+
+### Changed
+- The NekoBox sing-box subscription variant carries NaiveProxy, Mieru and TrustTunnel together; TrustTunnel uses HTTP/2 over TCP with QUIC off. Support depends on the NekoBox/NyameBox build and is not claimed as verified in the app. MTProxy and Mieru port ranges remain unsupported; this variant is not for official sing-box.
+
+### Security
+- Pin `certifi` to `2026.10.19` in the panel and MCP server runtime requirements, replacing `2026.7.22` flagged by the dependency audit (`PYSEC-2026-4320`).
+- Pin `opentelemetry-api` to `1.45.1` in both runtimes, addressing `CVE-2026-114603` reported by the release dependency audit.
+
+### Installer
+- Installer source and behavior are unchanged. The release build generates the published `install-release.sh` with version `3.2.1` and the new archive digest, plus `install-release.sh.sha256`; the three-file `SHA256SUMS` format and published asset set are unchanged. No API, wire format, database migration or host configuration change.
+
 ## [3.2.0] - 2026-10-20
 
 ### Added

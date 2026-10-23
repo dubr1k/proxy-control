@@ -16,10 +16,10 @@ export function columnName(column) {
   return column.version ? `AmneziaWG ${column.version}` : PROTOCOL_NAMES[column.protocol];
 }
 
-// The versions a node's manager serves: a linked panel reports them in its identity, the local
-// server in `identity.awg_versions`.
+// The versions a node's manager serves: a linked panel reports them in `link.identity`,
+// the local server in `identity.awg_versions`.
 export function awgVersions(node) {
-  const linked = node?.identity?.protocols?.amneziawg;
+  const linked = node?.link?.identity?.protocols?.amneziawg;
   if (linked && linked.enabled !== false && Array.isArray(linked.versions)) return linked.versions;
   return Array.isArray(node?.identity?.awg_versions) ? node.identity.awg_versions : [];
 }

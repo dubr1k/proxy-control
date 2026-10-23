@@ -5,7 +5,7 @@
 // grant API the client card uses.
 import { bytes, esc, initials, number, query } from "./common.js";
 import { isCurrent } from "./state.js";
-import { proposeUsername } from "./clients.js";
+import { loadNodeOptions, proposeUsername } from "./clients.js";
 import { startLiveRates } from "./live-rates.js";
 import { grantRowActions, handleGrantRowAction } from "./grant-row-actions.js";
 
@@ -70,7 +70,7 @@ export async function renderTrusttunnel(context, generation) {
   context.ui.view.innerHTML = `${waiting}
   <div class="security-note">Клиенты подключаются по имени <code>${esc(data.public_host || "—")}</code>, порт 443, только TCP/HTTP2. Новый доступ — кнопка «+ TrustTunnel доступ» вверху; тот же доступ можно выдать и из карточки клиента («Узлы и доступы»). Ссылка, QR и конфиг TOML — в окне доступа.</div>
   <div class="awg-overview tt-overview"><article><small>Менеджер TrustTunnel</small><strong>${esc(word)}</strong><span class="status-pill ${tone}"><i></i>${esc(word)}</span></article>${endpointCards(data)}${totalsCard(data)}</div>
-  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${rows.length ? rows.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><b>Доступов TrustTunnel пока нет</b><small>Нажмите «+ TrustTunnel доступ» вверху справа.</small></div>'}</section>`;
+  <section class="data-panel"><div class="data-head naive-grid"><span>Доступ</span><span>Состояние</span><span>Трафик</span><span class="align-right">Действия</span></div>${rows.length ? rows.map((row) => accessRow(context, row)).join("") : '<div class="empty-state"><h3>Доступов TrustTunnel пока нет</h3><p>Нажмите «+ TrustTunnel доступ» вверху справа.</p></div>'}</section>`;
   startLiveRates(context, generation, "trusttunnel", "trusttunnel");
 }
 
@@ -89,7 +89,7 @@ export function handleTrusttunnelClick(context, button) {
   return true;
 }
 
-// «+ TrustTunnel доступ»: one grant on this server for a chosen client, with an optional profile
+// «+ TrustTunnel доступ»: one grant on the selected node for a chosen client, with an optional profile
 // name (the label the app shows). The password is made by the node's manager, never typed here.
 function syncCreate(context) {
   const root = context.root;
@@ -98,6 +98,8 @@ function syncCreate(context) {
 
 export async function openTtModal(context) {
   const root = context.root;
+  const request = context.state.ttDialogRequest = (context.state.ttDialogRequest || 0) + 1;
+  const current = () => request === context.state.ttDialogRequest && query("#tt-modal", root).open;
   query("#tt-form", root).reset();
   query("#tt-error", root).textContent = "";
   const select = query("#tt-client", root);
@@ -105,7 +107,11 @@ export async function openTtModal(context) {
   query("#create-tt", root).disabled = true;
   context.ui.openModal("#tt-modal", "#tt-client");
   try {
-    const data = await context.api("/api/clients");
+    const [data, nodesCurrent] = await Promise.all([
+      context.api("/api/clients"),
+      loadNodeOptions(context, "#tt-modal", query("#tt-node", root)),
+    ]);
+    if (!current() || !nodesCurrent) return;
     const clients = (data.items || []).filter((entry) => entry.client.state !== "archived");
     context.state.clients = data.items || context.state.clients;
     select.innerHTML = clients.length
@@ -113,6 +119,7 @@ export async function openTtModal(context) {
       : '<option value="">Клиентов пока нет</option>';
     query("#tt-no-clients", root).hidden = clients.length > 0;
   } catch (exception) {
+    if (!current()) return;
     query("#tt-error", root).textContent = exception.message;
   }
   syncCreate(context);
@@ -142,11 +149,12 @@ export function bindTrusttunnel(context) {
     if (!query("#tt-form", root).reportValidity()) return;
     const clientId = query("#tt-client", root).value;
     const name = query("#tt-name", root).value.trim();
+    const nodeId = query("#tt-node", root).value || "local";
     try {
       ui.setBusy(button, true);
       const result = await api(`/api/clients/${encodeURIComponent(clientId)}/grants`, {
         method: "POST",
-        body: JSON.stringify({ grants: [{ protocol: "trusttunnel", node_id: "local", runtime_username: accountFor(context, clientId), options: name ? { name } : {} }] }),
+        body: JSON.stringify({ grants: [{ protocol: "trusttunnel", node_id: nodeId, runtime_username: accountFor(context, clientId), options: name ? { name } : {} }] }),
       });
       root.querySelector("#tt-modal")?.close?.();
       if (result.status === "succeeded") await context.access.openOperationBundle(result.operation_id);

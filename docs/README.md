@@ -60,6 +60,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v3.2.1](releases/v3.2.1.md) — выбор узла и пустые состояния AmneziaWG/TrustTunnel, подписка NekoBox, обновление certifi
 - [v3.2.0](releases/v3.2.0.md) — версии AmneziaWG и TrustTunnel с экрана «Версии»
 - [v3.1.0](releases/v3.1.0.md) — обзор в прямом эфире, карточки протоколов одного вида
 - [v3.0.1](releases/v3.0.1.md) — надёжный перевод стека в proxy_panel_by_dubr1k
@@ -145,6 +146,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v3.2.1](releases/v3.2.1.md) — AmneziaWG/TrustTunnel node selection and empty states, NekoBox subscription, certifi update
 - [v3.2.0](releases/v3.2.0.md) — AmneziaWG and TrustTunnel versions from the «Versions» screen
 - [v3.1.0](releases/v3.1.0.md) — a live overview, one shape for every protocol card
 - [v3.0.1](releases/v3.0.1.md) — a safe move of the stack to proxy_panel_by_dubr1k

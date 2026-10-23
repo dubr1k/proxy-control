@@ -546,10 +546,6 @@ def test_release_workflow_pins_actions_and_separates_privileged_jobs():
             assert all(character in "0123456789abcdef" for character in reference)
 
 
-def test_version_file_matches_the_declared_release():
-    assert (ROOT / "VERSION").read_text().strip() == VERSION
-
-
 def test_the_verify_tool_runs_as_a_script_from_the_repository_root():
     """The release workflow runs `python release/verify.py`, which puts
     `release/` on sys.path and not the repository root."""

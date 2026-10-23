@@ -139,10 +139,11 @@
   <dialog id="tt-modal" class="sheet">
     <form method="dialog" id="tt-form">
       <div class="modal-head"><div><span class="eyebrow">TRUSTTUNNEL</span><h2>Новый TrustTunnel-доступ</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Доступ выдаётся выбранному клиенту на этом сервере. Пароль создаёт менеджер; ссылка, QR и конфиг TOML показываются после выдачи. Новый клиент ненадолго перезапускает endpoint.</p>
+      <p class="modal-copy">Доступ выдаётся выбранному клиенту на выбранном узле. Пароль создаёт менеджер; ссылка, QR и конфиг TOML показываются после выдачи. Новый клиент ненадолго перезапускает endpoint.</p>
       <label>Клиент<select id="tt-client" name="client_id" required><option value="">…</option></select></label>
       <p class="form-hint" id="tt-no-clients" hidden>Сначала создайте клиента на экране «Клиенты».</p>
       <label>Название профиля<input id="tt-name" maxlength="64" placeholder="необязательно, например, Дом"><small>Так профиль называется в приложении TrustTunnel</small></label>
+      <label>Узел<select id="tt-node" name="node_id"><option value="local">Этот сервер</option></select></label>
       <div class="form-error" id="tt-error" role="alert"></div><footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-tt" type="button" disabled>Создать</button></footer>
     </form>
   </dialog>
