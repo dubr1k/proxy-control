@@ -184,6 +184,20 @@ def test_delete_client_refuses_an_unfinished_provisioning_operation(service):
     service.delete_client(client.id, **CTX)
 
 
+def test_delete_client_refuses_an_operation_needing_manual_intervention(service):
+    client = service.create_client("Sergey", **CTX)
+    now = int(time.time())
+    with service.database.transaction() as db:
+        db.execute("INSERT INTO provisioning_operations VALUES (?,?,?,?,?,?)",
+                   ("op1", client.id, "manual_intervention_required", "[]", now, now))
+        db.execute("UPDATE clients SET state='archived' WHERE id=?", (client.id,))
+    with pytest.raises(ClientConflict, match="manual intervention"):
+        service.delete_client(client.id, **CTX)
+    with service.database.transaction() as db:
+        db.execute("UPDATE provisioning_operations SET status='compensated'")
+    service.delete_client(client.id, **CTX)
+
+
 def test_delete_client_refuses_live_grants(service):
     client = service.create_client("Sergey", **CTX)
     store = ClientStore(service.database)

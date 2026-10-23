@@ -23,6 +23,7 @@ const DETAIL_TEXT = {
   "only an archived client can be deleted": "Удалить можно только клиента из архива",
   "node has not confirmed grant deletion yet": "Узел ещё не подтвердил удаление доступов клиента: повторите позже",
   "client has an unfinished provisioning operation": "У клиента есть незавершённая операция выдачи доступов: дождитесь её окончания",
+  "client has an operation waiting for manual intervention": "У клиента есть операция, требующая ручного вмешательства: завершите её (operations-resume), затем удалите клиента",
   "invalid credentials": "Неверный логин или пароль",
   "runtime_username is already granted on this endpoint": "Это имя учётной записи уже выдано на узле",
 };

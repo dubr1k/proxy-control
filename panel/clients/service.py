@@ -159,10 +159,17 @@ class ClientService:
             if any(grant.observed_state != "missing"
                    for grant in self.store.grants(db, client_id=client_id, include_deleted=True)):
                 raise ClientConflict("node has not confirmed grant deletion yet")
-            # Terminal states of the provisioning journal (see provisioning.TERMINAL).
+            # `manual_intervention_required` is the only record of a possibly orphaned node
+            # account, so it blocks like an unfinished operation does.
             if db.execute(
                 "SELECT 1 FROM provisioning_operations WHERE client_id=?"
-                " AND status NOT IN ('succeeded','compensated','manual_intervention_required') LIMIT 1",
+                " AND status='manual_intervention_required' LIMIT 1",
+                (client_id,),
+            ).fetchone():
+                raise ClientConflict("client has an operation waiting for manual intervention")
+            if db.execute(
+                "SELECT 1 FROM provisioning_operations WHERE client_id=?"
+                " AND status NOT IN ('succeeded','compensated') LIMIT 1",
                 (client_id,),
             ).fetchone():
                 raise ClientConflict("client has an unfinished provisioning operation")
