@@ -672,6 +672,12 @@ def test_subscription_dialog_fits_the_phone_viewport_when_open(tmp_path: Path) -
         if (form.scrollWidth > form.clientWidth + tolerance) errors.push("dialog scrolls horizontally");
         const scroll = document.querySelector(".placement-scroll");
         if (scroll.scrollWidth > scroll.clientWidth && form.scrollWidth > form.clientWidth + tolerance) errors.push("matrix scrolls the dialog instead of itself");
+        // a matrix wider than the phone scrolls inside its wrapper and keeps the node column in place
+        document.querySelector(".placement").style.minWidth = "900px";
+        scroll.scrollLeft = 200;
+        const rowHead = document.querySelector(".placement th[scope=row]").getBoundingClientRect();
+        if (!(scroll.scrollWidth > scroll.clientWidth && scroll.scrollLeft > 0)) errors.push("matrix does not scroll horizontally");
+        if (Math.abs(rowHead.left - scroll.getBoundingClientRect().left) > tolerance) errors.push("first column is not sticky");
         document.body.dataset.result = errors.length ? "fail" : "pass";
         document.body.dataset.errors = JSON.stringify(errors);
       }});

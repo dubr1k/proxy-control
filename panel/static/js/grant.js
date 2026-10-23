@@ -25,7 +25,12 @@ const OBSERVED = {
   drifted: "расхождение",
 };
 const APPS = ["karing", "singbox", "mihomo", "throne", "hiddify", "nekobox"];
-const AUTO_REFRESH = { supported: "обновляется", unsupported: "не поддерживает", unproven: "не проверено" };
+// What a tag on a grant row says about an app: shared by the card and the client window.
+export const AUTO_REFRESH = {
+  supported: "подписка обновляется сама",
+  unsupported: "приложение этот протокол не поддерживает",
+  unproven: "автообновление не проверено",
+};
 const LANE_PROTOCOLS = new Set(["naive", "mieru"]);
 // Views a grant window opens from: each re-renders after a change made in the window.
 const LISTS_BEHIND = new Set(["clients", "amneziawg", "trusttunnel"]);

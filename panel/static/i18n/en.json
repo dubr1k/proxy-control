@@ -1861,13 +1861,13 @@
  "Узел ещё не подтвердил удаление доступов клиента: повторите позже": "The node has not confirmed the deletion of the client's accesses yet: try again later",
  "У клиента есть незавершённая операция выдачи доступов: дождитесь её окончания": "The client has an unfinished access-issuing operation: wait for it to finish",
  "У клиента есть операция, требующая ручного вмешательства: завершите её (operations-resume), затем удалите клиента": "The client has an operation that needs manual intervention: finish it (operations-resume), then delete the client",
- "Метки karing · singbox · mihomo · throne у доступа — приложения, которые читают подписку.": "The karing · singbox · mihomo · throne tags on an access are the apps that read the subscription.",
  "автообновление не проверено": "auto-refresh not verified",
  "жёлтая": "yellow",
  "зелёная": "green",
  "серая": "grey",
- "не обновляется: после изменений импортируйте ссылку заново": "not refreshed: import the link again after changes",
- "не обновляется: после изменений импортируйте ссылку заново.": "not refreshed: import the link again after changes.",
  "подписка обновляется сама": "the subscription refreshes itself",
- "приложение само подтягивает изменения": "the app picks up changes itself"
+ "приложение само подтягивает изменения": "the app picks up changes itself",
+ "приложение этот протокол не поддерживает": "the app does not support this protocol",
+ "Метки karing · singbox · mihomo · throne у доступа — приложения, которые читают подписку.": "The karing · singbox · mihomo · throne tags on an access are the apps that read the subscription.",
+ "приложение этот протокол не поддерживает. «только конфиг» и «только ссылка» — доступ не входит в подписку: AmneziaWG выдаётся файлом и QR, MTProxy — ссылкой tg://proxy.": "the app does not support this protocol. “config only” and “link only” — the access is not part of the subscription: AmneziaWG is given as a file and a QR, MTProxy as a tg://proxy link."
 }

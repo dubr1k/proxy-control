@@ -2,7 +2,7 @@ import { esc, locale, OPERATION_MESSAGE, OPERATION_OK, query, queryAll } from ".
 import { placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { proposeUsername } from "./clients.js";
 import { proxyLink, qrSource } from "./access.js";
-import { grantRowHtml } from "./grant.js";
+import { AUTO_REFRESH, grantRowHtml } from "./grant.js";
 
 const PROTOCOL_NAMES = { mtproxy: "MTProxy", naive: "NaiveProxy", mieru: "Mieru", amneziawg: "AmneziaWG", trusttunnel: "TrustTunnel" };
 
@@ -57,11 +57,6 @@ const VARIANTS = [
   },
 ];
 
-const AUTO_REFRESH = {
-  supported: "подписка обновляется сама",
-  unsupported: "не обновляется: после изменений импортируйте ссылку заново",
-  unproven: "автообновление не проверено",
-};
 
 // Паузы между перечитываниями карточки, пока узел не подтвердил доступ. Первая короче
 // такта pusher'а (15 с) — узел нередко отвечает раньше; дальше реже, и всего около двух
@@ -185,6 +180,7 @@ export function createSubscriptionDialog(context) {
     const order = { mtproxy: 0, naive: 1, mieru: 2, amneziawg: 3, trusttunnel: 4 };
     const grants = liveGrants().sort((left, right) => (order[left.protocol] ?? 9) - (order[right.protocol] ?? 9)
       || String(left.node_id).localeCompare(String(right.node_id)));
+    query("#grant-legend", root).hidden = grants.length === 0;
     query("#subscription-grants", root).innerHTML = grants.length
       ? grants.map((grant) => grantRow(grant, state.matrix, context.state.nodes)).join("")
       : '<li class="client-empty">У клиента нет доступов — отметьте узлы и протоколы выше</li>';
@@ -322,6 +318,7 @@ export function createSubscriptionDialog(context) {
     state.grants = [];
     state.rows = [];
     queryAll("#subscription-grants li", root).forEach((node) => node.remove());
+    query("#grant-legend", root).hidden = true;
     query("#placement-body", root).innerHTML = "";
     query("#placement-actions", root).innerHTML = "";
     query("#subscription-status", root).textContent = "";

@@ -244,5 +244,6 @@ def test_new_client_dialog_shows_every_matrix_column_without_scrolling(clients_b
       root.innerHTML = p.renderPlacement(p.placementRows(nodes, grants), {canWrite: true});
       const s = root.querySelector('.placement-scroll');
       return [s.scrollWidth <= s.clientWidth + 1, [...root.querySelectorAll('thead th')].filter(th => th.textContent === 'AmneziaWG').length]; })()""")
-    assert wide == [True, 1]
+    sizes = browser.js("[document.querySelector('#client-modal').getBoundingClientRect().width, document.querySelector('#client-placement .placement-scroll').scrollWidth, document.querySelector('#client-placement .placement-scroll').clientWidth]")
+    assert wide == [True, 1], sizes
     browser.healthy()
