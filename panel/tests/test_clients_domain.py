@@ -144,7 +144,7 @@ def test_delete_client_removes_its_rows_and_keeps_the_audit(service):
     with pytest.raises(ClientConflict, match="archived"):
         service.delete_client(client.id, **CTX)
     with service.database.transaction() as db:
-        store.update_grant(db, store.grants(db, client_id=client.id)[0].id, desired_state="deleted")
+        store.update_grant(db, store.grants(db, client_id=client.id)[0].id, desired_state="deleted", observed_state="missing")
     service.set_state(client.id, "archived", **CTX)
     service.delete_client(client.id, **CTX)
     with service.database.connect() as db:
@@ -154,6 +154,34 @@ def test_delete_client_removes_its_rows_and_keeps_the_audit(service):
     assert actions[-1] == "client.delete" and "client.create" in actions
     with pytest.raises(KeyError):
         service.delete_client(client.id, **CTX)
+
+
+def test_delete_client_waits_for_the_node_to_confirm_a_grant_deletion(service):
+    client = service.create_client("Sergey", **CTX)
+    store = ClientStore(service.database)
+    with service.database.transaction() as db:
+        store.insert_grant(db, _grant(client.id))
+        grant_id = store.grants(db, client_id=client.id)[0].id
+        store.update_grant(db, grant_id, desired_state="deleted", observed_state="unknown")
+    service.set_state(client.id, "archived", **CTX)
+    with pytest.raises(ClientConflict, match="not confirmed"):
+        service.delete_client(client.id, **CTX)
+    with service.database.transaction() as db:
+        store.update_grant(db, grant_id, observed_state="missing")
+    service.delete_client(client.id, **CTX)
+
+
+def test_delete_client_refuses_an_unfinished_provisioning_operation(service):
+    client = service.create_client("Sergey", **CTX)
+    now = int(time.time())
+    with service.database.transaction() as db:
+        db.execute("INSERT INTO provisioning_operations VALUES (?,?,?,?,?,?)", ("op1", client.id, "pending_remote", "[]", now, now))
+        db.execute("UPDATE clients SET state='archived' WHERE id=?", (client.id,))
+    with pytest.raises(ClientConflict, match="unfinished"):
+        service.delete_client(client.id, **CTX)
+    with service.database.transaction() as db:
+        db.execute("UPDATE provisioning_operations SET status='succeeded'")
+    service.delete_client(client.id, **CTX)
 
 
 def test_delete_client_refuses_live_grants(service):

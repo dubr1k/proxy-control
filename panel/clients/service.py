@@ -143,13 +143,29 @@ class ClientService:
             return after
 
     def delete_client(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None) -> None:
-        """Permanent removal of an archived client with no live grants; the audit log stays."""
+        """Permanent removal of an archived client with no live grants; the audit log stays.
+
+        Unlike `purge_grant`, which keeps secret rows as an audit trail, the client's secret
+        rows go too: nothing can use them once the client is gone. A deletion a node has not
+        confirmed yet, or an unfinished provisioning operation, still refers to the client,
+        so both refuse the delete."""
         with self.database.transaction() as db:
             before = self.store.client(db, client_id)
             if before.state != "archived":
                 raise ClientConflict("only an archived client can be deleted")
             if self.store.grants(db, client_id=client_id):
                 raise ClientConflict("client still has grants that are not deleted")
+            # A remote grant stays as a deletion until the node reports it missing.
+            if any(grant.observed_state != "missing"
+                   for grant in self.store.grants(db, client_id=client_id, include_deleted=True)):
+                raise ClientConflict("node has not confirmed grant deletion yet")
+            # Terminal states of the provisioning journal (see provisioning.TERMINAL).
+            if db.execute(
+                "SELECT 1 FROM provisioning_operations WHERE client_id=?"
+                " AND status NOT IN ('succeeded','compensated','manual_intervention_required') LIMIT 1",
+                (client_id,),
+            ).fetchone():
+                raise ClientConflict("client has an unfinished provisioning operation")
             self.store.delete_client(db, client_id)
             record(
                 db, actor=actor, action="client.delete", target=client_id, ip=ip, request_id=request_id,

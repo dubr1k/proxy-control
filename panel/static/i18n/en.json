@@ -1857,5 +1857,7 @@
  "Удалить навсегда": "Delete permanently",
  "Клиент удалён": "Client deleted",
  "и его ссылка подписки будут удалены без возможности восстановления.": "and its subscription link will be deleted and cannot be restored.",
- "Удалить можно только клиента из архива": "Only an archived client can be deleted"
+ "Удалить можно только клиента из архива": "Only an archived client can be deleted",
+ "Узел ещё не подтвердил удаление доступов клиента: повторите позже": "The node has not confirmed the deletion of the client's accesses yet: try again later",
+ "У клиента есть незавершённая операция выдачи доступов: дождитесь её окончания": "The client has an unfinished access-issuing operation: wait for it to finish"
 }

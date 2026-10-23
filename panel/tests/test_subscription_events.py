@@ -141,7 +141,7 @@ def test_the_bus_refuses_unknown_names_and_scrubs_payloads(app):
 async def test_deleting_an_archived_client_ends_its_subscription_url(app, public, client_id, token):
     assert (await public.get(f"/s/{token}", params={"format": "singbox"})).status_code == 200
     with app.state.database.transaction() as db:
-        db.execute("UPDATE access_grants SET desired_state='deleted' WHERE client_id=?", (client_id,))
+        db.execute("UPDATE access_grants SET desired_state='deleted', observed_state='missing' WHERE client_id=?", (client_id,))
     app.state.clients.set_state(client_id, "archived", **CTX)
     app.state.clients.delete_client(client_id, **CTX)
     assert (await public.get(f"/s/{token}", params={"format": "singbox"})).status_code == 404

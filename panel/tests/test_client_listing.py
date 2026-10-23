@@ -120,7 +120,7 @@ async def test_client_delete_route_refuses_then_removes_and_the_token_stops_reso
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     made = (await client.post("/api/clients", json={"display_name": "Лишний"}, headers=headers)).json()
     client_id = made["id"]
-    assert (await client.delete(f"/api/clients/{client_id}")).status_code in (401, 403)  # CSRF
+    assert (await client.delete(f"/api/clients/{client_id}")).status_code == 403  # CSRF
     refused = await client.delete(f"/api/clients/{client_id}", headers=headers)
     assert refused.status_code == 409 and "archived" in refused.json()["detail"]
     assert (await client.post(f"/api/clients/{client_id}/state", json={"state": "archived"}, headers=headers)).status_code == 200
@@ -129,3 +129,14 @@ async def test_client_delete_route_refuses_then_removes_and_the_token_stops_reso
     assert (await client.delete(f"/api/clients/{client_id}", headers=headers)).status_code == 404
     with client._transport.app.state.database.connect() as db:  # noqa: SLF001
         assert db.execute("SELECT COUNT(*) FROM audit_log WHERE action='client.delete' AND target=?", (client_id,)).fetchone()[0] == 1
+
+
+@pytest.mark.anyio
+async def test_client_delete_route_is_closed_to_viewers(client, login_user):
+    await login_user(client)
+    headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    client_id = (await client.post("/api/clients", json={"display_name": "Чужой"}, headers=headers)).json()["id"]
+    client._transport.app.state.store.create_admin("viewer", "viewer password long enough", "viewer")  # noqa: SLF001
+    await login_user(client, "viewer", "viewer password long enough")
+    viewer = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    assert (await client.delete(f"/api/clients/{client_id}", headers=viewer)).status_code == 403
