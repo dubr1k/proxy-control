@@ -112,3 +112,20 @@ async def test_client_api_keeps_legacy_full_list_and_exposes_validated_pages(cli
     assert [entry["client"]["display_name"] for entry in found["items"]] == ["Иван"]
     for params in ({"limit": 201}, {"limit": 1, "cursor": "bad"}, {"limit": 1, "issue": "nonsense"}):
         assert (await client.get("/api/clients", params=params)).status_code == 422
+
+
+@pytest.mark.anyio
+async def test_client_delete_route_refuses_then_removes_and_the_token_stops_resolving(client, login_user):
+    await login_user(client)
+    headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
+    made = (await client.post("/api/clients", json={"display_name": "Лишний"}, headers=headers)).json()
+    client_id = made["id"]
+    assert (await client.delete(f"/api/clients/{client_id}")).status_code in (401, 403)  # CSRF
+    refused = await client.delete(f"/api/clients/{client_id}", headers=headers)
+    assert refused.status_code == 409 and "archived" in refused.json()["detail"]
+    assert (await client.post(f"/api/clients/{client_id}/state", json={"state": "archived"}, headers=headers)).status_code == 200
+    assert (await client.delete(f"/api/clients/{client_id}", headers=headers)).json() == {"deleted": client_id}
+    assert (await client.get(f"/api/clients/{client_id}")).status_code == 404
+    assert (await client.delete(f"/api/clients/{client_id}", headers=headers)).status_code == 404
+    with client._transport.app.state.database.connect() as db:  # noqa: SLF001
+        assert db.execute("SELECT COUNT(*) FROM audit_log WHERE action='client.delete' AND target=?", (client_id,)).fetchone()[0] == 1

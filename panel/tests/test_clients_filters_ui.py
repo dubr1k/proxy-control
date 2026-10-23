@@ -119,8 +119,9 @@ def test_the_screen_opens_on_active_clients_and_the_card_keeps_two_buttons_and_a
             assert f'data-client-action="{action}"' not in outside
         assert 'data-client-action="rename"' in menu and 'data-client-action="archive"' in menu
     assert 'data-client-action="resume"' in suspended and 'data-client-action="suspend"' in active
-    # an archived card has no menu until it has something to put in it
-    assert "client-menu" not in archived
+    # an archived card's menu holds only the permanent delete
+    archived_menu = archived[archived.index('class="client-menu"'):]
+    assert 'data-client-action="delete"' in archived_menu and 'data-client-action="rename"' not in archived
     # an empty list under a narrowed state offers the whole list
     assert 'data-client-action="show-all"' in result["empty"]
 

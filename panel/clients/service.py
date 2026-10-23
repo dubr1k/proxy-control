@@ -142,6 +142,21 @@ class ClientService:
             self.notify(db, client_id)
             return after
 
+    def delete_client(self, client_id: str, *, actor: dict, ip: str, request_id: str | None = None) -> None:
+        """Permanent removal of an archived client with no live grants; the audit log stays."""
+        with self.database.transaction() as db:
+            before = self.store.client(db, client_id)
+            if before.state != "archived":
+                raise ClientConflict("only an archived client can be deleted")
+            if self.store.grants(db, client_id=client_id):
+                raise ClientConflict("client still has grants that are not deleted")
+            self.store.delete_client(db, client_id)
+            record(
+                db, actor=actor, action="client.delete", target=client_id, ip=ip, request_id=request_id,
+                before_digest=digest(before.model_dump()), detail={"display_name": before.display_name},
+            )
+            self.notify(db, client_id)
+
     async def reconcile_access(self, client_id: str | None = None, *, force: bool = False) -> None:
         """Confirm local access after state/time changes; failed writes stay pending.
 

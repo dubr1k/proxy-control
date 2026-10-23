@@ -44,8 +44,10 @@ function actions(context, client) {
   // The client window is read-only for viewers, so it is offered to everyone; the buttons
   // that change anything appear inside it by role.
   const open = '<button class="secondary" data-client-action="open">Открыть</button>';
-  if (context.state.me?.role === "viewer" || client.state === "archived") {
-    return `<div class="client-actions">${open}</div>`;
+  if (context.state.me?.role === "viewer") return `<div class="client-actions">${open}</div>`;
+  if (client.state === "archived") {
+    const remove = '<button type="button" role="menuitem" class="danger-text" data-client-action="delete">Удалить навсегда</button>';
+    return `<div class="client-actions">${open}${moreMenu([remove])}</div>`;
   }
   const toggle = client.state === "suspended"
     ? '<button type="button" role="menuitem" data-client-action="resume">Возобновить</button>'
@@ -792,6 +794,23 @@ async function lifecycle(context, clientId, action) {
   await context.navigate("clients");
 }
 
+// Only an archived client without accesses can go; the server checks it again.
+async function deleteClient(context, entry) {
+  const confirmed = await context.ui.confirmed(
+    "Удалить клиента навсегда?",
+    `${entry.client.display_name} и его ссылка подписки будут удалены без возможности восстановления.`,
+    "Удалить навсегда",
+  );
+  if (!confirmed) return;
+  try {
+    await context.api(`/api/clients/${encodeURIComponent(entry.client.id)}`, { method: "DELETE" });
+    context.ui.toast("Клиент удалён");
+  } catch (exception) {
+    context.ui.toast(exception.message, "error");
+  }
+  await context.navigate("clients");
+}
+
 async function adopt(context, button) {
   const { grantId, grantProtocol } = button.dataset;
   const rotation = ROTATION_REQUIRED.has(grantProtocol);
@@ -868,6 +887,12 @@ export function handleClientsClick(context, button) {
   if (button.closest(".client-menu-list")) closeClientMenus(button.closest(".client-list") || document);
   if (action === "import") {
     void openImportModal(context);
+    return true;
+  }
+  if (action === "delete") {
+    const card = button.closest("[data-client-id]");
+    const entry = context.state.clients.find((item) => item.client.id === card?.dataset.clientId);
+    if (entry) void deleteClient(context, entry);
     return true;
   }
   if (action === "adopt") {

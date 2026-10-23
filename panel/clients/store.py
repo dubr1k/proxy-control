@@ -198,6 +198,22 @@ class ClientStore:
             raise KeyError(client_id)
 
     @staticmethod
+    def delete_client(db, client_id: str) -> None:
+        """The client's own rows, children first (the foreign keys restrict). The caller has
+        checked that no live grant is left; what remains are rows of a finished life."""
+        # Encrypted versions of its subscription token and of the deleted grants' credentials.
+        db.execute(
+            "DELETE FROM secret_versions WHERE secret_id IN"
+            " (SELECT secret_id FROM client_subscriptions WHERE client_id=? AND secret_id IS NOT NULL)"
+            " OR grant_id IN (SELECT id FROM access_grants WHERE client_id=?)",
+            (client_id, client_id),
+        )
+        for table in ("access_grants", "provisioning_operations", "client_subscriptions"):
+            db.execute(f"DELETE FROM {table} WHERE client_id=?", (client_id,))
+        if db.execute("DELETE FROM clients WHERE id=?", (client_id,)).rowcount != 1:
+            raise KeyError(client_id)
+
+    @staticmethod
     def rename_client(db, client_id: str, display_name: str, *, updated_at: int) -> None:
         changed = db.execute(
             "UPDATE clients SET display_name=?,updated_at=? WHERE id=?", (display_name, updated_at, client_id)

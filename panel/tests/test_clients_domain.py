@@ -134,3 +134,33 @@ def test_a_state_change_notifies_subscribers_inside_the_transaction(service):
     client = service.create_client("Sergey", **CTX)
     service.set_state(client.id, "suspended", **CTX)
     assert seen == [(True, client.id), (True, client.id)]
+
+
+def test_delete_client_removes_its_rows_and_keeps_the_audit(service):
+    client = service.create_client("Sergey", **CTX)
+    store = ClientStore(service.database)
+    with service.database.transaction() as db:
+        store.insert_grant(db, _grant(client.id))
+    with pytest.raises(ClientConflict, match="archived"):
+        service.delete_client(client.id, **CTX)
+    with service.database.transaction() as db:
+        store.update_grant(db, store.grants(db, client_id=client.id)[0].id, desired_state="deleted")
+    service.set_state(client.id, "archived", **CTX)
+    service.delete_client(client.id, **CTX)
+    with service.database.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM clients WHERE id=?", (client.id,)).fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM access_grants WHERE client_id=?", (client.id,)).fetchone()[0] == 0
+        actions = [row[0] for row in db.execute("SELECT action FROM audit_log WHERE target=?", (client.id,))]
+    assert actions[-1] == "client.delete" and "client.create" in actions
+    with pytest.raises(KeyError):
+        service.delete_client(client.id, **CTX)
+
+
+def test_delete_client_refuses_live_grants(service):
+    client = service.create_client("Sergey", **CTX)
+    store = ClientStore(service.database)
+    with service.database.transaction() as db:
+        store.insert_grant(db, _grant(client.id))
+        db.execute("UPDATE clients SET state='archived' WHERE id=?", (client.id,))
+    with pytest.raises(ClientConflict, match="grants"):
+        service.delete_client(client.id, **CTX)

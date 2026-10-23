@@ -43,6 +43,10 @@ OPENAPI = {
             "post": {"summary": "Create", "description": "Create a client.", "operationId": "create_client",
                      "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ClientCreate"}}}}},
         },
+        "/api/clients/{client_id}": {
+            "delete": {"summary": "Delete Client", "operationId": "delete_client",
+                       "parameters": [{"name": "client_id", "in": "path", "required": True, "schema": {"type": "string"}}]},
+        },
         "/api/clients/{client_id}/grants": {
             "post": {"summary": "Create Grants", "operationId": "create_grants",
                      "parameters": [{"name": "client_id", "in": "path", "required": True, "schema": {"type": "string"}}],
@@ -287,6 +291,8 @@ def test_irreversible_operations_require_confirm():
     assert "confirm" in update.input_schema["required"]
     delete = operations["delete_keys_by_key_id"]
     assert "confirm" in delete.input_schema["required"]
+    # Deleting a client is permanent: the generated tool asks for confirm like any DELETE.
+    assert "confirm" in operations["delete_clients_by_client_id"].input_schema["required"]
     # A path whose parameter may take an irreversible value gets an optional `confirm`.
     action = operations["post_clients_grants_by_grant_id_by_action"]
     assert "confirm" in action.input_schema["properties"] and "confirm" not in action.input_schema["required"]

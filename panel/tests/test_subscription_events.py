@@ -136,3 +136,14 @@ def test_the_bus_refuses_unknown_names_and_scrubs_payloads(app):
     assert isinstance(row_id, int)
     assert "public_url" not in bus.recent[-1] and bus.recent[-1]["subscription_id"] == "s1"
     assert "public_url" not in json.dumps(_events(app))
+
+
+async def test_deleting_an_archived_client_ends_its_subscription_url(app, public, client_id, token):
+    assert (await public.get(f"/s/{token}", params={"format": "singbox"})).status_code == 200
+    with app.state.database.transaction() as db:
+        db.execute("UPDATE access_grants SET desired_state='deleted' WHERE client_id=?", (client_id,))
+    app.state.clients.set_state(client_id, "archived", **CTX)
+    app.state.clients.delete_client(client_id, **CTX)
+    assert (await public.get(f"/s/{token}", params={"format": "singbox"})).status_code == 404
+    with app.state.database.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM client_subscriptions WHERE client_id=?", (client_id,)).fetchone()[0] == 0

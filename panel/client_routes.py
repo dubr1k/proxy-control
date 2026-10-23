@@ -377,6 +377,17 @@ def register_client_routes(app, context: RequestContext) -> None:
             raise HTTPException(409, str(exc)) from exc
         return changed.model_dump()
 
+    @app.delete("/api/clients/{client_id}")
+    async def delete_client(client_id: str, request: Request, user=Depends(context.roles("owner", "admin"))):
+        """Permanent removal of an archived client that has no grants left."""
+        try:
+            await asyncio.to_thread(app.state.clients.delete_client, client_id, **_context(request, user))
+        except KeyError as exc:
+            raise HTTPException(404, "client not found") from exc
+        except ClientConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return {"deleted": client_id}
+
     @app.post("/api/clients/{client_id}/rename")
     async def rename(
         client_id: str, body: ClientRename, request: Request, user=Depends(context.roles("owner", "admin"))

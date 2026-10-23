@@ -20,6 +20,7 @@ const DETAIL_WORTH_SHOWING = new Set(["exit_invalid", "egress_invalid", "lanes_i
 // login flows, in the operator's words. Anything unknown keeps the server's own text.
 const DETAIL_TEXT = {
   "client still has grants that are not deleted": "У клиента остались неудалённые доступы",
+  "only an archived client can be deleted": "Удалить можно только клиента из архива",
   "invalid credentials": "Неверный логин или пароль",
   "runtime_username is already granted on this endpoint": "Это имя учётной записи уже выдано на узле",
 };

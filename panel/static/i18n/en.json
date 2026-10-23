@@ -1852,5 +1852,10 @@
  "исправьте имя учётной записи и нажмите «Создать» ещё раз: клиент второй раз не создаётся.": "fix the account name and press “Create” again: the client is not created a second time.",
  "исчезнет из активных.": "will disappear from the active ones.",
  "исчезнет из активных. Сначала панель удалит доступы клиента на узлах": "will disappear from the active ones. First the panel will delete the client's accesses on the nodes",
- "их ссылки и ключи перестанут работать.": "their links and keys will stop working."
+ "их ссылки и ключи перестанут работать.": "their links and keys will stop working.",
+ "Удалить клиента навсегда?": "Delete the client permanently?",
+ "Удалить навсегда": "Delete permanently",
+ "Клиент удалён": "Client deleted",
+ "и его ссылка подписки будут удалены без возможности восстановления.": "and its subscription link will be deleted and cannot be restored.",
+ "Удалить можно только клиента из архива": "Only an archived client can be deleted"
 }

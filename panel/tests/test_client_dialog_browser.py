@@ -142,6 +142,26 @@ def test_archive_offers_to_delete_the_accesses_first(clients_browser):
     browser.healthy()
 
 
+def test_an_archived_client_is_deleted_from_its_menu_after_a_confirm(clients_browser):
+    browser = clients_browser
+    api = browser.fixture.api
+    client_id = api("/api/clients", "POST", {"display_name": "Лишний", "subscription": False})["id"]
+    api(f"/api/clients/{client_id}/state", "POST", {"state": "archived"})
+    open_clients(browser)
+    browser.click("[data-client-filter-state=archived]")
+    card = '[data-client-id="%s"]' % client_id
+    browser.wait(f"!!document.querySelector('{card} .client-menu-button')", "archived card menu")
+    browser.click(f"{card} .client-menu-button")
+    browser.click(f'{card} [data-client-action="delete"]')
+    browser.wait("document.querySelector('#confirm').open === true", "confirm dialog")
+    assert browser.js("document.querySelector('#confirm-ok').textContent").strip() == "Удалить навсегда"
+    browser.click("#confirm-ok")
+    toasts = "[...document.querySelectorAll('.toast')].map(t => t.textContent).join('|')"
+    browser.wait(f"({toasts}).includes('Клиент удалён')", "deleted toast")
+    assert all(entry["client"]["id"] != client_id for entry in api("/api/clients")["items"])
+    browser.healthy()
+
+
 def test_known_server_refusals_read_in_russian(clients_browser):
     browser = clients_browser
     open_clients(browser)

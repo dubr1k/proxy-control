@@ -238,6 +238,11 @@ A client is a person or a device; a grant is their account in one protocol on on
 node. The card shows the client's name, its state (active / suspended / archived) and
 one chip per grant: "protocol · runtime account · state".
 
+An archived client with no grants left can be deleted permanently: "Delete permanently"
+in the card's "⋯" menu (`DELETE /api/clients/{client_id}`, owner and admin, audited as
+`client.delete`). The client's subscription link stops resolving; the panel refuses (409)
+a client that is not archived or still has undeleted grants.
+
 "Import existing" lists what the managers already run. The panel only **reads** them:
 passwords, quotas and enabled flags are untouched, and no `create`, `rotate`, `enable`
 or `delete` is ever issued. Import is therefore safe on a live server and can be
