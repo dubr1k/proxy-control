@@ -112,14 +112,30 @@ function cell(row, column, canWrite) {
   </td>`;
 }
 
+// Header of two levels: a protocol with several versions (AmneziaWG) is one group over its
+// version cells, so the versions stay separate columns without repeating the protocol name.
+function header(columns) {
+  const groups = [];
+  for (const column of columns) {
+    const last = groups[groups.length - 1];
+    if (column.version !== null && last?.protocol === column.protocol) last.columns.push(column);
+    else groups.push({ protocol: column.protocol, columns: [column] });
+  }
+  const top = groups.map((group) => group.columns[0].version === null
+    ? `<th rowspan="2">${esc(PROTOCOL_NAMES[group.protocol])}</th>`
+    : `<th colspan="${group.columns.length}" class="placement-group">${esc(PROTOCOL_NAMES[group.protocol])}</th>`).join("");
+  const sub = groups.flatMap((group) => group.columns).filter((column) => column.version !== null)
+    .map((column) => `<th>${esc(column.version)}</th>`).join("");
+  return `<tr><th rowspan="2" class="placement-node">Узел</th>${top}</tr><tr>${sub}</tr>`;
+}
+
 export function renderPlacement(rows, { canWrite }) {
   const columns = columnsFor(rows);
-  const head = columns.map((column) => `<th>${esc(columnName(column))}</th>`).join("");
   const body = rows.map((row) => `<tr data-placement-node="${esc(row.node_id)}"${row.offered ? "" : ' class="placement-row-locked"'}>
     <th scope="row">${esc(row.label)}${row.offered ? "" : " <small>панель на паузе</small>"}</th>
     ${columns.map((column) => cell(row, column, canWrite)).join("")}
   </tr>`).join("");
-  return `<div class="placement-scroll"><table class="placement"><thead><tr><th>Узел</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="placement-scroll"><table class="placement"><thead>${header(columns)}</thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function readPlacement(root) {

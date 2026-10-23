@@ -93,6 +93,10 @@
 .placement-cell label{display:inline-flex;align-items:center;gap:6px;margin:0}.placement-cell small{color:var(--muted);font-size:10px}
 .placement-cell button{margin-left:4px;min-height:24px;padding:0 6px}
 .placement-row-locked th,.placement-row-locked td{color:var(--muted)}
+.placement thead th{text-align:center;color:var(--text-2);font-weight:560}.placement thead th.placement-node{text-align:left}
+.placement th.placement-node,.placement th[scope=row]{position:sticky;left:0;z-index:1;background:#121318}
+.placement-scroll{scrollbar-width:auto;scrollbar-color:var(--quiet) transparent}
+.sheet.wide,.access-dialog.wide{width:min(960px,calc(100vw - 28px))}
 @media(max-width:560px){.node-card.linked-node{grid-template-columns:auto 1fr;grid-template-areas:"glyph identity" "pill pill" "tabs tabs" "body body" "actions actions"}.node-tabs button{flex:1 1 auto;min-height:38px}.link-grid{grid-template-columns:1fr}.node-component>span,.node-component select{flex-basis:100%}.node-component button{flex:1 1 100%}.node-import-actions button{flex:1 1 100%}}
 @media(max-width:900px){.key-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.key-grid.data-head{display:none}.key-grid .row-actions{grid-column:1 / -1;justify-content:flex-start}}
 .refresh-supported{color:var(--green);border-color:rgba(45,186,116,.4)!important}.refresh-unsupported{color:var(--quiet)}.refresh-unproven{color:var(--amber);border-color:rgba(231,168,75,.4)!important}
@@ -308,7 +312,7 @@
 [data-grant-state=disabled]>.grant-state small::before,[data-grant-state=failed]>.grant-state small::before,.grant-state-word[data-grant-state=disabled]::before,.grant-state-word[data-grant-state=failed]::before{background:var(--red)}
 [data-grant-state=pending]>.grant-state small::before,.grant-state-word[data-grant-state=pending]::before{background:var(--amber)}
 .auto-refresh{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
-.auto-refresh small{padding:1px 6px;border:1px solid var(--line);border-radius:5px;font-size:10px;line-height:1.5;white-space:nowrap}
+.auto-refresh small,.grant-legend small{padding:1px 6px;border:1px solid var(--line);border-radius:5px;font-size:10px;line-height:1.5;white-space:nowrap}
 .subscription-grants{margin:10px 0}
 /* The row follows the width of its own list — a wide card, the client window, a phone —
    not the width of the screen: the same row sits in all three. */

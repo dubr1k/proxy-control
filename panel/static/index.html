@@ -273,7 +273,7 @@
     </form>
   </dialog>
 
-  <dialog id="client-modal" class="sheet">
+  <dialog id="client-modal" class="sheet wide">
     <form method="dialog" id="client-form">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2>Новый клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <p class="modal-copy">Клиент — это человек или устройство. Отметьте узлы и протоколы — доступы будут выданы сразу; без отметок создаётся карточка и ссылка подписки.</p>
@@ -300,7 +300,7 @@
     </form>
   </dialog>
 
-  <dialog id="subscription-modal" class="access-dialog">
+  <dialog id="subscription-modal" class="access-dialog wide">
     <form method="dialog">
       <div class="modal-head"><div><span class="eyebrow">КЛИЕНТ</span><h2 id="subscription-title">Клиент</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
       <div id="subscription-box">
@@ -332,6 +332,7 @@
         <label id="placement-username-row" hidden>Имя учётной записи<input id="placement-username" pattern="[A-Za-z0-9_.\-]{1,64}" maxlength="64" autocomplete="off" placeholder="например, laptop"><small>Одно имя для новых доступов; латиница, цифры, точка, дефис, подчёркивание</small></label>
         <div id="placement-body"></div>
         <ul class="client-grants subscription-grants" id="subscription-grants"></ul>
+        <p class="form-hint grant-legend">Метки karing · singbox · mihomo · throne у доступа — приложения, которые читают подписку. <small class="refresh-supported">зелёная</small> приложение само подтягивает изменения; <small class="refresh-unproven">жёлтая</small> не проверено; <small class="refresh-unsupported">серая</small> не обновляется: после изменений импортируйте ссылку заново.</p>
         <p class="form-hint">Галочка — выдать или включить, снятая — выключить (аккаунт остаётся). Удалить — крестиком в клетке.</p>
         <div class="client-actions" id="placement-actions"></div>
       </fieldset>

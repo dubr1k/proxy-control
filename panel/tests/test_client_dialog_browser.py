@@ -226,3 +226,23 @@ def test_card_menu_opens_closes_and_acts_on_a_phone(clients_browser):
     browser.wait(f"({toasts}).includes('Состояние клиента обновлено')", "suspended toast")
     assert browser.fixture.api(f"/api/clients/{client_id}")["client"]["state"] == "suspended"
     browser.healthy()
+
+
+def test_new_client_dialog_shows_every_matrix_column_without_scrolling(clients_browser):
+    browser = clients_browser
+    browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": False})
+    open_clients(browser)
+    open_dialog(browser)
+    fits = browser.js("""(() => { const s = document.querySelector('#client-placement .placement-scroll');
+      return [s.scrollWidth <= s.clientWidth + 1, document.querySelector('#client-modal').getBoundingClientRect().width > 700]; })()""")
+    assert fits == [True, True]
+    # all three AmneziaWG versions on a node with the longest cell captions: still no scroll
+    wide = browser.js("""(async () => { const p = await import('/static/js/placement.js');
+      const nodes = [{node_id: 'local', display_name: 'self', transport: 'local', identity: {awg_versions: ['1.5', '2.0', '3.1']}}];
+      const grants = ['mtproxy', 'naive', 'mieru', 'trusttunnel'].map((protocol, i) => ({id: 'g' + i, protocol, node_id: 'local', desired_state: 'enabled', observed_state: 'pending', secret_ref: null}));
+      const root = document.querySelector('#client-placement');
+      root.innerHTML = p.renderPlacement(p.placementRows(nodes, grants), {canWrite: true});
+      const s = root.querySelector('.placement-scroll');
+      return [s.scrollWidth <= s.clientWidth + 1, [...root.querySelectorAll('thead th')].filter(th => th.textContent === 'AmneziaWG').length]; })()""")
+    assert wide == [True, 1]
+    browser.healthy()

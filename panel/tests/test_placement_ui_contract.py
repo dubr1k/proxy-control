@@ -94,6 +94,20 @@ def test_render_marks_cells_and_disables_what_cannot_change():
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not installed")
+def test_awg_versions_share_one_group_header_over_separate_cells():
+    html = run("""
+      const nodes = [{node_id: "local", display_name: "self", transport: "local", identity: {awg_versions: ["1.5", "2.0", "3.1"]}}];
+      const rows = p.placementRows(nodes, []);
+      console.log(JSON.stringify(p.renderPlacement(rows, {canWrite: true})));
+    """)
+    assert html.count("AmneziaWG") == 1 and 'colspan="3"' in html
+    assert '<th rowspan="2">MTProxy</th>' in html and '<th rowspan="2" class="placement-node">Узел</th>' in html
+    assert "<th>1.5</th><th>2.0</th><th>3.1</th>" in html
+    for version in ("1.5", "2.0", "3.1"):  # still one checkbox per version
+        assert f'data-protocol="amneziawg:{version}"' in html
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not installed")
 def test_settling_is_true_while_a_node_has_not_confirmed_and_ignores_deleted_grants():
     """The card polls on this predicate: «ожидает узел» must not stay on screen after the
     node reported the account, and a grant on its way out is nobody's wait."""
