@@ -137,6 +137,12 @@ export function versionOptions(entries) {
 
 // A running build the agent knows only by its image digest («sha256:7c84…»): the catalog or
 // upstream entry with that digest gives it the human version, else it is a «сборка sha256:…».
+// The body of «install this version»: the agent compares `expected_current` with the value
+// it reported itself, so it is the raw one (a digest stays a digest), never the display label.
+export function updateRequestBody(version, rawCurrent) {
+  return { version, expected_current: rawCurrent === "не определена" ? null : rawCurrent };
+}
+
 export function installedVersion(current, available) {
   if (typeof current !== "string" || !current.startsWith("sha256:")) return { label: current, entry: null };
   const digest = current.slice("sha256:".length);
@@ -147,14 +153,18 @@ export function installedVersion(current, available) {
 
 // Dotted numeric order (3.5.9 < 3.5.14) for the releases around a digest-identified build.
 export function versionIsNewer(version, installed) {
-  const parts = (text) => String(text).split(/[.\-+]/).map((part) => Number.parseInt(part, 10) || 0);
-  const left = parts(version);
-  const right = parts(installed);
-  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
-    const diff = (left[i] || 0) - (right[i] || 0);
+  const parse = (text) => {
+    const [base, ...rest] = String(text).trim().replace(/^v/i, "").split(/[-+]/);
+    return { numbers: base.split(".").map((part) => Number.parseInt(part, 10) || 0), pre: rest.length > 0 };
+  };
+  const left = parse(version);
+  const right = parse(installed);
+  for (let i = 0; i < Math.max(left.numbers.length, right.numbers.length); i += 1) {
+    const diff = (left.numbers[i] || 0) - (right.numbers[i] || 0);
     if (diff) return diff > 0;
   }
-  return false;
+  // 26.10.17-beta ranks below 26.10.17
+  return left.pre === right.pre ? false : right.pre;
 }
 
 export function plural(count, one, few, many) {

@@ -1,4 +1,4 @@
-import { cssEscape, date, esc, initials, installedVersion, query, versionIsNewer, versionOptions } from "./common.js";
+import { cssEscape, date, esc, initials, installedVersion, query, updateRequestBody, versionIsNewer, versionOptions } from "./common.js";
 import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
@@ -49,7 +49,7 @@ export async function renderVersions(context, generation) {
     const control = updating
       ? `<p class="version-empty"><b>Обновление идёт…</b> Панель пересобирается и перезапускается; страница перезагрузится сама.</p><button class="primary version-update" disabled>Обновление идёт…</button>`
       : offered.length
-        ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(current)}" disabled>Установить</button>`
+        ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(raw)}" data-current-label="${esc(current)}" disabled>Установить</button>`
         : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Установить</button>`;
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
     // Managers the agent does not rebuild: their sources changed with the release.
@@ -150,7 +150,8 @@ async function rebuildManagers(context, button) {
 async function versionAction(context, component, button) {
   const select = query(`[data-version-select="${cssEscape(component)}"]`, context.ui.view);
   const version = select?.value;
-  const current = button.dataset.current;
+  const raw = button.dataset.current;
+  const current = button.dataset.currentLabel || raw;
   if (!version) return;
   // A `naive` candidate of kind `build` rebuilds Caddy on the host (up to 15 min); a `telemt`
   // one builds a local image from the upstream release binary.
@@ -171,7 +172,7 @@ async function versionAction(context, component, button) {
   if (!await context.ui.confirmed(title, text, back ? "Откатить" : "Обновить")) return;
   try {
     context.ui.setBusy(button, true, panel ? "Перезапускаем…" : building || manager ? "Собираем…" : "Обновляем…");
-    await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify({ version, expected_current: current === "не определена" ? null : current }) });
+    await context.api(`/api/versions/${encodeURIComponent(component)}/update`, { method: "POST", body: JSON.stringify(updateRequestBody(version, raw)) });
     if (panel) {
       // The agent answered before restarting the panel: do not navigate, wait for it.
       await pollPanelUpdate(context, version);

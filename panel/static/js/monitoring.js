@@ -428,13 +428,13 @@ function paintTiles(context, node, ring, single) {
   foot("disk", `Запись ${rateText(disk.write_bps)} · чтение ${rateText(disk.read_bps)}${finite(disk.busy_percent) ? ` · занят ${formatPercent(disk.busy_percent)}` : ""}`);
 
   const net = host.net || {};
-  fig("net", `<div class="net-pair"><span><small>↓ к клиентам</small><b>${rateText(net.tx_bps)}</b></span><span><small>↑ от клиентов</small><b>${rateText(net.rx_bps)}</b></span></div>`);
+  fig("net", `<div class="net-pair"><span><small>↑ исходящий</small><b>${rateText(net.tx_bps)}</b></span><span><small>↓ входящий</small><b>${rateText(net.rx_bps)}</b></span></div>`);
   sub("net", "Все интерфейсы");
   spark("net", [
     { values: ring.v["net.tx_bps"] || [], cls: "ser-tile" },
     { values: ring.v["net.rx_bps"] || [], cls: "ser-tile-2", dash: true, noArea: true },
   ], "rate");
-  foot("net", "Сплошная — к клиентам, пунктир — от клиентов");
+  foot("net", "Сплошная — исходящий, пунктир — входящий; все интерфейсы");
 
   const load = host.load || [];
   const perCore = finite(load[0]) && host.cores ? (load[0] / host.cores) * 100 : null;
@@ -890,7 +890,7 @@ function shareBar(row) {
 
 function compareHtml(rows, mon) {
   if (!rows.length) return emptyBlock("Нет узлов для сравнения", "Свяжите ещё одну панель на экране «Узлы» — она появится здесь.");
-  return `<div class="mon-table-wrap"><table class="mon-table stack mon-compare"><thead><tr><th>Узел</th><th>Состояние</th><th class="num">CPU</th><th class="num">RAM</th><th class="num">Диск</th><th class="num">Сеть ↓ / ↑ (средняя)</th><th>Трафик за период</th><th>Алерты</th></tr></thead><tbody>${rows.map((row) => {
+  return `<div class="mon-table-wrap"><table class="mon-table stack mon-compare"><thead><tr><th>Узел</th><th>Состояние</th><th class="num">CPU</th><th class="num">RAM</th><th class="num">Диск</th><th class="num">Сеть ↑ исходящий / ↓ входящий (средняя)</th><th>Трафик за период</th><th>Алерты</th></tr></thead><tbody>${rows.map((row) => {
     const host = row.host || {};
     const usable = row.status === "ok" || row.status === "stale";
     return `<tr class="${usable ? "clickable" : "muted-row"}${mon.drill === row.node_id ? " selected" : ""}${row.status === "stale" ? " is-stale" : ""}" data-node-row="${esc(row.node_id)}">
@@ -899,7 +899,7 @@ function compareHtml(rows, mon) {
       <td class="num" data-label="CPU"><span class="cellv"><span class="cell-flex"><span class="cell-spark" data-spark="${esc(row.node_id)}:host.cpu"></span><span class="cell-nums">${statCell(host.cpu)}</span></span></span></td>
       <td class="num" data-label="RAM"><span class="cellv">${statCell(host.mem)}</span></td>
       <td class="num" data-label="Диск"><span class="cellv">${statCell(host.disk)}</span></td>
-      <td class="num" data-label="Сеть ↓ / ↑"><span class="cellv"><b>${host.net_tx_bps ? rateText(host.net_tx_bps.avg) : "—"}</b><small>↑ ${host.net_rx_bps ? rateText(host.net_rx_bps.avg) : "—"}</small></span></td>
+      <td class="num" data-label="Сеть ↑ / ↓"><span class="cellv"><b>↑ ${host.net_tx_bps ? rateText(host.net_tx_bps.avg) : "—"}</b><small>↓ ${host.net_rx_bps ? rateText(host.net_rx_bps.avg) : "—"}</small></span></td>
       <td data-label="Трафик"><span class="cellv"><b>${usable ? formatBytes(totalOf(row)) : "—"}</b>${usable ? shareBar(row) : ""}<span class="cell-spark" data-spark="${esc(row.node_id)}:net"></span></span></td>
       <td data-label="Алерты"><span class="cellv">${alertBadges(row.alerts)}</span></td></tr>`;
   }).join("")}</tbody></table></div>
@@ -1021,8 +1021,8 @@ async function openDrill(context, nodeId, generation, epoch) {
   rt.charts.push(lineChart(query('[data-drill-chart="net"]', grid), {
     x: aligned.x, domain, unit: "rate", height: 150, label: "Сеть",
     series: [
-      { id: "tx", label: "↓ к клиентам", cls: "ser-tile", values: aligned.series["net.tx_bps"] || [] },
-      { id: "rx", label: "↑ от клиентов", cls: "ser-tile-2", dash: true, values: aligned.series["net.rx_bps"] || [] },
+      { id: "tx", label: "↑ исходящий", cls: "ser-tile", values: aligned.series["net.tx_bps"] || [] },
+      { id: "rx", label: "↓ входящий", cls: "ser-tile-2", dash: true, values: aligned.series["net.rx_bps"] || [] },
     ],
     legend: true, legendValues: false,
   }));

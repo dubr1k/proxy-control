@@ -1926,5 +1926,9 @@
  "сбой": "failure",
  "сборка": "build",
  "ядра": "cores",
- "↑ от клиента · ↓ к клиенту": "↑ from the client · ↓ to the client"
+ "↑ от клиента · ↓ к клиенту": "↑ from the client · ↓ to the client",
+ "Сеть ↑ исходящий / ↓ входящий (средняя": "Network ↑ outgoing / ↓ incoming (average",
+ "Сплошная — исходящий, пунктир — входящий; все интерфейсы": "Solid — outgoing, dashed — incoming; all interfaces",
+ "↑ исходящий": "↑ outgoing",
+ "↓ входящий": "↓ incoming"
 }

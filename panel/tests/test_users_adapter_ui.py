@@ -579,7 +579,7 @@ async def test_versions_panel_is_owner_only_and_has_runtime_update_contract(clie
     management = (await client.get("/static/js/management.js")).text
     assert "renderVersions" in management and "versionAction" in management
     assert "/api/versions" in management and "/update`" in management
-    assert "expected_current" in management
+    assert "updateRequestBody" in management and "expected_current" in (await client.get("/static/js/common.js")).text
     assert ".version-grid" in (await client.get("/static/style.css")).text
 
 

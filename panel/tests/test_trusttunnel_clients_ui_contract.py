@@ -41,9 +41,11 @@ def test_the_subscription_page_lists_exactly_the_verified_apps_of_the_panel():
     entries = re.findall(r'\{\n    name: "([^"]+)".*?verified: (true|false),\s*links: \[(.*?)\],?\n  \}', SOURCE, re.S)
     verified = [(name, set(re.findall(r'"(https://[^"]+)"', links))) for name, flag, links in entries if flag == "true"]
     assert len(entries) == 7 and len(verified) == len(TRUSTTUNNEL_APPS) == 3
+    # each Python entry is ((ru, en) name, (ru, en) platforms, (ru, en) how, links)
     for (js_name, js_urls), (py_name, _, _, py_links) in zip(verified, TRUSTTUNNEL_APPS):
         assert js_urls == {url for _, url in py_links}
-        assert js_name == py_name or ("mihomo" in py_name and "Clash" in js_name)
+        ru_name = py_name[0]
+        assert js_name == ru_name or ("mihomo" in ru_name and "Clash" in js_name)
 
 
 def test_unverified_claims_are_worded_as_unverified():

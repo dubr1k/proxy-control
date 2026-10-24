@@ -80,4 +80,6 @@ def test_fragments_glued_to_values_translate_in_composed_strings():
 def test_the_local_server_name_is_translated_next_to_an_account_name():
     source = (STATIC / "js" / "i18n.js").read_text(encoding="utf-8")
     # operator-typed names stay as typed, the node label beside them does not
-    assert ".grant-account > span" in source and ",.grant-account," not in source
+    assert ".grant-account," in source and "data-translate" in source
+    grant = (STATIC / "js" / "grant.js").read_text(encoding="utf-8")
+    assert '<span data-translate>Этот сервер</span>' in grant

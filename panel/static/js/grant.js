@@ -66,7 +66,7 @@ export function grantRowHtml(grant, { nodes = [], extra = "" } = {}) {
   return `<li class="grant-item" data-grant-id="${esc(grant.id)}" data-grant-protocol="${esc(grant.protocol)}">
     <button type="button" class="grant-row" data-grant-open="${esc(grant.id)}" data-grant-state="${esc(grantTone(grant))}" aria-label="Доступ ${esc(protocolTitle(grant))} · ${esc(grant.runtime_username)}: подробности и ссылка">
       <b class="grant-proto">${esc(protocolTitle(grant))}</b>
-      <span class="grant-account"><span>${esc(grant.runtime_username)}</span><small class="grant-node">${esc(nodeName(nodes, grant.node_id))}</small></span>
+      <span class="grant-account"><span>${esc(grant.runtime_username)}</span><small class="grant-node">${!grant.node_id || grant.node_id === "local" ? "<span data-translate>Этот сервер</span>" : esc(nodeName(nodes, grant.node_id))}</small></span>
       <span class="grant-state"><small>${esc(grantStatus(grant))}</small>${orphan}</span>
       ${lane}
       ${extra}
@@ -90,8 +90,8 @@ function limits(grant) {
   const parts = [];
   if (grant.protocol === "mtproxy") {
     if (options.data_quota_bytes) parts.push(`трафик ${bytes(options.data_quota_bytes)}`);
-    if (options.rate_limit_up_bps) parts.push(`отдача ${rate(options.rate_limit_up_bps)}`);
-    if (options.rate_limit_down_bps) parts.push(`загрузка ${rate(options.rate_limit_down_bps)}`);
+    if (options.rate_limit_up_bps) parts.push(`↑ от клиентов ${rate(options.rate_limit_up_bps)}`);
+    if (options.rate_limit_down_bps) parts.push(`↓ к клиентам ${rate(options.rate_limit_down_bps)}`);
     if (options.max_tcp_conns) parts.push(`соединений ${options.max_tcp_conns}`);
     if (options.max_unique_ips) parts.push(`IP-адресов ${options.max_unique_ips}`);
     if (options.expiration) parts.push(`до ${formatDate(options.expiration)}`);

@@ -13,7 +13,7 @@ const LANGS = ["ru", "en"];
 const CYRILLIC = /[А-Яа-яЁё]/;
 const ATTRIBUTES = ["placeholder", "title", "aria-label", "alt"];
 // Text the operator typed (client and account names) and code-like blocks stay as they are.
-const SKIP = "script,style,pre,code,textarea,[data-no-i18n],.client-identity b,.grant-account > span,.identity b";
+const SKIP = "script,style,pre,code,textarea,[data-no-i18n],.client-identity b,.grant-account,.identity b";
 
 let dictionary = null;
 let pattern = null;
@@ -54,8 +54,9 @@ export function translate(text) {
   return lead + (pattern ? body.replace(pattern, (match) => dictionary[match] ?? match) : body) + tail;
 }
 
+// `data-translate` marks the panel's own label inside an otherwise skipped block.
 function skipped(element) {
-  return Boolean(element?.closest?.(SKIP));
+  return Boolean(element?.closest?.(SKIP)) && !element.closest("[data-translate]");
 }
 
 function translateElement(element) {
