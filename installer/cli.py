@@ -62,6 +62,7 @@ _SECRET_ASSIGNMENT = re.compile(
     r"(\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|\S+)"
 )
 _LEGACY_STATE = Path("var/lib/proxy-control/runtime.json")
+_INSTALLED_VERSION = "/opt/mtproxy-shared443/VERSION"
 
 
 class CliError(RuntimeError):
@@ -189,7 +190,7 @@ def _default_services(root: Path, source_dir: Path | None = None) -> CliServices
         engine=engine,
         store=store,
         wizard=lambda io, locale, output: TerminalWizard(
-            io, locale=locale, config_output=output, root=root
+            io, locale=locale, config_output=output, root=root, language_fixed=locale is not None
         ),
     )
 
@@ -331,6 +332,9 @@ def _wizard(
     locale = parse_locale(args.lang) if args.lang else None
     wizard = services.wizard(io, locale, args.config_output)
     preliminary_facts = services.audit(None)
+    installed = _installed_version(args.root)
+    if installed is not None:
+        preliminary_facts = AuditFacts(ownership={"installed": {"version": installed}})
     try:
         config = wizard.run(preliminary_facts)
     except WizardSaved:
@@ -557,6 +561,18 @@ def _write_status(state: TransactionState, *, json_output: bool, output: TextIO)
         if "error" in payload:
             output.write(f"error: {payload['error']}\n")
     output.flush()
+
+
+def _installed_version(root: Path) -> str | None:
+    """The version of a Proxy Control already on this host (`""` when the file is unreadable), or
+    `None` on a clean one: the release tree the installer put under /opt/mtproxy-shared443."""
+    path = root / _INSTALLED_VERSION.lstrip("/")
+    if not path.is_file():
+        return None
+    try:
+        return path.read_text(encoding="utf-8").strip()[:32]
+    except OSError:
+        return ""
 
 
 def _read_status(services: CliServices, root: Path) -> TransactionState:

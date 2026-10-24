@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 [[ ${EUID:-$(id -u)} -eq 0 ]] || { printf 'run as root\n' >&2; exit 1; }
+# No .pyc: root-owned bytecode would keep an unprivileged user from deleting the unpacked release.
+export PYTHONDONTWRITEBYTECODE=1
 if [[ $# -eq 0 ]]; then
     exec env PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -m installer.cli wizard
 fi

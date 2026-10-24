@@ -473,3 +473,43 @@ def test_passwords_typed_in_the_wizard_reach_the_adapters_on_its_own_apply(tmp_p
     assert result == 0, stderr
     assert engine.calls and seen == [typed]
     assert not staged_path(tmp_path).exists()
+
+
+def test_an_installed_host_reaches_the_wizard_as_a_fact(tmp_path):
+    seen: list[AuditFacts] = []
+
+    class Spy(ReturningWizard):
+        def run(self, facts):
+            seen.append(facts)
+            return super().run(facts)
+
+    (tmp_path / "opt/mtproxy-shared443").mkdir(parents=True)
+    (tmp_path / "opt/mtproxy-shared443/VERSION").write_text("3.2.1\n")
+    config = load_config(CORE_CONFIG)
+    services, _ = _services(config, wizard=Spy(config))
+    _run(["--root", str(tmp_path), "wizard"], services, input_text="quit\n")
+    assert seen[0].ownership["installed"]["version"] == "3.2.1"
+
+
+def test_a_clean_host_reaches_the_wizard_without_the_installed_fact(tmp_path):
+    seen: list[AuditFacts] = []
+
+    class Spy(ReturningWizard):
+        def run(self, facts):
+            seen.append(facts)
+            return super().run(facts)
+
+    config = load_config(CORE_CONFIG)
+    services, _ = _services(config, wizard=Spy(config))
+    _run(["--root", str(tmp_path), "wizard"], services, input_text="quit\n")
+    assert "installed" not in seen[0].ownership
+
+
+def test_lang_fixes_the_wizard_language(tmp_path):
+    from installer.wizard import TerminalWizard
+
+    services = cli._default_services(tmp_path)
+    fixed = services.wizard(cli.TerminalIO(io.StringIO(""), io.StringIO()), Locale.RU, tmp_path / "c.toml")
+    asked = services.wizard(cli.TerminalIO(io.StringIO(""), io.StringIO()), None, tmp_path / "c.toml")
+    assert isinstance(fixed, TerminalWizard) and fixed.language_fixed is True
+    assert asked.language_fixed is False

@@ -28,6 +28,7 @@ VERSION=
 EXPECTED=
 DESTINATION=
 LANGUAGE=
+LANGUAGE_GIVEN=0   # --lang was typed: the wizard does not ask the language again
 MODE=install   # install | update | check | unpack | requirements
 REQUIRE_ATTESTATION=0
 SOURCE_DIR=
@@ -82,7 +83,7 @@ while (($#)); do
         --sha256) EXPECTED=${2:?}; shift 2 ;;
         --dir) DESTINATION=${2:?}; shift 2 ;;
         --from-dir) SOURCE_DIR=${2:?}; shift 2 ;;
-        --lang) LANGUAGE=${2:?}; shift 2 ;;
+        --lang) LANGUAGE=${2:?}; LANGUAGE_GIVEN=1; shift 2 ;;
         --requirements) MODE=requirements; shift ;;
         --check-only) MODE=check; shift ;;
         --no-wizard) MODE=unpack; shift ;;
@@ -497,7 +498,8 @@ if [[ $MODE == update ]]; then
     say "обновляю этот хост до v$VERSION от root (sudo): панель через version-agent, затем изменившиеся менеджеры" \
         "updating this host to v$VERSION as root (sudo): the panel through the version-agent, then the changed managers"
     cd -- "$root"
-    exec sudo -- bash "$root/scripts/update-host.sh" --version "$VERSION" --sha256 "$actual" --lang "$LANGUAGE"
+    # No .pyc: root-owned bytecode in the user's directory would keep them from deleting it.
+    exec sudo -- env PYTHONDONTWRITEBYTECODE=1 bash "$root/scripts/update-host.sh" --version "$VERSION" --sha256 "$actual" --lang "$LANGUAGE"
 fi
 
 if (($#)); then
@@ -507,4 +509,7 @@ else
         "starting the installer's wizard as root (sudo); it asks, shows the plan and applies nothing without the digest confirmation"
 fi
 cd -- "$root"
-exec sudo -- bash "$root/install.sh" "$@"
+if (($# == 0)) && ((LANGUAGE_GIVEN)); then
+    set -- wizard --lang "$LANGUAGE"
+fi
+exec sudo -- env PYTHONDONTWRITEBYTECODE=1 bash "$root/install.sh" "$@"
