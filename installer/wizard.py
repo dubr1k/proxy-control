@@ -464,9 +464,10 @@ class TerminalWizard:
         (the default) or go on with a reinstall."""
         assert self.locale is not None
         installed = facts.ownership.get("installed")
-        if not installed:
+        # A full audit reports the same thing as `installer.present`.
+        if not installed and not (facts.ownership.get("installer") or {}).get("present"):
             return
-        version = str(installed.get("version") or "")
+        version = str((installed or {}).get("version") or "")
         self.io.write(
             text(self.locale, "already_installed", version=version)
             if version

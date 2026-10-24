@@ -11,7 +11,7 @@ import sys
 import tarfile
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol, TextIO
 
@@ -63,6 +63,7 @@ _SECRET_ASSIGNMENT = re.compile(
 )
 _LEGACY_STATE = Path("var/lib/proxy-control/runtime.json")
 _INSTALLED_VERSION = "/opt/mtproxy-shared443/VERSION"
+_OWNERSHIP_JOURNAL = "/var/lib/proxy-control/ownership.json"
 
 
 class CliError(RuntimeError):
@@ -334,7 +335,10 @@ def _wizard(
     preliminary_facts = services.audit(None)
     installed = _installed_version(args.root)
     if installed is not None:
-        preliminary_facts = AuditFacts(ownership={"installed": {"version": installed}})
+        preliminary_facts = replace(
+            preliminary_facts,
+            ownership={**preliminary_facts.ownership, "installed": {"version": installed}},
+        )
     try:
         config = wizard.run(preliminary_facts)
     except WizardSaved:
@@ -564,15 +568,16 @@ def _write_status(state: TransactionState, *, json_output: bool, output: TextIO)
 
 
 def _installed_version(root: Path) -> str | None:
-    """The version of a Proxy Control already on this host (`""` when the file is unreadable), or
-    `None` on a clean one: the release tree the installer put under /opt/mtproxy-shared443."""
+    """The version of a Proxy Control already on this host (`""` when unknown), or `None` on a
+    clean one. Either signal counts: the release tree under /opt/mtproxy-shared443 (its VERSION
+    names the version) or the installer's ownership journal (what the audit calls `present`)."""
     path = root / _INSTALLED_VERSION.lstrip("/")
-    if not path.is_file():
-        return None
     try:
-        return path.read_text(encoding="utf-8").strip()[:32]
+        if path.is_file():
+            return path.read_text(encoding="utf-8").strip()[:32]
     except OSError:
         return ""
+    return "" if (root / _OWNERSHIP_JOURNAL.lstrip("/")).is_file() else None
 
 
 def _read_status(services: CliServices, root: Path) -> TransactionState:

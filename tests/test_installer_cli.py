@@ -513,3 +513,29 @@ def test_lang_fixes_the_wizard_language(tmp_path):
     asked = services.wizard(cli.TerminalIO(io.StringIO(""), io.StringIO()), None, tmp_path / "c.toml")
     assert isinstance(fixed, TerminalWizard) and fixed.language_fixed is True
     assert asked.language_fixed is False
+
+
+def test_installed_fact_keeps_the_audited_listeners(tmp_path):
+    seen: list[AuditFacts] = []
+
+    class Spy(ReturningWizard):
+        def run(self, facts):
+            seen.append(facts)
+            return super().run(facts)
+
+    (tmp_path / "opt/mtproxy-shared443").mkdir(parents=True)
+    (tmp_path / "opt/mtproxy-shared443/VERSION").write_text("3.2.1\n")
+    config = load_config(CORE_CONFIG)
+    services, _ = _services(config, wizard=Spy(config))
+    audited = AuditFacts(listeners={"tcp": ({"port": 443},)}, ownership={"docker": {"version": "x"}})
+    services = replace(services, audit=lambda _config: audited)
+    _run(["--root", str(tmp_path), "wizard"], services, input_text="quit\n")
+    assert seen[0].listeners == audited.listeners
+    assert seen[0].ownership["docker"] == {"version": "x"} and seen[0].ownership["installed"]["version"] == "3.2.1"
+
+
+def test_the_ownership_journal_alone_marks_an_installed_host(tmp_path):
+    assert cli._installed_version(tmp_path) is None
+    (tmp_path / "var/lib/proxy-control").mkdir(parents=True)
+    (tmp_path / "var/lib/proxy-control/ownership.json").write_text("{}")
+    assert cli._installed_version(tmp_path) == ""

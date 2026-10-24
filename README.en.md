@@ -231,8 +231,7 @@ wizard (which then does not ask for it). The script runs the installer as root w
 `.pyc` files, so the unpacked directory can be removed with a plain `rm -rf` afterwards. If
 Proxy Control is already installed on the server, the wizard says so, points at
 `bash install-release.sh --update` and by default quits without changes; answer `continue` to
-go on with a reinstall. To
-install exactly 3.2.1, replace `releases/latest/download/` in both URLs with
+go on with a reinstall. To install exactly 3.2.1, replace `releases/latest/download/` in both URLs with
 `releases/download/v3.2.1/`.
 
 The project deliberately never offers «download and run in one command»: the script is

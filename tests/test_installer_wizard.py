@@ -1141,7 +1141,10 @@ def test_an_installed_host_is_told_about_update_and_quits_by_default(locale: Loc
     shown = transcript.getvalue()
     assert notice in shown
     # Nothing was asked before the warning, and nothing after the default answer.
-    assert "fresh" not in shown.split(notice, 1)[1].replace("quit", "")
+    after = shown.split(notice, 1)[1]
+    # Only the reinstall question follows the notice; no setup question was asked.
+    assert "fresh" not in after.replace("quit", "") and "domain" not in after.lower() and "домен" not in after.lower()
+    assert "Language" not in shown
 
 
 def test_an_installed_host_can_continue_with_a_reinstall(tmp_path: Path):
@@ -1210,14 +1213,33 @@ def test_every_review_key_of_the_examples_has_a_label_or_is_hidden():
 
     from installer.config import parse_config
     from installer.i18n import _CATALOG
-    from installer.wizard import _REVIEW_HIDDEN, _REVIEW_HIDDEN_WHEN, _flatten
+    from installer.wizard import _REVIEW_HIDDEN, _flatten
 
     known = set(_CATALOG[Locale.EN])
     missing: set[str] = set()
     for path in glob.glob(str(ROOT / "examples" / "installer" / "*.toml")):
         for key, value in _flatten(parse_config(Path(path).read_text()).canonical_dict()):
-            if value == "None" or key in _REVIEW_HIDDEN or key in _REVIEW_HIDDEN_WHEN:
+            if value == "None" or key in _REVIEW_HIDDEN:
                 continue
             if "review_" + key.replace(".", "_") not in known:
                 missing.add(key)
     assert missing == set()
+
+
+def test_the_installer_audit_fact_alone_also_shows_the_notice():
+    from installer.wizard import WizardQuit
+
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.EN, language_fixed=True)
+    with pytest.raises(WizardQuit):
+        wizard.run(AuditFacts(ownership={"installer": {"present": True}}))
+    assert "Proxy Control is already installed on this server. To update it" in transcript.getvalue()
+
+
+def test_non_default_service_ports_are_labelled_in_the_review():
+    from installer.i18n import text
+
+    for locale in Locale:
+        for key in ("egress.relay_port", "mieru.lane_slots", "egress.warp_port", "three_xui.warp_port"):
+            assert text(locale, "review_" + key.replace(".", "_"))
