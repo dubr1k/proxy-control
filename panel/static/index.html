@@ -413,14 +413,14 @@
 
   <dialog id="link-modal" class="sheet wide">
     <form method="dialog" id="link-form">
-      <div class="modal-head"><div><span class="eyebrow">СВЯЗАННАЯ ПАНЕЛЬ</span><h2 id="link-title">Добавить панель</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
-      <p class="modal-copy">Центр сам опрашивает панель по HTTPS с её ключом node-sync и доставляет ей доступы. Ключ хранится зашифрованно и никогда не показывается снова.</p>
+      <div class="modal-head"><div><span class="eyebrow">СВЯЗАННАЯ ПАНЕЛЬ</span><h2 id="link-title">Добавить узел</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Введите адрес панели узла и её ключ. Ключ узел создаёт у себя: «Узлы → Создать ключ для центра». Центр сам обращается к узлу и доставляет ему доступы; ключ хранится зашифрованно и больше не показывается.</p>
       <input id="link-node-id" type="hidden">
       <div class="link-grid">
         <label>Имя<input id="link-name" maxlength="128" autocomplete="off" placeholder="например, Frankfurt panel" required></label>
         <label>URL панели<input id="link-url" type="url" maxlength="512" autocomplete="off" placeholder="https://panel.example.org" required><small>Только https; приватный адрес — с галочкой ниже</small></label>
       </div>
-      <label>API-ключ<input id="link-key" type="password" maxlength="256" autocomplete="off" placeholder="pc_…"><small id="link-key-hint">Ключ со scope node-sync, созданный на добавляемой панели</small></label>
+      <label>API-ключ<input id="link-key" type="password" maxlength="256" autocomplete="off" placeholder="pc_…"><small id="link-key-hint">Ключ, который панель узла показала в «Узлы → Создать ключ для центра»</small></label>
       <fieldset class="grant-protocols link-tls">
         <legend>Проверка TLS</legend>
         <label class="grant-protocol"><input type="radio" name="tls_verify" value="verify" checked> verify — сертификат панели подписан доверенным CA</label>
@@ -457,6 +457,18 @@
       <label>Срок действия<input id="key-expires" type="datetime-local"><small>Пустое поле — бессрочный ключ</small></label>
       <div class="form-error" id="key-error" role="alert"></div>
       <footer><button class="secondary" value="cancel" formnovalidate>Отмена</button><button class="primary" id="create-key" type="button">Создать</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="center-key-modal" class="sheet">
+    <form method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">КЛЮЧ ДЛЯ ЦЕНТРА</span><h2>Скопируйте адрес и ключ сейчас</h2></div><button class="icon-button close" value="cancel" formnovalidate aria-label="Закрыть">×</button></div>
+      <p class="modal-copy">Ключ показывается один раз: после закрытия окна его не восстановить, только создать новый.</p>
+      <label>Адрес этой панели<span class="copy-field"><input id="center-url" readonly aria-label="Адрес этой панели"><button type="button" id="copy-center-url">Скопировать</button></span></label>
+      <label>Ключ<span class="copy-field"><input id="center-key" readonly aria-label="Ключ для центра"><button type="button" id="copy-center-key">Скопировать</button></span></label>
+      <p class="form-hint">На центральной панели откройте «Узлы → Добавить узел» и введите этот адрес и ключ.</p>
+      <div class="security-note">Ключ даёт доступ к панели без пароля. Не публикуйте его и не пересылайте открытым текстом.</div>
+      <footer><button class="primary" value="cancel" formnovalidate>Готово</button></footer>
     </form>
   </dialog>
 

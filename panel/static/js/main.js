@@ -48,7 +48,7 @@ const TITLES = {
   users: ["MTProxy", "Пользователи, ссылки и ключи доступа"],
   naive: ["NaiveProxy", "HTTPS-прокси, конфигурации и доступы"],
   versions: ["Версии", "Установка и откат версий компонентов"],
-  fleet: ["Узлы", "Связанные панели, этот сервер и узлы v1; raw-команды Telemt v1 — в Advanced"],
+  fleet: ["Узлы", "Другие панели, которыми управляет этот сервер, и ключ для подключения этого сервера к центру"],
   routing: ["Маршрутизация", "Куда сервисы выпускают трафик клиентов — по шагам, с проверкой перед применением"],
   admins: ["Администраторы", "Роли, доступ к панели и API-ключи"],
   audit: ["Журнал действий", "Изменения, входы и операции с ключами"],
@@ -116,12 +116,12 @@ function createNavigator(context) {
       || (name === "admins" && context.state.me?.role === "owner");
     const add = query("#add", context.root);
     add.hidden = !canCreate;
-    // The button shows a plus and the noun only («+ Клиент»), so the noun is in the
+    // The button shows a plus and the noun («+ Клиент»), so the noun is in the
     // nominative — the hidden «Добавить» must not bend it into the genitive.
     query("#add-label", context.root).textContent = {
       admins: "Администратор",
       clients: "Клиент",
-      fleet: "Панель",
+      fleet: "Добавить узел",
       naive: "Naive доступ",
       mieru: "Mieru доступ",
       amneziawg: "AmneziaWG доступ",

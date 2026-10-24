@@ -70,9 +70,10 @@ function localLinkBlock(context, node) {
   return `<div class="node-local-link">
     <dl class="node-facts">
       <div><dt>GUID этой панели</dt><dd><code>${esc(identity.guid || "—")}</code></dd></div>
-      <div><dt>URL для добавления на центре</dt><dd><code>${esc(window.location.origin)}</code></dd></div>
+      <div><dt>Адрес для добавления на центре</dt><dd><code>${esc(window.location.origin)}</code></dd></div>
     </dl>
-    <p class="form-hint">Чтобы этим сервером управляла центральная панель, создайте ключ node-sync в «Администраторы → API-ключи» и введите этот URL и ключ на центре.</p>
+    <p class="form-hint">Чтобы этим сервером управляла центральная панель, создайте ключ для центра и введите этот адрес и ключ на центре в «Узлы → Добавить узел».</p>
+    ${context.state.me?.role === "owner" ? '<div class="node-link-actions"><button class="secondary" data-node-action="center-key">Создать ключ для центра</button></div>' : ""}
     ${master}
   </div>`;
 }
@@ -340,11 +341,13 @@ export async function renderNodes(context, generation) {
   if (!isCurrent(context.state, generation, "fleet")) return;
   context.state.nodeInventory = inventories;
   const owner = context.state.me?.role === "owner";
-  context.ui.view.innerHTML = `<div class="security-note">Связанные панели центр опрашивает сам по HTTPS с их API-ключом node-sync; узлы v1 подключаются исходящим mTLS long-poll, идентичность привязана к сертификату. Отключённый или поставленный на паузу узел не получает изменений.</div>
-    ${owner ? '<div class="toolbar"><button class="secondary" data-node-action="register-v1">Зарегистрировать узел v1 (mTLS-агент)</button></div>' : ""}
+  context.ui.view.innerHTML = `<div class="security-note">Центр сам обращается к добавленным узлам по защищённому соединению и доставляет им доступы. Отключённый или поставленный на паузу узел не получает изменений.</div>
+    ${owner ? `<details class="node-advanced"><summary>Дополнительно</summary>
+      <p class="form-hint">Узлы старого типа (v1) подключаются сами: исходящим mTLS long-poll, идентичность привязана к сертификату. Здесь же — регистрация такого узла и его raw-команды Telemt v1 в Advanced на карточке.</p>
+      <button class="secondary" data-node-action="register-v1">Зарегистрировать узел v1 (mTLS-агент)</button></details>` : ""}
     <section class="node-list">${context.state.nodes.length
       ? context.state.nodes.map((node) => nodeCard(context, node, node.node_id === expanded)).join("")
-      : '<div class="empty-state"><span>◇</span><h3>Узлов пока нет</h3><p>Владелец может добавить панель по URL и API-ключу или зарегистрировать узел v1 — панель покажет пошаговый enrollment.</p></div>'}</section>`;
+      : '<div class="empty-state"><span>◇</span><h3>Узлов пока нет</h3><p>Нажмите «Добавить узел» и введите адрес панели узла и её ключ. Ключ узел создаёт у себя в разделе «Узлы».</p></div>'}</section>`;
   // The v1 command form hides fields per operation, so it needs one pass after render.
   if (expanded) updateCommandFieldsAfterRender(context);
 }
@@ -369,14 +372,14 @@ export function openLinkModal(context, node = null) {
   query("#link-form", root).reset();
   context.state.linkProbe = null;
   query("#link-node-id", root).value = node?.node_id || "";
-  query("#link-title", root).textContent = editing ? "Изменить связь с панелью" : "Добавить панель";
+  query("#link-title", root).textContent = editing ? "Изменить связь с панелью" : "Добавить узел";
   query("#link-save", root).textContent = editing ? "Сохранить" : "Добавить";
   query("#link-name", root).value = node?.display_name || "";
   query("#link-url", root).value = node?.link?.panel_url || "";
   query("#link-key", root).required = !editing;
   query("#link-key-hint", root).textContent = editing
     ? (node.link?.has_api_key ? "Ключ сохранён: оставьте поле пустым, чтобы не менять" : "Ключ не сохранён: введите новый")
-    : "Ключ со scope node-sync, созданный на добавляемой панели";
+    : "Ключ, который панель узла показала в «Узлы → Создать ключ для центра»";
   queryAll('input[name="tls_verify"]', root).forEach((radio) => {
     radio.checked = radio.value === (node?.link?.tls_verify || "verify");
   });
@@ -573,6 +576,18 @@ function bindLinkDialog(context) {
 
 export function bindNodes(context) {
   const { api, root, ui } = context;
+  query("#copy-center-url", root)?.addEventListener("click", async () => {
+    await ui.copyText(query("#center-url", root));
+    ui.toast("Адрес скопирован");
+  });
+  query("#copy-center-key", root)?.addEventListener("click", async () => {
+    await ui.copyText(query("#center-key", root));
+    ui.toast("Ключ скопирован");
+  });
+  // The plaintext exists only while the dialog is open.
+  query("#center-key-modal", root)?.addEventListener("close", () => {
+    query("#center-key", root).value = "";
+  });
   query("#create-node", root)?.addEventListener("click", async ({ currentTarget: button }) => {
     const form = query("#node-form", root);
     const error = query("#node-error", root);
@@ -762,6 +777,27 @@ async function linkLifecycle(context, node, action, button) {
   }
 }
 
+// A node-sync key for a central: the same /api/keys call as «Администраторы → API-ключи»,
+// the plaintext shown once next to the address the central needs.
+async function createCenterKey(context, button) {
+  const { root, ui } = context;
+  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  try {
+    ui.setBusy(button, true, "Создаём…");
+    const result = await context.api("/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ name: `center ${stamp}`, scope: "node-sync", expires_at: null }),
+    });
+    query("#center-url", root).value = window.location.origin;
+    query("#center-key", root).value = result.plaintext;
+    ui.openModal("#center-key-modal", "#copy-center-key");
+  } catch (exception) {
+    ui.toast(exception.message, "error");
+  } finally {
+    ui.setBusy(button, false);
+  }
+}
+
 // The central's routes for a linked panel, by card action (spec §6).
 const LINK_ROUTES = {
   pause: ["/pause", "Узел поставлен на паузу"],
@@ -773,6 +809,10 @@ const LINK_ACTIONS = new Set([...Object.keys(LINK_ROUTES), "edit", "remove", "im
 export function handleNodesClick(context, button) {
   const action = button.dataset.nodeAction;
   if (!action) return false;
+  if (action === "center-key") {
+    void createCenterKey(context, button);
+    return true;
+  }
   if (action === "register-v1") {
     openNodeModal(context);
     return true;
