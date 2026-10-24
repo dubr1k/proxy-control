@@ -681,3 +681,23 @@ def test_the_release_note_for_3_2_0_names_the_installer_change():
     assert "install-release.sh --update" in note and "releases/download/v3.2.0/install-release.sh.sha256" in note
     assert "releases/download/v3.1.0" not in note
     assert "(releases/v3.2.0.md)" in (ROOT / "docs/README.md").read_text(encoding="utf-8")
+
+
+def test_installer_scripts_run_python_without_bytecode_and_pass_the_chosen_language():
+    """Task 10: root must leave no .pyc in the user's directory, and `--lang` reaches the wizard."""
+    script = (ROOT / "scripts" / "install-release.sh").read_text(encoding="utf-8")
+    assert script.count("PYTHONDONTWRITEBYTECODE=1") >= 2
+    assert 'set -- wizard --lang "$LANGUAGE"' in script
+    assert "PYTHONDONTWRITEBYTECODE=1" in (ROOT / "install.sh").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("name", "phrases"), [
+    ("README.md", ("install-release.sh --update", "`continue`", "rm -rf")),
+    ("README.en.md", ("install-release.sh --update", "`continue`", "rm -rf")),
+    ("docs/INSTALLER_REFERENCE.ru.md", ("/opt/mtproxy-shared443/VERSION", "PYTHONDONTWRITEBYTECODE=1", "`continue`")),
+    ("docs/INSTALLER_REFERENCE.en.md", ("/opt/mtproxy-shared443/VERSION", "PYTHONDONTWRITEBYTECODE=1", "`continue`")),
+])
+def test_the_docs_describe_the_installed_host_notice_and_bytecode(name, phrases):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for phrase in phrases:
+        assert phrase in text, (name, phrase)

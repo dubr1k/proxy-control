@@ -84,6 +84,15 @@ TOML file, renders the plan, and asks you to confirm the first twelve characters
 of the plan digest before anything is mutated. Quitting at any prompt leaves the
 host untouched.
 
+With `--lang ru|en` the wizard does not ask for the language. If Proxy Control is already
+installed on this server (`/opt/mtproxy-shared443/VERSION` exists), the wizard first reports the
+version and points at `bash install-release.sh --update`; by default (`quit`) it leaves without
+changes, and `continue` goes on with a reinstall. AmneziaWG and TrustTunnel are not part of a
+profile: they are separate questions, each preceded by an explanatory line. The review screen
+shows the answers under plain names; keys the wizard never asks (`schema`, AmneziaWG MTU and DNS,
+TrustTunnel's internal port) are hidden there. `install-release.sh` and `install.sh` run Python
+with `PYTHONDONTWRITEBYTECODE=1` so that root leaves no `.pyc` in the user's directory.
+
 ## Commands
 
 | Command | What it does |

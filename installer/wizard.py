@@ -337,6 +337,28 @@ class ReviewAction(StrEnum):
     QUIT = "quit"
 
 
+class Reinstall(StrEnum):
+    QUIT = "quit"
+    CONTINUE = "continue"
+
+
+# Review rows that carry no operator choice: TOML-only knobs and values the wizard never sets.
+_REVIEW_HIDDEN = frozenset({
+    "schema",
+    "amneziawg.dns",
+    "amneziawg.mtu",
+    "trusttunnel.hostname",
+    "trusttunnel.listen_port",
+})
+# Hidden while they hold their «off» value.
+_REVIEW_HIDDEN_WHEN = {
+    "egress.relay_port": "0",
+    "mieru.lane_slots": "0",
+    "egress.warp_port": "40000",
+    "three_xui.warp_port": "40000",
+}
+
+
 class EditField(StrEnum):
     PANEL = "domains.panel"
     MTPROXY = "domains.mtproxy"
@@ -372,9 +394,12 @@ class TerminalWizard:
         locale: Locale | None = None,
         config_output: Path = Path("proxy-control.toml"),
         root: Path = Path("/"),
+        language_fixed: bool = False,
     ):
         self.io = io
         self.locale = locale
+        # `--lang` was given: the language is not asked again.
+        self.language_fixed = language_fixed and locale is not None
         # Where `/etc/machine-id` is read from, for the pre-chosen AmneziaWG ports.
         self.root = Path(root)
         self._facts = AuditFacts()
@@ -391,13 +416,17 @@ class TerminalWizard:
             os.environ.get("LC_ALL") or os.environ.get("LANG")
         )
         self.io.set_locale(default_locale)
-        selected = self.io.choose_enum(
-            text(default_locale, "language"),
-            (Locale.EN, Locale.RU),
-            default=default_locale,
-        )
-        self.locale = parse_locale(selected)
+        if self.language_fixed:
+            self.locale = default_locale
+        else:
+            selected = self.io.choose_enum(
+                text(default_locale, "language"),
+                (Locale.EN, Locale.RU),
+                default=default_locale,
+            )
+            self.locale = parse_locale(selected)
         self.io.set_locale(self.locale)
+        self._warn_if_installed(facts)
         self.io.write(text(self.locale, "secrets_notice"))
         values = self._collect()
 
@@ -429,6 +458,26 @@ class TerminalWizard:
                 self._back(values)
             else:
                 self._edit(values)
+
+    def _warn_if_installed(self, facts: AuditFacts) -> None:
+        """Proxy Control is already here: point at `--update` and let the operator leave
+        (the default) or go on with a reinstall."""
+        assert self.locale is not None
+        installed = facts.ownership.get("installed")
+        # A full audit reports the same thing as `installer.present`.
+        if not installed and not (facts.ownership.get("installer") or {}).get("present"):
+            return
+        version = str((installed or {}).get("version") or "")
+        self.io.write(
+            text(self.locale, "already_installed", version=version)
+            if version
+            else text(self.locale, "already_installed_unknown")
+        )
+        self.io.write(text(self.locale, "reinstall_help"))
+        if self.io.choose_enum(
+            text(self.locale, "reinstall"), tuple(Reinstall), default=Reinstall.QUIT
+        ) is Reinstall.QUIT:
+            raise WizardQuit
 
     def _collect(self) -> dict[str, object]:
         assert self.locale is not None
@@ -571,6 +620,7 @@ class TerminalWizard:
         """The optional AmneziaWG add-on (any profile): a yes/no, then the versions and the
         public name. It needs no domain of its own; ports, MTU and DNS are TOML-only."""
         assert self.locale is not None
+        self.io.write(text(self.locale, "amneziawg_help"))
         if not self.io.yes_no(text(self.locale, "amneziawg"), default=False):
             for key in ("awg_versions", "awg_host", "awg_ports", "awg_port_map"):
                 values.pop(key, None)
@@ -594,6 +644,7 @@ class TerminalWizard:
         shares TCP/443 through the SNI router, so the name needs an A record to this server
         (DNS only, no CDN proxy); the loopback port stays in the TOML."""
         assert self.locale is not None
+        self.io.write(text(self.locale, "trusttunnel_help"))
         if not self.io.yes_no(text(self.locale, "trusttunnel"), default=False):
             values.pop("tt_domain", None)
             values["tt"] = False
@@ -635,6 +686,7 @@ class TerminalWizard:
             taken=taken,
             fixed=kept,
         )
+        self.io.write(text(self.locale, "amneziawg_ports_help"))
         value = self.io.validated(
             text(self.locale, "amneziawg_ports", versions=", ".join(versions), count=len(versions)),
             _awg_ports(len(versions)),
@@ -800,10 +852,25 @@ class TerminalWizard:
         # installation without 3x-ui stay off the review.
         without_xui = config.three_xui.mode is ThreeXuiMode.NONE
         for key, value in _flatten(config.canonical_dict()):
-            if value == "None" or (without_xui and key.startswith("three_xui.") and key != "three_xui.mode"):
+            if (
+                value == "None"
+                or key in _REVIEW_HIDDEN
+                or _REVIEW_HIDDEN_WHEN.get(key) == value
+                or (without_xui and key.startswith("three_xui.") and key != "three_xui.mode")
+            ):
                 continue
-            self.io.write(f"{key} | {value}")
+            if value in {"true", "false"}:
+                value = text(self.locale, "yes" if value == "true" else "no")
+            self.io.write(f"{self._review_label(key)} | {value}")
         self.io.write(text(self.locale, "secrets_notice"))
+
+    def _review_label(self, key: str) -> str:
+        """The operator's name for a configuration key; an unlisted key keeps its own."""
+        assert self.locale is not None
+        try:
+            return text(self.locale, "review_" + key.replace(".", "_"))
+        except KeyError:
+            return key
 
     def _editable(self, values: dict[str, object]) -> tuple[EditField, ...]:
         profile = values["profile"]

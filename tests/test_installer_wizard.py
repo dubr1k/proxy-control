@@ -720,7 +720,7 @@ def test_wizard_offers_the_router_whenever_a_service_could_feed_it(tmp_path: Pat
     wizard = TerminalWizard(terminal, locale=Locale.RU, config_output=core)
     with pytest.raises(WizardSaved):
         wizard.run(AuditFacts())
-    assert "Xray-router" not in transcript.getvalue()
+    assert "Установить Xray-router" not in transcript.getvalue()
 
 
 def test_wizard_offers_the_router_on_a_trusttunnel_only_node(tmp_path: Path):
@@ -790,7 +790,7 @@ def test_enter_takes_the_explained_defaults_and_the_example_mieru_ports(tmp_path
     assert "first MTProxy and Mieru user (the panel login is always owner)" in transcript
     # The review lists what this installation uses: no unset field, no 3x-ui block without 3x-ui.
     review = transcript.split("Configuration review", 1)[1]
-    assert "| None" not in review and "three_xui.warp" not in review and "three_xui.mode | none" in review
+    assert "| None" not in review and "3x-ui through WARP" not in review and "3x-ui mode | none" in review
 
 
 def test_the_router_question_names_the_pinned_xray_version():
@@ -878,7 +878,7 @@ def test_the_wizard_offers_amneziawg_with_versions_and_a_public_name(tmp_path: P
     assert all(10240 <= port <= 32000 for port in awg.ports)
     assert "[amneziawg]" in written and 'versions = ["1.5", "3.1"]' in written
     assert "Install AmneziaWG" in transcript and "needs no new domain" in transcript
-    assert "amneziawg.versions | 1.5,3.1" in transcript.split("Configuration review", 1)[1]
+    assert "AmneziaWG: versions | 1.5,3.1" in transcript.split("Configuration review", 1)[1]
 
 
 def test_amneziawg_defaults_are_all_versions_and_the_panel_domain(tmp_path: Path):
@@ -956,9 +956,9 @@ def test_amneziawg_ports_default_to_the_random_free_ones_and_enter_accepts_them(
     assert awg.port_map() == expected
     shown = ",".join(str(port) for port in expected.values())
     assert f"[{shown}]" in transcript and "AmneziaWG UDP ports for versions 1.5, 2.0, 3.1" in transcript
-    assert "3 comma-separated numbers in this order" in transcript
+    assert "One UDP port per version, in this order" in transcript
     assert not set(awg.ports) & {51820, 51821, 51822}
-    assert f"amneziawg.ports | {shown}" in transcript.split("Configuration review", 1)[1] or \
+    assert f"AmneziaWG: UDP ports | {shown}" in transcript.split("Configuration review", 1)[1] or \
         all(str(port) in transcript.split("Configuration review", 1)[1] for port in expected.values())
     assert "[amneziawg]" in written and all(str(port) in written for port in expected.values())
 
@@ -1035,7 +1035,7 @@ def test_the_wizard_offers_trusttunnel_with_its_own_domain_and_the_honest_hint(t
     assert "[trusttunnel]" in written and 'trusttunnel = "gate.example.org"' in written
     assert "Install TrustTunnel" in transcript and "A record to this server" in transcript
     assert "DNS only" in transcript and "CDN" in transcript and "TCP/443" in transcript and "no UDP rule" in transcript
-    assert "trusttunnel.hostname | gate.example.org" in transcript.split("Configuration review", 1)[1]
+    assert "TrustTunnel domain | gate.example.org" in transcript.split("Configuration review", 1)[1]
 
 
 def test_the_trusttunnel_hint_is_honest_in_russian_too(tmp_path: Path):
@@ -1094,3 +1094,152 @@ def test_typed_trusttunnel_values_reach_the_adapters_on_apply_and_on_install_con
     reread = load_config(saved)
     assert reread.trusttunnel == config.trusttunnel and reread.domains.trusttunnel == config.domains.trusttunnel
     assert "trusttunnel" in [adapter.name for adapter in adapters_for(reread)]
+
+
+# -- Task 10: installer usability ---------------------------------------------------------
+
+
+def _plain_answers(*, language: list[str]) -> list[str]:
+    return [*language, "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "", "no", "",
+            "admin@example.com", "owner", "", "yes", "save"]
+
+
+@pytest.mark.parametrize("locale", [Locale.EN, Locale.RU])
+def test_a_given_language_is_not_asked_again(tmp_path: Path, locale: Locale):
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n".join(_plain_answers(language=[])) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=locale, config_output=tmp_path / "l.toml", language_fixed=True)
+    with pytest.raises(WizardSaved):
+        wizard.run(AuditFacts())
+    assert "Language / Язык" not in transcript.getvalue()
+    assert wizard.locale is locale
+
+
+def test_without_lang_the_language_is_still_asked(tmp_path: Path):
+    transcript, _ = _scripted(_plain_answers(language=[""]), tmp_path / "a.toml")
+    assert "Language / Язык" in transcript
+
+
+_INSTALLED = AuditFacts(ownership={"installed": {"version": "3.2.1"}})
+
+
+@pytest.mark.parametrize(
+    ("locale", "notice"),
+    [
+        (Locale.EN, "Proxy Control 3.2.1 is already installed on this server. To update it: bash install-release.sh --update"),
+        (Locale.RU, "На этом сервере уже установлен Proxy Control 3.2.1. Для обновления: bash install-release.sh --update"),
+    ],
+)
+def test_an_installed_host_is_told_about_update_and_quits_by_default(locale: Locale, notice: str):
+    from installer.wizard import WizardQuit
+
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=locale, language_fixed=True)
+    with pytest.raises(WizardQuit):
+        wizard.run(_INSTALLED)
+    shown = transcript.getvalue()
+    assert notice in shown
+    # Nothing was asked before the warning, and nothing after the default answer.
+    after = shown.split(notice, 1)[1]
+    # Only the reinstall question follows the notice; no setup question was asked.
+    assert "fresh" not in after.replace("quit", "") and "domain" not in after.lower() and "домен" not in after.lower()
+    assert "Language" not in shown
+
+
+def test_an_installed_host_can_continue_with_a_reinstall(tmp_path: Path):
+    transcript = io.StringIO()
+    answers = ["continue", *_plain_answers(language=[])]
+    terminal = TerminalIO(io.StringIO("\n".join(answers) + "\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.EN, config_output=tmp_path / "r.toml", language_fixed=True)
+    with pytest.raises(WizardSaved):
+        wizard.run(_INSTALLED)
+    assert "bash install-release.sh --update" in transcript.getvalue()
+    assert (tmp_path / "r.toml").exists()
+
+
+def test_a_clean_host_gets_no_installed_warning(tmp_path: Path):
+    transcript, _ = _scripted(_plain_answers(language=[""]), tmp_path / "c.toml")
+    assert "is already installed on this server" not in transcript
+
+
+def test_the_profile_help_points_at_the_separate_awg_and_tt_questions(tmp_path: Path):
+    en, _ = _scripted(_plain_answers(language=[""]), tmp_path / "p.toml")
+    ru, _ = _scripted(_plain_answers(language=["ru"]), tmp_path / "p2.toml", locale=Locale.RU)
+    assert "AmneziaWG and TrustTunnel are not part of a profile" in en
+    assert "AmneziaWG и TrustTunnel в профиль не входят" in ru
+
+
+def _awg_tt_answers(language: str) -> list[str]:
+    return [language, "fresh", "core", "none", "panel.example.com", "relay.example.com", "", "",
+            "yes", "", "", "",  # AmneziaWG: versions, host, ports default
+            "yes", "gate.example.org", "no",  # TrustTunnel and its router question
+            "admin@example.com", "owner", "", "yes", "save"]
+
+
+@pytest.mark.parametrize("locale", [Locale.EN, Locale.RU])
+def test_awg_and_tt_prompts_are_short_with_the_explanation_as_a_help_line(tmp_path: Path, locale: Locale):
+    transcript, _ = _scripted(_awg_tt_answers(locale.value), tmp_path / "s.toml", locale=locale)
+    from installer.i18n import text
+
+    for key in ("amneziawg", "trusttunnel"):
+        assert len(text(locale, key)) < 40 and len(text(locale, key + "_help")) > 100
+    assert text(locale, "amneziawg_help").splitlines()[0] in transcript
+    assert text(locale, "trusttunnel_help").splitlines()[0] in transcript
+
+
+@pytest.mark.parametrize("locale", [Locale.EN, Locale.RU])
+def test_the_review_shows_labels_instead_of_raw_keys(tmp_path: Path, locale: Locale):
+    transcript, _ = _scripted(_awg_tt_answers(locale.value), tmp_path / "v.toml", locale=locale)
+    review = transcript.split("Configuration review" if locale is Locale.EN else "Проверка конфигурации", 1)[1]
+    review = review.split("Action" if locale is Locale.EN else "Действие", 1)[0]
+    rows = [line for line in review.splitlines() if " | " in line][1:]
+    assert rows
+    for line in rows:
+        label = line.split(" | ", 1)[0]
+        assert "." not in label and "_" not in label, line
+    for raw in ("schema", "relay_port", "lane_slots", "warp_port", "listen_port", "mtu"):
+        assert raw not in review
+    expected = ("AmneziaWG: UDP ports", "TrustTunnel domain", "gate.example.org") if locale is Locale.EN else (
+        "AmneziaWG: UDP-порты", "Домен TrustTunnel", "gate.example.org")
+    for item in expected:
+        assert item in review, item
+    assert (" | yes" if locale is Locale.EN else " | да") in review
+    assert " | true" not in review and " | false" not in review
+
+
+def test_every_review_key_of_the_examples_has_a_label_or_is_hidden():
+    import glob
+
+    from installer.config import parse_config
+    from installer.i18n import _CATALOG
+    from installer.wizard import _REVIEW_HIDDEN, _flatten
+
+    known = set(_CATALOG[Locale.EN])
+    missing: set[str] = set()
+    for path in glob.glob(str(ROOT / "examples" / "installer" / "*.toml")):
+        for key, value in _flatten(parse_config(Path(path).read_text()).canonical_dict()):
+            if value == "None" or key in _REVIEW_HIDDEN:
+                continue
+            if "review_" + key.replace(".", "_") not in known:
+                missing.add(key)
+    assert missing == set()
+
+
+def test_the_installer_audit_fact_alone_also_shows_the_notice():
+    from installer.wizard import WizardQuit
+
+    transcript = io.StringIO()
+    terminal = TerminalIO(io.StringIO("\n"), transcript)
+    wizard = TerminalWizard(terminal, locale=Locale.EN, language_fixed=True)
+    with pytest.raises(WizardQuit):
+        wizard.run(AuditFacts(ownership={"installer": {"present": True}}))
+    assert "Proxy Control is already installed on this server. To update it" in transcript.getvalue()
+
+
+def test_non_default_service_ports_are_labelled_in_the_review():
+    from installer.i18n import text
+
+    for locale in Locale:
+        for key in ("egress.relay_port", "mieru.lane_slots", "egress.warp_port", "three_xui.warp_port"):
+            assert text(locale, "review_" + key.replace(".", "_"))

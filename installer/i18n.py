@@ -22,7 +22,8 @@ _CATALOG: dict[Locale, dict[str, str]] = {
             "  core       — the panel and MTProxy (Telegram)\n"
             "  core-naive — the same plus NaiveProxy\n"
             "  core-mieru — the same plus Mieru\n"
-            "  full       — the panel, MTProxy, NaiveProxy and Mieru"
+            "  full       — the panel, MTProxy, NaiveProxy and Mieru\n"
+            "  AmneziaWG and TrustTunnel are not part of a profile: they are separate questions further below"
         ),
         "three_xui_mode": "3x-ui mode",
         "three_xui_mode_help": (
@@ -49,21 +50,24 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "router": "Install the Xray-router (pinned Xray-core {version}; the archive is fetched unless staged in /var/lib/proxy-control; MTProxy can be routed through it from the panel too)",
         "router_naive": "Send all NaiveProxy traffic through the Xray-router",
         "router_mieru": "Send all Mieru traffic through the Xray-router",
-        "amneziawg": (
-            "Install AmneziaWG (obfuscated WireGuard 1.5 / 2.0 / 3.1; clients connect over UDP straight to this server, "
-            "so it needs no new domain — the panel domain works if it points at this server and is not proxied)"
+        "amneziawg_help": (
+            "AmneziaWG is obfuscated WireGuard 1.5 / 2.0 / 3.1. Clients connect over UDP straight to this server,\n"
+            "so it needs no new domain: the panel domain works if it points at this server and is not proxied."
         ),
+        "amneziawg": "Install AmneziaWG",
         "amneziawg_versions": "AmneziaWG versions (comma-separated from 1.5, 2.0, 3.1)",
         "amneziawg_host": "Name or IPv4 address clients dial for AmneziaWG (not proxied)",
-        "amneziawg_ports": (
-            "AmneziaWG UDP ports for versions {versions}: {count} comma-separated numbers in this order, "
-            "1024-65535 (the free random ports shown are not well-known, so Enter is the sensible choice)"
+        "amneziawg_ports_help": (
+            "One UDP port per version, in this order, from 1024 to 65535. The free random ports shown are not\n"
+            "well-known, so Enter is the sensible choice."
         ),
-        "trusttunnel": (
-            "Install TrustTunnel (AdGuard's HTTP/2 over TLS VPN, TCP only; it shares TCP/443 with the other services "
-            "through SNI, so no port and no UDP rule are added). It needs a domain of its own with an A record to this "
-            "server, DNS only: do not put a CDN proxy in front of it"
+        "amneziawg_ports": "AmneziaWG UDP ports for versions {versions} ({count}, comma-separated)",
+        "trusttunnel_help": (
+            "TrustTunnel is AdGuard's HTTP/2 over TLS VPN, TCP only. It shares TCP/443 with the other services\n"
+            "through SNI, so no port and no UDP rule are added. It needs a domain of its own with an A record to this\n"
+            "server, DNS only: do not put a CDN proxy in front of it."
         ),
+        "trusttunnel": "Install TrustTunnel",
         "trusttunnel_domain": "TrustTunnel domain (an A record to this server, DNS only; its own name, not one used above)",
         "acme_email": "ACME email",
         "initial_user": "Name of the first MTProxy and Mieru user (the panel login is always owner)",
@@ -78,7 +82,46 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "manage_ufw": "Open the installer's ports in UFW (fresh host only)",
         "secrets_notice": "Keys and every password left blank are generated during installation; typed passwords never enter the configuration file.",
         "review_title": "Configuration review",
+        "review_acme_email": "ACME email",
+        "review_amneziawg_host": "AmneziaWG: host clients dial",
+        "review_amneziawg_ports": "AmneziaWG: UDP ports",
+        "review_amneziawg_versions": "AmneziaWG: versions",
+        "review_domains_mcp": "MCP server domain",
+        "review_domains_mieru": "Mieru hostname",
+        "review_domains_mtproxy": "MTProxy Fake-TLS domain",
+        "review_domains_naive": "NaiveProxy domain",
+        "review_domains_panel": "Panel domain",
+        "review_domains_subscription": "Client subscription domain",
+        "review_domains_trusttunnel": "TrustTunnel domain",
+        "review_egress_mieru": "Mieru egress",
+        "review_egress_naive": "NaiveProxy egress",
+        "review_egress_router": "Xray-router",
+        "review_egress_relay_port": "Xray-router relay port",
+        "review_egress_warp_port": "WARP port",
+        "review_mieru_lane_slots": "Mieru lane slots",
+        "review_three_xui_warp_port": "3x-ui WARP port",
+        "review_egress_warp": "WARP for NaiveProxy and Mieru",
+        "review_firewall_manage_ufw": "Open ports in UFW",
+        "review_host_mode": "Host mode",
+        "review_initial_user": "First MTProxy and Mieru user",
+        "review_mieru_tcp_ports": "Mieru TCP ports",
+        "review_mieru_udp_ports": "Mieru UDP ports",
+        "review_profile": "Profile",
+        "review_three_xui_hysteria_domain": "Hysteria2 domain",
+        "review_three_xui_mode": "3x-ui mode",
+        "review_three_xui_panel_domain": "3x-ui panel domain",
+        "review_three_xui_subscription_domain": "3x-ui subscription domain",
+        "review_three_xui_vless_tcp_domain": "VLESS Reality TCP domain",
+        "review_three_xui_vless_xhttp_domain": "VLESS Reality XHTTP domain",
+        "review_three_xui_warp": "3x-ui through WARP",
+        "review_three_xui_warp_domains": "Domains 3x-ui sends through WARP",
         "review_header": "field | value",
+        "already_installed": "Proxy Control {version} is already installed on this server. To update it: bash install-release.sh --update",
+        "already_installed_unknown": "Proxy Control is already installed on this server. To update it: bash install-release.sh --update",
+        "reinstall": "What now",
+        "reinstall_help": "  quit     — leave without changes (the default)\n  continue — go on with a reinstall",
+        "yes": "yes",
+        "no": "no",
         "action": "Action",
         "edit_field": "Field to edit",
         "saved": "Configuration saved: {path}",
@@ -120,7 +163,8 @@ _CATALOG: dict[Locale, dict[str, str]] = {
             "  core       — панель и MTProxy (Telegram)\n"
             "  core-naive — то же и NaiveProxy\n"
             "  core-mieru — то же и Mieru\n"
-            "  full       — панель, MTProxy, NaiveProxy и Mieru"
+            "  full       — панель, MTProxy, NaiveProxy и Mieru\n"
+            "  AmneziaWG и TrustTunnel в профиль не входят: о них спросят отдельными вопросами ниже"
         ),
         "three_xui_mode": "Режим 3x-ui",
         "three_xui_mode_help": (
@@ -147,21 +191,24 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "router": "Установить Xray-router (закреплённый Xray-core {version}; архив скачивается сам, если не положен в /var/lib/proxy-control; через него из панели можно направить и MTProxy)",
         "router_naive": "Направлять весь трафик NaiveProxy через Xray-router",
         "router_mieru": "Направлять весь трафик Mieru через Xray-router",
-        "amneziawg": (
-            "Установить AmneziaWG (обфусцированный WireGuard 1.5 / 2.0 / 3.1; клиенты подключаются по UDP прямо к этому серверу, "
-            "поэтому новый домен не нужен — подойдёт домен панели, если он указывает на этот сервер и не проксируется)"
+        "amneziawg_help": (
+            "AmneziaWG — обфусцированный WireGuard 1.5 / 2.0 / 3.1. Клиенты подключаются по UDP прямо к этому серверу,\n"
+            "поэтому новый домен не нужен: подойдёт домен панели, если он указывает на этот сервер и не проксируется."
         ),
+        "amneziawg": "Установить AmneziaWG",
         "amneziawg_versions": "Версии AmneziaWG (через запятую из 1.5, 2.0, 3.1)",
         "amneziawg_host": "Имя или IPv4-адрес, по которому клиенты подключаются к AmneziaWG (без прокси)",
-        "amneziawg_ports": (
-            "UDP-порты AmneziaWG для версий {versions}: {count} чисел через запятую в этом порядке, "
-            "1024-65535 (показаны свободные случайные порты — они не из общеизвестных, так что Enter — разумный выбор)"
+        "amneziawg_ports_help": (
+            "По одному UDP-порту на версию, в этом порядке, от 1024 до 65535. Показанные свободные случайные порты\n"
+            "не из общеизвестных, так что Enter — разумный выбор."
         ),
-        "trusttunnel": (
-            "Установить TrustTunnel (VPN AdGuard поверх HTTP/2 и TLS, только TCP; делит TCP/443 с остальными сервисами "
-            "по SNI, поэтому порт и правило UDP не добавляются). Нужен отдельный домен с A-записью на этот сервер, "
-            "только DNS: не ставьте перед ним прокси CDN"
+        "amneziawg_ports": "UDP-порты AmneziaWG для версий {versions} ({count}, через запятую)",
+        "trusttunnel_help": (
+            "TrustTunnel — VPN AdGuard поверх HTTP/2 и TLS, только TCP. Делит TCP/443 с остальными сервисами\n"
+            "по SNI, поэтому порт и правило UDP не добавляются. Нужен отдельный домен с A-записью на этот сервер,\n"
+            "только DNS: не ставьте перед ним прокси CDN."
         ),
+        "trusttunnel": "Установить TrustTunnel",
         "trusttunnel_domain": "Домен TrustTunnel (A-запись на этот сервер, только DNS; отдельное имя, не одно из названных выше)",
         "acme_email": "Email для ACME",
         "initial_user": "Имя первого пользователя MTProxy и Mieru (логин в панель всегда owner)",
@@ -176,7 +223,46 @@ _CATALOG: dict[Locale, dict[str, str]] = {
         "manage_ufw": "Открыть порты установщика в UFW (только на свежем сервере)",
         "secrets_notice": "Ключи и пароли, оставленные пустыми, создаются при установке; введённые пароли в файл конфигурации не попадают.",
         "review_title": "Проверка конфигурации",
+        "review_acme_email": "Email для ACME",
+        "review_amneziawg_host": "AmneziaWG: адрес для клиентов",
+        "review_amneziawg_ports": "AmneziaWG: UDP-порты",
+        "review_amneziawg_versions": "AmneziaWG: версии",
+        "review_domains_mcp": "Домен MCP-сервера",
+        "review_domains_mieru": "Имя хоста Mieru",
+        "review_domains_mtproxy": "Fake-TLS домен MTProxy",
+        "review_domains_naive": "Домен NaiveProxy",
+        "review_domains_panel": "Домен панели",
+        "review_domains_subscription": "Домен подписки клиентов",
+        "review_domains_trusttunnel": "Домен TrustTunnel",
+        "review_egress_mieru": "Выход Mieru",
+        "review_egress_naive": "Выход NaiveProxy",
+        "review_egress_router": "Xray-router",
+        "review_egress_relay_port": "Порт relay Xray-router",
+        "review_egress_warp_port": "Порт WARP",
+        "review_mieru_lane_slots": "Слоты линий Mieru",
+        "review_three_xui_warp_port": "Порт WARP для 3x-ui",
+        "review_egress_warp": "WARP для NaiveProxy и Mieru",
+        "review_firewall_manage_ufw": "Открыть порты в UFW",
+        "review_host_mode": "Режим сервера",
+        "review_initial_user": "Первый пользователь MTProxy и Mieru",
+        "review_mieru_tcp_ports": "TCP-порты Mieru",
+        "review_mieru_udp_ports": "UDP-порты Mieru",
+        "review_profile": "Профиль",
+        "review_three_xui_hysteria_domain": "Домен Hysteria2",
+        "review_three_xui_mode": "Режим 3x-ui",
+        "review_three_xui_panel_domain": "Домен панели 3x-ui",
+        "review_three_xui_subscription_domain": "Домен подписки 3x-ui",
+        "review_three_xui_vless_tcp_domain": "Домен VLESS Reality TCP",
+        "review_three_xui_vless_xhttp_domain": "Домен VLESS Reality XHTTP",
+        "review_three_xui_warp": "3x-ui через WARP",
+        "review_three_xui_warp_domains": "Домены 3x-ui через WARP",
         "review_header": "поле | значение",
+        "already_installed": "На этом сервере уже установлен Proxy Control {version}. Для обновления: bash install-release.sh --update",
+        "already_installed_unknown": "На этом сервере уже установлен Proxy Control. Для обновления: bash install-release.sh --update",
+        "reinstall": "Что дальше",
+        "reinstall_help": "  quit     — выйти без изменений (по умолчанию)\n  continue — продолжить переустановку",
+        "yes": "да",
+        "no": "нет",
         "action": "Действие",
         "edit_field": "Поле для изменения",
         "saved": "Конфигурация сохранена: {path}",

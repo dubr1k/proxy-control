@@ -226,8 +226,12 @@ The script's own origin is proved with
 `gh attestation verify install-release.sh --repo dubr1k/proxy-control`.
 
 Useful options: `--check-only` downloads and verifies only; `--no-wizard` also extracts
-but does not start the wizard; `--lang ru|en` sets the language of the messages. To
-install exactly 3.2.1, replace `releases/latest/download/` in both URLs with
+but does not start the wizard; `--lang ru|en` sets the language of the messages and of the
+wizard (which then does not ask for it). The script runs the installer as root without writing
+`.pyc` files, so the unpacked directory can be removed with a plain `rm -rf` afterwards. If
+Proxy Control is already installed on the server, the wizard says so, points at
+`bash install-release.sh --update` and by default quits without changes; answer `continue` to
+go on with a reinstall. To install exactly 3.2.1, replace `releases/latest/download/` in both URLs with
 `releases/download/v3.2.1/`.
 
 The project deliberately never offers «download and run in one command»: the script is
@@ -311,7 +315,7 @@ sysctl file. In `fresh` mode with UFW it opens the UDP ports and forwarding on t
 `awg20` and `awg31` interfaces; otherwise open those UDP ports and allow forwarding on the
 `awg*` interfaces yourself.
 
-At the end the wizard shows every answer and offers to correct any field, save the
+At the end the wizard shows every answer under plain names (not file keys) and offers to correct any field, save the
 configuration or continue. Ready configurations for every profile and 3x-ui mode are in
 [`examples/installer/`](examples/installer).
 
