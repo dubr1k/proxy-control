@@ -25,7 +25,7 @@ from .events import MAX_PAGE
 from .fleet_v2.central_routes import public_hosts_for
 from .reveals import qr_data
 from .secrets_store import SecretError
-from .subscriptions.apps import catalogue
+from .subscriptions.apps import SHARE_VARIANTS, catalogue
 from .subscriptions.compatibility import MATRIX, NOTES
 from .subscriptions.renderers import RENDERERS, resolve_artifacts
 from .subscriptions.service import SubscriptionService
@@ -50,17 +50,6 @@ def negotiate(accept: str) -> str:
     return "raw"
 
 
-# The link variants an operator can hand out: one token, a format and (for the
-# sing-box JSON) the client it is cut for. The keys are what the dialog shows.
-SHARE_VARIANTS = {
-    "raw": "?format=raw",
-    "singbox": "?format=singbox",
-    "singbox-official": "?format=singbox&client=singbox",
-    # The fork cores that carry a TrustTunnel outbound (hiddify-sing-box, the NekoBox fork).
-    "singbox-hiddify": "?format=singbox&client=hiddify",
-    "singbox-nekobox": "?format=singbox&client=nekobox",
-    "clash": "?format=clash",
-}
 # Which `client` values a format understands; anything else is the same 404 as an
 # unknown format.
 FORMAT_CLIENTS = {"singbox": ("karing", "singbox", "hiddify", "nekobox", "nyamebox", "throne")}
@@ -218,7 +207,7 @@ def register_subscription_routes(app, context: RequestContext) -> None:
             headers={"Cache-Control": "private, no-cache", "Vary": "Accept", "X-Robots-Tag": "noindex"},
         )
 
-    def render(manifest, renderer, client: str | None) -> bytes:
+    def render(manifest, renderer, client: str | None, options: dict) -> bytes:
         """Reveal and render in one thread; the plaintext never outlives this call."""
         with app.state.database.connect() as db:
             # Each grant renders with the public hosts of the node it lives on (spec §6).
@@ -228,7 +217,7 @@ def register_subscription_routes(app, context: RequestContext) -> None:
             )
         if client is not None:
             return renderer.render(manifest, artifacts, client=client)
-        return renderer.render(manifest, artifacts)
+        return renderer.render(manifest, artifacts, **options)
 
     @app.api_route("/s/{token}", methods=["GET", "HEAD"], include_in_schema=False)
     async def subscription(token: str, request: Request):
@@ -270,12 +259,19 @@ def register_subscription_routes(app, context: RequestContext) -> None:
         }
         service: SubscriptionService = app.state.subscriptions
         manifest = await asyncio.to_thread(service.effective_manifest, found, now)
-        etag = f'"{service.etag(manifest, renderer.version, client or "")}"'
+        # The page shows its own address, its language and when the set last moved: they are part of its body.
+        options, variant = {}, client or ""
+        if name == "html":
+            lang = "en" if request.query_params.get("lang") == "en" else "ru"
+            options = {"url": service.public_url(token) if service.public_base else "", "lang": lang,
+                       "updated_at": found.updated_at}
+            variant = f"{lang}:{found.updated_at}"
+        etag = f'"{service.etag(manifest, renderer.version, variant)}"'
         headers["ETag"] = etag
         if etag in [value.strip() for value in request.headers.get("if-none-match", "").split(",")]:
             await asyncio.to_thread(service.record_fetch, found, now, status=304, format=name)
             return Response(status_code=304, headers=headers)
-        body = await asyncio.to_thread(render, manifest, renderer, client)
+        body = await asyncio.to_thread(render, manifest, renderer, client, options)
         await asyncio.to_thread(service.record_fetch, found, now, status=200, format=name)
         return Response(
             content=b"" if request.method == "HEAD" else body,

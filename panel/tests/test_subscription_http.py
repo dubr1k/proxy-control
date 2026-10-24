@@ -131,7 +131,9 @@ async def test_public_subscription_serves_formats_with_etag_and_304(public, toke
     html = await public.get(f"/s/{token}", headers={"Accept": "text/html"})
     assert html.headers["content-type"].startswith("text/html")
     csp = html.headers["content-security-policy"]
-    assert csp.startswith("default-src 'none'") and "style-src 'unsafe-inline'" in csp and "img-src data:" in csp
+    assert csp.startswith("default-src 'none'") and "img-src data:" in csp
+    # Style and script are admitted by hash of the exact inline text; nothing is `unsafe-inline`.
+    assert "unsafe-inline" not in csp and "style-src 'sha256-" in csp and "script-src 'sha256-" in csp
     singbox = await public.get(f"/s/{token}", params={"format": "singbox"})
     assert singbox.headers["content-type"].startswith("application/json")
     assert {o["type"] for o in singbox.json()["outbounds"]} == {"naive", "mieru"}
@@ -230,7 +232,6 @@ async def test_disabled_grants_rename_invalidates_html_conditional_get(public, t
     )
     assert after.status_code == 200
     assert after.headers["etag"] != before.headers["etag"]
-    assert "Renamed disabled node" in after.text
 
 
 async def test_the_panel_host_does_not_serve_subscriptions_at_all(public, token):
@@ -485,3 +486,42 @@ async def test_client_rename_and_access_label_refresh_the_subscription_on_the_sa
     app.state.clients.rename_client(client_id, "Мама Samsung", actor=actor, ip="x")
     renamed = await public.get(f"/s/{token}", params={"format": "html"}, headers={"If-None-Match": html.headers["etag"]})
     assert renamed.status_code == 200 and "Мама Samsung" in renamed.text
+
+
+def _inline(text: str, tag: str) -> str:
+    start = text.index(f"<{tag}>") + len(tag) + 2
+    return text[start:text.index(f"</{tag}>", start)]
+
+
+def _hash(text: str) -> str:
+    import base64
+    import hashlib
+
+    return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode()).digest()).decode() + "'"
+
+
+async def test_the_page_runs_only_the_inline_style_and_script_the_policy_names_by_hash(public, token):
+    page = await public.get(f"/s/{token}", headers={"Accept": "text/html"})
+    csp = page.headers["content-security-policy"]
+    assert f"style-src {_hash(_inline(page.text, 'style'))};" in csp
+    assert f"script-src {_hash(_inline(page.text, 'script'))};" in csp
+    assert page.text.count("<script") == 1 and "<script src" not in page.text and 'style="' not in page.text
+    assert "onclick" not in page.text and "<link" not in page.text
+    # The other formats keep the same strict policy: no script is admitted for a JSON feed either way.
+    assert "frame-ancestors 'none'" in csp and "default-src 'none'" in csp
+
+
+async def test_the_page_offers_the_link_apps_and_follows_lang(public, token):
+    page = await public.get(f"/s/{token}", headers={"Accept": "text/html"})
+    url = f"https://{SUB_HOST}/s/{token}"
+    assert f">{url}</code>" in page.text and "Копировать ссылку подписки" in page.text
+    assert "Показать QR" in page.text and "Добавить в Karing" in page.text and 'lang="ru"' in page.text
+    assert "karing://install-config?url=" in page.text
+    english = await public.get(f"/s/{token}", params={"format": "html", "lang": "en"})
+    assert 'lang="en"' in english.text and "Copy the subscription link" in english.text and "Add to Karing" in english.text
+    assert english.headers["etag"] != page.headers["etag"]
+    # The language is part of the tag: a conditional request for the other language is a full answer.
+    other = await public.get(f"/s/{token}", params={"format": "html"}, headers={"If-None-Match": english.headers["etag"]})
+    assert other.status_code == 200
+    assert (await public.get(f"/s/{token}", params={"format": "html", "lang": "en"},
+                             headers={"If-None-Match": english.headers["etag"]})).status_code == 304

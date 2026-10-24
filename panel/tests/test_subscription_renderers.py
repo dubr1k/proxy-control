@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 import uuid
 from pathlib import Path
 
@@ -188,7 +189,7 @@ def test_every_renderer_emits_its_media_type_and_no_malformed_links(name, manife
     if name == "html":
         text = body.decode()
         assert '<meta name="robots" content="noindex">' in text
-        assert "<script" not in text.lower()
+        assert "<script src" not in text.lower() and text.lower().count("<script") == 1  # one inline copy script
 
 
 # --- what never becomes a link --------------------------------------------------------
@@ -296,13 +297,70 @@ def test_html_escapes_every_value_and_carries_qr_codes(manifest, artifacts):
     assert "Sergey &lt;b&gt;&amp;&lt;/b&gt;" in text and "<b>&</b>" not in text
     assert text.count("data:image/svg+xml;base64,") == 4  # alice, bob, carol, frank
     assert "tg://proxy?server=proxy.example.com&amp;port=443&amp;secret=ee" in text
-    assert "no stored credential" in text and "dave" in text
+    assert "no stored credential" in text
     assert "naive-pass-02" not in text
-    # the page names only verified apps, per protocol of this subscription; never an unverified cell
-    assert "Подписка обновляется сама в приложениях" in text and "не проверено" not in text and "unproven" not in text
     assert "<table><tr><th></th>" not in text  # the ten-column matrix that made phones zoom out is gone
     # long values wrap inside their cell; a row label never breaks mid-word («Серве р»)
-    assert "td{overflow-wrap:anywhere}th{white-space:nowrap}" in text and 'class="scroll"' not in text
+    assert "td{overflow-wrap:anywhere}th{white-space:nowrap" in text and 'class="scroll"' not in text
+    assert 'style="' not in text and "onclick" not in text
+
+
+SUB = "https://sub.example.com/s/TOKEN"
+
+
+def _page(manifest, artifacts, **options):
+    return RENDERERS["html"].render(manifest, artifacts, url=SUB, **options).decode()
+
+
+def test_the_page_starts_with_the_add_buttons_and_the_copy_button_and_hides_the_qr(manifest, artifacts):
+    text = _page(manifest, artifacts, updated_at=1_800_000_000)
+    head, _, rest = text.partition("<h2>Все доступы</h2>")
+    assert "Подписка обновляется сама" in head and "Копировать ссылку подписки" in head
+    # Karing leads (it takes Naive and Mieru, both proven); the link it gets is its own sing-box cut
+    assert "Добавить в Karing" in head and "Добавить в FlClash" in head
+    assert head.index("Добавить в Karing") < head.index("Добавить в FlClash")
+    assert 'href="karing://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%2FTOKEN%3Fformat%3Dsingbox&amp;name=Sergey%20%3Cb%3E%26%3C%2Fb%3E"' in head
+    assert "clash://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%2FTOKEN%3Fformat%3Dclash" in head
+    # apps without a verified scheme or taking nothing here get no button
+    assert "Добавить в Throne" not in text and "Добавить в Hiddify" not in text
+    # the subscription QR is behind «Показать QR», never open on load
+    assert "<details class=\"qr\"><summary>Показать QR</summary>" in head and "<details class=\"qr\" open" not in text
+    # the personal-key warning stays; the version moves to a small footer with the date
+    assert "ваш личный ключ" in head and "Версия набора" not in text
+    assert "<footer>Обновлено 2027-01-15 08:00 UTC · версия набора 3</footer>" in text
+
+
+def test_the_page_never_names_the_local_node_and_wraps_each_access_in_a_collapsed_section(manifest, artifacts):
+    grants = [dataclasses.replace(g, node_name="Этот сервер") for g in manifest.grants]
+    named = dataclasses.replace(
+        manifest, grants=[dataclasses.replace(grants[1], label="Телефон мамы"), *grants[:1], *grants[2:]]
+    )
+    text = _page(named, artifacts)
+    titles = re.findall(r"<details class=\"card\"><summary>([^<]*)</summary>", text)
+    assert "Телефон мамы" in titles and "NaiveProxy · naive.example.com" not in titles
+    assert "Mieru · mieru.example.com · carol" in titles and "MTProxy · proxy.example.com" in titles
+    assert not any("Этот сервер" in title for title in titles)
+    assert "<details class=\"card\" open" not in text
+    # the names inside the links are the unchanged `#fragment` ones
+    assert "profile=%D0%AD%D1%82%D0%BE%D1%82%20%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80%20%C2%B7%20Mieru" in text
+    assert text.count("data-copy=") >= 4 and "Копировать ссылку</button>" in text
+
+
+def test_the_page_speaks_english_on_request_and_escapes_the_deep_link_name(manifest, artifacts):
+    renamed = dataclasses.replace(manifest, client_name="O'Brien \"x\"")
+    text = _page(renamed, artifacts, lang="en")
+    assert 'lang="en"' in text and "Add to Karing" in text and "Copy the subscription link" in text
+    assert "The link to this page is your personal key" in text and "Show QR" in text
+    assert "name=O%27Brien%20%22x%22" in text  # quotes are percent-encoded, so the guard keeps the button
+    assert "О'Brien" not in text and "javascript:" not in text
+    assert "Подписка" not in text and "Копировать" not in text
+
+
+def test_amneziawg_and_apps_that_take_nothing_stay_off_the_page(manifest, artifacts):
+    only_mtproxy = dataclasses.replace(manifest, grants=manifest.grants[:1])
+    text = _page(only_mtproxy, artifacts)
+    assert "Добавить в" not in text and "AmneziaWG" not in text
+    assert "Копировать ссылку подписки" in text  # the link itself is still offered
 
 
 # --- secrets and bounds ---------------------------------------------------------------
@@ -536,9 +594,9 @@ def test_html_shows_the_trusttunnel_link_qr_and_toml_download(tt_feed):
     manifest, artifacts = tt_feed
     text = RENDERERS["html"].render(manifest, artifacts).decode()
     assert text.count("tt://?") >= 2 and text.count("data:image/svg+xml;base64,") == 2
-    assert "<pre" in text and "[endpoint]" in text and 'download="trusttunnel_client.toml"' in text
+    assert "[endpoint]" in text and 'download="trusttunnel_client.toml"' in text
     assert 'href="data:application/toml;base64,' in text
-    assert 'href="[' not in text and "<script" not in text.lower()
+    assert 'href="[' not in text and "<script src" not in text.lower()
     assert "TrustTunnel" in text
 
 

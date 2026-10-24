@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import Headers, MutableHeaders
 
 from .settings import Settings
+from .subscriptions.page_assets import CSP as SUBSCRIPTION_CSP
 
 
 class KeyRateLimiter:
@@ -237,13 +238,10 @@ class SecurityHeadersMiddleware:
         if scope["path"].startswith("/s/"):
             # A subscription is fetched by clients that revalidate with `If-None-Match`,
             # so the route sets `private, no-cache` itself and it must survive; and the
-            # human-readable page carries its own inline stylesheet and QR images, but
-            # no script and nothing from anywhere else.
+            # human-readable page carries its own inline stylesheet, copy script and QR
+            # images, admitted by hash, and nothing from anywhere else.
             headers.pop("Cache-Control")
-            headers["Content-Security-Policy"] = (
-                "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
-                "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-            )
+            headers["Content-Security-Policy"] = SUBSCRIPTION_CSP
         async def secured_send(message):
             if message["type"] == "http.response.start":
                 MutableHeaders(scope=message).update(headers)

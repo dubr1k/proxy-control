@@ -18,10 +18,25 @@ scheme gets no button, only «Копировать» and the QR.
 """
 from __future__ import annotations
 
+import re
+from urllib.parse import quote
+
 from .compatibility import MATRIX
 
 # The protocols a subscription carries (MTProxy and AmneziaWG are not subscription protocols).
 SUBSCRIPTION_PROTOCOLS = ("naive", "mieru", "trusttunnel")
+
+# The link variants an operator can hand out: one token, a format and (for the sing-box JSON) the
+# client it is cut for. The keys are what the dialog and the end-user page build links from.
+SHARE_VARIANTS = {
+    "raw": "?format=raw",
+    "singbox": "?format=singbox",
+    "singbox-official": "?format=singbox&client=singbox",
+    # The fork cores that carry a TrustTunnel outbound (hiddify-sing-box, the NekoBox fork).
+    "singbox-hiddify": "?format=singbox&client=hiddify",
+    "singbox-nekobox": "?format=singbox&client=nekobox",
+    "clash": "?format=clash",
+}
 
 PLATFORMS = (
     ("ios", "iPhone / iPad"),
@@ -132,3 +147,36 @@ def catalogue() -> dict:
             for app in APPS
         ],
     }
+
+
+# The same guard as `DEEPLINK` in link-chooser.js: an app scheme, never javascript:/data: and no quotes.
+DEEPLINK = re.compile(r"^(?!javascript:|data:|vbscript:)[a-z][a-z0-9+.-]*://[^\s\"'<>]+$", re.IGNORECASE)
+
+
+def deep_link(app: dict, url: str, name: str) -> str:
+    """The «open in the app» link for one subscription link, or "" when the app has none.
+
+    `quote(..., safe="")` also encodes `!'()*`, as the chooser does; a result the guard refuses is dropped.
+    """
+    if not app["deeplink"]:
+        return ""
+    href = (
+        app["deeplink"]
+        .replace("{url_enc}", quote(url, safe=""))
+        .replace("{name_enc}", quote(name, safe=""))
+        .replace("{url}", url)
+    )
+    return href if DEEPLINK.match(href) else ""
+
+
+def apps_for(protocols) -> list[dict]:
+    """The apps worth offering for a set of protocols, best first: the one that takes most proven
+    protocols leads, ties go to the one that loses less. An app that would take none is left out.
+    Each entry: the catalogue `app`, and the protocols that `works` / are `unverified` / are `no` there."""
+    entries = []
+    for order, app in enumerate(APPS):
+        by_status = {status: [p for p in protocols if protocol_status(app, p) == status] for status in STATUSES}
+        if by_status["works"] or by_status["unverified"]:
+            entries.append({"app": app, "order": order, **by_status})
+    entries.sort(key=lambda e: (-len(e["works"]), len(e["no"]) + len(e["pending"]), e["order"]))
+    return entries
