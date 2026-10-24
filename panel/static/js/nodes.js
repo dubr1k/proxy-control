@@ -343,7 +343,7 @@ export async function renderNodes(context, generation) {
   const owner = context.state.me?.role === "owner";
   context.ui.view.innerHTML = `<div class="security-note">Центр сам обращается к добавленным узлам по защищённому соединению и доставляет им доступы. Отключённый или поставленный на паузу узел не получает изменений.</div>
     ${owner ? `<details class="node-advanced"><summary>Дополнительно</summary>
-      <p class="form-hint">Узлы старого типа (v1) подключаются сами: исходящим mTLS long-poll, идентичность привязана к сертификату. Здесь же — регистрация такого узла и его raw-команды Telemt v1 в Advanced на карточке.</p>
+      <p class="form-hint">Узлы старого типа (v1) подключаются сами: исходящим mTLS long-poll, идентичность привязана к сертификату. Здесь же — регистрация такого узла, а его raw-команды Telemt v1 — на карточке такого узла, под кнопкой «Advanced: транспорт v1».</p>
       <button class="secondary" data-node-action="register-v1">Зарегистрировать узел v1 (mTLS-агент)</button></details>` : ""}
     <section class="node-list">${context.state.nodes.length
       ? context.state.nodes.map((node) => nodeCard(context, node, node.node_id === expanded)).join("")
@@ -781,13 +781,14 @@ async function linkLifecycle(context, node, action, button) {
 // the plaintext shown once next to the address the central needs.
 async function createCenterKey(context, button) {
   const { root, ui } = context;
-  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
   try {
     ui.setBusy(button, true, "Создаём…");
     const result = await context.api("/api/keys", {
       method: "POST",
       body: JSON.stringify({ name: `center ${stamp}`, scope: "node-sync", expires_at: null }),
     });
+    if (!result.plaintext) throw new Error("Панель не вернула ключ; попробуйте ещё раз");
     query("#center-url", root).value = window.location.origin;
     query("#center-key", root).value = result.plaintext;
     ui.openModal("#center-key-modal", "#copy-center-key");

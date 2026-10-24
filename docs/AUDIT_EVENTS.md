@@ -73,7 +73,7 @@ so the journal and `GET /api/events` tell one story:
 | --- | --- | --- |
 | `node.register`, `node.rename`, `node.enable`, `node.disable`, `node.certificates.revoke_all` | node id | Fleet v1 registry (`node.enable`/`node.disable` only for v1 transport) |
 | `fleet.node.create`, `fleet.command.queue` | node id | Fleet v1 routes |
-| `node.link` | node guid | «Добавить панель» (`auto_import`) |
+| `node.link` | node guid | «Добавить узел» (`auto_import`) |
 | `node.link.update` | node guid | link changes (`changed` lists the fields; a new key is never recorded) |
 | `node.pause` / `node.resume` | node guid | pausing a link — also what «disable»/«enable» and `panel.cli node-disable` record for a linked panel |
 | `node.import` | node guid | importing the node's users (`accounts`, `without_credential`, `already_linked`; `auto: true` when the heartbeat adopted them by itself, actor `system`) |

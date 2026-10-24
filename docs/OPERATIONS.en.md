@@ -230,7 +230,7 @@ something changes. A panel that does not answer `/api/fleet/v2/*` cannot be adde
    Database migrations apply at start; `panel_guid` is created on first start
    ([UPGRADING](UPGRADING.md)).
 2. On each node create a `node-sync` key («Администраторы → API-ключи → Создать ключ»).
-3. On the central add the panels («Узлы → + Панель → Проверить → Добавить») and import
+3. On the central add the panels («Узлы → Добавить узел → Проверить → Добавить») and import
    their users. The first heartbeat (≤ `PANEL_FLEET_HEARTBEAT_SECONDS`, default 15 s)
    turns the card `online`.
 

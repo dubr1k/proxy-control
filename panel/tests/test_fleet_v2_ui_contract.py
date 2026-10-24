@@ -124,6 +124,7 @@ def test_center_key_is_created_through_the_keys_api_and_cleared_on_close(tmp_pat
     assert actual["handled"] is True and actual["opened"] == ["#center-key-modal"]
     assert [(c["path"], c["method"], c["body"]["scope"], c["body"]["expires_at"]) for c in actual["calls"]] == [("/api/keys", "POST", "node-sync", None)]
     assert actual["shown"] == {"url": "https://panel.example", "key": "pc_secret"} and actual["after"] == ""
+    assert "Панель не вернула ключ" in (STATIC / "js/nodes.js").read_text()
     html = (STATIC / "index.html").read_text()
     for needle in ('id="center-key-modal"', 'id="copy-center-key"', 'id="copy-center-url"'):
         assert needle in html
