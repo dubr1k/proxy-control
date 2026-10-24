@@ -47,6 +47,18 @@ TRUSTTUNNEL_APPS = (
 )
 
 
+# The adapters store Russian labels; the page shows them by artifact kind in its own language.
+KIND_LABELS = {
+    "share_url": ("Ссылка Mieru", "Mieru link"), "proxy_url": ("Адрес прокси", "Proxy address"),
+    "link": ("Ссылка Telegram", "Telegram link"), "trusttunnel_link": ("Ссылка TrustTunnel", "TrustTunnel link"),
+    "trusttunnel_toml": ("Конфиг TrustTunnel (TOML)", "TrustTunnel config (TOML)"),
+    "trusttunnel_manual": ("Данные для ручной настройки", "Manual setup data"),
+}
+DOWNLOAD_LABELS = {
+    "Сайт приложения": "App website", "Выпуски на GitHub": "Releases on GitHub", "Где скачать": "Where to download",
+}
+
+
 class _Page:
     """Language, unique element ids and the copy-button markup for one render."""
 
@@ -56,6 +68,10 @@ class _Page:
 
     def t(self, ru: str, en: str) -> str:
         return ru if self.lang == "ru" else en
+
+    def label(self, artifact) -> str:
+        ru, en = KIND_LABELS.get(artifact.kind, (artifact.label, artifact.label))
+        return self.t(ru, en)
 
     def copy(self, value: str, label: str | None = None, *, extra: str = "") -> str:
         """A readable value and the button that copies it; the script reads the value from the page."""
@@ -107,7 +123,8 @@ def _titles(manifest: Manifest, artifacts: dict) -> dict[str, str]:
             continue
         domain = _endpoint_domain(grant, artifacts)
         protocol = PROTOCOL_TITLES.get(grant.protocol, grant.protocol)
-        titles[grant.grant_id] = f"{protocol} · {domain}" if domain else protocol
+        # No link to read a domain from (disabled, no credential): the login tells accesses apart.
+        titles[grant.grant_id] = f"{protocol} · {domain or grant.runtime_username}"
     seen: dict[str, int] = {}
     for title in titles.values():
         seen[title] = seen.get(title, 0) + 1
@@ -132,7 +149,7 @@ def _manual_block(page: _Page, artifact) -> str:
     rows += f"<tr><th>{page.t('Протокол', 'Protocol')}</th><td>{page.t('HTTP/2, QUIC выключен', 'HTTP/2, QUIC off')}</td></tr>"
     if fields.get("certificate_pem"):
         rows += f"<tr><th>{page.t('Сертификат', 'Certificate')}</th><td>{page.copy(str(fields['certificate_pem']))}</td></tr>"
-    return f"<h3>{escape(artifact.label)}</h3><table>{rows}</table>"
+    return f"<h3>{escape(page.label(artifact))}</h3><table>{rows}</table>"
 
 
 def _apps_block(page: _Page) -> str:
@@ -169,11 +186,11 @@ def _grant_section(page: _Page, grant: ManifestGrant, artifacts: dict, name: str
             # A config file: shown in full to copy, and offered as a download.
             href = "data:application/toml;base64," + base64.b64encode(value.encode()).decode()
             parts.append(
-                f"<h3>{escape(artifact.label)}</h3>{page.copy(value)}"
+                f"<h3>{escape(page.label(artifact))}</h3>{page.copy(value)}"
                 f"<a class=\"btn small\" href=\"{href}\" download=\"trusttunnel_client.toml\">{page.t('Скачать файл', 'Download the file')}</a>"
             )
             continue
-        parts.append(f"<h3>{escape(artifact.label)}</h3>")
+        parts.append(f"<h3>{escape(page.label(artifact))}</h3>")
         if artifact.media_type == "text/uri-list":
             parts.append(f"<a class=\"btn primary\" href=\"{escape(value)}\">{page.t('Открыть', 'Open')}</a>")
         parts.append(page.copy(value, page.t("Копировать ссылку", "Copy the link"),
@@ -185,7 +202,9 @@ def _grant_section(page: _Page, grant: ManifestGrant, artifacts: dict, name: str
 
 
 def _gets(page: _Page, entry: dict) -> str:
-    names = lambda items: ", ".join(PROTOCOL_TITLES.get(p, p) for p in items)  # noqa: E731
+    def names(items) -> str:
+        return ", ".join(PROTOCOL_TITLES.get(p, p) for p in items)
+
     lines = []
     if entry["works"]:
         lines.append(f"{page.t('Получите', 'You get')}: {names(entry['works'])}.")
@@ -202,50 +221,73 @@ PLATFORM_NAMES = {
 }
 
 
+def _app_entry(page: _Page, manifest: Manifest, entry: dict, url: str, first: bool) -> str:
+    """One app: what it gets, and either its «Добавить в» button (a verified scheme) or the link to
+    paste and where to get the app."""
+    app = entry["app"]
+    link = f"{url}{SHARE_VARIANTS[app['variant']]}"
+    href = deep_link(app, link, manifest.client_name)
+    platforms = ", ".join(page.t(*PLATFORM_NAMES[key]) for key in app["platforms"])
+    head = f"<div class=\"app\"><p class=\"app-name\">{escape(app['name'])}</p><p class=\"muted small\">{escape(platforms)}</p>{_gets(page, entry)}"
+    if href:
+        return (f"{head}<a class=\"btn{' primary' if first else ''}\" href=\"{escape(href)}\">"
+                f"{page.t('Добавить в', 'Add to')} {escape(app['name'])}</a></div>")
+    downloads = " · ".join(
+        f"<a href=\"{escape(address)}\" target=\"_blank\" rel=\"noopener noreferrer\">{escape(page.t(label, DOWNLOAD_LABELS.get(label, label)))}</a>"
+        for label, address in app["downloads"]
+    )
+    return (
+        f"{head}<p class=\"small\">{page.t('Скопируйте ссылку подписки и вставьте в приложение.', 'Copy the subscription link and paste it into the app.')}</p>"
+        f"{page.copy(link, page.t('Копировать ссылку для', 'Copy the link for') + ' ' + app['name'])}"
+        f"<p class=\"small\">{downloads}</p></div>"
+    )
+
+
+def _quick_links(page: _Page, manifest: Manifest, artifacts: dict) -> str:
+    """For a client with no subscription protocol (MTProxy alone): the links themselves, up front."""
+    buttons = "".join(
+        f"<a class=\"btn primary\" href=\"{escape(artifact.value)}\">{page.t('Открыть', 'Open')} · {escape(PROTOCOL_TITLES.get(grant.protocol, grant.protocol))}</a>"
+        for grant in manifest.grants if grant.enabled
+        for artifact in artifacts.get(grant.grant_id, []) if artifact.media_type == "text/uri-list"
+    )
+    if not buttons:
+        return ""
+    return (f"<section class=\"card\"><h2>{page.t('Подключиться', 'Connect')}</h2>"
+            f"<p>{page.t('Нажмите на телефоне, где установлено приложение.', 'Tap it on the phone where the app is installed.')}</p>{buttons}</section>")
+
+
 def _auto_refresh(page: _Page, manifest: Manifest, artifacts: dict, url: str) -> str:
-    """The first thing on the page: add the link to an app once, and later changes arrive by themselves."""
-    protocols = [
+    """The first thing on the page: add the link to an app once, and later changes arrive by themselves.
+    A client with no subscription protocol has nothing to subscribe to, so it gets its links instead."""
+    protocols = list(dict.fromkeys(
         grant.protocol for grant in manifest.grants
         if grant.enabled and artifacts.get(grant.grant_id) and grant.protocol in SUBSCRIPTION_PROTOCOLS
-    ]
-    protocols = list(dict.fromkeys(protocols))
-    if not url:
-        return ""
-    entries = []
-    for entry in apps_for(protocols):
-        app = entry["app"]
-        href = deep_link(app, f"{url}{SHARE_VARIANTS[app['variant']]}", manifest.client_name)
-        if not href:
-            continue
-        platforms = ", ".join(page.t(*PLATFORM_NAMES[key]) for key in app["platforms"])
-        entries.append(
-            f"<div class=\"app\"><p class=\"app-name\">{escape(app['name'])}</p>"
-            f"<p class=\"muted small\">{escape(platforms)}</p>{_gets(page, entry)}"
-            f"<a class=\"btn{' primary' if not entries else ''}\" href=\"{escape(href)}\">"
-            f"{page.t('Добавить в', 'Add to')} {escape(app['name'])}</a></div>"
-        )
+    ))
+    if not protocols:
+        return _quick_links(page, manifest, artifacts)
     intro = page.t(
         "Добавьте ссылку в приложение один раз — новые доступы появятся в нём сами, без повторной настройки.",
         "Add the link to an app once — new accesses will show up in it by themselves, no need to set it up again.",
     )
-    apps = ""
-    if entries:
-        apps = (f"<h3>{page.t('Приложения', 'Apps')}</h3><p class=\"muted small\">"
-                f"{page.t('Кнопка работает на устройстве, где приложение уже установлено.', 'The button works on the device where the app is already installed.')}</p>"
-                + "".join(entries))
-    return (
-        f"<section class=\"card\"><h2>{page.t('Подписка обновляется сама', 'The subscription updates itself')}</h2><p>{intro}</p>"
-        f"{page.copy(url, page.t('Копировать ссылку подписки', 'Copy the subscription link'))}"
-        f"{page.qr(url)}{apps}</section>"
-    )
+    body = ""
+    # Without a public subscription address (not configured) there is no link to copy or build buttons
+    # from: the intro stays, the accesses below still carry their own links.
+    if url:
+        entries = [_app_entry(page, manifest, entry, url, index == 0) for index, entry in enumerate(apps_for(protocols))]
+        body = page.copy(url, page.t("Копировать ссылку подписки", "Copy the subscription link")) + page.qr(url)
+        if entries:
+            body += (f"<h3>{page.t('Приложения', 'Apps')}</h3><p class=\"muted small\">"
+                     f"{page.t('Кнопка работает на устройстве, где приложение уже установлено.', 'The button works on the device where the app is already installed.')}</p>"
+                     + "".join(entries))
+    return f"<section class=\"card\"><h2>{page.t('Подписка обновляется сама', 'The subscription updates itself')}</h2><p>{intro}</p>{body}</section>"
 
 
-def _footer(page: _Page, manifest: Manifest, updated_at: int | None) -> str:
-    when = ""
-    if updated_at:
-        stamp = datetime.fromtimestamp(updated_at, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        when = f"{page.t('Обновлено', 'Updated')} {stamp} · "
-    return f"<footer>{when}{page.t('версия набора', 'set version')} {manifest.generation}</footer>"
+def _footer(page: _Page, updated_at: int | None) -> str:
+    # No set number: the ETag does not move with it, so a 304 would show a stale one.
+    if not updated_at:
+        return ""
+    stamp = datetime.fromtimestamp(updated_at, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return f"<footer>{page.t('Обновлено', 'Updated')} {stamp}</footer>"
 
 
 class HtmlRenderer:
@@ -277,6 +319,6 @@ class HtmlRenderer:
             f"<h1>{title}</h1><p class=\"warn\">{warning}</p>"
             f"{_auto_refresh(page, manifest, artifacts, url)}"
             f"<h2>{page.t('Все доступы', 'All accesses')}</h2>{sections}"
-            f"{_footer(page, manifest, updated_at)}<script>{SCRIPT}</script></main></body></html>"
+            f"{_footer(page, updated_at)}<script>{SCRIPT}</script></main></body></html>"
         )
         return finish(body.encode())

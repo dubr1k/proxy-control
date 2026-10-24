@@ -32,7 +32,7 @@ details{border-radius:.5rem}
 details.card>summary{font-weight:600;font-size:1.05rem;list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:.75rem;align-items:center;min-height:2.5rem}
 details.card>summary::-webkit-details-marker{display:none}
 details.card>summary::after{content:"+";font-size:1.4rem;color:var(--muted)}
-details.card[open]>summary::after{content:"\2212"}
+details.card[open]>summary::after{content:"\\2212"}
 details.qr{margin:.75rem 0 0}details.qr>summary{color:var(--accent);font-weight:600;cursor:pointer;min-height:2.5rem;display:flex;align-items:center}
 details.qr img{display:block;width:12rem;height:12rem;max-width:100%;margin:.5rem auto;background:#fff;padding:.5rem;border-radius:.5rem}
 code{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--code);padding:.5rem .6rem;border-radius:.4rem;font:.85rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}

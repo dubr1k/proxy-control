@@ -46,6 +46,10 @@ def test_the_page_fits_a_phone_and_its_copy_script_runs_under_the_strict_policy(
     assert browser.js("document.querySelector('main section h2').textContent") == "Подписка обновляется сама"
     assert browser.js("[...document.querySelectorAll('details')].some(d => d.open)") is False
     assert browser.js("[...document.querySelectorAll('.btn')].some(b => b.textContent.startsWith('Добавить в FlClash'))")
+    # The folded/open marks are real glyphs (a mis-escaped CSS string once rendered U+0091 and a digit).
+    assert browser.js("getComputedStyle(document.querySelector('details.card > summary'), '::after').content") == '"+"'
+    browser.js("document.querySelector('details.card').open = true; true")
+    assert browser.js("getComputedStyle(document.querySelector('details.card > summary'), '::after').content") == '"\u2212"'
     for width in (390, 320):
         browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": width, "height": 844, "deviceScaleFactor": 2, "mobile": True})
         browser.js("document.querySelectorAll('details').forEach(d => d.open = true); true")

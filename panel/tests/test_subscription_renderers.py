@@ -321,13 +321,17 @@ def test_the_page_starts_with_the_add_buttons_and_the_copy_button_and_hides_the_
     assert head.index("Добавить в Karing") < head.index("Добавить в FlClash")
     assert 'href="karing://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%2FTOKEN%3Fformat%3Dsingbox&amp;name=Sergey%20%3Cb%3E%26%3C%2Fb%3E"' in head
     assert "clash://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%2FTOKEN%3Fformat%3Dclash" in head
-    # apps without a verified scheme or taking nothing here get no button
+    # an app without a verified scheme is still listed: its own link to paste and where to get it, no button
     assert "Добавить в Throne" not in text and "Добавить в Hiddify" not in text
+    throne = head[head.index('<p class="app-name">Throne</p>'):]
+    throne = throne[:throne.index("</div>")]
+    assert "Скопируйте ссылку подписки и вставьте в приложение" in throne and "https://throneproj.github.io/" in throne
+    assert "Копировать ссылку для Throne" in throne and "Hiddify" not in text
     # the subscription QR is behind «Показать QR», never open on load
     assert "<details class=\"qr\"><summary>Показать QR</summary>" in head and "<details class=\"qr\" open" not in text
     # the personal-key warning stays; the version moves to a small footer with the date
     assert "ваш личный ключ" in head and "Версия набора" not in text
-    assert "<footer>Обновлено 2027-01-15 08:00 UTC · версия набора 3</footer>" in text
+    assert "<footer>Обновлено 2027-01-15 08:00 UTC</footer>" in text and "версия набора" not in text
 
 
 def test_the_page_never_names_the_local_node_and_wraps_each_access_in_a_collapsed_section(manifest, artifacts):
@@ -356,11 +360,25 @@ def test_the_page_speaks_english_on_request_and_escapes_the_deep_link_name(manif
     assert "Подписка" not in text and "Копировать" not in text
 
 
-def test_amneziawg_and_apps_that_take_nothing_stay_off_the_page(manifest, artifacts):
+def test_a_client_without_a_subscription_protocol_gets_its_links_up_front_not_the_update_block(manifest, artifacts):
     only_mtproxy = dataclasses.replace(manifest, grants=manifest.grants[:1])
     text = _page(only_mtproxy, artifacts)
+    assert "Подписка обновляется сама" not in text and "Копировать ссылку подписки" not in text
     assert "Добавить в" not in text and "AmneziaWG" not in text
-    assert "Копировать ссылку подписки" in text  # the link itself is still offered
+    head = text.partition("<h2>Все доступы</h2>")[0]
+    assert 'href="tg://proxy?server=proxy.example.com' in head and "Открыть · MTProxy" in head
+
+
+def test_a_disabled_or_credential_less_access_is_titled_by_protocol_and_login(manifest, artifacts):
+    titles = re.findall(r"<details class=\"card\"><summary>([^<]*)</summary>", _page(manifest, artifacts))
+    assert "Mieru · dave" in titles and "NaiveProxy · erin" in titles
+
+
+def test_the_english_page_has_no_russian_outside_user_data(manifest, artifacts, tt_feed):
+    for feed in ((manifest, artifacts), tt_feed):
+        text = _page(*feed, lang="en")
+        assert not re.search("[А-Яа-яЁё]", text), re.search(".{40}[А-Яа-яЁё]+.{20}", text)
+    assert "Manual setup data" in _page(*tt_feed, lang="en")
 
 
 # --- secrets and bounds ---------------------------------------------------------------
