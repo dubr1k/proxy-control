@@ -339,7 +339,7 @@ pushed a generation, the card shows «управляется центром <GUI
 again and nothing on the runtime changes. It can be renamed, but not disabled and not
 revoked; the `node_id` `local` is reserved.
 
-**Linked panels.** The header button **«+ Панель»** opens the dialog «Добавить панель»
+**Linked panels.** The header button **«Добавить узел»** opens the dialog «Добавить узел»
 (name, `https://` URL, API key, TLS `verify` or `pin` with «Получить отпечаток»,
 «Разрешить приватный адрес», **«Проверить»**, an import list). A linked card shows
 online/offline with latency and the last heartbeat, the node's panel version, daemon
@@ -352,7 +352,7 @@ node means the same), **Проверить** (heartbeat and delivery now), **И�
 URL, key, TLS) and **Удалить**, which is refused while the panel still carries provisioned
 grants, unconfirmed deletions included. The API key is never displayed again (`has_api_key`).
 
-**v1 nodes.** «Зарегистрировать узел v1 (mTLS-агент)» in the toolbar creates the node
+**v1 nodes.** «Зарегистрировать узел v1 (mTLS-агент)» in the collapsed «Дополнительно» block creates the node
 and immediately shows the enrollment checklist; the panel cannot issue the certificate
 for you, because the private key is generated on the node and never copied anywhere. The
 card shows identity (name, `node_id`), enrollment state, transport (last check-in) and

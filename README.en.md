@@ -692,7 +692,7 @@ in the Naive label and Mieru `profile`; Telegram MTProxy links stay unchanged.
 ### Linked panels (Fleet)
 
 One panel becomes the central one and manages others through their own HTTPS domains: on a
-node the owner creates a `node-sync` API key, on the central «Nodes → + Panel» takes the URL
+node the owner creates a `node-sync` API key, on the central «Nodes → Add node» takes the URL
 and the key, then «Import» adopts the existing users. Nothing appears on the servers except
 the panel image. Trust is WebPKI or a pinned certificate fingerprint; a node's desired state
 is a numbered generation with a digest; a node that was offline catches up when it returns.

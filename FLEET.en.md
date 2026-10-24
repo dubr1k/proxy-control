@@ -36,16 +36,18 @@ Three actions.
 
 ### 1. On the panel that will become a node: create a `node-sync` key
 
-«Администраторы» → section **«API-ключи»** → **«Создать ключ»** (owner only): a name,
+Quick way: on the «Узлы» screen, in the «Этот сервер» card, press **«Создать ключ для центра»**
+(owner only) — the panel creates a `node-sync` key and shows the address and the key once, with
+«Скопировать» buttons. By hand: «Администраторы» → section **«API-ключи»** → **«Создать ключ»**: a name,
 scope `node-sync`, an optional expiry. The key is shown **once**, in the form
 `pc_<prefix>_<secret>` (an 8-hex lookup prefix and a 43-character URL-safe secret); the
 database stores only the prefix and a SHA-256 hash of the whole key. Copy it now — it
 cannot be displayed again, only replaced. The card «Этот сервер» on the «Узлы» screen
 shows the panel's GUID and the URL to type into the central.
 
-### 2. On the central: «Узлы» → «+ Панель» → «Проверить»
+### 2. On the central: «Узлы» → «Добавить узел» → «Проверить»
 
-The dialog «Добавить панель» asks for a display name, the panel URL (`https://` only,
+The dialog «Добавить узел» asks for a display name, the panel URL (`https://` only,
 optional port and base path, no query string), the API key, and how to check TLS:
 
 - **`verify`** (default) — the node's certificate must chain to the system trust store,
@@ -446,7 +448,7 @@ sequence/outbox semantics — and it remains Telemt-only. New nodes should be li
 panels; the text below stays for installations that enrolled v1 nodes and for the
 «Advanced: transport v1» drawer of a v1 node card (raw typed commands). A v1 node is
 listed on the «Узлы» screen with `transport = v1` next to linked panels; «Зарегистрировать
-узел v1 (mTLS-агент)» in the toolbar starts the enrollment checklist.
+узел v1 (mTLS-агент)» in the collapsed «Дополнительно» block starts the enrollment checklist.
 
 ### Contract
 

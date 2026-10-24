@@ -148,7 +148,7 @@ Operator documentation: [FLEET.en.md](../FLEET.en.md).
 
 What it adds, and what it deliberately does not:
 
-- Enrollment is three UI actions (a `node-sync` key on the node, «Добавить панель» on the
+- Enrollment is three UI actions (a `node-sync` key on the node, «Добавить узел» on the
   central, import); nothing is installed on a host beyond the panel image.
 - The node's desired state is a `DesiredGeneration` — an immutable, numbered, digested,
   secret-free `GenerationDocument` compiled from the central's grants; the node answers
@@ -189,7 +189,7 @@ Components (all under `panel/` unless stated):
 | `protocols/telemt.py`, `telemt.py` | caller-supplied secret with manager fallback (`credential_origin`), `update_options` |
 | `protocols/naive.py`, `protocols/mieru.py` | `update_options`, capture support flags |
 | `subscription_routes.py`, `client_routes.py`, `subscriptions/renderers/base.py` | public hosts per node in subscriptions and bundles |
-| `static/js/keys.js`, `nodes.js`, `clients.js`, `index.html`, `style.css` | UI: «API-ключи», «Добавить панель», linked node card, «ожидает узел» |
+| `static/js/keys.js`, `nodes.js`, `clients.js`, `index.html`, `style.css` | UI: «API-ключи», «Добавить узел», linked node card, «ожидает узел» |
 
 ## Release train
 
