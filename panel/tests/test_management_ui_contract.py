@@ -27,7 +27,7 @@ def test_versions_screen_checks_upstream_and_labels_the_source():
         "Собираем…",
     ):
         assert text in JS, text
-    assert "entry.version !== current" in JS
+    assert "entry.version !== current" in (STATIC / "js/common.js").read_text()
     # An upstream release without a published digest is shown but not installable; the
     # agent already hides `xray` on a host without the router, so the UI has no such branch.
     assert 'reason === "no_published_digest"' in JS
@@ -84,7 +84,9 @@ def test_versions_screen_explains_sources_once_in_plain_words():
         assert jargon not in JS, jargon
     assert JS.count("«Каталог» — версии") == 1  # the legend sits above the cards, not in each one
     # a digest-identified build shows the human version or «сборка sha256:…»; older releases are «откат»
-    assert "installedVersion(raw, available)" in JS and "versionIsNewer(entry.version, installed.version)" in JS
+    common = (STATIC / "js/common.js").read_text()
+    assert "offeredVersions(item)" in JS
+    assert "installedVersion(raw, available)" in common and "versionIsNewer(entry.version, installed.version)" in common
     common = (STATIC / "js/common.js").read_text()
     assert "сборка ${current}" in common and '" · откат"' in common
 

@@ -1,4 +1,4 @@
-import { cssEscape, date, esc, initials, installedVersion, query, updateRequestBody, versionIsNewer, versionOptions } from "./common.js";
+import { cssEscape, date, esc, initials, offeredVersions, query, updateRequestBody, versionOptions } from "./common.js";
 import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
@@ -31,14 +31,8 @@ export async function renderVersions(context, generation) {
   const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Обновления с GitHub ещё не проверялись";
   const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
   const cards = Object.entries(context.state.versions.components || {}).sort(([a], [b]) => rank(a) - rank(b)).map(([component, item]) => {
+    const { raw, current, offered, hasNewer } = offeredVersions(item);
     const available = Array.isArray(item.available) ? item.available : [];
-    const raw = item.current || "не определена";
-    // A build known only by its digest shows the human version when a catalog entry has it,
-    // and then older releases are marked as roll-backs against that version.
-    const { label: current, entry: installed } = installedVersion(raw, available);
-    const offered = available.filter((entry) => entry.version !== current)
-      .map((entry) => (installed ? { ...entry, newer: versionIsNewer(entry.version, installed.version) } : entry));
-    const hasNewer = offered.some((entry) => entry.newer !== false);
     const upstream = item.upstream || {};
     const risk = offered.some((entry) => entry.source === "upstream") ? `<small class="version-risk">${RISK}</small>` : "";
     const notInstallable = !hasNewer && upstream.latest && upstream.reason === "no_published_digest"

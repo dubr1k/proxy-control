@@ -1949,5 +1949,15 @@
  "Узлы старого типа (v1) подключаются сами: исходящим mTLS long-poll, идентичность привязана к сертификату. Здесь же — регистрация такого узла, а его raw-команды Telemt v1 — на карточке такого узла, под кнопкой «Advanced: транспорт v1».": "Legacy (v1) nodes connect on their own: outbound mTLS long-poll, with identity bound to the certificate. Registering such a node is here too, and its raw Telemt v1 commands are on that node's card, under the «Advanced: transport v1» button.",
  "Центр сам обращается к добавленным узлам по защищённому соединению и доставляет им доступы. Отключённый или поставленный на паузу узел не получает изменений.": "The central contacts added nodes itself over a secure connection and delivers accesses to them. A disabled or suspended node receives no changes.",
  "Чтобы этим сервером управляла центральная панель, создайте ключ для центра и введите этот адрес и ключ на центре в «Узлы → Добавить узел».": "For a central panel to manage this server, create a key for the central and enter this address and key on the central in «Nodes → Add node».",
- "Панель не вернула ключ; попробуйте ещё раз": "The panel did not return a key; try again"
+ "Панель не вернула ключ; попробуйте ещё раз": "The panel did not return a key; try again",
+ "Требует внимания": "Needs attention",
+ "Выдать доступ": "Give access",
+ "Доступы с ошибкой": "Accesses with an error",
+ "Доступы ждут узел": "Accesses waiting for the node",
+ "Доступы без секрета": "Accesses without a secret",
+ "Клиентов:": "Clients:",
+ "на паузе": "paused",
+ "конфигурация не применилась": "configuration was not applied",
+ "Есть обновления компонентов": "Component updates available",
+ "Сервисы не работают": "Services are down"
 }

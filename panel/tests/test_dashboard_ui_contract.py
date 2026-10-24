@@ -3,6 +3,7 @@ application-bytes tile, a phone layout without horizontal scroll, and the client
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
@@ -116,7 +117,36 @@ def test_clients_badge_is_painted_from_the_clients_list():
     assert "export function paintClientsCount(context, total)" in common
     # The list is read by the shared badge module (start-up and the overview), painted by the same call.
     assert '"/api/clients"' in (STATIC / "js/nav-counts.js").read_text()
-    assert "clientsCount" in DASHBOARD and "paintClientsCount(context" in DASHBOARD
+    assert "clientEntries" in DASHBOARD and "workingClients(entries)" in DASHBOARD and "paintClientsCount(context" in DASHBOARD
     # The paginated list's badge is exercised against the rendered DOM in
     # test_clients_filters_ui, including a search returning only one row.
     assert 'id="clients-count"' in (STATIC / "index.html").read_text()
+
+
+def test_overview_attention_block_reuses_clients_filters_and_existing_data():
+    """Task 9: «Требует внимания» counts through the Clients screen's own issue filters, links
+    each line to the screen that resolves it, and fetches nothing beyond one pass of
+    the overview (client list, node list, versions) — no timer of its own."""
+    clients = (STATIC / "js/clients.js").read_text()
+    assert "export function countClientsWithIssue" in clients and "matchesClient(context, entry, filter)" in clients
+    assert "countClientsWithIssue(context, entries, issue)" in DASHBOARD
+    assert 'CLIENT_ATTENTION = [["failed"' in DASHBOARD and '"pending"' in DASHBOARD and '"orphan"' in DASHBOARD
+    for target in ('"#clients"', '"#fleet"', '"#versions"'):
+        assert target in DASHBOARD
+    assert "showClientIssue(context, link.dataset.attentionIssue)" in DASHBOARD
+    assert "offeredVersions(item).hasNewer" in DASHBOARD
+    assert "clientEntries(context)" in DASHBOARD and '"/api/versions"' in DASHBOARD
+    # No new loop: the overview's only timers are the host card's.
+    assert DASHBOARD.count("setTimeout") == 1 and "setInterval" not in DASHBOARD
+    assert ".attention-card" in CSS
+
+
+def test_overview_header_button_opens_the_new_client_dialog():
+    main = (STATIC / "js/main.js").read_text()
+    assert 'dashboard: "Выдать доступ"' in main
+    assert 'name === "dashboard" && context.state.me?.role !== "viewer"' in main
+    assert 'context.navigate("clients").then(() => openClientModal(context))' in main
+    en = json.loads((STATIC / "i18n/en.json").read_text())
+    for phrase in ("Требует внимания", "Выдать доступ", "Доступы с ошибкой", "Доступы ждут узел", "Доступы без секрета",
+                   "Клиентов:", "на паузе", "конфигурация не применилась", "Есть обновления компонентов", "Сервисы не работают"):
+        assert phrase in en, phrase

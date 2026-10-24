@@ -167,6 +167,18 @@ export function versionIsNewer(version, installed) {
   return left.pre === right.pre ? false : right.pre;
 }
 
+// What the Versions screen and the overview's attention block both ask of a component: the
+// version it runs (a digest-only build is named through the catalog) and the catalog entries
+// that differ from it, each marked as newer or as a roll-back.
+export function offeredVersions(item) {
+  const available = Array.isArray(item?.available) ? item.available : [];
+  const raw = item?.current || "не определена";
+  const { label: current, entry: installed } = installedVersion(raw, available);
+  const offered = available.filter((entry) => entry.version !== current)
+    .map((entry) => (installed ? { ...entry, newer: versionIsNewer(entry.version, installed.version) } : entry));
+  return { raw, current, offered, hasNewer: offered.some((entry) => entry.newer !== false) };
+}
+
 export function plural(count, one, few, many) {
   const tens = count % 100;
   const units = count % 10;
