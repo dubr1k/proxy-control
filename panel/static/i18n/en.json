@@ -1880,6 +1880,7 @@
  "Для этого приложения панель не выдала ссылку — откройте «Все варианты ссылки».": "The panel issued no link for this app — open «All link variants».",
  "Для этой платформы нет приложения, которое возьмёт доступы клиента. Выберите другую платформу или откройте «Все варианты ссылки».": "No app on this platform takes the client's accesses. Pick another platform or open «All link variants».",
  "Должен получить, но мы это не проверяли": "Should get, but we have not checked it",
+ "В выпусках приложения пока нет": "Not in the app's releases yet",
  "Кнопка работает на устройстве, где установлено приложение.": "The button works on a device where the app is installed.",
  "На чём клиент?": "What does the client use?",
  "Нажмите «Открыть в приложении» на самом устройстве клиента или скопируйте": "Press «Open in the app» on the client's own device or copy",

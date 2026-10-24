@@ -3,6 +3,7 @@ bundle (isolated stand, Chrome over DevTools, a subscription domain configured).
 import json
 import secrets
 import time
+from urllib.parse import quote
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,26 @@ def client_with_trusttunnel(browser, name="Мама"):
     })
     assert result["status"] == "succeeded", result
     return client_id
+
+
+def key(browser, kind, name, code):
+    browser.dt.call("Input.dispatchKeyEvent", {"type": kind, "key": name, "code": name, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code})
+
+
+def press_escape_until(browser, expression, label):
+    # A real click first: the browser lets a page cancel Esc only after a user gesture.
+    x, y = browser.js("""(() => { const r = document.querySelector('#bundle-title').getBoundingClientRect(); return [r.left + 4, r.top + r.height / 2]; })()""")
+    for kind in ("mousePressed", "mouseReleased"):
+        browser.dt.call("Input.dispatchMouseEvent", {"type": kind, "x": x, "y": y, "button": "left", "clickCount": 1})
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        key(browser, "rawKeyDown", "Escape", 27)
+        key(browser, "keyUp", "Escape", 27)
+        for _ in range(10):
+            if browser.js(expression):
+                return
+            time.sleep(0.05)
+    raise AssertionError(f"browser timed out: {label}")
 
 
 def pick(browser, value):
@@ -70,7 +91,9 @@ def test_android_hiddify_gives_the_hiddify_link_and_its_deep_link(chooser_browse
     assert link.startswith(f"{BASE}/s/") and link.endswith("?format=singbox&client=hiddify"), link
     href = browser.js("document.querySelector('#subscription-chooser [data-chooser-open]').getAttribute('href')")
     assert href == f"hiddify://import/{link}#%D0%9C%D0%B0%D0%BC%D0%B0", href
-    assert "Должен получить, но мы это не проверяли: TrustTunnel." in chooser_text(browser, "#subscription-chooser .chooser-gets")
+    assert chooser_text(browser, "#subscription-chooser .chooser-gets") == "В выпусках приложения пока нет: TrustTunnel."
+    # A client whose only protocol is TrustTunnel is not promised Hiddify first: FlClash really carries it.
+    assert chooser_text(browser, "#subscription-chooser .chooser-chip:has(em)") == "FlClash рекомендуем"
     assert browser.js("document.querySelector('#subscription-chooser .subscription-qr').src.startsWith('data:image/svg+xml')")
     # The Clash family: its own variant; Clash Mi has no verified scheme, so no button.
     pick(browser, "clashmi")
@@ -121,13 +144,12 @@ def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(cho
     browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed")
     assert browser.js("document.querySelector('#bundle-modal').open")
-    # Esc asks the same way (the dialog's `close` event, which ends the first question, is a task behind `open`).
-    time.sleep(0.3)
-    assert browser.js("""(() => { const event = new Event('cancel', {cancelable: true});
-      document.querySelector('#bundle-modal').dispatchEvent(event); return event.defaultPrevented; })()""")
-    browser.wait("document.querySelector('#confirm').open === true", "confirm after Esc")
+    # Esc asks the same way: a real key press (the dialog's `close` event, which ends the first question,
+    # is a task behind `open`, so the press is repeated until the question appears).
+    press_escape_until(browser, "document.querySelector('#confirm').open === true", "confirm after Esc")
     browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed again")
+    assert browser.js("document.querySelector('#bundle-modal').open")
     # The folded data are all there, secrets in the open.
     browser.js("document.querySelector('#bundle-details').open = true; true")
     assert browser.js("document.querySelectorAll('#bundle-body .bundle-grant').length") >= 1
@@ -142,3 +164,96 @@ def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(cho
     browser.wait("document.querySelector('#bundle-modal').open === false", "closed without a question")
     assert browser.js("document.querySelector('#confirm').open") is False
     browser.healthy()
+
+
+# The chooser module is driven directly with a crafted catalogue and a hostile display name.
+RENDER = """(async (patch, name, protocols) => {
+  const module = await import('/static/js/link-chooser.js');
+  const catalogue = await (await fetch('/api/subscriptions/compatibility')).json();
+  for (const app of catalogue.apps) if (patch[app.id] !== undefined) app.deeplink = patch[app.id];
+  const qr = 'data:image/svg+xml;base64,AAAA';
+  const variants = Object.fromEntries(['singbox', 'singbox-official', 'singbox-hiddify', 'clash'].map(
+    (key) => [key, {url: 'https://sub.example/s/tok?format=' + key + '&x=a b', qr}]));
+  document.querySelector('#probe')?.remove();
+  const host = document.createElement('div');
+  host.id = 'probe';
+  document.body.append(host);
+  module.renderChooser(host, {catalogue, payload: {url: variants.singbox.url, qr, variants}, protocols, name});
+  return true;
+})"""
+
+HOSTILE_NAME = "x\"><img id=pwn src=y onerror=1> & 'q' <b>"
+
+
+def render(browser, app, platform, protocols, name="Мама", patch=None):
+    browser.js(f"{RENDER}({json.dumps(patch or {})}, {json.dumps(name)}, {json.dumps(protocols)})")
+    browser.js(f"document.querySelector('#probe input[value=\"{platform}\"]').click(); true")
+    browser.js(f"document.querySelector('#probe input[value=\"{app}\"]').click(); true")
+    browser.wait("document.querySelector('#probe .chooser-result h4')?.textContent !== undefined", "result")
+
+
+def open_href(browser):
+    return browser.js("document.querySelector('#probe [data-chooser-open]')?.getAttribute('href') ?? null")
+
+
+def test_karing_and_singbox_deep_links_percent_encode_the_link_and_the_name(chooser_browser):
+    browser = chooser_browser
+    open_clients(browser)
+    link = "https://sub.example/s/tok?format={}&x=a b"
+    # Karing: name as a query parameter; the name's own & ' < " cannot split or close anything.
+    render(browser, "karing", "ios", ["naive", "mieru"], HOSTILE_NAME)
+    assert open_href(browser) == f"karing://install-config?url={quote(link.format('singbox'), safe='')}&name={quote(HOSTILE_NAME, safe='')}"
+    # sing-box: name after the hash.
+    render(browser, "singbox", "ios", ["naive"], HOSTILE_NAME)
+    assert open_href(browser) == f"sing-box://import-remote-profile?url={quote(link.format('singbox-official'), safe='')}#{quote(HOSTILE_NAME, safe='')}"
+    # Nothing of the name became markup: no injected element, the button keeps its three attributes.
+    assert browser.js("document.querySelector('#pwn')") is None
+    assert browser.js("[...document.querySelector('#probe [data-chooser-open]').getAttributeNames()]") == ["class", "href", "data-chooser-open"]
+    assert browser.js("document.querySelector('#probe').textContent.includes('onerror')") is False
+    browser.healthy()
+
+
+@pytest.mark.parametrize("template", [
+    "javascript://x/%0Aalert(1)", "JavaScript://x", "data://text/html,x", "vbscript://x",
+    "app://has space", 'app://x"onmouseover="y', "app://x'y", "app://x>y", "app://x<y", "//no-scheme", "app:no-slashes",
+])
+def test_a_hostile_deep_link_template_gives_no_open_button(chooser_browser, template):
+    browser = chooser_browser
+    open_clients(browser)
+    render(browser, "karing", "ios", ["naive", "mieru"], HOSTILE_NAME, {"karing": template})
+    assert open_href(browser) is None
+    # The link itself and the copy button are still there.
+    assert browser.js("document.querySelector('#probe [data-chooser-url]').value").endswith("&x=a b")
+    assert browser.js("document.querySelector('#pwn')") is None
+    browser.healthy()
+
+
+def test_a_name_with_an_apostrophe_still_gets_its_button(chooser_browser):
+    browser = chooser_browser
+    open_clients(browser)
+    render(browser, "karing", "ios", ["naive"], "O'Brien (мама)!")
+    assert open_href(browser).endswith("&name=O%27Brien%20%28%D0%BC%D0%B0%D0%BC%D0%B0%29%21")
+
+
+def test_a_bundle_without_secrets_closes_without_a_question(chooser_browser):
+    browser = chooser_browser
+    open_clients(browser)
+    # The reveal comes back with no artifacts: there is nothing to lose by closing.
+    browser.js("""(() => { const original = window.fetch.bind(window);
+      window.fetch = async (url, options) => { const response = await original(url, options);
+        if (!String(url).includes('/api/reveal/')) return response;
+        const data = await response.json(); (data.grants || []).forEach((grant) => { grant.artifacts = []; });
+        return new Response(JSON.stringify(data), {status: 200, headers: {'content-type': 'application/json'}}); };
+      return true; })()""")
+    browser.click("#add")
+    browser.wait("document.querySelector('#client-modal')?.open === true", "client dialog")
+    browser.wait("!!document.querySelector('#client-placement input[data-node=\"local\"][data-protocol=\"trusttunnel\"]')", "placement")
+    browser.set_value("#client-name", "Мама")
+    browser.js("""(() => { const box = document.querySelector('#client-placement input[data-node="local"][data-protocol="trusttunnel"]');
+      box.checked = true; box.dispatchEvent(new Event('change', {bubbles: true})); return true; })()""")
+    browser.click("#create-client")
+    browser.wait("document.querySelector('#bundle-modal').open === true", "bundle")
+    assert browser.js("document.querySelectorAll('#bundle-body .bundle-artifact, #bundle-body textarea').length") == 0
+    browser.click("#bundle-modal .modal-head-actions button.primary")
+    browser.wait("document.querySelector('#bundle-modal').open === false", "closed without a question")
+    assert browser.js("document.querySelector('#confirm').open") is False

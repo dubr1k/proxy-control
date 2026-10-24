@@ -32,7 +32,7 @@ def test_what_an_app_gets_is_derived_from_the_matrix_and_the_variant():
     found = by_id()
     # works = delivered by the variant and proven; unverified = delivered, not proven; no = the rest.
     assert found["karing"]["protocols"] == {"naive": "works", "mieru": "works", "trusttunnel": "no"}
-    assert found["hiddify"]["protocols"] == {"naive": "no", "mieru": "no", "trusttunnel": "unverified"}
+    assert found["hiddify"]["protocols"] == {"naive": "no", "mieru": "no", "trusttunnel": "pending"}  # not in the app's releases yet
     assert found["singbox"]["protocols"] == {"naive": "works", "mieru": "no", "trusttunnel": "no"}
     assert found["flclash"]["protocols"] == {"naive": "no", "mieru": "works", "trusttunnel": "works"}
     assert found["throne"]["protocols"]["trusttunnel"] == "unverified"

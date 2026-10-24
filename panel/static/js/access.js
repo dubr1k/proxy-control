@@ -537,8 +537,12 @@ export function createAccessDialogs(context) {
     if (!bundleTaken) {
       if (bundleAsking) return;
       bundleAsking = true;
-      const close = await ui.confirmed("Ссылки больше не покажутся. Закрыть?", "Вы ничего не скопировали и не скачали.", "Закрыть");
-      bundleAsking = false;
+      let close;
+      try {
+        close = await ui.confirmed("Ссылки больше не покажутся. Закрыть?", "Вы ничего не скопировали и не скачали.", "Закрыть");
+      } finally {
+        bundleAsking = false;
+      }
       if (!close) return;
     }
     dialog.close("cancel");
@@ -581,7 +585,8 @@ export function createAccessDialogs(context) {
     else clearBundleSubscription();
     // With the chooser on top the per-protocol data stay folded; without it they are all there is.
     query("#bundle-details", root).open = query("#bundle-subscription", root).hidden;
-    bundleTaken = false;
+    // Nothing secret in the window (no artifacts): there is nothing to lose, so closing never asks.
+    bundleTaken = !(bundle.grants || []).some((grant) => (grant.artifacts || []).length);
     ui.openModal("#bundle-modal");
   }
 

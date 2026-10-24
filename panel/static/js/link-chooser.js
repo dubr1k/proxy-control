@@ -26,32 +26,41 @@ function listNames(protocols) {
 // Что получит клиент в этом приложении: считается по доступам клиента, а не вообще.
 function split(app, protocols) {
   const pick = (status) => protocols.filter((protocol) => app.protocols[protocol] === status);
-  return { works: pick("works"), unverified: pick("unverified"), no: pick("no") };
+  return { works: pick("works"), unverified: pick("unverified"), pending: pick("pending"), no: pick("no") };
 }
 
 export function whatItGets(app, protocols) {
-  const { works, unverified, no } = split(app, protocols);
+  const { works, unverified, pending, no } = split(app, protocols);
   const lines = [];
   if (works.length) lines.push(`Получит: ${listNames(works)}.`);
   if (unverified.length) lines.push(`Должен получить, но мы это не проверяли: ${listNames(unverified)}.`);
+  if (pending.length) lines.push(`В выпусках приложения пока нет: ${listNames(pending)}.`);
   if (no.length) lines.push(`${listNames(no)} в этом приложении ${no.length > 1 ? "не работают" : "не работает"}.`);
   return lines;
 }
 
 // Первым идёт приложение, которое возьмёт больше всего проверенного; при равенстве — то,
-// что теряет меньше. Приложение, которое не получит ничего, не предлагается.
+// что теряет меньше. Протокол, которого в выпусках приложения ещё нет, не обещаем: такое приложение
+// идёт после тех, что отдадут хоть что-то. Приложение, которое не получит ничего, не предлагается.
 function ranked(apps, protocols) {
   return apps
     .map((app, order) => ({ app, order, ...split(app, protocols) }))
-    .filter((entry) => entry.works.length || entry.unverified.length)
-    .sort((left, right) => right.works.length - left.works.length || left.no.length - right.no.length || left.order - right.order);
+    .map((entry) => ({ ...entry, gives: entry.works.length + entry.unverified.length }))
+    .filter((entry) => entry.gives || entry.pending.length)
+    .sort((left, right) => Number(!left.gives) - Number(!right.gives) || right.works.length - left.works.length || left.no.length - right.no.length || left.order - right.order);
+}
+
+// encodeURIComponent leaves ! ' ( ) * as they are; the href guard refuses quotes, so a name like O'Brien
+// would lose its button. They go out percent-encoded too.
+function encodePart(value) {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
 function deepLink(app, link, name) {
   if (!app.deeplink) return "";
   const href = app.deeplink
-    .replaceAll("{url_enc}", encodeURIComponent(link))
-    .replaceAll("{name_enc}", encodeURIComponent(name))
+    .replaceAll("{url_enc}", encodePart(link))
+    .replaceAll("{name_enc}", encodePart(name))
     .replaceAll("{url}", link);
   return DEEPLINK.test(href) ? href : "";
 }

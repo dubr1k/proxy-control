@@ -7,8 +7,9 @@ module. No UI code here.
 An app maps to exactly one link variant — a key of `SHARE_VARIANTS` in `subscription_routes.py` (the
 format and the `client=` parameter) — and to one column of the compatibility matrix. What the app gets
 is derived, not retyped: a protocol is `works` when the variant delivers it and the matrix cell is
-`supported`, `unverified` when it is delivered but not proven, `no` otherwise (not delivered, or the
-client cannot consume it at all).
+`supported`, `unverified` when it is delivered but not proven, `pending` when the feed carries it but the app's
+releases do not support it yet (the app lists it in `pending`), `no` otherwise (not delivered, or
+the client cannot consume it at all).
 
 `deeplink` is a template for the «Открыть в приложении» button, or None. A scheme is shipped only
 where the vendor's own docs or source state it (the source sits next to each one); `{url}` is the
@@ -30,7 +31,7 @@ PLATFORMS = (
     ("linux", "Linux"),
 )
 
-STATUSES = ("works", "unverified", "no")
+STATUSES = ("works", "unverified", "pending", "no")
 
 # `delivers`: the protocols the feed puts into this variant for this app (see the variant texts in
 # subscriptions.js and the renderers); `matrix`: the column whose cells say what was proven.
@@ -48,7 +49,9 @@ APPS = (
         "id": "hiddify", "name": "Hiddify", "variant": "singbox-hiddify", "matrix": "hiddify",
         "platforms": ("ios", "android", "windows", "macos", "linux"),
         "delivers": ("trusttunnel",),
-        "summary": "Бесплатное приложение; нужен только для TrustTunnel.",
+        # TrustTunnel is not in Hiddify's app releases yet; the link is ready for when it is.
+        "pending": ("trusttunnel",),
+        "summary": "Бесплатное приложение; ссылка для TrustTunnel готова, но в выпусках приложения его пока нет.",
         # https://hiddify.com/app/URL-Scheme/ — hiddify://import/<sublink>#name
         "deeplink": "hiddify://import/{url}#{name_enc}",
         "downloads": (("Сайт приложения", "https://hiddify.com/app/"), ("Выпуски на GitHub", "https://github.com/hiddify/hiddify-app/releases")),
@@ -105,6 +108,8 @@ def protocol_status(app: dict, protocol: str) -> str:
     """works / unverified / no for one subscription protocol in one app."""
     if protocol not in app["delivers"]:
         return "no"
+    if protocol in app.get("pending", ()):
+        return "pending"
     cell = MATRIX[protocol][app["matrix"]]
     return {"supported": "works", "unproven": "unverified"}.get(cell, "no")
 
