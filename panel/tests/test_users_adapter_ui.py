@@ -328,7 +328,7 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
         "Σ ${bytes(user.total_bytes_decimal)}" in modules["naive"]
     )
     assert 'BigInt(String(value ?? 0))' in modules["common"]
-    assert "Только закрытые CONNECT-туннели" in modules["dashboard"]
+    assert "Считаются только завершённые соединения" in modules["dashboard"]
     assert 'data-naive-action="reset-traffic"' in modules["naive"]
     assert "Сбросить локальный счётчик?" in modules["naive"]
     assert "NaiveProxy недоступен" in modules["dashboard"]
@@ -337,7 +337,7 @@ async def test_ui_is_self_contained_russian_and_has_mobile_navigation_markers(cl
     assert "mt.runtime?.traffic_octets" in modules["dashboard"]
     assert "user.quota_used_bytes" in modules["users"] and 'data-user-action="limits"' in modules["users"]
     assert "/limits`" in modules["users"] and "/reset-quota`" in modules["users"]
-    assert "текущего runtime-поколения" in modules["dashboard"]
+    assert "последнего запуска MTProxy" in modules["dashboard"]
     assert "Автоматического ежемесячного сброса нет" in text
     assert 'data-view="mieru"' in text and 'id="mieru-modal"' in text
     assert 'id="mieru-access-modal"' in text and 'id="mieru-client-tabs"' in text

@@ -66,7 +66,7 @@ function accessRow(context, row) {
   return `<div class="data-row naive-grid">
     <div class="identity"><span class="user-glyph">${esc(initials(row.client_name || row.username))}</span><span><b>${esc(row.username)}</b><small>AmneziaWG ${esc(row.version)} · ${esc(row.address)}</small>${holder}</span></div>
     <div class="cell"><span class="status-pill ${row.enabled ? "active" : "blocked"}"><i></i>${row.enabled ? "Включён" : "Выключен"}</span><small>${esc(ago(row.latest_handshake))}</small></div>
-    <div class="cell"><b>↑ ${bytes(row.rx)} · ↓ ${bytes(row.tx)}</b><small>принято / отдано узлом</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
+    <div class="cell"><b>↑ ${bytes(row.rx)} · ↓ ${bytes(row.tx)}</b><small>↑ от клиента · ↓ к клиенту</small><small class="live-rate" data-live-rate="${esc(row.username)}"></small></div>
     <div class="row-actions">${open || "—"}${context.state.me.role !== "viewer" ? grantRowActions(row, "amneziawg") : ""}</div>
   </div>`;
 }

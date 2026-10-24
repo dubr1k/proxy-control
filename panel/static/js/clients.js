@@ -1,4 +1,4 @@
-import { esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, query, queryAll } from "./common.js";
+import { esc, icon, OPERATION_MESSAGE, OPERATION_OK, paintClientsCount, plural, query, queryAll } from "./common.js";
 import { grantRowHtml, nodeName, PROTOCOL_NAMES } from "./grant.js";
 import { awgAccount, placementDiff, placementRows, readPlacement, renderPlacement, settling } from "./placement.js";
 import { isCurrent } from "./state.js";
@@ -91,15 +91,6 @@ function toggleClientMenu(button) {
   list.hidden = !open;
   button.setAttribute("aria-expanded", String(open));
   if (open) list.querySelector("button")?.focus();
-}
-
-function plural(count, one, few, many) {
-  const tens = count % 100;
-  const units = count % 10;
-  if (tens >= 11 && tens <= 14) return many;
-  if (units === 1) return one;
-  if (units >= 2 && units <= 4) return few;
-  return many;
 }
 
 // Under the name: how many accesses and where, so the card says it before it is opened.

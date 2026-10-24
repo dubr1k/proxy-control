@@ -15,8 +15,8 @@ def test_versions_screen_checks_upstream_and_labels_the_source():
         "Проверить обновления",
         "Проверено ",
         "каталог",
-        "upstream",
-        "Версия из upstream: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась",
+        "с GitHub",
+        "Версия с GitHub: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась",
         "Xray-router / Xray-core",
         "Собираем…",
     ):
@@ -71,3 +71,13 @@ def test_versions_screen_puts_the_panel_first_and_names_the_protocol_managers():
 def test_versions_screen_has_styles_for_the_check_bar_and_the_risk_note():
     assert ".version-check{" in CSS and ".version-risk{" in CSS
     assert "@media(max-width:560px){.version-check{flex-direction:column" in CSS
+
+
+def test_versions_screen_explains_sources_once_in_plain_words():
+    for jargon in ("owner-ролью", "allowlist", "immutable digest", "host-agent; произвольные"):
+        assert jargon not in JS, jargon
+    assert JS.count("«Каталог» — версии") == 1  # the legend sits above the cards, not in each one
+    # a digest-identified build shows the human version or «сборка sha256:…»; older releases are «откат»
+    assert "installedVersion(raw, available)" in JS and "versionIsNewer(entry.version, installed.version)" in JS
+    common = (STATIC / "js/common.js").read_text()
+    assert "сборка ${current}" in common and '" · откат"' in common

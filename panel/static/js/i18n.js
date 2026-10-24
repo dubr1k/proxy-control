@@ -13,7 +13,7 @@ const LANGS = ["ru", "en"];
 const CYRILLIC = /[А-Яа-яЁё]/;
 const ATTRIBUTES = ["placeholder", "title", "aria-label", "alt"];
 // Text the operator typed (client and account names) and code-like blocks stay as they are.
-const SKIP = "script,style,pre,code,textarea,[data-no-i18n],.client-identity b,.grant-account,.identity b";
+const SKIP = "script,style,pre,code,textarea,[data-no-i18n],.client-identity b,.grant-account > span,.identity b";
 
 let dictionary = null;
 let pattern = null;

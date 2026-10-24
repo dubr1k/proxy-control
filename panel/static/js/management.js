@@ -1,4 +1,4 @@
-import { cssEscape, date, esc, initials, query, versionOptions } from "./common.js";
+import { cssEscape, date, esc, initials, installedVersion, query, versionIsNewer, versionOptions } from "./common.js";
 import { renderKeys } from "./keys.js";
 import { isCurrent } from "./state.js";
 
@@ -27,13 +27,17 @@ export async function renderVersions(context, generation) {
   const names = { panel: "Proxy Control / панель", telemt: "Telemt / MTProxy", mita: "Mieru / mita", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint", naive: "NaiveProxy / Caddy", xray: "Xray-router / Xray-core" };
   const order = Object.keys(names);
   const rank = (component) => (order.includes(component) ? order.indexOf(component) : order.length);
-  const RISK = "Версия из upstream: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась";
-  const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Upstream ещё не проверялся";
+  const RISK = "Версия с GitHub: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась";
+  const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Обновления с GitHub ещё не проверялись";
   const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
   const cards = Object.entries(context.state.versions.components || {}).sort(([a], [b]) => rank(a) - rank(b)).map(([component, item]) => {
     const available = Array.isArray(item.available) ? item.available : [];
-    const current = item.current || "не определена";
-    const offered = available.filter((entry) => entry.version !== current);
+    const raw = item.current || "не определена";
+    // A build known only by its digest shows the human version when a catalog entry has it,
+    // and then older releases are marked as roll-backs against that version.
+    const { label: current, entry: installed } = installedVersion(raw, available);
+    const offered = available.filter((entry) => entry.version !== current)
+      .map((entry) => (installed ? { ...entry, newer: versionIsNewer(entry.version, installed.version) } : entry));
     const hasNewer = offered.some((entry) => entry.newer !== false);
     const upstream = item.upstream || {};
     const risk = offered.some((entry) => entry.source === "upstream") ? `<small class="version-risk">${RISK}</small>` : "";
@@ -61,9 +65,9 @@ export async function renderVersions(context, generation) {
         ? `<p class="version-empty">${esc(pendingList.join(", "))} — ещё не пересобраны</p>${rebuildError}${canRebuild ? '<button class="ghost" data-managers-rebuild="1">Пересобрать менеджеры</button>' : ""}`
         : "";
     const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
-    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}<small class="version-note">«Каталог» — версии, проверенные оператором в <code>versions.json</code> на хосте; «upstream» — релизы GitHub и реестров образов. Источник и SHA-256 проверяет host-agent; произвольные URL из браузера запрещены.</small></article>`;
+    return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}</article>`;
   }).join("");
-  context.ui.view.innerHTML = `<div class="security-note">Обновления выполняются только owner-ролью через отдельный host version-agent. Перед каждой заменой он проверяет allowlist-каталог, immutable digest или SHA-256, сохраняет rollback-копию и проверяет health.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
+  context.ui.view.innerHTML = `<div class="security-note">Версии обновляет владелец панели. Перед заменой контрольная сумма проверяется, прежняя версия сохраняется для отката, а после замены проверяется, что сервис работает.<br>«Каталог» — версии, которые проверил оператор сервера; «с GitHub» — свежие релизы с GitHub и из реестров образов (такие проект сам не проверял). Адреса из браузера не принимаются.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
   if (context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
   // A manager rebuild runs in the agent's background: look again until it is over.
   window.clearTimeout(rebuildTimer);
@@ -111,9 +115,9 @@ async function pollPanelUpdate(context, version) {
 function upToDate(current, upstream, available) {
   if (upstream.checked_at && upstream.latest) {
     const same = upstream.latest === current || current.startsWith(`${upstream.latest}-`);
-    return `<p class="version-empty"><b>Установлена актуальная версия</b> — ${same ? "новее в upstream нет" : `последний релиз ${esc(upstream.latest)} не новее установленной`}</p>`;
+    return `<p class="version-empty"><b>Установлена актуальная версия</b> — ${same ? "новее релизов на GitHub нет" : `последний релиз ${esc(upstream.latest)} не новее установленной`}</p>`;
   }
-  if (upstream.checked_at) return '<p class="version-empty"><b>Обновлений не обнаружено</b> — upstream не ответил версией, каталог пуст</p>';
+  if (upstream.checked_at) return '<p class="version-empty"><b>Обновлений не обнаружено</b> — GitHub не ответил версией, каталог пуст</p>';
   return `<p class="version-empty"><b>Обновлений не обнаружено</b>${available.length ? "" : " — в каталоге нет версий; нажмите «Проверить обновления»"}</p>`;
 }
 
@@ -121,7 +125,7 @@ async function checkVersions(context, button) {
   try {
     context.ui.setBusy(button, true, "Проверяем…");
     await context.api("/api/versions/check", { method: "POST" });
-    context.ui.toast("Upstream проверен");
+    context.ui.toast("Обновления с GitHub проверены");
     await context.navigate("versions");
   } catch (error) {
     context.ui.toast(`Не удалось проверить: ${error.message}`, "error");

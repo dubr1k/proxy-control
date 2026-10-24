@@ -22,6 +22,10 @@ CYRILLIC = re.compile(r"[А-Яа-яЁё]")
 # Tags, and the quotes of attribute values cut apart by an interpolation.
 SPLIT = re.compile(r"<[^<>]*>|[<>\"]")
 EDGE = " \t·,;:—–-()"
+# A sentence tail glued to a value (`${…}. Интервал…`) or an opening quote before one
+# (`профиль «${name}»`) is not part of the fragment: the runtime matches whole words only.
+LEAD = EDGE + "."
+TAIL = EDGE + "«"
 
 
 def _read_string(src: str, i: int, quote: str) -> tuple[str, int]:
@@ -106,7 +110,7 @@ def _clean(fragment: str) -> list[str]:
     fragment = fragment.replace("\\n", " ").replace('\\"', '"').replace("\\'", "'")
     out = []
     for part in SPLIT.split(fragment):
-        part = re.sub(r"\s+", " ", part).strip(EDGE)
+        part = re.sub(r"\s+", " ", part).strip(EDGE).lstrip(LEAD).rstrip(TAIL)
         if CYRILLIC.search(part) and not re.search(r"\b[\w-]+=$", part):
             out.append(part)
     return out

@@ -428,13 +428,13 @@ function paintTiles(context, node, ring, single) {
   foot("disk", `Запись ${rateText(disk.write_bps)} · чтение ${rateText(disk.read_bps)}${finite(disk.busy_percent) ? ` · занят ${formatPercent(disk.busy_percent)}` : ""}`);
 
   const net = host.net || {};
-  fig("net", `<div class="net-pair"><span><small>↓ отдача</small><b>${rateText(net.tx_bps)}</b></span><span><small>↑ приём</small><b>${rateText(net.rx_bps)}</b></span></div>`);
+  fig("net", `<div class="net-pair"><span><small>↓ к клиентам</small><b>${rateText(net.tx_bps)}</b></span><span><small>↑ от клиентов</small><b>${rateText(net.rx_bps)}</b></span></div>`);
   sub("net", "Все интерфейсы");
   spark("net", [
     { values: ring.v["net.tx_bps"] || [], cls: "ser-tile" },
     { values: ring.v["net.rx_bps"] || [], cls: "ser-tile-2", dash: true, noArea: true },
   ], "rate");
-  foot("net", "Сплошная — отдача, пунктир — приём");
+  foot("net", "Сплошная — к клиентам, пунктир — от клиентов");
 
   const load = host.load || [];
   const perCore = finite(load[0]) && host.cores ? (load[0] / host.cores) * 100 : null;
@@ -745,10 +745,10 @@ function totalsHtml(summary) {
     .sort((a, b) => (b.row.total_bytes || 0) - (a.row.total_bytes || 0));
   if (!rows.length) return emptyBlock("Нет данных об объёмах", "За выбранный период сервер не накопил статистику.");
   const sum = (key) => rows.reduce((total, entry) => total + (Number(entry.row[key]) || 0), 0);
-  return `<div class="mon-table-wrap"><table class="mon-table stack"><thead><tr><th>Протокол</th><th class="num">↓ отдано</th><th class="num">↑ принято</th><th class="num">Всего</th><th>Доля</th><th class="num">Средняя</th><th class="num">Пик</th></tr></thead><tbody>${rows.map(({ proto, name, row }) => (
+  return `<div class="mon-table-wrap"><table class="mon-table stack"><thead><tr><th>Протокол</th><th class="num">↓ к клиентам</th><th class="num">↑ от клиентов</th><th class="num">Всего</th><th>Доля</th><th class="num">Средняя</th><th class="num">Пик</th></tr></thead><tbody>${rows.map(({ proto, name, row }) => (
     `<tr><td data-label="Протокол"><span class="cellv">${chip(proto)}<b>${esc(name)}</b></span></td>
-      <td class="num" data-label="↓ отдано"><span class="cellv">${formatBytes(row.down_bytes)}</span></td>
-      <td class="num" data-label="↑ принято"><span class="cellv">${formatBytes(row.up_bytes)}</span></td>
+      <td class="num" data-label="↓ к клиентам"><span class="cellv">${formatBytes(row.down_bytes)}</span></td>
+      <td class="num" data-label="↑ от клиентов"><span class="cellv">${formatBytes(row.up_bytes)}</span></td>
       <td class="num" data-label="Всего"><span class="cellv"><b>${formatBytes(row.total_bytes)}</b></span></td>
       <td data-label="Доля"><span class="cellv"><span class="share ser-${proto}"><span class="mini-bar"><i data-width="${Math.max(1, Number(row.share_percent) || 0).toFixed(1)}"></i></span><b>${formatPercent(row.share_percent)}</b></span></span></td>
       <td class="num" data-label="Средняя"><span class="cellv">${rateText(row.avg_bps)}</span></td>
@@ -1021,8 +1021,8 @@ async function openDrill(context, nodeId, generation, epoch) {
   rt.charts.push(lineChart(query('[data-drill-chart="net"]', grid), {
     x: aligned.x, domain, unit: "rate", height: 150, label: "Сеть",
     series: [
-      { id: "tx", label: "↓ отдача", cls: "ser-tile", values: aligned.series["net.tx_bps"] || [] },
-      { id: "rx", label: "↑ приём", cls: "ser-tile-2", dash: true, values: aligned.series["net.rx_bps"] || [] },
+      { id: "tx", label: "↓ к клиентам", cls: "ser-tile", values: aligned.series["net.tx_bps"] || [] },
+      { id: "rx", label: "↑ от клиентов", cls: "ser-tile-2", dash: true, values: aligned.series["net.rx_bps"] || [] },
     ],
     legend: true, legendValues: false,
   }));

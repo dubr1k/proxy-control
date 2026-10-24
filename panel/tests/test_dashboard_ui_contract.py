@@ -73,7 +73,7 @@ def test_every_protocol_card_has_the_same_three_blocks():
     assert "function protocolCard({" in DASHBOARD
     assert DASHBOARD.count("protocolCard({") == 6  # the definition and five cards
     assert DASHBOARD.count("<small>Активные доступы</small>") == 1
-    assert '<div class="protocol-traffic"><small>Трафик</small><b>${traffic}</b><em>${source}</em></div>' in DASHBOARD
+    assert '<div class="protocol-traffic"><small>Трафик (↓ к клиентам · ↑ от клиентов)</small><b>${traffic}</b><em>${source}</em></div>' in DASHBOARD
     for gone in ("traffic-unavailable", "protocol-caption", "<small>Доступы</small>", "Соединения сейчас</small>"):
         assert gone not in DASHBOARD, gone
     assert ".protocol-traffic{margin-top:auto;" in CSS

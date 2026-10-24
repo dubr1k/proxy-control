@@ -50,3 +50,34 @@ def test_the_runtime_switches_follows_renders_and_spares_typed_names():
     assert 'globalThis.document?.documentElement?.lang === "en" ? "en-GB" : "ru-RU"' in common
     for page in ("index.html", "login.html"):
         assert 'id="lang-button"' in (STATIC / page).read_text(encoding="utf-8"), page
+
+
+def _translate(text: str) -> str:
+    """The runtime's whole-word, longest-first replacement (panel/static/js/i18n.js)."""
+    keys = sorted(EN, key=len, reverse=True)
+    pattern = re.compile(r"(?<![\w])(?:" + "|".join(re.escape(key) for key in keys) + r")(?![\w])")
+    body = re.sub(r"\s+", " ", text).strip()
+    return EN[body] if body in EN else pattern.sub(lambda match: EN[match.group(0)], body)
+
+
+def test_fragments_glued_to_values_translate_in_composed_strings():
+    # Sentence tails and opening quotes next to a value used to sit inside the key, so the
+    # whole-word match failed whenever a value stood before them.
+    assert not [key for key in EN if key.startswith(".") or key.endswith("«")]
+    cases = {
+        "Последнее обновление клиентом: 05.10.2026 12:00. Интервал автообновления: 12 ч.": "Auto-refresh interval: 12",
+        "Попадёт: подписки. Не попадёт: ссылка mierus://.": "Included:",
+        "Клиент: demo · профиль «demo-monitor»": "profile «demo-monitor»",
+    }
+    for source, expected in cases.items():
+        translated = _translate(source)
+        assert expected in translated, translated
+        assert "Интервал" not in translated and "профиль" not in translated and "Попадёт" not in translated, translated
+    assert "Not included" in _translate("Попадёт: a. Не попадёт: b.")
+    assert EN["Попадёт"] == "Included"
+
+
+def test_the_local_server_name_is_translated_next_to_an_account_name():
+    source = (STATIC / "js" / "i18n.js").read_text(encoding="utf-8")
+    # operator-typed names stay as typed, the node label beside them does not
+    assert ".grant-account > span" in source and ",.grant-account," not in source

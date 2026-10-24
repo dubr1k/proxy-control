@@ -128,11 +128,42 @@ export const OPERATION_OK = new Set(["succeeded", "pending_remote"]);
 // v1.0.1: a component's recent releases, split into updates and roll-backs by the agent's
 // `newer` flag (an agent before 1.0.1 lists only newer releases and sends no flag).
 export function versionOptions(entries) {
-  const option = (entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}" data-newer="${entry.newer === false ? "0" : "1"}">${esc(entry.version)} · ${entry.source === "upstream" ? "upstream" : "каталог"}</option>`;
+  const option = (entry) => `<option value="${esc(entry.version)}" data-kind="${esc(entry.kind || "artifact")}" data-newer="${entry.newer === false ? "0" : "1"}">${esc(entry.version)} · ${entry.source === "upstream" ? "с GitHub" : "каталог"}${entry.newer === false ? " · откат" : ""}</option>`;
   const group = (label, list) => (list.length ? `<optgroup label="${label}">${list.map(option).join("")}</optgroup>` : "");
   const newer = entries.filter((entry) => entry.newer !== false);
   const older = entries.filter((entry) => entry.newer === false);
   return `<option value="">Выберите версию</option>${group("Новее установленной", newer)}${group("Откат на прежнюю", older)}`;
+}
+
+// A running build the agent knows only by its image digest («sha256:7c84…»): the catalog or
+// upstream entry with that digest gives it the human version, else it is a «сборка sha256:…».
+export function installedVersion(current, available) {
+  if (typeof current !== "string" || !current.startsWith("sha256:")) return { label: current, entry: null };
+  const digest = current.slice("sha256:".length);
+  const entry = (available || []).find((item) => digest.length >= 12
+    && [item.image, item.base_image, item.sha256].some((value) => typeof value === "string" && value.includes(digest)));
+  return entry ? { label: entry.version, entry } : { label: `сборка ${current}`, entry: null };
+}
+
+// Dotted numeric order (3.5.9 < 3.5.14) for the releases around a digest-identified build.
+export function versionIsNewer(version, installed) {
+  const parts = (text) => String(text).split(/[.\-+]/).map((part) => Number.parseInt(part, 10) || 0);
+  const left = parts(version);
+  const right = parts(installed);
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff) return diff > 0;
+  }
+  return false;
+}
+
+export function plural(count, one, few, many) {
+  const tens = count % 100;
+  const units = count % 10;
+  if (tens >= 11 && tens <= 14) return many;
+  if (units === 1) return one;
+  if (units >= 2 && units <= 4) return few;
+  return many;
 }
 
 export function cssEscape(value) {
