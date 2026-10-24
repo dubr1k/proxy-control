@@ -112,6 +112,7 @@ function createNavigator(context) {
     markMobileNavEdges(context.root);
 
     const canCreate = (context.state.me?.role !== "viewer" && ["users", "naive", "mieru", "amneziawg", "trusttunnel", "clients"].includes(name))
+      || (name === "dashboard" && context.state.me?.role !== "viewer")
       || (name === "fleet" && context.state.me?.role === "owner")
       || (name === "admins" && context.state.me?.role === "owner");
     const add = query("#add", context.root);
@@ -121,6 +122,7 @@ function createNavigator(context) {
     query("#add-label", context.root).textContent = {
       admins: "Администратор",
       clients: "Клиент",
+      dashboard: "Выдать доступ",
       fleet: "Панель",
       naive: "Naive доступ",
       mieru: "Mieru доступ",
@@ -194,6 +196,8 @@ function bindPanel(context) {
   query("#add", root).addEventListener("click", () => {
     if (context.state.view === "admins") openAdminModal(context);
     else if (context.state.view === "clients") void openClientModal(context);
+    // The overview's primary button: the same dialog, on the screen that owns it.
+    else if (context.state.view === "dashboard") void context.navigate("clients").then(() => openClientModal(context));
     else if (context.state.view === "fleet") openLinkModal(context);
     else if (context.state.view === "naive") openNaiveModal(context);
     else if (context.state.view === "mieru") openMieruModal(context);

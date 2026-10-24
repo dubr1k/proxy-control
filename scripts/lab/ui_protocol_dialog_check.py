@@ -390,6 +390,33 @@ def check_remote_issuance(browser, protocol):
     browser.healthy()
 
 
+def check_overview_attention(browser):
+    """«Требует внимания» lists the paused node and links to Nodes; with nothing to report the
+    block is gone; «Выдать доступ» opens the new-client dialog of the Clients screen."""
+    fixture = browser.fixture
+    nonce = secrets.token_hex(4)
+    browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": False})
+
+    def open_overview():
+        browser.dt.call("Page.navigate", {"url": f"{fixture.base}/?isolated={nonce}{secrets.token_hex(2)}#dashboard"})
+        browser.wait("!!document.querySelector('#view .host-card')", "overview painted")
+
+    open_overview()
+    lines = browser.js("[...document.querySelectorAll('[data-attention] a.attention-link')].map(a => [a.querySelector('b').textContent, a.querySelector('small').textContent, a.getAttribute('href')])")
+    require(lines == [["Paused panel", "на паузе", "#fleet"]], f"the paused node must be the one attention line, linking to Nodes: {lines}")
+    fixture.api(f"/api/nodes/{fixture.paused_id}/resume", "POST")
+    try:
+        open_overview()
+        require(browser.js("document.querySelector('[data-attention]') === null"), "the block must hide when nothing needs attention")
+        browser.wait("!!document.querySelector('#add') && !document.querySelector('#add').hidden", "header button")
+        require(browser.js("document.querySelector('#add-label').textContent") == "Выдать доступ", "header button label")
+        browser.click("#add")
+        browser.wait("location.hash === '#clients' && document.querySelector('#client-modal')?.open === true", "new-client dialog opened on Clients")
+        browser.healthy()
+    finally:
+        fixture.api(f"/api/nodes/{fixture.paused_id}/pause", "POST")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--screenshots", type=Path, help="empty states and unsubmitted dialogs only")
@@ -401,6 +428,7 @@ def main():
                 for width in (1440, 390):
                     check_empty_state(browser, protocol, width)
                 check_node_dialog(browser, protocol)
+            check_overview_attention(browser)
             for protocol in PROTOCOLS:
                 check_remote_issuance(browser, protocol)
     print("PROTOCOL_DIALOG_SMOKE_OK: AWG+TrustTunnel; fresh nodes; capability selection; remote issuance; desktop/mobile rows")

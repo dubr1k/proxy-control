@@ -1,6 +1,8 @@
-import { bytes, esc, locale, number, paintClientsCount, plural, query } from "./common.js";
+import { bytes, esc, locale, number, offeredVersions, paintClientsCount, plural, query } from "./common.js";
+import { countClientsWithIssue, showClientIssue } from "./clients.js";
 import { connectLive } from "./live.js";
-import { clientsCount, fleetCount, paintNavCounts } from "./nav-counts.js";
+import { clientEntries, fleetCount, paintNavCounts, workingClients } from "./nav-counts.js";
+import { COMPONENT_SHORT } from "./nodes.js";
 import { isCurrent } from "./state.js";
 import { refreshUsers } from "./users.js";
 
@@ -258,16 +260,75 @@ function upDown(up, down) {
   return `↑ ${bytes(up)} · ↓ ${bytes(down)}`;
 }
 
+// --- «Требует внимания»: what needs a hand, each line a link to the screen that resolves it. ---
+
+// Client lines reuse the Clients screen's own filters (`issue`), so the number here is the
+// length of the list behind the link.
+const CLIENT_ATTENTION = [["failed", "Доступы с ошибкой"], ["pending", "Доступы ждут узел"], ["orphan", "Доступы без секрета"]];
+
+function nodeProblem(node) {
+  const link = node.link;
+  if (node.kind === "local" || !link) return "";
+  if (link.status === "offline") return "не отвечает";
+  if (link.enabled === false) return "на паузе";
+  return link.observed_state === "failed" ? "конфигурация не применилась" : "";
+}
+
+function attentionLine(title, detail, href, attributes = "") {
+  return `<li><a class="attention-link" href="${href}"${attributes}><span><b>${esc(title)}</b><small>${esc(detail)}</small></span><i aria-hidden="true">→</i></a></li>`;
+}
+
+// `entries` is the client list the overview already fetched, `versions` the Versions screen's
+// answer (null when this role cannot read it), `nodes` the node list; nothing is polled for it.
+function attentionBlock(context, { entries, nodes, versions, services }) {
+  const lines = [];
+  for (const [issue, title] of CLIENT_ATTENTION) {
+    const count = entries ? countClientsWithIssue(context, entries, issue) : 0;
+    if (count) lines.push(attentionLine(title, `Клиентов: ${number(count)}`, "#clients", ` data-attention-issue="${issue}"`));
+  }
+  for (const node of nodes) {
+    const problem = nodeProblem(node);
+    if (problem) lines.push(attentionLine(node.display_name || node.node_id, problem, "#fleet"));
+  }
+  const outdated = Object.entries(versions?.components || {}).filter(([, item]) => offeredVersions(item).hasNewer)
+    .map(([component]) => COMPONENT_SHORT[component] || component);
+  if (versions?.enabled === true && outdated.length) lines.push(attentionLine("Есть обновления компонентов", outdated.join(", "), "#versions"));
+  if (services.length) lines.push(attentionLine("Сервисы не работают", services.join(", "), "#dashboard", " data-attention-services"));
+  return lines.length
+    ? `<section class="panel-card attention-card" data-attention><div class="panel-head"><h2>Требует внимания</h2></div><ul class="attention-list">${lines.join("")}</ul></section>`
+    : "";
+}
+
+// A client line opens the Clients screen with its filter preselected (the click runs before
+// the hash changes); the services line stays here and scrolls to the list it names.
+function bindAttention(context, generation) {
+  const block = query("[data-attention]", context.ui.view);
+  if (!block) return;
+  block.addEventListener("click", (event) => {
+    const link = event.target.closest("a.attention-link");
+    if (!link || !isCurrent(context.state, generation, "dashboard")) return;
+    if (link.dataset.attentionIssue) showClientIssue(context, link.dataset.attentionIssue);
+    else if ("attentionServices" in link.dataset) {
+      event.preventDefault();
+      query(".service-list", context.ui.view)?.scrollIntoView?.({ block: "center" });
+    }
+  });
+}
+
 export async function renderDashboard(context, generation) {
   const { api, root, state, ui } = context;
-  const [data, users, nodes, clients] = await Promise.all([
+  const owner = state.me?.role === "owner";
+  const [data, users, nodes, entries, nodeList, versions] = await Promise.all([
     api("/api/dashboard"),
     refreshUsers(context, generation),
     fleetCount(context),
-    clientsCount(context),
+    clientEntries(context),
+    // Courtesies, like on the Nodes screen: a list that does not load just adds no lines.
+    api("/api/nodes").then((answer) => answer.items || [], () => []),
+    owner ? api("/api/versions").catch(() => null) : null,
   ]);
   paintNavCounts(context, data, nodes);
-  paintClientsCount(context, clients);
+  paintClientsCount(context, workingClients(entries));
   if (!isCurrent(state, generation, "dashboard") || users === null) return;
 
   const mt = data.protocols?.mtproxy || {};
@@ -332,7 +393,10 @@ export async function renderDashboard(context, generation) {
     }),
   ];
 
-  ui.view.innerHTML = `<div class="protocol-overview">
+  const down = [["MTProxy", true, mtReady], ["NaiveProxy", naiveAvailable, naiveReady], ["Mieru", mieruAvailable, mieruReady],
+    ["AmneziaWG", awgAvailable, awgReady], ["TrustTunnel", ttAvailable, ttReady]]
+    .filter(([, available, ready]) => available && !ready).map(([name]) => name);
+  ui.view.innerHTML = `${attentionBlock(context, { entries, nodes: nodeList, versions, services: down })}<div class="protocol-overview">
     ${hostCard(data.host)}
     ${cards.join("\n    ")}
   </div>
@@ -345,5 +409,6 @@ export async function renderDashboard(context, generation) {
     <div class="service-row ${location.protocol === "https:" ? "" : "degraded"}"><i></i><span><b>Proxy Control${state.me?.panel_version ? ` · ${esc(state.me.panel_version)}` : ""}</b><small>${location.protocol === "https:" ? "HTTPS · защищённое соединение" : "HTTP · соединение не защищено"}</small></span><em>${location.protocol === "https:" ? "защищено" : "не защищено"}</em></div>
   </div></section></div>`;
   fillBars(ui.view);
+  bindAttention(context, generation);
   followLive(context, generation);
 }

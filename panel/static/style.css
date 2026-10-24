@@ -750,3 +750,4 @@ span.share b{font-weight:560;color:var(--text);min-width:42px;text-align:right}
 .bundle-link{display:grid;gap:8px;min-width:0;margin:12px 0}
 .bundle-link h3{margin:0;font-size:13px;font-weight:560}
 .bundle-details{margin:12px 0}
+.attention-card{margin-bottom:10px;border-color:rgba(231,168,75,.28);background:linear-gradient(180deg,rgba(231,168,75,.07),rgba(231,168,75,.025))}.attention-list{display:grid;margin:0;padding:0;list-style:none}.attention-list li{border-bottom:1px solid var(--line)}.attention-list li:last-child{border:0}.attention-link{display:flex;align-items:center;gap:10px;padding:9px 2px;color:var(--text-2)}.attention-link:hover{color:var(--text)}.attention-link span{display:grid;min-width:0}.attention-link b{font-size:12px;font-weight:520}.attention-link small{font-size:10px;color:var(--muted)}.attention-link i{margin-left:auto;font-style:normal;color:var(--amber)}

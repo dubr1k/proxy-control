@@ -158,6 +158,18 @@ const ISSUES = {
   lane: ["Со своей полосой", (grant) => grant.routing_lane === "own"],
 };
 
+// How many working clients the Clients screen would list under this issue filter, so the
+// overview's «Требует внимания» and the list behind its link never disagree.
+export function countClientsWithIssue(context, entries, issue) {
+  const filter = { ...CLIENT_FILTER_DEFAULT, issue };
+  return entries.filter((entry) => matchesClient(context, entry, filter)).length;
+}
+
+// The overview links here: the list opens on working clients with just this issue filter.
+export function showClientIssue(context, issue) {
+  context.state.clientFilter = { ...CLIENT_FILTER_DEFAULT, issue };
+}
+
 function filters(context) {
   if (!context.state.clientFilter) context.state.clientFilter = { ...CLIENT_FILTER_DEFAULT };
   return context.state.clientFilter;

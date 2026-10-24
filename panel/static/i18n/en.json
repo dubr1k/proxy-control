@@ -1930,5 +1930,15 @@
  "Сеть ↑ исходящий / ↓ входящий (средняя": "Network ↑ outgoing / ↓ incoming (average",
  "Сплошная — исходящий, пунктир — входящий; все интерфейсы": "Solid — outgoing, dashed — incoming; all interfaces",
  "↑ исходящий": "↑ outgoing",
- "↓ входящий": "↓ incoming"
+ "↓ входящий": "↓ incoming",
+ "Требует внимания": "Needs attention",
+ "Выдать доступ": "Give access",
+ "Доступы с ошибкой": "Accesses with an error",
+ "Доступы ждут узел": "Accesses waiting for the node",
+ "Доступы без секрета": "Accesses without a secret",
+ "Клиентов:": "Clients:",
+ "на паузе": "paused",
+ "конфигурация не применилась": "configuration was not applied",
+ "Есть обновления компонентов": "Component updates available",
+ "Сервисы не работают": "Services are down"
 }

@@ -11,6 +11,7 @@ import pytest
 from scripts.lab.ui_protocol_dialog_check import (
     check_empty_state,
     check_node_dialog,
+    check_overview_attention,
     check_remote_issuance,
     isolated_browser,
     isolated_panel,
@@ -142,3 +143,7 @@ def test_reopened_protocol_dialog_ignores_earlier_load_responses(protocol_browse
         ) == ["3.1"]
         assert browser.js("document.querySelector('[data-awg-version=\"3.1\"]').checked")
     browser.healthy()
+
+
+def test_overview_attention_block_lists_problems_hides_when_empty_and_issues_access(protocol_browser):
+    check_overview_attention(protocol_browser)
