@@ -228,6 +228,23 @@ def test_card_menu_opens_closes_and_acts_on_a_phone(clients_browser):
     browser.healthy()
 
 
+def test_the_menu_of_the_last_card_stays_above_the_bottom_navigation_on_a_phone(clients_browser):
+    browser = clients_browser
+    for index in range(4):
+        browser.fixture.api("/api/clients", "POST", {"display_name": f"Меню {index}", "subscription": False})
+    browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True})
+    open_clients(browser)
+    browser.wait("document.querySelectorAll('.client-card .client-menu-button').length >= 4", "four cards")
+    browser.js("window.scrollTo(0, document.documentElement.scrollHeight); true")
+    browser.js("[...document.querySelectorAll('.client-card .client-menu-button')].pop().click(); true")
+    hits = browser.js("""(() => { const list = document.querySelector('.client-menu-list:not([hidden])');
+      return [...list.querySelectorAll('button')].map((item) => { const r = item.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return hit === item || item.contains(hit); }); })()""")
+    assert len(hits) == 3 and all(hits), hits
+    browser.healthy()
+
+
 def test_new_client_dialog_shows_every_matrix_column_without_scrolling(clients_browser):
     browser = clients_browser
     browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": False})

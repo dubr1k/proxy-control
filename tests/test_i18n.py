@@ -83,3 +83,11 @@ def test_the_local_server_name_is_translated_next_to_an_account_name():
     assert ".grant-account," in source and "data-translate" in source
     grant = (STATIC / "js" / "grant.js").read_text(encoding="utf-8")
     assert '<span data-translate>Этот сервер</span>' in grant
+
+
+def test_every_app_download_label_of_the_catalogue_has_an_english_translation():
+    """The labels reach the chooser as API data, so the extractor of UI sources does not see them."""
+    from panel.subscriptions.apps import APPS
+
+    labels = {label for app in APPS for label, _ in app["downloads"]}
+    assert labels and [label for label in sorted(labels) if label not in EN] == []

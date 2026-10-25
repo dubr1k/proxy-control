@@ -22,11 +22,14 @@ def test_versions_screen_checks_upstream_and_labels_the_source():
         "Проверено ",
         "каталог",
         "с GitHub",
-        "Версия с GitHub: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась",
+        "«Каталог» — версии, проверенные оператором сервера; «с GitHub» — свежие релизы, проект их сам не проверял.",
         "Xray-router / Xray-core",
         "Собираем…",
     ):
         assert text in JS, text
+    # One short banner at the top carries the legend; the cards do not repeat it.
+    assert JS.count("проект их сам не проверял") == 1 and "version-risk" not in JS
+    assert "<br>" not in JS.split("security-note")[1].split("${checkBar}")[0]
     assert "entry.version !== current" in (STATIC / "js/common.js").read_text()
     # An upstream release without a published digest is shown but not installable; the
     # agent already hides `xray` on a host without the router, so the UI has no such branch.
@@ -82,7 +85,7 @@ def test_versions_screen_has_styles_for_the_check_bar_and_the_risk_note():
 def test_versions_screen_explains_sources_once_in_plain_words():
     for jargon in ("owner-ролью", "allowlist", "immutable digest", "host-agent; произвольные"):
         assert jargon not in JS, jargon
-    assert JS.count("«Каталог» — версии") == 1  # the legend sits above the cards, not in each one
+    assert JS.count("«Каталог» — версии") == 1 and JS.count("проект их сам не проверял") == 1  # the legend sits above the cards, not in each one
     # a digest-identified build shows the human version or «сборка sha256:…»; older releases are «откат»
     common = (STATIC / "js/common.js").read_text()
     assert "offeredVersions(item)" in JS

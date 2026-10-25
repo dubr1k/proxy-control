@@ -169,7 +169,7 @@ export function createGrantDialog(context) {
       return `<small class="refresh-${esc(status)}" title="${esc(app)}: ${esc(AUTO_REFRESH[status] || status)}">${esc(app)}</small>`;
     }).join("");
     const note = grant.secret_ref === null
-      ? '<small class="form-hint">без секрета — в подписке как unsupported</small>'
+      ? '<small class="form-hint">без секрета — в подписку не попадёт</small>'
       : (grant.desired_state === "enabled" ? "" : '<small class="form-hint">выключен — в подписку не попадает</small>');
     return fact("Подписка", `<span class="auto-refresh">${marks}</span>${note}`, { html: true });
   }

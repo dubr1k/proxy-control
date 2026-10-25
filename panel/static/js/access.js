@@ -539,7 +539,7 @@ export function createAccessDialogs(context) {
       bundleAsking = true;
       let close;
       try {
-        close = await ui.confirmed("Ссылки больше не покажутся. Закрыть?", "Вы ничего не скопировали и не скачали.", "Закрыть");
+        close = await ui.confirmed("Закрыть, ничего не скопировав?", "Секреты по протоколам показываются только сейчас. Ссылку подписки клиента можно показать снова из окна клиента.", "Закрыть");
       } finally {
         bundleAsking = false;
       }

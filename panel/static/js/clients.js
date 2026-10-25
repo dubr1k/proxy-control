@@ -89,8 +89,14 @@ function toggleClientMenu(button) {
   const open = list.hidden;
   closeClientMenus(button.closest(".client-list") || document, list);
   list.hidden = !open;
+  list.classList.remove("client-menu-up");
   button.setAttribute("aria-expanded", String(open));
-  if (open) list.querySelector("button")?.focus();
+  if (!open) return;
+  // Near the bottom edge the list opens upward: below it lie the viewport's end and, on a phone, the fixed navigation.
+  const nav = document.querySelector(".mobile-nav");
+  const floor = Math.min(window.innerHeight, nav && nav.offsetHeight ? nav.getBoundingClientRect().top : window.innerHeight);
+  if (list.getBoundingClientRect().bottom > floor) list.classList.add("client-menu-up");
+  list.querySelector("button")?.focus();
 }
 
 // Under the name: how many accesses and where, so the card says it before it is opened.

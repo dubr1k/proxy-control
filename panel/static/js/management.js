@@ -27,14 +27,12 @@ export async function renderVersions(context, generation) {
   const names = { panel: "Proxy Control / панель", telemt: "Telemt / MTProxy", mita: "Mieru / mita", amneziawg: "AmneziaWG / amneziawg-go", trusttunnel: "TrustTunnel / endpoint", naive: "NaiveProxy / Caddy", xray: "Xray-router / Xray-core" };
   const order = Object.keys(names);
   const rank = (component) => (order.includes(component) ? order.indexOf(component) : order.length);
-  const RISK = "Версия с GitHub: хэш из релиза подтверждает целостность скачивания, но проектом она не проверялась";
   const checkedAt = context.state.versions.checked_at ? `Проверено ${date(context.state.versions.checked_at)}` : "Обновления с GitHub ещё не проверялись";
   const checkBar = context.state.versions.upstream_enabled === false ? "" : `<div class="version-check"><span>${esc(checkedAt)}</span><button class="ghost" data-version-check="1">Проверить обновления</button></div>`;
   const cards = Object.entries(context.state.versions.components || {}).sort(([a], [b]) => rank(a) - rank(b)).map(([component, item]) => {
     const { raw, current, offered, hasNewer } = offeredVersions(item);
     const available = Array.isArray(item.available) ? item.available : [];
     const upstream = item.upstream || {};
-    const risk = offered.some((entry) => entry.source === "upstream") ? `<small class="version-risk">${RISK}</small>` : "";
     const notInstallable = !hasNewer && upstream.latest && upstream.reason === "no_published_digest"
       ? `<p class="version-empty"><b>Вышла ${esc(upstream.latest)}</b>, но релиз без опубликованного хэша — установка невозможна</p>`
       : "";
@@ -43,7 +41,7 @@ export async function renderVersions(context, generation) {
     const control = updating
       ? `<p class="version-empty"><b>Обновление идёт…</b> Панель пересобирается и перезапускается; страница перезагрузится сама.</p><button class="primary version-update" disabled>Обновление идёт…</button>`
       : offered.length
-        ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label>${risk}<button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(raw)}" data-current-label="${esc(current)}" disabled>Установить</button>`
+        ? `${hasNewer ? "" : notInstallable || upToDate(current, upstream, available)}<label>Установить версию<select data-version-select="${esc(component)}">${versionOptions(offered)}</select></label><button class="primary version-update" data-version-update="${esc(component)}" data-current="${esc(raw)}" data-current-label="${esc(current)}" disabled>Установить</button>`
         : `${notInstallable || upToDate(current, upstream, available)}<button class="primary version-update" disabled>Установить</button>`;
     const failure = upstream.last_error ? `<small class="version-note">Проверка не удалась: ${esc(upstream.last_error)}</small>` : "";
     // Managers the agent does not rebuild: their sources changed with the release.
@@ -61,7 +59,7 @@ export async function renderVersions(context, generation) {
     const lastError = component === "panel" && item.last_error ? `<small class="version-note">Последнее обновление: ${esc(item.last_error)}</small>` : "";
     return `<article class="version-card"><div class="panel-head"><div><h2>${esc(names[component] || component)}</h2><span>Текущая версия: <b>${esc(current)}</b></span></div><span class="status-pill ${current === "не определена" ? "blocked" : "active"}"><i></i>${current === "не определена" ? "Не определена" : "Установлена"}</span></div>${control}${pending}${lastError}${failure}</article>`;
   }).join("");
-  context.ui.view.innerHTML = `<div class="security-note">Версии обновляет владелец панели. Перед заменой контрольная сумма проверяется, прежняя версия сохраняется для отката, а после замены проверяется, что сервис работает.<br>«Каталог» — версии, которые проверил оператор сервера; «с GitHub» — свежие релизы с GitHub и из реестров образов (такие проект сам не проверял). Адреса из браузера не принимаются.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
+  context.ui.view.innerHTML = `<div class="security-note">Перед заменой проверяется контрольная сумма, а прежняя версия сохраняется для отката. «Каталог» — версии, проверенные оператором сервера; «с GitHub» — свежие релизы, проект их сам не проверял.</div>${checkBar}<section class="version-grid">${cards || '<div class="empty-state"><h3>Каталог версий пуст</h3></div>'}</section>`;
   if (context.state.versions.components?.panel?.status === "updating") void pollPanelUpdate(context, null);
   // A manager rebuild runs in the agent's background: look again until it is over.
   window.clearTimeout(rebuildTimer);

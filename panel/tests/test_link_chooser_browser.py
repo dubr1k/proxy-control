@@ -140,7 +140,7 @@ def test_the_bundle_opens_on_the_link_folds_the_rest_and_asks_before_closing(cho
     # Closing with nothing taken asks once; «Отмена» keeps the window.
     browser.click("#bundle-modal .modal-head-actions button.primary")
     browser.wait("document.querySelector('#confirm').open === true", "close confirm")
-    assert chooser_text(browser, "#confirm-title") == "Ссылки больше не покажутся. Закрыть?"
+    assert chooser_text(browser, "#confirm-title") == "Закрыть, ничего не скопировав?"
     browser.js("document.querySelector('#confirm button[value=\"cancel\"]').click(); true")
     browser.wait("document.querySelector('#confirm').open === false", "confirm dismissed")
     assert browser.js("document.querySelector('#bundle-modal').open")
