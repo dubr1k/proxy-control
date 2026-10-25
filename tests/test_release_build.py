@@ -578,13 +578,16 @@ def test_the_release_carries_the_version_agent_and_its_deploy_files():
 
 
 def test_the_release_carries_the_mcp_server():
-    """The MCP overlay (v0.11) builds its image from the release tree: the package, its
-    Dockerfile, its pinned requirements and the overlay must travel in the archive."""
+    """The MCP overlay (v0.11) builds its image from the release tree: the crate (Rust since
+    4.0) with its lock file, the shared crate it builds against, its Dockerfile and the overlay
+    must travel in the archive."""
     names = set(tracked_files(ROOT))
-    modules = {path.relative_to(ROOT).as_posix() for path in (ROOT / "mcp_server").glob("*.py")}
-    assert {"mcp_server/server.py", "mcp_server/tools.py", "mcp_server/curated.py", "mcp_server/healthcheck.py"} <= modules
-    assert modules <= names, sorted(modules - names)
-    assert {"mcp_server/Dockerfile", "mcp_server/requirements.txt", "compose.mcp.yaml"} <= names
+    sources = {path.relative_to(ROOT).as_posix() for path in (ROOT / "mcp_server").rglob("*.rs")}
+    assert {"mcp_server/src/main.rs", "mcp_server/src/tools.rs", "mcp_server/src/curated.rs", "mcp_server/src/server.rs"} <= sources
+    assert sources <= names, sorted(sources - names)
+    assert {"mcp_server/Dockerfile", "mcp_server/Cargo.toml", "mcp_server/Cargo.lock", "compose.mcp.yaml",
+            "pc_common/Cargo.toml", "pc_common/Cargo.lock"} <= names
+    assert not any(name.startswith("mcp_server/") and name.endswith(".py") for name in names)
 
 
 def test_the_install_script_names_exactly_the_pinned_artifact_versions():

@@ -195,8 +195,8 @@ installer — its `rollback` does the same.
 
 ## Verification
 
-- `tests/test_mcp_server.py` — the server against a fake panel: tools from OpenAPI, `confirm`,
-  401 without a token, the curated sequences.
+- `mcp_server/src/tests.rs` (`cargo test` in `mcp_server/`) — the server, written in Rust,
+  against a fake panel: tools from OpenAPI, `confirm`, 401 without a token, the curated sequences.
 - `panel/tests/test_openapi_routes.py`, `panel/tests/test_cli_api_keys.py` — the schema route
   and the key commands.
 - The gate's `compose` tier renders `compose.mcp.yaml` and builds the image, checking uid 10007.

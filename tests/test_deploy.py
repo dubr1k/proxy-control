@@ -990,21 +990,28 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("pids_limit: 64", compose)
         self.assertIn("dockerfile: mcp_server/Dockerfile", compose)
         self.assertIn("condition: service_healthy", compose)
-        self.assertIn('"python", "-m", "mcp_server.healthcheck"', compose)
+        # 4.0: the server is a Rust binary built from the locked crate set, and it is its own probe.
+        self.assertIn('test: ["CMD", "/usr/local/bin/mcp-server", "healthcheck"]', compose)
         for secret in ("mcp-panel-key", "mcp-token"):
             self.assertIn(f"    file: ./secrets/{secret}", compose, secret)
         for variable in ("MCP_PANEL_HOST", "MCP_ALLOWED_HOSTS", "MCP_PUBLIC_URL", "MCP_PANEL_KEY_FILE", "MCP_TOKEN_FILE"):
             self.assertIn(f"{variable}:", compose, variable)
         dockerfile = (ROOT / "mcp_server/Dockerfile").read_text()
-        panel_base = (ROOT / "panel/Dockerfile").read_text().splitlines()[0]
-        self.assertEqual(dockerfile.splitlines()[0], panel_base, "the MCP image pins the same base by digest as the panel")
-        self.assertIn("--uid 10007", dockerfile)
+        rust_bases = (ROOT / "trusttunnel_manager/Dockerfile").read_text()
+        bases = [line.split()[1] for line in dockerfile.splitlines() if line.startswith("FROM ")]
+        self.assertEqual(len(bases), 2)
+        for base in bases:
+            self.assertIn("@sha256:", base)
+            self.assertIn(base, rust_bases, "the MCP image pins the same bases by digest as the Rust managers")
+        self.assertIn("cargo build --release --locked", dockerfile)
+        self.assertIn("COPY pc_common /src/pc_common", dockerfile)
+        self.assertNotIn("python", dockerfile.lower())
         self.assertIn("USER 10007:10007", dockerfile)
         self.assertIn("EXPOSE 8793", dockerfile)
-        self.assertIn("mcp_server.healthcheck", dockerfile)
-        requirements = (ROOT / "mcp_server/requirements.txt").read_text().splitlines()
-        self.assertIn("mcp==2.2.0", requirements)
-        self.assertTrue(all("==" in line for line in requirements if line.strip()), "every dependency is pinned exactly")
+        self.assertIn('CMD ["/usr/local/bin/mcp-server", "healthcheck"]', dockerfile)
+        self.assertTrue((ROOT / "mcp_server/Cargo.lock").is_file(), "the crate set is locked")
+        self.assertFalse((ROOT / "mcp_server/requirements.txt").exists())
+        self.assertIn("**/target/", (ROOT / ".dockerignore").read_text())
         self.assertNotIn("mcp_server", (ROOT / ".dockerignore").read_text())
 
     def test_no_reference_to_three_xui_paths_in_router(self):

@@ -390,3 +390,21 @@ def test_compose_addresses_the_project_the_panel_runs_in(tmp_path, label, projec
             return super().capture(argv, max_chars=max_chars)
 
     assert McpAdapter(root=tmp_path, runner=Runner())._compose_project() == project
+
+
+def test_the_rust_server_builds_against_pc_common_wherever_it_is_installed_or_updated():
+    """4.0: the MCP server is a Rust crate built against `pc_common`. The installer copies both
+    trees, the version-agent rebuilds it when `pc_common` changes, and `update-host.sh` brings
+    `pc_common` along before the MCP image is rebuilt on a host whose agent predates 4.0."""
+    from installer.adapters import core
+    from version_agent import service
+
+    root = Path(__file__).resolve().parents[1]
+    assert {"mcp_server", "pc_common"} <= set(core._COPY_DIRECTORIES)
+    assert "mcp_server" in service.RUST_MANAGERS and service.MANAGER_SERVICES["mcp_server"] == ("mcp",)
+    script = (root / "scripts" / "update-host.sh").read_text()
+    shared = script[script.index('cp -a "$RELEASE_DIR/pc_common"'):script.index("up -d --build --no-deps --wait")]
+    assert 'has compose.mcp.yaml && [[ " ${services[*]:-} " != *" mcp "* ]]' in shared
+    assert "acked+=(mcp_server)" in shared
+    compose = (root / "compose.mcp.yaml").read_text()
+    assert 'test: ["CMD", "/usr/local/bin/mcp-server", "healthcheck"]' in compose
