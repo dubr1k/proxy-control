@@ -799,7 +799,7 @@ embeds into the SBOM.
 | `naive_manager/Dockerfile` | NaiveProxy access and accounting management | `python:3.13.5-slim` |
 | `mieru_manager/Dockerfile` | Mieru access and quota management (Rust) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `xray_router_manager/Dockerfile` | The Xray-router and its manager | `python:3.13.5-slim` |
-| `mcp_server/Dockerfile` | The MCP server (central panel only) | `python:3.13.5-slim` |
+| `mcp_server/Dockerfile` | The MCP server (Rust, central panel only) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: the manager (Rust) and `amneziawg-go` (optional) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `trusttunnel_manager/Dockerfile` | TrustTunnel: the manager (Rust) and the pinned `trusttunnel_endpoint` (optional) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `deploy/Dockerfile.agent` | Fleet v1 node agent | `python:3.13.5-slim` |
@@ -819,15 +819,8 @@ The panel (`panel/requirements.txt`): `fastapi`, `starlette`, `annotated-doc`,
 `MarkupSafe`, `argon2-cffi`, `argon2-cffi-bindings`, `cryptography`, `cffi`, `pycparser`,
 `uvicorn`, `click`, `qrcode`.
 
-The MCP server (`mcp_server/requirements.txt`): `mcp`, `mcp-types`, `starlette`,
-`sse-starlette`, `uvicorn`, `httpx`, `httpx2`, `httpcore`, `httpcore2`, `h11`, `anyio`,
-`pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`, `typing_extensions`,
-`jsonschema`, `jsonschema-specifications`, `referencing`, `rpds-py`, `attrs`, `PyJWT`,
-`cryptography`, `cffi`, `pycparser`, `python-multipart`, `opentelemetry-api`, `truststore`,
-`certifi`, `idna`, `click`.
-
 Development (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`, `iniconfig`,
-`packaging`, `pluggy`, `Pygments`, `ruff` and the MCP server dependencies.
+`packaging`, `pluggy`, `Pygments`, `ruff`.
 
 Every version is pinned exactly. The installer and the NaiveProxy and Mieru managers use only
 the Python standard library.

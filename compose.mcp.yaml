@@ -37,7 +37,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD", "python", "-m", "mcp_server.healthcheck"]
+      test: ["CMD", "/usr/local/bin/mcp-server", "healthcheck"]
       interval: 20s
       timeout: 3s
       retries: 3

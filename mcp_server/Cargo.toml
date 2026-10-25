@@ -1,0 +1,32 @@
+[package]
+name = "mcp-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+description = "The Proxy Control panel's API as Model Context Protocol tools: curated tools plus one tool per panel operation."
+publish = false
+
+[[bin]]
+name = "mcp-server"
+path = "src/main.rs"
+
+[dependencies]
+pc_common = { path = "../pc_common" }
+bytes = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "service", "server-graceful"] }
+log = "0.4"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+rmcp = { version = "3.7", default-features = false, features = ["server", "transport-streamable-http-server"] }
+serde = "1"
+# Python dicts keep insertion order: tool schemas, panel answers and request bodies keep theirs.
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["rt", "net", "time", "signal", "sync", "macros"] }
+tower-service = "0.3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -191,8 +191,8 @@ cp -r skills/proxy-control-* ~/.agents/skills/
 
 ## Проверка
 
-- `tests/test_mcp_server.py` — сервер против фальшивой панели: построение инструментов из
-  OpenAPI, `confirm`, 401 без токена, curated-последовательности.
+- `mcp_server/src/tests.rs` (`cargo test` в `mcp_server/`) — сервер (на Rust) против фальшивой
+  панели: построение инструментов из OpenAPI, `confirm`, 401 без токена, curated-последовательности.
 - `panel/tests/test_openapi_routes.py`, `panel/tests/test_cli_api_keys.py` — маршрут схемы и
   команды ключей.
 - Ярус `compose` гейта рендерит `compose.mcp.yaml` и собирает образ с проверкой uid 10007.

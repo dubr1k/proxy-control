@@ -324,10 +324,3 @@ async def test_stream_route_sends_event_stream_headers_and_frees_its_slot_on_dis
     leave.set()
     await asyncio.wait_for(task, 5)
     assert rig.app.state.metrics_streams.open_streams() == 0
-
-
-def test_the_endless_stream_is_not_an_mcp_tool_but_the_snapshots_are():
-    from mcp_server.tools import is_excluded
-
-    assert is_excluded("/api/metrics/stream")
-    assert not any(is_excluded(path) for path in ("/api/metrics/live", "/api/metrics/history", "/api/metrics/summary"))

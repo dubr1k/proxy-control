@@ -308,6 +308,33 @@ def test_legacy_agent_missing_mcp_sync_is_completed_from_verified_release(host):
     assert any(" up -d --build --no-deps --wait mcp" in line for line in host["log"].read_text().splitlines())
 
 
+def test_python_mcp_sources_are_replaced_by_the_rust_crate(host):
+    """4.0: a host still carrying the Python MCP package gets the Rust crate from the verified
+    release; the old tree (with its bytecode) goes to the backup and `mcp` is rebuilt once."""
+    with host["env_file"].open("a") as stream:
+        stream.write("PROXY_CONTROL_COMPOSE_FILES=compose.yaml:compose.mcp.yaml\n")
+    release = host["tmp"] / "release"
+    (release / "scripts").mkdir(parents=True)
+    (release / "mcp_server/src").mkdir(parents=True)
+    (release / "mcp_server/Cargo.toml").write_text('[package]\nname = "mcp-server"\n')
+    (release / "mcp_server/src/main.rs").write_text("fn main() {}\n")
+    shutil.copytree(ROOT / "installer", release / "installer")
+    host["script"] = release / "scripts/update-host.sh"
+    shutil.copy2(SCRIPT, host["script"])
+    shutil.copy2(ROOT / "scripts" / "migrate-compose-project.sh", release / "scripts")
+    source = host["project"] / "mcp_server"
+    (source / "__pycache__").mkdir(parents=True)
+    (source / "server.py").write_text("old mcp")
+    (source / "__pycache__/server.cpython-313.pyc").write_bytes(b"\0")
+    result = _run(host, Agent(pending=("mcp_server",)))
+    assert result.returncode == 0, result.stderr
+    assert sorted(path.relative_to(source).as_posix() for path in source.rglob("*")) == ["Cargo.toml", "src", "src/main.rs"]
+    previous = list((host["project"] / "version-overrides").glob("mcp-source-previous-*"))
+    assert len(previous) == 1 and (previous[0] / "server.py").read_text() == "old mcp"
+    rebuilds = [line for line in host["log"].read_text().splitlines() if " up -d --build --no-deps --wait " in line]
+    assert len(rebuilds) == 1 and rebuilds[0].endswith("--wait mcp")
+
+
 @pytest.mark.parametrize("migration_exit", [0, 1])
 def test_verified_update_runs_ingress_migration_and_reports_failure(host, migration_exit):
     wrapper = host["bin"] / "python3"
