@@ -60,6 +60,7 @@ boundary you are changing.
 
 ### Выпуски
 
+- [v3.3.0](releases/v3.3.0.md) — удобство работы: удаление архивных клиентов, новая страница подписки, выбор приложения, обновлённый установщик
 - [v3.2.1](releases/v3.2.1.md) — выбор узла и пустые состояния AmneziaWG/TrustTunnel, подписка NekoBox, обновление certifi
 - [v3.2.0](releases/v3.2.0.md) — версии AmneziaWG и TrustTunnel с экрана «Версии»
 - [v3.1.0](releases/v3.1.0.md) — обзор в прямом эфире, карточки протоколов одного вида
@@ -146,6 +147,7 @@ boundary you are changing.
 
 ### Releases
 
+- [v3.3.0](releases/v3.3.0.md) — usability: deleting archived clients, a new subscription page, app chooser, updated installer
 - [v3.2.1](releases/v3.2.1.md) — AmneziaWG/TrustTunnel node selection and empty states, NekoBox subscription, certifi update
 - [v3.2.0](releases/v3.2.0.md) — AmneziaWG and TrustTunnel versions from the «Versions» screen
 - [v3.1.0](releases/v3.1.0.md) — a live overview, one shape for every protocol card

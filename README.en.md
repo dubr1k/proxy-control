@@ -19,8 +19,8 @@ either finishes the installation or returns the server to the state it was in.
 <p align="center"><img src="assets/proxy-control-cover.png" alt="Proxy Control illustration" width="100%"></p>
 
 > [!NOTE]
-> **Current release: [v3.2.1](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.1).**
-> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.1)
+> **Current release: [v3.3.0](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0).**
+> What changed is in the [release notes](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0)
 > and the [changelog](CHANGELOG.md).
 
 > [!IMPORTANT]
@@ -231,8 +231,8 @@ wizard (which then does not ask for it). The script runs the installer as root w
 `.pyc` files, so the unpacked directory can be removed with a plain `rm -rf` afterwards. If
 Proxy Control is already installed on the server, the wizard says so, points at
 `bash install-release.sh --update` and by default quits without changes; answer `continue` to
-go on with a reinstall. To install exactly 3.2.1, replace `releases/latest/download/` in both URLs with
-`releases/download/v3.2.1/`.
+go on with a reinstall. To install exactly 3.3.0, replace `releases/latest/download/` in both URLs with
+`releases/download/v3.3.0/`.
 
 The project deliberately never offers «download and run in one command»: the script is
 verified first, read next, and only then run.
@@ -358,7 +358,7 @@ previous state.
 ### Manual installation from the archive
 
 The same path without the script. Download the four files under Assets of the
-[3.2.1 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.2.1): the archive,
+[3.3.0 release](https://github.com/dubr1k/proxy-control/releases/tag/v3.3.0): the archive,
 `SHA256SUMS`, `release-manifest.json` and `sbom.spdx.json`. `SHA256SUMS` checks
 the three payload files: the archive, the release manifest and `sbom.spdx.json`; the
 checksum file itself is trusted as downloaded from the release page and has no separate
@@ -366,9 +366,9 @@ provenance attestation.
 
 ```bash installer-check
 sha256sum --check SHA256SUMS &&
-tar -xOf proxy-control-v3.2.1.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
+tar -xOf proxy-control-v3.3.0.tar.gz proxy-control/install-bootstrap > install-bootstrap &&
 chmod 700 install-bootstrap &&
-./install-bootstrap --archive proxy-control-v3.2.1.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
+./install-bootstrap --archive proxy-control-v3.3.0.tar.gz --checksum SHA256SUMS --manifest release-manifest.json
 ```
 
 `install-bootstrap` refuses to run as `root`. Before its single `sudo` it checks file

@@ -4,6 +4,28 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-25
+
+### Added
+- **Deleting archived clients.** `DELETE /api/clients/{client_id}` (owner/admin, CSRF) and «Удалить навсегда» in the «⋯» menu of an archived client. Deletion is refused while the client has a grant not confirmed missing on its node, an unfinished operation or an operation in `manual_intervention_required`; it writes the `client.delete` audit event. The MCP tool `delete_clients_by_client_id` requires `confirm`.
+- **«На чём клиент?» chooser.** The client window and the access bundle ask for the platform first and then offer the fitting apps: a deep link where one is verified, a download link otherwise. The app catalogue (`panel/subscriptions/apps.py`) is exposed by `GET /api/subscriptions/compatibility` as `platforms` and `apps`.
+- **Overview.** A «Требует внимания» block lists clients with problems; «Выдать доступ» is a header button.
+- **Center key.** «Создать ключ для центра» on the local node card issues a `node-sync` key and shows the address and the key once.
+
+### Changed
+- **Subscription page** `/s/{token}` is rebuilt: styled page, «Добавить в <app>» buttons, a download block, «Копировать ссылку подписки», a QR code on demand, collapsed accesses with copy buttons, `?lang=en`. A client with MTProxy only gets a `tg://` link instead of a subscription block. AmneziaWG stays out of subscriptions. The HTML renderer is version 5.
+- Hiddify's TrustTunnel status in the compatibility report is `pending` instead of `unverified`.
+- **Clients.** The list shows active clients by default and the navigation badge ignores archived ones; the card keeps «Открыть» and «Узлы и доступы», the rest is in the «⋯» menu (it opens upward on the last card on a phone). The matrix windows are wider, with a tag legend and one header for the AmneziaWG columns.
+- «Ротировать URL» is «Выпустить новую ссылку». The TrustTunnel password in the access window is shown as is.
+- Plain wording and one traffic-arrow convention across the panel; «Добавить узел» replaces «Панель», node registration v1 is under «Дополнительно»; the «Versions» legend is a single banner.
+
+### Fixed
+- The client dialog keeps button labels, proposes a free account name, reuses the created client after a partial failure, shows server errors in Russian, and archiving waits for the grants to be deleted.
+- English labels for the app download links on the subscription page.
+
+### Installer
+- The wizard recognises an existing installation (`VERSION` or `ownership.json`), points at `bash install-release.sh --update` and quits by default; `--lang` skips the language question; review lines have human-readable labels in both languages; prompts are shorter with help lines; the profile help mentions AmneziaWG and TrustTunnel; root runs set `PYTHONDONTWRITEBYTECODE=1`. Components, ports, pins, configuration keys and host requirements are unchanged. The release build stamps `install-release.sh` with `3.3.0` and generates `install-release.sh.sha256`; the three-file `SHA256SUMS` is unchanged. No database migration or host configuration change.
+
 ## [3.2.1] - 2026-10-23
 
 ### Fixed
