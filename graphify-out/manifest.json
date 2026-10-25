@@ -23,36 +23,6 @@
     "ast_hash": "f126faf6ee47f4a1f8cbff287e251538",
     "semantic_hash": ""
   },
-  "mieru_manager/__init__.py": {
-    "mtime": 1786789775.8056133,
-    "seen": 1791122825.207062,
-    "ast_hash": "d80b06fad6f2fb1aaa668d14c8fa5988",
-    "semantic_hash": "d80b06fad6f2fb1aaa668d14c8fa5988"
-  },
-  "mieru_manager/__main__.py": {
-    "mtime": 1789736567.1224499,
-    "seen": 1791122825.207063,
-    "ast_hash": "6a55d2ea4d12bf11fb2f7de2bbd2685b",
-    "semantic_hash": ""
-  },
-  "mieru_manager/healthcheck.py": {
-    "mtime": 1786965868.2400563,
-    "seen": 1791122825.207063,
-    "ast_hash": "f89b5edc037c04528963a84beaa96396",
-    "semantic_hash": "f89b5edc037c04528963a84beaa96396"
-  },
-  "mieru_manager/server.py": {
-    "mtime": 1792400908.4553974,
-    "seen": 1792402044.1169379,
-    "ast_hash": "30c1c9d10a42693d52fc0e9fc96f1760",
-    "semantic_hash": ""
-  },
-  "mieru_manager/service.py": {
-    "mtime": 1792490332.5372875,
-    "seen": 1792500394.21463,
-    "ast_hash": "ad5410d033d5f60d9f3b471e4cb3620d",
-    "semantic_hash": ""
-  },
   "naive_manager/__init__.py": {
     "mtime": 1786703642.9319415,
     "seen": 1791122825.207065,
@@ -132,9 +102,9 @@
     "semantic_hash": ""
   },
   "panel/mieru.py": {
-    "mtime": 1792490294.1411195,
-    "seen": 1792500394.214657,
-    "ast_hash": "29650d1b98d2d2df43222db58ea2f7ac",
+    "mtime": 1792958761.3936982,
+    "seen": 1792959228.608066,
+    "ast_hash": "8c0985cceae366fe6ff745e48cc4406e",
     "semantic_hash": ""
   },
   "panel/naive.py": {
@@ -192,9 +162,9 @@
     "semantic_hash": "7a6422172d7039d64e4ac2851cc12a06"
   },
   "panel/tests/test_mieru_management.py": {
-    "mtime": 1792403490.8159857,
-    "seen": 1792405770.929368,
-    "ast_hash": "4a370e4b24b60eb88c03f985233f31bd",
+    "mtime": 1792958761.3942106,
+    "seen": 1792959228.608145,
+    "ast_hash": "10990e6775d8463f0d095f70a2df0e0b",
     "semantic_hash": ""
   },
   "panel/tests/test_naive_management.py": {
@@ -318,15 +288,9 @@
     "semantic_hash": ""
   },
   "tests/test_mieru_deployment.py": {
-    "mtime": 1789736567.1423335,
-    "seen": 1791122825.207166,
-    "ast_hash": "fd7525dcdf9faa48f6a7f8bb78e346ec",
-    "semantic_hash": ""
-  },
-  "tests/test_mieru_manager.py": {
-    "mtime": 1792490342.7402196,
-    "seen": 1792500394.214781,
-    "ast_hash": "caa8aef30e05ceae160e5b19103d3d5a",
+    "mtime": 1792958761.3948345,
+    "seen": 1792959228.608247,
+    "ast_hash": "3e41fcd67d42f75180bb8d930e9936f2",
     "semantic_hash": ""
   },
   "tests/test_naive_manager.py": {
@@ -402,9 +366,9 @@
     "semantic_hash": ""
   },
   "version_agent/service.py": {
-    "mtime": 1792958003.5843825,
-    "seen": 1792958545.287198,
-    "ast_hash": "faa9b1b7214c96a82b673c9223975cf7",
+    "mtime": 1792958771.3283324,
+    "seen": 1792959228.608279,
+    "ast_hash": "aec4463f32e46f38080fa43e352ad959",
     "semantic_hash": ""
   },
   "panel/auth_routes.py": {
@@ -690,9 +654,9 @@
     "semantic_hash": ""
   },
   "MIERU.en.md": {
-    "mtime": 1792255359.342747,
-    "seen": 1792263490.8894389,
-    "ast_hash": "aec3d39c0bb61be219940e20bbc14b72",
+    "mtime": 1792958761.3594797,
+    "seen": 1792959228.608293,
+    "ast_hash": "debec47fef6d6556d88217a2ca39f53f",
     "semantic_hash": ""
   },
   "MIERU.ru.md": {
@@ -714,15 +678,15 @@
     "semantic_hash": ""
   },
   "README.en.md": {
-    "mtime": 1792958003.5744147,
-    "seen": 1792958545.2872179,
-    "ast_hash": "6760704373a61fd2b3bc130c446e3282",
+    "mtime": 1792958761.359684,
+    "seen": 1792959228.608296,
+    "ast_hash": "c86926d4679db8c032d89e8bb42f271f",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792958003.57472,
-    "seen": 1792958545.2872179,
-    "ast_hash": "06093208cb55a6bf73ea62a3356fe4f7",
+    "mtime": 1792958761.3599315,
+    "seen": 1792959228.6082969,
+    "ast_hash": "685a09668284c9c5100d3816977daf0b",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -756,9 +720,9 @@
     "semantic_hash": ""
   },
   "compose.mieru.yaml": {
-    "mtime": 1792491674.766966,
-    "seen": 1792500394.214824,
-    "ast_hash": "535889668fdea7e23d85664daed0633c",
+    "mtime": 1792958761.3609464,
+    "seen": 1792959228.607996,
+    "ast_hash": "a1ea34256b03e4f82e9f89cbe8d045c1",
     "semantic_hash": ""
   },
   "compose.naive.yaml": {
@@ -2093,12 +2057,6 @@
     "ast_hash": "e06601aca55fc4d103c43afe5732490e",
     "semantic_hash": ""
   },
-  "mieru_manager/egress.py": {
-    "mtime": 1789736567.122541,
-    "seen": 1791122825.207063,
-    "ast_hash": "119bf32666ca60133b1094d5789ff2ec",
-    "semantic_hash": ""
-  },
   "naive_manager/egress.py": {
     "mtime": 1789736567.1229784,
     "seen": 1791122825.207065,
@@ -2118,9 +2076,9 @@
     "semantic_hash": ""
   },
   "panel/routing/document.py": {
-    "mtime": 1792491175.1694777,
-    "seen": 1792500394.214667,
-    "ast_hash": "2de3f4b3f5359c58c3972dc5aa5bd569",
+    "mtime": 1792958761.39393,
+    "seen": 1792959228.608085,
+    "ast_hash": "d60a0e5784c391d060d569ccbb535048",
     "semantic_hash": ""
   },
   "panel/routing/models.py": {
@@ -2219,12 +2177,6 @@
     "ast_hash": "fb27ba162470bd911773f4e28a9bf630",
     "semantic_hash": ""
   },
-  "tests/test_mieru_egress.py": {
-    "mtime": 1789736567.1424124,
-    "seen": 1791122825.207167,
-    "ast_hash": "334586ca772406a5404b3cdf505d8628",
-    "semantic_hash": ""
-  },
   "tests/test_naive_egress.py": {
     "mtime": 1789736567.142711,
     "seen": 1791122825.207168,
@@ -2250,15 +2202,15 @@
     "semantic_hash": ""
   },
   "docs/ROUTING.en.md": {
-    "mtime": 1792491175.1573858,
-    "seen": 1792500394.214831,
-    "ast_hash": "815bf850b08aba2e98a02ca431b25121",
+    "mtime": 1792958761.3614185,
+    "seen": 1792959228.608307,
+    "ast_hash": "44ee6a8cd416e22ffe1aecec9ea39ea9",
     "semantic_hash": ""
   },
   "docs/ROUTING.ru.md": {
-    "mtime": 1792491175.1576154,
-    "seen": 1792500394.214832,
-    "ast_hash": "d4162a73b24ce79d967eea309d9faf12",
+    "mtime": 1792958761.361583,
+    "seen": 1792959228.608307,
+    "ast_hash": "daf03777dbca6641a82d3311054d932d",
     "semantic_hash": ""
   },
   "docs/spikes/VNEXT_ROUTING_ENGINE.md": {
@@ -2364,9 +2316,9 @@
     "semantic_hash": ""
   },
   "tests/test_xray_router_deployment.py": {
-    "mtime": 1792493380.3841536,
-    "seen": 1792500394.214796,
-    "ast_hash": "fc711c57a37038ee6533378ab55550f0",
+    "mtime": 1792958761.3950818,
+    "seen": 1792959228.6082659,
+    "ast_hash": "abeaaf75b29c5f6e6316e7a23bb50d1e",
     "semantic_hash": ""
   },
   "tests/test_xray_router_intent.py": {
@@ -2448,9 +2400,9 @@
     "semantic_hash": ""
   },
   "docs/SECURITY_TEST_MATRIX.md": {
-    "mtime": 1792954959.068995,
-    "seen": 1792955420.5136588,
-    "ast_hash": "5947f5c4565960bb041f49fd4a4c4e68",
+    "mtime": 1792958761.3617187,
+    "seen": 1792959228.608307,
+    "ast_hash": "442e447fbea1d831d3eeb05f92d7efb9",
     "semantic_hash": ""
   },
   "docs/XRAY_ROUTER.en.md": {
@@ -2502,9 +2454,9 @@
     "semantic_hash": ""
   },
   "tests/fixtures/verification-matrix.json": {
-    "mtime": 1792958003.5834146,
-    "seen": 1792958545.287135,
-    "ast_hash": "b2430ef9f1563630c720bbe990e2a387",
+    "mtime": 1792958761.3946512,
+    "seen": 1792959228.6082199,
+    "ast_hash": "b432387ce88e36b753413fac6b81c0e2",
     "semantic_hash": ""
   },
   "tests/test_route_coverage.py": {
@@ -2520,9 +2472,9 @@
     "semantic_hash": ""
   },
   "docs/VERIFICATION_MATRIX.md": {
-    "mtime": 1792958003.580042,
-    "seen": 1792958545.287233,
-    "ast_hash": "b299d8e2dfa2c1f734c3fcca0d7e4f63",
+    "mtime": 1792958811.0,
+    "seen": 1792959228.60831,
+    "ast_hash": "5e8733aa5d323c54615584ec1e229fe2",
     "semantic_hash": ""
   },
   "installer/adapters/mcp.py": {
@@ -2589,12 +2541,6 @@
     "mtime": 1792354624.773231,
     "seen": 1792356415.8474581,
     "ast_hash": "0712f1fd86323580f07523ed0f637af6",
-    "semantic_hash": ""
-  },
-  "mieru_manager/lanes.py": {
-    "mtime": 1789736567.122597,
-    "seen": 1791122825.2070642,
-    "ast_hash": "4d703c9b95e7f3b176fa18ddea5a131e",
     "semantic_hash": ""
   },
   "naive_manager/lanes.py": {
@@ -2739,12 +2685,6 @@
     "mtime": 1792949212.0027456,
     "seen": 1792955420.5136,
     "ast_hash": "389298b2e16033afa196d4285e2d64d0",
-    "semantic_hash": ""
-  },
-  "tests/test_mieru_manager_lanes.py": {
-    "mtime": 1792400957.181399,
-    "seen": 1792402044.117079,
-    "ast_hash": "39fce7c594e67ef19157edd3e5cb7687",
     "semantic_hash": ""
   },
   "tests/test_naive_manager_lanes.py": {
@@ -3060,9 +3000,9 @@
     "semantic_hash": ""
   },
   "scripts/update-host.sh": {
-    "mtime": 1792958003.5831654,
-    "seen": 1792958545.2871318,
-    "ast_hash": "c0f7034121e7d7f357e76257a0ff2b7a",
+    "mtime": 1792958771.3280635,
+    "seen": 1792959228.608217,
+    "ast_hash": "bd388d0682f7091e897aab69a7219b36",
     "semantic_hash": ""
   },
   "tests/test_update_host.py": {
@@ -4239,6 +4179,102 @@
     "mtime": 1792958003.582661,
     "seen": 1792958545.287115,
     "ast_hash": "0be3e5f78cf0476a102d5167bc4d63d2",
+    "semantic_hash": ""
+  },
+  "mieru_manager/Cargo.toml": {
+    "mtime": 1792958761.3900287,
+    "seen": 1792959228.608025,
+    "ast_hash": "f1b0561e0c96398f3d1092d3c7409905",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/difflib.rs": {
+    "mtime": 1792958761.391885,
+    "seen": 1792959228.608026,
+    "ast_hash": "16e9b9e49b809a9ba7be0919b29a8cc6",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/egress.rs": {
+    "mtime": 1792958761.3919942,
+    "seen": 1792959228.608026,
+    "ast_hash": "237f907a6202dd9e6eb64ba3f4d119e6",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/error.rs": {
+    "mtime": 1792958761.3920813,
+    "seen": 1792959228.608027,
+    "ast_hash": "64ae748ab45b1eecbef6065c319e7065",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/lanes.rs": {
+    "mtime": 1792958761.392183,
+    "seen": 1792959228.608027,
+    "ast_hash": "4bb56a2298ad42584df50c2b842feb7d",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/main.rs": {
+    "mtime": 1792958761.392263,
+    "seen": 1792959228.608027,
+    "ast_hash": "590866795422da3c723ca361a7cb4ed7",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/mita.rs": {
+    "mtime": 1792958761.3923662,
+    "seen": 1792959228.608028,
+    "ast_hash": "286494d665ff6e467bf8883906662be6",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/pyip.rs": {
+    "mtime": 1792958761.3924813,
+    "seen": 1792959228.608028,
+    "ast_hash": "ab073604a4fceeb48fb74f1eee62836f",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/pyjson.rs": {
+    "mtime": 1792958761.3925803,
+    "seen": 1792959228.608028,
+    "ast_hash": "bafe16c3902eb9f07d1e8efef0726f33",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/python_vectors.json": {
+    "mtime": 1792958761.3926861,
+    "seen": 1792959228.608029,
+    "ast_hash": "a67897096d77f493aa80b73a5f1431ae",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/pyurl.rs": {
+    "mtime": 1792958761.392776,
+    "seen": 1792959228.608029,
+    "ast_hash": "5b312257f6c03b3c77fbe77cd9e6a626",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/server.rs": {
+    "mtime": 1792958761.3928847,
+    "seen": 1792959228.608029,
+    "ast_hash": "76729d28c884ba2ce4c0e90a9c7d33a7",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/service.rs": {
+    "mtime": 1792958761.393062,
+    "seen": 1792959228.6080298,
+    "ast_hash": "59dddf3712db71fef10108a181613ee4",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/tests.rs": {
+    "mtime": 1792958761.3932428,
+    "seen": 1792959228.6080298,
+    "ast_hash": "d9be25e7156acf13032b348c8cb434a2",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/util.rs": {
+    "mtime": 1792958761.3933482,
+    "seen": 1792959228.6080298,
+    "ast_hash": "45837817f85c528db6b1f1a885487a5b",
+    "semantic_hash": ""
+  },
+  "mieru_manager/src/validate.rs": {
+    "mtime": 1792958761.3934402,
+    "seen": 1792959228.608031,
+    "ast_hash": "ebc4969f36f3672026ab26f3aba6e72a",
     "semantic_hash": ""
   }
 }
