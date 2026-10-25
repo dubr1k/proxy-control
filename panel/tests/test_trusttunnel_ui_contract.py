@@ -85,7 +85,7 @@ def test_grant_window_shows_the_link_qr_and_the_toml():
 def test_subscription_texts_say_what_trusttunnel_gets_in_each_format():
     source = read("subscriptions.js")
     assert 'SUBSCRIBABLE = new Set(["naive", "mieru", "trusttunnel"])' in source
-    assert "у sing-box нет исходящего TrustTunnel" in source
+    assert "в официальном sing-box его нет" in source
     assert "tt://" in source
 
 
