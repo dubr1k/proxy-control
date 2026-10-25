@@ -575,6 +575,7 @@ def test_core_copies_the_overlay_the_sources_and_leaves_the_secret_and_service_a
 
     assert "compose.trusttunnel.yaml" in core._COPY_FILES
     assert "trusttunnel_manager" in core._COPY_DIRECTORIES
+    assert "pc_common" in core._COPY_DIRECTORIES  # the Rust image builds against it
     assert "secrets/trusttunnel-manager-token" in core._ADJACENT_CREDENTIALS
     assert "trusttunnel-manager" in core._ADJACENT_SERVICES
 
@@ -584,10 +585,12 @@ def test_the_panel_sync_scope_and_the_service_map_know_the_new_names():
 
     assert {"trusttunnel_manager", "compose.trusttunnel.yaml"} <= set(service.PANEL_SYNC)
     assert "trusttunnel_manager" in service.PANEL_MANAGERS
+    assert "pc_common" in service.PANEL_SYNC and "trusttunnel_manager" in service.RUST_MANAGERS
     assert service.OPTIONAL_COMPOSE_SERVICES["trusttunnel-manager"] == "compose.trusttunnel.yaml"
     assert service.PANEL_SYNC.count("compose.trusttunnel.yaml") == 1
     source = (ROOT / "installer" / "transaction.py").read_text()
     assert "'trusttunnel_manager'" in source and "'compose.trusttunnel.yaml'" in source
+    assert "'pc_common'" in source
     assert '"trusttunnel"' in (ROOT / "version_agent" / "service.py").read_text()
 
 
@@ -615,6 +618,8 @@ def test_update_host_rebuilds_the_manager_with_the_overlay_and_env():
     assert "trusttunnel-manager) required=compose.trusttunnel.yaml" in script
     assert "trusttunnel_manager) has compose.trusttunnel.yaml && services+=(trusttunnel-manager)" in script
     assert "for sibling in naive mieru xray-router amneziawg trusttunnel mcp; do" in script
+    # Agents before 4.0 do not sync pc_common: the script completes it before any rebuild.
+    assert script.index('cp -a "$RELEASE_DIR/pc_common"') < script.index('up -d --build --no-deps --wait')
 
 
 def test_the_install_script_describes_the_add_on_in_both_languages():

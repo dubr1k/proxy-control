@@ -887,8 +887,15 @@ class DeployCliTests(unittest.TestCase):
                          "TT_SHA256_X86_64", "TT_SHA256_AARCH64"):
             self.assertIn(variable, compose)
         dockerfile = (ROOT / "trusttunnel_manager/Dockerfile").read_text()
-        self.assertIn("sha256sum --check", dockerfile)
+        self.assertIn("ADD --checksum=sha256:${TT_SHA256_X86_64}", dockerfile)
+        self.assertIn("ADD --checksum=sha256:${TT_SHA256_AARCH64}", dockerfile)
         self.assertIn("91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7", dockerfile)
+        # 4.0: the manager is a Rust binary built from the locked crate set, and it is its own probe.
+        self.assertIn("cargo build --release --locked", dockerfile)
+        self.assertIn("COPY pc_common /src/pc_common", dockerfile)
+        self.assertNotIn("python", dockerfile.lower())
+        self.assertIn('test: ["CMD", "/usr/local/bin/trusttunnel-manager", "healthcheck"]', compose)
+        self.assertIn("**/target/", (ROOT / ".dockerignore").read_text())
         self.assertNotIn("trusttunnel_manager", (ROOT / ".dockerignore").read_text())
 
     def test_host_fleet_ingress_root_stages_certbot_key_for_panel(self):

@@ -801,7 +801,7 @@ embeds into the SBOM.
 | `xray_router_manager/Dockerfile` | The Xray-router and its manager | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | The MCP server (central panel only) | `python:3.13.5-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: the manager and `amneziawg-go` (optional) | `golang:1.25.12` → `python:3.13.5-slim` |
-| `trusttunnel_manager/Dockerfile` | TrustTunnel: the manager and the pinned `trusttunnel_endpoint` (optional) | `python:3.13.5-slim` |
+| `trusttunnel_manager/Dockerfile` | TrustTunnel: the manager (Rust) and the pinned `trusttunnel_endpoint` (optional) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `deploy/Dockerfile.agent` | Fleet v1 node agent | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | Fleet v1 mTLS ingress | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Mieru client for acceptance | `python:3.13.5-slim` |

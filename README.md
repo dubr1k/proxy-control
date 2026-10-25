@@ -788,7 +788,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 | `xray_router_manager/Dockerfile` | Xray-router и его служба управления | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | MCP-сервер (только центральная панель) | `python:3.13.5-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: служба управления и `amneziawg-go` (необязательно) | `golang:1.25.12` → `python:3.13.5-slim` |
-| `trusttunnel_manager/Dockerfile` | TrustTunnel: служба управления и закреплённый `trusttunnel_endpoint` (необязательно) | `python:3.13.5-slim` |
+| `trusttunnel_manager/Dockerfile` | TrustTunnel: служба управления (Rust) и закреплённый `trusttunnel_endpoint` (необязательно) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `deploy/Dockerfile.agent` | Агент узла Fleet v1 | `python:3.13.5-slim` |
 | `deploy/Dockerfile.ingress` | Вход Fleet v1 с mTLS | `python:3.13.5-slim` |
 | `deploy/mieru-client/Dockerfile` | Клиент Mieru для приёмки | `python:3.13.5-slim` |

@@ -521,7 +521,7 @@ class PanelOwnershipHandoff:
         result: dict[str, dict[str, str]] = {}
         allowed = {
             'panel', 'installer', 'scripts', 'docker', 'mieru_manager',
-            'naive_manager', 'xray_router_manager', 'awg_manager', 'trusttunnel_manager', 'mcp_server', 'release', 'docs',
+            'naive_manager', 'xray_router_manager', 'awg_manager', 'trusttunnel_manager', 'pc_common', 'mcp_server', 'release', 'docs',
             'compose.yaml', 'compose.naive.yaml', 'compose.mieru.yaml',
             'compose.xray-router.yaml', 'compose.amneziawg.yaml', 'compose.trusttunnel.yaml', 'compose.mcp.yaml', 'compose.agent.yaml',
             'compose.fleet-central.yaml', 'VERSION', 'uninstall.sh', 'install.sh',

@@ -35,7 +35,7 @@ done
 [[ $LISTEN_PORT =~ ^[0-9]{4,5}$ && $LISTEN_PORT -ge 1024 && $LISTEN_PORT -le 65535 && $LISTEN_PORT -ne $METRICS_PORT ]] \
   || { echo "--listen-port must be 1024-65535 and not $METRICS_PORT (the manager's metrics port)" >&2; exit 2; }
 [[ -d $DIR && -f $DIR/compose.yaml ]] || { echo "$DIR is not a Proxy Control project directory" >&2; exit 2; }
-[[ -d $SRC/trusttunnel_manager && -f $SRC/compose.trusttunnel.yaml ]] || { echo "run this script from an unpacked release" >&2; exit 2; }
+[[ -d $SRC/trusttunnel_manager && -d $SRC/pc_common && -f $SRC/compose.trusttunnel.yaml ]] || { echo "run this script from an unpacked release" >&2; exit 2; }
 LINEAGE=/etc/letsencrypt/live/$HOST
 [[ -r $LINEAGE/fullchain.pem && -r $LINEAGE/privkey.pem ]] \
   || { echo "no certificate for $HOST in $LINEAGE: issue it first (certbot certonly --cert-name $HOST -d $HOST)" >&2; exit 2; }
@@ -53,10 +53,13 @@ PY
 
 echo "== files"
 cd "$DIR"
-rm -rf "$DIR/trusttunnel_manager.new" && cp -a "$SRC/trusttunnel_manager" "$DIR/trusttunnel_manager.new"
-rm -rf "$DIR/trusttunnel_manager" && mv "$DIR/trusttunnel_manager.new" "$DIR/trusttunnel_manager"
-# a release unpacked by an ordinary user must not leave that user as the owner of root-run code
-chown -R root:root "$DIR/trusttunnel_manager"
+# the manager's sources and the shared Rust crate its image builds against
+for tree in trusttunnel_manager pc_common; do
+  rm -rf "$DIR/$tree.new" && cp -a "$SRC/$tree" "$DIR/$tree.new"
+  rm -rf "$DIR/$tree" && mv "$DIR/$tree.new" "$DIR/$tree"
+  # a release unpacked by an ordinary user must not leave that user as the owner of root-run code
+  chown -R root:root "$DIR/$tree"
+done
 install -m 0644 "$SRC/compose.trusttunnel.yaml" "$DIR/compose.trusttunnel.yaml"
 install -d -m 0700 "$DIR/secrets" /var/lib/trusttunnel-manager
 if [[ ! -s secrets/trusttunnel-manager-token ]]; then
@@ -103,6 +106,6 @@ docker compose "${args[@]}" "${files[@]}" up -d --build --wait --no-deps trusttu
 systemctl try-restart version-agent.service 2>/dev/null || true
 
 echo "== check"
-docker exec proxy-control-trusttunnel-manager python -m trusttunnel_manager.healthcheck
+docker exec proxy-control-trusttunnel-manager /usr/local/bin/trusttunnel-manager healthcheck
 echo "TrustTunnel is enabled: clients dial $HOST on TCP/443; the endpoint listens on 127.0.0.1:$LISTEN_PORT"
 echo "Nginx: add '$HOST 127.0.0.1:$LISTEN_PORT;' to your stream SNI map if the installer does not manage it; nothing UDP, no firewall rule needed."

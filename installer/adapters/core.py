@@ -87,6 +87,8 @@ _COPY_DIRECTORIES = (
     "awg_manager",
     # The TrustTunnel manager image is built from this directory by the `trusttunnel` adapter.
     "trusttunnel_manager",
+    # The shared Rust crate every Rust manager image builds against.
+    "pc_common",
 )
 # Credentials a project Core adopts must already have. The master key is deliberately
 # not here: a v0.1.0 project has none, and demanding it would refuse the upgrade.

@@ -1,0 +1,15 @@
+[package]
+name = "pc_common"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Shared plumbing of the Proxy Control managers: the authenticated JSON API on a Unix socket, atomic files, bounded subprocesses and the log format."
+publish = false
+
+[dependencies]
+httparse = "1"
+log = { version = "0.4", features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+signal-hook = "0.3"

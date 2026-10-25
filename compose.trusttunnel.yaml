@@ -49,7 +49,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD", "python", "-m", "trusttunnel_manager.healthcheck"]
+      test: ["CMD", "/usr/local/bin/trusttunnel-manager", "healthcheck"]
       interval: 20s
       timeout: 3s
       retries: 3

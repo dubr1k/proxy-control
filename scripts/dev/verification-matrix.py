@@ -7,6 +7,7 @@
 
 Proof forms:
     pytest::<file>::<test>          a test function in that file
+    cargo::<file>::<test>           a `#[test] fn` in that Rust source file
     lab-host::<scenario>            a `case_run <scenario>` of scripts/lab/guest-runner.sh
     lab-container::<scenario>       the same runner in its container mode
     fleet::<prefix>                 a `check("<prefix>_…` of scripts/lab/fleet-acceptance.py
@@ -38,6 +39,13 @@ def proof_problem(proof: str, root: Path) -> str | None:
         if not re.search(rf"^\s*(?:async )?def {re.escape(name)}\(", path.read_text(encoding="utf-8"), re.M):
             return "no such test"
         return None
+    if kind == "cargo":
+        file, _, name = rest.partition("::")
+        path = root / file
+        if not path.is_file():
+            return "no such file"
+        pattern = rf"#\[test\]\s*(?:#\[[^\]]*\]\s*)*fn {re.escape(name)}\("
+        return None if re.search(pattern, path.read_text(encoding="utf-8")) else "no such test"
     if kind in {"lab-host", "lab-container"}:
         text = (root / "scripts/lab/guest-runner.sh").read_text(encoding="utf-8")
         return None if re.search(rf"case_run {re.escape(rest)} |emit {re.escape(rest)} passed", text) else "no such scenario"

@@ -201,6 +201,19 @@ PY
     [[ " ${services[*]} " == *" mcp "* ]] || services+=(mcp)
     [[ " ${acked[*]:-} " == *" mcp_server "* ]] || acked+=(mcp_server)
 fi
+# 4.0: the Rust managers build against pc_common, a tree agents before 4.0 do not sync. Complete it
+# from the verified release tree before any manager is rebuilt; the Python managers never read it.
+if [[ -d $RELEASE_DIR/pc_common && ! -L $DIR/pc_common ]] \
+    && ! diff -rq "$RELEASE_DIR/pc_common" "$DIR/pc_common" >/dev/null 2>&1; then
+    { rm -rf "$DIR/pc_common.new" && cp -a "$RELEASE_DIR/pc_common" "$DIR/pc_common.new" \
+        && chown -R root:root "$DIR/pc_common.new" && rm -rf "$DIR/pc_common" \
+        && mv "$DIR/pc_common.new" "$DIR/pc_common"; } \
+        || fail "не удалось обновить исходники pc_common" "could not update the pc_common sources"
+    if has compose.trusttunnel.yaml && [[ " ${services[*]:-} " != *" trusttunnel-manager "* ]]; then
+        services+=(trusttunnel-manager)
+        acked+=(trusttunnel_manager)
+    fi
+fi
 # v1.1: the router's MTProxy bridge comes with the router (a new service on an updated host).
 if has compose.xray-router.yaml && grep -q '^  xray-router-ingress:' compose.xray-router.yaml; then
     services+=(xray-router-ingress)  # idempotent where it already runs the same image

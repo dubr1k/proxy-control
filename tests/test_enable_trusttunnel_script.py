@@ -39,3 +39,5 @@ def test_the_script_writes_the_installers_env_contract():
                  ".env.trusttunnel"):
         assert name in text, name
     assert "ufw" not in text.replace("no firewall rule", "")
+    assert "for tree in trusttunnel_manager pc_common; do" in text
+    assert "/usr/local/bin/trusttunnel-manager healthcheck" in text and "python -m trusttunnel_manager" not in text

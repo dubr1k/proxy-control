@@ -6,3 +6,5 @@ secrets/
 .venv/
 .pytest_cache/
 panel/tests/
+# Cargo build output of the Rust crates
+**/target/
