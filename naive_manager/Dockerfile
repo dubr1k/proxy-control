@@ -1,13 +1,18 @@
-FROM python:3.13.5-slim@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
-# The base image ships no bytecode and the container's root is read-only, so every Python start
-# (health checks, `docker exec`) would compile the standard library again. First step after
-# FROM, so every Proxy Control image shares this layer.
-RUN python -m compileall -q -j0 /usr/local/lib/python3.13
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    NAIVE_CADDYFILE=/data/Caddyfile NAIVE_STATE_FILE=/data/users.json \
+# The manager: built from the locked dependency set (SQLite and the TLS probe are compiled in),
+# nothing fetched beyond Cargo.lock.
+FROM rust:1.99-slim-bookworm@sha256:86234e857a413004348b471d11a4ebe1aa92d2eae2b6b143cac68fd1ac3c48be AS build
+WORKDIR /src
+COPY pc_common /src/pc_common
+COPY naive_manager /src/naive_manager
+RUN cd /src/naive_manager \
+    && cargo build --release --locked \
+    && install -D -m 0755 target/release/naive-manager /out/naive-manager
+
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+COPY --from=build /out/naive-manager /usr/local/bin/naive-manager
+ENV NAIVE_CADDYFILE=/data/Caddyfile NAIVE_STATE_FILE=/data/users.json \
     NAIVE_BACKUP_DIR=/data/backups NAIVE_MANAGER_SOCKET=/run/naive-manager/manager.sock \
     NAIVE_MANAGER_TOKEN_FILE=/run/secrets/naive-manager-token
-WORKDIR /app
-COPY naive_manager /app/naive_manager
-RUN python -m compileall -q /app
-ENTRYPOINT ["python", "-m", "naive_manager.server"]
+# compose runs it as 10002:101 on a read-only root with every capability dropped; Caddy's
+# admin API and the private listener are on the host's loopback (network_mode: host).
+ENTRYPOINT ["/usr/local/bin/naive-manager"]

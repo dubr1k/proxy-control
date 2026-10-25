@@ -898,6 +898,20 @@ class DeployCliTests(unittest.TestCase):
         self.assertIn("**/target/", (ROOT / ".dockerignore").read_text())
         self.assertNotIn("trusttunnel_manager", (ROOT / ".dockerignore").read_text())
 
+    def test_naive_manager_is_a_locked_rust_binary_that_probes_itself(self):
+        compose = (ROOT / "compose.naive.yaml").read_text()
+        dockerfile = (ROOT / "naive_manager/Dockerfile").read_text()
+        # 4.0: the manager is a Rust binary built from the locked crate set, and it is its own probe.
+        self.assertIn("cargo build --release --locked", dockerfile)
+        self.assertIn("COPY pc_common /src/pc_common", dockerfile)
+        self.assertIn("COPY naive_manager /src/naive_manager", dockerfile)
+        self.assertNotIn("python", dockerfile.lower())
+        self.assertTrue((ROOT / "naive_manager/Cargo.lock").is_file())
+        self.assertEqual(list((ROOT / "naive_manager").glob("*.py")), [])
+        self.assertIn('test: ["CMD", "/usr/local/bin/naive-manager", "healthcheck"]', compose)
+        self.assertNotIn("python", compose)
+        self.assertNotIn("naive_manager", (ROOT / ".dockerignore").read_text())
+
     def test_host_fleet_ingress_root_stages_certbot_key_for_panel(self):
         env_file = ROOT / "deploy/fleet-ingress.env.example"
         values = dict(

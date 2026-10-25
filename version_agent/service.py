@@ -86,7 +86,7 @@ PANEL_SYNC = (
 # Images the agent does not rebuild: a change here is reported as `pending_rebuild`.
 PANEL_MANAGERS = ("mieru_manager", "naive_manager", "xray_router_manager", "awg_manager", "trusttunnel_manager", "mcp_server", "docker")
 # Managers written in Rust: their images also build `pc_common`, so a change there rebuilds them.
-RUST_MANAGERS = ("trusttunnel_manager",)
+RUST_MANAGERS = ("trusttunnel_manager", "naive_manager")
 RUST_SHARED = "pc_common"
 PANEL_AGENT_DIR = "version_agent"
 PANEL_DB_FILES = ("panel.sqlite3", "panel.sqlite3-wal", "panel.sqlite3-shm")
