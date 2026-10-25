@@ -1,0 +1,28 @@
+[package]
+name = "mieru-manager"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Transactional, fail-closed manager of the separate GPL mita daemon: users, quotas, lanes and egress."
+publish = false
+
+[[bin]]
+name = "mieru-manager"
+path = "src/main.rs"
+
+[dependencies]
+pc_common = { path = "../pc_common" }
+base64 = "0.22"
+getrandom = "0.3"
+libc = "0.2"
+log = "0.4"
+# preserve_order: objects keep Python's dict order (responses, the lanes view after a PUT);
+# hashes and state files sort their keys explicitly (pyjson::dumps).
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

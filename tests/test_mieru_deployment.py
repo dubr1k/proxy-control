@@ -119,12 +119,8 @@ def test_mieru_overlay_supplies_pinned_host_binary_and_read_only_uds_access():
     assert manager["read_only"] is True
     assert manager["environment"]["TMPDIR"] == "/run/mieru-manager"
     assert manager["cap_drop"] == ["ALL"]
-    assert manager["healthcheck"]["test"] == [
-        "CMD",
-        "python",
-        "-m",
-        "mieru_manager.healthcheck",
-    ]
+    # 4.0: the manager is a Rust binary and its own health probe.
+    assert manager["healthcheck"]["test"] == ["CMD", "/usr/local/bin/mieru-manager", "healthcheck"]
     panel = config["services"]["panel"]
     assert panel["depends_on"]["mieru-manager"]["condition"] == "service_healthy"
     assert panel["group_add"] == ["10001", "10005"]
@@ -161,6 +157,42 @@ def test_systemd_manager_uses_reserved_mieru_identity():
     unit = (ROOT / "deploy" / "mieru-manager.service").read_text()
     assert "User=10005" in unit
     assert "Group=10005" in unit
+    assert "ExecStart=/usr/local/bin/mieru-manager" in unit and "python" not in unit
+
+
+def test_manager_image_is_the_rust_binary_built_against_pc_common():
+    """4.0: mieru_manager is a Rust crate; the image builds it from the locked set with the
+    shared pc_common crate, runs as the reserved identity and carries no interpreter."""
+    dockerfile = (ROOT / "mieru_manager" / "Dockerfile").read_text()
+    assert "cargo build --release --locked" in dockerfile
+    assert "COPY pc_common /src/pc_common" in dockerfile and "COPY mieru_manager /src/mieru_manager" in dockerfile
+    assert "--uid 10005" in dockerfile and "--gid 10005" in dockerfile and "USER 10005:10005" in dockerfile
+    assert 'ENTRYPOINT ["/usr/local/bin/mieru-manager"]' in dockerfile
+    assert "python" not in dockerfile.lower()
+    assert (ROOT / "mieru_manager" / "Cargo.lock").is_file()
+    assert not list((ROOT / "mieru_manager").glob("*.py"))
+    # A pc_common change rebuilds the manager, on the agent and through update-host.sh alike.
+    from version_agent import service
+
+    assert "mieru_manager" in service.RUST_MANAGERS and "pc_common" in service.PANEL_SYNC
+    script = (ROOT / "scripts" / "update-host.sh").read_text()
+    block = script[script.index('cp -a "$RELEASE_DIR/pc_common"'):script.index("# v1.1: the router's MTProxy bridge")]
+    assert "services+=(mieru-manager)" in block and "acked+=(mieru_manager)" in block
+
+
+def test_the_slot_unit_template_mirrors_the_main_unit_with_its_own_socket_and_state():
+    """`mita@<n>.service` (v0.7): the same hardening as `mita.service`, the slot's own config,
+    socket and state directory, and no `mita start` — an idle slot listens on nothing."""
+    root = ROOT / "deploy"
+    main, template = (root / "mita.service").read_text(), (root / "mita@.service").read_text()
+    # the slot's own state directory is bound over /var/lib/mita: mita's fixed metrics.pb and
+    # the config stay per daemon, never shared with the main one
+    assert "BindPaths=/var/lib/mita/lanes/%i:/var/lib/mita" in template
+    assert "MITA_CONFIG_JSON_FILE=/var/lib/mita/server_config.json" in template
+    assert "MITA_UDS_PATH=/run/mita/lane-%i.sock" in template and "StateDirectory=mita/lanes/%i" in template
+    assert "ExecStart=/usr/bin/mita run" in template and "mita start" not in template
+    for line in ("NoNewPrivileges=true", "ProtectSystem=strict", "ReadOnlyPaths=/usr/bin/mita", "ReadWritePaths=/run/mita /var/lib/mita", "User=mita"):
+        assert line in main and line in template
 
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="numeric permission behavior requires root")

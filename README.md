@@ -784,7 +784,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 |---|---|---|
 | `panel/Dockerfile` | API и интерфейс панели | `python:3.13.5-slim` |
 | `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy | `python:3.13.5-slim` |
-| `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru | `python:3.13.5-slim` |
+| `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `xray_router_manager/Dockerfile` | Xray-router и его служба управления | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | MCP-сервер (только центральная панель) | `python:3.13.5-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: служба управления (Rust) и `amneziawg-go` (необязательно) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |

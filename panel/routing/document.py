@@ -11,8 +11,8 @@ import hashlib
 import json
 import re
 
-# What the managers' egress APIs answer with (naive_manager/server.py, mieru_manager/
-# server.py). Bounded on purpose: any other code is a plain conflict or an outage, so a
+# What the managers' egress APIs answer with (naive_manager/server.py, mieru_manager/src/
+# server.rs). Bounded on purpose: any other code is a plain conflict or an outage, so a
 # manager response never dictates panel copy.
 EGRESS_REASON_CODES = frozenset({
     "egress_conflict",

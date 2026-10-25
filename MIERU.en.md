@@ -26,7 +26,7 @@ dpkg-deb -x mita_3.38.1_amd64.deb mita-root
 printf '%s  %s\n' 991179df309924d86251fa9b8109d67dc178d4161f0b83e4a5092940a79aa207 mita-root/usr/bin/mita | sha256sum -c -
 ```
 
-The pinned v3.35.0 and v3.38.1 Debian executables are statically linked. Reserve numeric UID/GID `10005:10005` for the non-login `mieru-manager` identity (fail closed if either number belongs to another principal), add that user to the distinct `mita` socket group, and add the panel service user only to group `10005`. Install `deploy/mieru-manager.service`. Put a random 32–512 character ASCII token in `/etc/mieru-manager/token`, then run `sudo ./scripts/prepare-mieru-token.sh prepare /etc/mieru-manager/token`; the resulting metadata is exactly `root:10005` mode `0440`.
+The pinned v3.35.0 and v3.38.1 Debian executables are statically linked. Reserve numeric UID/GID `10005:10005` for the non-login `mieru-manager` identity (fail closed if either number belongs to another principal), add that user to the distinct `mita` socket group, and add the panel service user only to group `10005`. Install the `mieru-manager` binary (built from `mieru_manager/` with `cargo build --release --locked`) as `/usr/local/bin/mieru-manager`, and `deploy/mieru-manager.service`. Put a random 32–512 character ASCII token in `/etc/mieru-manager/token`, then run `sudo ./scripts/prepare-mieru-token.sh prepare /etc/mieru-manager/token`; the resulting metadata is exactly `root:10005` mode `0440`.
 
 ```text
 MIERU_PUBLIC_HOST=mieru.example.com
