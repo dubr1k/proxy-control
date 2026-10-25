@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from installer.adapters.amneziawg import (
-    _HEALTH_SCRIPT,
+    _HEALTH_COMMAND,
     AmneziaWgAdapter,
     AmneziaWgError,
     AmneziaWgPaths,
@@ -630,11 +630,12 @@ def test_the_default_runner_asks_health_inside_the_container_without_the_token(m
     monkeypatch.setattr(_DefaultAmneziaWgRunner, "_capture_checked",
                         lambda self, argv: seen.append(tuple(argv)) or '{"status": "ok", "instances": {}}')
     assert runner.manager_health() == {"status": "ok", "instances": {}}
-    argv = seen[0]
-    assert argv[:5] == ("docker", "exec", "proxy-control-awg-manager", "python", "-c")
-    assert "AWG_MANAGER_TOKEN_FILE" in argv[5] and "X-Awg-Token" in argv[5]
-    assert argv[5] == _HEALTH_SCRIPT
-    compile(_HEALTH_SCRIPT, "<health>", "exec")
+    # 4.0: the Rust manager is its own health reader; the image carries no Python.
+    assert seen[0] == ("docker", "exec", "proxy-control-awg-manager", "/usr/local/bin/awg-manager", "health")
+    assert _HEALTH_COMMAND == ("/usr/local/bin/awg-manager", "health")
+    main = (ROOT / "awg_manager" / "src" / "main.rs").read_text()
+    assert 'Some("health") => std::process::exit(print_health())' in main
+    assert 'std::env::var("AWG_MANAGER_TOKEN_FILE")' in main and "TOKEN_HEADER" in main
 
 
 def test_the_default_runner_rejects_a_non_object_health(monkeypatch):
@@ -848,6 +849,7 @@ def test_core_copies_the_overlay_the_sources_and_leaves_the_secret_and_service_a
 
     assert "compose.amneziawg.yaml" in core._COPY_FILES
     assert "awg_manager" in core._COPY_DIRECTORIES
+    assert "pc_common" in core._COPY_DIRECTORIES  # the Rust image builds against it
     assert "secrets/awg-manager-token" in core._ADJACENT_CREDENTIALS
     assert "awg-manager" in core._ADJACENT_SERVICES
 
@@ -857,9 +859,11 @@ def test_the_panel_sync_scope_knows_the_new_names():
 
     assert {"awg_manager", "compose.amneziawg.yaml"} <= set(service.PANEL_SYNC)
     assert "awg_manager" in service.PANEL_MANAGERS
+    # 4.0: a pc_common change rebuilds the Rust manager too.
+    assert "pc_common" in service.PANEL_SYNC and "awg_manager" in service.RUST_MANAGERS
     assert service.OPTIONAL_COMPOSE_SERVICES["awg-manager"] == "compose.amneziawg.yaml"
     source = (ROOT / "installer" / "transaction.py").read_text()
-    assert "'awg_manager'" in source and "'compose.amneziawg.yaml'" in source
+    assert "'awg_manager'" in source and "'compose.amneziawg.yaml'" in source and "'pc_common'" in source
 
 
 def test_every_adapter_compose_call_rides_the_amneziawg_overlay_when_its_env_exists(tmp_path):
@@ -894,6 +898,9 @@ def test_update_host_rebuilds_the_manager_with_the_overlay_and_env():
     assert "awg-manager) required=compose.amneziawg.yaml" in script
     assert "awg_manager) has compose.amneziawg.yaml && services+=(awg-manager)" in script
     assert "for sibling in naive mieru xray-router amneziawg trusttunnel mcp; do" in script
+    # Agents before 4.0 do not sync pc_common: the script completes it and rebuilds the manager.
+    block = script[script.index('cp -a "$RELEASE_DIR/pc_common"'):script.index("v1.1: the router's MTProxy bridge")]
+    assert "has compose.amneziawg.yaml" in block and "services+=(awg-manager)" in block and "acked+=(awg_manager)" in block
 
 
 def test_the_install_script_describes_the_add_on_in_both_languages():
@@ -905,7 +912,8 @@ def test_the_install_script_describes_the_add_on_in_both_languages():
 
 
 def test_the_release_carries_the_manager_sources_and_the_overlay():
-    for relative in ("awg_manager/Dockerfile", "awg_manager/service.py", "compose.amneziawg.yaml",
+    for relative in ("awg_manager/Dockerfile", "awg_manager/Cargo.toml", "awg_manager/Cargo.lock",
+                     "awg_manager/src/service.rs", "pc_common/Cargo.toml", "compose.amneziawg.yaml",
                      "examples/installer/core-amneziawg.toml", "installer/adapters/amneziawg.py"):
         assert (ROOT / relative).is_file(), relative
         ignored = subprocess.run(("git", "-C", str(ROOT), "check-ignore", "-q", relative), check=False)
@@ -918,13 +926,22 @@ def test_third_party_notices_name_the_amneziawg_licence():
 
 
 def test_the_overlay_and_the_manager_defaults_agree_with_the_installer_model():
-    from awg_manager.config import DEFAULT_PORTS, DEFAULT_SUBNETS, KNOWN_VERSIONS, interface_name
+    import re
+
     from installer.model import AWG_DEFAULT_SUBNETS, awg_interface
 
-    assert tuple(KNOWN_VERSIONS) == AWG_VERSIONS
+    # The manager is Rust (4.0): its constants are read from its configuration source.
+    config = (ROOT / "awg_manager" / "src" / "config.rs").read_text()
+    known = re.search(r"KNOWN_VERSIONS: \[&str; 3\] = \[([^\]]*)\]", config).group(1)
+    assert tuple(re.findall(r'"([^"]+)"', known)) == AWG_VERSIONS
+    ports = re.search(r"DEFAULT_PORTS: \[\(&str, &str\); 3\] =\s*\[(.*?)\];", config, re.S).group(1)
+    subnets = re.search(r"DEFAULT_SUBNETS: \[\(&str, &str\); 3\] =\s*\[(.*?)\];", config, re.S).group(1)
+    pairs = lambda text: dict(re.findall(r'\("([^"]+)", "([^"]+)"\)', text))  # noqa: E731
     # the manager's and the overlay's fallback ports are lab-only; the installer has no such default
-    assert DEFAULT_PORTS == TEST_PORTS and DEFAULT_SUBNETS == AWG_DEFAULT_SUBNETS
-    assert all(interface_name(v) == awg_interface(v) for v in AWG_VERSIONS)
+    assert {v: int(p) for v, p in pairs(ports).items()} == TEST_PORTS
+    assert pairs(subnets) == AWG_DEFAULT_SUBNETS
+    assert 'format!("awg{}", version.replace(\'.\', ""))' in config
+    assert all(awg_interface(v) == "awg" + v.replace(".", "") for v in AWG_VERSIONS)
     overlay = (ROOT / "compose.amneziawg.yaml").read_text()
     for version, port in TEST_PORTS.items():
         assert f"{version}={port}" in overlay

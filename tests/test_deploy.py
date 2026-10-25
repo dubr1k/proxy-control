@@ -874,6 +874,16 @@ class DeployCliTests(unittest.TestCase):
             self.assertIn(variable, compose)
         self.assertIn("10007", (ROOT / "panel/entrypoint.sh").read_text())
         self.assertNotIn("awg_manager", (ROOT / ".dockerignore").read_text())
+        # 4.0: the manager is a Rust binary built from the locked crate set and is its own probe;
+        # the runtime keeps the tools it runs (ip, nft) and amneziawg-go from the pinned commit.
+        dockerfile = (ROOT / "awg_manager/Dockerfile").read_text()
+        self.assertIn("cargo build --release --locked", dockerfile)
+        self.assertIn("COPY pc_common /src/pc_common", dockerfile)
+        self.assertIn("iproute2 nftables", dockerfile)
+        self.assertIn('test "$(git rev-parse HEAD)" = "${AWG_GO_COMMIT}"', dockerfile)
+        self.assertIn("ENV AWG_GO_VERSION=${AWG_GO_VERSION} AWG_GO_COMMIT=${AWG_GO_COMMIT}", dockerfile)
+        self.assertNotIn("python", dockerfile.lower())
+        self.assertIn('test: ["CMD", "/usr/local/bin/awg-manager", "healthcheck"]', compose)
 
     def test_trusttunnel_overlay_is_a_documented_hardened_manager(self):
         compose = (ROOT / "compose.trusttunnel.yaml").read_text()

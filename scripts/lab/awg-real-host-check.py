@@ -122,8 +122,8 @@ try:
     with binary.open("wb") as handle:
         subprocess.run(["docker", "run", "--rm", "--entrypoint", "cat", image, "/usr/local/bin/amneziawg-go"], stdout=handle, check=True)
     binary.chmod(0o755)
-    sys.path.insert(0, REPO)
-    from awg_manager.host import _uapi_exchange
+    sys.path.insert(0, f"{REPO}/scripts/lab")
+    from awg_lab import uapi_exchange as _uapi_exchange
 
     for version in VERSIONS:
         s, grant = suffix(version), grants[version]
