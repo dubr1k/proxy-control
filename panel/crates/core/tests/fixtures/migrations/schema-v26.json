@@ -1,0 +1,416 @@
+[
+ [
+  "index",
+  "access_grants_client",
+  "access_grants",
+  "CREATE INDEX access_grants_client ON access_grants(client_id)"
+ ],
+ [
+  "index",
+  "api_keys_prefix",
+  "api_keys",
+  "CREATE INDEX api_keys_prefix ON api_keys(prefix)"
+ ],
+ [
+  "index",
+  "audit_log_request",
+  "audit_log",
+  "CREATE INDEX audit_log_request ON audit_log(request_id)"
+ ],
+ [
+  "index",
+  "client_subscriptions_one_active",
+  "client_subscriptions",
+  "CREATE UNIQUE INDEX client_subscriptions_one_active ON client_subscriptions(client_id) WHERE state='active'"
+ ],
+ [
+  "index",
+  "fleet_commands_node_sequence",
+  "fleet_commands",
+  "CREATE INDEX fleet_commands_node_sequence ON fleet_commands(node_id,sequence)"
+ ],
+ [
+  "index",
+  "login_attempts_scope_time",
+  "login_attempts",
+  "CREATE INDEX login_attempts_scope_time ON login_attempts(scope,happened_at)"
+ ],
+ [
+  "index",
+  "metric_rollups_series",
+  "metric_rollups",
+  "CREATE INDEX metric_rollups_series ON metric_rollups(node_id, series, resolution, bucket)"
+ ],
+ [
+  "index",
+  "provisioning_operations_client",
+  "provisioning_operations",
+  "CREATE INDEX provisioning_operations_client ON provisioning_operations(client_id)"
+ ],
+ [
+  "index",
+  "routing_applies_policy",
+  "routing_applies",
+  "CREATE INDEX routing_applies_policy ON routing_applies(policy_id, id)"
+ ],
+ [
+  "index",
+  "secret_versions_grant",
+  "secret_versions",
+  "CREATE INDEX secret_versions_grant ON secret_versions(grant_id, state)"
+ ],
+ [
+  "index",
+  "secret_versions_key",
+  "secret_versions",
+  "CREATE INDEX secret_versions_key ON secret_versions(key_id)"
+ ],
+ [
+  "index",
+  "sqlite_autoindex_access_grants_1",
+  "access_grants",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_access_grants_2",
+  "access_grants",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_admins_1",
+  "admins",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_api_keys_1",
+  "api_keys",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_client_subscriptions_1",
+  "client_subscriptions",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_client_subscriptions_2",
+  "client_subscriptions",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_clients_1",
+  "clients",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_desired_generations_1",
+  "desired_generations",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_egress_exits_1",
+  "egress_exits",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_egress_exits_2",
+  "egress_exits",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_fleet_certificates_1",
+  "fleet_certificates",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_fleet_certificates_2",
+  "fleet_certificates",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_fleet_commands_1",
+  "fleet_commands",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_fleet_commands_2",
+  "fleet_commands",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_fleet_commands_3",
+  "fleet_commands",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_fleet_nodes_1",
+  "fleet_nodes",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_managed_egress_1",
+  "managed_egress",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_managed_resources_1",
+  "managed_resources",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_node_links_1",
+  "node_links",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_observed_generations_1",
+  "observed_generations",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_panel_settings_1",
+  "panel_settings",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_provisioning_operations_1",
+  "provisioning_operations",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_relay_peers_1",
+  "relay_peers",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_router_relays_1",
+  "router_relays",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_routing_policies_1",
+  "routing_policies",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_routing_policies_2",
+  "routing_policies",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_routing_rules_1",
+  "routing_rules",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_routing_rules_2",
+  "routing_rules",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_secret_versions_1",
+  "secret_versions",
+  null
+ ],
+ [
+  "index",
+  "sqlite_autoindex_sessions_1",
+  "sessions",
+  null
+ ],
+ [
+  "table",
+  "access_grants",
+  "access_grants",
+  "CREATE TABLE access_grants (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      protocol TEXT NOT NULL CHECK(protocol IN ('mtproxy','naive','mieru','amneziawg','trusttunnel')),\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      endpoint_id TEXT NOT NULL DEFAULT 'default',\n      runtime_username TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      desired_state TEXT NOT NULL CHECK(desired_state IN ('enabled','disabled','deleted')),\n      observed_state TEXT NOT NULL DEFAULT 'unknown'\n        CHECK(observed_state IN ('unknown','pending','enabled','disabled','missing')),\n      valid_from INTEGER, valid_until INTEGER,\n      protocol_options_json TEXT NOT NULL DEFAULT '{}',\n      origin TEXT NOT NULL CHECK(origin IN ('imported','provisioned')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      routing_lane TEXT, label TEXT,\n      UNIQUE(protocol,node_id,endpoint_id,runtime_username))"
+ ],
+ [
+  "table",
+  "admins",
+  "admins",
+  "CREATE TABLE admins (\n      id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,\n      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),\n      active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "api_keys",
+  "api_keys",
+  "CREATE TABLE api_keys (\n      id INTEGER PRIMARY KEY, name TEXT NOT NULL,\n      scope TEXT NOT NULL CHECK(scope IN ('admin','monitor','node-sync')),\n      prefix TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE,\n      enabled INTEGER NOT NULL DEFAULT 1, expires_at INTEGER,\n      created_at INTEGER NOT NULL, created_by TEXT NOT NULL, last_used_at INTEGER)"
+ ],
+ [
+  "table",
+  "audit_log",
+  "audit_log",
+  "CREATE TABLE audit_log (\n      id INTEGER PRIMARY KEY, happened_at INTEGER NOT NULL, actor_id INTEGER,\n      actor_username TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL,\n      detail_json TEXT NOT NULL DEFAULT '{}', ip TEXT NOT NULL, request_id TEXT, correlation_id TEXT, reason_code TEXT, generation INTEGER, before_digest TEXT, after_digest TEXT)"
+ ],
+ [
+  "table",
+  "client_subscriptions",
+  "client_subscriptions",
+  "CREATE TABLE client_subscriptions (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      public_token_hash TEXT NOT NULL UNIQUE,\n      generation INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL CHECK(state IN ('active','revoked')),\n      update_interval_hours INTEGER NOT NULL DEFAULT 12,\n      last_fetched_at INTEGER,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, revoked_at INTEGER, secret_id TEXT, secret_version INTEGER)"
+ ],
+ [
+  "table",
+  "clients",
+  "clients",
+  "CREATE TABLE clients (\n      id TEXT PRIMARY KEY, display_name TEXT NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('active','suspended','archived')),\n      metadata_json TEXT NOT NULL DEFAULT '{}',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "desired_generations",
+  "desired_generations",
+  "CREATE TABLE desired_generations (\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      generation INTEGER NOT NULL, digest TEXT NOT NULL, content_digest TEXT NOT NULL,\n      document_json TEXT NOT NULL,\n      previous_generation INTEGER NOT NULL, created_at INTEGER NOT NULL, created_by TEXT NOT NULL,\n      pushed_at INTEGER, acknowledged_at INTEGER, PRIMARY KEY(node_id, generation))"
+ ],
+ [
+  "table",
+  "egress_exits",
+  "egress_exits",
+  "CREATE TABLE egress_exits (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      name TEXT NOT NULL,\n      protocol TEXT NOT NULL CHECK(protocol IN ('socks','http','vless','trojan','shadowsocks')),\n      settings_json TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      enabled INTEGER NOT NULL DEFAULT 1,\n      last_test_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, name))"
+ ],
+ [
+  "table",
+  "fleet_certificates",
+  "fleet_certificates",
+  "CREATE TABLE fleet_certificates (\n      serial TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      fingerprint_sha256 TEXT NOT NULL UNIQUE, not_before INTEGER NOT NULL, not_after INTEGER NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('active','revoked')), issued_at INTEGER NOT NULL, revoked_at INTEGER)"
+ ],
+ [
+  "table",
+  "fleet_commands",
+  "fleet_commands",
+  "CREATE TABLE fleet_commands (\n      command_id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      sequence INTEGER NOT NULL, idempotency_key TEXT NOT NULL, protocol_version INTEGER NOT NULL,\n      operation TEXT NOT NULL, expected_revision TEXT NOT NULL, payload_json TEXT NOT NULL,\n      status TEXT NOT NULL CHECK(status IN ('queued','dispatched','succeeded','failed','indeterminate')),\n      result_json TEXT, created_at INTEGER NOT NULL, completed_at INTEGER,\n      actor TEXT NOT NULL DEFAULT 'system', expires_at INTEGER NOT NULL DEFAULT 0,\n      payload_sha256 TEXT NOT NULL DEFAULT '', dispatched_at INTEGER,\n      UNIQUE(node_id,sequence), UNIQUE(node_id,idempotency_key))"
+ ],
+ [
+  "table",
+  "fleet_nodes",
+  "fleet_nodes",
+  "CREATE TABLE fleet_nodes (\n      node_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, auth_state TEXT NOT NULL,\n      inventory_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      next_sequence INTEGER NOT NULL DEFAULT 1, last_result_sequence INTEGER NOT NULL DEFAULT 0,\n      last_seen_at INTEGER, kind TEXT NOT NULL DEFAULT 'remote' CHECK(kind IN ('local','remote')), disabled INTEGER NOT NULL DEFAULT 0, transport TEXT NOT NULL DEFAULT 'v1' CHECK(transport IN ('v1','panel')))"
+ ],
+ [
+  "table",
+  "login_attempts",
+  "login_attempts",
+  "CREATE TABLE login_attempts (\n      scope TEXT NOT NULL, happened_at INTEGER NOT NULL, reservation_id TEXT NOT NULL DEFAULT '')"
+ ],
+ [
+  "table",
+  "managed_egress",
+  "managed_egress",
+  "CREATE TABLE managed_egress (\n      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru','mtproxy','trusttunnel','amneziawg')),\n      generation INTEGER NOT NULL, revision TEXT, digest TEXT,\n      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),\n      last_error TEXT, updated_at INTEGER NOT NULL, router_revision TEXT, router_digest TEXT)"
+ ],
+ [
+  "table",
+  "managed_generations",
+  "managed_generations",
+  "CREATE TABLE managed_generations (\n      generation INTEGER PRIMARY KEY, digest TEXT NOT NULL, master_guid TEXT NOT NULL,\n      document_json TEXT NOT NULL, received_at INTEGER NOT NULL, applied_at INTEGER,\n      state TEXT NOT NULL CHECK(state IN ('received','applying','converged','failed')))"
+ ],
+ [
+  "table",
+  "managed_resources",
+  "managed_resources",
+  "CREATE TABLE managed_resources (\n      protocol TEXT NOT NULL, runtime_username TEXT NOT NULL, ref TEXT NOT NULL,\n      credential_ref TEXT, generation INTEGER NOT NULL, state TEXT NOT NULL,\n      last_error TEXT, revision TEXT, updated_at INTEGER NOT NULL, learned_json TEXT,\n      PRIMARY KEY(protocol, runtime_username))"
+ ],
+ [
+  "table",
+  "metric_rollups",
+  "metric_rollups",
+  "CREATE TABLE metric_rollups (\n      resolution INTEGER NOT NULL, bucket INTEGER NOT NULL, node_id TEXT NOT NULL, series TEXT NOT NULL,\n      sum REAL NOT NULL, count INTEGER NOT NULL, max REAL NOT NULL, last REAL NOT NULL,\n      PRIMARY KEY(resolution, bucket, node_id, series)) WITHOUT ROWID"
+ ],
+ [
+  "table",
+  "node_links",
+  "node_links",
+  "CREATE TABLE node_links (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      panel_url TEXT NOT NULL, tls_verify TEXT NOT NULL CHECK(tls_verify IN ('verify','pin')),\n      pinned_cert_sha256 TEXT, api_key_secret_id TEXT NOT NULL, allow_private_address INTEGER NOT NULL DEFAULT 0,\n      enabled INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('unknown','online','offline')),\n      latency_ms INTEGER, panel_version TEXT, identity_json TEXT NOT NULL DEFAULT '{}',\n      status_json TEXT NOT NULL DEFAULT '{}', last_heartbeat_at INTEGER, last_error TEXT,\n      config_dirty INTEGER NOT NULL DEFAULT 0, desired_generation INTEGER NOT NULL DEFAULT 0,\n      acknowledged_generation INTEGER NOT NULL DEFAULT 0,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, auto_import INTEGER NOT NULL DEFAULT 1)"
+ ],
+ [
+  "table",
+  "observed_generations",
+  "observed_generations",
+  "CREATE TABLE observed_generations (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      applied_generation INTEGER NOT NULL, digest TEXT NOT NULL, reconcile_state TEXT NOT NULL,\n      resources_json TEXT NOT NULL, reported_at INTEGER NOT NULL, relay_json TEXT)"
+ ],
+ [
+  "table",
+  "panel_settings",
+  "panel_settings",
+  "CREATE TABLE panel_settings (\n      key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "provisioning_operations",
+  "provisioning_operations",
+  "CREATE TABLE provisioning_operations (\n      operation_id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      status TEXT NOT NULL CHECK(status IN\n        ('pending','pending_remote','applying','succeeded','compensating','compensated',\n         'manual_intervention_required')),\n      steps_json TEXT NOT NULL,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "relay_peers",
+  "relay_peers",
+  "CREATE TABLE relay_peers (\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      source_node_id TEXT NOT NULL,\n      exit TEXT NOT NULL CHECK(exit IN ('direct','warp')),\n      secret_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL,\n      PRIMARY KEY(node_id, source_node_id, exit))"
+ ],
+ [
+  "table",
+  "router_relays",
+  "router_relays",
+  "CREATE TABLE router_relays (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      port INTEGER, public_key TEXT, short_id TEXT, server_name TEXT,\n      enabled INTEGER NOT NULL DEFAULT 0,\n      updated_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "routing_applies",
+  "routing_applies",
+  "CREATE TABLE \"routing_applies\" (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "routing_policies",
+  "routing_policies",
+  "CREATE TABLE routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru','mtproxy','trusttunnel','amneziawg')),\n      lane TEXT NOT NULL DEFAULT 'svc',\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','mtproxy_native','trusttunnel_native','amneziawg_native','xray_router')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT,\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol, lane))"
+ ],
+ [
+  "table",
+  "routing_rules",
+  "routing_rules",
+  "CREATE TABLE \"routing_rules\" (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, preset TEXT,\n      UNIQUE(policy_id, position))"
+ ],
+ [
+  "table",
+  "schema_migrations",
+  "schema_migrations",
+  "CREATE TABLE schema_migrations (\n            version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at INTEGER NOT NULL)"
+ ],
+ [
+  "table",
+  "secret_versions",
+  "secret_versions",
+  "CREATE TABLE secret_versions (\n      secret_id TEXT NOT NULL, version INTEGER NOT NULL, purpose TEXT NOT NULL,\n      grant_id TEXT, permitted_node_id TEXT, key_id TEXT NOT NULL,\n      nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('pending','active','retiring','revoked')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      PRIMARY KEY(secret_id, version))"
+ ],
+ [
+  "table",
+  "sessions",
+  "sessions",
+  "CREATE TABLE sessions (\n      token_hash TEXT PRIMARY KEY, admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,\n      csrf_hash TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,\n      last_seen_at INTEGER NOT NULL)"
+ ]
+]
