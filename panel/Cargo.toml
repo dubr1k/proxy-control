@@ -1,0 +1,17 @@
+# The panel's Rust workspace (the Python panel in this directory stays the specification until the
+# cutover). One crate per work package under crates/; the binary is built from crates/web.
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
