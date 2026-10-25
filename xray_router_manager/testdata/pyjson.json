@@ -1,0 +1,362 @@
+{
+ "json": {
+  "floats": "[0.0, 1.0, 1790000000.0, 1790000000.123456, 1e+16, 1.5e-07, 1.2345678901234568e+17, 0.1, 1e-05, 0.0001, -0.0, 1e+22, 1.7976931348623157e+308, 5e-324, 1234567890123456.0, 1.2345678901234568e+16, 0.001234, 100.5, 2.5e-05]",
+  "floats_compact": "[0.0,1.0,1790000000.0,1790000000.123456,1e+16,1.5e-07,1.2345678901234568e+17,0.1,1e-05,0.0001,-0.0,1e+22,1.7976931348623157e+308,5e-324,1234567890123456.0,1.2345678901234568e+16,0.001234,100.5,2.5e-05]",
+  "strings": "[\"\\u00fcn\\u00ef\", \"\\u2028\", \"\\ud83d\\ude00\", \"\\u007f\", \"\\u0000\\u001f\", \"\\\"\\\\/\\b\\f\\n\\r\\t\", \"plain ~\"]",
+  "nested_indent": "{\n \"a\": null,\n \"b\": [\n  1,\n  {\n   \"a\": {},\n   \"z\": []\n  }\n ],\n \"\\u00e9\": true\n}",
+  "nested": {
+   "b": [
+    1,
+    {
+     "z": [],
+     "a": {}
+    }
+   ],
+   "a": null,
+   "é": true
+  }
+ },
+ "base64": [
+  {
+   "text": "kPrivate_kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+   "urlsafe": "kPrivate/kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk=",
+   "strict_error": "Error",
+   "urlsafe_raw": "kPrivate/kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk="
+  },
+  {
+   "text": "Public_pppppppppppppppppppppppppppppppppppp",
+   "urlsafe": "Public/pppppppppppppppppppppppppppppppppppo=",
+   "strict_error": "Error",
+   "urlsafe_raw": "Public/pppppppppppppppppppppppppppppppppppo="
+  },
+  {
+   "text": "short",
+   "urlsafe_error": "the key pair is not base64url",
+   "strict_error": "Error",
+   "urlsafe_raw_error": "Error"
+  },
+  {
+   "text": "",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict": "",
+   "urlsafe_raw": ""
+  },
+  {
+   "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "urlsafe": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "strict_error": "Error",
+   "urlsafe_raw": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  },
+  {
+   "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "urlsafe": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "strict": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "urlsafe_raw": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  },
+  {
+   "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+   "urlsafe_raw": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  },
+  {
+   "text": "AB=CD",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "ABCD"
+  },
+  {
+   "text": "A=B",
+   "urlsafe_error": "the key pair is not base64url",
+   "strict_error": "Error",
+   "urlsafe_raw_error": "Error"
+  },
+  {
+   "text": "QUJD",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict": "QUJD",
+   "urlsafe_raw": "QUJD"
+  },
+  {
+   "text": "QUJ",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUI="
+  },
+  {
+   "text": "QU",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QQ=="
+  },
+  {
+   "text": "Q",
+   "urlsafe_error": "the key pair is not base64url",
+   "strict_error": "Error",
+   "urlsafe_raw_error": "Error"
+  },
+  {
+   "text": "QUJD===",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUJD"
+  },
+  {
+   "text": "QU=J",
+   "urlsafe_error": "the key pair is not base64url",
+   "strict_error": "Error",
+   "urlsafe_raw_error": "Error"
+  },
+  {
+   "text": "Q===",
+   "urlsafe_error": "the key pair is not base64url",
+   "strict_error": "Error",
+   "urlsafe_raw_error": "Error"
+  },
+  {
+   "text": "a b c d",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "abcd"
+  },
+  {
+   "text": "YWJj!ZA==",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "YWJjZA=="
+  },
+  {
+   "text": "=QUJD",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUJD"
+  },
+  {
+   "text": "QUJD=",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUJD"
+  },
+  {
+   "text": "QUJDRA=",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUJDRA=="
+  },
+  {
+   "text": "QUJDRA==",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict": "QUJDRA==",
+   "urlsafe_raw": "QUJDRA=="
+  },
+  {
+   "text": "QUJDRA===",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUJDRA=="
+  },
+  {
+   "text": "QUJDRA==QUJD",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "QUJDRA=="
+  },
+  {
+   "text": "éQUJD",
+   "urlsafe_error": "the key pair is not base64url",
+   "strict_error": "ValueError",
+   "urlsafe_raw_error": "ValueError"
+  },
+  {
+   "text": "Q-_D",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict_error": "Error",
+   "urlsafe_raw": "Q+/D"
+  },
+  {
+   "text": "Q+/D",
+   "urlsafe_error": "the key pair is not 32 bytes",
+   "strict": "Q+/D",
+   "urlsafe_raw": "Q+/D"
+  }
+ ],
+ "accounts": [
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": true
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": 5,
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": true
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "01.2.3.4",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "1.2.3.4:0"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "1.2.3.4: 12"
+   },
+   "valid": true
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "1.2.3.4:1_2"
+   },
+   "valid": true
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "1.2.3.4:+12"
+   },
+   "valid": true
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "[::1]:12"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": 0,
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": 7,
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": true
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": null,
+    "endpoint": "162.159.192.5:2408"
+   },
+   "valid": false
+  },
+  {
+   "account": [],
+   "valid": false
+  },
+  {
+   "account": {},
+   "valid": false
+  },
+  {
+   "account": "x",
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "1.2.3.4:65536"
+   },
+   "valid": false
+  },
+  {
+   "account": {
+    "id": "d1",
+    "token": "t1",
+    "private_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+    "address": "172.16.0.2",
+    "peer_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "endpoint": "1.2.3.4:65535"
+   },
+   "valid": true
+  }
+ ]
+}

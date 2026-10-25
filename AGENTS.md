@@ -299,7 +299,7 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 | Сертификаты | `/etc/letsencrypt/live/{proxy-control,naive,three-xui-*}` | `sudo certbot certificates` (без вывода ключей) |
 | NaiveProxy | `caddy-naive.service`, `/var/lib/naive-manager/Caddyfile`, `proxy-control-naive-manager` | `systemctl is-active caddy-naive` |
 | Mieru | `mita.service`, `/run/mita/mita.sock`, `proxy-control-mieru-manager` | `sudo -u mita env MITA_UDS_PATH=/run/mita/mita.sock /usr/bin/mita status` → ровно `mita server status is "RUNNING"` |
-| Xray-router | `proxy-control-xray-router`, `/var/lib/xray-router`, ingress 45101/45102 | `sudo docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status` → `phase == "idle"`, `artifacts.*.verified == true` |
+| Xray-router | `proxy-control-xray-router`, `/var/lib/xray-router`, ingress 45101/45102 | `sudo docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status` → `phase == "idle"`, `artifacts.*.verified == true` |
 | WARP | `warp-svc`, SOCKS5 `127.0.0.1:40000` | `warp-cli status`; `curl -s --proxy socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace \| grep '^warp='` |
 | 3x-ui (managed) | `x-ui.service`, панель `127.0.0.1:8451`, inbound 8449/8450, UDP/443 | `systemctl is-active x-ui && ss -lntup \| grep -E ':(8449\|8450\|8451)\b'` |
 | version-agent | `version-agent.service`, `/run/proxy-control/version-agent.sock` | `sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health` |

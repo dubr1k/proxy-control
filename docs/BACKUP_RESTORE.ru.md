@@ -166,7 +166,7 @@ docker compose up -d mieru-manager panel
 ```bash
 sudo ./scripts/prepare-xray-router-state.sh verify /var/lib/xray-router
 docker compose up -d --wait xray-router panel
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status
 ```
 
 Статус должен показать `verified: true` у всех трёх артефактов и `running.generation` не меньше 1;

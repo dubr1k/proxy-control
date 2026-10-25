@@ -164,7 +164,7 @@ into `/usr/local/lib/proxy-control/xray-router` (0755, files 0755/0644). Then:
 ```bash
 sudo ./scripts/prepare-xray-router-state.sh verify /var/lib/xray-router
 docker compose up -d --wait xray-router panel
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status
 ```
 
 The status must say `verified: true` for all three artifacts and a `running.generation` of at

@@ -112,7 +112,7 @@ link-local, RFC 1918, CGNAT или их IPv6-аналоги, отвергает�
   перепроверяет все три дайджеста до любого запуска (`XRAY_ROUTER_*_SHA256` в
   `.env.xray-router`) и при несовпадении отвечает `artifact_mismatch` (503), а не
   запускает незакреплённый бинарь.
-- **Менеджер** (`xray_router_manager`): супервизор над одним дочерним `xray run`. Его
+- **Менеджер** (`xray_router_manager`, с 4.0 — бинарь на Rust): супервизор над одним дочерним `xray run`. Его
   состояние — последовательность **поколений** (`generations/<n>/config.json`),
   `current.json` (запущенное), `journal.json` (по сервису: current, previous, history) и
   `state.json` (`phase: idle | swapping | broken`). Он рендерит один конфиг Xray из
@@ -125,7 +125,7 @@ link-local, RFC 1918, CGNAT или их IPv6-аналоги, отвергает�
   `PUT /v1/relay/accounts` (см. ниже), `GET /v1/geodata`, `GET /v1/geodata/codes`,
   `PUT /v1/geodata/settings`, `POST /v1/geodata/update | restore`, `POST /v1/exits/test`
   (см. «Geodata и свои выходы»). Панель — единственный клиент; `docker exec
-  proxy-control-xray-router python -m xray_router_manager.healthcheck --status` печатает статус
+  proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status` печатает статус
   оператору или проверке установщика (`--relay`, `--relay-enable <server_name> <port>` — relay).
 
 ### Транзакция

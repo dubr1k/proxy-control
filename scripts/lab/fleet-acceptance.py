@@ -174,8 +174,14 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="the installed node's pinned Xray members, shared with node B's router")
     parser.add_argument("--router-env-file", type=Path, default=Path("/opt/mtproxy-shared443/.env.xray-router"),
                         help="the installer's router overlay (the member digests)")
+    parser.add_argument("--router-manager", type=Path, default=None,
+                        help="node B's router manager binary (default: <source>/xray_router_manager/target/release/"
+                             "xray-router-manager, built with `cargo build --release` there)")
     args = parser.parse_args(argv)
     args.source = Path(args.source).resolve()
+    if args.router_manager is None:
+        args.router_manager = args.source / "xray_router_manager" / "target" / "release" / "xray-router-manager"
+    args.router_manager = Path(args.router_manager).resolve()
     # Docker bind mounts (the cores read their config from here) need an absolute path.
     args.output = Path(args.output).resolve()
     args.central_dir = Path(args.central_dir).resolve()
@@ -615,8 +621,12 @@ class NodeB:
                "XRAY_ROUTER_INGRESS_MIERU_FILE": str(self.directory / "ingress-mieru"),
                "XRAY_ROUTER_PORT_NAIVE": "45111", "XRAY_ROUTER_PORT_MIERU": "45112",
                "XRAY_ROUTER_EGRESS_WARP": f"socks5://{self.args.node_b_stub_listen}", **self._digests()}
+        if not self.args.router_manager.is_file():
+            raise Check(f"no router manager binary at {self.args.router_manager}: "
+                        "cargo build --release in xray_router_manager/, or pass --router-manager")
         with (self.directory / "router-b.log").open("ab") as log:
-            self.router = subprocess.Popen([self.args.python, "-m", "xray_router_manager"], cwd=self.args.source, env=env,
+            # 4.0: the manager is the Rust binary built from this tree (`--router-manager`).
+            self.router = subprocess.Popen([str(self.args.router_manager)], cwd=self.args.source, env=env,
                                            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline and not self.socket.exists():
@@ -690,22 +700,19 @@ class Host:
 
     def router_status(self, container: str) -> dict:
         """The manager's `/v1/status`, the way the installer's verify reads it."""
-        code, out = self._run("docker", "exec", container, "python", "-m", "xray_router_manager.healthcheck", "--status")
+        code, out = self._run("docker", "exec", container, "/usr/local/bin/xray-router-manager", "healthcheck", "--status")
         if code != 0:
             raise Check(f"router status -> {code}")
         return json.loads(out)
 
     def router_kill_xray(self, container: str) -> bool:
         """SIGKILL the child `xray` inside the container (the manager's identity owns it)."""
-        script = ("import os,signal,sys\n"
-                  "for entry in os.listdir('/proc'):\n"
-                  "    if not entry.isdigit(): continue\n"
-                  "    try: argv = open(f'/proc/{entry}/cmdline','rb').read().split(b'\\0')\n"
-                  "    except OSError: continue\n"
-                  "    if argv and argv[0].endswith(b'/xray'):\n"
-                  "        os.kill(int(entry), signal.SIGKILL); print(entry); sys.exit(0)\n"
-                  "sys.exit(1)\n")
-        code, _ = self._run("docker", "exec", container, "python", "-c", script)
+        # 4.0: the image has no Python, only a POSIX shell and coreutils.
+        script = ("for dir in /proc/[0-9]*; do "
+                  "exe=$(tr '\\0' '\\n' < \"$dir/cmdline\" 2>/dev/null | head -n 1); "
+                  "case $exe in */xray) kill -9 \"${dir#/proc/}\" && echo \"${dir#/proc/}\" && exit 0;; esac; "
+                  "done; exit 1")
+        code, _ = self._run("docker", "exec", container, "sh", "-c", script)
         return code == 0
 
     def docker_logs(self, container: str) -> str:

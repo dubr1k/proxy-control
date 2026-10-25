@@ -200,6 +200,8 @@ case $LEVEL in
       && for runtime in naive mieru xray-router; do test -f .env.\$runtime && files+=(--env-file .env.\$runtime -f compose.\$runtime.yaml); done \
       && { recreate=(); if test -f /root/.node-b-hosts-added; then recreate=(--force-recreate); rm -f /root/.node-b-hosts-added; fi; } \
       && docker compose --project-directory /opt/mtproxy-shared443 \"\${files[@]}\" up -d --no-deps --wait \"\${recreate[@]}\" xray-router naive-manager mieru-manager"
+    # Node B's router is the Rust manager of this tree (4.0): built here, started by the acceptance.
+    remote "export PATH=\$HOME/.cargo/bin:\$PATH && cd xray_router_manager && cargo build -q --release --locked"
     # The run outlives an SSH session of the stand (routing + router + chains ≈ 15 min, and the
     # host resets long sessions): detached on the host, followed through its log here.
     remote "$ensure_venv && rm -f /root/lab-chains.log && setsid nohup bash -c '.venv/bin/python scripts/lab/fleet-acceptance.py \

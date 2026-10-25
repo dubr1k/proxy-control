@@ -1,0 +1,711 @@
+{
+ "files": {
+  "bin/geoip.dat": "ip",
+  "bin/geosite.dat": "site",
+  "bin/xray": "ELF",
+  "net/awgxr/ifindex": "41\n",
+  "secrets/mieru": "mieru-e5f6a7b8:MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM\n",
+  "secrets/naive": "naive-a1b2c3d4:NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\n",
+  "state/current.json": "{\"digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"generation\":12,\"services\":{\"amneziawg\":{\"digest\":\"a8ed1817a0e970b11703db5b7a35398da63d68868c0b171e92b90085b5473854\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[{\"action\":\"direct\",\"cidrs\":[],\"domains\":[\"cloudflare.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[]}],\"schema\":1},\"revision\":\"419b5ed3857b331532a45e36894c1aa88aabe750f52387f9323d95dfe844c2ec\"},\"mieru\":{\"digest\":\"06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[\"example.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[443,\"8000-9000\"]}],\"schema\":1},\"revision\":\"5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff\"},\"mtproxy\":{\"digest\":\"96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[],\"schema\":1},\"revision\":\"974e961edb76a61faa52e9d60635d20663bc93fec2388bec5412c046e03af10f\"},\"naive\":{\"digest\":\"811065d96cf9e77b209b0a64db6e62d2276612296d0578833cb313001c6f3cae\",\"document\":{\"chains\":{\"c1\":{\"exit\":\"warp\",\"hops\":[{\"address\":\"panel.node-b.example.org\",\"guid\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"port\":45443,\"public_key\":\"SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s\",\"server_name\":\"panel.node-b.example.org\",\"short_id\":\"0123abcd\",\"uuid\":\"3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10\"}]}},\"exits\":{\"e1\":{\"address\":\"10.0.0.2\",\"credential\":{\"password\":\"p\\u00e4ss\\ud83d\\ude00\",\"username\":\"\\u00fcser\"},\"port\":1080,\"protocol\":\"socks\",\"security\":{\"kind\":\"none\"},\"transport\":{\"network\":\"tcp\"}}},\"lanes\":{\"grant:7f3a\":{\"default\":{\"action\":\"egress\",\"egress\":\"chain:c1\"},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[],\"egress\":null,\"geoips\":[],\"geosites\":[\"category-ads-all\"],\"ports\":[]},{\"action\":\"egress\",\"cidrs\":[],\"domains\":[\"*.example.net\"],\"egress\":\"exit:e1\",\"geoips\":[],\"geosites\":[],\"ports\":[]}]},\"svc:naive\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[]}},\"schema\":2},\"revision\":\"b749ed20993d9faf81a044625513f6d26aca34422ba36fbe81b060c1acde0467\"},\"trusttunnel\":{\"digest\":\"06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[\"example.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[443,\"8000-9000\"]}],\"schema\":1},\"revision\":\"5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff\"}},\"since\":\"2026-10-25T19:27:48Z\"}\n",
+  "state/generations/12.json": "{\"dns\":{\"servers\":[\"localhost\"]},\"inbounds\":[{\"listen\":\"127.0.0.1\",\"port\":45101,\"protocol\":\"socks\",\"settings\":{\"accounts\":[{\"pass\":\"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\",\"user\":\"naive-a1b2c3d4\"},{\"pass\":\"7c0JCAbVnidiq5kyRmLQRDPsJcR5CpLiMfBV0AsfUNc\",\"user\":\"grant-7f3a\"}],\"auth\":\"password\",\"udp\":false},\"sniffing\":{\"destOverride\":[\"http\",\"tls\",\"quic\"],\"enabled\":true,\"routeOnly\":true},\"tag\":\"naive\"},{\"listen\":\"127.0.0.1\",\"port\":45102,\"protocol\":\"socks\",\"settings\":{\"accounts\":[{\"pass\":\"MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM\",\"user\":\"mieru-e5f6a7b8\"}],\"auth\":\"password\",\"udp\":false},\"sniffing\":{\"destOverride\":[\"http\",\"tls\",\"quic\"],\"enabled\":true,\"routeOnly\":true},\"tag\":\"mieru\"},{\"listen\":\"/tmp/xray-router-golden-run/ingress-mtproxy.sock\",\"port\":0,\"protocol\":\"vless\",\"settings\":{\"clients\":[{\"email\":\"mtproxy\",\"flow\":\"\",\"id\":\"a0732717-43c0-47ad-8373-126454af934c\"}],\"decryption\":\"none\"},\"sniffing\":{\"destOverride\":[\"http\",\"tls\",\"quic\"],\"enabled\":true,\"routeOnly\":true},\"streamSettings\":{\"network\":\"raw\"},\"tag\":\"mtproxy\"},{\"listen\":\"127.0.0.1\",\"port\":45104,\"protocol\":\"socks\",\"settings\":{\"auth\":\"noauth\",\"udp\":false},\"sniffing\":{\"destOverride\":[\"http\",\"tls\",\"quic\"],\"enabled\":true,\"routeOnly\":true},\"tag\":\"trusttunnel\"},{\"port\":0,\"protocol\":\"tun\",\"settings\":{\"mtu\":1280,\"name\":\"awgxr\"},\"sniffing\":{\"destOverride\":[\"http\",\"tls\",\"quic\"],\"enabled\":true,\"routeOnly\":true},\"tag\":\"amneziawg\"},{\"listen\":\"0.0.0.0\",\"port\":45443,\"protocol\":\"vless\",\"settings\":{\"clients\":[{\"email\":\"relay:cccccccccccccccccccccccccccccccc:direct\",\"flow\":\"\",\"id\":\"9a1e2c8f-5d7e-4a10-8b6e-3f0d9c6e1b4e\"},{\"email\":\"relay:cccccccccccccccccccccccccccccccc:warp\",\"flow\":\"\",\"id\":\"3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10\"}],\"decryption\":\"none\"},\"sniffing\":{\"destOverride\":[\"http\",\"tls\",\"quic\"],\"enabled\":true,\"routeOnly\":true},\"streamSettings\":{\"network\":\"tcp\",\"realitySettings\":{\"dest\":\"127.0.0.1:8443\",\"privateKey\":\"kPrivate_kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\",\"serverNames\":[\"panel.node-a.example.org\"],\"shortIds\":[\"b443c09c\"]},\"security\":\"reality\"},\"tag\":\"relay\"}],\"log\":{\"access\":\"none\",\"loglevel\":\"warning\"},\"outbounds\":[{\"protocol\":\"blackhole\",\"tag\":\"block\"},{\"protocol\":\"freedom\",\"settings\":{\"domainStrategy\":\"UseIP\"},\"tag\":\"direct\"},{\"protocol\":\"socks\",\"settings\":{\"servers\":[{\"address\":\"127.0.0.1\",\"port\":45000}]},\"tag\":\"warp\"},{\"protocol\":\"wireguard\",\"settings\":{\"address\":[\"172.16.0.2/32\"],\"mtu\":1280,\"noKernelTun\":true,\"peers\":[{\"allowedIPs\":[\"0.0.0.0/0\"],\"endpoint\":\"162.159.192.5:2408\",\"keepAlive\":25,\"publicKey\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}],\"secretKey\":\"kPrivate/kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk=\"},\"tag\":\"warp-wg\"},{\"protocol\":\"vless\",\"settings\":{\"vnext\":[{\"address\":\"panel.node-b.example.org\",\"port\":45443,\"users\":[{\"encryption\":\"none\",\"flow\":\"\",\"id\":\"3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10\"}]}]},\"streamSettings\":{\"network\":\"tcp\",\"realitySettings\":{\"fingerprint\":\"chrome\",\"publicKey\":\"SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s\",\"serverName\":\"panel.node-b.example.org\",\"shortId\":\"0123abcd\"},\"security\":\"reality\"},\"tag\":\"chain:naive:c1:1\"},{\"protocol\":\"socks\",\"settings\":{\"servers\":[{\"address\":\"10.0.0.2\",\"port\":1080,\"users\":[{\"pass\":\"p\\u00e4ss\\ud83d\\ude00\",\"user\":\"\\u00fcser\"}]}]},\"streamSettings\":{\"network\":\"tcp\"},\"tag\":\"exit:naive:e1\"}],\"routing\":{\"domainStrategy\":\"IPOnDemand\",\"rules\":[{\"inboundTag\":[\"naive\"],\"ip\":[\"geoip:private\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:localhost\",\"full:localhost\"],\"inboundTag\":[\"naive\"],\"outboundTag\":\"block\"},{\"domain\":[\"geosite:category-ads-all\"],\"inboundTag\":[\"naive\"],\"outboundTag\":\"block\",\"user\":[\"grant-7f3a\"]},{\"domain\":[\"domain:example.net\"],\"inboundTag\":[\"naive\"],\"outboundTag\":\"exit:naive:e1\",\"user\":[\"grant-7f3a\"]},{\"inboundTag\":[\"naive\"],\"outboundTag\":\"chain:naive:c1:1\",\"user\":[\"grant-7f3a\"]},{\"inboundTag\":[\"naive\"],\"outboundTag\":\"direct\"},{\"inboundTag\":[\"mieru\"],\"ip\":[\"geoip:private\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:localhost\",\"full:localhost\"],\"inboundTag\":[\"mieru\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:example.com\"],\"inboundTag\":[\"mieru\"],\"outboundTag\":\"block\",\"port\":\"443,8000-9000\"},{\"inboundTag\":[\"mieru\"],\"outboundTag\":\"direct\"},{\"inboundTag\":[\"mtproxy\"],\"ip\":[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\"],\"outboundTag\":\"direct\",\"port\":\"443\"},{\"inboundTag\":[\"mtproxy\"],\"ip\":[\"geoip:private\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:localhost\",\"full:localhost\"],\"inboundTag\":[\"mtproxy\"],\"outboundTag\":\"block\"},{\"inboundTag\":[\"mtproxy\"],\"outboundTag\":\"warp\"},{\"inboundTag\":[\"trusttunnel\"],\"ip\":[\"geoip:private\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:localhost\",\"full:localhost\"],\"inboundTag\":[\"trusttunnel\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:example.com\"],\"inboundTag\":[\"trusttunnel\"],\"outboundTag\":\"block\",\"port\":\"443,8000-9000\"},{\"inboundTag\":[\"trusttunnel\"],\"outboundTag\":\"direct\"},{\"inboundTag\":[\"amneziawg\"],\"ip\":[\"geoip:private\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:localhost\",\"full:localhost\"],\"inboundTag\":[\"amneziawg\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:cloudflare.com\"],\"inboundTag\":[\"amneziawg\"],\"outboundTag\":\"direct\"},{\"inboundTag\":[\"amneziawg\"],\"outboundTag\":\"warp-wg\"},{\"inboundTag\":[\"relay\"],\"ip\":[\"geoip:private\"],\"outboundTag\":\"block\"},{\"domain\":[\"domain:localhost\",\"full:localhost\"],\"inboundTag\":[\"relay\"],\"outboundTag\":\"block\"},{\"inboundTag\":[\"relay\"],\"outboundTag\":\"warp\",\"user\":[\"relay:cccccccccccccccccccccccccccccccc:warp\"]},{\"inboundTag\":[\"relay\"],\"outboundTag\":\"direct\"}]}}\n",
+  "state/geodata/geoip.dat": "ip",
+  "state/geodata/geosite.dat": "site",
+  "state/geodata/meta.json": "{\"auto_update\":true,\"files\":{\"geoip\":{\"codes\":0,\"sha256\":\"bb9af5d1915da1fbc132ced081325efcd2e63e4804f96890f42e9739677237a4\",\"size\":2},\"geosite\":{\"codes\":0,\"sha256\":\"fbae041b02c41ed0fd8a4efb039bc780dd6af4a1f0c420f42561ae705dda43fe\",\"size\":4}},\"interval_hours\":12,\"last_check_at\":1792956468.1867154,\"last_error\":\"geodata_fetch_failed: fetch failed: HTTP Error 404: Not Found\",\"origin\":\"seed\",\"schema\":2,\"source\":{\"geoip_url\":\"https://m.example/b.dat\",\"geosite_url\":\"https://m.example/a.dat\",\"kind\":\"custom\"},\"update_hour\":2,\"updated_at\":\"2026-10-25T19:27:47Z\",\"version\":null}\n",
+  "state/ingress-mtproxy.json": "{\"password\":\"v2afqdcmvy-b_glhCDEReU8k9iwfFFnAr3CwrEkuc2g\",\"username\":\"telemt\",\"uuid\":\"a0732717-43c0-47ad-8373-126454af934c\"}\n",
+  "state/journal.json": "{\"amneziawg\":{\"current\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"a8ed1817a0e970b11703db5b7a35398da63d68868c0b171e92b90085b5473854\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[{\"action\":\"direct\",\"cidrs\":[],\"domains\":[\"cloudflare.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[]}],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-3\",\"revision\":\"419b5ed3857b331532a45e36894c1aa88aabe750f52387f9323d95dfe844c2ec\"},\"history\":[{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":6,\"generation_digest\":\"f2b8246a8769b96e4e9c3f7d744b568dab4488170924c4a5b5811d40b2b142e9\",\"operation_id\":null,\"revision\":\"af1c0cbcb203a04b1387f0e51e03afc79d839a017f6ab6396a9d1c5a3b219d78\"},{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"a8ed1817a0e970b11703db5b7a35398da63d68868c0b171e92b90085b5473854\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[{\"action\":\"direct\",\"cidrs\":[],\"domains\":[\"cloudflare.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[]}],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-3\",\"revision\":\"419b5ed3857b331532a45e36894c1aa88aabe750f52387f9323d95dfe844c2ec\"}],\"previous\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":6,\"generation_digest\":\"f2b8246a8769b96e4e9c3f7d744b568dab4488170924c4a5b5811d40b2b142e9\",\"operation_id\":null,\"revision\":\"af1c0cbcb203a04b1387f0e51e03afc79d839a017f6ab6396a9d1c5a3b219d78\"}},\"mieru\":{\"current\":{\"applied_at\":\"2026-10-25T19:27:48Z\",\"digest\":\"06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[\"example.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[443,\"8000-9000\"]}],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":null,\"revision\":\"5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff\"},\"history\":[{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":8,\"generation_digest\":\"e2febcfdab8aa635b12e7eefc37b08366bc96de5bbc0193c4998ece3b42f0374\",\"operation_id\":null,\"revision\":\"0e96323167a396f5e1c5acb49fb0f9ea18305a61cd7357defee2b56aa2a57aaf\"},{\"applied_at\":\"2026-10-25T19:27:48Z\",\"digest\":\"06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[\"example.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[443,\"8000-9000\"]}],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":null,\"revision\":\"5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff\"}],\"previous\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":8,\"generation_digest\":\"e2febcfdab8aa635b12e7eefc37b08366bc96de5bbc0193c4998ece3b42f0374\",\"operation_id\":null,\"revision\":\"0e96323167a396f5e1c5acb49fb0f9ea18305a61cd7357defee2b56aa2a57aaf\"}},\"mtproxy\":{\"current\":{\"applied_at\":\"2026-10-25T19:27:48Z\",\"digest\":\"96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-7\",\"revision\":\"974e961edb76a61faa52e9d60635d20663bc93fec2388bec5412c046e03af10f\"},\"history\":[{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":11,\"generation_digest\":\"83bd2bf4f0c196d7a404b5a83f867bf2b411ed05ab0dd574d36d98f8f7941bb8\",\"operation_id\":null,\"revision\":\"4378897bbb2f67a9ed11ed38060ee9795d5341568df064411e2c484a32fe38b7\"},{\"applied_at\":\"2026-10-25T19:27:48Z\",\"digest\":\"96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-7\",\"revision\":\"974e961edb76a61faa52e9d60635d20663bc93fec2388bec5412c046e03af10f\"}],\"previous\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":11,\"generation_digest\":\"83bd2bf4f0c196d7a404b5a83f867bf2b411ed05ab0dd574d36d98f8f7941bb8\",\"operation_id\":null,\"revision\":\"4378897bbb2f67a9ed11ed38060ee9795d5341568df064411e2c484a32fe38b7\"}},\"naive\":{\"current\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"811065d96cf9e77b209b0a64db6e62d2276612296d0578833cb313001c6f3cae\",\"document\":{\"chains\":{\"c1\":{\"exit\":\"warp\",\"hops\":[{\"address\":\"panel.node-b.example.org\",\"guid\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"port\":45443,\"public_key\":\"SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s\",\"server_name\":\"panel.node-b.example.org\",\"short_id\":\"0123abcd\",\"uuid\":\"3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10\"}]}},\"exits\":{\"e1\":{\"address\":\"10.0.0.2\",\"credential\":{\"password\":\"p\\u00e4ss\\ud83d\\ude00\",\"username\":\"\\u00fcser\"},\"port\":1080,\"protocol\":\"socks\",\"security\":{\"kind\":\"none\"},\"transport\":{\"network\":\"tcp\"}}},\"lanes\":{\"grant:7f3a\":{\"default\":{\"action\":\"egress\",\"egress\":\"chain:c1\"},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[],\"egress\":null,\"geoips\":[],\"geosites\":[\"category-ads-all\"],\"ports\":[]},{\"action\":\"egress\",\"cidrs\":[],\"domains\":[\"*.example.net\"],\"egress\":\"exit:e1\",\"geoips\":[],\"geosites\":[],\"ports\":[]}]},\"svc:naive\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[]}},\"schema\":2},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-2\",\"revision\":\"b749ed20993d9faf81a044625513f6d26aca34422ba36fbe81b060c1acde0467\"},\"history\":[{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":1,\"generation_digest\":\"bb23d9fc6b7bc002a1cd2f85dfab3c6b40e13fc25f270f1053cd21fc2e2ec393\",\"operation_id\":null,\"revision\":\"e696cadac7143913c5ec2f57ca4813ead00e0bac89f9ffb3a2a051f4e3fac45b\"},{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[],\"schema\":1},\"generation\":3,\"generation_digest\":\"ec5afd58adfb4c4ee88a3e2b9168941c843f75b36224116dcaaf0ae16a6ec617\",\"operation_id\":\"op-1\",\"revision\":\"430e60fe8b698e5886bb2679435e65940927edcf892eef888977bc01a3dc3e72\"},{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"811065d96cf9e77b209b0a64db6e62d2276612296d0578833cb313001c6f3cae\",\"document\":{\"chains\":{\"c1\":{\"exit\":\"warp\",\"hops\":[{\"address\":\"panel.node-b.example.org\",\"guid\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"port\":45443,\"public_key\":\"SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s\",\"server_name\":\"panel.node-b.example.org\",\"short_id\":\"0123abcd\",\"uuid\":\"3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10\"}]}},\"exits\":{\"e1\":{\"address\":\"10.0.0.2\",\"credential\":{\"password\":\"p\\u00e4ss\\ud83d\\ude00\",\"username\":\"\\u00fcser\"},\"port\":1080,\"protocol\":\"socks\",\"security\":{\"kind\":\"none\"},\"transport\":{\"network\":\"tcp\"}}},\"lanes\":{\"grant:7f3a\":{\"default\":{\"action\":\"egress\",\"egress\":\"chain:c1\"},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[],\"egress\":null,\"geoips\":[],\"geosites\":[\"category-ads-all\"],\"ports\":[]},{\"action\":\"egress\",\"cidrs\":[],\"domains\":[\"*.example.net\"],\"egress\":\"exit:e1\",\"geoips\":[],\"geosites\":[],\"ports\":[]}]},\"svc:naive\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[]}},\"schema\":2},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-2\",\"revision\":\"b749ed20993d9faf81a044625513f6d26aca34422ba36fbe81b060c1acde0467\"}],\"previous\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52\",\"document\":{\"default\":{\"action\":\"egress\",\"egress\":\"warp\"},\"rules\":[],\"schema\":1},\"generation\":3,\"generation_digest\":\"ec5afd58adfb4c4ee88a3e2b9168941c843f75b36224116dcaaf0ae16a6ec617\",\"operation_id\":\"op-1\",\"revision\":\"430e60fe8b698e5886bb2679435e65940927edcf892eef888977bc01a3dc3e72\"}},\"trusttunnel\":{\"current\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[\"example.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[443,\"8000-9000\"]}],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-4\",\"revision\":\"5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff\"},\"history\":[{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":7,\"generation_digest\":\"7a52d971f3be2225820c92ee88392614a8b53bd16c3465961e50f4a6bc447144\",\"operation_id\":null,\"revision\":\"660490e8da4b163356448264152ca1be7b32925866722645436d1150ec18fe53\"},{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[{\"action\":\"block\",\"cidrs\":[],\"domains\":[\"example.com\"],\"egress\":null,\"geoips\":[],\"geosites\":[],\"ports\":[443,\"8000-9000\"]}],\"schema\":1},\"generation\":12,\"generation_digest\":\"bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc\",\"operation_id\":\"op-4\",\"revision\":\"5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff\"}],\"previous\":{\"applied_at\":\"2026-10-25T19:27:47Z\",\"digest\":\"db1cdf7e4d9371870216554f6d0c5c574841d46eeaf773e5e14a0e4e76e4a61c\",\"document\":{\"default\":{\"action\":\"direct\",\"egress\":null},\"rules\":[],\"schema\":1},\"generation\":7,\"generation_digest\":\"7a52d971f3be2225820c92ee88392614a8b53bd16c3465961e50f4a6bc447144\",\"operation_id\":null,\"revision\":\"660490e8da4b163356448264152ca1be7b32925866722645436d1150ec18fe53\"}}}\n",
+  "state/lanes.json": "{\"amneziawg\":{},\"mieru\":{},\"mtproxy\":{},\"naive\":{\"grant:7f3a\":{\"issued_at\":\"2026-10-25T19:27:47Z\",\"password\":\"7c0JCAbVnidiq5kyRmLQRDPsJcR5CpLiMfBV0AsfUNc\",\"user\":\"grant-7f3a\"}},\"trusttunnel\":{}}\n",
+  "state/relay.json": "{\"accounts\":[{\"email\":\"relay:cccccccccccccccccccccccccccccccc:direct\",\"uuid\":\"9a1e2c8f-5d7e-4a10-8b6e-3f0d9c6e1b4e\"},{\"email\":\"relay:cccccccccccccccccccccccccccccccc:warp\",\"uuid\":\"3f0d9c6e-1b4e-4a6b-9a1e-2c8f5d7e9a10\"}],\"enabled\":true,\"port\":45443,\"private_key\":\"kPrivate_kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\",\"public_key\":\"SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s\",\"server_name\":\"panel.node-a.example.org\",\"short_ids\":[\"b443c09c\"]}\n",
+  "state/state.json": "{\"candidate\":null,\"failures\":0,\"phase\":\"idle\"}\n",
+  "state/warp-wg.json": "{\"address\":\"172.16.0.2\",\"endpoint\":\"162.159.192.5:2408\",\"id\":\"d1\",\"peer_public_key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\",\"private_key\":\"kPrivate/kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk=\",\"registered_at\":\"2026-10-25T19:27:47.891Z\",\"token\":\"t1\"}\n"
+ },
+ "generation": 12,
+ "digest": "bab1ab2e0d5a5f9c3b5c814760fb09258e3f373122f8e416bb07d4499ba751fc",
+ "status": {
+  "version": "2",
+  "xray_version": "Xray 26.3.27 (fake)",
+  "artifacts": {
+   "xray": {
+    "sha256": "706abe3c90152075e656b661079730facf323f3ebccda7547ee1935c90845a09",
+    "verified": true
+   },
+   "geoip": {
+    "sha256": "bb9af5d1915da1fbc132ced081325efcd2e63e4804f96890f42e9739677237a4",
+    "verified": true
+   },
+   "geosite": {
+    "sha256": "fbae041b02c41ed0fd8a4efb039bc780dd6af4a1f0c420f42561ae705dda43fe",
+    "verified": true
+   }
+  },
+  "artifact_error": null,
+  "phase": "idle",
+  "running": null,
+  "services": {
+   "naive": {
+    "revision": "b749ed20993d9faf81a044625513f6d26aca34422ba36fbe81b060c1acde0467",
+    "digest": "811065d96cf9e77b209b0a64db6e62d2276612296d0578833cb313001c6f3cae",
+    "document": {
+     "chains": {
+      "c1": {
+       "exit": "warp",
+       "hops": [
+        {
+         "address": "panel.node-b.example.org",
+         "guid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "port": 45443,
+         "public_key": "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s",
+         "server_name": "panel.node-b.example.org",
+         "short_id": "0123abcd",
+         "uuid": "***"
+        }
+       ]
+      }
+     },
+     "exits": {
+      "e1": {
+       "address": "10.0.0.2",
+       "credential": {
+        "password": "***",
+        "username": "***"
+       },
+       "port": 1080,
+       "protocol": "socks",
+       "security": {
+        "kind": "none"
+       },
+       "transport": {
+        "network": "tcp"
+       }
+      }
+     },
+     "lanes": {
+      "grant:7f3a": {
+       "default": {
+        "action": "egress",
+        "egress": "chain:c1"
+       },
+       "rules": [
+        {
+         "action": "block",
+         "cidrs": [],
+         "domains": [],
+         "egress": null,
+         "geoips": [],
+         "geosites": [
+          "category-ads-all"
+         ],
+         "ports": []
+        },
+        {
+         "action": "egress",
+         "cidrs": [],
+         "domains": [
+          "*.example.net"
+         ],
+         "egress": "exit:e1",
+         "geoips": [],
+         "geosites": [],
+         "ports": []
+        }
+       ]
+      },
+      "svc:naive": {
+       "default": {
+        "action": "direct",
+        "egress": null
+       },
+       "rules": []
+      }
+     },
+     "schema": 2
+    }
+   },
+   "mieru": {
+    "revision": "5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff",
+    "digest": "06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77",
+    "document": {
+     "default": {
+      "action": "direct",
+      "egress": null
+     },
+     "rules": [
+      {
+       "action": "block",
+       "cidrs": [],
+       "domains": [
+        "example.com"
+       ],
+       "egress": null,
+       "geoips": [],
+       "geosites": [],
+       "ports": [
+        443,
+        "8000-9000"
+       ]
+      }
+     ],
+     "schema": 1
+    }
+   },
+   "mtproxy": {
+    "revision": "974e961edb76a61faa52e9d60635d20663bc93fec2388bec5412c046e03af10f",
+    "digest": "96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52",
+    "document": {
+     "default": {
+      "action": "egress",
+      "egress": "warp"
+     },
+     "rules": [],
+     "schema": 1
+    }
+   },
+   "trusttunnel": {
+    "revision": "5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff",
+    "digest": "06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77",
+    "document": {
+     "default": {
+      "action": "direct",
+      "egress": null
+     },
+     "rules": [
+      {
+       "action": "block",
+       "cidrs": [],
+       "domains": [
+        "example.com"
+       ],
+       "egress": null,
+       "geoips": [],
+       "geosites": [],
+       "ports": [
+        443,
+        "8000-9000"
+       ]
+      }
+     ],
+     "schema": 1
+    }
+   },
+   "amneziawg": {
+    "revision": "419b5ed3857b331532a45e36894c1aa88aabe750f52387f9323d95dfe844c2ec",
+    "digest": "a8ed1817a0e970b11703db5b7a35398da63d68868c0b171e92b90085b5473854",
+    "document": {
+     "default": {
+      "action": "egress",
+      "egress": "warp"
+     },
+     "rules": [
+      {
+       "action": "direct",
+       "cidrs": [],
+       "domains": [
+        "cloudflare.com"
+       ],
+       "egress": null,
+       "geoips": [],
+       "geosites": [],
+       "ports": []
+      }
+     ],
+     "schema": 1
+    }
+   }
+  },
+  "providers": {
+   "warp": {
+    "reachable": true
+   }
+  },
+  "capabilities": [
+   "whole_direct",
+   "whole_warp",
+   "block_domain",
+   "block_cidr",
+   "block_port",
+   "block_geosite",
+   "block_geoip",
+   "selective_domain",
+   "selective_cidr",
+   "selective_port",
+   "selective_geosite",
+   "selective_geoip",
+   "geodata",
+   "block_protocol",
+   "selective_protocol",
+   "custom_exits",
+   "lanes",
+   "chains",
+   "relay"
+  ],
+  "restart_required": true,
+  "lanes": {
+   "naive": [
+    "grant:7f3a"
+   ],
+   "mieru": [],
+   "mtproxy": [],
+   "trusttunnel": [],
+   "amneziawg": []
+  },
+  "relay": {
+   "enabled": true,
+   "port": 45443,
+   "server_name": "panel.node-a.example.org",
+   "public_key": "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s",
+   "short_ids": [
+    "b443c09c"
+   ],
+   "accounts": 2,
+   "emails": [
+    "relay:cccccccccccccccccccccccccccccccc:direct",
+    "relay:cccccccccccccccccccccccccccccccc:warp"
+   ]
+  },
+  "geodata": {
+   "source": {
+    "geoip_url": "https://m.example/b.dat",
+    "geosite_url": "https://m.example/a.dat",
+    "kind": "custom"
+   },
+   "origin": "seed",
+   "version": null,
+   "updated_at": "2026-10-25T19:27:47Z",
+   "auto_update": true,
+   "interval_hours": 12,
+   "last_error": "geodata_fetch_failed: fetch failed: HTTP Error 404: Not Found",
+   "update_hour": 2,
+   "last_check_at": 1792956468.1867154,
+   "files": {
+    "geoip": {
+     "sha256": "bb9af5d1915da1fbc132ced081325efcd2e63e4804f96890f42e9739677237a4",
+     "codes": 0
+    },
+    "geosite": {
+     "sha256": "fbae041b02c41ed0fd8a4efb039bc780dd6af4a1f0c420f42561ae705dda43fe",
+     "codes": 0
+    }
+   }
+  }
+ },
+ "egress": {
+  "naive": {
+   "revision": "b749ed20993d9faf81a044625513f6d26aca34422ba36fbe81b060c1acde0467",
+   "document": {
+    "chains": {
+     "c1": {
+      "exit": "warp",
+      "hops": [
+       {
+        "address": "panel.node-b.example.org",
+        "guid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "port": 45443,
+        "public_key": "SbVKOEMjK0sJlbwg4akyBg5mL5TMmyGrv0IVjGtvJ0s",
+        "server_name": "panel.node-b.example.org",
+        "short_id": "0123abcd",
+        "uuid": "***"
+       }
+      ]
+     }
+    },
+    "exits": {
+     "e1": {
+      "address": "10.0.0.2",
+      "credential": {
+       "password": "***",
+       "username": "***"
+      },
+      "port": 1080,
+      "protocol": "socks",
+      "security": {
+       "kind": "none"
+      },
+      "transport": {
+       "network": "tcp"
+      }
+     }
+    },
+    "lanes": {
+     "grant:7f3a": {
+      "default": {
+       "action": "egress",
+       "egress": "chain:c1"
+      },
+      "rules": [
+       {
+        "action": "block",
+        "cidrs": [],
+        "domains": [],
+        "egress": null,
+        "geoips": [],
+        "geosites": [
+         "category-ads-all"
+        ],
+        "ports": []
+       },
+       {
+        "action": "egress",
+        "cidrs": [],
+        "domains": [
+         "*.example.net"
+        ],
+        "egress": "exit:e1",
+        "geoips": [],
+        "geosites": [],
+        "ports": []
+       }
+      ]
+     },
+     "svc:naive": {
+      "default": {
+       "action": "direct",
+       "egress": null
+      },
+      "rules": []
+     }
+    },
+    "schema": 2
+   },
+   "mode": "direct",
+   "generation": 12,
+   "providers": {
+    "warp": {
+     "reachable": true
+    }
+   },
+   "capabilities": [
+    "whole_direct",
+    "whole_warp",
+    "block_domain",
+    "block_cidr",
+    "block_port",
+    "block_geosite",
+    "block_geoip",
+    "selective_domain",
+    "selective_cidr",
+    "selective_port",
+    "selective_geosite",
+    "selective_geoip",
+    "geodata",
+    "block_protocol",
+    "selective_protocol",
+    "custom_exits",
+    "lanes",
+    "chains",
+    "relay"
+   ],
+   "restart_required": true,
+   "warnings": [],
+   "runtime_version": "Xray 26.3.27 (fake)",
+   "previous": {
+    "revision": "430e60fe8b698e5886bb2679435e65940927edcf892eef888977bc01a3dc3e72"
+   },
+   "current": {
+    "revision": "b749ed20993d9faf81a044625513f6d26aca34422ba36fbe81b060c1acde0467",
+    "digest": "811065d96cf9e77b209b0a64db6e62d2276612296d0578833cb313001c6f3cae",
+    "generation": 12,
+    "operation_id": "op-2",
+    "applied_at": "2026-10-25T19:27:47Z"
+   }
+  },
+  "mieru": {
+   "revision": "5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff",
+   "document": {
+    "default": {
+     "action": "direct",
+     "egress": null
+    },
+    "rules": [
+     {
+      "action": "block",
+      "cidrs": [],
+      "domains": [
+       "example.com"
+      ],
+      "egress": null,
+      "geoips": [],
+      "geosites": [],
+      "ports": [
+       443,
+       "8000-9000"
+      ]
+     }
+    ],
+    "schema": 1
+   },
+   "mode": "direct",
+   "generation": 12,
+   "providers": {
+    "warp": {
+     "reachable": true
+    }
+   },
+   "capabilities": [
+    "whole_direct",
+    "whole_warp",
+    "block_domain",
+    "block_cidr",
+    "block_port",
+    "block_geosite",
+    "block_geoip",
+    "selective_domain",
+    "selective_cidr",
+    "selective_port",
+    "selective_geosite",
+    "selective_geoip",
+    "geodata",
+    "block_protocol",
+    "selective_protocol",
+    "custom_exits",
+    "lanes",
+    "chains",
+    "relay"
+   ],
+   "restart_required": true,
+   "warnings": [],
+   "runtime_version": "Xray 26.3.27 (fake)",
+   "previous": {
+    "revision": "0e96323167a396f5e1c5acb49fb0f9ea18305a61cd7357defee2b56aa2a57aaf"
+   },
+   "current": {
+    "revision": "5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff",
+    "digest": "06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77",
+    "generation": 12,
+    "operation_id": null,
+    "applied_at": "2026-10-25T19:27:48Z"
+   }
+  },
+  "mtproxy": {
+   "revision": "974e961edb76a61faa52e9d60635d20663bc93fec2388bec5412c046e03af10f",
+   "document": {
+    "default": {
+     "action": "egress",
+     "egress": "warp"
+    },
+    "rules": [],
+    "schema": 1
+   },
+   "mode": "proxy",
+   "generation": 12,
+   "providers": {
+    "warp": {
+     "reachable": true
+    }
+   },
+   "capabilities": [
+    "whole_direct",
+    "whole_warp",
+    "block_domain",
+    "block_cidr",
+    "block_port",
+    "block_geosite",
+    "block_geoip",
+    "selective_domain",
+    "selective_cidr",
+    "selective_port",
+    "selective_geosite",
+    "selective_geoip",
+    "geodata",
+    "block_protocol",
+    "selective_protocol",
+    "custom_exits",
+    "lanes",
+    "chains",
+    "relay"
+   ],
+   "restart_required": true,
+   "warnings": [],
+   "runtime_version": "Xray 26.3.27 (fake)",
+   "previous": {
+    "revision": "4378897bbb2f67a9ed11ed38060ee9795d5341568df064411e2c484a32fe38b7"
+   },
+   "current": {
+    "revision": "974e961edb76a61faa52e9d60635d20663bc93fec2388bec5412c046e03af10f",
+    "digest": "96cc7301fba6c2e9171a0c0e606f9a84f32c9c16c69bad01c497e3f4091e5e52",
+    "generation": 12,
+    "operation_id": "op-7",
+    "applied_at": "2026-10-25T19:27:48Z"
+   }
+  },
+  "trusttunnel": {
+   "revision": "5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff",
+   "document": {
+    "default": {
+     "action": "direct",
+     "egress": null
+    },
+    "rules": [
+     {
+      "action": "block",
+      "cidrs": [],
+      "domains": [
+       "example.com"
+      ],
+      "egress": null,
+      "geoips": [],
+      "geosites": [],
+      "ports": [
+       443,
+       "8000-9000"
+      ]
+     }
+    ],
+    "schema": 1
+   },
+   "mode": "direct",
+   "generation": 12,
+   "providers": {
+    "warp": {
+     "reachable": true
+    }
+   },
+   "capabilities": [
+    "whole_direct",
+    "whole_warp",
+    "block_domain",
+    "block_cidr",
+    "block_port",
+    "block_geosite",
+    "block_geoip",
+    "selective_domain",
+    "selective_cidr",
+    "selective_port",
+    "selective_geosite",
+    "selective_geoip",
+    "geodata",
+    "block_protocol",
+    "selective_protocol",
+    "custom_exits",
+    "lanes",
+    "chains",
+    "relay"
+   ],
+   "restart_required": true,
+   "warnings": [],
+   "runtime_version": "Xray 26.3.27 (fake)",
+   "previous": {
+    "revision": "660490e8da4b163356448264152ca1be7b32925866722645436d1150ec18fe53"
+   },
+   "current": {
+    "revision": "5a9f8e70278c9b8a094be2b8712f88852b52dc3e6b57bf0084ae1b65414f98ff",
+    "digest": "06c41f785116f58b35425ed4b5ede4143dbeb5c5cb47cafa5e6ce0e534ee4f77",
+    "generation": 12,
+    "operation_id": "op-4",
+    "applied_at": "2026-10-25T19:27:47Z"
+   }
+  },
+  "amneziawg": {
+   "tun": {
+    "device": "awgxr",
+    "present": true,
+    "attached": false,
+    "warp_registered": true
+   },
+   "revision": "419b5ed3857b331532a45e36894c1aa88aabe750f52387f9323d95dfe844c2ec",
+   "document": {
+    "default": {
+     "action": "egress",
+     "egress": "warp"
+    },
+    "rules": [
+     {
+      "action": "direct",
+      "cidrs": [],
+      "domains": [
+       "cloudflare.com"
+      ],
+      "egress": null,
+      "geoips": [],
+      "geosites": [],
+      "ports": []
+     }
+    ],
+    "schema": 1
+   },
+   "mode": "proxy",
+   "generation": 12,
+   "providers": {
+    "warp": {
+     "reachable": true
+    }
+   },
+   "capabilities": [
+    "whole_direct",
+    "whole_warp",
+    "block_domain",
+    "block_cidr",
+    "block_port",
+    "block_geosite",
+    "block_geoip",
+    "selective_domain",
+    "selective_cidr",
+    "selective_port",
+    "selective_geosite",
+    "selective_geoip",
+    "geodata",
+    "block_protocol",
+    "selective_protocol",
+    "custom_exits",
+    "lanes",
+    "chains",
+    "relay"
+   ],
+   "restart_required": true,
+   "warnings": [],
+   "runtime_version": "Xray 26.3.27 (fake)",
+   "previous": {
+    "revision": "af1c0cbcb203a04b1387f0e51e03afc79d839a017f6ab6396a9d1c5a3b219d78"
+   },
+   "current": {
+    "revision": "419b5ed3857b331532a45e36894c1aa88aabe750f52387f9323d95dfe844c2ec",
+    "digest": "a8ed1817a0e970b11703db5b7a35398da63d68868c0b171e92b90085b5473854",
+    "generation": 12,
+    "operation_id": "op-3",
+    "applied_at": "2026-10-25T19:27:47Z"
+   }
+  }
+ },
+ "geodata": {
+  "source": {
+   "geoip_url": "https://m.example/b.dat",
+   "geosite_url": "https://m.example/a.dat",
+   "kind": "custom"
+  },
+  "auto_update": true,
+  "interval_hours": 12,
+  "update_hour": 2,
+  "origin": "seed",
+  "version": null,
+  "updated_at": "2026-10-25T19:27:47Z",
+  "last_check_at": 1792956468.1867154,
+  "last_error": "geodata_fetch_failed: fetch failed: HTTP Error 404: Not Found",
+  "files": {
+   "geosite": {
+    "sha256": "fbae041b02c41ed0fd8a4efb039bc780dd6af4a1f0c420f42561ae705dda43fe",
+    "size": 4,
+    "codes": 0
+   },
+   "geoip": {
+    "sha256": "bb9af5d1915da1fbc132ced081325efcd2e63e4804f96890f42e9739677237a4",
+    "size": 2,
+    "codes": 0
+   }
+  },
+  "schema": 2,
+  "next_check_at": 1792999668.1867154,
+  "seed": {
+   "geosite": {
+    "sha256": "fbae041b02c41ed0fd8a4efb039bc780dd6af4a1f0c420f42561ae705dda43fe"
+   },
+   "geoip": {
+    "sha256": "bb9af5d1915da1fbc132ced081325efcd2e63e4804f96890f42e9739677237a4"
+   }
+  },
+  "limits": {
+   "max_file_bytes": 134217728,
+   "interval_hours": [
+    1,
+    336
+   ]
+  }
+ }
+}

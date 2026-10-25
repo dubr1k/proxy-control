@@ -170,10 +170,12 @@ def test_hardcoded_pins_match_the_release_catalogue():
     url, digest, members = _XRAY_PINS["amd64"]
     assert (pin.url, pin.sha256) == (url, digest)
     assert dict(pin.members) == dict(members)
-    from installer.model import ROUTER_PORTS
-    from xray_router_manager.intent import PORTS
+    from installer.model import ROUTER_PORTS, TRUSTTUNNEL_ROUTER_PORT
 
-    assert ROUTER_PORTS == PORTS
+    # The Rust manager checks the same fixture (xray_router_manager/src/tests.rs).
+    contract = json.loads((ROOT / "tests/fixtures/xray-router-contract.json").read_text())
+    assert ROUTER_PORTS == contract["ports"]
+    assert TRUSTTUNNEL_ROUTER_PORT == contract["trusttunnel_port"]
 
 
 # -- planning ------------------------------------------------------------------
@@ -523,47 +525,24 @@ def test_ingress_credential_shape():
         assert len(user) == len(service) + 9 and len(password) == 43
 
 
-def test_healthcheck_status_flag_prints_the_manager_status(tmp_path, monkeypatch):
-    """`docker exec … healthcheck --status` is what the installer's verify parses."""
-    import socket
-    import threading
+def test_status_and_relay_are_read_with_the_managers_binary(monkeypatch):
+    """4.0: the router image has no Python; `docker exec … xray-router-manager healthcheck --status`
+    (the binary's probe, its behaviour tested in xray_router_manager/src/healthcheck.rs) is what
+    the installer's verify parses, and the relay flags go through the same probe."""
+    runner = module._DefaultXrayRouterRunner()
+    seen: list[tuple[str, ...]] = []
 
-    from xray_router_manager import healthcheck
+    def capture(argv):
+        seen.append(tuple(argv))
+        return json.dumps({"phase": "idle", "enabled": True})
 
-    sock = tmp_path / "manager.sock"
-    token = tmp_path / "token"
-    token.write_text("t" * 40 + "\n")
-    body = json.dumps({"phase": "idle", "running": {"generation": 1}}).encode()
-
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(str(sock))
-    server.listen(1)
-    seen: list[bytes] = []
-
-    def serve():
-        with server:
-            client, _ = server.accept()
-            with client:
-                seen.append(client.recv(4096))
-                client.sendall(b"HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n" + body)
-
-    thread = threading.Thread(target=serve)
-    thread.start()
-    monkeypatch.setenv("XRAY_ROUTER_SOCKET", str(sock))
-    monkeypatch.setenv("XRAY_ROUTER_MANAGER_TOKEN_FILE", str(token))
-    import io
-    import sys
-
-    buffer = io.BytesIO()
-    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(buffer))
-    with pytest.raises(SystemExit) as raised:
-        healthcheck.main(["--status"])
-    thread.join(timeout=5)
-    assert raised.value.code == 0
-    assert b"GET /v1/status" in seen[0] and b"X-Xray-Router-Token: " + b"t" * 40 in seen[0]
-    sys.stdout.flush()
-    assert json.loads(buffer.getvalue()) == {"phase": "idle", "running": {"generation": 1}}
-    assert healthcheck.status(sock, token) is None  # nobody listens any more
+    monkeypatch.setattr(runner, "_capture_checked", capture)
+    assert runner.router_status()["phase"] == "idle"
+    assert runner.router_relay()["enabled"] is True
+    runner.router_relay_enable("panel.example.com", 45443)
+    probe = ("docker", "exec", "proxy-control-xray-router", "/usr/local/bin/xray-router-manager", "healthcheck")
+    assert seen == [(*probe, "--status"), (*probe, "--relay"), (*probe, "--relay-enable", "panel.example.com", "45443")]
+    assert "python" not in (ROOT / "installer/adapters/xray_router.py").read_text().split("def bridge_check")[0]
 
 
 def test_the_real_runner_sees_only_the_router_compose_service(monkeypatch):
@@ -677,3 +656,17 @@ def test_a_trusttunnel_only_router_still_verifies_and_writes_every_ingress_crede
         assert host(tmp_path, PATHS.ingress(service)).is_file()
     evidence = instance.verify(action)
     assert evidence.success and evidence.details["trusttunnel_port"] == 45104
+
+
+def test_the_rust_manager_is_rebuilt_with_pc_common_and_read_with_its_binary():
+    """4.0: the router's manager builds against `pc_common`, so a change there rebuilds the router
+    (the agent's RUST_MANAGERS, update-host's pc_common block), and the agent reads its status with
+    the binary — or the Python module of a router not rebuilt yet."""
+    from version_agent import service
+
+    assert "xray_router_manager" in service.RUST_MANAGERS and "pc_common" in service.PANEL_SYNC
+    command = " ".join(service.VersionAgent.XRAY_STATUS_COMMAND)
+    assert "/usr/local/bin/xray-router-manager healthcheck --status" in command
+    script = (ROOT / "scripts/update-host.sh").read_text()
+    block = script[script.index('cp -a "$RELEASE_DIR/pc_common"'):script.index("v1.1: the router's MTProxy bridge")]
+    assert "services+=(xray-router)" in block and "acked+=(xray_router_manager)" in block

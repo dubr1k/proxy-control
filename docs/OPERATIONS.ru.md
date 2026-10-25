@@ -311,7 +311,7 @@ Egress-политику применяет **менеджер** сервиса, 
 ([XRAY_ROUTER](XRAY_ROUTER.ru.md)). Его здоровье — часть ежедневной проверки:
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool
 # artifacts.*.verified == true, phase == "idle", running.generation >= 1
 ss -ltnp 'sport = :45101 or sport = :45102'   # только 127.0.0.1, владелец xray
 ```
