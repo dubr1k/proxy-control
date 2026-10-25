@@ -51,7 +51,7 @@ services:
     cap_add: [NET_ADMIN, NET_RAW]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD", "python", "-m", "awg_manager.healthcheck"]
+      test: ["CMD", "/usr/local/bin/awg-manager", "healthcheck"]
       interval: 20s
       timeout: 3s
       retries: 3

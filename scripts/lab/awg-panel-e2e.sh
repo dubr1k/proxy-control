@@ -165,9 +165,9 @@ run_client() { # ns iface version veth-tag
   python3 "$REPO/scripts/lab/awg_conf_to_uapi.py" "$REPO" "$OUT/$version.conf" "10.99.${ts}.1:${PORT[$version]}" >"$WORK/$iface.uapi" 2>"$WORK/$iface.meta"
   python3 - "$REPO" "/var/run/amneziawg/$iface.sock" "$WORK/$iface.uapi" <<'PY'
 import sys
-sys.path.insert(0, sys.argv[1])
-from awg_manager.host import _uapi_exchange
-_uapi_exchange(sys.argv[2], b"set=1\n" + open(sys.argv[3], "rb").read() + b"\n")
+sys.path.insert(0, sys.argv[1] + "/scripts/lab")
+from awg_lab import uapi_exchange
+uapi_exchange(sys.argv[2], b"set=1\n" + open(sys.argv[3], "rb").read() + b"\n")
 PY
   ip -n "$ns" addr add "${CADDR[$version]}/24" dev "$iface"
   ip -n "$ns" link set "$iface" mtu 1280 up

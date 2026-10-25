@@ -136,17 +136,17 @@ fi
 cat >"$WORK/mkclient.py" <<'PY'
 """Build the client-side UAPI body: target instance, obfuscation source instance, keys, endpoint."""
 import json, sys
-sys.path.insert(0, sys.argv[1])
-from awg_manager import keys, obfuscation  # noqa: E402
+sys.path.insert(0, sys.argv[1] + "/scripts/lab")
+from awg_lab import hexkey, uapi_lines  # noqa: E402
 
 target = json.load(open(sys.argv[2]))["instance"]
 source = json.load(open(sys.argv[3]))["instance"]
 private, psk, endpoint = sys.argv[4], sys.argv[5], sys.argv[6]
-lines = [f"private_key={keys.hexkey(private)}"]
-lines += obfuscation.uapi_lines(source["obfuscation"])
+lines = [f"private_key={hexkey(private)}"]
+lines += uapi_lines(source["obfuscation"])
 lines += [
-    f"public_key={keys.hexkey(target['server_public_key'])}",
-    f"preshared_key={keys.hexkey(psk)}",
+    f"public_key={hexkey(target['server_public_key'])}",
+    f"preshared_key={hexkey(psk)}",
     f"endpoint={endpoint}",
     "replace_allowed_ips=true",
     "allowed_ip=0.0.0.0/0",
@@ -156,19 +156,19 @@ sys.stdout.write("\n".join(lines) + "\n")
 PY
 cat >"$WORK/uapi.py" <<'PY'
 import sys
-sys.path.insert(0, sys.argv[1])
-from awg_manager.host import _uapi_exchange  # noqa: E402
+sys.path.insert(0, sys.argv[1] + "/scripts/lab")
+from awg_lab import uapi_exchange  # noqa: E402
 
-_uapi_exchange(sys.argv[2], b"set=1\n" + open(sys.argv[3], "rb").read() + b"\n")
+uapi_exchange(sys.argv[2], b"set=1\n" + open(sys.argv[3], "rb").read() + b"\n")
 PY
 
 say "create one peer per version"
 declare -A CPRIV CPSK CADDR
 for v in "${VERSIONS[@]}"; do
   s=$(suffix "$v")
-  CPRIV[$v]=$(cd "$REPO" && python3 -m awg_manager.keys genkey)
-  cpub=$(cd "$REPO" && echo "${CPRIV[$v]}" | python3 -m awg_manager.keys pubkey)
-  CPSK[$v]=$(cd "$REPO" && python3 -m awg_manager.keys genpsk)
+  CPRIV[$v]=$(cd "$REPO" && python3 scripts/lab/awg_lab.py genkey)
+  cpub=$(cd "$REPO" && echo "${CPRIV[$v]}" | python3 scripts/lab/awg_lab.py pubkey)
+  CPSK[$v]=$(cd "$REPO" && python3 scripts/lab/awg_lab.py genpsk)
   req=$(python3 -c "import json,sys; print(json.dumps(dict(operation_id='acc-$s', username='acc-$s', version='$v', public_key=sys.argv[1], preshared_key=sys.argv[2])))" "$cpub" "${CPSK[$v]}")
   out=$(api POST /v1/peers "$req")
   [[ $(echo "$out" | code_of) == 201 ]] || { bad "create peer $v: $(echo "$out" | body_of)"; exit 1; }

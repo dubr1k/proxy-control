@@ -2,10 +2,11 @@
 # Enable AmneziaWG on a host that was NOT set up by the installer (a hand-managed Proxy Control host).
 #
 # Does what the installer's `amneziawg` adapter does, idempotently, from the unpacked release this
-# script lives in: copies awg_manager and compose.amneziawg.yaml into the project directory, creates
-# the manager token (kept if it exists) and the state directory, writes .env.amneziawg, turns on IPv4
-# forwarding, opens the UDP ports (ufw) or installs the forwarding service (no ufw), adds the overlay
-# to the version agent's compose list, brings awg-manager and the panel up and checks the result.
+# script lives in: copies awg_manager, the shared Rust crate pc_common its image builds against and
+# compose.amneziawg.yaml into the project directory, creates the manager token (kept if it exists)
+# and the state directory, writes .env.amneziawg, turns on IPv4 forwarding, opens the UDP ports (ufw)
+# or installs the forwarding service (no ufw), adds the overlay to the version agent's compose list,
+# brings awg-manager and the panel up and checks the result.
 # Server keys in /var/lib/awg-manager are never touched.
 #
 # UDP ports: the well-known 51820-51822 are fingerprinted, so by default every version gets a free
@@ -39,7 +40,7 @@ done
 [[ $HOST =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$ ]] || { echo "invalid --host" >&2; exit 2; }
 [[ $MTU =~ ^[0-9]{4}$ && $MTU -ge 1280 && $MTU -le 1420 ]] || { echo "--mtu must be 1280-1420" >&2; exit 2; }
 [[ -d $DIR && -f $DIR/compose.yaml ]] || { echo "$DIR is not a Proxy Control project directory" >&2; exit 2; }
-[[ -d $SRC/awg_manager && -f $SRC/compose.amneziawg.yaml ]] || { echo "run this script from an unpacked release" >&2; exit 2; }
+[[ -d $SRC/awg_manager && -d $SRC/pc_common && -f $SRC/compose.amneziawg.yaml ]] || { echo "run this script from an unpacked release" >&2; exit 2; }
 [[ -c /dev/net/tun ]] || { echo "/dev/net/tun is missing on this host" >&2; exit 2; }
 
 declare -A SUBNET=([1.5]=10.66.15.0/24 [2.0]=10.66.20.0/24 [3.1]=10.66.31.0/24)
@@ -115,10 +116,13 @@ done
 
 echo "== files"
 cd "$DIR"
-rm -rf "$DIR/awg_manager.new" && cp -a "$SRC/awg_manager" "$DIR/awg_manager.new"
-rm -rf "$DIR/awg_manager" && mv "$DIR/awg_manager.new" "$DIR/awg_manager"
-# a release unpacked by an ordinary user must not leave that user as the owner of root-run code
-chown -R root:root "$DIR/awg_manager"
+# the manager's sources and the shared Rust crate its image builds against
+for tree in awg_manager pc_common; do
+  rm -rf "$DIR/$tree.new" && cp -a "$SRC/$tree" "$DIR/$tree.new"
+  rm -rf "$DIR/$tree" && mv "$DIR/$tree.new" "$DIR/$tree"
+  # a release unpacked by an ordinary user must not leave that user as the owner of root-run code
+  chown -R root:root "$DIR/$tree"
+done
 install -m 0644 "$SRC/compose.amneziawg.yaml" "$DIR/compose.amneziawg.yaml"
 install -d -m 0700 "$DIR/secrets" /var/lib/awg-manager
 if [[ ! -s secrets/awg-manager-token ]]; then
@@ -187,6 +191,6 @@ docker compose "${args[@]}" "${files[@]}" up -d --build --wait --no-deps awg-man
 systemctl try-restart version-agent.service 2>/dev/null || true
 
 echo "== check"
-docker exec proxy-control-awg-manager python -m awg_manager.healthcheck
+docker exec proxy-control-awg-manager /usr/local/bin/awg-manager healthcheck
 for v in "${VERS[@]}"; do ip link show "awg${v/./}" >/dev/null; done
 echo "AmneziaWG is enabled: versions $VERSIONS, clients dial $HOST on UDP $PORTS"
