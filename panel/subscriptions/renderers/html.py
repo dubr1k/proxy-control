@@ -17,7 +17,7 @@ from html import escape
 from urllib.parse import urlsplit
 
 from ...reveals import qr_data
-from ..apps import SHARE_VARIANTS, SUBSCRIPTION_PROTOCOLS, apps_for, deep_link
+from ..apps import DEEPLINK, SHARE_VARIANTS, SUBSCRIPTION_PROTOCOLS, apps_for, deep_link
 from ..models import Manifest, ManifestGrant
 from ..names import display_text, grant_names
 from ..page_assets import SCRIPT, STYLE
@@ -191,7 +191,7 @@ def _grant_section(page: _Page, grant: ManifestGrant, artifacts: dict, name: str
             )
             continue
         parts.append(f"<h3>{escape(page.label(artifact))}</h3>")
-        if artifact.media_type == "text/uri-list":
+        if artifact.media_type == "text/uri-list" and DEEPLINK.match(value):
             parts.append(f"<a class=\"btn primary\" href=\"{escape(value)}\">{page.t('Открыть', 'Open')}</a>")
         parts.append(page.copy(value, page.t("Копировать ссылку", "Copy the link"),
                                extra=page.qr(value) if artifact.media_type == "text/uri-list" else ""))
@@ -248,7 +248,8 @@ def _quick_links(page: _Page, manifest: Manifest, artifacts: dict) -> str:
     buttons = "".join(
         f"<a class=\"btn primary\" href=\"{escape(artifact.value)}\">{page.t('Открыть', 'Open')} · {escape(PROTOCOL_TITLES.get(grant.protocol, grant.protocol))}</a>"
         for grant in manifest.grants if grant.enabled
-        for artifact in artifacts.get(grant.grant_id, []) if artifact.media_type == "text/uri-list"
+        for artifact in artifacts.get(grant.grant_id, [])
+        if artifact.media_type == "text/uri-list" and DEEPLINK.match(artifact.value)
     )
     if not buttons:
         return ""

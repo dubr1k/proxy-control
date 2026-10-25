@@ -4,7 +4,7 @@ The client window and the access bundle (the chooser of `static/js/link-chooser.
 `GET /api/subscriptions/compatibility`; the end-user subscription page can render from the same
 module. No UI code here.
 
-An app maps to exactly one link variant — a key of `SHARE_VARIANTS` in `subscription_routes.py` (the
+An app maps to exactly one link variant — a key of `SHARE_VARIANTS` below (the
 format and the `client=` parameter) — and to one column of the compatibility matrix. What the app gets
 is derived, not retyped: a protocol is `works` when the variant delivers it and the matrix cell is
 `supported`, `unverified` when it is delivered but not proven, `pending` when the feed carries it but the app's

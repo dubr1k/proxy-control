@@ -232,6 +232,24 @@ minute per client address, across all tokens. The token is stored as a hash, nev
 logged (uvicorn runs without an access log, the Nginx block has `access_log off`) and
 never written to the audit trail.
 
+The `html` format is a page for the client themselves, not for an administrator. It opens with
+a choice of app: each has an "Add to …" button (only where the app's own documentation confirms
+the open scheme) or a link to paste and the address to get the app from, and it says what the app
+will and will not receive. Links copy with one button, the QR code is shown on demand, and each
+access is a collapsed "protocol · domain/login" section without a node name. The language is
+`?lang=en` (Russian by default). AmneziaWG is not part of the subscription or this page.
+
+## The Overview screen
+
+The "Требует внимания" ("Needs attention") block sits at the top and appears only when
+there is something to deal with. Each line links to the screen that resolves it: client
+accesses that failed, wait for a node or have no secret (the link opens Clients with that
+filter already applied, and the number equals the length of the list), linked nodes that do
+not answer, are paused or did not apply their configuration, components with updates
+available (owner only) and services that are down. It is built from the answers the Overview
+already fetched; nothing extra is polled. The "Выдать доступ" ("Issue access") button in the
+header (hidden from viewers) opens Clients and straight away the new-client window.
+
 ## The Clients screen
 
 A client is a person or a device; a grant is their account in one protocol on one
@@ -242,6 +260,12 @@ An archived client with no grants left can be deleted permanently: "Delete perma
 in the card's "⋯" menu (`DELETE /api/clients/{client_id}`, owner and admin, audited as
 `client.delete`). The client's subscription link stops resolving; the panel refuses (409)
 a client that is not archived or still has undeleted grants.
+
+In the client window the subscription block starts with the "На чём клиент?" ("What is the
+client on?") chooser: a platform, then an app, and the panel shows the one fitting link, its
+QR code and an "open in the app" button. "Выпустить новую ссылку" ("Issue a new link"), after a
+confirmation, rotates the token: the old link stops resolving at once and the new one has to be
+sent to the client again; the chosen platform and app are kept.
 
 "Import existing" lists what the managers already run. The panel only **reads** them:
 passwords, quotas and enabled flags are untouched, and no `create`, `rotate`, `enable`

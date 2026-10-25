@@ -667,3 +667,14 @@ def test_trusttunnel_matrix_row_is_evidence_honest():
     assert "verified 2026-10-19 only" in NOTES["trusttunnel"]["hiddify"]
     assert "unverified" in NOTES["trusttunnel"]["nekobox"] and "unverified" in NOTES["trusttunnel"]["throne"]
     assert "supported" not in {v for k, v in row.items() if k != "mihomo"}
+
+
+def test_a_hostile_uri_artifact_gets_no_link_only_the_copyable_text(manifest, artifacts):
+    grant = manifest.grants[0]
+    safe = _page(manifest, artifacts)
+    assert 'href="tg://proxy?server=proxy.example.com' in safe
+    for hostile in ("javascript:alert(1)", 'tg://x" onmouseover="alert(1)', "data:text/html,<b>x</b>"):
+        swapped = {**artifacts, grant.grant_id: [dataclasses.replace(a, value=hostile) for a in artifacts[grant.grant_id]]}
+        for page in (_page(manifest, swapped), _page(dataclasses.replace(manifest, grants=[grant]), swapped)):
+            assert f'href="{hostile}' not in page and 'href="javascript:' not in page and 'href="data:text' not in page
+            assert 'onmouseover="alert' not in page

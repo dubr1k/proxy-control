@@ -82,12 +82,15 @@ def test_node_rename_invalidates_etag():
     assert SubscriptionService.etag(manifest, 2) != SubscriptionService.etag(after, 2)
 
 
-def test_disabled_grant_node_rename_invalidates_html_etag():
+def test_node_rename_does_not_change_the_html_page_but_still_moves_the_etag():
+    """The page shows «Protocol · domain/login», never a node name, so a rename changes
+    no html byte; the shared manifest ETag still moves (the other formats print names)."""
     manifest, artifacts = feed(names=("AMS",))
     disabled = dataclasses.replace(manifest.grants[0], enabled=False)
     before = dataclasses.replace(manifest, grants=[disabled])
     after = dataclasses.replace(before, grants=[dataclasses.replace(disabled, node_name="Paris")])
-    assert RENDERERS["html"].render(before, artifacts) != RENDERERS["html"].render(after, artifacts)
+    assert RENDERERS["html"].render(before, artifacts) == RENDERERS["html"].render(after, artifacts)
+    assert b"AMS" not in RENDERERS["html"].render(before, artifacts)
     assert SubscriptionService.etag(before, 2) != SubscriptionService.etag(after, 2)
 
 
@@ -117,5 +120,8 @@ def test_untrusted_node_names_are_safe_in_all_display_formats():
     assert "AMS’s <script> · Mieru" in text
     assert "node-1 · Mieru" in text
     page = RENDERERS["html"].render(manifest, artifacts).decode()
-    assert "&lt;script&gt;" in page and "<script>" not in page
+    # The page prints no node name; the name only rides inside the percent-encoded mieru link
+    # (the page's own <script> is the copy helper, so look for the name's markup).
+    assert "&lt;script&gt;" not in page and "<script>\u202e" not in page and "AMS’s <script>" not in page
+    assert "%3Cscript%3E" in page
     assert "\u202e" not in text and "\u202e" not in page

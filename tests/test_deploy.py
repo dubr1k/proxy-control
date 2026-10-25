@@ -49,9 +49,11 @@ class DeployCliTests(unittest.TestCase):
 
     def test_versions_card_explains_an_empty_catalog_instead_of_an_empty_picker(self):
         javascript = (ROOT / "panel/static/js/management.js").read_text()
-        # The installed version is never an option, so an up-to-date host would
-        # otherwise render a picker with nothing in it.
-        self.assertIn("entry.version !== current", javascript)
+        # The installed version is never an option (offeredVersions in common.js), so an
+        # up-to-date host would otherwise render a picker with nothing in it.
+        common = (ROOT / "panel/static/js/common.js").read_text()
+        self.assertIn("entry.version !== current", common)
+        self.assertIn("offeredVersions", javascript)
         self.assertIn("Обновлений не обнаружено", javascript)
         self.assertIn("в каталоге нет версий; нажмите «Проверить обновления»", javascript)
         # v0.11: once upstream answered, «nothing newer» is good news, not an empty catalog.
