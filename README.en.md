@@ -797,7 +797,7 @@ embeds into the SBOM.
 |---|---|---|
 | `panel/Dockerfile` | Panel API and interface | `python:3.13.5-slim` |
 | `naive_manager/Dockerfile` | NaiveProxy access and accounting management | `python:3.13.5-slim` |
-| `mieru_manager/Dockerfile` | Mieru access and quota management | `python:3.13.5-slim` |
+| `mieru_manager/Dockerfile` | Mieru access and quota management (Rust) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `xray_router_manager/Dockerfile` | The Xray-router and its manager | `python:3.13.5-slim` |
 | `mcp_server/Dockerfile` | The MCP server (central panel only) | `python:3.13.5-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: the manager and `amneziawg-go` (optional) | `golang:1.25.12` → `python:3.13.5-slim` |

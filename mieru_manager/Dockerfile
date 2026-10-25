@@ -1,12 +1,17 @@
-FROM python:3.13.5-slim@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
-# The base image ships no bytecode and the container's root is read-only, so every Python start
-# (health checks, `docker exec`) would compile the standard library again. First step after
-# FROM, so every Proxy Control image shares this layer.
-RUN python -m compileall -q -j0 /usr/local/lib/python3.13
+# The manager: built from the locked dependency set, nothing fetched beyond Cargo.lock. mita
+# itself is not in the image: compose binds the host's pinned, statically linked /usr/bin/mita
+# read-only, and the manager refuses it unless its sha256 is MIERU_MITA_SHA256.
+FROM rust:1.99-slim-bookworm@sha256:86234e857a413004348b471d11a4ebe1aa92d2eae2b6b143cac68fd1ac3c48be AS build
+WORKDIR /src
+COPY pc_common /src/pc_common
+COPY mieru_manager /src/mieru_manager
+RUN cd /src/mieru_manager \
+    && cargo build --release --locked \
+    && install -D -m 0755 target/release/mieru-manager /out/mieru-manager
+
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
 RUN groupadd --system --gid 10005 mieru-manager \
  && useradd --system --uid 10005 --gid mieru-manager --no-create-home mieru-manager
-WORKDIR /app
-COPY mieru_manager /app/mieru_manager
-RUN python -m compileall -q /app
+COPY --from=build /out/mieru-manager /usr/local/bin/mieru-manager
 USER 10005:10005
-ENTRYPOINT ["python", "-m", "mieru_manager"]
+ENTRYPOINT ["/usr/local/bin/mieru-manager"]

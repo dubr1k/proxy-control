@@ -420,7 +420,7 @@ WARP-политика в предпросмотре — `provider_unavailable`.
 Unit: `panel/tests/test_routing_ir.py` (валидация, компилятор по матрице возможностей,
 хранилище), `test_routing_service.py`, `test_routing_routes.py`, `test_routing_fleet.py`
 (секция поколения, узел, pusher), `test_egress_adapters.py`, `tests/test_naive_egress.py`,
-`tests/test_naive_manager_egress.py`, `tests/test_mieru_egress.py`; для роутера —
+`tests/test_naive_manager_egress.py`, `mieru_manager/src/tests.rs`; для роутера —
 `panel/tests/test_xray_routing_compiler.py`, `test_routing_router_service.py`,
 `test_routing_router_routes.py`, `test_routing_fleet_router.py`, `tests/test_xray_router_*.py`.
 Стенд: `scripts/dev/remote-gate.sh routing` — менеджеры узла смотрят на
