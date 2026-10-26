@@ -391,8 +391,11 @@ fn routing_is_by_exact_path() {
     let running = start(routes(Some(Arc::new(FakeAgent::default()))));
     let socket = &running.socket;
     let health = get(socket, "/v1/health");
-    assert_eq!((health.status, health.json()), (200, json!({"status": "ok", "implementation": "rust"})));
-    assert_eq!(health.body, br#"{"implementation":"rust","status":"ok"}"#);
+    assert_eq!(health.status, 200);
+    let identity = health.json();
+    assert_eq!(identity["status"], "ok");
+    assert_eq!(identity["implementation"], "rust");
+    assert_eq!(identity["version"], include_str!("../../../VERSION").trim());
     for path in ["/v1/health?x=1", "/v1/health/", "/v1/nope", "http://version-agent/v1/health"] {
         let answer = get(socket, path);
         assert_eq!((answer.status, answer.json()), (404, json!({"detail": "not found"})), "{path}");
