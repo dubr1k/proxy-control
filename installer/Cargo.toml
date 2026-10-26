@@ -21,6 +21,8 @@ path = "src/main.rs"
 test-fakes = []
 
 [dependencies]
+# The configuration, the model, the planner, reports, credentials and the command line.
+installer_core = { package = "installer-core", path = "../installer_core" }
 pc_host = { path = "../pc_host" }
 # Plain sorted maps: every journal is key-sorted (pc_host::json writes the bytes).
 serde_json = "1"

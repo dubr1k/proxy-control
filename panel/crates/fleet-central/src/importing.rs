@@ -11,9 +11,7 @@ use panel_clients::store;
 use panel_clients::{AuditContext, ClientService};
 use panel_core::clock::SharedClock;
 use panel_core::db::{Conn, Database};
-use panel_model::clients::{
-    AccessGrant, GrantDesiredState, GrantObservedState, GrantOrigin, ProtocolOptions,
-};
+use panel_model::clients::{AccessGrant, GrantDesiredState, GrantObservedState, GrantOrigin, ProtocolOptions};
 use panel_model::seams::{CaptureItem, CapturePurpose};
 use panel_model::{Protocol, SecretRef};
 use panel_secrets::audit;
@@ -71,7 +69,9 @@ impl FleetImporter {
         let mut known = HashMap::new();
         for (protocol, rows) in inventory {
             for row in rows.as_array().into_iter().flatten() {
-                if let (Some(username), Some(row)) = (row.get("runtime_username").and_then(Value::as_str), row.as_object()) {
+                if let (Some(username), Some(row)) =
+                    (row.get("runtime_username").and_then(Value::as_str), row.as_object())
+                {
                     known.insert((protocol.clone(), username.to_string()), row.clone());
                 }
             }
@@ -101,10 +101,7 @@ impl FleetImporter {
                 continue;
             }
             if row.get("ownership").and_then(Value::as_str) == Some("central") {
-                return Err(CentralError::Invalid(format!(
-                    "{} is already managed by a central panel",
-                    item.label()
-                )));
+                return Err(CentralError::Invalid(format!("{} is already managed by a central panel", item.label())));
             }
             if item.client != NEW_CLIENT {
                 if let Err(error) = store::client(db, &item.client) {
@@ -134,9 +131,8 @@ impl FleetImporter {
             Some(inventory) => inventory,
             None => Self::inventory_protocols(client.inventory().await?),
         };
-        let (pending, already_linked) = self.database.with_connection(|db| {
-            self.pending(db, node_id, decisions, &inventory)
-        })?;
+        let (pending, already_linked) =
+            self.database.with_connection(|db| self.pending(db, node_id, decisions, &inventory))?;
         if pending.is_empty() {
             return Ok(json!({"imported": [], "without_credential": [], "already_linked": already_linked}));
         }
@@ -200,8 +196,8 @@ impl FleetImporter {
                 let converted = options_from_runtime(item.protocol, &raw_options).ok_or_else(|| {
                     CentralError::Internal(format!("no runtime option importer for {}", item.protocol))
                 })??;
-                let options = ProtocolOptions::validate(item.protocol, &converted)
-                    .map_err(panel_clients::ClientsError::from)?;
+                let options =
+                    ProtocolOptions::validate(item.protocol, &converted).map_err(panel_clients::ClientsError::from)?;
                 store::insert_grant(
                     db,
                     &AccessGrant {
@@ -266,7 +262,8 @@ impl FleetImporter {
                 continue;
             };
             for row in rows.as_array().into_iter().flatten() {
-                let Some(username) = row.get("runtime_username").and_then(Value::as_str).filter(|name| !name.is_empty())
+                let Some(username) =
+                    row.get("runtime_username").and_then(Value::as_str).filter(|name| !name.is_empty())
                 else {
                     continue;
                 };
@@ -314,9 +311,7 @@ impl FleetImporter {
             .cloned()
             .collect::<Vec<_>>();
         let context = AuditContext::system();
-        let mut result = self
-            .import_resources(node_id, &batch, &context, Some(inventory.clone()), true)
-            .await?;
+        let mut result = self.import_resources(node_id, &batch, &context, Some(inventory.clone()), true).await?;
         if batch.len() < decisions.len() {
             let rest = self.database.with_connection(|db| self.plan_auto_import(db, node_id, &inventory))?;
             if !rest.is_empty() {

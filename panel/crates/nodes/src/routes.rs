@@ -14,8 +14,12 @@
 //! and every `/api/fleet/nodes*` route ([`RETIRED_ROUTES`]).
 //!
 //! The web shell (WP4) owns authentication, CSRF, the request id, the client address and FastAPI's
-//! body decoding; it hands them in through [`NodesState`]. Precedence is FastAPI's: a body that is
-//! not JSON is refused (422) before authentication, the model's own errors (422) after it.
+//! body decoding. It calls the framework-free handlers ([`list_nodes`], [`get_node`],
+//! [`rename_node`], [`set_node_disabled`]) after its own gate and validation, with the application
+//! state as [`NodesState`]. [`router`] serves the same handlers as a stand-alone axum router over
+//! [`NodesHttp`] (gate and body decoding handed in); this crate's tests use it. Precedence is
+//! FastAPI's: a body that is not JSON is refused (422) before authentication, the model's own
+//! errors (422) after it.
 
 // `ApiError` (panel-core) is the answer itself; boxing it on every error path would buy nothing.
 #![allow(clippy::result_large_err)]
@@ -107,21 +111,13 @@ impl LocalManager {
     }
 }
 
-/// What the node routes need from the application (WP4's `AppState` implements it).
+/// What the node handlers need from the application (WP4's `AppState` implements it).
 pub trait NodesState: Clone + Send + Sync + 'static {
     /// The node lifecycle service (`app.state.nodes`).
     fn nodes(&self) -> &NodeLifecycleService;
 
     /// This panel's GUID (`app.state.panel_guid`).
     fn panel_guid(&self) -> String;
-
-    /// Runs the gate on the request head: the caller's audit context (actor, client address,
-    /// request id) or the gate's refusal (401/403/429 with FastAPI's `detail`).
-    fn authorize<'a>(&'a self, parts: &'a Parts, gate: Gate) -> BoxFuture<'a, Result<AuditContext, ApiError>>;
-
-    /// FastAPI's reading of a JSON request body: the value (`Null` for an empty body), or the 422
-    /// `json_invalid` answer for malformed JSON.
-    fn decode_body(&self, parts: &Parts, body: &Bytes) -> Result<Value, ApiError>;
 
     /// The protocol switch of `settings` (`naive_enabled`, …); Telemt is always probed.
     fn manager_enabled(&self, manager: LocalManager) -> bool;
@@ -133,13 +129,25 @@ pub trait NodesState: Clone + Send + Sync + 'static {
     /// `adapters["amneziawg"].versions()` (only asked when AmneziaWG is enabled); an
     /// `AdapterError` becomes `[]`.
     fn amneziawg_versions(&self) -> BoxFuture<'_, Result<Vec<String>, SeamError>>;
+}
+
+/// What the stand-alone [`router`] needs on top of [`NodesState`]: the parts the web shell does
+/// itself when it serves the handlers.
+pub trait NodesHttp: NodesState {
+    /// Runs the gate on the request head: the caller's audit context (actor, client address,
+    /// request id) or the gate's refusal (401/403/429 with FastAPI's `detail`).
+    fn authorize<'a>(&'a self, parts: &'a Parts, gate: Gate) -> BoxFuture<'a, Result<AuditContext, ApiError>>;
+
+    /// FastAPI's reading of a JSON request body: the value (`Null` for an empty body), or the 422
+    /// `json_invalid` answer for malformed JSON.
+    fn decode_body(&self, parts: &Parts, body: &Bytes) -> Result<Value, ApiError>;
 
     /// The answer to an unexpected failure (Starlette's 500), logged by the shell.
     fn internal_error(&self, error: Box<dyn Error + Send + Sync>) -> Response;
 }
 
-/// The node routes, generic over the application state.
-pub fn router<S: NodesState>() -> Router<S> {
+/// The node routes as a stand-alone axum router, generic over the application state.
+pub fn router<S: NodesHttp>() -> Router<S> {
     Router::new()
         .route("/api/nodes", get(list::<S>))
         .route("/api/nodes/{node_id}", get(one::<S>))
@@ -173,7 +181,9 @@ impl Model for NodeRename {
 
 // -- plumbing ------------------------------------------------------------------------------------
 
-enum RouteError {
+/// Why a handler did not answer 200: an API answer (404/409/422) or an unexpected failure (500).
+#[derive(Debug)]
+pub enum RouteError {
     Api(ApiError),
     Internal(Box<dyn Error + Send + Sync>),
 }
@@ -206,7 +216,7 @@ pub fn error_response(error: &ApiError) -> Response {
     json_response(error.status(), &error.body())
 }
 
-fn finish<S: NodesState>(state: &S, result: Result<Response, RouteError>) -> Response {
+fn finish<S: NodesHttp>(state: &S, result: Result<Response, RouteError>) -> Response {
     match result {
         Ok(response) => response,
         Err(RouteError::Api(error)) => error_response(&error),
@@ -276,41 +286,80 @@ async fn rendered<S: NodesState>(state: &S, view: &NodeView) -> Result<Value, Ro
     Ok(value)
 }
 
-async fn authorized<S: NodesState>(state: &S, parts: &Parts, gate: Gate) -> Result<AuditContext, RouteError> {
+// -- handlers (framework-free: the caller ran the gate and validated the input) ------------------
+
+/// `GET /api/nodes` after `context.current`: `{"items": [view…]}`, the local node first and
+/// rendered with its services and identity.
+pub async fn list_nodes<S: NodesState>(state: &S) -> Result<Value, RouteError> {
+    let service = state.nodes().clone();
+    let views = blocking(move || service.list()).await?;
+    let mut items = Vec::with_capacity(views.len());
+    for view in &views {
+        items.push(rendered(state, view).await?);
+    }
+    Ok(json!({"items": items}))
+}
+
+/// `GET /api/nodes/{node_id}` after `context.current`: the rendered view, or 404.
+pub async fn get_node<S: NodesState>(state: &S, node_id: String) -> Result<Value, RouteError> {
+    let service = state.nodes().clone();
+    let view = blocking(move || service.get(&node_id)).await?;
+    rendered(state, &view).await
+}
+
+/// `POST /api/nodes/{node_id}/rename` after `context.roles("owner")` and the body model: the plain
+/// view, or 404/422.
+pub async fn rename_node<S: NodesState>(
+    state: &S,
+    node_id: String,
+    body: NodeRename,
+    context: AuditContext,
+) -> Result<Value, RouteError> {
+    let service = state.nodes().clone();
+    let view = blocking(move || service.rename(&node_id, &body.display_name, &context)).await?;
+    Ok(view_to_value(&view))
+}
+
+/// `POST /api/nodes/{node_id}/disable|enable` after `context.roles("owner")`: the plain view, or
+/// 404/409.
+pub async fn set_node_disabled<S: NodesState>(
+    state: &S,
+    node_id: String,
+    disabled: bool,
+    context: AuditContext,
+) -> Result<Value, RouteError> {
+    let service = state.nodes().clone();
+    let view = blocking(move || service.set_disabled(&node_id, disabled, &context)).await?;
+    Ok(view_to_value(&view))
+}
+
+// -- the stand-alone router ----------------------------------------------------------------------
+
+async fn authorized<S: NodesHttp>(state: &S, parts: &Parts, gate: Gate) -> Result<AuditContext, RouteError> {
     Ok(state.authorize(parts, gate).await?)
 }
 
-// -- handlers ------------------------------------------------------------------------------------
-
-async fn list<S: NodesState>(State(state): State<S>, request: Request) -> Response {
+async fn list<S: NodesHttp>(State(state): State<S>, request: Request) -> Response {
     let result = async {
         let (parts, _) = request.into_parts();
         authorized(&state, &parts, Gate::Current).await?;
-        let service = state.nodes().clone();
-        let views = blocking(move || service.list()).await?;
-        let mut items = Vec::with_capacity(views.len());
-        for view in &views {
-            items.push(rendered(&state, view).await?);
-        }
-        Ok(json_response(200, &json!({"items": items})))
+        Ok(json_response(200, &list_nodes(&state).await?))
     }
     .await;
     finish(&state, result)
 }
 
-async fn one<S: NodesState>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
+async fn one<S: NodesHttp>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
     let result = async {
         let (parts, _) = request.into_parts();
         authorized(&state, &parts, Gate::Current).await?;
-        let service = state.nodes().clone();
-        let view = blocking(move || service.get(&node_id)).await?;
-        Ok(json_response(200, &rendered(&state, &view).await?))
+        Ok(json_response(200, &get_node(&state, node_id).await?))
     }
     .await;
     finish(&state, result)
 }
 
-async fn rename<S: NodesState>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
+async fn rename<S: NodesHttp>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
     let result = async {
         let (parts, body) = request.into_parts();
         let bytes = to_bytes(body, usize::MAX)
@@ -319,30 +368,26 @@ async fn rename<S: NodesState>(State(state): State<S>, Path(node_id): Path<Strin
         let value = state.decode_body(&parts, &bytes)?;
         let context = authorized(&state, &parts, OWNER).await?;
         let body = NodeRename::validate_body(&value).map_err(|error| error.to_api_error())?;
-        let service = state.nodes().clone();
-        let view = blocking(move || service.rename(&node_id, &body.display_name, &context)).await?;
-        Ok(json_response(200, &view_to_value(&view)))
+        Ok(json_response(200, &rename_node(&state, node_id, body, context).await?))
     }
     .await;
     finish(&state, result)
 }
 
-async fn set_disabled<S: NodesState>(state: S, node_id: String, disabled: bool, request: Request) -> Response {
+async fn set_disabled<S: NodesHttp>(state: S, node_id: String, disabled: bool, request: Request) -> Response {
     let result = async {
         let (parts, _) = request.into_parts();
         let context = authorized(&state, &parts, OWNER).await?;
-        let service = state.nodes().clone();
-        let view = blocking(move || service.set_disabled(&node_id, disabled, &context)).await?;
-        Ok(json_response(200, &view_to_value(&view)))
+        Ok(json_response(200, &set_node_disabled(&state, node_id, disabled, context).await?))
     }
     .await;
     finish(&state, result)
 }
 
-async fn disable<S: NodesState>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
+async fn disable<S: NodesHttp>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
     set_disabled(state, node_id, true, request).await
 }
 
-async fn enable<S: NodesState>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
+async fn enable<S: NodesHttp>(State(state): State<S>, Path(node_id): Path<String>, request: Request) -> Response {
     set_disabled(state, node_id, false, request).await
 }

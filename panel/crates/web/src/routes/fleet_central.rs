@@ -19,8 +19,8 @@ use panel_fleet_central::metrics_source::FleetMetricsSource;
 use panel_fleet_central::pusher::{FleetPusher, PusherOptions};
 use panel_fleet_central::CentralError;
 use panel_model::clients::USERNAME_PATTERN;
-use panel_model::validate::{boolean, list, literal, nullable, Cx, Extra, Fields, Model, Str};
 use panel_model::seams::NodeError;
+use panel_model::validate::{boolean, list, literal, nullable, Cx, Extra, Fields, Model, Str};
 use panel_model::Protocol;
 use panel_nodes::read_model::view_to_value;
 use panel_nodes::NodeLifecycleService;
@@ -41,9 +41,7 @@ fn is_version(text: &str) -> bool {
     let bytes = text.as_bytes();
     (1..=64).contains(&bytes.len())
         && bytes[0].is_ascii_alphanumeric()
-        && bytes[1..]
-            .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"._+:-".contains(byte))
+        && bytes[1..].iter().all(|byte| byte.is_ascii_alphanumeric() || b"._+:-".contains(byte))
 }
 
 fn is_sha256(text: &str) -> bool {
@@ -106,19 +104,16 @@ impl Model for NodeLinkTest {
         let mut fields = Fields::open(input, loc, cx, Self::TITLE)?;
         let url = fields.required(cx, "url", |v, l, cx| Str::len(1, 512).validate(v, l, cx));
         let key = fields.required(cx, "api_key", |v, l, cx| Str::len(1, 256).validate(v, l, cx));
-        let mode = fields.optional(cx, "tls_verify", || "verify".to_string(), |v, l, cx| {
-            literal(v, l, cx, &["verify", "pin"]).map(str::to_string)
-        });
+        let mode = fields.optional(
+            cx,
+            "tls_verify",
+            || "verify".to_string(),
+            |v, l, cx| literal(v, l, cx, &["verify", "pin"]).map(str::to_string),
+        );
         let pin = fields.optional(cx, "pinned_sha256", || None, optional_string(SHA256));
         let allow = fields.optional(cx, "allow_private_address", || false, boolean);
         fields.finish(cx, Extra::Ignore).then_some(())?;
-        Some(Self {
-            url: url?,
-            api_key: key?,
-            tls_verify: mode?,
-            pinned_sha256: pin?,
-            allow_private_address: allow?,
-        })
+        Some(Self { url: url?, api_key: key?, tls_verify: mode?, pinned_sha256: pin?, allow_private_address: allow? })
     }
 
     fn dump(&self) -> Value {
@@ -141,9 +136,12 @@ impl Model for NodeLinkCreate {
         let mut fields = Fields::open(input, loc, cx, Self::TITLE)?;
         let url = fields.required(cx, "url", |v, l, cx| Str::len(1, 512).validate(v, l, cx));
         let key = fields.required(cx, "api_key", |v, l, cx| Str::len(1, 256).validate(v, l, cx));
-        let mode = fields.optional(cx, "tls_verify", || "verify".to_string(), |v, l, cx| {
-            literal(v, l, cx, &["verify", "pin"]).map(str::to_string)
-        });
+        let mode = fields.optional(
+            cx,
+            "tls_verify",
+            || "verify".to_string(),
+            |v, l, cx| literal(v, l, cx, &["verify", "pin"]).map(str::to_string),
+        );
         let pin = fields.optional(cx, "pinned_sha256", || None, optional_string(SHA256));
         let allow = fields.optional(cx, "allow_private_address", || false, boolean);
         let name = fields.required(cx, "display_name", |v, l, cx| Str::len(1, 128).validate(v, l, cx));
@@ -189,9 +187,12 @@ impl Model for NodeLinkUpdateBody {
         let name = fields.optional(cx, "display_name", || None, optional_string(Str::len(1, 128)));
         let url = fields.optional(cx, "url", || None, optional_string(Str::len(1, 512)));
         let key = fields.optional(cx, "api_key", || None, optional_string(Str::len(1, 256)));
-        let mode = fields.optional(cx, "tls_verify", || None, |v, l, cx| {
-            nullable(v, l, cx, |v, l, cx| literal(v, l, cx, &["verify", "pin"]).map(str::to_string))
-        });
+        let mode = fields.optional(
+            cx,
+            "tls_verify",
+            || None,
+            |v, l, cx| nullable(v, l, cx, |v, l, cx| literal(v, l, cx, &["verify", "pin"]).map(str::to_string)),
+        );
         let pin = fields.optional(cx, "pinned_sha256", || None, optional_string(SHA256));
         let auto = fields.optional(cx, "auto_import", || None, |v, l, cx| nullable(v, l, cx, boolean));
         fields.finish(cx, Extra::Ignore).then_some(())?;
@@ -311,7 +312,10 @@ pub fn wire(core: &Arc<Core>, services: &mut Services) -> Result<(), String> {
         .get::<super::clients::ClientsDomain>()
         .cloned()
         .ok_or_else(|| "clients domain must be wired before fleet central".to_string())?;
-    let nodes = NodeLifecycleService::new(core.database.clone(), core.clock.clone());
+    let nodes = services
+        .get::<NodeLifecycleService>()
+        .cloned()
+        .ok_or_else(|| "node lifecycle must be wired before fleet central".to_string())?;
     let links = Arc::new(
         NodeLinkService::new(
             core.database.clone(),
@@ -323,12 +327,7 @@ pub fn wire(core: &Arc<Core>, services: &mut Services) -> Result<(), String> {
         .with_provisioning(clients.provisioning.clone()),
     );
     let desired = DesiredStore::new(core.database.clone());
-    let publisher = Arc::new(PublishService::new(
-        core.panel_guid.clone(),
-        desired.clone(),
-        core.clock.clone(),
-        None,
-    ));
+    let publisher = Arc::new(PublishService::new(core.panel_guid.clone(), desired.clone(), core.clock.clone(), None));
     clients.clients.add_hook(Arc::new(PublishForClient::new(publisher.clone())));
     let importer = FleetImporter::new(
         core.database.clone(),
@@ -357,7 +356,6 @@ pub fn wire(core: &Arc<Core>, services: &mut Services) -> Result<(), String> {
         .map_err(|error| error.to_string())?,
     );
     let metrics = Arc::new(FleetMetricsSource::new(core.database.clone(), links.clone(), core.clock.clone()));
-    services.insert(nodes.clone());
     services.insert(desired.clone());
     services.insert(publisher);
     services.insert(links.clone());
@@ -451,26 +449,17 @@ fn translate(error: CentralError) -> Failure {
 }
 
 fn view(domain: &CentralDomain, node_id: &str) -> Result<Value, Failure> {
-    domain
-        .nodes
-        .get(node_id)
-        .map(|view| view_to_value(&view))
-        .map_err(|error| match error {
-            panel_nodes::NodesError::NotFound(_) => Failure::detail(404, "node not found"),
-            other => Failure::internal(other),
-        })
+    domain.nodes.get(node_id).map(|view| view_to_value(&view)).map_err(|error| match error {
+        panel_nodes::NodesError::NotFound(_) => Failure::detail(404, "node not found"),
+        other => Failure::internal(other),
+    })
 }
 
 fn linked(domain: &CentralDomain, node_id: &str) -> Result<(), Failure> {
     if node_id == "local" {
         return Err(Failure::detail(422, NOT_A_LINKED_PANEL));
     }
-    domain
-        .links
-        .database()
-        .with_connection(|db| domain.links.link(db, node_id))
-        .map(|_| ())
-        .map_err(translate)
+    domain.links.database().with_connection(|db| domain.links.link(db, node_id)).map(|_| ()).map_err(translate)
 }
 
 async fn node_fingerprint(State(app): State<AppState>, call: Call) -> Handled {
@@ -482,7 +471,8 @@ async fn node_fingerprint(State(app): State<AppState>, call: Call) -> Handled {
     let body = body.expect("validated body");
     let url = validate_panel_url(&body.url, body.allow_private_address).map_err(translate)?;
     let probe_url = url.clone();
-    let work = tokio::task::spawn_blocking(move || fingerprint(&probe_url, FINGERPRINT_TIMEOUT, body.allow_private_address));
+    let work =
+        tokio::task::spawn_blocking(move || fingerprint(&probe_url, FINGERPRINT_TIMEOUT, body.allow_private_address));
     let digest = match tokio::time::timeout(FINGERPRINT_TIMEOUT, work).await {
         Ok(result) => result.map_err(Failure::internal)?.map_err(translate)?,
         Err(_) => {
@@ -560,10 +550,7 @@ async fn set_enabled(app: &AppState, call: &Call, enabled: bool) -> Result<Value
     let user = app.roles(call, OWNER).await?;
     let domain = domain(app);
     let node_id = call.param("node_id").to_string();
-    domain
-        .links
-        .set_enabled(&node_id, enabled, &audit_context(&user, call))
-        .map_err(translate)?;
+    domain.links.set_enabled(&node_id, enabled, &audit_context(&user, call)).map_err(translate)?;
     view(&domain, &node_id)
 }
 
@@ -610,11 +597,7 @@ async fn node_unlink(State(app): State<AppState>, call: Call) -> Handled {
     if node_id == "local" {
         return Err(Failure::detail(422, NOT_A_LINKED_PANEL));
     }
-    domain(&app)
-        .links
-        .delete(&node_id, &audit_context(&user, &call), force)
-        .await
-        .map_err(translate)?;
+    domain(&app).links.delete(&node_id, &audit_context(&user, &call), force).await.map_err(translate)?;
     Ok(response::json(200, &json!({"ok": true})))
 }
 
@@ -643,7 +626,11 @@ async fn node_import(State(app): State<AppState>, call: Call) -> Handled {
     let decisions = body
         .resources
         .into_iter()
-        .map(|item| ImportItem { protocol: item.protocol, runtime_username: item.runtime_username, client: item.client })
+        .map(|item| ImportItem {
+            protocol: item.protocol,
+            runtime_username: item.runtime_username,
+            client: item.client,
+        })
         .collect::<Vec<_>>();
     let result = domain
         .importer

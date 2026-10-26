@@ -10,20 +10,20 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use panel_fleet::central::{
-    CONNECT_TIMEOUT, MAX_RESPONSE_BYTES, NodeClientFactory, NodeLink, REQUEST_TIMEOUT, TLS_MODES,
+    NodeClientFactory, NodeLink, CONNECT_TIMEOUT, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT, TLS_MODES,
 };
 use panel_model::fleet::{ObservedGeneration, PushRequest, PushResponse};
 use panel_model::protocols::BoxFuture;
 use panel_model::seams::{CaptureItem, CapturePurpose, NodeClient, NodeError, SeamError};
 use panel_model::validate::Model;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
+use reqwest::header::{HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::Method;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::crypto::WebPkiSupportedAlgorithms;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme, StreamOwned};
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
 use crate::error::{CentralError, CentralResult};
@@ -71,18 +71,13 @@ pub fn validate_panel_url(url: &str, allow_private: bool) -> CentralResult<Strin
 
 /// Python's `ipaddress.is_global`, including its treatment of IPv4-mapped IPv6 addresses.
 fn is_global(address: IpAddr) -> bool {
-    match address {
-        IpAddr::V4(address) => address.is_global(),
-        IpAddr::V6(address) => match address.to_ipv4_mapped() {
-            Some(address) => address.is_global(),
-            None => address.is_global(),
-        },
-    }
+    panel_core::pytext::IpAddress::from(address).is_global()
 }
 
 /// `_public_address`: global and explicitly not multicast.
 fn public_address(address: IpAddr) -> bool {
-    is_global(address) && !address.is_multicast()
+    let address = panel_core::pytext::IpAddress::from(address);
+    address.is_global() && !address.is_multicast()
 }
 
 #[derive(Debug)]
@@ -216,7 +211,7 @@ static SYSTEM_ROOTS: LazyLock<Result<Arc<RootCertStore>, String>> = LazyLock::ne
 
 fn tls_builder(
     provider: Arc<rustls::crypto::CryptoProvider>,
-) -> CentralResult<rustls::ConfigBuilder<ClientConfig, rustls::client::WantsVerifier>> {
+) -> CentralResult<rustls::ConfigBuilder<ClientConfig, rustls::WantsVerifier>> {
     rustls::ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|error| CentralError::Internal(error.to_string()))
@@ -248,9 +243,7 @@ fn test_node_socket(host: &str) -> CentralResult<Option<PathBuf>> {
     let Some(value) = std::env::var_os("PANEL_TEST_NODE_ROUTES") else {
         return Ok(None);
     };
-    let value = value
-        .to_str()
-        .ok_or_else(|| CentralError::Invalid("PANEL_TEST_NODE_ROUTES must be UTF-8".into()))?;
+    let value = value.to_str().ok_or_else(|| CentralError::Invalid("PANEL_TEST_NODE_ROUTES must be UTF-8".into()))?;
     for item in value.split(',').filter(|item| !item.is_empty()) {
         let Some((route_host, target)) = item.split_once('=') else {
             continue;
@@ -258,10 +251,9 @@ fn test_node_socket(host: &str) -> CentralResult<Option<PathBuf>> {
         if route_host != host {
             continue;
         }
-        let path = target
-            .strip_prefix("unix:")
-            .filter(|path| !path.is_empty())
-            .ok_or_else(|| CentralError::Invalid(format!("PANEL_TEST_NODE_ROUTES: {item:?} is not host=unix:<path>")))?;
+        let path = target.strip_prefix("unix:").filter(|path| !path.is_empty()).ok_or_else(|| {
+            CentralError::Invalid(format!("PANEL_TEST_NODE_ROUTES: {item:?} is not host=unix:<path>"))
+        })?;
         return Ok(Some(PathBuf::from(path)));
     }
     Ok(None)
@@ -295,9 +287,15 @@ impl NodeHttpClient {
         if tls_verify == "pin" && pinned_sha256.is_none_or(str::is_empty) {
             return Err(CentralError::Invalid("pin mode needs pinned_sha256".into()));
         }
-        let mut base_url = validate_panel_url(base_url, allow_private)?;
-        let parsed = url::Url::parse(&base_url).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
-        let host = parsed.host_str().expect("validated URL has a host").to_owned();
+        let base_url = validate_panel_url(base_url, allow_private)?;
+        #[cfg(all(unix, feature = "test-hooks"))]
+        let mut base_url = base_url;
+        #[cfg(all(unix, feature = "test-hooks"))]
+        let host = url::Url::parse(&base_url)
+            .map_err(|_| CentralError::Invalid(INVALID_URL.into()))?
+            .host_str()
+            .expect("validated URL has a host")
+            .to_owned();
 
         let mut authorization = HeaderValue::from_str(&format!("Bearer {api_key}"))
             .map_err(|_| CentralError::Invalid("API key cannot be used in an HTTP header".into()))?;
@@ -363,7 +361,8 @@ impl NodeHttpClient {
         if let Some(timeout) = timeout {
             request = request.timeout(timeout);
         }
-        let mut response = request.send().await.map_err(|error| NodeError::Unreachable(transport_kind(&error).into()))?;
+        let mut response =
+            request.send().await.map_err(|error| NodeError::Unreachable(transport_kind(&error).into()))?;
         let status = response.status().as_u16();
         if status == 401 || status == 403 {
             // Do not consume an authentication error body.
@@ -371,10 +370,8 @@ impl NodeHttpClient {
         }
 
         let mut content = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|error| NodeError::Unreachable(transport_kind(&error).into()))?
+        while let Some(chunk) =
+            response.chunk().await.map_err(|error| NodeError::Unreachable(transport_kind(&error).into()))?
         {
             if chunk.len() > MAX_RESPONSE_BYTES.saturating_sub(content.len()) {
                 return Err(NodeError::Rejected {
@@ -407,7 +404,11 @@ impl NodeHttpClient {
 /// Keep only an error class, never reqwest's display text (which can contain request details).
 fn transport_kind(error: &reqwest::Error) -> &'static str {
     if error.is_timeout() {
-        if error.is_connect() { "ConnectTimeout" } else { "ReadTimeout" }
+        if error.is_connect() {
+            "ConnectTimeout"
+        } else {
+            "ReadTimeout"
+        }
     } else if error.is_connect() {
         "ConnectError"
     } else if error.is_body() || error.is_decode() {
@@ -419,7 +420,9 @@ fn transport_kind(error: &reqwest::Error) -> &'static str {
 
 impl NodeClient for NodeHttpClient {
     fn identity(&self) -> BoxFuture<'_, Result<Map<String, Value>, NodeError>> {
-        Box::pin(async move { self.call(Method::GET, "/api/fleet/v2/identity", None, None).await.map(|(_, body)| body) })
+        Box::pin(
+            async move { self.call(Method::GET, "/api/fleet/v2/identity", None, None).await.map(|(_, body)| body) },
+        )
     }
 
     fn status(&self) -> BoxFuture<'_, Result<Map<String, Value>, NodeError>> {
@@ -427,11 +430,15 @@ impl NodeClient for NodeHttpClient {
     }
 
     fn inventory(&self) -> BoxFuture<'_, Result<Map<String, Value>, NodeError>> {
-        Box::pin(async move { self.call(Method::GET, "/api/fleet/v2/inventory", None, None).await.map(|(_, body)| body) })
+        Box::pin(
+            async move { self.call(Method::GET, "/api/fleet/v2/inventory", None, None).await.map(|(_, body)| body) },
+        )
     }
 
     fn metrics(&self, timeout: Duration) -> BoxFuture<'_, Result<Map<String, Value>, NodeError>> {
-        Box::pin(async move { self.call(Method::GET, "/api/fleet/v2/metrics", None, Some(timeout)).await.map(|(_, body)| body) })
+        Box::pin(async move {
+            self.call(Method::GET, "/api/fleet/v2/metrics", None, Some(timeout)).await.map(|(_, body)| body)
+        })
     }
 
     fn metrics_history<'a>(
@@ -468,7 +475,8 @@ impl NodeClient for NodeHttpClient {
 
     fn push<'a>(&'a self, request: &'a PushRequest) -> BoxFuture<'a, Result<(u16, PushResponse), NodeError>> {
         Box::pin(async move {
-            let (status, body) = self.call(Method::PUT, "/api/fleet/v2/generation", Some(&request.wire()), None).await?;
+            let (status, body) =
+                self.call(Method::PUT, "/api/fleet/v2/generation", Some(&request.wire()), None).await?;
             let response = PushResponse::validate(&Value::Object(body)).map_err(NodeError::InvalidAnswer)?;
             Ok((status, response))
         })
@@ -515,7 +523,9 @@ impl NodeClient for NodeHttpClient {
     }
 
     fn check_versions(&self) -> BoxFuture<'_, Result<Map<String, Value>, NodeError>> {
-        Box::pin(async move { self.call(Method::POST, "/api/fleet/v2/versions/check", None, None).await.map(|(_, body)| body) })
+        Box::pin(async move {
+            self.call(Method::POST, "/api/fleet/v2/versions/check", None, None).await.map(|(_, body)| body)
+        })
     }
 
     fn unlink(&self) -> BoxFuture<'_, Result<Map<String, Value>, NodeError>> {
@@ -574,8 +584,7 @@ pub fn fingerprint(url: &str, timeout: Duration, allow_private: bool) -> Central
     let parsed = url::Url::parse(&url).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
     let host = parsed.host_str().expect("validated URL has a host");
     let port = parsed.port().unwrap_or(443);
-    let server_name = ServerName::try_from(host.to_owned())
-        .map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
+    let server_name = ServerName::try_from(host.to_owned()).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
     let deadline = Instant::now() + timeout;
     let addresses = fingerprint_addresses(host, port, allow_private, deadline)?;
     let config = Arc::new(pinned_tls_config(None)?);
@@ -641,11 +650,7 @@ fn probe_certificate(
     while tls.conn.is_handshaking() {
         tls.conn.complete_io(&mut tls.sock).map_err(io_kind)?;
     }
-    let certificate = tls
-        .conn
-        .peer_certificates()
-        .and_then(|certificates| certificates.first())
-        .ok_or("SSLError")?;
+    let certificate = tls.conn.peer_certificates().and_then(|certificates| certificates.first()).ok_or("SSLError")?;
     Ok(sha256_hex(certificate.as_ref()))
 }
 
@@ -664,17 +669,14 @@ mod tests {
     use std::sync::Mutex;
     use std::thread::JoinHandle;
 
-    use rustls::ServerConnection;
     use rustls::pki_types::PrivateKeyDer;
+    use rustls::ServerConnection;
 
     use super::*;
 
     #[test]
     fn panel_urls_are_normalized_and_refused_like_python() {
-        assert_eq!(
-            validate_panel_url("  https://panel.example.com/  ", false).unwrap(),
-            "https://panel.example.com"
-        );
+        assert_eq!(validate_panel_url("  https://panel.example.com/  ", false).unwrap(), "https://panel.example.com");
         assert_eq!(
             validate_panel_url("https://panel.example.com/base///", false).unwrap(),
             "https://panel.example.com/base"
@@ -693,17 +695,15 @@ mod tests {
         ] {
             assert!(validate_panel_url(bad, false).is_err(), "accepted {bad}");
         }
-        assert_eq!(
-            validate_panel_url("https://10.0.0.1:8443", true).unwrap(),
-            "https://10.0.0.1:8443"
-        );
+        assert_eq!(validate_panel_url("https://10.0.0.1:8443", true).unwrap(), "https://10.0.0.1:8443");
         assert!(NodeHttpClient::new("https://node.example", "k", "pin", None, false).is_err());
         assert!(NodeHttpClient::new("https://node.example", "k", "skip", None, false).is_err());
     }
 
     #[test]
     fn address_policy_rejects_the_entire_answer() {
-        let addresses = |values: &[&str]| values.iter().map(|value| value.parse::<SocketAddr>().unwrap()).collect::<Vec<_>>();
+        let addresses =
+            |values: &[&str]| values.iter().map(|value| value.parse::<SocketAddr>().unwrap()).collect::<Vec<_>>();
         for rejected in [
             &["127.0.0.1:0"][..],
             &["[::1]:0"][..],
@@ -839,10 +839,17 @@ mod tests {
             bytes.extend_from_slice(&buffer[..count]);
         };
         let headers = String::from_utf8_lossy(&bytes[..header_end]).into_owned();
-        let content_length = headers.lines().find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            if name.eq_ignore_ascii_case("content-length") { value.trim().parse::<usize>().ok() } else { None }
-        }).unwrap_or(0);
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                if name.eq_ignore_ascii_case("content-length") {
+                    value.trim().parse::<usize>().ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
         let body_start = header_end + 4;
         while bytes.len() < body_start + content_length {
             let count = tls.read(&mut buffer).ok()?;
@@ -917,7 +924,11 @@ mod tests {
         assert_eq!(client.identity().await.unwrap_err(), NodeError::AuthFailed);
         assert_eq!(
             client.identity().await.unwrap_err(),
-            NodeError::Rejected { status: 409, code: Some("stale_generation".into()), detail: "generation is stale".into() }
+            NodeError::Rejected {
+                status: 409,
+                code: Some("stale_generation".into()),
+                detail: "generation is stale".into()
+            }
         );
         assert_eq!(
             client.identity().await.unwrap_err(),

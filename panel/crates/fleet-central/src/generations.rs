@@ -16,8 +16,8 @@ use panel_core::rusqlite::{self, params, OptionalExtension as _};
 use panel_model::clients::{ClientState, GrantDesiredState, GrantObservedState, GrantOrigin};
 use panel_model::common::Backend;
 use panel_model::fleet::{
-    CredentialOrigin, DesiredState, EgressDocument, GenerationDocument, ObservedGeneration, ReconcileState, RelayAccount,
-    RelaySection, Resource, ResourceOrigin, SCHEMA_VERSION,
+    CredentialOrigin, DesiredState, EgressDocument, GenerationDocument, ObservedGeneration, ReconcileState,
+    RelayAccount, RelaySection, Resource, ResourceOrigin, SCHEMA_VERSION,
 };
 use panel_model::seams::SeamError;
 use panel_model::validate::Model;
@@ -41,22 +41,14 @@ pub struct DesiredGeneration {
 /// service; this crate deliberately does not depend on that not-yet-merged package.
 pub trait DesiredRouting: Send + Sync {
     /// `RoutingService.desired_for_node`: typed egress documents by protocol.
-    fn desired_for_node(
-        &self,
-        db: &Conn,
-        node_id: &str,
-    ) -> CentralResult<IndexMap<Protocol, EgressDocument>>;
+    fn desired_for_node(&self, db: &Conn, node_id: &str) -> CentralResult<IndexMap<Protocol, EgressDocument>>;
 }
 
 impl<F> DesiredRouting for F
 where
     F: Fn(&Conn, &str) -> CentralResult<IndexMap<Protocol, EgressDocument>> + Send + Sync,
 {
-    fn desired_for_node(
-        &self,
-        db: &Conn,
-        node_id: &str,
-    ) -> CentralResult<IndexMap<Protocol, EgressDocument>> {
+    fn desired_for_node(&self, db: &Conn, node_id: &str) -> CentralResult<IndexMap<Protocol, EgressDocument>> {
         self(db, node_id)
     }
 }
@@ -244,7 +236,8 @@ impl DesiredStore {
             )
             .optional()?;
         row.map(|(applied_generation, digest, reconcile_state, resources, reported_at)| {
-            let resources: Value = serde_json::from_str(&resources).map_err(|error| invalid_stored("observed resources", error))?;
+            let resources: Value =
+                serde_json::from_str(&resources).map_err(|error| invalid_stored("observed resources", error))?;
             let value = serde_json::json!({
                 "applied_generation": applied_generation,
                 "digest": digest,
@@ -299,9 +292,8 @@ pub fn egress_section(
     }
     let mut desired = routing.desired_for_node(db, node_id)?;
     if !has(&capabilities, "egress.router.v1") {
-        desired.retain(|_, entry| {
-            entry.backend != Backend::XrayRouter && entry.companion.is_none() && !entry.passthrough
-        });
+        desired
+            .retain(|_, entry| entry.backend != Backend::XrayRouter && entry.companion.is_none() && !entry.passthrough);
     }
     if !has(&capabilities, "egress.lanes.v1") {
         desired.retain(|_, entry| entry.document.get("schema").and_then(Value::as_i64) != Some(2));
@@ -336,8 +328,9 @@ pub fn relay_section(db: &Conn, node_id: &str, capabilities: &[String]) -> Centr
     }
     let enabled = enabled != 0;
     let accounts = if enabled {
-        let mut statement =
-            db.prepare("SELECT source_node_id,exit,secret_id FROM relay_peers WHERE node_id=? ORDER BY source_node_id,exit")?;
+        let mut statement = db.prepare(
+            "SELECT source_node_id,exit,secret_id FROM relay_peers WHERE node_id=? ORDER BY source_node_id,exit",
+        )?;
         let peers = statement
             .query_map([node_id], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
@@ -371,11 +364,10 @@ pub fn compile(
 ) -> CentralResult<GenerationDocument> {
     let capabilities = node_capabilities(db, node_id)?;
     let lanes = has(&capabilities, "egress.lanes.v1");
-    let clients = store::clients(db, None)?
-        .into_iter()
-        .map(|client| (client.id.clone(), client))
-        .collect::<HashMap<_, _>>();
-    let grants = store::grants(db, &GrantFilter { node_id: Some(node_id), include_deleted: true, ..GrantFilter::default() })?;
+    let clients =
+        store::clients(db, None)?.into_iter().map(|client| (client.id.clone(), client)).collect::<HashMap<_, _>>();
+    let grants =
+        store::grants(db, &GrantFilter { node_id: Some(node_id), include_deleted: true, ..GrantFilter::default() })?;
     let mut resources = Vec::with_capacity(grants.len());
     for grant in grants {
         if grant.desired_state == GrantDesiredState::Deleted && grant.observed_state == GrantObservedState::Missing {
@@ -461,13 +453,7 @@ impl PublishService {
     }
 
     /// Deterministic entry point for tests and callers that already fixed one request timestamp.
-    pub fn publish_at(
-        &self,
-        db: &Conn,
-        node_id: &str,
-        created_by: &str,
-        now: i64,
-    ) -> CentralResult<Option<i64>> {
+    pub fn publish_at(&self, db: &Conn, node_id: &str, created_by: &str, now: i64) -> CentralResult<Option<i64>> {
         let latest = DesiredStore::latest(db, node_id)?;
         let previous = latest.as_ref().map_or(0, |latest| latest.generation);
         let document = compile(
@@ -516,7 +502,8 @@ mod tests {
 
     impl TempDatabase {
         fn new(schema: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("fleet-generations-{}-{}.db", std::process::id(), ids::token_hex(6)));
+            let path =
+                std::env::temp_dir().join(format!("fleet-generations-{}-{}.db", std::process::id(), ids::token_hex(6)));
             let database = Database::open(&path).unwrap();
             database.connect().unwrap().execute_batch(schema).unwrap();
             Self { database, path }
@@ -587,12 +574,21 @@ mod tests {
         db.execute("INSERT INTO router_relays VALUES('n',443,'cover.example',1)", []).unwrap();
         db.execute("INSERT INTO relay_peers VALUES('n','source','warp','relay:source')", []).unwrap();
         let document = compile(&db, "n", "n", "master", 0, 1, 10, "system", None).unwrap();
-        assert_eq!(document.resources.iter().map(|r| r.reference.as_str()).collect::<Vec<_>>(), ["grant:g1", "grant:g2"]);
+        assert_eq!(
+            document.resources.iter().map(|r| r.reference.as_str()).collect::<Vec<_>>(),
+            ["grant:g1", "grant:g2"]
+        );
         assert_eq!(document.resources[0].desired_state, DesiredState::Disabled);
         assert!(document.resources[0].own_lane);
-        assert_eq!(document.resources[1].options, serde_json::json!({"host":"proxy.example"}).as_object().unwrap().clone());
+        assert_eq!(
+            document.resources[1].options,
+            serde_json::json!({"host":"proxy.example"}).as_object().unwrap().clone()
+        );
         let relay = document.relay.unwrap();
-        assert_eq!(relay.accounts, vec![RelayAccount { email: "relay:source:warp".into(), credential_ref: "relay:source:1".into() }]);
+        assert_eq!(
+            relay.accounts,
+            vec![RelayAccount { email: "relay:source:warp".into(), credential_ref: "relay:source:1".into() }]
+        );
 
         let desired = DesiredStore::new(temp.database.clone());
         let publish = PublishService::new("master", desired, Arc::new(FakeClock::new(10.0)), None);
@@ -600,7 +596,10 @@ mod tests {
         assert_eq!(publish.publish_at(&db, "n", "system", 11).unwrap(), None);
         let latest = DesiredStore::latest(&db, "n").unwrap().unwrap();
         assert_eq!(latest.document.created_at, 10);
-        assert_eq!(db.query_row("SELECT config_dirty FROM node_links WHERE node_id='n'", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(
+            db.query_row("SELECT config_dirty FROM node_links WHERE node_id='n'", [], |r| r.get::<_, i64>(0)).unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -625,8 +624,13 @@ mod tests {
                 (Protocol::Amneziawg, section(Backend::AmneziawgNative, 1)),
             ])
         };
-        let routing = move |_db: &Conn, _node: &str| -> CentralResult<IndexMap<Protocol, EgressDocument>> { Ok(desired()) };
-        db.execute("INSERT INTO node_links(node_id,identity_json) VALUES('n',?)", [serde_json::json!({"capabilities":[]}).to_string()]).unwrap();
+        let routing =
+            move |_db: &Conn, _node: &str| -> CentralResult<IndexMap<Protocol, EgressDocument>> { Ok(desired()) };
+        db.execute(
+            "INSERT INTO node_links(node_id,identity_json) VALUES('n',?)",
+            [serde_json::json!({"capabilities":[]}).to_string()],
+        )
+        .unwrap();
         assert!(egress_section(&db, Some(&routing), "n").unwrap().is_none());
         db.execute(
             "UPDATE node_links SET identity_json=? WHERE node_id='n'",
@@ -638,7 +642,8 @@ mod tests {
         db.execute(
             "UPDATE node_links SET identity_json=? WHERE node_id='n'",
             [serde_json::json!({"capabilities":["egress.v1","egress.router.v1","egress.lanes.v1",
-                "egress.mtproxy.v1","egress.trusttunnel.v1","egress.amneziawg.v1"]}).to_string()],
+                "egress.mtproxy.v1","egress.trusttunnel.v1","egress.amneziawg.v1"]})
+            .to_string()],
         )
         .unwrap();
         assert_eq!(egress_section(&db, Some(&routing), "n").unwrap().unwrap().len(), 5);
@@ -648,7 +653,11 @@ mod tests {
     fn observed_acknowledgement_and_relay_follow_node_reports() {
         let temp = TempDatabase::new(SCHEMA);
         let db = temp.database.connect().unwrap();
-        db.execute("INSERT INTO node_links(node_id,identity_json,desired_generation,config_dirty) VALUES('n','{}',2,1)", []).unwrap();
+        db.execute(
+            "INSERT INTO node_links(node_id,identity_json,desired_generation,config_dirty) VALUES('n','{}',2,1)",
+            [],
+        )
+        .unwrap();
         let empty = GenerationDocument {
             schema_version: 1,
             node_guid: "n".into(),
@@ -673,10 +682,16 @@ mod tests {
         };
         DesiredStore::record_observed(&db, "n", &observed, false, 5).unwrap();
         assert_eq!(DesiredStore::latest(&db, "n").unwrap().unwrap().acknowledged_at, None);
-        assert_eq!(db.query_row("SELECT config_dirty FROM node_links WHERE node_id='n'", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(
+            db.query_row("SELECT config_dirty FROM node_links WHERE node_id='n'", [], |r| r.get::<_, i64>(0)).unwrap(),
+            1
+        );
         DesiredStore::record_observed(&db, "n", &observed, true, 5).unwrap();
         assert_eq!(DesiredStore::observed(&db, "n").unwrap().unwrap().reported_at, 4);
-        assert_eq!(db.query_row("SELECT config_dirty FROM node_links WHERE node_id='n'", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(
+            db.query_row("SELECT config_dirty FROM node_links WHERE node_id='n'", [], |r| r.get::<_, i64>(0)).unwrap(),
+            0
+        );
         let relay = serde_json::json!({"accounts":["relay:source:warp"],"enabled":true}).as_object().unwrap().clone();
         DesiredStore::record_relay(&db, "n", Some(&relay)).unwrap();
         assert_eq!(DesiredStore::observed_relay(&db, "n").unwrap(), Some(relay));
@@ -687,5 +702,4 @@ mod tests {
         DesiredStore::mark_pushed(&db, "n", 2, 6).unwrap();
         assert_eq!(DesiredStore::latest(&db, "n").unwrap().unwrap().pushed_at, Some(6));
     }
-
 }

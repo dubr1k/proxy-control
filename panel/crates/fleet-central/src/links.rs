@@ -150,7 +150,8 @@ impl NodeLinkService {
     pub fn links(&self, db: &Conn) -> CentralResult<Vec<Map<String, Value>>> {
         let rows = {
             let mut statement = db.prepare("SELECT * FROM node_links ORDER BY node_id")?;
-            statement.query_map([], row_to_json)?.collect::<rusqlite::Result<Vec<_>>>()?
+            let rows = statement.query_map([], row_to_json)?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
         rows.into_iter().map(|row| registry::link_row(row).map(Self::public).map_err(nodes_error)).collect()
     }
@@ -158,13 +159,7 @@ impl NodeLinkService {
     fn reveal_key(&self, db: &Conn, link: &Map<String, Value>) -> CentralResult<String> {
         let node_id = text(link, "node_id")?;
         let secret_id = text(link, "api_key_secret_id")?;
-        let plaintext = self.secrets.reveal(
-            db,
-            &SecretRef::new(secret_id, 1),
-            KEY_PURPOSE,
-            None,
-            Some(&node_id),
-        )?;
+        let plaintext = self.secrets.reveal(db, &SecretRef::new(secret_id, 1), KEY_PURPOSE, None, Some(&node_id))?;
         String::from_utf8(plaintext).map_err(|_| CentralError::Internal("stored node API key is not UTF-8".into()))
     }
 
@@ -194,7 +189,7 @@ impl NodeLinkService {
         let (link, key) = self.database.with_connection(|db| {
             let link = Self::raw_link(db, node_id)?;
             let key = self.reveal_key(db, &link)?;
-            Ok((link, key))
+            Ok::<_, CentralError>((link, key))
         })?;
         self.client(&link, &key)
     }
@@ -263,7 +258,10 @@ impl NodeLinkService {
         {
             return Err(CentralError::LinkConflict("the panel does not speak Fleet API v2".into()));
         }
-        if identity.get("master_guid").is_some_and(|master| !master.is_null() && master.as_str() != Some(self.own_guid.as_str())) {
+        if identity
+            .get("master_guid")
+            .is_some_and(|master| !master.is_null() && master.as_str() != Some(self.own_guid.as_str()))
+        {
             return Err(CentralError::LinkConflict("the panel is already managed by another central panel".into()));
         }
         let node_id = identity["guid"].as_str().expect("checked").to_string();
@@ -347,9 +345,10 @@ impl NodeLinkService {
                 changes.push(("panel_url", normalized.into()));
             }
             let mode = update.tls_verify.clone().unwrap_or(text(&link, "tls_verify")?);
-            let pin = update.pinned_sha256.clone().or_else(|| {
-                link.get("pinned_cert_sha256").and_then(Value::as_str).map(str::to_string)
-            });
+            let pin = update
+                .pinned_sha256
+                .clone()
+                .or_else(|| link.get("pinned_cert_sha256").and_then(Value::as_str).map(str::to_string));
             if !TLS_MODES.contains(&mode.as_str()) {
                 return Err(CentralError::Invalid("tls_verify must be verify or pin".into()));
             }
@@ -367,18 +366,17 @@ impl NodeLinkService {
             }
             if let Some(api_key) = update.api_key {
                 let secret_id = self.store_key(db, node_id, &api_key)?;
-                self.secrets.transition(
-                    db,
-                    &SecretRef::new(text(&link, "api_key_secret_id")?, 1),
-                    "revoked",
-                )?;
+                self.secrets.transition(db, &SecretRef::new(text(&link, "api_key_secret_id")?, 1), "revoked")?;
                 changes.push(("api_key_secret_id", secret_id.into()));
                 changed.push("api_key".into());
             }
-            changed.extend(changes.iter().map(|(column, _)| (*column).to_string()).filter(|column| column != "api_key_secret_id"));
+            changed.extend(
+                changes.iter().map(|(column, _)| (*column).to_string()).filter(|column| column != "api_key_secret_id"),
+            );
             if !changes.is_empty() {
                 let assignments = changes.iter().map(|(column, _)| format!("{column}=?")).collect::<Vec<_>>().join(",");
-                let values = changes.into_iter().map(|(_, value)| value).chain([Sql::from(now), Sql::from(node_id)]);
+                let values =
+                    changes.into_iter().map(|(_, value)| value).chain([Sql::from(now), Sql::from(node_id.to_string())]);
                 db.execute(
                     &format!("UPDATE node_links SET {assignments},updated_at=? WHERE node_id=?"),
                     params_from_iter(values),
@@ -448,7 +446,7 @@ impl NodeLinkService {
                 Self::refuse_provisioned(db, node_id)?;
             }
             let key = self.reveal_key(db, &link)?;
-            Ok((link, key))
+            Ok::<_, CentralError>((link, key))
         })?;
         let client = self.client(&link, &key)?;
         let (released, node_error) = match client.unlink().await {
@@ -477,12 +475,10 @@ impl NodeLinkService {
             };
             for grant_id in let_go {
                 let versions = {
-                    let mut statement = db.prepare(
-                        "SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'",
-                    )?;
-                    statement
-                        .query_map([format!("grant:{grant_id}")], |row| row.get::<_, i64>(0))?
-                        .collect::<rusqlite::Result<Vec<_>>>()?
+                    let mut statement =
+                        db.prepare("SELECT version FROM secret_versions WHERE secret_id=? AND state<>'revoked'")?;
+                    let rows = statement.query_map([format!("grant:{grant_id}")], |row| row.get::<_, i64>(0))?;
+                    rows.collect::<rusqlite::Result<Vec<_>>>()?
                 };
                 for version in versions {
                     self.secrets.transition(db, &SecretRef::new(format!("grant:{grant_id}"), version), "revoked")?;
@@ -515,7 +511,8 @@ impl NodeLinkService {
 
     fn grant_ids(db: &Conn, sql: &str, node_id: &str) -> CentralResult<Vec<String>> {
         let mut statement = db.prepare(sql)?;
-        Ok(statement.query_map([node_id], |row| row.get(0))?.collect::<rusqlite::Result<Vec<_>>>()?)
+        let rows = statement.query_map([node_id], |row| row.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
     /// Only the error class and a rejection status/code; never a response detail that might echo a key.
@@ -550,7 +547,7 @@ impl NodeLinkService {
             .ok_or_else(|| CentralError::NotFound(node_id.to_string()))?;
         let now = self.clock.now();
         let current = if online { "online" } else { "offline" };
-        let mut fields: Vec<(&str, Sql)> = vec![("status", current.into())];
+        let mut fields: Vec<(&str, Sql)> = vec![("status", Sql::from(current.to_string()))];
         if online {
             fields.push(("last_heartbeat_at", now.into()));
             fields.push(("last_error", Sql::Null));
@@ -561,18 +558,21 @@ impl NodeLinkService {
                 fields.push(("identity_json", object_json(identity).into()));
                 fields.push((
                     "panel_version",
-                    identity.get("panel_version").and_then(Value::as_str).map_or(Sql::Null, Sql::from),
+                    identity
+                        .get("panel_version")
+                        .and_then(Value::as_str)
+                        .map_or(Sql::Null, |value| Sql::from(value.to_string())),
                 ));
             }
             if let Some(status) = status {
                 fields.push(("status_json", object_json(status).into()));
             }
         } else {
-            fields.push(("last_error", error.map_or(Sql::Null, Sql::from)));
+            fields.push(("last_error", error.map_or(Sql::Null, |value| Sql::from(value.to_string()))));
         }
         fields.push(("updated_at", now.into()));
         let assignments = fields.iter().map(|(column, _)| format!("{column}=?")).collect::<Vec<_>>().join(",");
-        let values = fields.into_iter().map(|(_, value)| value).chain([Sql::from(node_id)]);
+        let values = fields.into_iter().map(|(_, value)| value).chain([Sql::from(node_id.to_string())]);
         db.execute(&format!("UPDATE node_links SET {assignments} WHERE node_id=?"), params_from_iter(values))?;
         if previous == current {
             Ok(None)
@@ -609,7 +609,8 @@ mod tests {
 
     impl TempDatabase {
         fn new() -> Self {
-            let path = std::env::temp_dir().join(format!("fleet-links-{}-{}.db", std::process::id(), ids::token_hex(6)));
+            let path =
+                std::env::temp_dir().join(format!("fleet-links-{}-{}.db", std::process::id(), ids::token_hex(6)));
             let database = Database::open(&path).unwrap();
             database.connect().unwrap().execute_batch(
                 r#"CREATE TABLE node_links(node_id TEXT PRIMARY KEY,panel_url TEXT NOT NULL,tls_verify TEXT NOT NULL,
@@ -676,7 +677,10 @@ mod tests {
         let db = temp.database.connect().unwrap();
         let identity = serde_json::json!({"guid":"n","panel_version":"9.9"}).as_object().unwrap().clone();
         let status = serde_json::json!({"managed_resources":2}).as_object().unwrap().clone();
-        assert_eq!(service.record_heartbeat(&db, "n", true, Some(&identity), Some(&status), Some(11), None).unwrap(), Some("node.up".into()));
+        assert_eq!(
+            service.record_heartbeat(&db, "n", true, Some(&identity), Some(&status), Some(11), None).unwrap(),
+            Some("node.up".into())
+        );
         clock.advance(1.0);
         assert_eq!(service.record_heartbeat(&db, "n", true, None, None, Some(12), None).unwrap(), None);
         let link = service.link(&db, "n").unwrap();
@@ -686,13 +690,19 @@ mod tests {
         assert_eq!(link["status_json"]["managed_resources"], 2);
         assert_eq!(link["last_heartbeat_at"], 11);
         clock.advance(1.0);
-        assert_eq!(service.record_heartbeat(&db, "n", false, None, None, None, Some("NodeUnreachable")).unwrap(), Some("node.down".into()));
+        assert_eq!(
+            service.record_heartbeat(&db, "n", false, None, None, None, Some("NodeUnreachable")).unwrap(),
+            Some("node.down".into())
+        );
         let link = service.link(&db, "n").unwrap();
         assert_eq!(link["status"], "offline");
         assert_eq!(link["last_error"], "NodeUnreachable");
         assert_eq!(link["panel_version"], "9.9");
         assert_eq!(link["last_heartbeat_at"], 11);
-        assert!(matches!(service.record_heartbeat(&db, "missing", true, None, None, None, None), Err(CentralError::NotFound(_))));
+        assert!(matches!(
+            service.record_heartbeat(&db, "missing", true, None, None, None, None),
+            Err(CentralError::NotFound(_))
+        ));
     }
 
     #[test]
@@ -703,16 +713,21 @@ mod tests {
         service.set_enabled("n", false, &context()).unwrap();
         service.set_enabled("n", true, &context()).unwrap();
         let db = temp.database.connect().unwrap();
-        let actions = db.prepare("SELECT action FROM audit_log ORDER BY id").unwrap()
-            .query_map([], |row| row.get::<_, String>(0)).unwrap()
-            .collect::<rusqlite::Result<Vec<_>>>().unwrap();
+        let actions = db
+            .prepare("SELECT action FROM audit_log ORDER BY id")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(actions, ["node.pause", "node.resume"]);
         assert_eq!(service.link(&db, "n").unwrap()["enabled"], 1);
     }
 
     #[test]
     fn describe_never_includes_rejected_detail() {
-        let error = NodeError::Rejected { status: 502, code: Some("bad_generation".into()), detail: "secret echo".into() };
+        let error =
+            NodeError::Rejected { status: 502, code: Some("bad_generation".into()), detail: "secret echo".into() };
         assert_eq!(NodeLinkService::describe(&error), "NodeRejected: bad_generation");
     }
 }

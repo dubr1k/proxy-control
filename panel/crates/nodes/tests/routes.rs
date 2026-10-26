@@ -18,7 +18,7 @@ use panel_core::serde_json::{self, json, Value};
 use panel_model::protocols::BoxFuture;
 use panel_model::seams::SeamError;
 use panel_nodes::registry::AuditContext;
-use panel_nodes::routes::{self, Gate, LocalManager, NodesState};
+use panel_nodes::routes::{self, Gate, LocalManager, NodesHttp, NodesState};
 use panel_nodes::NodeLifecycleService;
 use panel_secrets::audit::Actor;
 use tower::ServiceExt as _;
@@ -39,6 +39,21 @@ impl NodesState for FakeState {
         self.guid.clone()
     }
 
+    fn manager_enabled(&self, manager: LocalManager) -> bool {
+        manager != LocalManager::Trusttunnel
+    }
+
+    fn manager_healthy(&self, manager: LocalManager) -> BoxFuture<'_, bool> {
+        assert_ne!(manager, LocalManager::Trusttunnel, "a switched-off protocol was asked for its health");
+        Box::pin(async move { manager != LocalManager::Mieru })
+    }
+
+    fn amneziawg_versions(&self) -> BoxFuture<'_, Result<Vec<String>, SeamError>> {
+        Box::pin(async { Ok(vec!["1.5".to_string(), "2.0".to_string()]) })
+    }
+}
+
+impl NodesHttp for FakeState {
     fn authorize<'a>(&'a self, parts: &'a Parts, gate: Gate) -> BoxFuture<'a, Result<AuditContext, ApiError>> {
         let who =
             parts.headers.get("x-test-as").and_then(|value| value.to_str().ok()).unwrap_or("anonymous").to_string();
@@ -63,19 +78,6 @@ impl NodesState for FakeState {
         serde_json::from_slice(body).map_err(|error| {
             ApiError::Validation(vec![ValidationIssue::json_invalid(error.column() as i64, error.to_string())])
         })
-    }
-
-    fn manager_enabled(&self, manager: LocalManager) -> bool {
-        manager != LocalManager::Trusttunnel
-    }
-
-    fn manager_healthy(&self, manager: LocalManager) -> BoxFuture<'_, bool> {
-        assert_ne!(manager, LocalManager::Trusttunnel, "a switched-off protocol was asked for its health");
-        Box::pin(async move { manager != LocalManager::Mieru })
-    }
-
-    fn amneziawg_versions(&self) -> BoxFuture<'_, Result<Vec<String>, SeamError>> {
-        Box::pin(async { Ok(vec!["1.5".to_string(), "2.0".to_string()]) })
     }
 
     fn internal_error(&self, error: Box<dyn Error + Send + Sync>) -> Response {

@@ -553,3 +553,138 @@ fn the_firewall_opens_its_ports_before_certificates_are_issued() {
     let position = |name: &str| order.iter().position(|n| *n == name).unwrap();
     assert!(position("firewall") < position("certificates"));
 }
+
+// ------------------------------------------------------------------------------------------
+// Ported from the installer crate's former `plan.rs` (host WP2), now that the engine reads its
+// journal plans through this module.
+// ------------------------------------------------------------------------------------------
+
+fn engine_action() -> Action {
+    Action {
+        id: "core.install".into(),
+        adapter: "core".into(),
+        owner: "proxy-control:core".into(),
+        mutations: vec!["write /core.owned".into()],
+        preconditions: vec!["/core.owned is absent".into()],
+        verification: vec!["/core.owned has the approved content".into()],
+        inverse: vec!["remove /core.owned".into()],
+        credentials_required: false,
+    }
+}
+
+#[test]
+fn secret_assignments_follow_the_python_pattern() {
+    use crate::secret::plan_text_has_secret;
+    for text in [
+        "--password=x",
+        "--token abc",
+        "--API-KEY  'a b'",
+        "password: hunter2",
+        "\"secret\" = \"x\"",
+        "private_key=abc",
+        "privatekey:1",
+        "api key = z",
+        "TOKEN=a",
+        "my_token=a",
+        "pa\u{17f}\u{17f}word=x",
+    ] {
+        assert!(plan_text_has_secret(text), "{text}");
+    }
+    for text in [
+        "--password",
+        "password:",
+        "password: ,",
+        "token=}",
+        "token=]",
+        "write /core.owned",
+        "the token file is private",
+        "secret",
+        "privat key=x",
+        "--tokens x",
+    ] {
+        assert!(!plan_text_has_secret(text), "{text}");
+    }
+}
+
+#[test]
+fn secret_keys_and_paths() {
+    assert_eq!(
+        assert_secret_free(&json!({"a": {"Api-Key": 1}}), "plan"),
+        Err(PlanError::new("secret field is forbidden at plan.a.Api-Key"))
+    );
+    assert_eq!(
+        assert_secret_free(&json!({"a": ["ok", "token=x"]}), "plan"),
+        Err(PlanError::new("secret material is forbidden at plan.a[1]"))
+    );
+    assert!(assert_secret_free(&json!({"tokenless": false}), "plan").is_err());
+    assert!(assert_secret_free(&json!({"owner": "x", "n": [1, null, true]}), "plan").is_ok());
+}
+
+#[test]
+fn action_checks_match_post_init() {
+    assert!(engine_action().checked().is_ok());
+    let mut bad = engine_action();
+    bad.owner = "  ".into();
+    assert_eq!(bad.validate(), Err(PlanError::new("action owner must be a non-empty string")));
+    let mut bad = engine_action();
+    bad.inverse = vec![];
+    assert_eq!(bad.validate(), Err(PlanError::new("action core.install must declare non-empty inverse")));
+    let mut bad = engine_action();
+    bad.mutations = vec!["--password=x".into()];
+    assert_eq!(bad.validate(), Err(PlanError::new("secret material is forbidden at plan.mutations[0]")));
+    assert_eq!(Action::from_value(&engine_action().to_value()).unwrap(), engine_action());
+    let mut extra = engine_action().to_value();
+    extra["more"] = json!(1);
+    assert_eq!(Action::from_value(&extra), Err(PlanError::new("action got an unexpected field: more")));
+}
+
+#[test]
+fn evidence_checks_and_round_trip() {
+    let evidence = Evidence::ok("a", &["verified"]).unwrap();
+    assert_eq!(Evidence::from_map(&evidence.to_map()).unwrap(), evidence);
+    assert!(Evidence::ok(" ", &["x"]).is_err());
+    assert!(Evidence::ok("a", &[""]).is_err());
+    assert!(!Evidence::failed("a", &["x"]).unwrap().success);
+    assert_eq!(
+        pc_host::json::canonical(&Value::Object(evidence.to_map())),
+        r#"{"action_id":"a","details":{},"observations":["verified"],"success":true}"#
+    );
+    let mut details = Map::new();
+    details.insert("port".into(), json!(443));
+    let detailed = Evidence::with_details("a", true, vec!["x".into()], details).unwrap();
+    assert_eq!(Evidence::from_map(&detailed.to_map()).unwrap(), detailed);
+    let mut broken = detailed.to_map();
+    broken.remove("success");
+    assert_eq!(Evidence::from_map(&broken), Err(PlanError::new("evidence is invalid")));
+}
+
+#[test]
+fn plan_bytes_and_digests() {
+    let mut facts = AuditFacts::default();
+    facts.platform.insert("os".into(), json!("test"));
+    let build = |facts: AuditFacts, schema: i64| {
+        InstallPlan::new(
+            json!({"profile": "test"}),
+            facts,
+            ReleaseIdentity::new("v1.2.3", &"a".repeat(40), &"b".repeat(64), BTreeMap::new(), BTreeMap::new()).unwrap(),
+            vec!["core".into()],
+            BTreeMap::from([("core".to_string(), vec![])]),
+            vec![engine_action()],
+            schema,
+        )
+    };
+    let plan = build(facts.clone(), 1).unwrap();
+    let text = plan.to_canonical_json();
+    assert!(text.starts_with(r#"{"actions":[{"adapter":"core","credentials_required":false,"id":"core.install""#));
+    assert!(text.contains(
+        r#""audit_facts":{"listeners":{},"ownership":{},"platform":{"os":"test"},"prerequisites":{},"topology":{}}"#
+    ));
+    let reread = InstallPlan::from_value(&pc_host::json::loads(text.as_bytes()).unwrap()).unwrap();
+    assert_eq!(reread.to_canonical_json(), text);
+    assert_eq!(reread.digest(), plan.digest());
+    let mut replanned = plan.clone();
+    replanned.facts.platform.insert("changed".into(), json!("1"));
+    assert_ne!(replanned.digest(), plan.digest());
+    assert_eq!(replanned.intent_digest(), plan.intent_digest());
+    assert_eq!(build(facts, 2).unwrap_err(), PlanError::new("unsupported plan schema: 2"));
+}

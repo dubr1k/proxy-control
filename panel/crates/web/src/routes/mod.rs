@@ -21,12 +21,12 @@
 //! | 10 | `register_amneziawg_routes` | `amneziawg` | WP8 |
 //! | 11 | `register_trusttunnel_routes` | `trusttunnel` | WP8 |
 //! | 12 | `register_fleet_routes` (fleet v1) | — retired (owner decision 2) | — |
-//! | 13 | `register_node_routes` | `nodes` | WP11 |
+//! | 13 | `register_node_routes` | [`nodes`] | WP11 |
 //! | 14 | `register_client_routes` | [`clients`] | WP7 |
 //! | 15 | `register_subscription_admin_routes` | `subscriptions_admin` | WP9 |
 //! | 16 | `register_subscription_routes` (`/s/{token}`) | `subscriptions` | WP9 |
 //! | 17 | `register_routing_routes` | `routing` | WP10 |
-//! | 18 | `register_metrics_routes` | `metrics` | WP13 |
+//! | 18 | `register_metrics_routes` | [`metrics`] | WP13 |
 //! | — | test hooks (`test-hooks` feature) | `test_hooks` | WP4 |
 //!
 //! A package adds `pub mod <name>;` here, a `pub fn routes() -> Routes` in its module, and one
@@ -39,6 +39,8 @@ pub mod auth;
 pub mod clients;
 pub mod fleet_central;
 pub mod fleet_node;
+pub mod metrics;
+pub mod nodes;
 pub mod openapi;
 pub mod readiness;
 #[cfg(feature = "test-hooks")]
@@ -55,9 +57,10 @@ pub fn all() -> Routes {
         // 5: version routes (WP8)
         .merge(openapi::routes())
         // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)
-        // 13: node routes (WP11)
-        .merge(clients::routes());
-    // 15-16: subscriptions (WP9); 17: routing (WP10); 18: metrics (WP13)
+        .merge(nodes::routes())
+        .merge(clients::routes())
+        // 15-16: subscriptions (WP9); 17: routing (WP10)
+        .merge(metrics::routes());
     #[cfg(feature = "test-hooks")]
     let routes = routes.merge(test_hooks::routes());
     routes

@@ -39,22 +39,34 @@ impl std::fmt::Display for CentralError {
 impl std::error::Error for CentralError {}
 
 impl From<NodeError> for CentralError {
-    fn from(error: NodeError) -> Self { Self::Node(error) }
+    fn from(error: NodeError) -> Self {
+        Self::Node(error)
+    }
 }
 impl From<SecretError> for CentralError {
-    fn from(error: SecretError) -> Self { Self::Secret(error) }
+    fn from(error: SecretError) -> Self {
+        Self::Secret(error)
+    }
 }
 impl From<ClientsError> for CentralError {
-    fn from(error: ClientsError) -> Self { Self::Clients(error) }
+    fn from(error: ClientsError) -> Self {
+        Self::Clients(error)
+    }
 }
 impl From<DbError> for CentralError {
-    fn from(error: DbError) -> Self { Self::Db(error) }
+    fn from(error: DbError) -> Self {
+        Self::Db(error)
+    }
 }
 impl From<panel_core::rusqlite::Error> for CentralError {
-    fn from(error: panel_core::rusqlite::Error) -> Self { Self::Db(error.into()) }
+    fn from(error: panel_core::rusqlite::Error) -> Self {
+        Self::Db(error.into())
+    }
 }
 impl From<serde_json::Error> for CentralError {
-    fn from(error: serde_json::Error) -> Self { Self::Json(error) }
+    fn from(error: serde_json::Error) -> Self {
+        Self::Json(error)
+    }
 }
 impl From<panel_nodes::NodesError> for CentralError {
     fn from(error: panel_nodes::NodesError) -> Self {

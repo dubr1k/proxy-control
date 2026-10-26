@@ -20,10 +20,10 @@ use panel_core::{ids, pyjson};
 use panel_fleet::central::Pusher;
 use panel_model::clients::{AccessGrant, GrantDesiredState, GrantObservedState};
 use panel_model::fleet::{
-    DesiredState, GenerationDocument, ObservedGeneration, ObservedRelay, ObservedState,
-    PushRequest, ReconcileState, CAPTURE_MAX_RESOURCES,
+    CredentialOrigin, DesiredState, GenerationDocument, ObservedGeneration, ObservedRelay, ObservedState, PushRequest,
+    ReconcileState, CAPTURE_MAX_RESOURCES,
 };
-use panel_model::protocols::{BoxFuture, CredentialOrigin};
+use panel_model::protocols::BoxFuture;
 use panel_model::seams::{CaptureItem, CapturePurpose, NodeClient, NodeError, SeamError};
 use panel_model::validate::Model as _;
 use panel_secrets::events::EventBus;
@@ -62,13 +62,7 @@ pub trait ObservationSink: Send + Sync {
         Ok(())
     }
 
-    fn observe_relay(
-        &self,
-        _db: &Conn,
-        _node_id: &str,
-        _relay: &ObservedRelay,
-        _now: i64,
-    ) -> CentralResult<()> {
+    fn observe_relay(&self, _db: &Conn, _node_id: &str, _relay: &ObservedRelay, _now: i64) -> CentralResult<()> {
         Ok(())
     }
 }
@@ -114,7 +108,11 @@ fn describe(error: &NodeError) -> String {
         NodeError::Unreachable(kind) => format!("NodeUnreachable: {kind}"),
         NodeError::AuthFailed => "NodeAuthFailed: ".to_string(),
         NodeError::Rejected { status, code, .. } => {
-            let code = code.as_deref().filter(|code| !code.is_empty()).map(str::to_string).unwrap_or_else(|| status.to_string());
+            let code = code
+                .as_deref()
+                .filter(|code| !code.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| status.to_string());
             format!("NodeRejected: {code}")
         }
         NodeError::InvalidAnswer(error) => format!("NodeInvalidAnswer: {error}"),
@@ -161,12 +159,10 @@ fn inventory_digest(inventory: &Map<String, Value>) -> String {
 }
 
 fn parse_secret_ref(reference: &str) -> CentralResult<SecretRef> {
-    let (secret_id, version) = reference
-        .rsplit_once(':')
-        .ok_or_else(|| CentralError::Invalid("credential_ref has no version".into()))?;
-    let version = version
-        .parse::<i64>()
-        .map_err(|_| CentralError::Invalid("credential_ref has an invalid version".into()))?;
+    let (secret_id, version) =
+        reference.rsplit_once(':').ok_or_else(|| CentralError::Invalid("credential_ref has no version".into()))?;
+    let version =
+        version.parse::<i64>().map_err(|_| CentralError::Invalid("credential_ref has an invalid version".into()))?;
     Ok(SecretRef::new(secret_id, version))
 }
 
@@ -396,15 +392,8 @@ impl FleetPusher {
         let id = node_id.to_string();
         let heartbeat = Self::run_blocking(move || {
             database.transaction(|db| {
-                let transition = links.record_heartbeat(
-                    db,
-                    &id,
-                    true,
-                    Some(&identity),
-                    Some(&status),
-                    Some(latency),
-                    None,
-                )?;
+                let transition =
+                    links.record_heartbeat(db, &id, true, Some(&identity), Some(&status), Some(latency), None)?;
                 Self::emit(db, &*events, transition.as_deref(), &id)?;
                 let link = links.link(db, &id)?;
                 let latest = DesiredStore::latest(db, &id)?;
@@ -426,7 +415,8 @@ impl FleetPusher {
                 let database = self.database.clone();
                 let id = node_id.to_string();
                 (latest, observed) = Self::run_blocking(move || {
-                    database.with_connection(|db| Ok((DesiredStore::latest(db, &id)?, DesiredStore::observed(db, &id)?)))
+                    database
+                        .with_connection(|db| Ok((DesiredStore::latest(db, &id)?, DesiredStore::observed(db, &id)?)))
                 })
                 .await?;
             }
@@ -441,7 +431,12 @@ impl FleetPusher {
             Ok(())
         } else if truthy(link.get("config_dirty")) || integer(link.get("acknowledged_generation")) < latest.generation {
             self.push(&*client, node_id, latest).await
-        } else if latest.document.resources.iter().any(|resource| resource.valid_from.is_some() || resource.valid_until.is_some()) {
+        } else if latest
+            .document
+            .resources
+            .iter()
+            .any(|resource| resource.valid_from.is_some() || resource.valid_until.is_some())
+        {
             // Deadline enforcement changes runtime state without changing the generation.
             self.poll_observed(&*client, node_id).await
         } else {
@@ -570,7 +565,11 @@ impl FleetPusher {
         .await
     }
 
-    async fn secrets_for(&self, node_id: &str, document: &GenerationDocument) -> CentralResult<IndexMap<String, String>> {
+    async fn secrets_for(
+        &self,
+        node_id: &str,
+        document: &GenerationDocument,
+    ) -> CentralResult<IndexMap<String, String>> {
         let database = self.database.clone();
         let secrets = self.secrets.clone();
         let id = node_id.to_string();
@@ -584,13 +583,7 @@ impl FleetPusher {
                     }
                     let reference = parse_secret_ref(&resource.credential_ref)?;
                     let grant_id = resource.reference.strip_prefix("grant:").unwrap_or(&resource.reference);
-                    match secrets.reveal(
-                        db,
-                        &reference,
-                        CREDENTIAL_PURPOSE,
-                        Some(grant_id),
-                        Some(&id),
-                    ) {
+                    match secrets.reveal(db, &reference, CREDENTIAL_PURPOSE, Some(grant_id), Some(&id)) {
                         Ok(value) => {
                             let value = String::from_utf8(value)
                                 .map_err(|_| CentralError::Invalid("grant credential is not UTF-8".into()))?;
@@ -627,7 +620,7 @@ impl FleetPusher {
         };
         let response = match client.push(&request).await {
             Ok((_, response)) => response,
-            Err(error @ NodeError::Rejected { status, ref code, .. }) => {
+            Err(NodeError::Rejected { status, ref code, .. }) => {
                 let database = self.database.clone();
                 let id = node_id.to_string();
                 let now = self.clock.now();
@@ -659,10 +652,8 @@ impl FleetPusher {
         let id = node_id.to_string();
         let generation = document.generation;
         let now = self.clock.now();
-        Self::run_blocking(move || {
-            database.transaction(|db| DesiredStore::mark_pushed(db, &id, generation, now))
-        })
-        .await?;
+        Self::run_blocking(move || database.transaction(|db| DesiredStore::mark_pushed(db, &id, generation, now)))
+            .await?;
         self.absorb(node_id, response.observed, response.credentials).await
     }
 
@@ -697,7 +688,14 @@ impl FleetPusher {
                     "system",
                     routing.as_deref(),
                 )?;
-                DesiredStore::insert(db, &id, &document, &document.canonical_digest(), &document.content_digest(), now)?;
+                DesiredStore::insert(
+                    db,
+                    &id,
+                    &document,
+                    &document.canonical_digest(),
+                    &document.content_digest(),
+                    now,
+                )?;
                 Ok(Some(document))
             })
         })
@@ -735,7 +733,9 @@ impl FleetPusher {
         let present: HashSet<&str> = observed
             .resources
             .iter()
-            .filter(|item| matches!(item.state, ObservedState::Enabled | ObservedState::Disabled | ObservedState::Drifted))
+            .filter(|item| {
+                matches!(item.state, ObservedState::Enabled | ObservedState::Disabled | ObservedState::Drifted)
+            })
             .map(|item| item.reference.as_str())
             .collect();
         let database = self.database.clone();
@@ -782,10 +782,8 @@ impl FleetPusher {
         let labels: Vec<String> = wanted.keys().cloned().collect();
         let mut returned = Map::new();
         for (batch_index, batch) in labels.chunks(CAPTURE_MAX_RESOURCES).enumerate() {
-            let resources: Vec<CaptureItem> = batch
-                .iter()
-                .map(|label| wanted.get(label).expect("a wanted label").1.clone())
-                .collect();
+            let resources: Vec<CaptureItem> =
+                batch.iter().map(|label| wanted.get(label).expect("a wanted label").1.clone()).collect();
             match client.capture(&resources, CapturePurpose::Escrow).await {
                 Ok(answer) => {
                     if let Some(credentials) = answer.get("credentials").and_then(Value::as_object) {
@@ -817,11 +815,11 @@ impl FleetPusher {
     }
 
     fn names(grant: &AccessGrant, credential_ref: &str) -> bool {
-        grant.secret_ref.as_ref().is_none_or(|reference| {
-            credential_ref == format!("{}:{}", reference.secret_id, reference.version)
-        })
+        grant
+            .secret_ref
+            .as_ref()
+            .is_none_or(|reference| credential_ref == format!("{}:{}", reference.secret_id, reference.version))
     }
-
 
     async fn absorb(
         &self,
@@ -840,10 +838,9 @@ impl FleetPusher {
             observations: self.observations.clone(),
         };
         let id = node_id.to_string();
-        let (current, withheld) = Self::run_blocking(move || {
-            database.transaction(|db| absorber.absorb(db, &id, &observed, &credentials))
-        })
-        .await?;
+        let (current, withheld) =
+            Self::run_blocking(move || database.transaction(|db| absorber.absorb(db, &id, &observed, &credentials)))
+                .await?;
         if converged {
             lock(&self.backoff).remove(node_id);
         } else if current && failed {
@@ -901,7 +898,14 @@ impl Absorber {
         .map(|grant| (grant.id.clone(), grant))
         .collect();
         let sent: HashMap<&str, &panel_model::fleet::Resource> = if current {
-            latest.as_ref().expect("current implies latest").document.resources.iter().map(|r| (r.reference.as_str(), r)).collect()
+            latest
+                .as_ref()
+                .expect("current implies latest")
+                .document
+                .resources
+                .iter()
+                .map(|r| (r.reference.as_str(), r))
+                .collect()
         } else {
             HashMap::new()
         };
@@ -914,9 +918,15 @@ impl Absorber {
                     let Some(resource) = sent.get(item.reference.as_str()) else { continue };
                     match resource.desired_state {
                         DesiredState::Disabled => GrantObservedState::Disabled,
-                        DesiredState::Enabled if resource.valid_from.is_none() && resource.valid_until.is_none() => GrantObservedState::Enabled,
+                        DesiredState::Enabled if resource.valid_from.is_none() && resource.valid_until.is_none() => {
+                            GrantObservedState::Enabled
+                        }
                         _ => {
-                            store::update_grant(db, &grant.id, &GrantUpdate::new().observed(GrantObservedState::Pending).at(now))?;
+                            store::update_grant(
+                                db,
+                                &grant.id,
+                                &GrantUpdate::new().observed(GrantObservedState::Pending).at(now),
+                            )?;
                             continue;
                         }
                     }
@@ -930,14 +940,17 @@ impl Absorber {
                 self.clients.purge_grant(db, &grant.id)?;
                 continue;
             }
-            let returned = credentials.keys().find(|reference| reference.strip_prefix(&item.reference).is_some_and(|suffix| suffix.starts_with(':')));
+            let returned = credentials.keys().find(|reference| {
+                reference.strip_prefix(&item.reference).is_some_and(|suffix| suffix.starts_with(':'))
+            });
             if current {
                 if let Some(returned) = returned.filter(|returned| FleetPusher::names(grant, returned)) {
                     self.provisioning.escrow_returned_credential(db, &grant.id, returned, &credentials[returned])?;
                 }
             }
             if !item.learned.is_empty() && state != GrantObservedState::Missing {
-                let learned: Map<String, Value> = item.learned.iter().map(|(key, value)| (key.clone(), value.to_value())).collect();
+                let learned: Map<String, Value> =
+                    item.learned.iter().map(|(key, value)| (key.clone(), value.to_value())).collect();
                 self.provisioning.remember_template(db, grant, &learned)?;
             }
             if current && state != GrantObservedState::Missing {
@@ -952,7 +965,13 @@ impl Absorber {
         if current {
             self.provisioning.remote_applied(db, observed, &withheld, Some(NOT_CAPTURED))?;
             if let Some(sink) = &self.observations {
-                sink.absorb_egress(db, node_id, &latest.as_ref().expect("current implies latest").document, observed, now)?;
+                sink.absorb_egress(
+                    db,
+                    node_id,
+                    &latest.as_ref().expect("current implies latest").document,
+                    observed,
+                    now,
+                )?;
             }
         }
         DesiredStore::record_observed(db, node_id, observed, withheld.is_empty(), now)?;
@@ -968,19 +987,23 @@ impl Absorber {
 
     fn uncaptured(clients: &ClientService, db: &Conn, grant: &AccessGrant) -> CentralResult<bool> {
         let Some(reference) = &grant.secret_ref else { return Ok(false) };
-        if clients.adapters().get(grant.protocol).is_none_or(|adapter| adapter.credential_origin() != CredentialOrigin::Manager) {
+        if clients
+            .adapters()
+            .get(grant.protocol)
+            .is_none_or(|adapter| adapter.credential_origin() != CredentialOrigin::Manager)
+        {
             return Ok(false);
         }
-        let state: Option<String> = db.query_row(
-            "SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
-            params![reference.secret_id, reference.version],
-            |row| row.get(0),
-        ).optional()?;
+        let state: Option<String> = db
+            .query_row(
+                "SELECT state FROM secret_versions WHERE secret_id=? AND version=?",
+                params![reference.secret_id, reference.version],
+                |row| row.get(0),
+            )
+            .optional()?;
         Ok(state.as_deref() == Some("pending"))
     }
 }
-
-
 
 impl Pusher for FleetPusher {
     fn tick(&self) -> BoxFuture<'_, Result<(), SeamError>> {
@@ -1052,7 +1075,11 @@ mod tests {
         assert_eq!(describe(&rejected), "NodeRejected: bad_request");
         assert!(!describe(&rejected).contains("secret echoed"));
         assert!(refusing(&NodeError::Rejected { status: 429, code: None, detail: String::new() }));
-        assert!(refusing(&NodeError::Rejected { status: 503, code: Some("manager_down".into()), detail: String::new() }));
+        assert!(refusing(&NodeError::Rejected {
+            status: 503,
+            code: Some("manager_down".into()),
+            detail: String::new()
+        }));
         assert!(!refusing(&NodeError::Rejected { status: 502, code: None, detail: String::new() }));
         assert!(!refusing(&NodeError::Rejected { status: 404, code: Some("not_found".into()), detail: String::new() }));
         let long = NodeError::Unreachable("x".repeat(300));

@@ -9,7 +9,7 @@
 //! - argparse's usage wrapping and help layout (`HelpFormatter`, `textwrap`) for a given width
 //!   (`shutil.get_terminal_size().columns - 2`, see [`terminal_width`]).
 //!
-//! Only the actions the installer needs exist: store, store_true, help and subparsers.
+//! Only the actions the installer needs exist: store, store_true, help, version and subparsers.
 
 use std::collections::BTreeMap;
 
@@ -40,6 +40,8 @@ pub enum Kind {
     Store,
     StoreTrue,
     Help,
+    /// `action="version"`: prints the text on stdout and exits 0.
+    Version(String),
     Subparsers(Vec<SubCommand>),
 }
 
@@ -172,6 +174,14 @@ impl Parser {
         let action = self.actions.last_mut().expect("just pushed");
         action.nargs = Nargs::Zero;
         action.kind = Kind::StoreTrue;
+    }
+
+    /// `add_argument("--version", action="version", version=text)`.
+    pub fn add_version(&mut self, strings: &[&str], text: &str) {
+        self.add_flag(strings, Help::Text("show program's version number and exit".into()));
+        let action = self.actions.last_mut().expect("just pushed");
+        action.kind = Kind::Version(text.into());
+        action.default = None;
     }
 
     /// `add_argument(dest)` (a positional).
@@ -595,6 +605,9 @@ impl State<'_> {
                     stdout: self.parser.format_help(self.width),
                     stderr: String::new(),
                 }));
+            }
+            Kind::Version(text) => {
+                return Err(Failure::Exit(Exit { status: 0, stdout: format!("{text}\n"), stderr: String::new() }));
             }
             Kind::StoreTrue => {
                 self.namespace.insert(action.dest.clone(), Arg::Bool(true));

@@ -141,11 +141,9 @@ impl FleetMetricsSource {
     /// as Python's broad `_link_state` failure guard specified.
     fn state(&self, node_id: &str) -> Option<(bool, Vec<String>)> {
         let row = self.inner.database.with_connection(|db| {
-            db.query_row(
-                "SELECT status,identity_json FROM node_links WHERE node_id=?",
-                [node_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-            )
+            db.query_row("SELECT status,identity_json FROM node_links WHERE node_id=?", [node_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
             .optional()
             .map_err(panel_core::db::DbError::from)
         });
@@ -167,9 +165,8 @@ impl FleetMetricsSource {
                     "SELECT node_id,display_name FROM fleet_nodes
                      WHERE node_id<>'local' AND disabled=0 ORDER BY node_id",
                 )?;
-                let rows = statement.query_map([], |row| {
-                    Ok(MetricsNode { node_id: row.get(0)?, name: row.get(1)? })
-                })?;
+                let rows =
+                    statement.query_map([], |row| Ok(MetricsNode { node_id: row.get(0)?, name: row.get(1)? }))?;
                 rows.collect::<Result<Vec<_>, _>>().map_err(panel_core::db::DbError::from)
             })
             .unwrap_or_default()
@@ -217,18 +214,12 @@ impl FleetMetricsSource {
             let _slot = slots.acquire_owned().await.map_err(|error| NodeError::Unreachable(error.to_string()))?;
             fetch.await.map(Value::Object)
         };
-        tokio::time::timeout(timeout, work)
-            .await
-            .map_err(|_| NodeError::Unreachable("TimeoutError".into()))?
+        tokio::time::timeout(timeout, work).await.map_err(|_| NodeError::Unreachable("TimeoutError".into()))?
     }
 
     async fn pull(&self, node_id: &str, name: &str) -> Value {
         let timeout = self.inner.call_timeout;
-        let result = self
-            .guarded(timeout, async {
-                self.client(node_id).await?.metrics(timeout).await
-            })
-            .await;
+        let result = self.guarded(timeout, async { self.client(node_id).await?.metrics(timeout).await }).await;
         let body = match result {
             Ok(Value::Object(body)) if body.contains_key("status") => body,
             Ok(_) => return self.failed(node_id, name),
@@ -266,13 +257,18 @@ impl FleetMetricsSource {
             return existing.await;
         }
         let shared = work.boxed().shared();
-        {
+        let existing = {
             let mut flights = lock(&self.inner.inflight);
-            if let Some(existing) = flights.get(&key).cloned() {
-                drop(flights);
-                return existing.await;
+            match flights.get(&key).cloned() {
+                Some(existing) => Some(existing),
+                None => {
+                    flights.insert(key.clone(), shared.clone());
+                    None
+                }
             }
-            flights.insert(key.clone(), shared.clone());
+        };
+        if let Some(existing) = existing {
+            return existing.await;
         }
         // A driver independent of every caller keeps the request alive when live_many's budget
         // expires. It also removes exactly this completed flight from the map.
@@ -296,8 +292,7 @@ impl FleetMetricsSource {
         }
         let this = self.clone();
         let node = node_id.to_string();
-        self.flight(FlightKey::Live(node.clone()), async move { this.refresh(&node).await })
-            .await
+        self.flight(FlightKey::Live(node.clone()), async move { this.refresh(&node).await }).await
     }
 
     async fn history_inner(&self, node_id: &str, series: &[String], range: &str, points: i64) -> Value {
@@ -330,10 +325,7 @@ impl FleetMetricsSource {
             .flight(key, async move {
                 match this
                     .guarded(budget, async {
-                        this.client(&node)
-                            .await?
-                            .metrics_history(&series_owned, &range_owned, points, timeout)
-                            .await
+                        this.client(&node).await?.metrics_history(&series_owned, &range_owned, points, timeout).await
                     })
                     .await
                 {
@@ -347,7 +339,7 @@ impl FleetMetricsSource {
             return base;
         }
         if let Value::Object(body) = result {
-            let status = body.get("status").and_then(Value::as_str).unwrap_or("ok").to_string();
+            let status = body.get("status").cloned().unwrap_or_else(|| json!("ok"));
             let map = base.as_object_mut().expect("an object");
             for (key, value) in body {
                 map.insert(key, value);
@@ -386,9 +378,7 @@ impl FleetMetricsSource {
         let result = self
             .flight(FlightKey::Summary(node_id.to_string(), range.to_string()), async move {
                 match this
-                    .guarded(budget, async {
-                        this.client(&node).await?.metrics_summary(&range_owned, timeout).await
-                    })
+                    .guarded(budget, async { this.client(&node).await?.metrics_summary(&range_owned, timeout).await })
                     .await
                 {
                     Ok(body) => body,
