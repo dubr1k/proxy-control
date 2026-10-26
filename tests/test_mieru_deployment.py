@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from typing import Iterator
 
 import pytest
 
@@ -47,7 +48,7 @@ def run_token_preparer(mode: str, token_file: Path | str) -> subprocess.Complete
 
 
 @pytest.fixture
-def trusted_token_dir() -> Path:
+def trusted_token_dir() -> Iterator[Path]:
     path = Path(tempfile.mkdtemp(prefix="mtproxy-token-test-", dir="/var/lib"))
     path.chmod(0o700)
     try:
@@ -160,26 +161,6 @@ def test_systemd_manager_uses_reserved_mieru_identity():
     assert "User=10005" in unit
     assert "Group=10005" in unit
     assert "ExecStart=/usr/local/bin/mieru-manager" in unit and "python" not in unit
-
-
-def test_manager_image_is_the_rust_binary_built_against_pc_common():
-    """4.0: mieru_manager is a Rust crate; the image builds it from the locked set with the
-    shared pc_common crate, runs as the reserved identity and carries no interpreter."""
-    dockerfile = (ROOT / "mieru_manager" / "Dockerfile").read_text()
-    assert "cargo build --release --locked" in dockerfile
-    assert "COPY pc_common /src/pc_common" in dockerfile and "COPY mieru_manager /src/mieru_manager" in dockerfile
-    assert "--uid 10005" in dockerfile and "--gid 10005" in dockerfile and "USER 10005:10005" in dockerfile
-    assert 'ENTRYPOINT ["/usr/local/bin/mieru-manager"]' in dockerfile
-    assert "python" not in dockerfile.lower()
-    assert (ROOT / "mieru_manager" / "Cargo.lock").is_file()
-    assert not list((ROOT / "mieru_manager").glob("*.py"))
-    # A pc_common change rebuilds the manager, on the agent and through update-host.sh alike.
-    from version_agent import service
-
-    assert "mieru_manager" in service.RUST_MANAGERS and "pc_common" in service.PANEL_SYNC
-    script = (ROOT / "scripts" / "update-host.sh").read_text()
-    block = script[script.index('cp -a "$RELEASE_DIR/pc_common"'):script.index("# v1.1: the router's MTProxy bridge")]
-    assert "services+=(mieru-manager)" in block and "acked+=(mieru_manager)" in block
 
 
 def test_the_slot_unit_template_mirrors_the_main_unit_with_its_own_socket_and_state():

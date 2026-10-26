@@ -1286,7 +1286,7 @@ class Acceptance:
         b = self.browser
         central_url = f"http://127.0.0.1:{self.args.central_port}"
         central_args = argparse.Namespace(central_dir=self.args.central_dir, central_host="127.0.0.1", central_port=self.args.central_port,
-                                          python=sys.executable, source=ROOT, heartbeat_seconds=2)
+                                          node_container="proxy-control-panel", panel_bin=None, source=ROOT, heartbeat_seconds=2)
         process = fleet.CentralProcess(central_args)
         central_password = secrets.token_urlsafe(24)
         central = Api(central_url, None)

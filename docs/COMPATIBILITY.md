@@ -2,7 +2,7 @@
 
 Proxy Control product naming does not rename deployed runtime contracts.
 
-The active runtime contracts remain `/opt/mtproxy-shared443`, `.mtproxy-owned`, marker `mtproxy-shared443`, `/etc/nginx/mtproxy-stream`, and `.mtproxy-backup`. The old `scripts/mtproxy-deploy` is not installed by the native release; its presence on a prior host is historical state to audit, not an entry point to invoke. Protocol names (`mtproxy`, `protocols.mtproxy`, `MTPROXY_*`) still name MTProto, not Fleet v1.
+The installed path `/opt/mtproxy-shared443`, `.mtproxy-owned`, marker `mtproxy-shared443`, `/etc/nginx/mtproxy-stream`, `.mtproxy-backup`, `/var/lib/mtproxy-panel` and `/opt/mtproxy-panel` keep their names for migration. `scripts/mtproxy-deploy`, `scripts/proxyctl.py` and `scripts/check-deployment.sh` are retired in the native release; their presence on a prior host is historical state to audit, not an entry point to invoke. Fleet v1 units and paths are retired as well: move every Fleet v1 node to v2 before updating. The 3.3.0 → 4.0 transition is supported only through verified `install-release.sh --update`, not the 3.3.0 UI button. Protocol names (`mtproxy`, `protocols.mtproxy`, `MTPROXY_*`) still name MTProto, not Fleet v1.
 
 The current Compose project is `proxy_panel_by_dubr1k`; installations not yet migrated may still use `mtproxy`. Container names (`proxy-control-*`) are unchanged. The native updater determines the panel's actual project; the host migration must preserve its images, volumes and database and must not assume an old project has disappeared.
 

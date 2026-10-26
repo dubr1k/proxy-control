@@ -21,9 +21,11 @@ pub enum LoadsError {
     Unrepresentable { msg: &'static str, pos: usize },
 }
 
-/// How deep arrays/objects may nest: Python 3.13's C scanner stops at its C recursion limit
-/// (`json.loads` takes 9997 nested arrays, then raises `RecursionError` — FastAPI's 400).
-pub const MAX_DEPTH: usize = 9997;
+/// Bound nesting before constructing a `Value`: validation errors clone missing-field inputs,
+/// and response serialization and value destruction recurse. Python's 9997-level scanner limit
+/// is unsafe for the panel's HTTP worker stack (a 59,983-byte login body crashed the process).
+/// 128 levels are sufficient for typed API documents and stay safe through those later stages.
+pub const MAX_DEPTH: usize = 128;
 
 /// `json.loads(bytes)`.
 pub fn loads(bytes: &[u8]) -> Result<Value, LoadsError> {
@@ -488,7 +490,7 @@ mod tests {
         assert!(matches!(loads(deep.as_bytes()), Err(LoadsError::Other(_))));
         let deepest = "[".repeat(MAX_DEPTH) + &"]".repeat(MAX_DEPTH);
         assert!(loads(deepest.as_bytes()).is_ok());
-        let objects = "{\"a\":".repeat(5000) + "1" + &"}".repeat(5000);
-        assert!(loads(objects.as_bytes()).is_ok());
+        let objects = "{\"a\":".repeat(MAX_DEPTH + 1) + "1" + &"}".repeat(MAX_DEPTH + 1);
+        assert!(matches!(loads(objects.as_bytes()), Err(LoadsError::Other(_))));
     }
 }

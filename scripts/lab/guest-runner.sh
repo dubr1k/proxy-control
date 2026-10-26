@@ -1416,7 +1416,7 @@ host_fleet() {
   fi
   install -d -m 0755 "$CLIENT_RESULTS/fleet"
   "$DEV_PYTHON" "$ROOT/scripts/lab/fleet-acceptance.py" \
-    --python "$DEV_PYTHON" --source "$ROOT" \
+    --source "$ROOT" \
     --node-url "https://$PANEL" \
     --node-password-file /opt/mtproxy-shared443/secrets/panel-bootstrap-password \
     --central-dir /root/lab-central --central-port 8791 \

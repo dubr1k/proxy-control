@@ -4,6 +4,17 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Host installer
+- Replace host Python entry points with verified static binaries. Release/bootstrap verification
+  uses Bash/awk and rejects unsafe archive members and mismatched executable digests/modes.
+- Bootstrap verification rejects missing/trailing JSON commas and repeated manifest closing
+  braces before privilege escalation; Compose migration preserves operator-named data volumes.
+- The supported 3.3.0 → 4.0 path is `install-release.sh --update`: replace and verify the Rust
+  agent's exact release before submitting a panel update; restore code/unit/tmpfiles and journal
+  on failure, preserve operator overrides, then reconcile managers, ingress and Compose.
+- Fresh native installations no longer select or own a Python interpreter. Existing package
+  journals keep their recorded ownership so repair and uninstall do not remove a pre-existing Python.
+
 ### Changed
 - The Rust panel routing engine preserves policy preview/apply/rollback, custom exits, per-grant lanes, relays, chains and destination explanations. Escaped protocol-manager errors retain their HTTP status and protocol-specific response; actual runtime crashes remain HTTP 500.
 - The Rust panel's Fleet v2 central keeps the existing link/import/generation API, encrypted node-key escrow, heartbeat delivery, routing readback and linked-node metrics. HTTPS uses system CA/hostname verification or a leaf-DER SHA-256 pin checked before sending credentials; every DNS answer is checked in full before connecting, with private networks requiring explicit opt-in.
@@ -14,6 +25,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 - Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
+- Request JSON deeper than 128 containers is rejected before validation. Previously, a deeply nested login body could exhaust a panel worker's stack and stop the process.
+- Core installer lifecycle operations reject forged checkpoint ownership outside the planned
+  generation before starting or stopping services or removing files.
 
 ### Removed
 - Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
