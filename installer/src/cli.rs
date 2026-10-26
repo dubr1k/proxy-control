@@ -9,6 +9,7 @@
 //! | `report` | the public acceptance report (+ the root-only MCP handoff) from the journal's evidence |
 //! | `resume`, `repair`, `uninstall` | the engine |
 //! | `reconcile-panel-update` | the panel archive's ownership handoff ([`PanelOwnershipHandoff`], legacy mode) |
+//! | `ingress-upgrade` | the bounded pre-client-IP Nginx migration ([`crate::ingress_upgrade`]) |
 //! | `verify-release` | [`installer_core::verify_release`] |
 //! | `wizard` | the translated terminal wizard, real audit/plan, digest confirmation and credentialed apply |
 //!
@@ -24,6 +25,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use installer_core::argparse::{Arg, Help, Parser, SubCommand};
 use installer_core::audit::{
     audit_host, AuditError, CommandRunner as AuditCommandRunner, SystemExecutor, SystemResolver,
 };
@@ -192,6 +194,73 @@ pub fn main() -> i32 {
     run(&arguments, &|root| Services::system(root), &mut stdout, &mut stderr)
 }
 
+struct IngressRequest {
+    root: PathBuf,
+    project: PathBuf,
+    apply: bool,
+}
+
+/// `ingress_upgrade.py`'s separate module CLI, kept as a binary subcommand without widening the
+/// frozen `installer_core::Command` enum. The hidden `--root` is the installer test/recovery seam.
+fn parse_ingress(arguments: &[String], width: usize) -> Option<Result<IngressRequest, installer_core::argparse::Exit>> {
+    if !arguments.iter().any(|argument| argument == "ingress-upgrade") {
+        return None;
+    }
+    let mut parser = Parser::new(
+        installer_core::cli::PROG,
+        Some("Bounded host migration for the installer's pre-client-IP Nginx templates.\n\nThe foreign coexist frontend is never edited. Run without --apply to inspect the\nplan; the one-command host updater applies this after its panel update succeeds."),
+    );
+    parser.add_option(&["--root"], false, Help::Suppress, true, Arg::Str("/".into()));
+    let mut sub = Parser::new(&parser.sub_prog("ingress-upgrade"), None);
+    sub.add_option(&["--project-dir"], false, Help::None, true, Arg::Str("/opt/mtproxy-shared443".into()));
+    sub.add_flag(&["--apply"], Help::None);
+    parser.add_subparsers(
+        "command",
+        true,
+        vec![SubCommand { name: "ingress-upgrade".into(), help: None, parser: sub }],
+    );
+    Some(parser.parse_args(arguments, width).map(|namespace| {
+        let text = |key: &str| match namespace.get(key) {
+            Some(Arg::Str(value)) => value.clone(),
+            _ => String::new(),
+        };
+        IngressRequest {
+            root: PathBuf::from(text("root")),
+            project: PathBuf::from(text("project_dir")),
+            apply: namespace.get("apply") == Some(&Arg::Bool(true)),
+        }
+    }))
+}
+
+fn run_ingress(
+    request: IngressRequest,
+    compose: &dyn Fn(&Path) -> Result<Services, Error>,
+    stdout: &mut dyn Write,
+) -> i32 {
+    let result = if request.apply && unsafe { libc::geteuid() } != 0 {
+        Err(crate::ingress_upgrade::UpgradeError::new("applying ingress changes requires root"))
+    } else {
+        compose(&request.root).map_err(|error| crate::ingress_upgrade::UpgradeError::new(error.message())).and_then(
+            |services| {
+                crate::ingress_upgrade::upgrade(
+                    &request.project,
+                    &request.root,
+                    request.apply,
+                    services.context.runner.as_ref(),
+                )
+            },
+        )
+    };
+    let (status, line) = match result {
+        Ok(outcome) => (0, outcome.json()),
+        Err(error) => (1, crate::ingress_upgrade::failed_json(&error.to_string())),
+    };
+    let _ = stdout.write_all(line.as_bytes());
+    let _ = stdout.write_all(b"\n");
+    let _ = stdout.flush();
+    status
+}
+
 /// `run(argv, services=…)`: parses `arguments` (without the program name), composes the
 /// services for `--root` and runs the command; returns the exit status.
 pub fn run(
@@ -200,6 +269,16 @@ pub fn run(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> i32 {
+    if let Some(request) = parse_ingress(arguments, installer_core::argparse::terminal_width()) {
+        return match request {
+            Ok(request) => run_ingress(request, compose, stdout),
+            Err(exit) => {
+                let _ = stdout.write_all(exit.stdout.as_bytes());
+                let _ = stderr.write_all(exit.stderr.as_bytes());
+                exit.status
+            }
+        };
+    }
     let args = match installer_core::cli::parse(arguments, installer_core::argparse::terminal_width()) {
         Ok(args) => args,
         Err(exit) => {

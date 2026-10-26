@@ -1,0 +1,213 @@
+use super::*;
+
+fn selected() -> Selection {
+    Selection {
+        proxy_domain: "relay.example.com".into(),
+        panel_domain: "panel.example.com".into(),
+        subscription_domain: None,
+        mcp_domain: None,
+        users: vec!["alice".into()],
+        proxy_backend_port: 2443,
+        panel_app_port: 8787,
+        panel_tls_port: 8443,
+        adjacent_sni: Vec::new(),
+    }
+}
+fn golden(name: &str) -> String {
+    fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/renders/core-vhosts").join(name),
+    )
+    .unwrap()
+}
+#[test]
+fn core_vhosts_match_python_goldens() {
+    let mut selected = selected();
+    assert_eq!(panel_vhost(&selected), golden("panel.conf"));
+    selected.panel_tls_port = 9443;
+    assert_eq!(panel_vhost(&selected), golden("panel-tls-9443.conf"));
+    selected.panel_tls_port = 8443;
+    selected.subscription_domain = Some("sub.example.com".into());
+    assert_eq!(panel_vhost(&selected), format!("{}{}", golden("panel.conf"), golden("subscription.conf")));
+    selected.mcp_domain = Some("mcp.example.com".into());
+    assert_eq!(
+        panel_vhost(&selected),
+        format!("{}{}{}", golden("panel.conf"), golden("subscription.conf"), golden("mcp.conf"))
+    );
+}
+#[test]
+fn users_file_rejects_duplicate_invalid_or_empty_credentials() {
+    assert!(valid_users_file("alice=0123456789abcdef0123456789abcdef\n"));
+    for invalid in
+        ["", "alice=bad\n", "alice=0123456789abcdef0123456789abcdef\nalice=0123456789abcdef0123456789abcdef\n"]
+    {
+        assert!(!valid_users_file(invalid));
+    }
+}
+#[test]
+fn acceptance_owner_is_strict() {
+    assert!(acceptance_name("pc-acceptance-0123456789abcdef"));
+    for name in ["alice", "pc-acceptance-", "pc-acceptance-0123456789ABCDEF", "pc-acceptance-0123456789abcdef/../owner"]
+    {
+        assert!(!acceptance_name(name));
+    }
+}
+#[test]
+fn compose_diagnostics_redact_credentials() {
+    let clean =
+        sanitize_compose_diagnostic("password=hidden token:other Authorization: Bearer private-value\nrest", 900);
+    assert!(!clean.contains("hidden"));
+    assert!(!clean.contains("other"));
+    assert!(!clean.contains("private-value"));
+}
+
+fn core_action() -> Action {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/plans/core/plan.json");
+    let value: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let plan = crate::planner::InstallPlan::from_value(&value).unwrap();
+    plan.actions.into_iter().find(|action| action.adapter == "core").unwrap()
+}
+
+struct AcceptanceMock {
+    collision: bool,
+    cleanup_fails: bool,
+    cleanups: std::sync::atomic::AtomicUsize,
+}
+impl TestAcceptance for AcceptanceMock {
+    fn run(&self, configured: usize) -> Result<CoreAcceptance, Error> {
+        if self.collision {
+            return Err(collision());
+        }
+        Ok(CoreAcceptance {
+            compose_config_ok: true,
+            healthy_services: 3,
+            expected_services: 3,
+            panel_health_ok: true,
+            panel_login_ok: true,
+            telemt_api_internal: true,
+            respq_verified: configured + 1,
+            respq_expected: configured + 1,
+            adjacent_sni_ok: true,
+            sensitive_scan_ok: true,
+            temporary_state_removed: true,
+        })
+    }
+    fn cleanup(&self) -> Result<(), Error> {
+        self.cleanups.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if self.cleanup_fails {
+            Err(acceptance("cleanup failed"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[test]
+fn acceptance_pending_marker_protects_collision_and_failed_cleanup_recovery() {
+    for (collision, cleanup_fails, pending_before, expected_cleanups, success, pending_after) in [
+        (false, false, false, 1, true, false),
+        (true, false, false, 0, false, false),
+        (true, false, true, 1, false, false),
+        (false, true, false, 1, false, true),
+    ] {
+        let root = crate::testkit::TempDir::new("core-acceptance");
+        let mock =
+            Arc::new(AcceptanceMock { collision, cleanup_fails, cleanups: std::sync::atomic::AtomicUsize::new(0) });
+        let mut adapter = CoreAdapter::new(&AdapterContext {
+            root: root.path().into(),
+            tree: root.path().into(),
+            runner: Arc::new(pc_host::runner::RecordingRunner::new()),
+        });
+        adapter.test_acceptance = Some(mock.clone());
+        fs::create_dir_all(adapter.host(PROJECT).unwrap()).unwrap();
+        let name = "pc-acceptance-0123456789abcdef";
+        adapter.write_acceptance_owner(name).unwrap();
+        let pending = adapter.host(&format!("{PROJECT}/{ACCEPTANCE_PENDING}")).unwrap();
+        if pending_before {
+            adapter.atomic(&pending, format!("{name}\n").as_bytes(), 0o600).unwrap();
+        }
+        assert_eq!(adapter.verify(&core_action()).is_ok(), success);
+        assert_eq!(pending.exists(), pending_after);
+        assert_eq!(mock.cleanups.load(std::sync::atomic::Ordering::SeqCst), expected_cleanups);
+    }
+}
+
+#[test]
+fn acceptance_refuses_foreign_pending_marker_before_network_or_cleanup() {
+    let root = crate::testkit::TempDir::new("core-foreign-pending");
+    let mock = Arc::new(AcceptanceMock {
+        collision: false,
+        cleanup_fails: false,
+        cleanups: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let mut adapter = CoreAdapter::new(&AdapterContext {
+        root: root.path().into(),
+        tree: root.path().into(),
+        runner: Arc::new(pc_host::runner::RecordingRunner::new()),
+    });
+    adapter.test_acceptance = Some(mock.clone());
+    fs::create_dir_all(adapter.host(PROJECT).unwrap()).unwrap();
+    adapter.write_acceptance_owner("pc-acceptance-0123456789abcdef").unwrap();
+    let pending = adapter.host(&format!("{PROJECT}/{ACCEPTANCE_PENDING}")).unwrap();
+    adapter.atomic(&pending, b"pc-acceptance-fedcba9876543210\n", 0o600).unwrap();
+    assert!(adapter.verify(&core_action()).unwrap_err().message().contains("ownership has drifted"));
+    assert_eq!(mock.cleanups.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(pending.exists());
+}
+
+#[test]
+fn core_engine_preserves_credentials_and_refuses_foreign_drift() {
+    use pc_host::runner::{RecordingRunner, Reply};
+    use std::sync::Mutex;
+    let root = crate::testkit::TempDir::new("core-engine");
+    let image_owner = Arc::new(Mutex::new(None::<String>));
+    let observed_owner = image_owner.clone();
+    let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+        if call.argv.first().is_some_and(|program| program.ends_with("/probe/install.sh")) {
+            *observed_owner.lock().unwrap() = call.argv.last().cloned();
+            return Some(Reply::ok(""));
+        }
+        if call.argv.starts_with(&["docker".into(), "image".into(), "inspect".into()]) {
+            let owner = observed_owner.lock().unwrap();
+            return Some(match owner.as_deref() {
+                None => Reply::exit(1, "", "image absent"),
+                Some(_) if call.argv[4] == "{{.Id}}" => Reply::ok(&format!("sha256:{}", "a".repeat(64))),
+                Some(owner) => Reply::ok(owner),
+            });
+        }
+        if call.argv.starts_with(&["docker".into(), "image".into(), "rm".into()]) {
+            *observed_owner.lock().unwrap() = None;
+        }
+        Some(Reply::ok(""))
+    }));
+    let mut adapter = CoreAdapter::new(&AdapterContext {
+        root: root.path().into(),
+        tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
+        runner,
+    });
+    adapter.test_acceptance = Some(Arc::new(AcceptanceMock {
+        collision: false,
+        cleanup_fails: false,
+        cleanups: std::sync::atomic::AtomicUsize::new(0),
+    }));
+    let action = core_action();
+    let plan = crate::planner::InstallPlan::new(
+        json!({}),
+        AuditFacts::default(),
+        crate::testkit::release(),
+        vec!["core".into()],
+        BTreeMap::new(),
+        vec![action],
+        1,
+    )
+    .unwrap();
+    let engine = crate::testkit::engine_for(root.path(), vec![Arc::new(adapter)]);
+    assert_eq!(engine.apply(&plan, &plan.digest()).unwrap().status, crate::journal::Status::Active);
+    let users = root.path().join("opt/mtproxy-shared443/secrets/users.conf");
+    let original = fs::read(&users).unwrap();
+    assert_eq!(engine.repair().unwrap().status, crate::journal::Status::Active);
+    assert_eq!(fs::read(&users).unwrap(), original);
+    let owned = root.path().join("opt/mtproxy-shared443/.env");
+    fs::write(&owned, "foreign edit\n").unwrap();
+    assert!(engine.uninstall(false).is_err());
+    assert_eq!(fs::read(&users).unwrap(), original);
+}

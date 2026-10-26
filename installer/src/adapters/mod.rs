@@ -22,6 +22,11 @@ use crate::error::Error;
 #[cfg(test)]
 pub(crate) mod example;
 
+pub mod certificates;
+pub mod core;
+pub mod firewall;
+pub mod nginx;
+pub mod packages;
 pub mod three_xui;
 
 /// What every adapter is constructed with.
@@ -46,10 +51,13 @@ impl std::fmt::Debug for AdapterContext {
 /// Every known adapter, registered with the engine up front: `resume`, `repair` and `uninstall`
 /// run without composing a plan, so every adapter a stored plan may name must be there.
 pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
-    // Host WP5a–e: one line per adapter, e.g.
-    //     adapters.push(Arc::new(packages::PackagesAdapter::new(context)));
-    let _ = context;
-    Vec::new()
+    vec![
+        Arc::new(packages::PackagesAdapter::new(context)),
+        Arc::new(certificates::CertificatePlan::new(context)),
+        Arc::new(firewall::FirewallAdapter::new(context)),
+        Arc::new(nginx::NginxAdapter::new(context)),
+        Arc::new(core::CoreAdapter::new(context)),
+    ]
 }
 
 /// `installer.adapters.mcp.mcp_handoff(root, config)`: the MCP address and bearer for the
