@@ -3,7 +3,7 @@
 //! `tests/test_version_agent_panel.py`, plus the golden journals of
 //! `tests/fixtures/host-golden/`.
 
-mod fakes;
+pub(crate) mod fakes;
 mod golden;
 mod handoff;
 mod migration;
