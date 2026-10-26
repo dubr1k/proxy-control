@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Re-records the WP6 goldens on ams-test from the stand copy (see the recorders' docstrings), then
 # regenerates the list of transcript tests.
 #
@@ -13,6 +13,7 @@ FIXTURES=panel/crates/protocols/tests/fixtures
 IMAGE=${PANEL_IMAGE:-proxy_panel_by_dubr1k-panel:latest}
 docker run --rm --network none --entrypoint python -v "$PWD:/w:ro" -w /w -e PYTHONPATH=/w "$IMAGE" \
     "$FIXTURES/record_goldens.py" > "$FIXTURES/goldens.json"
+mapfile -t TESTS < "$FIXTURES/transcript-tests.txt"
 TRANSCRIPTS="$FIXTURES/transcripts.json" PYTHONPATH="$FIXTURES:." "$PY" -m pytest -q -p record_transcripts \
-    -p no:cacheprovider $(cat "$FIXTURES/transcript-tests.txt")
+    -p no:cacheprovider "${TESTS[@]}"
 "$PY" "$FIXTURES/gen_transcript_tests.py"

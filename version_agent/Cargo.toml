@@ -1,0 +1,37 @@
+[package]
+name = "proxy-control-version-agent"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+license = "MIT"
+description = "The host's version-agent: lists and checks component versions, applies approved updates and serves host telemetry on a Unix socket."
+publish = false
+
+[lib]
+name = "version_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "proxy-control-version-agent"
+path = "src/main.rs"
+
+[dependencies]
+pc_common = { path = "../pc_common" }
+pc_host = { path = "../pc_host" }
+# The same releases pc_host builds with: one copy of each in the binary.
+flate2 = "1"
+libc = "0.2"
+log = { version = "0.4", features = ["std"] }
+# Default features only: every agent JSON (state, API bodies) is key-sorted.
+serde_json = "1"
+tar = { version = "0.4", default-features = false }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+
+[dev-dependencies]
+# The tests read raw HTTP answers off the socket (already in the graph through pc_common).
+httparse = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

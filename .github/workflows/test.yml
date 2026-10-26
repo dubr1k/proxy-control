@@ -64,6 +64,7 @@ jobs:
           sudo install -m 0755 scripts/mieru-mss-clamp.sh /usr/local/libexec/mieru-mss-clamp
           sudo install -m 0755 /bin/true /usr/local/bin/caddy
           sudo install -m 0755 /bin/true /usr/bin/mita
+          sudo install -m 0755 /bin/true /usr/local/bin/mieru-manager
           sudo install -m 0755 /bin/true /opt/proxy-control/venv/bin/python
           sudo install -m 0755 /bin/true /opt/mtproxy-agent/venv/bin/python
           sudo install -m 0755 /bin/true /opt/mtproxy-panel/venv/bin/python
