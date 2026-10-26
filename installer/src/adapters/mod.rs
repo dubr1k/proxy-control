@@ -22,6 +22,8 @@ use crate::error::Error;
 #[cfg(test)]
 pub(crate) mod example;
 
+pub mod three_xui;
+
 /// What every adapter is constructed with.
 #[derive(Clone)]
 pub struct AdapterContext {
