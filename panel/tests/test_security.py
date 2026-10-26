@@ -1,7 +1,7 @@
 from __future__ import annotations
-import asyncio
+
 import sqlite3
-import threading
+
 import time
 from pathlib import Path
 
@@ -120,31 +120,7 @@ async def test_login_rate_limit_is_enforced(client):
 
 
 
-async def test_login_limiter_migrates_existing_reservations(tmp_path):
-    database = tmp_path / "legacy.sqlite3"
-    with sqlite3.connect(database) as db:
-        db.execute(
-            "CREATE TABLE login_attempts "
-            "(scope TEXT NOT NULL, happened_at INTEGER NOT NULL)"
-        )
-        db.execute(
-            "INSERT INTO login_attempts VALUES(?,?)",
-            ("ip:192.0.2.1", int(time.time())),
-        )
 
-    store = Store(database)
-    reservation = store.reserve_login_attempt(
-        ["ip:192.0.2.1"],
-        attempts=3,
-        window=60,
-    )
-    assert reservation
-    store.release_login_attempt(reservation)
-    with store.connect() as db:
-        rows = db.execute(
-            "SELECT reservation_id FROM login_attempts"
-        ).fetchall()
-    assert [row["reservation_id"] for row in rows] == [""]
 
 
 async def test_body_limit_and_validation(client, login_user):

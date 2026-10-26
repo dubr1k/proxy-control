@@ -16,12 +16,12 @@ import pytest
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 JS = STATIC / "js"
-INDEX = (STATIC / "index.html").read_text()
-MAIN = (JS / "main.js").read_text()
+
+
 CHARTS = (JS / "charts.js").read_text()
 LIVE = (JS / "live.js").read_text()
 MONITORING = (JS / "monitoring.js").read_text()
-CSS = (STATIC / "style.css").read_text()
+
 NODE = shutil.which("node")
 
 

@@ -6,14 +6,14 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-from pydantic import ValidationError
+
 
 from panel.database import Database
 from panel.migrations import MIGRATIONS, apply_migrations
 from panel.protocols import EgressTarget, RouterTarget
 from panel.routing.compiler import compile
 from panel.routing.document import attach_document, document_digest
-from panel.routing.models import COMPILER_VERSION, PolicyInput, RoutingPolicy, RoutingRule, RuleMatch, backends_for
+from panel.routing.models import PolicyInput, RoutingPolicy, RoutingRule, RuleMatch
 from panel.routing.store import RoutingStore
 from panel.xray_router import ROUTER_CAPABILITIES
 

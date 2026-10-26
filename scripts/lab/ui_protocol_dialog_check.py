@@ -4,8 +4,8 @@ Run from the checkout with its venv Python:
   python scripts/lab/ui_protocol_dialog_check.py --screenshots /tmp/protocol-dialog-shots
 
 Fresh SQLite databases, keys and Chrome profile live in a temporary directory. The
-central serves the real application on an ephemeral loopback port; linked panels
-use real Fleet APIs over ASGITransport and the existing memory protocol managers.
+central serves the actual Rust panel binary through an ephemeral loopback byte relay;
+linked panels and test-owned manager doubles communicate over real HTTP sockets.
 Only empty screens and unsubmitted creation dialogs may be photographed. No
 reveal, bundle, credential, HTTP body or browser exception payload is printed.
 """
@@ -18,8 +18,10 @@ from contextlib import contextmanager
 import json
 from pathlib import Path
 import secrets
+import select
 import socket
 import subprocess
+import socketserver
 import sys
 import tempfile
 import threading
@@ -31,18 +33,13 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import httpx
-import uvicorn
-
-from panel.amneziawg import MemoryAmneziawg
-from panel.app import Settings, create_app
-from panel.fleet_v2.client import NodeClient
-from panel.keyring import Keyring
-from panel.mieru import MemoryMieru
-from panel.naive import MemoryNaive
-from panel.telemt import MemoryTelemt
+from panel.tests.harness.memories.amneziawg import MemoryAmneziawg
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.naive import MemoryNaive
+from panel.tests.harness.memories.telemt import MemoryTelemt
+from panel.tests.harness.memories.trusttunnel import MemoryTrusttunnel
+from panel.tests.harness.server import start_panel
 from panel.tests.test_mobile_layout import DevTools, _browser
-from panel.trusttunnel import MemoryTrusttunnel
-from panel.versions import VersionClient
 
 ACTOR = {"id": 1, "username": "owner"}
 PROTOCOLS = {"amneziawg": "awg", "trusttunnel": "tt"}
@@ -60,59 +57,103 @@ SUBSCRIPTION_URL = ""
 SUBSCRIPTION_HOST = ""
 
 
-def make_panel(work, name, versions, port):
-    key = work / f"{name}.key"
-    Keyring.generate().save(key)
-    absent = str(work / "absent.sock")
-    settings = Settings(
-        database_path=work / f"{name}.sqlite3", master_key_file=key,
-        allowed_hosts=("127.0.0.1", f"127.0.0.1:{port}", f"{name}.example"),
-        session_cookie_secure=False, vnext_writer="domain",
-        telemt_token="", naive_token="", mieru_token="", amneziawg_token="",
-        trusttunnel_token="", xray_router_token="", xray_router_enabled=False,
+def make_panel(work, name, versions, port, **options):
+    return start_panel(
+        work, name=name,
+        hosts=("testserver", "127.0.0.1", f"127.0.0.1:{port}", f"{name}.example"),
         naive_enabled=False, mieru_enabled=False, metrics_enabled=False,
         amneziawg_enabled=True, amneziawg_public_host=f"awg.{name}.example",
         trusttunnel_enabled=True, trusttunnel_public_host=f"tt.{name}.example",
         mtproxy_public_host=f"{name}.example", naive_public_host="",
-        subscription_url=SUBSCRIPTION_URL, subscription_host=SUBSCRIPTION_HOST, version_agent_socket=absent,
-    )
-    return create_app(
-        settings, telemt=MemoryTelemt(public_host=f"{name}.example"),
+        subscription_url=SUBSCRIPTION_URL, subscription_host=SUBSCRIPTION_HOST,
+        telemt=MemoryTelemt(public_host=f"{name}.example"),
         naive=MemoryNaive(), mieru=MemoryMieru(),
         amneziawg=MemoryAmneziawg(versions=versions),
-        trusttunnel=MemoryTrusttunnel(hostname=f"tt.{name}.example"),
-        version_client=VersionClient(absent),
+        trusttunnel=MemoryTrusttunnel(hostname=f"tt.{name}.example"), **options,
     )
 
 
 class ProtocolFixture:
-    def __init__(self, work, port):
+    def __init__(self, work, listener):
+        port = listener.getsockname()[1]
         self.base = f"http://127.0.0.1:{port}"
-        self.central = make_panel(work, "central", ("1.5", "2.0"), port)
-        self.remote = make_panel(work, "remote", ("3.1",), port)
-        self.paused = make_panel(work, "paused", ("1.5",), port)
-        nodes = {"remote.example": self.remote, "paused.example": self.paused}
-        self.central.state.links.client_factory = lambda url, key, **kw: NodeClient(
-            url, key, transport=httpx.ASGITransport(app=nodes[urllib.parse.urlsplit(url).hostname]), **kw,
-        )
-        self.remote_id, self.paused_id = asyncio.run(self._link())
-        self.central.state.fleet.register_node("legacy-edge", "Legacy agent", {})
-        self.central.state.links.set_enabled(self.paused_id, False, actor=ACTOR, ip="127.0.0.1")
-        self.http = httpx.Client(base_url=self.base, timeout=20, trust_env=False)
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self.loop.run_forever, daemon=True)
+        self.thread.start()
+        self.panels = []
+        try:
+            asyncio.run_coroutine_threadsafe(self._start(work, port), self.loop).result(60)
+            target = self.central.socket
 
-    async def _link(self):
+            class Relay(socketserver.BaseRequestHandler):
+                def handle(self):
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as upstream:
+                        upstream.connect(target)
+                        sockets = [self.request, upstream]
+                        while True:
+                            ready, _, _ = select.select(sockets, [], [], 30)
+                            if not ready:
+                                return
+                            for source in ready:
+                                data = source.recv(65536)
+                                if not data:
+                                    return
+                                (upstream if source is self.request else self.request).sendall(data)
+
+            self.relay = socketserver.ThreadingTCPServer(listener.getsockname(), Relay, bind_and_activate=False)
+            self.relay.socket.close()
+            self.relay.socket = listener
+            self.relay.daemon_threads = True
+            self.relay.server_activate()
+            self.relay_thread = threading.Thread(target=self.relay.serve_forever, daemon=True)
+            self.relay_thread.start()
+            self.http = httpx.Client(base_url=self.base, timeout=20, trust_env=False)
+        except BaseException:
+            self.close()
+            raise
+
+    async def _start(self, work, port):
+        self.remote = make_panel(work, "remote", ("3.1",), port)
+        self.panels.append(self.remote)
+        self.paused = make_panel(work, "paused", ("1.5",), port)
+        self.panels.append(self.paused)
+        self.central = make_panel(work, "central", ("1.5", "2.0"), port,
+                                  node_routes={"remote.example": self.remote, "paused.example": self.paused})
+        self.panels.append(self.central)
+        self.central.client.headers["Authorization"] = "Bearer " + self.central.create_api_key("browser-seed", "admin")
         ids = []
         for name, node in (("remote", self.remote), ("paused", self.paused)):
-            _, key = node.state.api_keys.create("isolated-central", "node-sync", None, actor=ACTOR, ip="127.0.0.1")
-            ids.append(await self.central.state.links.add(
-                f"{name.title()} panel", f"https://{name}.example", key, "verify", None, False,
-                actor=ACTOR, ip="127.0.0.1", auto_import=False,
-            ))
-        return ids
+            key = node.create_api_key("isolated-central", "node-sync")
+            response = await self.central.client.post("/api/nodes/link", json={
+                "display_name": f"{name.title()} panel", "url": f"https://{name}.example",
+                "api_key": key, "auto_import": False,
+            })
+            require(response.status_code == 201, "isolated node link failed")
+            ids.append(response.json()["node_id"])
+        self.remote_id, self.paused_id = ids
+        response = await self.central.client.post(f"/api/nodes/{self.paused_id}/pause")
+        require(response.status_code == 200, "isolated node pause failed")
+
+    def close(self):
+        if hasattr(self, "http"):
+            self.http.close()
+        if hasattr(self, "relay"):
+            self.relay.shutdown()
+            self.relay.server_close()
+            self.relay_thread.join(timeout=10)
+
+        async def stop():
+            for panel in reversed(self.panels):
+                await panel.aclose()
+
+        asyncio.run_coroutine_threadsafe(stop(), self.loop).result(30)
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join(timeout=10)
+        self.loop.close()
 
     def login(self):
         password = secrets.token_urlsafe(32)
-        self.central.state.store.create_admin("owner", password, "owner")
+        self.central.create_admin("owner", password, "owner")
         require(self.http.get("/login").status_code == 200, "fixture login page unavailable")
         response = self.http.post("/api/auth/login", json={"username": "owner", "password": password},
                                   headers={"X-CSRF-Token": self.http.cookies["panel_csrf"]})
@@ -131,26 +172,12 @@ def isolated_panel(work):
     # Keep the listening socket reserved: there is no free-port/rebind race.
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
-        fixture = ProtocolFixture(work, listener.getsockname()[1])
-        # Explicit ticks below make remote delivery deterministic. No background jobs,
-        # manager sockets, DNS lookups or production services are needed.
-        server = uvicorn.Server(uvicorn.Config(
-            fixture.central, host="127.0.0.1", lifespan="off", log_level="critical", access_log=False,
-        ))
-        thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
-        thread.start()
+        fixture = ProtocolFixture(work, listener)
         try:
-            deadline = time.monotonic() + 20
-            while not server.started and thread.is_alive() and time.monotonic() < deadline:
-                time.sleep(0.05)
-            require(server.started, "isolated application did not start")
             fixture.login()
             yield fixture
         finally:
-            fixture.http.close()
-            server.should_exit = True
-            thread.join(timeout=10)
-            require(not thread.is_alive(), "isolated application did not stop")
+            fixture.close()
 
 
 INSTRUMENT = """
@@ -314,7 +341,7 @@ def check_node_dialog(browser, protocol):
     short = PROTOCOLS[protocol]
     browser.open_screen(protocol)
     browser.open_dialog(protocol, 1)
-    require(browser.options(short) == sorted(["local", fixture.remote_id]), "paused or legacy node offered, or enabled remote missing")
+    require(browser.options(short) == sorted(["local", fixture.remote_id]), "paused node offered, or enabled remote missing")
     require(browser.js(f"document.querySelector('#{short}-node').value") == "local", "local must remain the default")
     browser.set_value(f"#{short}-node", fixture.remote_id)
     if short == "awg":

@@ -1,9 +1,9 @@
 """Fleet v2 central acceptance through HTTP, CLI and the persisted wire contract only."""
+import hashlib
 import json
 
 import pytest
 
-from panel.fleet_v2.protocol import GenerationDocument, canonical_digest
 
 pytestmark = pytest.mark.anyio
 
@@ -45,8 +45,9 @@ def digests_match(node, central, node_id):
         link = dict(db.execute("SELECT * FROM node_links WHERE node_id=?", (node_id,)).fetchone())
     with node.db() as db:
         managed = dict(db.execute("SELECT * FROM managed_generations ORDER BY generation DESC LIMIT 1").fetchone())
-    document = GenerationDocument.model_validate_json(desired["document_json"])
-    expected = canonical_digest(document)
+    document = json.loads(desired["document_json"])
+    document["resources"].sort(key=lambda resource: resource["ref"])
+    expected = hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
     assert desired["digest"] == managed["digest"] == expected
     assert desired["generation"] == managed["generation"] == link["acknowledged_generation"]
     assert link["config_dirty"] == 0 and desired["acknowledged_at"] is not None
@@ -185,7 +186,7 @@ async def test_auth_failure_transitions_once_and_recovers_without_leaking_key(pa
 
 
 async def test_linked_metrics_live_history_summary_and_stale_cache(pair_factory):
-    from panel.metrics.fakes import FakeClock, MemoryAgentMetrics
+    from panel.tests.harness.memories.fakes import FakeClock, MemoryAgentMetrics
 
     agent = MemoryAgentMetrics(FakeClock())
     pair = pair_factory(node={"versions": agent})

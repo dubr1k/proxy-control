@@ -26,7 +26,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_local_node_reports_unavailable_managers(client, login_user, mieru, telemt):
-    from panel.telemt import TelemtError
+    from panel.tests.harness.memories.telemt import TelemtError
 
     await login_user(client)
     mieru.broken = True
@@ -44,9 +44,9 @@ async def test_local_node_marks_switched_off_protocols_disabled(tmp_path):
 
     from panel.app import Settings
     from panel.tests.harness.server import panel_app
-    from panel.mieru import MemoryMieru
-    from panel.naive import MemoryNaive
-    from panel.telemt import MemoryTelemt
+    from panel.tests.harness.memories.mieru import MemoryMieru
+    from panel.tests.harness.memories.naive import MemoryNaive
+    from panel.tests.harness.memories.telemt import MemoryTelemt
     from panel.versions import VersionClient
 
     class MustNotBeAsked(MemoryNaive):

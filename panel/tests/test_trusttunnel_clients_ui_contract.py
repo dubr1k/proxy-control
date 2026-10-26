@@ -7,7 +7,7 @@ Python lists only the verified ones (owner rule, 3.0.0) — a test keeps the two
 from __future__ import annotations
 
 import json
-import re
+
 import shutil
 import subprocess
 import tempfile
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from panel.subscriptions.renderers.html import TRUSTTUNNEL_APPS
+
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 JS = STATIC / "js"

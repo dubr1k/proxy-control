@@ -1,4 +1,4 @@
-"""WP9's HTTP contract through either panel implementation (no Python process access)."""
+"""Subscription HTTP contracts exercised against the actual Rust panel binary."""
 from __future__ import annotations
 
 import base64
@@ -308,7 +308,7 @@ async def test_html_language_is_part_of_the_etag(public, token):
 async def test_endpoint_is_off_without_a_subscription_host(panel_server, login_user, telemt, naive, mieru):
     dark = panel_server(name="dark", hosts=("testserver", "sub.example.com"), telemt=telemt, naive=naive, mieru=mieru,
                         naive_enabled=True, naive_public_host="naive.example.com", mieru_enabled=True,
-                        subscription_url="", vnext_writer="domain")
+                        subscription_url="")
     dark.create_admin("owner", "correct horse battery staple", "owner")
     await login_user(dark.client)
     created = await dark.client.post("/api/clients", json={"display_name": "Alone", "subscription": False}, headers=csrf(dark.client))
@@ -319,3 +319,17 @@ async def test_endpoint_is_off_without_a_subscription_host(panel_server, login_u
     assert refused.status_code == 409 and "PANEL_SUBSCRIPTION_URL" in refused.json()["detail"]
     async with dark.http(SUB_HOST) as public:
         assert (await public.get("/s/" + "A" * 43)).status_code == 404
+
+
+async def test_rendering_never_logs_or_persists_delivery_credentials(public, token, server, client_id):
+    secrets = [server.naive.users["alice"]["password"], server.mieru.users["alice"]["password"],
+               server.telemt.users["alice"]["secret"], token]
+    for format_name in ("raw", "singbox", "clash", "manifest", "html"):
+        response = await public.get(f"/s/{token}", params={"format": format_name})
+        assert response.status_code == 200
+    with server.db() as db:
+        stored = str([[tuple(row) for row in db.execute(f"SELECT * FROM {table}")]
+                      for table in ("secret_versions", "audit_log", "access_grants", "client_subscriptions")])
+    logs = server.log_path.read_text()
+    assert all(secret not in stored and secret not in logs for secret in secrets)
+    assert client_id in stored

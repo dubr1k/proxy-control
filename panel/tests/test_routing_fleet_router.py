@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from pydantic import ValidationError
+
 
 from panel.database import Database
 from panel.fleet_v2.generations import compile as compile_generation
@@ -16,15 +16,15 @@ from panel.fleet_v2.protocol import EgressDocument, GenerationDocument, PushRequ
 from panel.fleet_v2.reconcile import Reconciler
 from panel.keyring import Keyring
 from panel.migrations import apply_migrations
-from panel.mieru import MemoryMieru
-from panel.naive import MemoryNaive
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.naive import MemoryNaive
 from panel.protocols import MieruAdapter, NaiveAdapter, RouterAdapter, TelemtAdapter
 from panel.routing.document import ROUTER_DIRECT_INTENT, attach_document, document_digest
 from panel.routing.models import PolicyInput, RoutingRule, RuleMatch
 from panel.routing.service import RoutingError
 from panel.secrets_store import SecretStore
-from panel.telemt import MemoryTelemt
-from panel.xray_router import MemoryXrayRouter
+from panel.tests.harness.memories.telemt import MemoryTelemt
+from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
 NODE, MASTER = "n" * 36, "m" * 36
@@ -34,9 +34,7 @@ NAIVE_DIRECT = {"schema": 1, "upstream": None, "acl": []}
 WARP_INTENT = {"schema": 1, "default": {"action": "egress", "egress": "warp"}, "rules": []}
 
 
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
+
 
 
 def _egress(document, *, backend="naive_native", companion=None, passthrough=False, policy_id="p1", revision=1):

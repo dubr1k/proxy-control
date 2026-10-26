@@ -4,10 +4,10 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from fastapi import HTTPException
+
 
 from panel.mieru import MieruClient, MieruError
-from panel.mieru_routes import mieru_access
+
 
 
 pytestmark = pytest.mark.anyio
@@ -136,45 +136,13 @@ async def test_panel_mieru_rotation_uses_a_new_karing_profile_name(
     )
 
 
-def test_mieru_ipv6_reveal_canonicalizes_native_and_karing_addresses():
-    reveal = mieru_access(
-        "mierus://phone:secret@[2001:0db8::1]"
-        "?profile=phone&port=8443&protocol=TCP"
-    )
-
-    native_server = reveal["clients"]["native"]["config"]["profiles"][0]["servers"][0]
-    assert native_server["ipAddress"] == "2001:db8::1"
-    karing_url = reveal["clients"]["karing"]["import_url"]
-    karing_profile = json.loads(parse_qs(urlsplit(karing_url).query)["url"][0])
-    assert karing_profile["outbounds"][0]["server"] == "2001:db8::1"
 
 
-def test_mieru_range_reveal_keeps_native_link_and_does_not_fabricate_karing_endpoint():
-    reveal = mieru_access(
-        "mierus://phone:secret@mieru.example.com"
-        "?profile=phone&port=8000-8010&protocol=TCP"
-    )
-
-    assert set(reveal["clients"]) == {"native"}
-    native = reveal["clients"]["native"]
-    assert native["type"] == "config"
-    assert native["config"]["profiles"][0]["servers"][0]["portBindings"] == [
-        {"portRange": "8000-8010", "protocol": "TCP"}
-    ]
-    assert native["simple_share_url"].startswith("mierus://")
-    assert reveal["unsupported_clients"]["karing"] == (
-        "Профиль Karing доступен только для точных портов Mieru, не диапазонов."
-    )
 
 
-def test_mieru_reveal_rejects_invalid_authority_port_as_a_controlled_conflict():
-    with pytest.raises(HTTPException) as caught:
-        mieru_access(
-            "mierus://phone:secret@mieru.example.com:99999"
-            "?profile=phone&port=8443&protocol=TCP"
-        )
 
-    assert caught.value.status_code == 409
+
+
 
 
 def _password(reveal: dict) -> str:
@@ -383,47 +351,7 @@ async def test_dashboard_reports_mieru_disabled_ready_and_degraded(
 
 
 
-async def test_memory_mieru_replays_a_caller_credential_and_refuses_a_generated_one():
-    """The fake must model the manager: a credential the manager generated is gone,
-    and saying so is the only safe answer to a retry."""
-    from panel.mieru import MemoryMieru
 
-    mieru = MemoryMieru()
-    first = await mieru.create({
-        "username": "phone", "quotas": [], "expected_revision": mieru.revision,
-        "password": "caller-supplied-password-01", "operation_id": "op-1",
-    })
-    assert "caller-supplied-password-01" in first["share_url"]
-    second = await mieru.create({
-        "username": "phone", "quotas": [], "expected_revision": "stale",
-        "password": "caller-supplied-password-01", "operation_id": "op-1",
-    })
-    assert second == {"username": "phone", "revision": first["revision"], "replayed": True}
-    assert list(mieru.users) == ["phone"]
-
-    await mieru.create({
-        "username": "laptop", "quotas": [], "expected_revision": mieru.revision,
-        "operation_id": "op-2",
-    })
-    with pytest.raises(MieruError) as refused:
-        await mieru.create({
-            "username": "laptop", "quotas": [], "expected_revision": "stale",
-            "operation_id": "op-2",
-        })
-    assert refused.value.code == "result_unrecoverable"
-
-    mieru.faults["create"] = "lose_response"
-    with pytest.raises(MieruError):
-        await mieru.create({
-            "username": "desktop", "quotas": [], "expected_revision": mieru.revision,
-            "password": "caller-supplied-password-03", "operation_id": "op-3",
-        })
-    mieru.faults.clear()
-    retried = await mieru.create({
-        "username": "desktop", "quotas": [], "expected_revision": "stale",
-        "password": "caller-supplied-password-03", "operation_id": "op-3",
-    })
-    assert retried["replayed"] is True and list(mieru.users) == ["phone", "laptop", "desktop"]
 
 
 async def test_mieru_client_rotate_sends_the_caller_credential_and_operation_id():

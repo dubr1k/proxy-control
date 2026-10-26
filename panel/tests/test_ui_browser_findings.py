@@ -3,16 +3,16 @@ here so the fixes cannot quietly regress: an inline style the CSP drops, a login
 reloaded instead of saying «wrong password», a grant dialog whose Mieru body the API refused."""
 from __future__ import annotations
 
-import re
-from pathlib import Path
+
+
 
 import pytest
 
-from panel.clients.models import PROTOCOL_OPTIONS, GrantIntent, MieruOptions
+
 
 pytestmark = pytest.mark.anyio
 
-STATIC = Path(__file__).resolve().parents[1] / "static"
+
 
 
 

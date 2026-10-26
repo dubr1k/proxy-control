@@ -3,18 +3,18 @@ the central `FleetMetricsSource` (cache, single flight, concurrency cap, budget,
 from __future__ import annotations
 
 import asyncio
-import json
+
 
 import httpx
 import pytest
 
-from panel.amneziawg import MemoryAmneziawg
+from panel.tests.harness.memories.amneziawg import MemoryAmneziawg
 from panel.fleet_v2.client import NodeClient, NodeRejected, NodeUnreachable
 from panel.fleet_v2.metrics_source import FleetMetricsSource
-from panel.mieru import MemoryMieru
-from panel.metrics.fakes import FakeClock, MemoryAgentMetrics
-from panel.naive import MemoryNaive
-from panel.telemt import MemoryTelemt
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.fakes import FakeClock, MemoryAgentMetrics
+from panel.tests.harness.memories.naive import MemoryNaive
+from panel.tests.harness.memories.telemt import MemoryTelemt
 
 pytestmark = pytest.mark.anyio
 
@@ -367,22 +367,7 @@ async def test_the_status_reports_amneziawg_traffic(panel_server):
 
 
 # ---- central: a real link, the routes and the stream ----------------------------------------------------
-@pytest.fixture
-async def linked(panel_server, login_user):
-    node, node_clock, node_agent = make_app(panel_server, "node")
-    node_agent.set_protocol("naive", 500.0, 1500.0)
-    central, central_clock, _ = make_app(panel_server, "central", node_routes={"node.example": node})
-    plaintext = node.create_api_key("central", "node-sync")
-    async with central.http() as http:
-        await login_user(http)
-        http.headers["X-CSRF-Token"] = http.cookies["panel_csrf"]
-        linked = await http.post("/api/nodes/link", json={"display_name": "Edge", "url": "https://node.example",
-                                                          "api_key": plaintext, "tls_verify": "verify",
-                                                          "allow_private_address": False})
-        assert linked.status_code == 201, linked.text
-        await tick(node, node_clock, 3)
-        await tick(central, central_clock, 3)
-        yield central, http, linked.json()["node_id"]
+
 
 
 

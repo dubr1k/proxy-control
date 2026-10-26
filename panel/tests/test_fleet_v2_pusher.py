@@ -245,7 +245,7 @@ async def test_a_stale_generation_is_republished_above_what_the_node_holds(pair)
 
 
 async def test_a_manager_chosen_credential_is_escrowed_under_the_version_the_document_named(pair, monkeypatch):
-    from panel.telemt import TelemtError
+    from panel.tests.harness.memories.telemt import TelemtError
 
     node, central, node_id, client = await _link(pair)
     original = node.telemt.create_user

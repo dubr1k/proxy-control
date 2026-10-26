@@ -12,7 +12,7 @@ import pytest
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 JS = (STATIC / "js/management.js").read_text()
-CSS = (STATIC / "style.css").read_text()
+
 
 
 

@@ -4,18 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from panel import audit
-from panel.database import Database
-from panel.migrations import apply_migrations
+
+
+
 
 pytestmark = pytest.mark.anyio
-ACTOR = {"id": 1, "username": "owner"}
 
 
-def _database(tmp_path):
-    database = Database(tmp_path / "panel.sqlite3")
-    apply_migrations(database)
-    return database
+
+
 
 
 

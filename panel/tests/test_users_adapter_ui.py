@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from panel.telemt import TelemtClient, TelemtError
+
 
 
 pytestmark = pytest.mark.anyio
@@ -433,14 +433,10 @@ async def test_created_and_rotated_reveals_carry_the_qr_the_access_dialog_requir
 
 
 
-async def _writer(server):
-    return server.writer
-
-
 async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
     client, server, login_user, telemt, naive, mieru
 ):
-    """The flag changes who owns the record, never what the caller sees."""
+    """Every protocol write atomically records its client, grant and credential."""
     await login_user(client)
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     created = await client.post("/api/users", json={"username": "alice"}, headers=headers)
@@ -460,20 +456,10 @@ async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
     with server.db() as db:
         grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
         clients = [dict(row) for row in db.execute("SELECT * FROM clients")]
-    if await _writer(server) == "domain":
-        # The domain writer owns the credential: that is the whole point of the flag.
-        assert {row["protocol"] for row in grants} == {"mtproxy", "naive", "mieru"}
-        assert all(row["origin"] == "provisioned" for row in grants)
-        assert all(row["secret_id"] is not None for row in grants)
-        assert [row["display_name"] for row in clients] == ["alice"]
-    else:
-        # The legacy writer provisions through the managers, but a Mieru password is kept
-        # all the same — mita has only a hash of it, so the reveal would be its last copy:
-        # that account is recorded as imported, with its credential. Telemt and the Naive
-        # manager hand their secrets back, so «Импорт существующих» captures those later.
-        assert {row["protocol"] for row in grants} == {"mieru"}
-        assert all(row["origin"] == "imported" and row["secret_id"] is not None for row in grants)
-        assert [row["display_name"] for row in clients] == ["alice"]
+    assert {row["protocol"] for row in grants} == {"mtproxy", "naive", "mieru"}
+    assert all(row["origin"] == "provisioned" for row in grants)
+    assert all(row["secret_id"] is not None for row in grants)
+    assert [row["display_name"] for row in clients] == ["alice"]
 
 
 async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, server, login_user, telemt, naive, mieru):
@@ -487,10 +473,7 @@ async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, server,
 
     with server.db() as db:
         grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
-    if await _writer(server) == "domain":
-        assert [row["runtime_username"] for row in grants] == ["legacy-user"]
-        assert grants[0]["origin"] == "imported" and grants[0]["desired_state"] == "disabled"
-        # Adoption on the fly never invents a credential it does not have.
-        assert grants[0]["secret_id"] is None
-    else:
-        assert grants == []
+    assert [row["runtime_username"] for row in grants] == ["legacy-user"]
+    assert grants[0]["origin"] == "imported" and grants[0]["desired_state"] == "disabled"
+    # Adoption on the fly never invents a credential it does not have.
+    assert grants[0]["secret_id"] is None

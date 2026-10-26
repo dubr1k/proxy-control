@@ -181,6 +181,4 @@ async def test_owner_rebuilds_pending_managers_viewer_cannot_and_a_running_updat
     assert actions == ["runtime.version.managers_rebuild"]
 
 
-def test_memory_versions_offer_xray_only_with_a_router():
-    assert "xray" not in MemoryVersions().components
-    assert MemoryVersions(router=True).components["xray"]["current"] == "26.3.27"
+

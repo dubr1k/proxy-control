@@ -8,7 +8,7 @@ from panel.routing.document import attach_document
 
 pytestmark = pytest.mark.anyio
 
-WARP = {"default_action": "egress", "default_egress": "warp", "fallback": "fail_closed", "rules": []}
+
 GEO = {"default_action": "egress", "default_egress": "warp", "fallback": "fail_closed",
        "rules": [{"action": "block", "match": {"geosites": ["category-ads-all"], "ports": [25]}, "note": "ads"}]}
 

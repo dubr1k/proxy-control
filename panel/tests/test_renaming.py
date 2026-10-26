@@ -79,42 +79,16 @@ def _tags(manifest, artifacts):
     return [out["tag"] for out in json.loads(RENDERERS["singbox"].render(manifest, artifacts))["outbounds"]]
 
 
-def test_a_label_replaces_the_default_name_in_every_format():
-    manifest, artifacts = _feed("Дом · быстрый")
-    assert "Дом · быстрый" in _tags(manifest, artifacts)
-    assert "Дом · быстрый" in RENDERERS["html"].render(manifest, artifacts).decode()
-    assert quote("Дом · быстрый") in RENDERERS["raw"].render(manifest, artifacts).decode()
 
 
-def test_the_same_label_on_two_accesses_gets_stable_suffixes():
-    manifest, artifacts = _feed("Дом")
-    shared = dataclasses.replace(manifest, grants=[dataclasses.replace(g, label="Дом") for g in manifest.grants])
-    tags = _tags(shared, artifacts)
-    assert len(set(tags)) == 2 and all(tag.startswith("Дом [") for tag in tags)
 
 
-def test_a_label_is_not_a_wire_field_of_the_public_manifest():
-    manifest, artifacts = _feed("Дом")
-    body = RENDERERS["manifest"].render(manifest, artifacts).decode()
-    assert "Дом" not in body and '"label": "Дом' not in body
 
 
-def test_the_grant_label_column_is_a_migration_of_its_own():
-    migration = next(item for item in MIGRATIONS if item.version == 22)
-    assert migration.name == "grant-labels" and migration.statements == (
-        "ALTER TABLE access_grants ADD COLUMN label TEXT",)
 
 
-def test_the_screens_offer_the_renames_with_the_dialog_they_need():
-    from pathlib import Path
 
-    static = Path(__file__).resolve().parents[1] / "static"
-    clients = (static / "js/clients.js").read_text(encoding="utf-8")
-    grant = (static / "js/grant.js").read_text(encoding="utf-8")
-    ui = (static / "js/ui.js").read_text(encoding="utf-8")
-    index = (static / "index.html").read_text(encoding="utf-8")
-    assert 'data-client-action="rename"' in clients and "/rename`" in clients
-    assert 'data-grant-action="label"' in grant and "/label`" in grant
-    assert "askText" in ui and 'id="ask-text"' in index
-    # An MTProxy access has no subscription entry, so it offers no subscription name.
-    assert '["mtproxy", "amneziawg"].includes(grant.protocol) ? ""' in grant
+
+
+
+

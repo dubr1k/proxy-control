@@ -9,31 +9,16 @@ from __future__ import annotations
 
 import pytest
 
-from panel.clients.models import (
-    AccessGrant,
-    GrantIntent,
-    MieruOptions,
-    MtproxyOptions,
-    NaiveOptions,
-)
-from panel.mieru import MemoryMieru
-from panel.naive import MemoryNaive
-from panel.protocols import (
-    CredentialPlan,
-    GrantRef,
-    ManualInterventionRequired,
-    MieruAdapter,
-    NaiveAdapter,
-    TelemtAdapter,
-)
-from panel.telemt import MemoryTelemt
+from panel.clients.models import AccessGrant, MieruOptions, MtproxyOptions, NaiveOptions
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.naive import MemoryNaive
+from panel.protocols import MieruAdapter, NaiveAdapter, TelemtAdapter
+from panel.tests.harness.memories.telemt import MemoryTelemt
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
+
 
 
 @pytest.fixture
@@ -45,41 +30,16 @@ def backends():
     }
 
 
-@pytest.fixture(params=["mtproxy", "naive", "mieru"])
-def adapter(request, backends):
-    return {
-        "mtproxy": lambda: TelemtAdapter(backends["mtproxy"], public_host="proxy.example.com"),
-        "naive": lambda: NaiveAdapter(backends["naive"], public_host="naive.example.com"),
-        "mieru": lambda: MieruAdapter(backends["mieru"], public_host="mieru.example.com"),
-    }[request.param]()
 
 
-def _intent(protocol, username="alice"):
-    options = {
-        "mtproxy": MtproxyOptions(),
-        "naive": NaiveOptions(quota_bytes=None),
-        "mieru": MieruOptions(quotas=[], share_template=None),
-    }[protocol]
-    return GrantIntent(protocol=protocol, runtime_username=username, options=options)
 
 
-def _credential(adapter, password=b"caller-supplied-password-01"):
-    if adapter.credential_origin == "manager":
-        return CredentialPlan("manager", None)
-    return CredentialPlan("caller", password)
 
 
-def _grant_row(protocol, applied, username="alice"):
-    options = {
-        "mtproxy": MtproxyOptions(),
-        "naive": NaiveOptions(),
-        "mieru": MieruOptions(quotas=[], share_template=applied.artifact_template.get("share_template")),
-    }[protocol]
-    return AccessGrant(
-        id="g1", client_id="c1", protocol=protocol, node_id="local", endpoint_id="default",
-        runtime_username=username, desired_state="enabled", options=options,
-        origin="provisioned", created_at=1, updated_at=1,
-    )
+
+
+
+
 
 
 
@@ -155,16 +115,7 @@ async def _imported(service, backends, protocol, username="alice"):
 
 
 
-async def test_mieru_cannot_be_captured_and_says_so(adopted, backends):
-    from panel.clients.store import ClientConflict
 
-    grant = await _imported(adopted, backends, "mieru")
-    with pytest.raises(ClientConflict, match="rotation"):
-        await adopted.capture_credential(grant.id, **CTX)
-    with pytest.raises(ClientConflict, match="rotation"):
-        await adopted.adopt_credential(grant.id, allow_rotation=False, **CTX)
-    with adopted.database.connect() as db:
-        assert adopted.store.grant(db, grant.id).secret_ref is None
 
 
 

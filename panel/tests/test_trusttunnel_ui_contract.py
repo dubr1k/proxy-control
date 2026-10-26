@@ -20,8 +20,7 @@ JS = STATIC / "js"
 NODE = shutil.which("node")
 
 
-def read(name: str) -> str:
-    return (JS / name).read_text(encoding="utf-8")
+
 
 
 

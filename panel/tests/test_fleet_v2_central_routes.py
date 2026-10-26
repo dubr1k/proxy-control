@@ -37,7 +37,7 @@ async def test_fingerprint_request_deadline_also_bounds_slow_system_dns(central_
 
 @pytest.fixture
 async def central_http(pair_factory, login_user):
-    from panel.versions import MemoryVersions
+    from panel.tests.harness.memories.versions import MemoryVersions
 
     node, central, plaintext = pair_factory(node={"versions": MemoryVersions()})
     central.create_admin("owner", "correct horse battery staple", "owner")

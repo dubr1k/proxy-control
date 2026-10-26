@@ -4,13 +4,12 @@ import base64
 import os
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
 from scripts.lab import ui_protocol_dialog_check as lab
 from scripts.lab.ui_protocol_dialog_check import isolated_browser, isolated_panel
-
-ACTOR = {"id": 1, "username": "owner"}
 
 
 @pytest.fixture
@@ -29,7 +28,9 @@ def open_page(browser, width=390):
         {"protocol": "mtproxy", "node_id": "local", "runtime_username": "mama-tg", "options": {}},
     ]})
     assert result["status"] == "succeeded", result
-    token = fixture.central.state.subscriptions.create(client_id, actor=ACTOR, ip="127.0.0.1", request_id="r")[1]
+    created = fixture.api(f"/api/clients/{client_id}/subscription", "POST")
+    revealed = fixture.api(f"/api/reveal/{created['reveal_token']}")
+    token = urlsplit(revealed["url"]).path.rsplit("/", 1)[1]
     browser.dt.call("Emulation.setDeviceMetricsOverride", {"width": width, "height": 844, "deviceScaleFactor": 2, "mobile": True})
     browser.dt.call("Page.navigate", {"url": f"{fixture.base}/s/{token}"})
     browser.wait("document.readyState === 'complete' && !!document.querySelector('footer')", "subscription page")

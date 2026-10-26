@@ -1,14 +1,14 @@
 """`/api/metrics/*`: sign-in required, validation, the node entries, the disabled switch and the SSE stream."""
 from __future__ import annotations
 
-import asyncio
-import dataclasses
+
+
 import json
 
 import pytest
 
-from panel.metrics.fakes import FakeClock, MemoryAgentMetrics
-from panel.metrics.sse import StreamRegistry, event_stream
+from panel.tests.harness.memories.fakes import FakeClock, MemoryAgentMetrics
+
 
 pytestmark = pytest.mark.anyio
 
@@ -77,8 +77,7 @@ async def test_live_snapshot_shape_and_no_store(rig):
 
 
 
-async def _rows(rows):
-    return rows
+
 
 
 async def test_a_viewer_may_read_the_meters(rig, login_user):
@@ -132,26 +131,6 @@ async def test_stale_agent_is_reported_not_hidden(rig):
 
 
 # ---- the stream --------------------------------------------------------------------------------
-class FakeRequest:
-    def __init__(self):
-        self.gone = False
-
-    async def is_disconnected(self):
-        return self.gone
-
-
-def stream_of(rig, request, lease, **kwargs):
-    collector = rig.server.state.metrics_collector
-
-    async def build():
-        return collector.snapshot()
-
-    async def alive():
-        return True
-
-    options = {"build": build, "version": lambda: collector.version, "next_event": collector.next_event,
-               "alive": alive, "clock": rig.clock, "poll": 0.005}
-    return event_stream(request, lease, **{**options, **kwargs})
 
 
 
@@ -163,8 +142,11 @@ def stream_of(rig, request, lease, **kwargs):
 
 
 
-async def _never():
-    return False
+
+
+
+
+
 
 
 

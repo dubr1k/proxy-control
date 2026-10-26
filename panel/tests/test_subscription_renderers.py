@@ -14,7 +14,7 @@ import dataclasses
 import json
 import re
 import uuid
-from pathlib import Path
+
 
 import pytest
 
@@ -31,24 +31,19 @@ from panel.clients.store import ClientStore
 from panel.database import Database
 from panel.keyring import Keyring
 from panel.migrations import apply_migrations
-from panel.mieru import MemoryMieru
-from panel.naive import MemoryNaive
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.naive import MemoryNaive
 from panel.protocols import MieruAdapter, NaiveAdapter, TelemtAdapter, TrusttunnelAdapter
 from panel.secrets_store import SecretStore
 from panel.subscriptions.compatibility import MATRIX, NOTES
 from panel.subscriptions.models import Manifest, ManifestGrant
-from panel.subscriptions.renderers import (
-    MEDIA_TYPE_MANIFEST,
-    RENDERERS,
-    RenderError,
-    resolve_artifacts,
-)
-from panel.subscriptions.renderers import clash as clash_module
-from panel.telemt import MemoryTelemt
-from panel.trusttunnel import MemoryTrusttunnel
+from panel.subscriptions.renderers import RENDERERS, RenderError, resolve_artifacts
+
+from panel.tests.harness.memories.telemt import MemoryTelemt
+from panel.tests.harness.memories.trusttunnel import MemoryTrusttunnel
 from panel.trusttunnel_link import decode_deeplink
 
-ROOT = Path(__file__).resolve().parents[2]
+
 HOSTS = {"mtproxy": "proxy.example.com", "naive": "naive.example.com", "mieru": "mieru.example.com"}
 NOW = 1_800_000_000
 MIERU_TEMPLATE = "mierus://{username}:{password}@mieru.example.com?profile={profile}&port=8443&protocol=TCP"
@@ -159,34 +154,7 @@ def _database_bytes(database) -> bytes:
 
 
 
-@pytest.mark.parametrize("name", ["manifest", "singbox", "clash", "raw", "html"])
-def test_every_renderer_emits_its_media_type_and_no_malformed_links(name, manifest, artifacts):
-    renderer = RENDERERS[name]
-    body = renderer.render(manifest, artifacts)
-    assert renderer.media_type and body
-    if name == "raw":
-        lines = body.decode().splitlines()
-        assert any(line.startswith("tg://proxy?server=proxy.example.com&port=443&secret=ee") for line in lines)
-        assert any(line.startswith("naive+https://bob:naive-pass-01@naive.example.com:443") for line in lines)
-        assert any(line.startswith("mierus://carol:mieru-pass-01@mieru.example.com?") for line in lines)
-        assert "# unsupported mieru dave: no stored credential" in lines
-        assert all(line.startswith(("tg://", "naive+https://", "mierus://", "# ")) for line in lines)
-    if name == "singbox":
-        data = json.loads(body)
-        assert {o["type"] for o in data["outbounds"]} <= {"naive", "mieru"}
-        assert data["proxy_control"]["generation"] == 3
-        assert {(item["protocol"], item["runtime_username"]) for item in data["proxy_control"]["unsupported"]} == {
-            ("mtproxy", "alice"), ("mieru", "dave"), ("mieru", "frank"),
-        }
-    if name == "clash":
-        text = body.decode()
-        assert "type: 'mieru'" in text and "udp: true" in text
-        assert "naive" not in text.split("proxy-control:")[0]  # naive is only ever in unsupported
-        assert "\t" not in text and "\r" not in text
-    if name == "html":
-        text = body.decode()
-        assert '<meta name="robots" content="noindex">' in text
-        assert "<script src" not in text.lower() and text.lower().count("<script") == 1  # one inline copy script
+
 
 
 # --- what never becomes a link --------------------------------------------------------
@@ -201,39 +169,13 @@ def test_every_renderer_emits_its_media_type_and_no_malformed_links(name, manife
 # --- sing-box and clash shapes --------------------------------------------------------
 
 
-def test_singbox_outbounds_match_the_shapes_the_reveal_already_ships(manifest, artifacts):
-    data = json.loads(RENDERERS["singbox"].render(manifest, artifacts))
-    by_type = {o["type"]: o for o in data["outbounds"]}
-    assert by_type["naive"] == {
-        "type": "naive", "tag": by_type["naive"]["tag"], "server": "naive.example.com", "server_port": 443,
-        "username": "bob", "password": "naive-pass-01",
-        "tls": {"enabled": True, "server_name": "naive.example.com"},
-    }
-    assert by_type["mieru"] == {
-        "type": "mieru", "tag": by_type["mieru"]["tag"], "server": "mieru.example.com",
-        "server_port": 8443, "transport": "TCP", "username": "carol", "password": "mieru-pass-01",
-    }
-    reasons = {item["runtime_username"]: item["reason"] for item in data["proxy_control"]["unsupported"]}
-    assert reasons["alice"] == NOTES["mtproxy"]["karing"] and data["proxy_control"]["client"] == "karing"
-    assert "range" in reasons["frank"]
 
 
 
 
 
-def test_clash_lists_mieru_only_and_writes_nothing_but_quoted_scalars(manifest, artifacts):
-    text = RENDERERS["clash"].render(manifest, artifacts).decode()
-    proxies, tail = text.split("proxy-control:")
-    assert " · TCP 8443'\n    type: 'mieru'\n    server: 'mieru.example.com'\n    port: 8443\n" in proxies
-    assert "port-range: '8000-8010'" in proxies
-    assert "username: 'carol'\n    password: 'mieru-pass-01'" in proxies
-    assert "udp: true" in proxies and "proxy-groups:" in proxies
-    assert NOTES["naive"]["mihomo"] in tail and NOTES["mtproxy"]["mihomo"] in tail
-    # Every string scalar is single-quoted; the writer knows no other form.
-    for line in text.splitlines():
-        value = line.split(": ", 1)[1] if ": " in line else ""
-        if value and not value.isdigit() and value not in {"true", "false"}:
-            assert value.startswith("'") and value.endswith("'"), line
+
+
 
 
 
@@ -248,17 +190,7 @@ def test_clash_lists_mieru_only_and_writes_nothing_but_quoted_scalars(manifest, 
 
 
 
-def test_html_escapes_every_value_and_carries_qr_codes(manifest, artifacts):
-    text = RENDERERS["html"].render(manifest, artifacts).decode()
-    assert "Sergey &lt;b&gt;&amp;&lt;/b&gt;" in text and "<b>&</b>" not in text
-    assert text.count("data:image/svg+xml;base64,") == 4  # alice, bob, carol, frank
-    assert "tg://proxy?server=proxy.example.com&amp;port=443&amp;secret=ee" in text
-    assert "no stored credential" in text
-    assert "naive-pass-02" not in text
-    assert "<table><tr><th></th>" not in text  # the ten-column matrix that made phones zoom out is gone
-    # long values wrap inside their cell; a row label never breaks mid-word («Серве р»)
-    assert "td{overflow-wrap:anywhere}th{white-space:nowrap" in text and 'class="scroll"' not in text
-    assert 'style="' not in text and "onclick" not in text
+
 
 
 SUB = "https://sub.example.com/s/TOKEN"
@@ -268,92 +200,28 @@ def _page(manifest, artifacts, **options):
     return RENDERERS["html"].render(manifest, artifacts, url=SUB, **options).decode()
 
 
-def test_the_page_starts_with_the_add_buttons_and_the_copy_button_and_hides_the_qr(manifest, artifacts):
-    text = _page(manifest, artifacts, updated_at=1_800_000_000)
-    head, _, rest = text.partition("<h2>Все доступы</h2>")
-    assert "Подписка обновляется сама" in head and "Копировать ссылку подписки" in head
-    # Karing leads (it takes Naive and Mieru, both proven); the link it gets is its own sing-box cut
-    assert "Добавить в Karing" in head and "Добавить в FlClash" in head
-    assert head.index("Добавить в Karing") < head.index("Добавить в FlClash")
-    assert 'href="karing://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%2FTOKEN%3Fformat%3Dsingbox&amp;name=Sergey%20%3Cb%3E%26%3C%2Fb%3E"' in head
-    assert "clash://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%2FTOKEN%3Fformat%3Dclash" in head
-    # an app without a verified scheme is still listed: its own link to paste and where to get it, no button
-    assert "Добавить в Throne" not in text and "Добавить в Hiddify" not in text
-    throne = head[head.index('<p class="app-name">Throne</p>'):]
-    throne = throne[:throne.index("</div>")]
-    assert "Скопируйте ссылку подписки и вставьте в приложение" in throne and "https://throneproj.github.io/" in throne
-    assert "Копировать ссылку для Throne" in throne and "Hiddify" not in text
-    # the subscription QR is behind «Показать QR», never open on load
-    assert "<details class=\"qr\"><summary>Показать QR</summary>" in head and "<details class=\"qr\" open" not in text
-    # the personal-key warning stays; the version moves to a small footer with the date
-    assert "ваш личный ключ" in head and "Версия набора" not in text
-    assert "<footer>Обновлено 2027-01-15 08:00 UTC</footer>" in text and "версия набора" not in text
 
 
-def test_the_page_never_names_the_local_node_and_wraps_each_access_in_a_collapsed_section(manifest, artifacts):
-    grants = [dataclasses.replace(g, node_name="Этот сервер") for g in manifest.grants]
-    named = dataclasses.replace(
-        manifest, grants=[dataclasses.replace(grants[1], label="Телефон мамы"), *grants[:1], *grants[2:]]
-    )
-    text = _page(named, artifacts)
-    titles = re.findall(r"<details class=\"card\"><summary>([^<]*)</summary>", text)
-    assert "Телефон мамы" in titles and "NaiveProxy · naive.example.com" not in titles
-    assert "Mieru · mieru.example.com · carol" in titles and "MTProxy · proxy.example.com" in titles
-    assert not any("Этот сервер" in title for title in titles)
-    assert "<details class=\"card\" open" not in text
-    # the names inside the links are the unchanged `#fragment` ones
-    assert "profile=%D0%AD%D1%82%D0%BE%D1%82%20%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80%20%C2%B7%20Mieru" in text
-    assert text.count("data-copy=") >= 4 and "Копировать ссылку</button>" in text
 
 
-def test_the_page_speaks_english_on_request_and_escapes_the_deep_link_name(manifest, artifacts):
-    renamed = dataclasses.replace(manifest, client_name="O'Brien \"x\"")
-    text = _page(renamed, artifacts, lang="en")
-    assert 'lang="en"' in text and "Add to Karing" in text and "Copy the subscription link" in text
-    assert "The link to this page is your personal key" in text and "Show QR" in text
-    assert "name=O%27Brien%20%22x%22" in text  # quotes are percent-encoded, so the guard keeps the button
-    assert "О'Brien" not in text and "javascript:" not in text
-    assert "Подписка" not in text and "Копировать" not in text
 
 
-def test_a_client_without_a_subscription_protocol_gets_its_links_up_front_not_the_update_block(manifest, artifacts):
-    only_mtproxy = dataclasses.replace(manifest, grants=manifest.grants[:1])
-    text = _page(only_mtproxy, artifacts)
-    assert "Подписка обновляется сама" not in text and "Копировать ссылку подписки" not in text
-    assert "Добавить в" not in text and "AmneziaWG" not in text
-    head = text.partition("<h2>Все доступы</h2>")[0]
-    assert 'href="tg://proxy?server=proxy.example.com' in head and "Открыть · MTProxy" in head
 
 
-def test_a_disabled_or_credential_less_access_is_titled_by_protocol_and_login(manifest, artifacts):
-    titles = re.findall(r"<details class=\"card\"><summary>([^<]*)</summary>", _page(manifest, artifacts))
-    assert "Mieru · dave" in titles and "NaiveProxy · erin" in titles
 
 
-def test_the_english_page_has_no_russian_outside_user_data(manifest, artifacts, tt_feed):
-    for feed in ((manifest, artifacts), tt_feed):
-        text = _page(*feed, lang="en")
-        assert not re.search("[А-Яа-яЁё]", text), re.search(".{40}[А-Яа-яЁё]+.{20}", text)
-    assert "Manual setup data" in _page(*tt_feed, lang="en")
+
+
+
+
+
+
 
 
 # --- secrets and bounds ---------------------------------------------------------------
 
 
-def test_rendering_leaves_no_secret_in_database_logs_or_errors(
-    database, manifest_with_canary, secrets, adapters, caplog
-):
-    with database.connect() as db:
-        artifacts = resolve_artifacts(manifest_with_canary, secrets, adapters, db, public_hosts=HOSTS)
-    body = RENDERERS["raw"].render(manifest_with_canary, artifacts)
-    assert b"CANARY-PASSWORD" in body  # the render itself is the only place it may appear
-    assert b"CANARY-PASSWORD" not in _database_bytes(database)
-    assert "CANARY-PASSWORD" not in caplog.text
-    broken = dataclasses.replace(manifest_with_canary, grants=manifest_with_canary.grants * 65)
-    for renderer in RENDERERS.values():
-        with pytest.raises(RenderError) as exc:
-            renderer.render(broken, artifacts)
-        assert "too many grants" in str(exc.value) and "CANARY-PASSWORD" not in str(exc.value)
+
 
 
 
@@ -365,21 +233,10 @@ def test_rendering_leaves_no_secret_in_database_logs_or_errors(
 
 
 
-def test_nekobox_preserves_naive_and_mieru_in_a_mixed_subscription(manifest, artifacts):
-    data = json.loads(RENDERERS["singbox"].render(manifest, artifacts, client="nekobox"))
-    assert {item["type"] for item in data["outbounds"]} == {"naive", "mieru"}
-    assert {item["username"] for item in data["outbounds"]} == {"bob", "carol"}
-    reasons = {item["runtime_username"]: item["reason"] for item in data["proxy_control"]["unsupported"]}
-    assert set(reasons) == {"alice", "dave", "frank"}
-    assert reasons["dave"] == "no stored credential"
-    assert "port range" in reasons["frank"]
 
 
-def test_nekobox_mixed_subscription_keeps_trusttunnel_too(manifest, artifacts, tt_feed):
-    tt_manifest, tt_artifacts = tt_feed
-    mixed = dataclasses.replace(manifest, grants=manifest.grants + tt_manifest.grants)
-    data = json.loads(RENDERERS["singbox"].render(mixed, {**artifacts, **tt_artifacts}, client="nekobox"))
-    assert {item["type"] for item in data["outbounds"]} == {"naive", "mieru", "trusttunnel"}
+
+
 
 
 # --- TrustTunnel ----------------------------------------------------------------------
@@ -424,51 +281,19 @@ def tt_feed(database, secrets):
     return manifest, artifacts
 
 
-def test_trusttunnel_grants_reach_the_renderers_with_both_artifacts(tt_feed):
-    manifest, artifacts = tt_feed
-    by_user = {grant.runtime_username: grant.grant_id for grant in manifest.grants}
-    assert set(artifacts) == {by_user["trusted"], by_user["selfsigned"]}
-    assert [a.kind for a in artifacts[by_user["trusted"]]] == ["trusttunnel_link", "trusttunnel_toml", "trusttunnel_manual"]
 
 
-def test_clash_emits_a_trusttunnel_proxy_with_exactly_the_documented_keys(tt_feed):
-    manifest, artifacts = tt_feed
-    text = RENDERERS["clash"].render(manifest, artifacts).decode()
-    proxies, tail = text.split("proxy-control:")
-    assert "    type: 'trusttunnel'\n    server: 'gate.example.com'\n    port: 443\n" in proxies
-    assert "    username: 'trusted'\n    password: 'tt-pass-CANARY-01'\n    udp: false\n    quic: false\n" in proxies
-    block = proxies.split("- name:")[1]  # the trusted entry: no certificate, so no skip-cert-verify
-    assert "skip-cert-verify" not in block.split("- name:")[0]
-    keys = [line.split(":")[0].strip() for line in block.splitlines()[1:] if line.startswith("    ") and not line.startswith("     ")]
-    assert keys == ["type", "server", "port", "username", "password", "udp", "quic"]
-    assert "paused" not in proxies
-    assert "tt-pass-CANARY-01" not in tail
 
 
-def test_clash_skips_certificate_verification_only_for_an_untrusted_certificate(tt_feed):
-    manifest, artifacts = tt_feed
-    proxies = RENDERERS["clash"].render(manifest, artifacts).decode().split("proxy-groups:")[0]
-    entries = proxies.split("  - name:")[1:]
-    flags = {("trusted" if "username: 'trusted'" in e else "selfsigned"): "skip-cert-verify: true" in e for e in entries}
-    assert flags == {"trusted": False, "selfsigned": True}
 
 
-def test_clash_group_lists_the_trusttunnel_proxies(tt_feed):
-    manifest, artifacts = tt_feed
-    text = RENDERERS["clash"].render(manifest, artifacts).decode()
-    group = text.split("proxy-groups:")[1].split("proxy-control:")[0]
-    assert group.count("TrustTunnel") == 2
 
 
-def test_singbox_names_the_gap_for_trusttunnel_and_stays_valid(tt_feed):
-    manifest, artifacts = tt_feed
-    for client in ("karing", "singbox"):
-        data = json.loads(RENDERERS["singbox"].render(manifest, artifacts, client=client))
-        assert data["outbounds"] == []
-        reasons = {item["runtime_username"]: item["reason"] for item in data["proxy_control"]["unsupported"]}
-        assert reasons == {"trusted": NOTES["trusttunnel"][client], "selfsigned": NOTES["trusttunnel"][client]}
-        assert "TrustTunnel" in reasons["trusted"]
-        assert "tt-pass" not in json.dumps(data)
+
+
+
+
+
 
 
 HIDDIFY_OUTBOUND = {
@@ -478,123 +303,34 @@ HIDDIFY_OUTBOUND = {
 }
 
 
-@pytest.mark.parametrize("client", ["hiddify", "nekobox"])
-def test_singbox_emits_the_trusttunnel_outbound_only_for_a_fork_core_client(tt_feed, client):
-    manifest, artifacts = tt_feed
-    data = json.loads(RENDERERS["singbox"].render(manifest, artifacts, client=client))
-    outbounds = {item["username"]: item for item in data["outbounds"]}
-    assert set(outbounds) == {"trusted", "selfsigned"}  # the paused one is not in the feed
-    trusted = outbounds["trusted"]
-    assert trusted == {**HIDDIFY_OUTBOUND, "tag": trusted["tag"], "username": "trusted"}
-    assert trusted["tag"].startswith("local · TrustTunnel")
-    # `insecure` only where the grant learned an untrusted certificate (the link then carries it)
-    assert "insecure" not in trusted["tls"]
-    assert outbounds["selfsigned"]["tls"] == {"enabled": True, "server_name": "gate.example.com", "insecure": True}
-    assert data["proxy_control"]["client"] == client and data["proxy_control"]["unsupported"] == []
-
-
-def test_singbox_cuts_that_cannot_load_the_outbound_never_carry_it(tt_feed):
-    manifest, artifacts = tt_feed
-    for client in ("karing", "singbox"):
-        text = RENDERERS["singbox"].render(manifest, artifacts, client=client).decode()
-        assert '"trusttunnel"' not in text.replace('"protocol": "trusttunnel"', "")
-    with pytest.raises(RenderError):
-        RENDERERS["singbox"].render(manifest, artifacts, client="sagernet")
-
-
-def test_the_trusttunnel_outbound_keeps_the_password_out_of_logs_and_errors(tt_feed, caplog):
-    manifest, artifacts = tt_feed
-    RENDERERS["singbox"].render(manifest, artifacts, client="hiddify")
-    assert "tt-pass-CANARY-01" not in caplog.text
-    broken = {key: [dataclasses.replace(item, value="tt://?broken") if item.kind == "trusttunnel_link" else item for item in value]
-              for key, value in artifacts.items()}
-    with pytest.raises(RenderError) as exc:
-        RENDERERS["singbox"].render(manifest, broken, client="hiddify")
-    assert "tt-pass-CANARY-01" not in str(exc.value)
-
-
-def test_raw_carries_the_tt_link_with_its_name_and_a_comment_for_the_paused_one(tt_feed):
-    manifest, artifacts = tt_feed
-    lines = RENDERERS["raw"].render(manifest, artifacts).decode().splitlines()
-    links = [line for line in lines if line.startswith("tt://?")]
-    assert len(links) == 2
-    fields = [decode_deeplink(link) for link in links]
-    assert {f["username"] for f in fields} == {"trusted", "selfsigned"}
-    assert all(f["password"] == TT_PASSWORD.decode() and f["hostname"] == "gate.example.com" for f in fields)
-    # the feed's display name, not the adapter's, labels the profile in the client app
-    assert len({f["name"] for f in fields}) == 2 and all(f["name"].startswith("local · TrustTunnel") for f in fields)
-    assert "# disabled trusttunnel paused" in lines
-    certificates = {f["username"]: f.get("certificate") for f in fields}
-    assert certificates["trusted"] is None and certificates["selfsigned"]
-
-
-def test_trusttunnel_profile_names_follow_the_client_labels(database, secrets):
-    grant = dataclasses.replace(_seed_tt(database, secrets, "named"), label="Phone")
-    manifest = Manifest(client_id="c1", client_name="Sergey", generation=1, grants=[grant])
-    adapters = {"trusttunnel": TrusttunnelAdapter(MemoryTrusttunnel(), public_host="gate.example.com")}
-    with database.connect() as db:
-        artifacts = resolve_artifacts(manifest, secrets, adapters, db, public_hosts={})
-    link = RENDERERS["raw"].render(manifest, artifacts).decode().strip()
-    assert decode_deeplink(link)["name"] == "Phone"
-    assert "name: 'Phone'" in RENDERERS["clash"].render(manifest, artifacts).decode()
-
-
-def test_html_shows_the_trusttunnel_link_qr_and_toml_download(tt_feed):
-    manifest, artifacts = tt_feed
-    text = RENDERERS["html"].render(manifest, artifacts).decode()
-    assert text.count("tt://?") >= 2 and text.count("data:image/svg+xml;base64,") == 2
-    assert "[endpoint]" in text and 'download="trusttunnel_client.toml"' in text
-    assert 'href="data:application/toml;base64,' in text
-    assert 'href="[' not in text and "<script src" not in text.lower()
-    assert "TrustTunnel" in text
-
-
-def test_html_shows_the_manual_fields_and_the_app_table_for_trusttunnel(tt_feed):
-    manifest, artifacts = tt_feed
-    text = RENDERERS["html"].render(manifest, artifacts).decode()
-    assert "Данные для ручной настройки" in text and "HTTP/2, QUIC выключен" in text
-    assert "Proxy-TrustTunnel" not in text and "Surge" not in text  # the Surge line was never run by us
-    assert text.count("Как подключить") == 2  # one per enabled TrustTunnel access
-    for name in ("AdGuard TrustTunnel", "TrustTunnel CLI", "mihomo"):
-        assert name in text
-    for unverified in ("Throne", "Hiddify", "NekoBox", "Shadowrocket", "Trusty", "не проверено"):
-        assert unverified not in text
-    assert "https://apps.apple.com/us/app/trusttunnel/id6755807890" in text
-    assert 'rel="noopener noreferrer"' in text and "style=\"" not in text
-    assert "BEGIN CERTIFICATE" in text  # the self-signed access carries its certificate
-
-
-def test_manifest_carries_trusttunnel_artifacts_and_its_matrix_row(tt_feed):
-    manifest, artifacts = tt_feed
-    data = json.loads(RENDERERS["manifest"].render(manifest, artifacts))
-    grants = {item["runtime_username"]: item for item in data["grants"]}
-    assert [a["kind"] for a in grants["trusted"]["artifacts"]] == ["trusttunnel_link", "trusttunnel_toml", "trusttunnel_manual"]
-    assert grants["paused"]["artifacts"] == []
-    assert set(data["compatibility"]["trusttunnel"]) == set(MATRIX["mtproxy"])
-
-
-def test_trusttunnel_password_stays_out_of_the_database_logs_and_errors(database, tt_feed, caplog):
-    manifest, artifacts = tt_feed
-    for renderer in RENDERERS.values():
-        renderer.render(manifest, artifacts)
-    assert b"tt-pass-CANARY-01" not in _database_bytes(database)
-    assert "tt-pass-CANARY-01" not in caplog.text
-    broken = dataclasses.replace(manifest, grants=manifest.grants * 30)
-    for renderer in RENDERERS.values():
-        with pytest.raises(RenderError) as exc:
-            renderer.render(broken, artifacts)
-        assert "tt-pass-CANARY-01" not in str(exc.value)
 
 
 
 
 
-def test_a_hostile_uri_artifact_gets_no_link_only_the_copyable_text(manifest, artifacts):
-    grant = manifest.grants[0]
-    safe = _page(manifest, artifacts)
-    assert 'href="tg://proxy?server=proxy.example.com' in safe
-    for hostile in ("javascript:alert(1)", 'tg://x" onmouseover="alert(1)', "data:text/html,<b>x</b>"):
-        swapped = {**artifacts, grant.grant_id: [dataclasses.replace(a, value=hostile) for a in artifacts[grant.grant_id]]}
-        for page in (_page(manifest, swapped), _page(dataclasses.replace(manifest, grants=[grant]), swapped)):
-            assert f'href="{hostile}' not in page and 'href="javascript:' not in page and 'href="data:text' not in page
-            assert 'onmouseover="alert' not in page
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

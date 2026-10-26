@@ -3,14 +3,14 @@ import pytest
 
 from panel.clients.models import GrantIntent, MtproxyOptions, NaiveOptions
 from panel.clients.store import ClientConflict
-from panel.fleet_v2.protocol import GenerationDocument, Resource
-from panel.naive import NaiveError
-from panel.telemt import TelemtError
+
+from panel.tests.harness.memories.naive import NaiveError
+from panel.tests.harness.memories.telemt import TelemtError
 
 pytestmark = pytest.mark.anyio
 
 ACTOR = {"id": 1, "username": "owner"}
-MASTER = "m" * 36
+
 
 
 async def _node_key(client, login_user):
@@ -21,19 +21,10 @@ async def _node_key(client, login_user):
     return {"Authorization": f"Bearer {created.json()['plaintext']}"}
 
 
-def _doc(guid, generation, users=("alice",), protocol="naive", origin="provisioned"):
-    return GenerationDocument(node_guid=guid, master_guid=MASTER, generation=generation,
-                              previous_generation=generation - 1, created_at=1, created_by="c",
-                              resources=[Resource(ref=f"grant:{u}", protocol=protocol, runtime_username=u,
-                                                  desired_state="enabled", credential_ref=f"grant:{u}:1",
-                                                  credential_origin="caller", origin=origin) for u in users])
 
 
-async def _push(client, headers, guid, generation, **kw):
-    doc = _doc(guid, generation, **kw)
-    return await client.put("/api/fleet/v2/generation", headers=headers, json={
-        "expected_guid": guid, "generation": doc.model_dump(),
-        "secrets": {r.credential_ref: f"pw-{r.runtime_username}" for r in doc.resources}})
+
+
 
 
 def _audit(app, action):
@@ -134,7 +125,7 @@ async def test_capture_credential_refuses_a_remote_grant(pair):
 async def test_telemt_adapter_wraps_a_failing_readback(call):
     from panel.protocols.base import AdapterError, GrantRef
     from panel.protocols.telemt import TelemtAdapter
-    from panel.telemt import MemoryTelemt
+    from panel.tests.harness.memories.telemt import MemoryTelemt
 
     telemt = MemoryTelemt()
     await telemt.create_user("alice")

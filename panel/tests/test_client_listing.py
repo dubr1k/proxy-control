@@ -1,37 +1,18 @@
 """Client listing keeps query count bounded and pages the complete filtered set."""
 import pytest
 
-from panel.clients.service import ClientService
-from panel.database import Database
-from panel.migrations import apply_migrations
-from panel.secrets_store import SecretRef, SecretStore
-from panel.tests.test_clients_filters_ui import CLIENTS
-from panel.tests.test_clients_domain import _grant
 
 
 
 
 
-@pytest.fixture
-def listing_service(tmp_path):
-    database = Database(tmp_path / "panel.sqlite3")
-    apply_migrations(database)
-    service = ClientService(database, SecretStore(None))
-    with database.transaction() as db:
-        db.execute("""INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at)
-                      VALUES('fra','Frankfurt','active','{}',1,1)""")
-        for index, entry in enumerate(CLIENTS):
-            client = service.new_client(db, entry["client"]["display_name"], now=index + 1)
-            db.execute("UPDATE clients SET id=?,state=? WHERE id=?", (entry["client"]["id"], entry["client"]["state"], client.id))
-            for raw in entry["grants"]:
-                grant = _grant(entry["client"]["id"], protocol=raw["protocol"], username=raw["runtime_username"], node_id=raw["node_id"])
-                grant = grant.model_copy(update={
-                    **{key: raw[key] for key in ("id", "desired_state", "observed_state", "routing_lane")},
-                    "secret_ref": SecretRef("synthetic", 1) if raw["secret_ref"] else None,
-                })
-                service.store.insert_grant(db, grant)
-                db.execute("UPDATE access_grants SET routing_lane=? WHERE id=?", (grant.routing_lane, grant.id))
-    return service
+
+
+
+
+
+
+
 
 
 

@@ -16,13 +16,7 @@ JS = Path(__file__).resolve().parent.parent / "static/js"
 NODE = shutil.which("node")
 
 # page module -> (view name, protocol, the expression that names the user in the cell)
-PAGES = {
-    "mieru.js": ("mieru", "mieru", "user.username"),
-    "naive.js": ("naive", "naive", "user.username"),
-    "trusttunnel.js": ("trusttunnel", "trusttunnel", "row.username"),
-    "amneziawg.js": ("amneziawg", "amneziawg", "row.username"),
-    "users.js": ("users", "mtproxy", "user.username"),
-}
+
 
 
 

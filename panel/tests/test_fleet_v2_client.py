@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import http.server
+
 import json
 import ssl
 import socket
-import threading
+
 
 import anyio
 import httpcore
 import httpx
 import pytest
 
-from panel.agent_transport import CertificateAuthority
+
 from panel.fleet_v2.client import (
     NodeAuthFailed,
     NodeClient,
@@ -182,30 +182,13 @@ async def test_api_key_never_appears_in_the_unreachable_exception():
     assert "super-secret-key" not in str(excinfo.value)
 
 
-class _OneShotTLSServer(http.server.HTTPServer):
-    allow_reuse_address = True
 
 
-class _EmptyHandler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, *args):  # keep test output clean
-        pass
-
-    def do_GET(self):
-        self.server.requests.append(self.path)
-        self.send_response(200)
-        self.send_header("content-length", "0")
-        self.end_headers()
 
 
-def _start_tls_server(cert, key):
-    server = _OneShotTLSServer(("127.0.0.1", 0), _EmptyHandler)
-    server.requests = []  # every HTTP request the handler saw; a pin mismatch must leave it empty
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(str(cert), str(key))
-    server.socket = context.wrap_socket(server.socket, server_side=True)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server, thread
+
+
+
 
 
 

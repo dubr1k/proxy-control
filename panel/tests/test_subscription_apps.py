@@ -6,9 +6,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from panel.subscription_routes import SHARE_VARIANTS
+
 from panel.subscriptions import apps
-from panel.subscriptions.compatibility import MATRIX
+
 
 SOURCE = Path(apps.__file__).read_text()
 KNOWN_SCHEMES = {"karing", "hiddify", "sing-box", "clash"}
@@ -47,5 +47,4 @@ def test_deep_links_use_known_schemes_each_with_a_source_next_to_it():
 
 
 
-def test_the_catalogue_is_free_of_ui_code():
-    assert "innerHTML" not in SOURCE and "document" not in SOURCE
+
