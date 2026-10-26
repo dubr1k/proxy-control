@@ -109,7 +109,12 @@ pub fn intent_of(default_action: DefaultAction, rules: &[RoutingRule]) -> Value 
 
 /// `intent_v2(protocol, lanes, chains, exits)`: every lane of the service (the service's own
 /// first), the chains they name and the custom exits (`exit:<id>` → `exit:eN` with its spec).
-pub fn intent_v2(protocol: &str, lanes: &[CheckedLane], chains: &[(String, Value)], exits: &[(String, Value)]) -> Value {
+pub fn intent_v2(
+    protocol: &str,
+    lanes: &[CheckedLane],
+    chains: &[(String, Value)],
+    exits: &[(String, Value)],
+) -> Value {
     let mut ids: Vec<String> = Vec::new();
     let mut exit_ids: Vec<String> = Vec::new();
     let mut egress_map = |value: &str| -> String {
@@ -145,8 +150,11 @@ pub fn intent_v2(protocol: &str, lanes: &[CheckedLane], chains: &[(String, Value
     document.insert("lanes".into(), Value::Object(rendered));
     document.insert("chains".into(), Value::Object(chain_map));
     if !exit_ids.is_empty() {
-        let exit_map: Map<String, Value> =
-            exit_ids.iter().enumerate().map(|(index, value)| (format!("e{}", index + 1), lookup(exits, value))).collect();
+        let exit_map: Map<String, Value> = exit_ids
+            .iter()
+            .enumerate()
+            .map(|(index, value)| (format!("e{}", index + 1), lookup(exits, value)))
+            .collect();
         document.insert("exits".into(), Value::Object(exit_map));
     }
     Value::Object(document)
@@ -172,7 +180,11 @@ pub fn resolve_chain(
         let last = index == guids.len() - 1;
         let uuid = if last && via == Some("warp") { found.uuid_warp.clone() } else { Some(found.uuid_direct.clone()) };
         let Some(uuid) = uuid else {
-            return Ok(Err(Reason::new("relay_no_warp", None, format!("node {guid} has no relay account for its warp"))));
+            return Ok(Err(Reason::new(
+                "relay_no_warp",
+                None,
+                format!("node {guid} has no relay account for its warp"),
+            )));
         };
         hops.push(json!({"guid": guid, "address": found.address, "port": found.port, "server_name": found.server_name,
                          "public_key": found.public_key, "short_id": found.short_id, "uuid": uuid}));
@@ -202,7 +214,8 @@ impl Collect<'_, '_> {
     fn check_lane(&mut self, policy: &RoutingPolicy) -> Result<CheckedLane> {
         let router = self.router;
         let mut rules = enabled_rules(policy);
-        let (mut default_action, mut default_egress) = (policy.intent.default_action, policy.intent.default_egress.clone());
+        let (mut default_action, mut default_egress) =
+            (policy.intent.default_action, policy.intent.default_egress.clone());
         let whole = if default_action == DefaultAction::Egress { "whole_warp" } else { "whole_direct" };
         if !router.capabilities.contains(whole) {
             self.reasons.push(Reason::new("backend_capability_missing", None, format!("xray_router lacks {whole}")));
@@ -309,7 +322,11 @@ pub struct IntentOptions<'a, 'b> {
 }
 
 /// `compile_intent(policy, router, …)`.
-pub fn compile_intent(policy: &RoutingPolicy, router: &RouterTarget, options: IntentOptions<'_, '_>) -> Result<Compiled> {
+pub fn compile_intent(
+    policy: &RoutingPolicy,
+    router: &RouterTarget,
+    options: IntentOptions<'_, '_>,
+) -> Result<Compiled> {
     let mut unsupported = Compiled::new(CompileStatus::Unsupported);
     unsupported.backend = Some("xray_router".into());
     unsupported.runtime_version = router.xray_version.clone();

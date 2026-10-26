@@ -64,7 +64,7 @@ async def test_attach_detach_are_owner_only_and_audited(client, server, login_us
         assert (await client.post(path, headers=_csrf(client))).status_code == 403
 
 
-async def test_attach_refusals_carry_codes(client, login_user, router, naive):
+async def test_attach_refusals_carry_codes(client, login_user, router, naive, panel_server):
     await login_user(client)
     assert (await client.post("/api/routing/targets/local/socks/attach", headers=_csrf(client))).status_code == 422
     assert (await client.post("/api/routing/targets/missing/naive/attach", headers=_csrf(client))).status_code == 404
@@ -76,6 +76,9 @@ async def test_attach_refusals_carry_codes(client, login_user, router, naive):
     refused = await client.post("/api/routing/targets/local/naive/attach", headers=_csrf(client))
     assert (refused.status_code, refused.json()["code"]) == (409, "router_unavailable")
     # Without any router the panel still answers, with the reason.
-    client._transport.app.state.routing.router = None
-    targets = await client.get("/api/routing/targets")
-    assert next(item for item in targets.json()["items"] if item["protocol"] == "naive")["router"] is None
+    without = panel_server(name="without-router", naive=naive, naive_enabled=True)
+    without.create_admin("owner", "correct horse battery staple", "owner")
+    async with without.http() as http:
+        await login_user(http)
+        targets = await http.get("/api/routing/targets")
+        assert next(item for item in targets.json()["items"] if item["protocol"] == "naive")["router"] is None

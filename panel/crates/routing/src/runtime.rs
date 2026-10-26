@@ -32,8 +32,11 @@ pub trait RoutingRouter: Send + Sync {
         expected_revision: &'a str,
         operation_id: &'a str,
     ) -> BoxFuture<'a, Result<AppliedEgress, AdapterError>>;
-    fn rollback<'a>(&'a self, service: &'a str, expected_revision: &'a str)
-        -> BoxFuture<'a, Result<AppliedEgress, AdapterError>>;
+    fn rollback<'a>(
+        &'a self,
+        service: &'a str,
+        expected_revision: &'a str,
+    ) -> BoxFuture<'a, Result<AppliedEgress, AdapterError>>;
     fn lane_issue<'a>(&'a self, service: &'a str, lane: &'a str) -> BoxFuture<'a, Result<Value, AdapterError>>;
     fn lane_forget<'a>(&'a self, service: &'a str, lane: &'a str) -> BoxFuture<'a, Result<Value, AdapterError>>;
     /// The relay inbound's view, `None` when the router does not answer.

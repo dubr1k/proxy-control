@@ -30,7 +30,8 @@ use panel_model::seams::{GenerationPublisher, RelayConfirmation, SeamError};
 use panel_model::validate::Model;
 use panel_model::Protocol;
 use panel_nodes::NodeRow;
-use panel_secrets::secrets_store::{Identity, SecretRef, SecretStore};
+use panel_protocols::error::runtime_failure;
+use panel_secrets::secrets_store::{Identity, SecretError, SecretRef, SecretStore};
 use serde_json::{json, Map, Value};
 
 use crate::compiler::{ChainHop, HopResolver, Lookup};
@@ -103,15 +104,17 @@ impl RelayRegistry {
     /// `observe(db, node_id, report, now)`: a linked node's word on its relay — the public part
     /// joins the row, `enabled` stays what this panel asked for.
     pub fn observe(db: &Conn, node_id: &str, report: &Map<String, Value>, now: i64) -> Result<()> {
-        if !matches!(report.get("state"), None | Some(Value::Null)) && report.get("state") != Some(&json!("converged")) {
+        if !matches!(report.get("state"), None | Some(Value::Null)) && report.get("state") != Some(&json!("converged"))
+        {
             return Ok(());
         }
         let short_id = match report.get("short_ids") {
             None | Some(Value::Null) => report.get("short_id").cloned(),
             Some(ids) => ids.as_array().and_then(|ids| ids.first()).cloned(),
         };
-        let current: Option<i64> =
-            db.query_row("SELECT enabled FROM router_relays WHERE node_id=?", [node_id], |row| row.get(0)).optional()?;
+        let current: Option<i64> = db
+            .query_row("SELECT enabled FROM router_relays WHERE node_id=?", [node_id], |row| row.get(0))
+            .optional()?;
         let enabled = current.unwrap_or_else(|| i64::from(truthy(report.get("enabled"))));
         db.execute(
             "INSERT INTO router_relays(node_id,port,public_key,short_id,server_name,enabled,updated_at) VALUES(?,?,?,?,?,?,?) \
@@ -183,8 +186,7 @@ impl RelayRegistry {
 
     /// `reveal(db, secret_id, node_id)`.
     pub fn reveal(&self, db: &Conn, secret_id: &str, node_id: &str) -> Result<String> {
-        let plaintext =
-            self.secrets.reveal(db, &SecretRef::new(secret_id, 1), RELAY_PURPOSE, None, Some(node_id))?;
+        let plaintext = self.secrets.reveal(db, &SecretRef::new(secret_id, 1), RELAY_PURPOSE, None, Some(node_id))?;
         Ok(String::from_utf8_lossy(&plaintext).into_owned())
     }
 
@@ -220,7 +222,10 @@ impl RelayRegistry {
         let mut count = 0;
         for row in Self::peers(db, node_id)? {
             let (source, exit) = (text(&row, "source_node_id"), text(&row, "exit"));
-            let _ = self.secrets.transition(db, &SecretRef::new(text(&row, "secret_id"), 1), "revoked");
+            match self.secrets.transition(db, &SecretRef::new(text(&row, "secret_id"), 1), "revoked") {
+                Ok(()) | Err(SecretError::Refused(_)) => {}
+                Err(error) => return Err(error.into()),
+            }
             db.execute(
                 "DELETE FROM relay_peers WHERE node_id=? AND source_node_id=? AND exit=?",
                 params![node_id, source, exit],
@@ -300,9 +305,7 @@ impl HopResolver for ChainResolver<'_> {
             return Ok(Err(Reason::new("relay_disabled", None, format!("the relay of node {guid} is disabled"))));
         }
         let address = self.address(&node_id, &row).filter(|address| !address.is_empty());
-        let (Some(address), true, true) =
-            (address, truthy(relay.get("server_name")), truthy(relay.get("port")))
-        else {
+        let (Some(address), true, true) = (address, truthy(relay.get("server_name")), truthy(relay.get("port"))) else {
             return Ok(Err(Reason::new("node_lacks_relay", None, format!("node {guid} has no relay address"))));
         };
         let mut uuids: Vec<Option<String>> = Vec::new();
@@ -381,9 +384,20 @@ pub(crate) fn audit(db: &Conn, context: &AuditContext, action: &str, target: &st
 
 /// `LaneError(409 if exc.code else 502, exc.code or fallback, str(exc))`.
 fn lane_refusal(error: AdapterError, fallback: &str) -> RoutingFailure {
+    if runtime_failure(&error).is_some() {
+        return RoutingFailure::Adapter(error);
+    }
     let status = if error.code.is_some() { 409 } else { 502 };
     let code = error.code.clone().filter(|code| !code.is_empty()).unwrap_or_else(|| fallback.to_string());
     RoutingFailure::refused(status, code, error.message)
+}
+
+/// Python's `issued["user"]` and `issued["password"]`: a missing key is an internal error;
+/// an explicitly present null is passed through to the manager.
+fn lane_account(issued: &Value) -> Result<Value> {
+    let user = issued.get("user").ok_or_else(|| RoutingFailure::internal("'user'"))?;
+    let password = issued.get("password").ok_or_else(|| RoutingFailure::internal("'password'"))?;
+    Ok(json!({"user": user, "password": password}))
 }
 
 /// A grant's own lane on this node (spec §6.2): the router's account, the manager's handler or
@@ -422,7 +436,9 @@ fn lane_draft(service_policy: Option<&RoutingPolicy>) -> PolicyInput {
 
 fn routing_lane(db: &Conn, grant_id: &str) -> Result<Option<String>> {
     Ok(db
-        .query_row("SELECT routing_lane FROM access_grants WHERE id=?", [grant_id], |row| row.get::<_, Option<String>>(0))
+        .query_row("SELECT routing_lane FROM access_grants WHERE id=?", [grant_id], |row| {
+            row.get::<_, Option<String>>(0)
+        })
         .optional()?
         .flatten())
 }
@@ -479,7 +495,13 @@ impl LaneService {
                 lanes.push(json!({"lane": lane, "users": [username], "upstream": upstream}));
             }
         }
-        self.adapters.set_lanes(protocol, &Value::Array(lanes)).await.map_err(|error| AdapterFailure(error).into())
+        self.adapters.set_lanes(protocol, &Value::Array(lanes)).await.map_err(|error| {
+            if runtime_failure(&error).is_some() {
+                RoutingFailure::manager(protocol, error)
+            } else {
+                AdapterFailure(error).into()
+            }
+        })
     }
 
     /// `_push_existing`: this lane with its fresh account (`None` when it is leaving), every other
@@ -502,8 +524,7 @@ impl LaneService {
             let other = lane_of(&id);
             if !accounts.contains_key(&other) {
                 let issued = router.lane_issue(protocol.as_str(), &other).await.map_err(LaneFailure::Adapter)?;
-                let account = json!({"user": issued.get("user").cloned().unwrap_or(Value::Null),
-                                     "password": issued.get("password").cloned().unwrap_or(Value::Null)});
+                let account = lane_account(&issued).map_err(LaneFailure::Other)?;
                 accounts.insert(other, account);
             }
         }
@@ -542,8 +563,6 @@ impl LaneService {
             .lane_issue(grant.protocol.as_str(), &lane)
             .await
             .map_err(|error| lane_refusal(error, "router_unavailable"))?;
-        let account = json!({"user": issued.get("user").cloned().unwrap_or(Value::Null),
-                             "password": issued.get("password").cloned().unwrap_or(Value::Null)});
         // 2. the manager moves the user into the lane's handler / slot
         let now = self.now();
         self.transaction({
@@ -554,9 +573,13 @@ impl LaneService {
             }
         })
         .await?;
+        let account = lane_account(&issued)?;
         let view = match self.push_existing(&grant.node_id, grant.protocol, &lane, Some(account)).await {
             Ok(view) => view,
             Err(LaneFailure::Adapter(error)) => {
+                if runtime_failure(&error).is_some() {
+                    return Err(RoutingFailure::Adapter(error));
+                }
                 self.transaction({
                     let id = grant_id.to_string();
                     move |db| {
@@ -572,7 +595,8 @@ impl LaneService {
         };
         // 3. a draft policy for the lane, copied from the service's
         let now = self.now();
-        let (grant_for_tx, view_for_tx, lane_for_tx, context) = (grant.clone(), view.clone(), lane.clone(), context.clone());
+        let (grant_for_tx, view_for_tx, lane_for_tx, context) =
+            (grant.clone(), view.clone(), lane.clone(), context.clone());
         self.transaction(move |db| {
             learn_share(db, &grant_for_tx, &view_for_tx, Some(&lane_for_tx), now)?;
             let node = grant_for_tx.node_id.as_str();
@@ -580,7 +604,8 @@ impl LaneService {
             let service_policy = store::get(db, node, protocol, LANE_SERVICE)?;
             let draft = lane_draft(service_policy.as_ref());
             if store::get(db, node, protocol, &lane_for_tx)?.is_none() {
-                store::upsert(db, node, protocol, &draft, None, now, &lane_for_tx).map_err(store::StoreError::into_failure)?;
+                store::upsert(db, node, protocol, &draft, None, now, &lane_for_tx)
+                    .map_err(store::StoreError::into_failure)?;
             }
             audit(
                 db,
@@ -625,6 +650,9 @@ impl LaneService {
             match self.push_existing(&grant.node_id, grant.protocol, &lane, None).await {
                 Ok(answer) => view = answer,
                 Err(LaneFailure::Adapter(error)) => {
+                    if runtime_failure(&error).is_some() {
+                        return Err(RoutingFailure::Adapter(error));
+                    }
                     self.transaction({
                         let id = grant_id.to_string();
                         move |db| {
@@ -700,7 +728,10 @@ impl LaneService {
                 let node = grant.node_id.as_str();
                 let protocol = grant.protocol.as_str();
                 if mode == "own" {
-                    db.execute("UPDATE access_grants SET routing_lane='own', updated_at=? WHERE id=?", params![now, grant.id])?;
+                    db.execute(
+                        "UPDATE access_grants SET routing_lane='own', updated_at=? WHERE id=?",
+                        params![now, grant.id],
+                    )?;
                     let service_policy = store::get(db, node, protocol, LANE_SERVICE)?;
                     let draft = lane_draft(service_policy.as_ref());
                     if store::get(db, node, protocol, &lane_for_tx)?.is_none() {
@@ -708,7 +739,10 @@ impl LaneService {
                             .map_err(store::StoreError::into_failure)?;
                     }
                 } else {
-                    db.execute("UPDATE access_grants SET routing_lane=NULL, updated_at=? WHERE id=?", params![now, grant.id])?;
+                    db.execute(
+                        "UPDATE access_grants SET routing_lane=NULL, updated_at=? WHERE id=?",
+                        params![now, grant.id],
+                    )?;
                     if let Some(policy) = store::get(db, node, protocol, &lane_for_tx)? {
                         store::delete(db, &policy.id).map_err(store::StoreError::into_failure)?;
                     }
@@ -759,8 +793,7 @@ impl LaneService {
                 let current = routing_lane(db, &id)?;
                 let lane = lane_of(&id);
                 let own = current.as_deref() == Some("own");
-                let policy =
-                    if own { store::get(db, &grant.node_id, grant.protocol.as_str(), &lane)? } else { None };
+                let policy = if own { store::get(db, &grant.node_id, grant.protocol.as_str(), &lane)? } else { None };
                 Ok(json!({"grant_id": id, "lane": if own { lane } else { LANE_SERVICE.to_string() },
                           "mode": current.unwrap_or_else(|| "service".into()),
                           "policy": policy.map(|policy| json!({"id": policy.id, "revision": policy.revision,
@@ -808,7 +841,8 @@ fn learn_share(db: &Conn, grant: &AccessGrant, view: &Value, lane: Option<&str>,
         Ok(typed) => typed,
         Err(_) => {
             options.insert("share_template".into(), Value::Null);
-            MieruOptions::validate(&Value::Object(options)).map_err(|error| RoutingFailure::internal(error.to_string()))?
+            MieruOptions::validate(&Value::Object(options))
+                .map_err(|error| RoutingFailure::internal(error.to_string()))?
         }
     };
     let json = ProtocolOptions::Mieru(typed).dump_json();
@@ -860,9 +894,9 @@ impl panel_clients::lifecycle::GrantLanes for LaneService {
 
 /// A routing failure as a seam error: a refusal is the API error it answers with.
 pub fn seam_error(error: RoutingFailure) -> SeamError {
-    match error {
-        RoutingFailure::Refused(refusal) => Box::new(refusal.to_api_error()),
-        other => Box::new(InternalSeam(other.to_string())),
+    match error.app_error() {
+        Some(answer) => Box::new(answer),
+        None => Box::new(InternalSeam(error.to_string())),
     }
 }
 

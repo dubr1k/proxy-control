@@ -16,7 +16,7 @@ use panel_model::routing::models::{normalise_domain, Reason};
 use panel_model::validate::{
     boolean, list, nullable, string, value_error, Cx, Extra, Fields, Int, Model, Str, ValidationError,
 };
-use panel_secrets::secrets_store::{Identity, SecretRef, SecretStore};
+use panel_secrets::secrets_store::{Identity, SecretError, SecretRef, SecretStore};
 use serde_json::{json, Map, Value};
 
 use crate::error::{Result, RoutingFailure};
@@ -386,7 +386,9 @@ impl ExitInput {
         if plain && self.security.kind == "reality" {
             return Err("reality needs vless or trojan".into());
         }
-        if protocol == "vless" && !self.flow.is_empty() && (self.transport.network != "tcp" || self.security.kind == "none")
+        if protocol == "vless"
+            && !self.flow.is_empty()
+            && (self.transport.network != "tcp" || self.security.kind == "none")
         {
             return Err("xtls-rprx-vision needs tcp with tls or reality".into());
         }
@@ -596,6 +598,9 @@ fn b64decode_lenient(data: &[u8]) -> Option<Vec<u8>> {
 
 /// `_b64(value)`: url-safe base64 first, the standard alphabet second, UTF-8 text.
 fn b64(value: &str) -> std::result::Result<String, String> {
+    if !value.is_ascii() {
+        return Err("a shadowsocks link is not valid base64".into());
+    }
     let padded = format!("{value}{}", "=".repeat((4 - value.len() % 4) % 4));
     let urlsafe: Vec<u8> = padded
         .bytes()
@@ -698,9 +703,9 @@ pub fn parse_share_link(link: &str) -> std::result::Result<ExitInput, String> {
             let usage = || format!("a {scheme} link is {scheme}://[user:pass@]host:port");
             let Some(host) = hostname else { return Err(usage()) };
             let Some(port) = port_of(&parts)? else { return Err(usage()) };
-            let credential = parts.username().map(|user| {
-                json!({"username": unquote(user), "password": unquote(parts.password().unwrap_or(""))})
-            });
+            let credential = parts
+                .username()
+                .map(|user| json!({"username": unquote(user), "password": unquote(parts.password().unwrap_or(""))}));
             let security =
                 if scheme == "https" { json!({"kind": "tls", "server_name": host}) } else { json!({"kind": "none"}) };
             let data = json!({"name": name_from(&parts, &host),
@@ -734,8 +739,13 @@ macro_rules! exit_failure {
     };
 }
 
-exit_failure!(RoutingFailure, panel_core::db::DbError, rusqlite::Error, serde_json::Error,
-    panel_secrets::secrets_store::SecretError);
+exit_failure!(
+    RoutingFailure,
+    panel_core::db::DbError,
+    rusqlite::Error,
+    serde_json::Error,
+    panel_secrets::secrets_store::SecretError
+);
 
 struct ExitRow {
     id: String,
@@ -795,9 +805,7 @@ fn view(row: &ExitRow) -> Result<Map<String, Value>> {
 }
 
 fn read(db: &Conn, exit_id: &str) -> Result<Option<ExitRow>> {
-    Ok(db
-        .query_row(&format!("SELECT {EXIT_COLUMNS} FROM egress_exits WHERE id=?"), [exit_id], exit_row)
-        .optional()?)
+    Ok(db.query_row(&format!("SELECT {EXIT_COLUMNS} FROM egress_exits WHERE id=?"), [exit_id], exit_row).optional()?)
 }
 
 /// `ExitStore`: the rows and their escrowed credentials.
@@ -844,15 +852,26 @@ impl ExitStore {
         Ok(secret_id)
     }
 
-    fn revoke(&self, db: &Conn, secret_id: Option<&String>, version: Option<i64>) {
+    fn revoke(&self, db: &Conn, secret_id: Option<&String>, version: Option<i64>) -> Result<(), ExitError> {
         if let (Some(secret_id), Some(version)) = (secret_id, version.filter(|version| *version != 0)) {
-            let _ = self.secrets.transition(db, &SecretRef::new(secret_id.clone(), version), "revoked");
+            match self.secrets.transition(db, &SecretRef::new(secret_id.clone(), version), "revoked") {
+                Ok(()) | Err(SecretError::Refused(_)) => {}
+                Err(error) => return Err(error.into()),
+            }
         }
+        Ok(())
     }
 
     /// `create(db, node_id, data, now)`.
-    pub fn create(&self, db: &Conn, node_id: &str, data: &ExitInput, now: i64) -> Result<Map<String, Value>, ExitError> {
-        let count: i64 = db.query_row("SELECT COUNT(*) FROM egress_exits WHERE node_id=?", [node_id], |row| row.get(0))?;
+    pub fn create(
+        &self,
+        db: &Conn,
+        node_id: &str,
+        data: &ExitInput,
+        now: i64,
+    ) -> Result<Map<String, Value>, ExitError> {
+        let count: i64 =
+            db.query_row("SELECT COUNT(*) FROM egress_exits WHERE node_id=?", [node_id], |row| row.get(0))?;
         if count >= MAX_EXITS_PER_NODE {
             return Err(ExitError::Invalid(format!("a node has at most {MAX_EXITS_PER_NODE} exits")));
         }
@@ -890,7 +909,13 @@ impl ExitStore {
     }
 
     /// `update(db, exit_id, data, now)`.
-    pub fn update(&self, db: &Conn, exit_id: &str, data: &ExitInput, now: i64) -> Result<Map<String, Value>, ExitError> {
+    pub fn update(
+        &self,
+        db: &Conn,
+        exit_id: &str,
+        data: &ExitInput,
+        now: i64,
+    ) -> Result<Map<String, Value>, ExitError> {
         let row = read(db, exit_id)?.ok_or(ExitError::NotFound)?;
         if data.protocol != row.protocol {
             return Err(ExitError::Invalid("an exit keeps its protocol; create another for a different one".into()));
@@ -911,10 +936,10 @@ impl ExitStore {
             let next = version.unwrap_or(0) + 1;
             secret_id = Some(self.escrow(db, exit_id, &row.node_id, plaintext, next)?);
             version = Some(next);
-            self.revoke(db, row.secret_id.as_ref(), row.secret_version);
+            self.revoke(db, row.secret_id.as_ref(), row.secret_version)?;
         } else if data.credential.is_some() && matches!(data.protocol.as_str(), "socks" | "http") {
             // An explicit empty credential on socks/http: the exit becomes unauthenticated.
-            self.revoke(db, row.secret_id.as_ref(), row.secret_version);
+            self.revoke(db, row.secret_id.as_ref(), row.secret_version)?;
             (secret_id, version) = (None, None);
         }
         if data.needs_credential() && secret_id.is_none() {
@@ -942,7 +967,7 @@ impl ExitStore {
     /// `delete(db, exit_id)`.
     pub fn delete(&self, db: &Conn, exit_id: &str) -> Result<(), ExitError> {
         let row = read(db, exit_id)?.ok_or(ExitError::NotFound)?;
-        self.revoke(db, row.secret_id.as_ref(), row.secret_version);
+        self.revoke(db, row.secret_id.as_ref(), row.secret_version)?;
         db.execute("DELETE FROM egress_exits WHERE id=?", [exit_id])?;
         Ok(())
     }
@@ -970,11 +995,7 @@ impl ExitStore {
             return Ok(Err(Reason::new("exit_unknown", None, "the policy names an exit that does not exist")));
         };
         if row.node_id != node_id {
-            return Ok(Err(Reason::new(
-                "exit_other_node",
-                None,
-                "an exit belongs to the node whose router dials it",
-            )));
+            return Ok(Err(Reason::new("exit_other_node", None, "an exit belongs to the node whose router dials it")));
         }
         if row.enabled == 0 {
             return Ok(Err(Reason::new("exit_disabled", None, format!("exit «{}» is disabled", row.name))));
@@ -985,13 +1006,14 @@ impl ExitStore {
             let reference = SecretRef::new(secret_id.clone(), row.secret_version.unwrap_or_default());
             match self.secrets.reveal(db, &reference, EXIT_PURPOSE, None, Some(&row.node_id)) {
                 Ok(plaintext) => credential = serde_json::from_slice(&plaintext)?,
-                Err(_) => {
+                Err(SecretError::Refused(_)) => {
                     return Ok(Err(Reason::new(
                         "exit_secret_pending",
                         None,
                         format!("exit «{}» has no readable credential", row.name),
                     )))
                 }
+                Err(error) => return Err(error.into()),
             }
         }
         let mut spec = match settings {
@@ -1012,7 +1034,9 @@ impl ExitStore {
         let mut found = Vec::new();
         for (id, node_id, protocol, lane, default_egress) in policies {
             if default_egress.as_deref() == Some(needle.as_str()) {
-                found.push(json!({"policy_id": id, "node_id": node_id, "protocol": protocol, "lane": lane, "rule": null}));
+                found.push(
+                    json!({"policy_id": id, "node_id": node_id, "protocol": protocol, "lane": lane, "rule": null}),
+                );
             }
             let positions: Vec<i64> = db
                 .prepare("SELECT position FROM routing_rules WHERE policy_id=? AND egress=? ORDER BY position")?

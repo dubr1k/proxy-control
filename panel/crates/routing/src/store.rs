@@ -115,7 +115,8 @@ struct PolicyRow {
     updated_at: i64,
 }
 
-const POLICY_COLUMNS: &str = "id, node_id, protocol, lane, backend, default_action, default_egress, fallback, revision, state, \
+const POLICY_COLUMNS: &str =
+    "id, node_id, protocol, lane, backend, default_action, default_egress, fallback, revision, state, \
      applied_revision, applied_digest, applied_at, last_error, created_at, updated_at";
 
 fn policy_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PolicyRow> {
@@ -325,7 +326,12 @@ pub fn upsert(
 
 /// `retarget(db, policy_id, backend, now)`: the policy on another backend — a new revision in
 /// `draft`, the rules kept.
-pub fn retarget(db: &Conn, policy_id: &str, backend: Backend, now: i64) -> std::result::Result<RoutingPolicy, StoreError> {
+pub fn retarget(
+    db: &Conn,
+    policy_id: &str,
+    backend: Backend,
+    now: i64,
+) -> std::result::Result<RoutingPolicy, StoreError> {
     let policy = get_by_id(db, policy_id)?;
     if !backends_for(policy.protocol.as_str()).contains(&backend) {
         return Err(StoreError::Invalid(format!("{} cannot run on {backend}", policy.protocol)));
@@ -445,7 +451,11 @@ fn apply_rows(db: &Conn, sql: &str, params: impl rusqlite::Params) -> Result<Vec
 
 /// `history(db, policy_id, limit)`: newest first, `document_json` parsed into `document` (last).
 pub fn history(db: &Conn, policy_id: &str, limit: i64) -> Result<Vec<Map<String, Value>>> {
-    apply_rows(db, "SELECT * FROM routing_applies WHERE policy_id=? ORDER BY id DESC LIMIT ?", params![policy_id, limit])
+    apply_rows(
+        db,
+        "SELECT * FROM routing_applies WHERE policy_id=? ORDER BY id DESC LIMIT ?",
+        params![policy_id, limit],
+    )
 }
 
 /// `last_applied(db, policy_id)`: the successful apply before the current one.

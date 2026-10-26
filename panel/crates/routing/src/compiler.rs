@@ -14,8 +14,8 @@
 //!
 //! Private destinations may be blocked but never opened by a `direct`/`egress` rule.
 
-use panel_core::pytext::ip_address;
 use panel_core::pyjson;
+use panel_core::pytext::ip_address;
 use panel_model::protocols::{AppliedDocument, EgressTarget, RouterTarget};
 use panel_model::routing::document::{
     canonical, document_digest, router_direct_intent, telemt_direct_document, trusttunnel_direct_document,
@@ -126,10 +126,8 @@ pub fn rollback_of(applied: Option<&AppliedDocument>) -> Option<Value> {
 }
 
 fn naive_document(default_action: DefaultAction, rules: &[RoutingRule]) -> Value {
-    let subjects: Vec<String> = rules
-        .iter()
-        .flat_map(|rule| rule.matcher.domains.iter().chain(rule.matcher.cidrs.iter()).cloned())
-        .collect();
+    let subjects: Vec<String> =
+        rules.iter().flat_map(|rule| rule.matcher.domains.iter().chain(rule.matcher.cidrs.iter()).cloned()).collect();
     let acl: Vec<Value> = subjects.chunks(ACL_SUBJECTS_PER_LINE).map(|chunk| json!({"deny": chunk})).collect();
     let upstream = if default_action == DefaultAction::Egress { json!({"provider": "warp"}) } else { Value::Null };
     json!({"schema": 1, "upstream": upstream, "acl": acl})
@@ -204,7 +202,8 @@ fn mtproxy_rules(policy: &RoutingPolicy, lanes: &[RoutingPolicy]) -> Vec<Reason>
         }
         for rule in &other.intent.rules {
             let named = &rule.matcher;
-            if rule.enabled && (!named.domains.is_empty() || !named.geosites.is_empty() || !named.protocols.is_empty()) {
+            if rule.enabled && (!named.domains.is_empty() || !named.geosites.is_empty() || !named.protocols.is_empty())
+            {
                 reasons.push(reason(
                     "rule_kind_unsupported",
                     rule.id.as_ref(),
@@ -266,7 +265,11 @@ pub fn compile(policy: &RoutingPolicy, target: Option<&EgressTarget>, options: O
     let router = options.router;
     let router_up = router.is_some_and(|router| router.available);
     if is_lane && !router_up {
-        unsupported.reasons.push(reason("lane_requires_router", None, "a client lane runs only on the node's Xray-router"));
+        unsupported.reasons.push(reason(
+            "lane_requires_router",
+            None,
+            "a client lane runs only on the node's Xray-router",
+        ));
         return Ok(unsupported);
     }
     if policy.backend == Backend::XrayRouter {
@@ -308,7 +311,11 @@ pub fn compile(policy: &RoutingPolicy, target: Option<&EgressTarget>, options: O
         );
     }
     if is_lane {
-        unsupported.reasons.push(reason("lane_requires_router", None, "a client lane runs only on the node's Xray-router"));
+        unsupported.reasons.push(reason(
+            "lane_requires_router",
+            None,
+            "a client lane runs only on the node's Xray-router",
+        ));
         return Ok(unsupported);
     }
     if policy.backend != target.backend {
@@ -323,10 +330,7 @@ pub fn compile(policy: &RoutingPolicy, target: Option<&EgressTarget>, options: O
         unsupported.reasons.push(reason(
             "backend_capability_missing",
             None,
-            format!(
-                "{} is attached to the node's Xray-router: the policy must target xray_router",
-                policy.protocol
-            ),
+            format!("{} is attached to the node's Xray-router: the policy must target xray_router", policy.protocol),
         ));
         return Ok(unsupported);
     }
@@ -364,7 +368,10 @@ pub fn compile(policy: &RoutingPolicy, target: Option<&EgressTarget>, options: O
             continue;
         }
         let named = &rule.matcher;
-        if !named.ports.is_empty() || !named.geosites.is_empty() || !named.geoips.is_empty() || !named.protocols.is_empty()
+        if !named.ports.is_empty()
+            || !named.geosites.is_empty()
+            || !named.geoips.is_empty()
+            || !named.protocols.is_empty()
         {
             reasons.push(reason(
                 "rule_kind_unsupported",
@@ -392,7 +399,9 @@ pub fn compile(policy: &RoutingPolicy, target: Option<&EgressTarget>, options: O
             ));
             continue;
         }
-        if target.backend == Backend::NaiveNative && rule.action == Action::Block && default_action == DefaultAction::Egress
+        if target.backend == Backend::NaiveNative
+            && rule.action == Action::Block
+            && default_action == DefaultAction::Egress
         {
             reasons.push(reason(
                 "rule_kind_unsupported",

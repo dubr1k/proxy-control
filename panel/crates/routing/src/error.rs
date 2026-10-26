@@ -1,9 +1,7 @@
 //! `RoutingError` and `LaneError` of the Python package, and what escaped them.
 //!
-//! Both Python exceptions are answered with the same body shape (`{"detail": str(exc), "code"}`,
-//! plus the redacted `compiled` of a routing refusal), so one [`Refusal`] carries both. Anything
-//! Python let escape (a database error, an adapter error the service did not catch) is
-//! [`RoutingFailure::Internal`]: the bare 500 of `ServerErrorMiddleware`.
+//! Refusals have routing bodies. Escaped protocol-manager errors retain their protocol so the
+//! app's exception-handler response is preserved. Actual crashes remain a bare 500.
 
 use std::fmt;
 
@@ -37,7 +35,12 @@ impl Refusal {
 
     /// The API answer: `{"detail", "code"}` and the redacted `compiled` when there is one.
     pub fn to_api_error(&self) -> ApiError {
-        ApiError::routing(self.status, &self.code, &self.detail, self.compiled.as_ref().map(|compiled| compiled.redacted()))
+        ApiError::routing(
+            self.status,
+            &self.code,
+            &self.detail,
+            self.compiled.as_ref().map(|compiled| compiled.redacted()),
+        )
     }
 }
 
@@ -48,6 +51,11 @@ pub enum RoutingFailure {
     /// An adapter's error the service let escape (Python's uncaught `AdapterError`): a 500 at the
     /// route, but a caller may still act on it.
     Adapter(panel_model::protocols::AdapterError),
+    /// A protocol manager's untranslated error (not an Xray-router error).
+    Manager {
+        protocol: panel_model::Protocol,
+        error: panel_model::protocols::AdapterError,
+    },
     /// Python let it escape: the route answers the bare 500.
     Internal(String),
 }
@@ -61,6 +69,20 @@ impl RoutingFailure {
         RoutingFailure::Internal(error.to_string())
     }
 
+    pub fn manager(protocol: panel_model::Protocol, error: panel_model::protocols::AdapterError) -> Self {
+        Self::Manager { protocol, error }
+    }
+
+    /// The Python app's exception handler, if the failure has one. Router errors have no handler.
+    pub fn app_error(&self) -> Option<ApiError> {
+        match self {
+            Self::Refused(refusal) => Some(refusal.to_api_error()),
+            Self::Manager { protocol, error } => panel_protocols::error::runtime_failure(error)
+                .and_then(|failure| panel_clients::error::runtime_answer(*protocol, &failure)),
+            _ => None,
+        }
+    }
+
     /// The refusal, if this is one.
     pub fn refusal(&self) -> Option<&Refusal> {
         match self {
@@ -72,7 +94,7 @@ impl RoutingFailure {
     /// The adapter error, if this is one.
     pub fn adapter(self) -> Option<panel_model::protocols::AdapterError> {
         match self {
-            RoutingFailure::Adapter(error) => Some(error),
+            RoutingFailure::Adapter(error) | RoutingFailure::Manager { error, .. } => Some(error),
             _ => None,
         }
     }
@@ -83,7 +105,7 @@ impl RoutingFailure {
     }
 
     pub fn status(&self) -> u16 {
-        self.refusal().map_or(500, |refusal| refusal.status)
+        self.app_error().map_or(500, |error| error.status())
     }
 }
 
@@ -98,6 +120,7 @@ impl fmt::Display for RoutingFailure {
         match self {
             RoutingFailure::Refused(refusal) => f.write_str(&refusal.detail),
             RoutingFailure::Adapter(error) => f.write_str(&error.message),
+            RoutingFailure::Manager { error, .. } => f.write_str(&error.message),
             RoutingFailure::Internal(message) => f.write_str(message),
         }
     }
