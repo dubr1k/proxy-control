@@ -1,0 +1,46 @@
+[package]
+name = "panel-web"
+description = "The Proxy Control panel's HTTP shell and its binary `panel`: the Starlette/FastAPI-compatible server (middleware, routing, validation, static files), the auth gates, the lifespan supervisor, the auth/admin/audit/API-key/OpenAPI/readiness routes, and the `healthcheck`, `cli` and `stage-secret` subcommands."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_web"
+
+[[bin]]
+name = "panel"
+path = "src/main.rs"
+
+[features]
+# Test-only routes under /__test/ (fake clock, loop ticks, settle, bridge probe), the PANEL_TEST_*
+# knobs and paused background loops (inventory §10.4 step 2). Never enabled in release images.
+test-hooks = []
+
+[dependencies]
+panel-core = { path = "../core" }
+panel-model = { path = "../model" }
+panel-secrets = { path = "../secrets" }
+panel-managers = { path = "../managers" }
+# Handlers and extractors only: routing, middleware and serving are the panel's own (Starlette
+# first-match semantics, exact headers and bodies).
+axum = { version = "0.8", default-features = false }
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+http = "1"
+http-body = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "server-graceful", "http1"] }
+# The static files' etag is Starlette's md5 of "<mtime>-<size>" (not a security use).
+md-5 = "0.10"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "signal", "sync", "time", "macros", "io-util", "fs"] }
+tower-service = "0.3"
+
+[dev-dependencies]
+base64 = "0.22"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "signal", "sync", "time", "macros", "io-util", "fs"] }

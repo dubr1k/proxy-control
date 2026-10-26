@@ -1,0 +1,548 @@
+[
+ {
+  "input": "e30=",
+  "value": "{}"
+ },
+ {
+  "input": "W10=",
+  "value": "[]"
+ },
+ {
+  "input": "eyJhIjogMX0=",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "IHsiYSIgOiBbMSwgMi41LCAtMCwgMWUzLCAxRS0yLCB0cnVlLCBmYWxzZSwgbnVsbF19IA==",
+  "value": "{\"a\": [1, 2.5, 0, 1000.0, 0.01, true, false, null]}"
+ },
+ {
+  "input": "Ingi",
+  "value": "\"x\""
+ },
+ {
+  "input": "MQ==",
+  "value": "1"
+ },
+ {
+  "input": "LTE=",
+  "value": "-1"
+ },
+ {
+  "input": "eyJhIjogIlx1MDBlOVx1ZDgzZFx1ZGUwMFxuXHRcL1xcXCIifQ==",
+  "value": "{\"a\": \"\\u00e9\\ud83d\\ude00\\n\\t/\\\\\\\"\"}"
+ },
+ {
+  "input": "eyJhIjogMSwgImEiOiAyLCAiYiI6IDN9",
+  "value": "{\"a\": 2, \"b\": 3}"
+ },
+ {
+  "input": "eyJiIjogMSwgImEiOiAyfQ==",
+  "value": "{\"b\": 1, \"a\": 2}"
+ },
+ {
+  "input": "eyJuYW1lIjogItCj0LfQtdC7IMK3In0=",
+  "value": "{\"name\": \"\\u0423\\u0437\\u0435\\u043b \\u00b7\"}"
+ },
+ {
+  "input": "77u/eyJhIjogMX0=",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "//57ACIAYQAiADoAIAAxAH0A",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "ewAiAGEAIgA6ACAAMQB9AA==",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "AHsAIgBhACIAOgAgADEAfQ==",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "//4AAHsAAAAiAAAAYQAAACIAAAA6AAAAIAAAADEAAAB9AAAA",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=",
+  "value": "12345678901234567890"
+ },
+ {
+  "input": "MS4w",
+  "value": "1.0"
+ },
+ {
+  "input": "MC4x",
+  "value": "0.1"
+ },
+ {
+  "input": "MWU0MDA=",
+  "value_not_json": "inf"
+ },
+ {
+  "input": "LTFlNDAw",
+  "value_not_json": "-inf"
+ },
+ {
+  "input": "MTIzLjQ1NmUtNw==",
+  "value": "1.23456e-05"
+ },
+ {
+  "input": "NWUtMzI0",
+  "value": "5e-324"
+ },
+ {
+  "input": "ew==",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 1
+  }
+ },
+ {
+  "input": "e2JhZA==",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 1
+  }
+ },
+ {
+  "input": "eyJhIg==",
+  "error": {
+   "msg": "Expecting ':' delimiter",
+   "pos": 4
+  }
+ },
+ {
+  "input": "eyJhIiAxfQ==",
+  "error": {
+   "msg": "Expecting ':' delimiter",
+   "pos": 5
+  }
+ },
+ {
+  "input": "eyJhIjogfQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 6
+  }
+ },
+ {
+  "input": "eyJhIjogMSx9",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 8
+  }
+ },
+ {
+  "input": "eyJhIjogMSAiYiI6IDJ9",
+  "error": {
+   "msg": "Expecting ',' delimiter",
+   "pos": 8
+  }
+ },
+ {
+  "input": "WzEsXQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 3
+  }
+ },
+ {
+  "input": "WzEgMl0=",
+  "error": {
+   "msg": "Expecting ',' delimiter",
+   "pos": 3
+  }
+ },
+ {
+  "input": "Ww==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 1
+  }
+ },
+ {
+  "input": "WzE=",
+  "error": {
+   "msg": "Expecting ',' delimiter",
+   "pos": 2
+  }
+ },
+ {
+  "input": "XQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "fQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "IA==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 1
+  }
+ },
+ {
+  "input": "bnVs",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "dHJ1",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "LQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "LWE=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "MDE=",
+  "error": {
+   "msg": "Extra data",
+   "pos": 1
+  }
+ },
+ {
+  "input": "MS4=",
+  "error": {
+   "msg": "Extra data",
+   "pos": 1
+  }
+ },
+ {
+  "input": "MWU=",
+  "error": {
+   "msg": "Extra data",
+   "pos": 1
+  }
+ },
+ {
+  "input": "MS5lNQ==",
+  "error": {
+   "msg": "Extra data",
+   "pos": 1
+  }
+ },
+ {
+  "input": "LjU=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "KzE=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "eyJhIjogMX14",
+  "error": {
+   "msg": "Extra data",
+   "pos": 8
+  }
+ },
+ {
+  "input": "eyJhIjogMX0geyJiIjogMn0=",
+  "error": {
+   "msg": "Extra data",
+   "pos": 9
+  }
+ },
+ {
+  "input": "ImFiYw==",
+  "error": {
+   "msg": "Unterminated string starting at",
+   "pos": 0
+  }
+ },
+ {
+  "input": "ImFceCI=",
+  "error": {
+   "msg": "Invalid \\escape",
+   "pos": 2
+  }
+ },
+ {
+  "input": "ImFcdTEyIg==",
+  "error": {
+   "msg": "Invalid \\uXXXX escape",
+   "pos": 3
+  }
+ },
+ {
+  "input": "ImFcdTEyZzQi",
+  "error": {
+   "msg": "Invalid \\uXXXX escape",
+   "pos": 3
+  }
+ },
+ {
+  "input": "ImFcdTEyMzQ=",
+  "error": {
+   "msg": "Invalid \\uXXXX escape",
+   "pos": 3
+  }
+ },
+ {
+  "input": "Ilx1ZDgwMCI=",
+  "value": "\"\\ud800\"",
+  "lone_surrogate": true
+ },
+ {
+  "input": "Ilx1ZDgwMFx1MDA0MSI=",
+  "value": "\"\\ud800A\"",
+  "lone_surrogate": true
+ },
+ {
+  "input": "Ilx1ZDgwMFx1ZGMwMCI=",
+  "value": "\"\\ud800\\udc00\""
+ },
+ {
+  "input": "Ilx1ZGMwMCI=",
+  "value": "\"\\udc00\"",
+  "lone_surrogate": true
+ },
+ {
+  "input": "ImEBYiI=",
+  "error": {
+   "msg": "Invalid control character at",
+   "pos": 2
+  }
+ },
+ {
+  "input": "Ilw=",
+  "error": {
+   "msg": "Unterminated string starting at",
+   "pos": 0
+  }
+ },
+ {
+  "input": "ImFc",
+  "error": {
+   "msg": "Unterminated string starting at",
+   "pos": 0
+  }
+ },
+ {
+  "input": "eyJhIjogIlx1In0=",
+  "error": {
+   "msg": "Invalid \\uXXXX escape",
+   "pos": 8
+  }
+ },
+ {
+  "input": "eydhJzogMX0=",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 1
+  }
+ },
+ {
+  "input": "eyJhIjogTmFOfQ==",
+  "value_not_json": "{'a': nan}"
+ },
+ {
+  "input": "eyJhIjogSW5maW5pdHl9",
+  "value_not_json": "{'a': inf}"
+ },
+ {
+  "input": "eyJhIjogLUluZmluaXR5fQ==",
+  "value_not_json": "{'a': -inf}"
+ },
+ {
+  "input": "TmFO",
+  "value_not_json": "nan"
+ },
+ {
+  "input": "WzEsIDI=",
+  "error": {
+   "msg": "Expecting ',' delimiter",
+   "pos": 5
+  }
+ },
+ {
+  "input": "eyJhIjogWzEsIHsiYiI6IH1dfQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 16
+  }
+ },
+ {
+  "input": "/w==",
+  "other_error": "UnicodeDecodeError"
+ },
+ {
+  "input": "eyJhIjogIv8ifQ==",
+  "other_error": "UnicodeDecodeError"
+ },
+ {
+  "input": "AA==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "eyJhIjoKCiAgeH0=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 9
+  }
+ },
+ {
+  "input": "eyx9",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 1
+  }
+ },
+ {
+  "input": "eyJhIjoxLCx9",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 7
+  }
+ },
+ {
+  "input": "Wyxd",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 1
+  }
+ },
+ {
+  "input": "eyJhIjoxLCJiIn0=",
+  "error": {
+   "msg": "Expecting ':' delimiter",
+   "pos": 10
+  }
+ },
+ {
+  "input": "CQoNIHsiYSI6MX0gCQ==",
+  "value": "{\"a\": 1}"
+ },
+ {
+  "input": "DHt9",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 0
+  }
+ },
+ {
+  "input": "eyJhIjogMX0A",
+  "error": {
+   "msg": "Extra data",
+   "pos": 8
+  }
+ },
+ {
+  "input": "eyJhIjogdHJ1fQ==",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 6
+  }
+ },
+ {
+  "input": "eyJhIjogbnVseH0=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 6
+  }
+ },
+ {
+  "input": "Wy1d",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 1
+  }
+ },
+ {
+  "input": "Wy0tMV0=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 1
+  }
+ },
+ {
+  "input": "WzEuNWUrXQ==",
+  "error": {
+   "msg": "Expecting ',' delimiter",
+   "pos": 4
+  }
+ },
+ {
+  "input": "WzB4MTBd",
+  "error": {
+   "msg": "Expecting ',' delimiter",
+   "pos": 2
+  }
+ },
+ {
+  "input": "eyJhIjoiXHUwMDAwIn0=",
+  "value": "{\"a\": \"\\u0000\"}"
+ },
+ {
+  "input": "Ilx1REJGRlx1REZGRiI=",
+  "value": "\"\\udbff\\udfff\""
+ },
+ {
+  "input": "Ilx1RDgzNCJ4",
+  "error": {
+   "msg": "Extra data",
+   "pos": 8
+  }
+ },
+ {
+  "input": "eyLDqSI6IDEsIHh9",
+  "error": {
+   "msg": "Expecting property name enclosed in double quotes",
+   "pos": 9
+  }
+ },
+ {
+  "input": "WyLDvCIsIF0=",
+  "error": {
+   "msg": "Expecting value",
+   "pos": 6
+  }
+ },
+ {
+  "input": "eyJhIjogMX0gICAy",
+  "error": {
+   "msg": "Extra data",
+   "pos": 11
+  }
+ }
+]
