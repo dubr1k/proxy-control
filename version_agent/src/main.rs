@@ -99,5 +99,8 @@ fn main() -> ExitCode {
         metrics: Some(sampler),
     };
     server::serve(server, routes);
+    // A panel update or a manager rebuild in flight finishes and records its verdict before the
+    // process exits (a stop past systemd's timeout is recorded by the start-up recovery).
+    agent.updater.wait_idle();
     ExitCode::SUCCESS
 }

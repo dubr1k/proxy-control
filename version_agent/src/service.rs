@@ -3,8 +3,8 @@
 //! `pending_rebuild` list, and the agent's configuration from the environment.
 //!
 //! What an update *does* per component (downloads, builds, restarts, rollbacks, the panel's
-//! self-update and the manager rebuild) is behind [`Updater`], implemented by host WP7; the
-//! default [`NotPorted`] refuses with the Python error shape.
+//! self-update and the manager rebuild) is behind [`Updater`]: [`crate::updater::HostUpdater`]
+//! by default; [`NotPorted`] (refuses with the Python error shape) remains for tests.
 
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
@@ -84,11 +84,11 @@ pub fn manager_build(component: &str) -> Option<(&'static str, &'static str, &'s
     MANAGER_BUILDS.iter().find(|entry| entry.0 == component).map(|e| (e.1, e.2, e.3, e.4))
 }
 
-fn optional_overlay(service: &str) -> Option<&'static str> {
+pub(crate) fn optional_overlay(service: &str) -> Option<&'static str> {
     OPTIONAL_COMPOSE_SERVICES.iter().find(|(name, _)| *name == service).map(|(_, overlay)| *overlay)
 }
 
-fn manager_services(manager: &str) -> Option<&'static [&'static str]> {
+pub(crate) fn manager_services(manager: &str) -> Option<&'static [&'static str]> {
     MANAGER_SERVICES.iter().find(|(name, _)| *name == manager).map(|(_, services)| *services)
 }
 
@@ -276,10 +276,14 @@ pub trait Updater: Send + Sync {
 
     /// `rebuild_managers(background=True)`.
     fn rebuild_managers(&self, agent: &Arc<VersionAgent>) -> Result<Value, AgentError>;
+
+    /// Waits for the background workers (a panel update, a manager rebuild) when the agent stops,
+    /// so a stop does not cut a panel update mid-sync (Python died with the worker).
+    fn wait_idle(&self) {}
 }
 
-/// The stand-in until host WP7: every update is refused as `update_failed`; a rebuild with
-/// nothing to rebuild answers the managers' state, as Python does.
+/// A stand-in that refuses every update as `update_failed`; a rebuild with nothing to rebuild
+/// answers the managers' state, as Python does.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NotPorted;
 
@@ -349,11 +353,11 @@ impl VersionAgent {
             checker: Box::new(crate::upstream::check_all),
             clock: Box::new(hostmetrics::wall_clock),
             now: Box::new(hostmetrics::wall_clock),
-            updater: Arc::new(NotPorted),
+            updater: Arc::new(crate::updater::HostUpdater::new()),
         }
     }
 
-    fn now_int(&self) -> i64 {
+    pub(crate) fn now_int(&self) -> i64 {
         (self.now)().floor() as i64
     }
 
@@ -717,6 +721,12 @@ impl VersionAgent {
         if current.as_str() == Some(version) {
             return Ok(json!({"component": component, "version": version, "changed": false}));
         }
+        // A panel update or a manager rebuild runs Compose on the same project: one at a time
+        // (Python let both run at once: DIFFERENCES).
+        let panel = Self::component_state(&state, "panel");
+        if panel.get("status").and_then(Value::as_str) == Some("updating") || self.rebuilding(&panel) {
+            return Err(AgentError::conflict("panel update or manager rebuild is already running"));
+        }
         let applied = match self.updater.apply(self, component, &entry, current.as_str()) {
             Ok(applied) => applied,
             Err(error) if error.state == crate::errors::UpdateState::RollbackFailed => {
@@ -998,7 +1008,7 @@ impl VersionAgent {
 }
 
 /// `list(panel.get("pending_rebuild") or [])` for the shapes the state can hold.
-fn pending_list(value: Option<&Value>) -> Vec<Value> {
+pub(crate) fn pending_list(value: Option<&Value>) -> Vec<Value> {
     match value {
         Some(Value::Array(items)) => items.clone(),
         Some(Value::String(text)) => text.chars().map(|c| Value::String(c.to_string())).collect(),

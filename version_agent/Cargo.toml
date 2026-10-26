@@ -18,12 +18,16 @@ path = "src/main.rs"
 [dependencies]
 pc_common = { path = "../pc_common" }
 pc_host = { path = "../pc_host" }
+# The panel self-update's ownership handoff and journal (host WP2), linked in.
+installer = { path = "../installer" }
 # The same releases pc_host builds with: one copy of each in the binary.
 flate2 = "1"
 libc = "0.2"
 log = { version = "0.4", features = ["std"] }
 # Default features only: every agent JSON (state, API bodies) is key-sorted.
 serde_json = "1"
+# The panel self-update's tree hash (already in the graph through pc_host).
+sha2 = "0.10"
 tar = { version = "0.4", default-features = false }
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 

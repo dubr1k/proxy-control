@@ -296,7 +296,9 @@ fn the_stub_updater_refuses_with_the_python_error_shape() {
     let dir = TempDir::new("agent-stub");
     std::fs::write(dir.join("state.json"), json!({"components": {"naive": {"version": "2.11.3"}}}).to_string())
         .unwrap();
-    let agent = Arc::new(agent_in(&dir));
+    let mut agent = agent_in(&dir);
+    agent.updater = Arc::new(NotPorted);
+    let agent = Arc::new(agent);
     let before = std::fs::read(dir.join("state.json")).unwrap();
     let error = agent.update("naive", "2.11.4-custom.1", None).unwrap_err();
     assert_eq!(error.update_state(), Some(UpdateState::UpdateFailed));
