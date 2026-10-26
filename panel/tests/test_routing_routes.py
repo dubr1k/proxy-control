@@ -136,3 +136,27 @@ async def test_apply_rollback_delete_and_history(client, login_user, naive):
     assert (await client.delete("/api/routing/policies/local/naive", headers=_csrf(client))).status_code == 204
     assert "routing.policy.delete" in [row["action"] for row in (await client.get("/api/audit")).json()["items"]]
     assert (await client.get("/api/routing/policies/local/naive")).status_code == 404
+
+
+async def test_malformed_manager_answer_remains_bare_500_without_failed_policy(client, login_user, naive, monkeypatch):
+    await login_user(client)
+    path = "/api/routing/policies/local/naive"
+    saved = await client.put(path, json=BLOCK, headers=_csrf(client))
+    assert saved.status_code == 200, saved.text
+
+    async def malformed():
+        return []
+
+    monkeypatch.setattr(naive, "egress", malformed)
+    for method, endpoint, body in (
+        ("GET", "/api/routing/targets", None),
+        ("POST", path + "/preview", None),
+        ("POST", path + "/apply", {"expected_revision": 1}),
+        ("POST", path + "/rollback", {"expected_revision": 1}),
+    ):
+        answer = await client.request(method, endpoint, headers=_csrf(client),
+                                      **({"json": body} if body is not None else {}))
+        assert answer.status_code == 500 and answer.text == "Internal Server Error", answer.text
+        assert answer.headers["content-type"] == "text/plain; charset=utf-8"
+    assert (await client.get(path)).json()["state"] == "draft"
+    assert (await client.get(path + "/history")).json()["items"] == []

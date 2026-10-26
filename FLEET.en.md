@@ -1,4 +1,4 @@
-# Proxy Control fleet: linked panels (v2) and the legacy mTLS transport (v1)
+# Proxy Control fleet: linked panels
 
 **English** · [Русский](FLEET.ru.md)
 
@@ -26,9 +26,6 @@ numbered, digested **generation document** compiled from the central's access gr
 status, inventory, credential capture, component update, unlink). No shell, URL, HTTP
 method, YAML or runtime configuration ever crosses it. Credentials travel next to the
 document over the same TLS request, by reference inside it.
-
-The mTLS pull agent of Fleet v1 is unchanged and still works; it is described in
-[Legacy transport v1](#legacy-transport-v1) at the end.
 
 ## Link a panel
 
@@ -429,7 +426,7 @@ link first.
   unlinked. Adding a panel that already reports another `master_guid` is refused on the
   central before anything is stored.
 - **Bounded, typed surface.** Request bodies ≤ 64 KiB (413 above), ≤ 500 resources per
-  document, ≤ 200 items per capture or import; pydantic models with `extra = forbid`.
+  document, ≤ 200 items per capture or import; typed request models reject unknown fields.
   The node accepts documents and typed operations only — never shell, URLs, HTTP
   method/path, YAML or runtime configuration.
 - **No secret leaves by accident.** `Cache-Control: no-store` on every panel response
@@ -438,149 +435,6 @@ link first.
   `observed`, the node card, `GET /api/nodes/{id}/generations` and audit rows carry
   references and names only. `last_error` records the failure class and code, never a
   body.
-
-## Legacy transport v1
-
-Fleet v1 is the outbound-only mTLS pull agent, the earlier way of linking panels. It is
-frozen and byte-compatible — `panel/fleet.py`, the `/api/fleet/nodes*`
-registry routes, the `/agent/v1/*` ingress paths, the `TypedCommand` shape and its
-sequence/outbox semantics — and it remains Telemt-only. New nodes should be linked as
-panels; the text below stays for installations that enrolled v1 nodes and for the
-«Advanced: transport v1» drawer of a v1 node card (raw typed commands). A v1 node is
-listed on the «Узлы» screen with `transport = v1` next to linked panels; «Зарегистрировать
-узел v1 (mTLS-агент)» in the collapsed «Дополнительно» block starts the enrollment checklist.
-
-### Contract
-
-- Nodes make **outbound-only HTTPS connections** to a dedicated central ingress that
-  terminates TLS itself and derives node identity from the verified client certificate
-  — no identity headers, no bearer fallback.
-- Server identity: a WebPKI certificate for the exact `FLEET_CENTRAL_URL` hostname,
-  checked against the OS trust store (`FLEET_SERVER_CA` only for private test PKI).
-  Client identity: a private CA issues one certificate per node with the sole URI SAN
-  `urn:mtproxy-panel:node:<node-id>`; central additionally requires an active database
-  record matching node ID, serial, SHA-256 fingerprint and validity.
-- TLS 1.2+, mandatory client certificate, no compression. An unknown CA fails the
-  handshake; a certificate for another node, an unregistered serial/fingerprint or an
-  application-revoked certificate gets 403.
-- Bounds: 4 KiB request line, 8 KiB headers, body limit ≤ 64 KiB (default 16 KiB), no
-  chunked request bodies, 30-second long poll, per-certificate in-process rate limit
-  (default 120/minute, reset on restart).
-- Commands carry protocol version, UUID, node ID, monotonic sequence, idempotency key,
-  allowlisted operation, expected Telemt revision, actor, expiry, canonical payload
-  SHA-256 and a typed payload; states `queued`, `dispatched`, `succeeded`, `failed`,
-  `indeterminate`. An expired command is still delivered in sequence and journaled as a
-  failed no-op, so expiry never executes a mutation or leaves a sequence gap.
-- The agent journals receipt (SQLite WAL, `synchronous=FULL`) before invoking Telemt;
-  completed results form a durable outbox; a lost acknowledgment resends the stored
-  result, never the mutation; crash residue is `indeterminate` and never re-executed.
-  Its only authority is a fixed loopback Telemt URL with a node-local bearer; every
-  method/path/body comes from the typed allowlist and mutations carry `If-Match`.
-- Allowlisted operations: inventory refresh, enable, disable, limit updates, quota
-  reset. Create/delete/rotate/reveal and Mieru operations are refused — that is exactly
-  what linked panels provide instead.
-
-### Central deployment
-
-Run the panel and the ingress against the **same** `PANEL_DATABASE`; back it up before
-first start.
-
-1. Obtain a WebPKI server certificate whose SAN matches the ingress hostname
-   (`fleet.example.com` below). Never use the fleet client CA as the public server
-   identity.
-2. Initialise the offline client CA on a protected operator system, not in the panel
-   container:
-
-   ```sh
-   python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-     fleet-ca-init --ca-dir /root/mtproxy-fleet-ca
-   install -m 0644 /root/mtproxy-fleet-ca/ca.crt /etc/mtproxy-panel/fleet-client-ca.crt
-   # Keep ca.key offline/root-only; the ingress needs only ca.crt.
-   ```
-
-3. Install `deploy/mtproxy-fleet-ingress.service` with `deploy/fleet-ingress.env.example`,
-   adjusting the root-only Certbot source paths and the hostname. The unit's root-only
-   `ExecStartPre=+` steps stage the certificate (`0444`) and key (`0400`), owned by
-   `panel:panel`, into its `0700` runtime directory `/run/mtproxy-fleet-ingress`; the
-   process itself runs as `panel:panel`. Restart the unit after certificate renewal
-   (`systemctl restart mtproxy-fleet-ingress.service` from a root-owned deploy hook).
-   Expose only the ingress TCP port; the listener terminates mTLS directly.
-4. For containers, `compose.fleet-central.yaml` is a hardened overlay of the same
-   `mtproxy` project sharing `panel-data`; invoke it together with `compose.yaml`, never
-   alone. Bind-mounted ingress keys must be readable only by UID/GID 10001 (the agent
-   image runs as UID 10002).
-
-### Enrolling a node (`example-node-02`)
-
-Registration, renaming, disabling and certificate revocation live on the «Узлы» screen;
-the steps below stay manual precisely because the private key never leaves the node.
-After «Зарегистрировать» the panel shows this checklist inside the dialog.
-
-```sh
-# central: register
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-register-node example-node-02 --display-name 'Example Region 2'
-
-# node: key and CSR, locally
-install -d -m 0700 /etc/mtproxy-agent
-openssl req -new -newkey rsa:3072 -nodes -sha256 -subj '/CN=example-node-02' \
-  -keyout /etc/mtproxy-agent/example-node-02.key -out /etc/mtproxy-agent/example-node-02.csr
-chmod 0600 /etc/mtproxy-agent/example-node-02.key
-
-# CA system: sign (the signer ignores requested extensions and writes the canonical URI SAN)
-python -m panel.cli fleet-sign-csr example-node-02 --ca-dir /root/mtproxy-fleet-ca \
-  --csr /secure-inbox/example-node-02.csr --out /secure-outbox/example-node-02.crt --days 90
-
-# central: bind the exact serial/fingerprint/validity
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-bind-cert example-node-02 --cert /secure-inbox/example-node-02.crt
-```
-
-Move only the CSR and the issued certificate between systems — never
-`example-node-02.key` or `ca.key`. On the node install the package/venv,
-`deploy/mtproxy-agent.service` and `deploy/agent.env.example`; store the local Telemt
-bearer as `/etc/mtproxy-agent/telemt-api-token`, restricted to the service. The service
-requires a key with no group/world bits and writes only `/var/lib/mtproxy-agent`. Then
-`systemctl daemon-reload && systemctl enable --now mtproxy-agent` and check
-`journalctl -u mtproxy-agent --since -5m`. `auth_state` moves `unenrolled` → `enrolled`
-(certificate bound) → `connected` (mTLS authorised). Queue a short-lived inventory
-command first and inspect its result before any mutation.
-
-The optional `compose.agent.yaml` joins the same private Compose network, reaches
-Telemt only as `http://mtproxy:9091`, mounts no Docker socket and publishes no port; it
-is valid only as an overlay of `compose.yaml`, with the key bind `0400`/`0600` owned by
-UID 10002.
-
-### Rotation, revocation and checks
-
-Rotation is overlap-first: new key and CSR on the node → `fleet-sign-csr` →
-`fleet-bind-cert` (both serials accepted) → atomic replacement and agent restart →
-`auth_state=connected` plus a completed inventory command → revoke the old serial:
-
-```sh
-python -m panel.cli --database /var/lib/mtproxy-panel/panel.sqlite3 \
-  fleet-revoke-cert example-node-02 --serial OLD_HEX_SERIAL
-```
-
-Application revocation is immediate for new requests even while the TLS chain is valid;
-for a compromise revoke first, stop the agent, then issue a fresh key/certificate. The v1
-CA tooling publishes no OCSP or CRL — never rely on handshake-time revocation alone.
-
-Operational checks: `openssl s_client` without a client certificate and a certificate
-from another CA must both fail the handshake; a valid certificate on another node's path
-and a revoked serial must return 403; confirm `auth_state`, `last_seen_at`,
-`dispatched_at`, completion status and that no completed journal row remains unuploaded;
-confirm Telemt still listens only on loopback and no Compose file mounts
-`/var/run/docker.sock`.
-
-### v1 limitations
-
-Enrollment approval and CSR transfer are manual by design (no bearer enrollment
-endpoint); revocation is enforced after TLS by the central database; the rate limiter is
-per ingress process; only the five Telemt operations above are allowlisted. No
-production host was ever enrolled with v1; the artifacts and workflow are complete, but
-a real deployment still needs its DNS/WebPKI certificate, approved port and CSR
-transfer. For everything beyond inventory and limits, link the panel instead.
 
 See also [operations](docs/OPERATIONS.en.md), [upgrading](docs/UPGRADING.md),
 [backup](docs/BACKUP_RESTORE.en.md), [security](SECURITY.md) and

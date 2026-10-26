@@ -802,7 +802,7 @@ embeds into the SBOM.
 
 | Dockerfile | Image | Base |
 |---|---|---|
-| `panel/Dockerfile` | Panel API and interface | `python:3.13.5-slim` |
+| `panel/Dockerfile` | Panel API and interface (Rust) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `naive_manager/Dockerfile` | NaiveProxy access and accounting management (Rust) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `mieru_manager/Dockerfile` | Mieru access and quota management (Rust) | `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
 | `xray_router_manager/Dockerfile` | The Xray-router: its manager (Rust) and the MTProxy bridge (Go) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (build), `debian:bookworm-slim` |
@@ -819,19 +819,13 @@ embeds into the SBOM.
 
 Every base is pinned by digest.
 
-### Python dependencies
+### Dependencies
 
-The panel (`panel/requirements.txt`): `fastapi`, `starlette`, `annotated-doc`,
-`opentelemetry-api`, `pydantic`, `pydantic_core`, `annotated-types`, `typing-inspection`,
-`typing_extensions`, `httpx`, `httpcore`, `h11`, `certifi`, `idna`, `anyio`, `Jinja2`,
-`MarkupSafe`, `argon2-cffi`, `argon2-cffi-bindings`, `cryptography`, `cffi`, `pycparser`,
-`uvicorn`, `click`, `qrcode`.
+The panel and manager dependencies are locked in their `Cargo.lock` files; the panel image has
+no Python interpreter. Administrative commands run through the `panel cli` binary.
 
-Development (`panel/requirements-dev.txt`): `pytest`, `pytest-anyio`, `iniconfig`,
-`packaging`, `pluggy`, `Pygments`, `ruff`.
-
-Every version is pinned exactly. The installer and the NaiveProxy and Mieru managers use only
-the Python standard library.
+Python is used by release, development and lab tools, not by the panel process. Lab dependencies
+are pinned in `panel/requirements-dev.txt`.
 
 ## Documentation
 
@@ -904,6 +898,6 @@ Proxy Control builds on the work of the authors and maintainers of these project
 | Nginx | SNI routing on the shared port 443 | [nginx.org](https://nginx.org/) |
 | Certbot and Let's Encrypt | Issuing and renewing certificates | [Certbot](https://github.com/certbot/certbot) · [Let's Encrypt](https://letsencrypt.org/) |
 | Docker and Compose | Isolated service execution | [Docker](https://www.docker.com/) · [Compose](https://github.com/docker/compose) |
-| Python libraries | FastAPI, Starlette, Pydantic, HTTPX, Uvicorn, Argon2, cryptography, qrcode | [dependencies](panel/requirements.txt) |
+| Rust libraries | Tokio, Hyper, Axum, rusqlite, rustls, Argon2, AES-GCM, qrcode | [panel dependencies](panel/Cargo.lock) |
 
 Thanks to all developers, maintainers and contributors of these projects.

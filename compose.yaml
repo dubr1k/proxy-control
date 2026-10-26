@@ -66,7 +66,8 @@ services:
   panel:
     container_name: proxy-control-panel
     build:
-      context: ./panel
+      context: .
+      dockerfile: panel/Dockerfile
     restart: unless-stopped
     depends_on:
       mtproxy:
@@ -75,7 +76,6 @@ services:
       - "10001"
     environment:
       PANEL_DATABASE: /data/panel.sqlite3
-      PANEL_VNEXT_WRITER: ${PANEL_VNEXT_WRITER:-legacy}
       PANEL_SUBSCRIPTION_URL: ${PANEL_SUBSCRIPTION_URL:-}
       PANEL_SUBSCRIPTION_HOST: ${PANEL_SUBSCRIPTION_HOST:-}
       PANEL_SINGBOX_FORK_CLIENTS: ${PANEL_SINGBOX_FORK_CLIENTS:-}
@@ -119,15 +119,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test:
-        - CMD
-        - /bin/bash
-        - -ec
-        - >-
-          exec 3<>/dev/tcp/127.0.0.1/8787;
-          printf 'GET /healthz HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$${PANEL_HEALTHCHECK_HOST}" >&3;
-          IFS=' ' read -r -t 5 protocol status_code reason <&3;
-          [[ "$$protocol" == HTTP/* && "$$status_code" == 200 ]]
+      test: ["CMD", "/usr/local/bin/panel", "healthcheck"]
       interval: 20s
       timeout: 10s
       retries: 5

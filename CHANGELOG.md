@@ -11,6 +11,21 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
   agent's exact release before submitting a panel update; restore code/unit/tmpfiles and journal
   on failure, preserve operator overrides, then reconcile managers, ingress and Compose.
 
+### Changed
+- The Rust panel routing engine preserves policy preview/apply/rollback, custom exits, per-grant lanes, relays, chains and destination explanations. Escaped protocol-manager errors retain their HTTP status and protocol-specific response; actual runtime crashes remain HTTP 500.
+- The Rust panel's Fleet v2 central keeps the existing link/import/generation API, encrypted node-key escrow, heartbeat delivery, routing readback and linked-node metrics. HTTPS uses system CA/hostname verification or a leaf-DER SHA-256 pin checked before sending credentials; every DNS answer is checked in full before connecting, with private networks requiring explicit opt-in.
+- The panel container runs the native Rust `panel` executable on Debian, without a Python interpreter. Administrative commands use `panel cli`; secret staging and health checks are subcommands of the same executable. UID 10001, GID 101, socket groups and the read-only runtime contract are unchanged.
+- Panel image builds reject an incomplete or stale shared-source generation. `pc_common/RELEASE` must match `VERSION`; the release builder checks the same invariant before assembling an archive.
+- The Rust panel implements the existing MTProxy, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, dashboard, host-resource and version APIs, including their validation, secret-free projections, one-time reveals and manager-error responses.
+
+### Fixed
+- Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
+
+### Removed
+- Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
+
+### Installer
+- Rust service adapters manage WARP, MCP and the version-agent. The agent installs and owns its complete release tree and executes the prebuilt Rust binary; repair accepts pre-4.0 Python checkpoints and preserves operator environment values. MCP uses the panel binary CLI and version overrides. WARP downloads are removed after success or failure.
 
 ## [3.3.0] - 2026-10-25
 

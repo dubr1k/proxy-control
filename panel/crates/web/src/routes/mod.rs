@@ -34,18 +34,27 @@
 
 use crate::http::router::Routes;
 
+pub mod amneziawg;
 pub mod api_keys;
 pub mod auth;
 pub mod clients;
+pub mod fleet_central;
 pub mod fleet_node;
+mod gather;
 pub mod metrics;
+pub mod mieru;
+pub mod naive;
 pub mod nodes;
 pub mod openapi;
 pub mod readiness;
+pub mod routing;
 pub mod subscriptions;
 pub mod subscriptions_admin;
+pub mod telemt;
 #[cfg(feature = "test-hooks")]
 pub mod test_hooks;
+pub mod trusttunnel;
+pub mod versions;
 
 /// The whole route table.
 pub fn all() -> Routes {
@@ -54,15 +63,20 @@ pub fn all() -> Routes {
         .merge(auth::routes())
         .merge(api_keys::routes())
         .merge(fleet_node::routes())
-        // 4: fleet v2 central routes (WP12b)
-        // 5: version routes (WP8)
+        .merge(fleet_central::routes())
+        .merge(versions::routes())
         .merge(openapi::routes())
-        // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)
+        .merge(telemt::routes())
+        .merge(naive::routes())
+        .merge(mieru::routes())
+        .merge(amneziawg::routes())
+        .merge(trusttunnel::routes())
         .merge(nodes::routes())
         .merge(clients::routes())
         .merge(subscriptions_admin::routes())
         .merge(subscriptions::routes())
         // 17: routing (WP10)
+        .merge(routing::routes())
         .merge(metrics::routes());
     #[cfg(feature = "test-hooks")]
     let routes = routes.merge(test_hooks::routes());

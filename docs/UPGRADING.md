@@ -230,7 +230,7 @@ Run, at minimum (with the installation's overlay set):
 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml ps
 curl --fail -H 'Host: panel.example.com' http://127.0.0.1:8787/healthz
 docker exec proxy-control-panel cat /app/VERSION
-docker compose exec -T panel python -m panel.cli db-status | python3 -m json.tool | grep -c '"applied": true'   # 21 from 1.1.0 on
+docker compose exec -T panel panel cli db-status | grep -o '"applied": true' | wc -l   # 26 applied migrations
 sudo nginx -t
 sudo systemctl is-active version-agent caddy-naive mita
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
@@ -578,8 +578,8 @@ Client credentials, kept subscription copies and node keys are stored encrypted 
 
 ```bash
 umask 077
-docker run --rm -v "$PWD/secrets":/out --entrypoint python proxy_panel_by_dubr1k-panel:latest \
-  -m panel.cli master-key-init --path /out/panel-master-key
+docker run --rm -v "$PWD/secrets":/out --entrypoint /usr/local/bin/panel proxy_panel_by_dubr1k-panel:latest \
+  cli master-key-init --path /out/panel-master-key
 ```
 
 Back it up **separately from the database** ([backup and restore](BACKUP_RESTORE.en.md)). A panel
@@ -591,7 +591,7 @@ master key cannot show a subscription again and cannot be managed by a central (
 Rotation is a separate, deliberate operation and never part of an update:
 
 ```bash
-docker compose exec panel python -m panel.cli master-key-rotate --path /run/panel/master-key
+docker compose exec panel panel cli master-key-rotate --path /run/panel/master-key
 ```
 
 It adds a new active key, re-encrypts every stored secret in batches, verifies the result, and only

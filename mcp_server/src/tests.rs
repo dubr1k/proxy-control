@@ -405,10 +405,7 @@ fn tool_names_follow_the_rule() {
     // The Python regex rules: `{}` stays (then becomes `_`), `{a{b}` is one parameter; edges are stripped.
     assert_eq!(tool_name("get", "/api/x/{}/y"), "get_x____y");
     assert_eq!(tool_name("get", "/api/{a{b}/c"), "get_by_a_b_c");
-    assert_eq!(
-        tool_name("post", "/api/nodes/{node_id}/certificates/revoke-all"),
-        "post_nodes_by_node_id_certificates_revoke-all"
-    );
+    assert_eq!(tool_name("post", "/api/clients/grants/adopt-batch"), "post_clients_grants_adopt-batch");
     assert_eq!(tool_name("get", "relative/ü"), "get_relative");
 }
 
@@ -466,23 +463,6 @@ fn irreversible_operations_require_confirm() {
     assert!(is_irreversible("POST", "/api/nodes/{node_id}/versions/{component}"));
     assert!(is_irreversible("POST", "/api/nodes/{node_id}/versions/check")); // `/check` is on the list
     assert!(!is_irreversible("GET", "/api/versions"));
-}
-
-/// The panel's `POST /api/nodes/{node_id}/certificates/revoke-all` takes `confirm` in its body;
-/// the builder lists it in `required` twice, exactly as the Python builder did.
-#[test]
-fn a_confirm_in_the_body_is_listed_twice_in_required() {
-    let schema = json!({"paths": {"/api/nodes/{node_id}/certificates/revoke-all": {"post": {
-        "summary": "Revoke All",
-        "parameters": [{"name": "node_id", "in": "path", "required": true, "schema": {"type": "string", "title": "Node Id"}}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RevokeAll"}}}},
-    }}}, "components": {"schemas": {"RevokeAll": {"type": "object", "properties": {"confirm": {"type": "boolean"}}, "required": ["confirm"]}}}});
-    let operations = build_operations(&schema).unwrap();
-    let operation = &operations[0];
-    assert_eq!(operation.name, "post_nodes_by_node_id_certificates_revoke-all");
-    assert_eq!(operation.input_schema["required"], json!(["node_id", "confirm", "confirm"]));
-    assert_eq!(names(&operation.input_schema, "properties"), ["node_id", "confirm"]);
-    assert_eq!(operation.input_schema["properties"]["confirm"], crate::tools::confirm_schema());
 }
 
 #[test]
