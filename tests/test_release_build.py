@@ -626,20 +626,20 @@ def test_the_install_script_names_exactly_the_pinned_artifact_versions():
 # prebuilt host binaries (release/host-binaries.list, release/Dockerfile.host-binaries)
 # ----------------------------------------------------------------------
 
-PROBE = "release/host-probe/bin/linux-amd64/proxy-control-host-probe"
+PROBE = "installer/bin/linux-amd64/proxy-control-installer"
 LIBRARY_FILE = "pc_common/src/lib.rs"
 
 
 def checkout_with_host_crates(tmp_path: Path) -> Path:
-    """The fixture tree plus the real list, the real Dockerfile, a probe crate with the real
+    """The fixture tree plus the real list, the real Dockerfile, an installer crate with the real
     Cargo.lock and a shared library crate: what the release builder sees in the repository."""
     root = clean_checkout(tmp_path, name="crate-source")
-    for name in (HOST_BINARIES_LIST, HOST_BINARIES_DOCKERFILE, "release/host-probe/Cargo.lock"):
+    for name in (HOST_BINARIES_LIST, HOST_BINARIES_DOCKERFILE, "installer/Cargo.lock"):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_bytes((ROOT / name).read_bytes())
-    (root / "release/host-probe/Cargo.toml").write_text('[package]\nname = "proxy-control-host-probe"\n')
-    (root / "release/host-probe/src").mkdir()
-    (root / "release/host-probe/src/main.rs").write_text("fn main() {}\n")
+    (root / "installer/Cargo.toml").write_text('[package]\nname = "installer"\n')
+    (root / "installer/src").mkdir()
+    (root / "installer/src/main.rs").write_text("fn main() {}\n")
     (root / "pc_common/src").mkdir(parents=True)
     (root / "pc_common/Cargo.toml").write_text('[package]\nname = "pc_common"\n')
     (root / LIBRARY_FILE).write_text("\n")
@@ -698,9 +698,9 @@ def test_a_tree_without_host_crates_builds_no_binaries_and_keeps_its_identity_by
 def test_only_listed_crates_with_a_tracked_cargo_toml_take_part(tmp_path):
     source = checkout_with_host_crates(tmp_path)
     crates = host_crates(source, tracked_files(source))
-    # installer/ and version_agent/ are still Python here, pc_host does not exist yet.
+    # version_agent/ is still Python here, pc_host does not exist in this tree.
     assert crates.libraries == ("pc_common",)
-    assert crates.binaries == (("release/host-probe", "proxy-control-host-probe"),)
+    assert crates.binaries == (("installer", "proxy-control-installer"),)
     assert crates.paths == (PROBE,)
 
 
@@ -720,7 +720,7 @@ def test_binaries_from_injects_executable_members_and_records_them(tmp_path, no_
     }
     assert identity["schema"] == 1
     # Tracked files keep the git executable bit as their only mode source.
-    assert archive_member(built.archive, "release/host-probe/Cargo.toml")[0] == 0o644
+    assert archive_member(built.archive, "installer/Cargo.toml")[0] == 0o644
 
     document = json.loads(built.sbom.read_text())
     files = {entry["fileName"]: entry["checksums"][0]["checksumValue"] for entry in document["files"]}
@@ -772,7 +772,7 @@ def test_binaries_from_refuses_anything_but_the_recorded_bytes(tmp_path, no_dock
         fake_build(directory, {})
         (directory / PROBE).unlink()
     elif damage == "extra":
-        fake_build(directory, {PROBE: b"probe", "installer/bin/linux-amd64/proxy-control-installer": b"x"})
+        fake_build(directory, {PROBE: b"probe", "version_agent/bin/linux-amd64/proxy-control-version-agent": b"x"})
     elif damage == "symlink":
         (directory / PROBE).unlink()
         (directory / PROBE).symlink_to("/dev/null")
@@ -804,7 +804,7 @@ def test_the_default_build_runs_the_pinned_builder_on_tracked_crates_only(tmp_pa
     commit epoch, the `binaries` stage exported to a local directory, and a context staged
     from tracked files of VERSION, the list and the listed crates — nothing else."""
     source = checkout_with_host_crates(tmp_path)
-    (source / "release/host-probe/src/untracked.rs").write_text("// never staged\n")
+    (source / "installer/src/untracked.rs").write_text("// never staged\n")
     seen: dict[str, object] = {}
 
     def builder(command):
@@ -827,7 +827,7 @@ def test_the_default_build_runs_the_pinned_builder_on_tracked_crates_only(tmp_pa
     assert seen["dockerfile"] == (ROOT / HOST_BINARIES_DOCKERFILE).read_bytes()
     assert seen["context"] == sorted(
         ["VERSION", HOST_BINARIES_LIST, LIBRARY_FILE, "pc_common/Cargo.toml",
-         "release/host-probe/Cargo.lock", "release/host-probe/Cargo.toml", "release/host-probe/src/main.rs"]
+         "installer/Cargo.lock", "installer/Cargo.toml", "installer/cli.py", "installer/src/main.rs"]
     )
     assert archive_member(built.archive, PROBE) == (0o755, b"built probe")
 
@@ -859,7 +859,7 @@ def test_a_tracked_host_binary_is_refused(tmp_path):
 
 def test_a_host_crate_from_outside_crates_io_is_refused(tmp_path, no_docker):
     source = checkout_with_host_crates(tmp_path)
-    lock = source / "release/host-probe/Cargo.lock"
+    lock = source / "installer/Cargo.lock"
     lock.write_text(lock.read_text() + '\n[[package]]\nname = "forked"\nversion = "1.0.0"\n'
                     'source = "git+https://example.invalid/forked#0123"\n')
     git(source, "commit", "-qam", "git dependency")
@@ -885,8 +885,7 @@ def test_verify_refuses_an_archive_whose_binary_differs_from_its_identity(tmp_pa
 
 def test_the_repository_ignores_prebuilt_host_binaries():
     for crate, binary in (("installer", "proxy-control-installer"),
-                          ("version_agent", "proxy-control-version-agent"),
-                          ("release/host-probe", "proxy-control-host-probe")):
+                          ("version_agent", "proxy-control-version-agent")):
         completed = subprocess.run(
             ("git", "-C", str(ROOT), "check-ignore", "-q", f"{crate}/bin/linux-amd64/{binary}"),
             capture_output=True,
@@ -922,7 +921,7 @@ def test_the_host_binary_builder_is_pinned_and_deterministic():
     # Every listed crate that exists is a standalone crate with a committed lock and the
     # release profile of the managers, without panic=abort.
     crates = host_crates(ROOT, tracked_files(ROOT))
-    assert crates.binaries, "at least one host binary crate (the probe until the installer exists)"
+    assert ("installer", "proxy-control-installer") in crates.binaries
     for crate, binary in crates.binaries:
         manifest = (ROOT / crate / "Cargo.toml").read_text()
         assert (ROOT / crate / "Cargo.lock").is_file(), crate
