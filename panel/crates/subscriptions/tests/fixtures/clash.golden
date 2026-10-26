@@ -1,0 +1,54 @@
+proxies:
+  - name: 'FRA · Mieru [6ba65fd8] · TCP 8443'
+    type: 'mieru'
+    server: 'mieru.example.com'
+    port: 8443
+    transport: 'TCP'
+    username: 'carol'
+    password: 'mieru-pass-01'
+    udp: true
+  - name: 'FRA · Mieru [c3c19aa6] · TCP 8000-8010'
+    type: 'mieru'
+    server: 'mieru.example.com'
+    port-range: '8000-8010'
+    transport: 'TCP'
+    username: 'frank'
+    password: 'mieru-pass-03'
+    udp: true
+  - name: 'TT · TrustTunnel [afbcdb56]'
+    type: 'trusttunnel'
+    server: 'gate.example.com'
+    port: 443
+    username: 'trusted'
+    password: 'tt-pass-CANARY-01'
+    udp: false
+    quic: false
+  - name: 'Phone'
+    type: 'trusttunnel'
+    server: 'gate.example.com'
+    port: 443
+    username: 'selfsigned'
+    password: 'tt-pass-CANARY-01'
+    udp: false
+    quic: false
+    skip-cert-verify: true
+proxy-groups:
+  - name: 'proxy-control'
+    type: 'select'
+    proxies:
+      - 'FRA · Mieru [6ba65fd8] · TCP 8443'
+      - 'FRA · Mieru [c3c19aa6] · TCP 8000-8010'
+      - 'TT · TrustTunnel [afbcdb56]'
+      - 'Phone'
+proxy-control:
+  generation: 3
+  unsupported:
+    - protocol: 'mtproxy'
+      runtime_username: 'alice'
+      reason: 'mihomo has no MTProto proxy type'
+    - protocol: 'naive'
+      runtime_username: 'bob'
+      reason: 'naiveproxy support is an open feature request, MetaCubeX/mihomo#273'
+    - protocol: 'mieru'
+      runtime_username: 'dave'
+      reason: 'no stored credential'

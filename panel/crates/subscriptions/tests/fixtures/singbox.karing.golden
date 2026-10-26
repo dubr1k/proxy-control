@@ -1,0 +1,56 @@
+{
+  "outbounds": [
+    {
+      "type": "naive",
+      "tag": "AMS · Naive [52a7c6b8]",
+      "server": "naive.example.com",
+      "server_port": 443,
+      "username": "bob",
+      "password": "naive-pass-01",
+      "tls": {
+        "enabled": true,
+        "server_name": "naive.example.com"
+      }
+    },
+    {
+      "type": "mieru",
+      "tag": "FRA · Mieru [6ba65fd8] · TCP 8443",
+      "server": "mieru.example.com",
+      "server_port": 8443,
+      "transport": "TCP",
+      "username": "carol",
+      "password": "mieru-pass-01"
+    }
+  ],
+  "proxy_control": {
+    "generation": 3,
+    "client": "karing",
+    "unsupported": [
+      {
+        "protocol": "mtproxy",
+        "runtime_username": "alice",
+        "reason": "no MTProto import path; the tg:// link is handed over manually"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "dave",
+        "reason": "no stored credential"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "frank",
+        "reason": "the sing-box mieru outbound has no field for a port range"
+      },
+      {
+        "protocol": "trusttunnel",
+        "runtime_username": "trusted",
+        "reason": "ships a mihomo (Clash.Meta) core next to the sing-box one, but a trusttunnel proxy in a Clash feed is unverified in Karing; the sing-box cut has no TrustTunnel outbound"
+      },
+      {
+        "protocol": "trusttunnel",
+        "runtime_username": "selfsigned",
+        "reason": "ships a mihomo (Clash.Meta) core next to the sing-box one, but a trusttunnel proxy in a Clash feed is unverified in Karing; the sing-box cut has no TrustTunnel outbound"
+      }
+    ]
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "artifacts": {
+    "g-mieru": [
+      {
+        "auto_refresh": "supported",
+        "kind": "share_url",
+        "label": "Ссылка Mieru",
+        "media_type": "text/uri-list",
+        "value": "mierus://carol:mieru-pass-01@mieru.example.com?profile=carol&port=8443&protocol=TCP"
+      }
+    ],
+    "g-mt": [
+      {
+        "auto_refresh": "supported",
+        "kind": "link",
+        "label": "Ссылка Telegram",
+        "media_type": "text/uri-list",
+        "value": "tg://proxy?server=proxy.example.com&port=443&secret=ee00112233445566778899aabbccddeeff"
+      }
+    ],
+    "g-naive": [
+      {
+        "auto_refresh": "supported",
+        "kind": "proxy_url",
+        "label": "Адрес прокси",
+        "media_type": "text/uri-list",
+        "value": "https://bob:naive-pass-01@naive.example.com"
+      }
+    ],
+    "g-range": [
+      {
+        "auto_refresh": "supported",
+        "kind": "share_url",
+        "label": "Ссылка Mieru",
+        "media_type": "text/uri-list",
+        "value": "mierus://frank:mieru-pass-03@mieru.example.com?profile=frank&port=8000-8010&protocol=TCP"
+      }
+    ],
+    "g-tt": [
+      {
+        "auto_refresh": "supported",
+        "kind": "trusttunnel_link",
+        "label": "Ссылка TrustTunnel",
+        "media_type": "text/uri-list",
+        "value": "tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUHdHJ1c3RlZAYRdHQtcGFzcy1DQU5BUlktMDEJAQE"
+      },
+      {
+        "auto_refresh": "supported",
+        "kind": "trusttunnel_toml",
+        "label": "Конфиг TrustTunnel (TOML)",
+        "media_type": "application/toml",
+        "value": "loglevel = \"info\"\nvpn_mode = \"general\"\nkillswitch_enabled = true\n\n[endpoint]\nhostname = \"gate.example.com\"\naddresses = [\"gate.example.com:443\"]\nusername = \"trusted\"\npassword = \"tt-pass-CANARY-01\"\nskip_verification = false\nupstream_protocol = \"http2\"\n\n[listener.tun]\nincluded_routes = [\"0.0.0.0/0\", \"2000::/3\"]\nmtu_size = 1350\n"
+      },
+      {
+        "auto_refresh": "supported",
+        "kind": "trusttunnel_manual",
+        "label": "Данные для ручной настройки",
+        "media_type": "application/json",
+        "value": "{\n  \"server\": \"gate.example.com\",\n  \"port\": 443,\n  \"username\": \"trusted\",\n  \"password\": \"tt-pass-CANARY-01\",\n  \"sni\": \"gate.example.com\",\n  \"protocol\": \"HTTP/2\",\n  \"quic\": false,\n  \"certificate_pem\": \"\",\n  \"surge\": \"trust-tunnel, gate.example.com, 443, username=trusted, password=tt-pass-CANARY-01\"\n}"
+      }
+    ],
+    "g-tt-cert": [
+      {
+        "auto_refresh": "supported",
+        "kind": "trusttunnel_link",
+        "label": "Ссылка TrustTunnel",
+        "media_type": "text/uri-list",
+        "value": "tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUKc2VsZnNpZ25lZAYRdHQtcGFzcy1DQU5BUlktMDEIBTADAgEFCQEB"
+      },
+      {
+        "auto_refresh": "supported",
+        "kind": "trusttunnel_toml",
+        "label": "Конфиг TrustTunnel (TOML)",
+        "media_type": "application/toml",
+        "value": "loglevel = \"info\"\nvpn_mode = \"general\"\nkillswitch_enabled = true\n\n[endpoint]\nhostname = \"gate.example.com\"\naddresses = [\"gate.example.com:443\"]\nusername = \"selfsigned\"\npassword = \"tt-pass-CANARY-01\"\nskip_verification = false\nupstream_protocol = \"http2\"\n\n[listener.tun]\nincluded_routes = [\"0.0.0.0/0\", \"2000::/3\"]\nmtu_size = 1350\n"
+      },
+      {
+        "auto_refresh": "supported",
+        "kind": "trusttunnel_manual",
+        "label": "Данные для ручной настройки",
+        "media_type": "application/json",
+        "value": "{\n  \"server\": \"gate.example.com\",\n  \"port\": 443,\n  \"username\": \"selfsigned\",\n  \"password\": \"tt-pass-CANARY-01\",\n  \"sni\": \"gate.example.com\",\n  \"protocol\": \"HTTP/2\",\n  \"quic\": false,\n  \"certificate_pem\": \"-----BEGIN CERTIFICATE-----\\nMAMCAQU=\\n-----END CERTIFICATE-----\\n\",\n  \"surge\": \"trust-tunnel, gate.example.com, 443, username=selfsigned, password=tt-pass-CANARY-01\"\n}"
+      }
+    ]
+  },
+  "manifest": {
+    "client_id": "c1",
+    "client_name": "Sergey <b>&</b>",
+    "generation": 3,
+    "grants": [
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-mt",
+        "label": "",
+        "node_id": "ams",
+        "node_name": "AMS",
+        "options": {},
+        "protocol": "mtproxy",
+        "runtime_username": "alice",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-naive",
+        "label": "",
+        "node_id": "ams",
+        "node_name": "AMS",
+        "options": {},
+        "protocol": "naive",
+        "runtime_username": "bob",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-mieru",
+        "label": "",
+        "node_id": "fra",
+        "node_name": "FRA",
+        "options": {},
+        "protocol": "mieru",
+        "runtime_username": "carol",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-none",
+        "label": "",
+        "node_id": "fra",
+        "node_name": "FRA",
+        "options": {},
+        "protocol": "mieru",
+        "runtime_username": "dave",
+        "secret_version": 0,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": false,
+        "endpoint_id": "default",
+        "grant_id": "g-off",
+        "label": "",
+        "node_id": "ams",
+        "node_name": "AMS",
+        "options": {},
+        "protocol": "naive",
+        "runtime_username": "erin",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-range",
+        "label": "",
+        "node_id": "fra",
+        "node_name": "FRA",
+        "options": {},
+        "protocol": "mieru",
+        "runtime_username": "frank",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-tt",
+        "label": "",
+        "node_id": "tt",
+        "node_name": "TT",
+        "options": {},
+        "protocol": "trusttunnel",
+        "runtime_username": "trusted",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": true,
+        "endpoint_id": "default",
+        "grant_id": "g-tt-cert",
+        "label": "Phone",
+        "node_id": "tt",
+        "node_name": "TT",
+        "options": {},
+        "protocol": "trusttunnel",
+        "runtime_username": "selfsigned",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      },
+      {
+        "enabled": false,
+        "endpoint_id": "default",
+        "grant_id": "g-tt-off",
+        "label": "",
+        "node_id": "tt",
+        "node_name": "TT",
+        "options": {},
+        "protocol": "trusttunnel",
+        "runtime_username": "paused",
+        "secret_version": 1,
+        "valid_from": 1700000000,
+        "valid_until": 1900000000
+      }
+    ],
+    "version": 1
+  },
+  "updated_at": 1800000000,
+  "url": "https://sub.example.com/s/TOKEN"
+}
