@@ -1,0 +1,9 @@
+tg://proxy?server=proxy.example.com&port=443&secret=ee00112233445566778899aabbccddeeff
+naive+https://bob:naive-pass-01@naive.example.com:443#AMS%20%C2%B7%20Naive%20%5B52a7c6b8%5D
+mierus://carol:mieru-pass-01@mieru.example.com?profile=FRA%20%C2%B7%20Mieru%20%5B6ba65fd8%5D&port=8443&protocol=TCP
+# unsupported mieru dave: no stored credential
+# disabled naive erin
+mierus://frank:mieru-pass-03@mieru.example.com?profile=FRA%20%C2%B7%20Mieru%20%5Bc3c19aa6%5D&port=8000-8010&protocol=TCP
+tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUHdHJ1c3RlZAYRdHQtcGFzcy1DQU5BUlktMDEJAQEMHFRUIMK3IFRydXN0VHVubmVsIFthZmJjZGI1Nl0
+tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUKc2VsZnNpZ25lZAYRdHQtcGFzcy1DQU5BUlktMDEIBTADAgEFCQEBDAVQaG9uZQ
+# disabled trusttunnel paused
