@@ -1,0 +1,18 @@
+[package]
+name = "mieru-client-probe"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[[bin]]
+name = "mieru-probe"
+path = "src/main.rs"
+
+[dependencies]
+url = "2.5"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

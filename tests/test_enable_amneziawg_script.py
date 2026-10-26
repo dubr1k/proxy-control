@@ -46,7 +46,7 @@ def test_ports_default_to_free_pseudo_random_ones_like_the_installers_and_can_be
     text = SCRIPT.read_text()
     assert "--ports" in run("--help").stdout and "10240" in run("--help").stdout
     assert "51820" not in text.replace("51820-51822", "")
-    for needed in ("ss -H -lun", "ss -H -ltn", "/etc/machine-id", "21761", "sha256", "clients dial $HOST on UDP $PORTS",
+    for needed in ("ss -H -lun", "ss -H -ltn", "proxy-control-installer", "awg-ports", "clients dial $HOST on UDP $PORTS",
                    "ufw delete allow", "proxy-control:firewall:udp:"):
         assert needed in text, needed
 
@@ -57,26 +57,26 @@ def test_ports_are_validated_before_anything_is_changed():
     assert refused.returncode == 2
 
 
-def test_the_embedded_derivation_is_the_installers(tmp_path):
-    """The script's python picks exactly what `installer.awg_ports` picks for the same host."""
-    import re
-    import sys
+def test_the_binary_derivation_is_the_installers(tmp_path):
+    """The shell invokes the native helper; compare its bytes with the recorded SHA-256 rule."""
+    import hashlib
 
-    sys.path.insert(0, str(SCRIPT.parents[1]))
-    from installer.awg_ports import derive_port
+    binary = Path(os.environ.get("PROXY_CONTROL_INSTALLER_BINARY",
+                                str(SCRIPT.parents[1] / "installer/bin/linux-amd64/proxy-control-installer")))
+    assert binary.is_file(), "build the installer and set PROXY_CONTROL_INSTALLER_BINARY"
+    assert "python3" not in SCRIPT.read_text()
+    identity = "0123456789abcdef0123456789abcdef"
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc/machine-id").write_text(identity + "\n")
 
-    body = re.search(r"<<'PY'\n(.*?)\nPY\n", SCRIPT.read_text(), re.S).group(1)
-    ident = Path("/etc/machine-id")
-    if not ident.exists():  # the script falls back to the host name; compare with that
-        import socket
+    def derive(version, attempt):
+        return 10240 + int.from_bytes(hashlib.sha256(f"{identity}:{version}:{attempt}".encode()).digest(), "big") % 21761
 
-        identity = socket.gethostname()
-    else:
-        identity = ident.read_text().strip() or __import__("socket").gethostname()
-    first = subprocess.run(["python3", "-c", body, "", "--", "1.5", "2.0", "3.1"], capture_output=True, text=True)
+    command = [str(binary), "awg-ports", "--root", str(tmp_path)]
+    first = subprocess.run([*command, "", "--", "1.5", "2.0", "3.1"], capture_output=True, text=True)
     assert first.returncode == 0, first.stderr
     got = dict(item.split("=") for item in first.stdout.split())
-    assert got == {v: str(derive_port(identity, v, 0)) for v in ("1.5", "2.0", "3.1")}
-    # a bound port is skipped by raising the attempt
-    busy = subprocess.run(["python3", "-c", body, str(got["1.5"]), "--", "1.5"], capture_output=True, text=True)
-    assert dict(item.split("=") for item in busy.stdout.split())["1.5"] == str(derive_port(identity, "1.5", 1))
+    assert got == {v: str(derive(v, 0)) for v in ("1.5", "2.0", "3.1")}
+    busy = subprocess.run([*command, got["1.5"], "--", "1.5"], capture_output=True, text=True)
+    assert busy.returncode == 0, busy.stderr
+    assert dict(item.split("=") for item in busy.stdout.split())["1.5"] == str(derive("1.5", 1))

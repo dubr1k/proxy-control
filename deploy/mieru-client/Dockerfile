@@ -4,11 +4,18 @@
 # pinned upstream package, verifies its digest, and places it in the build
 # context, so this image is reproducible from artifacts the installer has
 # already proven.
-FROM python:3.13.5-slim@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
+FROM rust:1.99-alpine@sha256:b1d5dd5a22a09404d3e798c0cf051b689077360374eb505fa5bb93c479693d87 AS build
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --locked
+
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
 
 COPY mieru /usr/local/bin/mieru
-COPY probe.py /usr/local/bin/mieru-probe
-RUN chmod 0755 /usr/local/bin/mieru /usr/local/bin/mieru-probe
+COPY --from=build /src/target/release/mieru-probe /usr/local/bin/mieru-probe
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN chmod 0755 /usr/local/bin/mieru
 
 ENV MIERU_CONFIG_JSON_FILE=/tmp/mieru-client.json \
     MIERU_PROBE_CONFIG=/etc/mieru/client.json \
@@ -16,4 +23,4 @@ ENV MIERU_CONFIG_JSON_FILE=/tmp/mieru-client.json \
     MIERU_PROBE_URL=http://cp.cloudflare.com/generate_204 \
     MIERU_PROBE_STATUS=204
 
-ENTRYPOINT ["python", "/usr/local/bin/mieru-probe"]
+ENTRYPOINT ["/usr/local/bin/mieru-probe"]
