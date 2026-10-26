@@ -22,7 +22,11 @@ use crate::error::Error;
 #[cfg(test)]
 pub(crate) mod example;
 
+mod router_host;
+#[cfg(test)]
+mod router_tests;
 pub mod three_xui;
+pub mod xray_router;
 
 /// What every adapter is constructed with.
 #[derive(Clone)]
@@ -46,10 +50,7 @@ impl std::fmt::Debug for AdapterContext {
 /// Every known adapter, registered with the engine up front: `resume`, `repair` and `uninstall`
 /// run without composing a plan, so every adapter a stored plan may name must be there.
 pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
-    // Host WP5a–e: one line per adapter, e.g.
-    //     adapters.push(Arc::new(packages::PackagesAdapter::new(context)));
-    let _ = context;
-    Vec::new()
+    vec![Arc::new(three_xui::ThreeXuiAdapter::new(context)), Arc::new(xray_router::XrayRouterAdapter::new(context))]
 }
 
 /// `installer.adapters.mcp.mcp_handoff(root, config)`: the MCP address and bearer for the

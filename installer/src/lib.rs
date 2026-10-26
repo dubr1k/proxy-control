@@ -160,6 +160,9 @@ pub mod handoff;
 pub mod journal;
 pub mod migration;
 pub mod store;
+pub mod three_xui_api;
+pub mod three_xui_templates;
+mod three_xui_ordered;
 
 pub use installer_core::{model, planner};
 
