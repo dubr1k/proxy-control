@@ -24,7 +24,7 @@ def chooser_browser(tmp_path: Path, monkeypatch):
 def open_clients(browser):
     nonce = secrets.token_hex(4)
     browser.dt.call("Page.navigate", {"url": f"{browser.fixture.base}/?clients={nonce}#clients"})
-    browser.wait(f"location.search === '?clients={nonce}' && !!document.querySelector('.client-list')", "clients screen")
+    browser.wait(f"location.search === '?clients={nonce}' && location.hash === '#clients' && !!document.querySelector('#view .client-list, #view .empty-state')", "clients screen, with or without existing clients")
     browser.wait("!!document.querySelector('#add') && !document.querySelector('#add').hidden", "add button")
 
 

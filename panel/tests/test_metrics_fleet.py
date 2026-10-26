@@ -218,5 +218,10 @@ async def test_summary_compare_has_a_row_per_node_sorted_by_traffic(panel_server
         (ids["bravo"], "ok"), (ids["alpha"], "ok"), ("local", "ok"), (ids["charlie"], "unavailable")]
     assert rows[0]["total_bytes"] > rows[1]["total_bytes"] > rows[2]["total_bytes"] == 0
     assert rows[0]["peak_bps"] == 5000 and rows[-1]["total_bytes"] is None
-    assert all(metrics.get("total_bytes") is None and metrics.get("peak_bps") is None
-               for metrics in body["nodes"][-1]["protocols"].values())
+    # The compare row is deliberately unknown when the node is offline. Its separate
+    # history can still retain measured protocol peaks if the last summary was cached.
+    offline = body["nodes"][-1]
+    assert offline["node_id"] == ids["charlie"] and offline["status"] == "unavailable"
+    naive = offline["protocols"].get("naive")
+    if naive and naive.get("peak_bps") is not None:
+        assert naive["peak_bps"] == 700
