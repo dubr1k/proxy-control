@@ -267,6 +267,7 @@ pub struct NodeHttpClient {
     base_url: String,
     authorization: HeaderValue,
     http: reqwest::Client,
+    blocked_literal: bool,
 }
 
 impl fmt::Debug for NodeHttpClient {
@@ -291,17 +292,15 @@ impl NodeHttpClient {
             return Err(CentralError::Invalid("pin mode needs pinned_sha256".into()));
         }
         let base_url = validate_panel_url(base_url, allow_private)?;
-        // Hyper bypasses its DNS resolver for numeric hosts, so enforce the connection policy
-        // here too (including multicast, which Python's URL-only validation permits).
+        // Hyper bypasses its DNS resolver for numeric hosts. Gate those at call time as the
+        // Python backend does, including multicast (permitted by URL-only validation).
         let parsed = url::Url::parse(&base_url).map_err(|_| CentralError::Invalid(INVALID_URL.into()))?;
         let literal = match parsed.host().expect("validated URL has a host") {
             url::Host::Ipv4(address) => Some(IpAddr::V4(address)),
             url::Host::Ipv6(address) => Some(IpAddr::V6(address)),
             url::Host::Domain(_) => None,
         };
-        if !allow_private && literal.is_some_and(|address| !public_address(address)) {
-            return Err(NodeError::Unreachable("ConnectError".into()).into());
-        }
+        let blocked_literal = !allow_private && literal.is_some_and(|address| !public_address(address));
         #[cfg(all(unix, feature = "test-hooks"))]
         let mut base_url = base_url;
         #[cfg(all(unix, feature = "test-hooks"))]
@@ -352,7 +351,7 @@ impl NodeHttpClient {
         }
 
         let http = builder.build().map_err(|error| CentralError::Internal(error.to_string()))?;
-        Ok(Self { base_url, authorization, http })
+        Ok(Self { base_url, authorization, http, blocked_literal })
     }
 
     pub fn base_url(&self) -> &str {
@@ -366,6 +365,9 @@ impl NodeHttpClient {
         body: Option<&Value>,
         timeout: Option<Duration>,
     ) -> Result<(u16, Map<String, Value>), NodeError> {
+        if self.blocked_literal {
+            return Err(NodeError::Unreachable("ConnectError".into()));
+        }
         let mut request = self
             .http
             .request(method, format!("{}{}", self.base_url, path))
@@ -721,7 +723,6 @@ mod tests {
         }
         assert_eq!(validate_panel_url("https://10.0.0.1:8443", true).unwrap(), "https://10.0.0.1:8443");
         assert_eq!(validate_panel_url("https://[::1]:8443/", true).unwrap(), "https://[::1]:8443");
-        assert!(NodeHttpClient::new("https://224.0.0.1", "k", "verify", None, false).is_err());
         assert!(NodeHttpClient::new("https://node.example", "k", "pin", None, false).is_err());
         assert!(NodeHttpClient::new("https://node.example", "k", "skip", None, false).is_err());
     }
@@ -972,6 +973,9 @@ mod tests {
             let client = NodeHttpClient::new(&url, "private-secret", mode, Some(&"0".repeat(64)), false).unwrap();
             assert!(matches!(client.identity().await, Err(NodeError::Unreachable(_))));
             assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+            let multicast =
+                NodeHttpClient::new("https://224.0.0.1", "private-secret", mode, Some(&"0".repeat(64)), false).unwrap();
+            assert!(matches!(multicast.identity().await, Err(NodeError::Unreachable(_))));
         }
         assert!(fingerprint(&url, Duration::from_secs(5), false).is_err());
         assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
