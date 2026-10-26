@@ -183,7 +183,7 @@ Repeat the boundary's acceptance test after every restart. Never delete `journal
 For installer-owned core:
 
 ```bash
-sudo python3 scripts/proxyctl.py repair
+sudo bash /opt/mtproxy-shared443/install.sh repair
 ```
 
 `repair` loads the private ownership manifest and intentionally accepts no arbitrary path.
@@ -336,7 +336,7 @@ ss -ltnp 'sport = :45101 or sport = :45102'   # 127.0.0.1 only, owned by xray
   router's own test run (`geosite_unknown` / `geoip_unknown`) and nothing changes.
 - **`artifact_mismatch`**: the router refuses to start because a binary or geodata
   member does not match the pin. Re-extract from the pinned archive
-  (`BACKUP_RESTORE`, «Xray-router generation») or run `proxyctl repair`; never replace
+  (`BACKUP_RESTORE`, «Xray-router generation») or run `sudo bash install.sh repair`; never replace
   the files with another build.
 - **`manual_intervention_required` / `phase: broken`**: the last known good generation
   did not come back either. Attached services fail closed until you act: read

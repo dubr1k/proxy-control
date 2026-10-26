@@ -173,7 +173,7 @@ systemctl restart mita
 Для installer-owned core:
 
 ```bash
-sudo python3 scripts/proxyctl.py repair
+sudo bash /opt/mtproxy-shared443/install.sh repair
 ```
 
 `repair` читает private ownership manifest и намеренно не принимает arbitrary paths.
@@ -328,7 +328,7 @@ ss -ltnp 'sport = :45101 or sport = :45102'   # только 127.0.0.1, влад
   собственном тестовом запуске роутера (`geosite_unknown` / `geoip_unknown`), и ничего не меняется.
 - **`artifact_mismatch`**: роутер не стартует, потому что бинарь или geodata не совпадают с пином.
   Извлеките заново из закреплённого архива (`BACKUP_RESTORE`, «Xray-router generation») или
-  выполните `proxyctl repair`; никогда не подменяйте файлы другой сборкой.
+  выполните `sudo bash install.sh repair`; никогда не подменяйте файлы другой сборкой.
 - **`manual_intervention_required` / `phase: broken`**: не поднялось и последнее хорошее
   поколение. Подключённые сервисы fail-closed, пока вы не вмешаетесь: читайте
   `docker logs proxy-control-xray-router`, устраните причину (диск, geodata), затем

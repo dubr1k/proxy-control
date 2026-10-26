@@ -161,6 +161,7 @@ pub mod cli;
 pub mod engine;
 pub mod error;
 pub mod handoff;
+pub mod host_commands;
 pub mod ingress_upgrade;
 pub mod journal;
 pub mod migration;
