@@ -128,8 +128,8 @@ fn restore(host: &Host<'_>, backup: &Path, store: &TransactionStore) -> Result<(
     restore_file(&backup.join("tmpfiles"), &host.path(TMPFILES)?)?;
     if backup.join("journal-present").exists() {
         // State first, then its derived ownership journal, matching AgentMigration's protocol.
-        restore_file(&backup.join("state.json"), &store.state_path())?;
-        restore_file(&backup.join("ownership.json"), &store.ownership_path())?;
+        restore_file(&backup.join("state.json"), store.state_path())?;
+        restore_file(&backup.join("ownership.json"), store.ownership_path())?;
     }
     host.run(&strings(&["systemctl", "daemon-reload"]))?;
     host.run(&strings(&["systemctl", "start", "version-agent"]))?;
@@ -153,7 +153,15 @@ pub(super) fn migrate(host: &Host<'_>, version: &str) -> Result<()> {
             .map_err(|e| format!("interrupted agent migration rollback failed: {e}"))?;
         durable_remove(&pending, false).map_err(|e| e.to_string())?;
     }
-    if healthy(host, version).is_ok() {
+    let unit = host.path(AGENT_UNIT)?;
+    let meta = fs::symlink_metadata(&unit).map_err(|e| e.to_string())?;
+    if !meta.file_type().is_file() {
+        return Err("version-agent unit is not a regular file".into());
+    }
+    let installed_unit = fs::read_to_string(&unit).map_err(|e| e.to_string())?;
+    let unit_text = rewrite_unit(&installed_unit)?;
+    let native_unit = installed_unit.lines().any(|line| line.strip_prefix("ExecStart=") == Some(BINARY));
+    if native_unit && healthy(host, version).is_ok() {
         return Ok(());
     }
     // A verified release identity is required even for no-journal hosts.
@@ -167,12 +175,6 @@ pub(super) fn migrate(host: &Host<'_>, version: &str) -> Result<()> {
     }
     verify_binaries(&host.source, &identity)?;
     let code = host.path(CODE)?;
-    let unit = host.path(AGENT_UNIT)?;
-    let meta = fs::symlink_metadata(&unit).map_err(|e| e.to_string())?;
-    if !meta.file_type().is_file() {
-        return Err("version-agent unit is not a regular file".into());
-    }
-    let unit_text = rewrite_unit(&fs::read_to_string(&unit).map_err(|e| e.to_string())?)?;
     let mut migration = AgentMigration::new(&store, &host.source);
     migration.prepare().map_err(|e| e.message())?;
     durable_mkdir(&backup_root, 0o700).map_err(|e| e.to_string())?;
@@ -188,8 +190,8 @@ pub(super) fn migrate(host: &Host<'_>, version: &str) -> Result<()> {
         snapshot(&unit, &backup.join("unit"))?;
         snapshot(&host.path(TMPFILES)?, &backup.join("tmpfiles"))?;
         if store.state_exists() {
-            snapshot(&store.state_path(), &backup.join("state.json"))?;
-            snapshot(&store.ownership_path(), &backup.join("ownership.json"))?;
+            snapshot(store.state_path(), &backup.join("state.json"))?;
+            snapshot(store.ownership_path(), &backup.join("ownership.json"))?;
             atomic_write(&backup.join("journal-present"), b"1\n", 0o600, Some((0, 0))).map_err(|e| e.to_string())?;
         }
         atomic_write(&pending, pc_host::json::pretty2(&json!({"backup": name})).as_bytes(), 0o600, Some((0, 0)))

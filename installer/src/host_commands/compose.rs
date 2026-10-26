@@ -171,9 +171,13 @@ pub(super) fn migrate(host: &Host<'_>, project: &Path, check: bool) -> Result<St
         .map(|volumes| {
             volumes
                 .iter()
-                .filter(|(_, v)| {
+                .filter(|(key, v)| {
                     v.get("external").and_then(Value::as_bool) != Some(true)
                         && v.pointer("/driver_opts/type").and_then(Value::as_str) != Some("tmpfs")
+                        // An explicit operator volume name is project-independent: leave it alone.
+                        && v.get("name").and_then(Value::as_str).is_none_or(|name| {
+                            name.strip_prefix(NEW).and_then(|name| name.strip_prefix('_')) == Some(key.as_str())
+                        })
                 })
                 .map(|(key, _)| key.clone())
                 .collect()

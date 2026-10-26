@@ -438,7 +438,7 @@ check_manifest() {
         $0 == "}" { if (comma) exit 1; closed=1; next }
         closed { exit 1 }
         { if (count && !comma) exit 1
-          if ($0 !~ /^  "[a-z_]+": ("[^"\\]*"|[0-9]+),?$/) exit 1
+          if ($0 !~ /^  "[a-z_][a-z_0-9]*": ("[^"\\]*"|[0-9]+),?$/) exit 1
           comma=($0 ~ /,$/); count++
           line=$0; sub(/^  "/,"",line); key=line; sub(/".*/,"",key)
           if (seen[key]++) exit 1
@@ -488,8 +488,10 @@ root=$DESTINATION/proxy-control
 # Canonical release.json records both host binaries. Verify them without running archive code.
 rows=$(LC_ALL=C awk '
     /^  "binaries": \{$/ { if (seen++) exit 1; inside=1; next }
-    inside && /^  },?$/ { inside=0; done=1; next }
-    inside { if ($0 !~ /^    "[a-zA-Z0-9_./-]+": "[0-9a-f]+",?$/) exit 1
+    inside && /^  },?$/ { if (comma) exit 1; inside=0; done=1; next }
+    inside { if (count && !comma) exit 1
+             if ($0 !~ /^    "[a-zA-Z0-9_./-]+": "[0-9a-f]+",?$/) exit 1
+             comma=($0 ~ /,$/)
              line=$0; sub(/^    "/,"",line); path=line; sub(/".*/,"",path)
              sub(/^[^"]*": "/,"",line); sub(/",?$/,"",line)
              if (length(line)!=64 || paths[path]++) exit 1

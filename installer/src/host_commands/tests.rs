@@ -10,9 +10,7 @@ use serde_json::json;
 use super::{agent, compose, update, Host};
 use crate::testkit::TempDir;
 
-#[path = "../tests/fakes.rs"]
-#[allow(dead_code)]
-mod fakes;
+use crate::tests::fakes;
 
 fn release(path: &Path) -> PathBuf {
     let tree = path.join("release");
@@ -270,4 +268,60 @@ fn update_fleet_v1_is_rejected_before_migration() {
     let error = update::update(&host(&root, dir.path(), &runner), "4.0.0", &"a".repeat(64)).unwrap_err();
     assert!(error.contains("Fleet v1 is retired"));
     assert!(runner.calls().iter().all(|call| call.kind != CallKind::Run));
+}
+
+#[test]
+fn update_rejects_wrong_native_version_before_any_dependent_mutation() {
+    for reported in [json!({"status":"ok","implementation":"rust"}), json!({"status":"ok","implementation":"rust","version":"4.0.1"})] {
+        let dir = TempDir::new("update-bad-health");
+        let root = dir.path().join("root");
+        old_host(&root);
+        let source = release(dir.path());
+        fakes::write(&root.join("opt/mtproxy-shared443/compose.yaml"), b"services: {}\n");
+        let socket = root.join("run/proxy-control/version-agent.sock");
+        fs::create_dir_all(socket.parent().unwrap()).unwrap();
+        let _listener = std::os::unix::net::UnixListener::bind(socket).unwrap();
+        let inspect_root = root.clone();
+        let runner = RecordingRunner::with_responder(move |call| {
+            let line = call.argv.join(" ");
+            if line.contains("/v1/versions") { Some(Reply::ok("{\"components\":{\"panel\":{\"current\":\"3.3.0\"}}}")) }
+            else if line.contains("/v1/health") {
+                let native = inspect_root.join("opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent").exists();
+                Some(Reply::ok(&if native { reported.to_string() } else { json!({"status":"ok"}).to_string() }))
+            } else if line.contains("docker inspect --format") { Some(Reply::ok("mtproxy\n")) }
+            else { None }
+        });
+        let error = update::update(&host(&root, &source, &runner), "4.0.0", &"a".repeat(64)).unwrap_err();
+        assert!(error.contains("previous generation restored and verified"));
+        for call in runner.calls() {
+            assert!(!call.argv.iter().any(|arg| arg.contains("/v1/update") || arg.contains("/v1/upstream")));
+            assert!(!(call.kind == CallKind::Run && call.argv.first().is_some_and(|arg| arg == "docker")));
+        }
+    }
+}
+
+#[test]
+fn native_doc_examples_parse_without_a_host_audit() {
+    let tree = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let mut checked = 0;
+    for file in ["README.md", "README.en.md", "INSTALL.en.md", "INSTALL.ru.md",
+        "docs/INSTALLER_REFERENCE.en.md", "docs/INSTALLER_REFERENCE.ru.md"] {
+        let text = fs::read_to_string(tree.join(file)).unwrap();
+        let mut marked = false;
+        for line in text.lines() {
+            if line.starts_with("```") {
+                marked = !marked && line.contains("installer-check");
+                continue;
+            }
+            if !marked { continue; }
+            let Some(command) = line.trim().strip_prefix("sudo bash install.sh ") else { continue };
+            let arguments: Vec<String> = command.split_whitespace().map(str::to_string).collect();
+            installer_core::cli::parse(&arguments, 100).unwrap_or_else(|error| panic!("{file}: {command}: {}", error.stderr));
+            if let Some(index) = arguments.iter().position(|arg| arg == "--config") {
+                installer_core::config::load_config(&tree.join(&arguments[index + 1])).unwrap();
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked >= 35, "only {checked} marked native commands were parsed");
 }
