@@ -1,0 +1,27 @@
+[package]
+name = "panel-managers"
+description = "The panel's clients of the protocol managers (Unix sockets), the Telemt API (HTTP) and the version-agent, with the Telemt egress journal."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_managers"
+
+[dependencies]
+panel-core = { path = "../core" }
+pc_common = { path = "../../../pc_common" }
+# reqwest without its default aws-lc provider: the Telemt client hands it a rustls config on ring
+# with the Mozilla roots (what certifi is to httpx), DECISIONS.md 7.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt"] }
+webpki-roots = "1"
+
+[dev-dependencies]
+base64 = "0.22"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time"] }
