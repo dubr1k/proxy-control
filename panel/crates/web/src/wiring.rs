@@ -102,6 +102,61 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     // The WP7 clients domain over that adapter set, its enforcer ticking the node's reconciler.
     crate::routes::clients::wire(core, &mut services, &runtime, &node);
     crate::routes::fleet_central::wire(core, &mut services)?;
+
+    // Routing and grant lanes (`app.py:232-250`), over the same adapter set and router.
+    let clients = services.get::<crate::routes::clients::ClientsDomain>().cloned().expect("clients are wired");
+    let routing_adapters: Arc<dyn panel_routing::runtime::RoutingAdapters> = Arc::new(
+        panel_routing::runtime::Managers::new(clients.adapters.clone(), runtime.naive.clone(), runtime.mieru.clone()),
+    );
+    let router: Option<Arc<dyn panel_routing::runtime::RoutingRouter>> =
+        runtime.router.clone().map(|router| router as Arc<dyn panel_routing::runtime::RoutingRouter>);
+    let (naive, mieru, amneziawg, trusttunnel) = (
+        core.settings.naive_enabled,
+        core.settings.mieru_enabled,
+        core.settings.amneziawg_enabled,
+        core.settings.trusttunnel_enabled,
+    );
+    let enabled: Arc<dyn panel_model::seams::ProtocolSwitch> = Arc::new(move |protocol: &str| match protocol {
+        "naive" => naive,
+        "mieru" => mieru,
+        "amneziawg" => amneziawg,
+        "trusttunnel" => trusttunnel,
+        _ => true,
+    });
+    let managed_store = node.managed().clone();
+    let managed: Arc<dyn panel_routing::service::CentralManagement> = Arc::new(move |db: &panel_core::db::Conn| {
+        managed_store.master_guid(db).map_err(|error| -> panel_model::seams::SeamError { Box::new(error) })
+    });
+    let confirmed: Arc<dyn panel_model::seams::RelayConfirmation> = Arc::new(panel_routing::lanes::local_only);
+    // WP12b replaces these absent central seams in the same composition root.
+    let publisher: Option<Arc<dyn panel_model::seams::GenerationPublisher>> = None;
+    let node_client: Option<Arc<dyn panel_model::seams::NodeClientProvider>> = None;
+    let relays = panel_routing::lanes::RelayRegistry::new(core.secrets.clone());
+    let routing = panel_routing::service::RoutingService::new(
+        core.database.clone(),
+        routing_adapters.clone(),
+        enabled,
+        publisher.clone(),
+        Some(managed),
+        core.clock.clone(),
+        router.clone(),
+        Some(relays.clone()),
+        core.panel_guid.clone(),
+        core.settings.allowed_hosts.first().cloned().unwrap_or_default(),
+        confirmed,
+        node_client,
+    );
+    let lanes = panel_routing::lanes::LaneService::new(
+        core.database.clone(),
+        routing_adapters,
+        router,
+        core.clock.clone(),
+        publisher,
+    );
+    clients.lifecycle.set_lanes(Arc::new(lanes.clone()));
+    services.insert(relays);
+    services.insert(routing);
+    services.insert(lanes);
     services.insert(runtime);
     services.insert(node);
     // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13, `app.py:252`):

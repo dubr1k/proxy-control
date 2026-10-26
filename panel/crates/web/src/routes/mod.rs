@@ -43,6 +43,7 @@ pub mod metrics;
 pub mod nodes;
 pub mod openapi;
 pub mod readiness;
+pub mod routing;
 #[cfg(feature = "test-hooks")]
 pub mod test_hooks;
 
@@ -57,9 +58,11 @@ pub fn all() -> Routes {
         // 5: version routes (WP8)
         .merge(openapi::routes())
         // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)
+        // 13: node routes (WP11)
         .merge(nodes::routes())
         .merge(clients::routes())
-        // 15-16: subscriptions (WP9); 17: routing (WP10)
+        // 15-16: subscriptions (WP9)
+        .merge(routing::routes())
         .merge(metrics::routes());
     #[cfg(feature = "test-hooks")]
     let routes = routes.merge(test_hooks::routes());
