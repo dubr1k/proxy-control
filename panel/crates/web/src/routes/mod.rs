@@ -37,6 +37,7 @@ use crate::http::router::Routes;
 pub mod api_keys;
 pub mod auth;
 pub mod clients;
+pub mod fleet_central;
 pub mod fleet_node;
 pub mod openapi;
 pub mod readiness;
@@ -50,7 +51,7 @@ pub fn all() -> Routes {
         .merge(auth::routes())
         .merge(api_keys::routes())
         .merge(fleet_node::routes())
-        // 4: fleet v2 central routes (WP12b)
+        .merge(fleet_central::routes())
         // 5: version routes (WP8)
         .merge(openapi::routes())
         // 7-11: Telemt dashboard, NaiveProxy, Mieru, AmneziaWG, TrustTunnel (WP8)

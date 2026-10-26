@@ -17,7 +17,7 @@ path = "src/main.rs"
 [features]
 # Test-only routes under /__test/ (fake clock, loop ticks, settle, bridge probe), the PANEL_TEST_*
 # knobs and paused background loops (inventory §10.4 step 2). Never enabled in release images.
-test-hooks = []
+test-hooks = ["panel-fleet-central/test-hooks"]
 
 [dependencies]
 panel-clients = { path = "../clients" }
@@ -26,6 +26,8 @@ panel-model = { path = "../model" }
 panel-secrets = { path = "../secrets" }
 panel-managers = { path = "../managers" }
 panel-fleet = { path = "../fleet" }
+panel-fleet-central = { path = "../fleet-central" }
+panel-nodes = { path = "../nodes" }
 panel-metrics = { path = "../metrics" }
 panel-protocols = { path = "../protocols" }
 # Handlers and extractors only: routing, middleware and serving are the panel's own (Starlette

@@ -95,6 +95,7 @@ pub fn services(core: &Arc<Core>) -> Result<Services, String> {
     );
     // The WP7 clients domain over that adapter set, its enforcer ticking the node's reconciler.
     crate::routes::clients::wire(core, &mut services, &runtime, &node);
+    crate::routes::fleet_central::wire(core, &mut services)?;
     services.insert(runtime);
     services.insert(node);
     Ok(services)
@@ -121,6 +122,6 @@ fn bridge_probe(core: &Arc<Core>) -> Option<panel_protocols::telemt::BridgeProbe
 /// `tick(force=True)` before serving (WP7), then the loops `pusher` (WP12), `enforcer` (WP7) and
 /// `metrics` (WP13, only when `PANEL_METRICS_ENABLED`), registered in that order.
 pub fn register_lifespan(state: &AppState) {
-    // (pusher: WP12) — the enforcer's pre-serve tick and loop (WP7) — (metrics: WP13)
+    crate::routes::fleet_central::register_lifespan(state);
     crate::routes::clients::register_lifespan(state);
 }
