@@ -11,7 +11,7 @@ fn action() -> Action {
         "service=proxy-control".into(), "certificate=relay.example.com".into(), "email=owner@example.com".into(),
         "name=panel.example.com".into(), "name=relay.example.com".into(),
         "webroot=/var/www/panel.example.com".into(), "webroot=/var/www/relay.example.com".into(),
-    ], vec![], vec![], vec![], false).unwrap()
+    ], vec!["audited ACME lineage and vhost".into()], vec!["exact certificate and SANs".into()], vec!["remove only owned lineage".into()], false).unwrap()
 }
 
 fn seed(root: &Path) {

@@ -1232,6 +1232,7 @@ mod tests {
     struct FakeUfw {
         rules: Vec<String>,
         ipv6: bool,
+        fail_ssh_allow: bool,
     }
 
     impl FakeUfw {
@@ -1265,7 +1266,7 @@ mod tests {
 
     fn ufw_runner(rules: &[&str]) -> (Arc<RecordingRunner>, Arc<Mutex<FakeUfw>>) {
         let state =
-            Arc::new(Mutex::new(FakeUfw { rules: rules.iter().map(|rule| (*rule).into()).collect(), ipv6: false }));
+            Arc::new(Mutex::new(FakeUfw { rules: rules.iter().map(|rule| (*rule).into()).collect(), ipv6: false, fail_ssh_allow: false }));
         let responder_state = state.clone();
         let runner = Arc::new(RecordingRunner::with_responder(move |call| {
             let argv: Vec<&str> = call.argv.iter().map(String::as_str).collect();
@@ -1280,6 +1281,9 @@ mod tests {
                 let protocol = argv[argv.iter().position(|part| *part == "proto").unwrap() + 1];
                 let port = argv[argv.iter().position(|part| *part == "port").unwrap() + 1];
                 let comment = argv[argv.iter().position(|part| *part == "comment").unwrap() + 1];
+                if state.fail_ssh_allow && comment == "proxy-control: preserved SSH" {
+                    return Some(Reply::exit(1, "", "SSH rule failed"));
+                }
                 let rendered = format!("{port}/{protocol} ALLOW IN Anywhere # {comment}");
                 if !state.rules.contains(&rendered) {
                     state.rules.push(rendered);
@@ -1471,4 +1475,34 @@ mod tests {
         ambiguous.listeners = json!({"tcp": [22, 2222], "owners": {"22": ["sshd"], "2222": ["sshd"]}, "ssh_socket_tcp": []}).as_object().unwrap().clone();
         assert!(adapter.plan(&config(), &ambiguous).is_err());
     }
+    #[test]
+    fn inactive_firewall_enables_only_after_ssh_allow_succeeds_and_disables_on_rollback() {
+        for ssh_succeeds in [false, true] {
+            let dir = TempDir::new("firewall-enable-order");
+            let (runner, state) = ufw_runner(&[]);
+            let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
+            let adapter = FirewallAdapter::new(&context);
+            let mut observed = facts();
+            observed.ownership.get_mut("ufw").unwrap()["active"] = json!(false);
+            let action = adapter.plan(&config(), &observed).unwrap().remove(0);
+            assert!(action.mutations.contains(&"enable=true".into()));
+            let prepared = adapter.prepare(&action).unwrap();
+            assert!(!runner.argvs().iter().any(|a| a == &["ufw", "status", "numbered"]));
+            state.lock().unwrap().fail_ssh_allow = !ssh_succeeds;
+            let applied = adapter.apply(&action, prepared);
+            let calls = runner.argvs();
+            let ssh_allow = calls.iter().position(|a| a.starts_with(&["ufw".into(), "allow".into()])).unwrap();
+            let enable = calls.iter().position(|a| a == &["ufw", "--force", "enable"]);
+            assert_eq!(applied.is_ok(), ssh_succeeds);
+            if ssh_succeeds {
+                assert!(ssh_allow < enable.unwrap());
+                assert!(state.lock().unwrap().rules.iter().any(|rule| rule.contains("proxy-control: preserved SSH")));
+                adapter.rollback(&action, applied.unwrap(), false, RollbackTarget::RolledBack).unwrap();
+                assert!(runner.argvs().iter().any(|a| a == &["ufw", "--force", "disable"]));
+            } else {
+                assert!(enable.is_none(), "a failed SSH allow must not lock out the operator");
+            }
+        }
+    }
+
 }

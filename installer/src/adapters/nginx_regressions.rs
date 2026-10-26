@@ -54,7 +54,7 @@ impl Host {
             "variable=$sni_backend".into(), format!("path_kind={kind}"), format!("resolved_path={resolved}"),
             format!("symlink_target={}", link.as_deref().unwrap_or("-")),
             "route=panel.example.com 127.0.0.1:8443".into(), "route=relay.example.com 127.0.0.1:8445".into(),
-        ], vec![], vec![], vec![], false).unwrap()
+        ], vec!["audited active stream map".into()], vec!["selected routes active".into()], vec!["remove only owned routes".into()], false).unwrap()
     }
 
     fn applied(&self) -> (Action, CheckpointData) {
@@ -71,9 +71,9 @@ fn coexist_replay_and_rollback_preserve_adjacent_routes_and_symlink_metadata() {
         let host = Host::new(link);
         let before = host.path().metadata().unwrap();
         let (action, applied) = host.applied();
-        let installed = fs::read(&host.path()).unwrap();
+        let installed = fs::read(host.path()).unwrap();
         let replayed = host.adapter.repair(&action, applied).unwrap();
-        assert_eq!(fs::read(&host.path()).unwrap(), installed);
+        assert_eq!(fs::read(host.path()).unwrap(), installed);
         let adjacent = String::from_utf8(installed).unwrap().replace("foreign.example.com", "neighbor.example.com");
         fs::write(host.path(), &adjacent).unwrap();
         assert!(host.adapter.verify(&action).unwrap().success);
