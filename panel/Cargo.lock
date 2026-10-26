@@ -830,6 +830,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "panel-fleet"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "indexmap",
+ "log",
+ "panel-core",
+ "panel-managers",
+ "panel-metrics",
+ "panel-model",
+ "panel-protocols",
+ "panel-secrets",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "panel-managers"
 version = "0.1.0"
 dependencies = [
@@ -926,8 +943,11 @@ dependencies = [
  "hyper-util",
  "md-5",
  "panel-core",
+ "panel-fleet",
  "panel-managers",
+ "panel-metrics",
  "panel-model",
+ "panel-protocols",
  "panel-secrets",
  "serde_json",
  "sha2",

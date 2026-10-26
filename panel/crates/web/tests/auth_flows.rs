@@ -267,8 +267,8 @@ fn node_sync_key_reaches_only_the_fleet_api() {
     let bearer = format!("Bearer {}", body["plaintext"].as_str().unwrap());
     let refused = bare.send(&panel, "GET", "/api/audit", &[("Authorization", &bearer)], None);
     assert_eq!((refused.status, refused.json()), (403, json!({"detail": "node-sync key is limited to the fleet API"})));
-    // `/api/fleet/v2/*` is WP12's; the gate itself lets the key through there.
-    assert_eq!(bare.send(&panel, "GET", "/api/fleet/v2/identity", &[("Authorization", &bearer)], None).status, 404);
+    // On `/api/fleet/v2/*` (WP12a) the key goes through.
+    assert_eq!(bare.send(&panel, "GET", "/api/fleet/v2/identity", &[("Authorization", &bearer)], None).status, 200);
 }
 
 #[test]

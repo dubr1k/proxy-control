@@ -1,0 +1,28 @@
+[package]
+name = "panel-fleet"
+description = "Fleet v2 of the Proxy Control panel. Node side: the /api/fleet/v2/* routes a central panel calls, the generations a node accepts, the reconcile that applies them through the protocol adapters, the guard that keeps local writers off central-owned users, and the node's metrics routes. The central side (client, pusher) is a stub for WP12b."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_fleet"
+
+[dependencies]
+indexmap = "2"
+log = "0.4"
+panel-core = { path = "../core" }
+panel-managers = { path = "../managers" }
+panel-metrics = { path = "../metrics" }
+panel-model = { path = "../model" }
+panel-protocols = { path = "../protocols" }
+panel-secrets = { path = "../secrets" }
+# The same features as panel-core: objects keep insertion order like Python dicts.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+
+[dev-dependencies]
+base64 = "0.22"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
