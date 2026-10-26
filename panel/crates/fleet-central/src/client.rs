@@ -325,6 +325,14 @@ impl NodeHttpClient {
             .pool_idle_timeout(POOL_IDLE_TIMEOUT)
             .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
             .dns_resolver(AddressResolver { allow_private });
+        // Reqwest constructs its HTTPS connector even for a UDS/HTTP harness route. Always
+        // supply the explicit provider, rather than relying on a process-global installation.
+        let tls = match tls_verify {
+            "verify" => verified_tls_config()?,
+            "pin" => pinned_tls_config(Some(pinned_sha256.expect("checked above").to_lowercase()))?,
+            _ => unreachable!("validated above"),
+        };
+        builder = builder.tls_backend_preconfigured(tls);
 
         #[cfg(all(unix, feature = "test-hooks"))]
         let test_socket = test_node_socket(&host)?;
@@ -341,13 +349,6 @@ impl NodeHttpClient {
             }
             #[cfg(not(all(unix, feature = "test-hooks")))]
             drop(path);
-        } else {
-            let tls = match tls_verify {
-                "verify" => verified_tls_config()?,
-                "pin" => pinned_tls_config(Some(pinned_sha256.expect("checked above").to_lowercase()))?,
-                _ => unreachable!("validated above"),
-            };
-            builder = builder.tls_backend_preconfigured(tls);
         }
 
         let http = builder.build().map_err(|error| CentralError::Internal(error.to_string()))?;
