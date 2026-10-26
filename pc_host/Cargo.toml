@@ -1,0 +1,32 @@
+[package]
+name = "pc_host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+license = "MIT"
+description = "Shared host plumbing of the Proxy Control installer and version-agent: durable files, the operation lock, Python-exact JSON, command runners, release archives and HTTPS."
+publish = false
+
+[dependencies]
+# Gzip for release archives (miniz_oxide backend, no C).
+flate2 = "1"
+getrandom = "0.3"
+libc = "0.2"
+# TLS for the HTTPS client; `ring` keeps the build free of cmake. The system CA bundle is the
+# trust store, as `ssl.create_default_context()` used it.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8"
+serde = "1"
+# No `preserve_order`: every host JSON format is key-sorted. `float_roundtrip` parses floats
+# exactly, so a Python-written float is written back with the same digits.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider"] }
+# Reading the reviewed Xray zip: deflate only.
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
