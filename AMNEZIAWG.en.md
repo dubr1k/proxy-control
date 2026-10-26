@@ -82,6 +82,11 @@ release; it does what the installer's AmneziaWG step does and is safe to repeat:
 ```bash
 sudo scripts/enable-amneziawg.sh --host vpn.example.com
 ```
+The unpacked release must include `installer/bin/linux-amd64/proxy-control-installer`.
+The script calls its `awg-ports` helper for the same host-stable UDP derivation used by the
+installer; no host Python interpreter is required. Installer rollback restores the runtime
+IPv4 forwarding value recorded before installation (legacy journals cannot reconstruct it).
+
 
 It copies the manager and its Compose overlay, creates the token and the state directory (the server keys
 are never touched), writes `.env.amneziawg`, turns on IPv4 forwarding, opens the UDP ports and the forwarding

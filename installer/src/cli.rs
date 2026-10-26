@@ -272,6 +272,18 @@ pub fn run(
     if let Some(status) = crate::proxy_helpers::cli(arguments, stdout, stderr) {
         return status;
     }
+    if let Some(result) = crate::vpn_helpers::dispatch(arguments, &release_tree()) {
+        return match result {
+            Ok(text) => {
+                let _ = stdout.write_all(text.as_bytes());
+                0
+            }
+            Err(message) => {
+                let _ = writeln!(stderr, "BLOCKED: {message}");
+                2
+            }
+        };
+    }
     if let Some(request) = parse_ingress(arguments, installer_core::argparse::terminal_width()) {
         return match request {
             Ok(request) => run_ingress(request, compose, stdout),
