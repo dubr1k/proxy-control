@@ -14,10 +14,10 @@ import httpx
 from .local_http import uds_transport
 from .routing.document import EGRESS_REASON_CODES, ROUTER_DIRECT_INTENT, canonical
 
-# v1.0.1: the sources the router manager knows (`xray_router_manager.geodata.SOURCE_KINDS`).
+# v1.0.1: the sources the router manager knows (`SOURCE_KINDS` of `xray_router_manager/src/geodata.rs`).
 GEODATA_SOURCE_KINDS = ("xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom")
 ROUTER_SERVICES = ("naive", "mieru", "mtproxy", "trusttunnel", "amneziawg")
-# What the spike proved the router enforces (xray_router_manager/intent.py).
+# What the spike proved the router enforces (xray_router_manager/src/intent.rs).
 ROUTER_CAPABILITIES = (
     "whole_direct", "whole_warp",
     "block_domain", "block_cidr", "block_port", "block_geosite", "block_geoip",

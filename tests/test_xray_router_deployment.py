@@ -67,7 +67,7 @@ def test_router_overlay_is_loopback_only_read_only_and_pinned():
     assert env["XRAY_ROUTER_PORT_TRUSTTUNNEL"] == "45104"
     assert {s["source"] for s in router["secrets"]} == {"xray-router-ingress-mieru", "xray-router-ingress-naive",
                                                         "xray-router-manager-token"}
-    assert router["healthcheck"]["test"] == ["CMD", "python", "-m", "xray_router_manager.healthcheck"]
+    assert router["healthcheck"]["test"] == ["CMD", "/usr/local/bin/xray-router-manager", "healthcheck"]
     assert config["volumes"]["xray-router-run"]["driver_opts"]["o"] == "uid=10006,gid=10006,mode=0770"
     for name in ("xray-router-manager-token", "xray-router-ingress-naive", "xray-router-ingress-mieru"):
         assert config["secrets"][name]["file"].endswith(f"secrets/{name}")
@@ -105,9 +105,15 @@ def test_router_overlay_without_mieru_still_renders():
 def test_dockerfile_and_entrypoint_use_the_reserved_identity():
     dockerfile = (ROOT / "xray_router_manager" / "Dockerfile").read_text()
     assert "--uid 10006" in dockerfile and "--gid 10006" in dockerfile and "USER 10006:10006" in dockerfile
-    # The runtime stage is the same pinned Python as the panel's (3.0: after the Go stage of the bridge).
-    runtime = [line for line in dockerfile.splitlines() if line.startswith("FROM python:")]
-    assert runtime == [(ROOT / "panel" / "Dockerfile").read_text().splitlines()[0]]
+    # 4.0: the manager is Rust; the runtime stage is the same pinned Debian as every Rust manager's
+    # (after the Go stage of the bridge and the Rust build stage).
+    stages = [line for line in dockerfile.splitlines() if line.startswith("FROM ")]
+    runtime = stages[-1]
+    assert runtime == [line for line in (ROOT / "trusttunnel_manager" / "Dockerfile").read_text().splitlines()
+                       if line.startswith("FROM ")][-1]
+    assert runtime.startswith("FROM debian:bookworm-slim@sha256:")
+    assert "COPY --from=build /out/xray-router-manager /usr/local/bin/xray-router-manager" in dockerfile
+    assert 'ENTRYPOINT ["/usr/local/bin/xray-router-manager"]' in dockerfile
     assert "COPY --from=bridge /out/mtproxy-bridge /usr/local/bin/mtproxy-bridge" in dockerfile
     entrypoint = (ROOT / "panel" / "entrypoint.sh").read_text()
     assert "10001,10005,10006" in entrypoint and "xray-router-manager-token" in entrypoint

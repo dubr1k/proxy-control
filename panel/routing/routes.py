@@ -42,7 +42,7 @@ class RelayEnableBody(BaseModel):
 
 
 class GeodataSourceBody(BaseModel):
-    # v1.0.1: the regional presets of `xray_router_manager.geodata.PRESET_URLS` (a test keeps them equal).
+    # v1.0.1: the regional presets of `preset_urls` in `xray_router_manager/src/geodata.rs` (tests/fixtures/xray-router-contract.json keeps them equal).
     kind: Literal["xray", "loyalsoldier", "runetfreedom", "iran", "v2fly", "custom"]
     geosite_url: str | None = Field(default=None, max_length=1024)
     geoip_url: str | None = Field(default=None, max_length=1024)

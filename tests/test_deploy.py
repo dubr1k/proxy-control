@@ -973,7 +973,9 @@ class DeployCliTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT))
         from installer.adapters import xray_router as adapter
         from installer.model import ROUTER_PORTS
-        from xray_router_manager.intent import PORTS
+
+        # The Rust manager checks the same fixture (xray_router_manager/src/tests.rs).
+        PORTS = json.loads((ROOT / "tests/fixtures/xray-router-contract.json").read_text())["ports"]
 
         compose = (ROOT / "compose.xray-router.yaml").read_text()
         self.assertEqual(compose.splitlines()[0], "name: proxy_panel_by_dubr1k")
@@ -993,6 +995,11 @@ class DeployCliTests(unittest.TestCase):
         dockerfile = (ROOT / "xray_router_manager/Dockerfile").read_text()
         self.assertIn("--uid 10006", dockerfile)
         self.assertIn("USER 10006:10006", dockerfile)
+        # 4.0: the manager is a Rust binary from the locked crate set, and it is its own probe.
+        self.assertIn("cargo build --release --locked", dockerfile)
+        self.assertIn("COPY pc_common /src/pc_common", dockerfile)
+        self.assertNotIn("python", dockerfile.lower())
+        self.assertIn('test: ["CMD", "/usr/local/bin/xray-router-manager", "healthcheck"]', compose)
         preparer = (ROOT / "scripts/prepare-xray-router-state.sh").read_text()
         self.assertIn("ROUTER_UID=10006", preparer)
         self.assertIn("ROUTER_MODE=0700", preparer)
@@ -1042,7 +1049,7 @@ class DeployCliTests(unittest.TestCase):
         """The router is its own runtime (spec §15): nothing of it reads or writes 3x-ui's."""
         files = [ROOT / "compose.xray-router.yaml", ROOT / "installer/adapters/xray_router.py",
                  ROOT / "scripts/prepare-xray-router-state.sh", ROOT / "scripts/rotate-xray-router-ingress.sh",
-                 *sorted((ROOT / "xray_router_manager").glob("*.py")), ROOT / "xray_router_manager/Dockerfile"]
+                 *sorted((ROOT / "xray_router_manager/src").glob("*.rs")), ROOT / "xray_router_manager/Dockerfile"]
         for path in files:
             text = path.read_text()
             for needle in ("/usr/local/x-ui", "/etc/x-ui", "x-ui.db", "3x-ui"):

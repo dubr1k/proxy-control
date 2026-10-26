@@ -189,7 +189,7 @@ sudo systemctl is-active version-agent caddy-naive mita
 sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health
 sudo journalctl -u version-agent --since=-15min --no-pager
 # с Xray-router:
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
 ```
 
 Health-check требует заголовок `Host`: установщик разрешает только домен панели. Сводку
@@ -594,7 +594,7 @@ exists`) и ничего на хосте не меняет, а повторны�
 сбросьте её.
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -E 'verified|generation'
 ss -ltnp 'sport = :45101 or sport = :45102'   # только 127.0.0.1, владелец — xray
 ```
 
@@ -615,7 +615,7 @@ Relay позволяет другим узлам парка выходить ч�
 
 ```bash
 # relay (домен панели — прикрытие Reality; порт — публичный)
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay-enable panel.example.com 45443
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay-enable panel.example.com 45443
 ufw allow 45443/tcp
 # слоты Mieru: шаблон юнита, демоны, env менеджера
 install -m 0644 deploy/mita@.service /etc/systemd/system/mita@.service && systemctl daemon-reload
@@ -627,7 +627,7 @@ docker compose --env-file .env --env-file .env.mieru -f compose.yaml -f compose.
 Проверка:
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --relay | python3 -m json.tool   # enabled, public_key
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --relay | python3 -m json.tool   # enabled, public_key
 systemctl is-active mita@1 mita@2 mita@3 mita@4; ss -lnt | grep -E ':45443|:4610[1-4]'
 ```
 
@@ -646,7 +646,7 @@ chocolate4u», «v2fly» или свои URL. Каждое скачивание 
 ошибку перезапуска роутера, если она была.
 
 ```bash
-docker exec proxy-control-xray-router python -m xray_router_manager.healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
+docker exec proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status | python3 -m json.tool | grep -A3 '"geodata"'
 ```
 
 Обновление `xray` с экрана «Версии» заменяет бинарник вместе со списками его архива; с источником

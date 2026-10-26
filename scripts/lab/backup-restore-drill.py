@@ -138,7 +138,7 @@ class Drill:
         }
 
     def router_status(self) -> dict:
-        out = run("docker", "exec", "proxy-control-xray-router", "python", "-m", "xray_router_manager.healthcheck", "--status", check=False)
+        out = run("docker", "exec", "proxy-control-xray-router", "/usr/local/bin/xray-router-manager", "healthcheck", "--status", check=False)
         try:
             return json.loads(out)
         except ValueError:

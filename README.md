@@ -785,7 +785,7 @@ Telemt и сверх образа — из бинарника релиза `tele
 | `panel/Dockerfile` | API и интерфейс панели | `python:3.13.5-slim` |
 | `naive_manager/Dockerfile` | Управление доступами и учёт NaiveProxy (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `mieru_manager/Dockerfile` | Управление доступами и квотами Mieru (Rust) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
-| `xray_router_manager/Dockerfile` | Xray-router и его служба управления | `python:3.13.5-slim` |
+| `xray_router_manager/Dockerfile` | Xray-router: служба управления (Rust) и мост MTProxy (Go) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `mcp_server/Dockerfile` | MCP-сервер (Rust, только центральная панель) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `awg_manager/Dockerfile` | AmneziaWG: служба управления (Rust) и `amneziawg-go` (необязательно) | `golang:1.25.12`, `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |
 | `trusttunnel_manager/Dockerfile` | TrustTunnel: служба управления (Rust) и закреплённый `trusttunnel_endpoint` (необязательно) | `rust:1.99-slim-bookworm` (сборка), `debian:bookworm-slim` |

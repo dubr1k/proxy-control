@@ -1,0 +1,143 @@
+{
+ "about": "What the panel and the installer share with the Rust xray_router_manager: xray_router_manager/src/tests.rs::the_contract_fixture_is_what_the_manager_serves checks the manager side, the Python tests read the rest from here.",
+ "services": [
+  "naive",
+  "mieru",
+  "mtproxy",
+  "trusttunnel",
+  "amneziawg"
+ ],
+ "ports": {
+  "naive": 45101,
+  "mieru": 45102
+ },
+ "trusttunnel_port": 45104,
+ "capabilities": [
+  "whole_direct",
+  "whole_warp",
+  "block_domain",
+  "block_cidr",
+  "block_port",
+  "block_geosite",
+  "block_geoip",
+  "selective_domain",
+  "selective_cidr",
+  "selective_port",
+  "selective_geosite",
+  "selective_geoip",
+  "geodata",
+  "block_protocol",
+  "selective_protocol",
+  "custom_exits",
+  "lanes",
+  "chains",
+  "relay"
+ ],
+ "geodata_source_kinds": [
+  "xray",
+  "loyalsoldier",
+  "runetfreedom",
+  "iran",
+  "v2fly",
+  "custom"
+ ],
+ "geodata_presets": {
+  "loyalsoldier": {
+   "geosite": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
+   "geoip": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat"
+  },
+  "runetfreedom": {
+   "geosite": "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat",
+   "geoip": "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat"
+  },
+  "iran": {
+   "geosite": "https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat",
+   "geoip": "https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat"
+  },
+  "v2fly": {
+   "geosite": "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat",
+   "geoip": "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"
+  }
+ },
+ "panel_exit_specs": [
+  {
+   "protocol": "vless",
+   "address": "vpn.example.org",
+   "port": 443,
+   "transport": {
+    "network": "tcp"
+   },
+   "security": {
+    "kind": "reality",
+    "server_name": "www.example.com",
+    "fingerprint": "chrome",
+    "public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "short_id": "0123abcd"
+   },
+   "flow": "xtls-rprx-vision",
+   "credential": {
+    "uuid": "9d3b6b2c-1e6a-4b2a-9f0e-3c2f8a1d5e77"
+   }
+  },
+  {
+   "protocol": "trojan",
+   "address": "t.example.org",
+   "port": 8443,
+   "transport": {
+    "network": "ws",
+    "path": "/ws",
+    "host": "t.example.org"
+   },
+   "security": {
+    "kind": "tls",
+    "server_name": "t.example.org",
+    "fingerprint": "chrome"
+   },
+   "credential": {
+    "password": "pw"
+   }
+  },
+  {
+   "protocol": "shadowsocks",
+   "address": "203.0.113.5",
+   "port": 8388,
+   "transport": {
+    "network": "tcp"
+   },
+   "security": {
+    "kind": "none"
+   },
+   "method": "aes-256-gcm",
+   "credential": {
+    "password": "secret"
+   }
+  },
+  {
+   "protocol": "socks",
+   "address": "10.0.0.2",
+   "port": 1080,
+   "transport": {
+    "network": "tcp"
+   },
+   "security": {
+    "kind": "none"
+   },
+   "credential": {
+    "username": "user",
+    "password": "pass"
+   }
+  },
+  {
+   "protocol": "http",
+   "address": "10.0.0.3",
+   "port": 3128,
+   "transport": {
+    "network": "tcp"
+   },
+   "security": {
+    "kind": "none"
+   },
+   "credential": {}
+  }
+ ]
+}

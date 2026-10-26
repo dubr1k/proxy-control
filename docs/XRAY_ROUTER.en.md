@@ -114,7 +114,7 @@ the connection.
   SHA-256 and mode); the manager re-checks all three digests before it starts anything
   (`XRAY_ROUTER_*_SHA256` in `.env.xray-router`) and, on a mismatch, answers
   `artifact_mismatch` (503) instead of running an unpinned binary.
-- **Manager** (`xray_router_manager`): a supervisor around one child `xray run`. Its
+- **Manager** (`xray_router_manager`, a Rust binary since 4.0): a supervisor around one child `xray run`. Its
   state is a sequence of **generations** (`generations/<n>/config.json`), `current.json`
   (the running one), `journal.json` (per service: current, previous, history) and
   `state.json` (`phase: idle | swapping | broken`). It renders one Xray configuration
@@ -127,7 +127,7 @@ the connection.
   `PUT /v1/relay/accounts` (below), `GET /v1/geodata`, `GET /v1/geodata/codes`,
   `PUT /v1/geodata/settings`, `POST /v1/geodata/update | restore`, `POST /v1/exits/test`
   («Geodata and custom exits» below). The panel is its only client; `docker exec
-  proxy-control-xray-router python -m xray_router_manager.healthcheck --status` prints the
+  proxy-control-xray-router /usr/local/bin/xray-router-manager healthcheck --status` prints the
   status for an operator or the installer's verify (`--relay`, `--relay-enable <server_name>
   <port>` — the relay).
 

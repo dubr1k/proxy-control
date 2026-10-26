@@ -229,6 +229,11 @@ if [[ -d $RELEASE_DIR/pc_common && ! -L $DIR/pc_common ]] \
         services+=(naive-manager)
         acked+=(naive_manager)
     fi
+    # The router's image (and the ingress bridge's, the same image) builds the manager too.
+    if has compose.xray-router.yaml && [[ " ${services[*]:-} " != *" xray-router "* ]]; then
+        services+=(xray-router)
+        acked+=(xray_router_manager)
+    fi
 fi
 # v1.1: the router's MTProxy bridge comes with the router (a new service on an updated host).
 if has compose.xray-router.yaml && grep -q '^  xray-router-ingress:' compose.xray-router.yaml; then

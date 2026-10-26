@@ -1,4 +1,4 @@
-"""Policy → the router's intent (`XrayRoutingIntent`, xray_router_manager/intent.py), v0.5.
+"""Policy → the router's intent (`XrayRoutingIntent`, xray_router_manager/src/intent.rs), v0.5.
 
 The router enforces every cell of the matrix the spike proved (docs/spikes/
 XRAY_EGRESS_ROUTER.md): domains and geosite codes, CIDRs and geoip codes, ports, `block`

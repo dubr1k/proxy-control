@@ -208,6 +208,19 @@ def test_a_host_already_on_the_release_only_rebuilds_what_is_missing(host):
     assert len(up) == 1 and up[0].endswith("--wait xray-router-ingress")
 
 
+def test_a_host_without_the_shared_rust_crate_gets_it_and_rebuilds_the_router(host):
+    """4.0: the router's manager is Rust and builds against `pc_common`, which agents before 4.0 do
+    not sync: the script completes it from the verified release and rebuilds the router with it."""
+    shutil.rmtree(host["project"] / "pc_common")
+    agent = Agent(current="1.1.0")
+    result = _run(host, agent)
+    assert result.returncode == 0, result.stderr
+    assert (host["project"] / "pc_common" / "Cargo.toml").read_bytes() == (ROOT / "pc_common" / "Cargo.toml").read_bytes()
+    up = [line for line in host["log"].read_text().splitlines() if " up -d " in line]
+    assert len(up) == 1 and up[0].endswith("--wait xray-router xray-router-ingress")
+    assert {"names": ["xray_router_manager"]} in agent.acks
+
+
 def test_without_an_agent_it_points_to_the_manual_upgrade(host):
     environment = {"PATH": "/usr/bin:/bin", "UPDATE_HOST_AGENT_SOCKET": str(host["tmp"] / "none.sock")}
     result = subprocess.run(["bash", str(SCRIPT), "--version", "1.1.0", "--sha256", DIGEST], env=environment,
