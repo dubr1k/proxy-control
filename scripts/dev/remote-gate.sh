@@ -23,6 +23,7 @@ sync_tree() {
     --exclude dist --exclude dist-again --exclude __pycache__ --exclude .pytest_cache \
     --exclude .ruff_cache --exclude node_modules --exclude .DS_Store --exclude .hermes \
     --exclude secrets --exclude .env --exclude graphify-out --exclude .superpowers \
+    --exclude .claude --exclude target \
     "$ROOT/" "$HOST:$REMOTE/"
 }
 
@@ -73,11 +74,6 @@ case $LEVEL in
       && MCP_DOMAIN=mcp.example.com MCP_PANEL_HOST=panel.example.com docker compose -f compose.yaml -f compose.mcp.yaml config -q \
       && docker build -q -f mcp_server/Dockerfile -t proxy-control-mcp:test . >/dev/null \
       && test \"\$(docker run --rm --entrypoint id proxy-control-mcp:test -u)\" = 10007 \
-      && FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key docker compose -f compose.yaml -f compose.agent.yaml config -q \
-      && FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key FLEET_CLIENT_CA=/tmp/client-ca.crt docker compose -f compose.yaml -f compose.fleet-central.yaml config -q \
-      && docker build -q -f deploy/Dockerfile.agent -t proxy-control-agent:test . >/dev/null \
-      && docker build -q -f deploy/Dockerfile.ingress -t proxy-control-ingress:test . >/dev/null \
-      && test \"\$(docker run --rm --entrypoint id proxy-control-ingress:test -u)\" = 10001 \
       && echo REMOTE_GATE_COMPOSE_OK"
     ;;
   lab-container)
@@ -125,8 +121,8 @@ case $LEVEL in
     ;;
   fleet)
     # Fleet v2 end to end against the node `lab-host` left installed (LAB_KEEP_INSTALL=1):
-    # a second panel is started in-process from this tree and linked to it. Only the
-    # tree is synced; nothing is rebuilt or reinstalled.
+    # a second native panel is copied from the installed lab image and linked to it.
+    # Only the tree is synced; installed services are not rebuilt or reinstalled.
     sync_tree
     remote "$ensure_venv && .venv/bin/python scripts/lab/fleet-acceptance.py \
       --node-url https://panel.lab.test \

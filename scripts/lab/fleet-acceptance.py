@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Fleet v2 end to end on the lab host (v0.3 spec §10 «Тестирование», §11 acceptance).
 
-Runs as root on the host that carries the installed node panel. It starts a second,
-in-process «central» panel from the source tree under test, links the node to it over
+Runs as root on the isolated lab host that carries the installed node panel. It starts a
+second native Rust «central» panel from the image under test, links the node to it over
 HTTPS with a scoped `node-sync` key, and drives the whole operator flow through the
 public API only — every claim below is a status code, a byte a real client received, or
 a row the node's own API reports:
 
-   1. central up: database, master key, owner, uvicorn on 127.0.0.1;
+   1. central up: database, master key, owner, native panel on 127.0.0.1;
    2. node key: a `node-sync` API key on the node, the node is unmastered;
    3. fingerprint + test + link (`tls_verify=pin`): `online` within 10 s, `node.up`;
    4. import: every runtime user the node has becomes the central's, untouched;
@@ -114,11 +114,11 @@ def parse_args(argv=None) -> argparse.Namespace:
                              "the wizard's install.credentials (TOML) or a credentials/handoff.json")
     parser.add_argument("--node-username", default="owner", help="overridden by panel_username in a TOML file")
     parser.add_argument("--node-container", default="proxy-control-panel", help="the node panel's Docker container")
-    parser.add_argument("--central-dir", required=True, type=Path, help="state of the in-process central panel")
+    parser.add_argument("--central-dir", required=True, type=Path, help="state of the native central panel")
     parser.add_argument("--central-host", default="127.0.0.1")
     parser.add_argument("--central-port", type=int, default=8791)
-    parser.add_argument("--python", default=sys.executable, help="interpreter that starts the central (uvicorn, FastAPI)")
-    parser.add_argument("--source", type=Path, default=REPO_ROOT, help="tree whose `panel` package the central imports")
+    parser.add_argument("--panel-bin", type=Path, help="native panel executable; otherwise copy it from --node-container")
+    parser.add_argument("--source", type=Path, default=REPO_ROOT, help="release tree providing VERSION and static assets")
     parser.add_argument("--output", required=True, type=Path, help="directory for report.json, feeds and the central log")
     parser.add_argument("--singbox-image", default=SINGBOX_IMAGE, help="pinned sing-box image for naive; empty skips")
     parser.add_argument("--mihomo-image", default=MIHOMO_IMAGE, help="pinned mihomo image for mieru; empty skips")
@@ -179,6 +179,8 @@ def parse_args(argv=None) -> argparse.Namespace:
                              "xray-router-manager, built with `cargo build --release` there)")
     args = parser.parse_args(argv)
     args.source = Path(args.source).resolve()
+    if args.panel_bin is not None:
+        args.panel_bin = args.panel_bin.resolve()
     if args.router_manager is None:
         args.router_manager = args.source / "xray_router_manager" / "target" / "release" / "xray-router-manager"
     args.router_manager = Path(args.router_manager).resolve()
@@ -257,8 +259,8 @@ def central_environment(args: argparse.Namespace) -> dict[str, str]:
     central = Path(args.central_dir)
     return {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "PYTHONPATH": str(args.source),
-        "PYTHONUNBUFFERED": "1",
+        "PANEL_LISTEN": f"tcp:{args.central_host}:{args.central_port}",
+        "PANEL_STATIC_DIR": str(args.source / "panel/static"),
         "PANEL_DATABASE": str(central / "panel.sqlite3"),
         "PANEL_MASTER_KEY_FILE": str(central / "master-key"),
         "PANEL_ALLOWED_HOSTS": f"{args.central_host},localhost",
@@ -386,8 +388,31 @@ class Panel:
 
 # --- host-side collaborators (all replaceable by fakes) --------------------------------
 
+def native_panel(args: argparse.Namespace) -> Path:
+    """Use the explicit native executable, or the one shipped in the node image under test."""
+    binary = getattr(args, "panel_bin", None)
+    if binary is not None:
+        binary = Path(binary)
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            raise Check(f"native panel executable unavailable: {binary}")
+        return binary
+    directory = Path(args.central_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    directory.chmod(0o700)
+    binary = directory / "panel-native"
+    completed = subprocess.run(
+        ["docker", "cp", f"{getattr(args, 'node_container', 'proxy-control-panel')}:/usr/local/bin/panel", str(binary)],
+        capture_output=True, timeout=60, check=False,
+    )
+    if completed.returncode != 0:
+        raise Check("cannot copy the native panel executable from the lab node image")
+    binary.chmod(0o700)
+    args.panel_bin = binary
+    return binary
+
+
 class CentralProcess:
-    """One uvicorn serving `panel.app:create_app` from `--source`, detached in its own session."""
+    """One native panel, detached in its own session; never imports the Python implementation."""
 
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
@@ -398,7 +423,7 @@ class CentralProcess:
 
     def _cli(self, *argv: str, stdin: str | None = None) -> None:
         completed = subprocess.run(
-            [self.args.python, "-m", "panel.cli", "--database", str(self.directory / "panel.sqlite3"), *argv],
+            [str(native_panel(self.args)), "cli", "--database", str(self.directory / "panel.sqlite3"), *argv],
             cwd=self.args.source, env=central_environment(self.args), input=stdin, text=True,
             capture_output=True, timeout=120, check=False,
         )
@@ -423,11 +448,8 @@ class CentralProcess:
                   stdin=owner_password + "\n")
         with self.log.open("ab") as log:
             self.process = subprocess.Popen(
-                # `--no-access-log` as in panel/entrypoint.sh: `/s/{token}` and `/api/reveal/{token}`
-                # are bearer credentials, and an access line would be a copy of them.
-                [self.args.python, "-m", "uvicorn", "panel.app:create_app", "--factory",
-                 "--host", self.args.central_host, "--port", str(self.args.central_port), "--log-level", "info",
-                 "--no-access-log"],
+                # Native panel emits no bearer-bearing access log.
+                [str(native_panel(self.args))],
                 cwd=self.args.source, env=central_environment(self.args), stdin=subprocess.DEVNULL,
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
             )
@@ -569,6 +591,10 @@ class NodeB:
         self.stub = Stub(args.node_b_stub_listen, self.directory / "stub-b.log")
         self.router: subprocess.Popen | None = None
         self.panel: subprocess.Popen | None = None
+        self.tls_proxy: subprocess.Popen | None = None
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            self.backend_port = listener.getsockname()[1]
         self.socket = self.directory / "router-b.sock"
         self.token = self.directory / "router-b.token"
         self.url = f"https://{args.node_b_host}:{args.node_b_port}"
@@ -583,7 +609,9 @@ class NodeB:
 
     def _environment(self) -> dict[str, str]:
         return {
-            "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONPATH": str(self.args.source), "PYTHONUNBUFFERED": "1",
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "PANEL_LISTEN": f"tcp:127.0.0.1:{self.backend_port}",
+            "PANEL_STATIC_DIR": str(self.args.source / "panel/static"),
             "PANEL_DATABASE": str(self.directory / "panel.sqlite3"), "PANEL_MASTER_KEY_FILE": str(self.directory / "master-key"),
             "PANEL_ALLOWED_HOSTS": f"{self.args.node_b_host},127.0.0.1,localhost", "PANEL_COOKIE_SECURE": "false",
             "NAIVE_ENABLED": "false", "MIERU_ENABLED": "false",
@@ -598,7 +626,7 @@ class NodeB:
 
     def _cli(self, *argv: str, stdin: str | None = None) -> None:
         completed = subprocess.run(
-            [self.args.python, "-m", "panel.cli", "--database", str(self.directory / "panel.sqlite3"), *argv],
+            [str(native_panel(self.args)), "cli", "--database", str(self.directory / "panel.sqlite3"), *argv],
             cwd=self.args.source, env=self._environment(), input=stdin, text=True, capture_output=True, timeout=120, check=False)
         if completed.returncode != 0:
             raise Check(f"node B panel.cli {argv[0]} failed: {completed.stderr.strip()[-300:]}")
@@ -614,7 +642,7 @@ class NodeB:
         self.token.write_text(secrets.token_hex(32) + "\n")
         for service in ("naive", "mieru"):
             (self.directory / f"ingress-{service}").write_text(f"{service}-b{secrets.token_hex(3)}:{secrets.token_urlsafe(32)}\n")
-        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONPATH": str(self.args.source), "PYTHONUNBUFFERED": "1",
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
                "XRAY_ROUTER_BIN_DIR": str(self.args.router_bin_dir), "XRAY_ROUTER_STATE_DIR": str(state),
                "XRAY_ROUTER_SOCKET": str(self.socket), "XRAY_ROUTER_MANAGER_TOKEN_FILE": str(self.token),
                "XRAY_ROUTER_INGRESS_NAIVE_FILE": str(self.directory / "ingress-naive"),
@@ -633,7 +661,7 @@ class NodeB:
             time.sleep(0.5)
         if not self.socket.exists():
             raise Check("node B's router did not open its socket; see node-b/router-b.log")
-        # the panel: an owner, a self-signed certificate for the node's name, uvicorn over TLS
+        # An isolated Nginx terminates TLS; the native panel itself serves plain loopback HTTP.
         self._cli("master-key-init", "--path", str(self.directory / "master-key"))
         self._cli("create-admin", "--username", "owner", "--role", "owner", "--password-stdin", stdin=owner_password + "\n")
         cert, key = self.directory / "tls.crt", self.directory / "tls.key"
@@ -645,21 +673,45 @@ class NodeB:
             raise Check(f"openssl failed: {completed.stderr[-200:]}")
         with (self.directory / "panel-b.log").open("ab") as log:
             self.panel = subprocess.Popen(
-                [self.args.python, "-m", "uvicorn", "panel.app:create_app", "--factory", "--host", "0.0.0.0",
-                 "--port", str(self.args.node_b_port), "--log-level", "info", "--no-access-log",
-                 "--ssl-keyfile", str(key), "--ssl-certfile", str(cert)],
+                [str(native_panel(self.args))],
                 cwd=self.args.source, env=self._environment(), stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                 start_new_session=True)
+        self._start_tls(cert, key)
+
+    def _start_tls(self, cert: Path, key: Path) -> None:
+        config = self.directory / "nginx.conf"
+        config.write_text(
+            # The entire standalone lab lives below a root-only directory, like its panel.
+            "user root;\nworker_processes 1;\n"
+            f"pid {json.dumps(str(self.directory / 'nginx.pid'))};\n"
+            "error_log stderr crit;\nevents { worker_connections 64; }\n"
+            "http { access_log off;\n"
+            f"client_body_temp_path {json.dumps(str(self.directory / 'client-body'))};\n"
+            f"proxy_temp_path {json.dumps(str(self.directory / 'proxy-temp'))};\n"
+            "server {\n"
+            f"listen 127.0.0.1:{self.args.node_b_port} ssl;\n"
+            f"ssl_certificate {json.dumps(str(cert))};\n"
+            f"ssl_certificate_key {json.dumps(str(key))};\n"
+            "location / { proxy_http_version 1.1; proxy_buffering off;\n"
+            "proxy_set_header Host $http_host;\n"
+            f"proxy_pass http://127.0.0.1:{self.backend_port};\n"
+            "} } }\n"
+        )
+        with (self.directory / "tls-b.log").open("ab") as log:
+            self.tls_proxy = subprocess.Popen(
+                ["nginx", "-p", str(self.directory), "-c", str(config), "-g", "daemon off;"],
+                stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+            )
 
     def stop(self) -> None:
-        for process in (self.panel, self.router):
+        for process in (self.tls_proxy, self.panel, self.router):
             if process is not None:
                 _terminate(process.pid, process)
-        self.panel = self.router = None
+        self.tls_proxy = self.panel = self.router = None
         self.stub.stop()
 
     def logs(self) -> str:
-        return "".join((self.directory / name).read_text(errors="replace") for name in ("router-b.log", "panel-b.log")
+        return "".join((self.directory / name).read_text(errors="replace") for name in ("router-b.log", "panel-b.log", "tls-b.log")
                        if (self.directory / name).exists())
 
 
@@ -2186,11 +2238,8 @@ class Scenario:
 
 def main(argv=None) -> int:
     args = parse_args(argv)
-    if not Path(args.python).exists():
-        print(f"FAILED: interpreter {args.python} is missing", file=sys.stderr)
-        return 2
-    if not (args.source / "panel" / "app.py").exists():
-        print(f"FAILED: {args.source} has no panel package", file=sys.stderr)
+    if not (args.source / "panel/static").is_dir():
+        print(f"FAILED: {args.source} has no panel static assets", file=sys.stderr)
         return 2
     central_url = f"http://{args.central_host}:{args.central_port}"
     if args.router and not args.routing:
