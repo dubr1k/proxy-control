@@ -115,6 +115,17 @@ pub fn update_panel_async(
     Ok(json!({"component": "panel", "version": version, "changed": true, "async": true}))
 }
 
+pub(crate) fn legacy_unit_on_disk(root: &Path, unit: &str) -> io::Result<bool> {
+    for directory in ["etc/systemd/system", "lib/systemd/system", "usr/lib/systemd/system"] {
+        match fs::symlink_metadata(root.join(directory).join(unit)) {
+            Ok(_) => return Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(false)
+}
+
 /// Every running optional service must have its overlay in `PROXY_CONTROL_COMPOSE_FILES`.
 /// Fleet v1 has no native replacement: reject its installed overlays and containers in either
 /// historical Compose project rather than dropping its writer or persistent volumes.
@@ -123,6 +134,13 @@ pub fn preflight_compose_scope(agent: &VersionAgent) -> Step<()> {
         return Err(refuse("Compose deployment is not configured"));
     };
     for unit in ["mtproxy-agent.service", "mtproxy-fleet-ingress.service"] {
+        // systemd may not have reloaded after a unit file was installed; LoadState alone
+        // can then report not-found while a legacy writer is present on disk.
+        if legacy_unit_on_disk(Path::new("/"), unit)? {
+            return Err(refuse(format!(
+                "Fleet v1 unit {unit} is still installed; migrate its state explicitly before updating the panel"
+            )));
+        }
         let state =
             run(agent, &argv(&["systemctl", "show", "--property=LoadState", "--value", unit]), 30).map_err(|err| {
                 Failure::Update(UpdateError::new("could not determine installed Fleet v1 units").caused_by(err.cause()))

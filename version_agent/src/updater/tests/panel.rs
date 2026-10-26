@@ -524,6 +524,24 @@ fn panel_update_refuses_installed_fleet_units_before_mutation() {
 }
 
 #[test]
+fn unloaded_legacy_unit_file_or_broken_symlink_is_still_detected() {
+    for unit in ["mtproxy-agent.service", "mtproxy-fleet-ingress.service"] {
+        for directory in ["etc/systemd/system", "lib/systemd/system", "usr/lib/systemd/system"] {
+            let root = TempDir::new("legacy-systemd-unit");
+            let path = root.path().join(directory).join(unit);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            write(&path, b"[Unit]\nDescription=Legacy Fleet v1\n");
+            assert!(crate::updater::panel::legacy_unit_on_disk(root.path(), unit).unwrap());
+            std::fs::remove_file(&path).unwrap();
+            std::os::unix::fs::symlink("missing-unit", &path).unwrap();
+            assert!(crate::updater::panel::legacy_unit_on_disk(root.path(), unit).unwrap());
+            std::fs::remove_file(&path).unwrap();
+            assert!(!crate::updater::panel::legacy_unit_on_disk(root.path(), unit).unwrap());
+        }
+    }
+}
+
+#[test]
 fn panel_update_refuses_legacy_overlay_on_disk_or_other_project_before_mutation() {
     for project in ["mtproxy", "proxy_panel_by_dubr1k"] {
         for retired in ["compose.agent.yaml", "compose.fleet-central.yaml"] {

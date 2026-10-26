@@ -22,6 +22,14 @@ bash scripts/dev/check-js-syntax.sh
 
 CI renders every supported Compose overlay against synthetic inputs, including MCP, Xray-router, AmneziaWG and TrustTunnel; the retired Fleet v1 agent and mTLS ingress are not built or rendered. CI builds the Rust panel, Naive/Mieru managers, MCP and Xray-router images, checks the pinned Caddy+forward-proxy artifact and a negative fixture, verifies service units on the ephemeral runner, and enforces diff hygiene and third-party notices. The Python external black-box suite runs against a Rust panel executable (`test-hooks`) and fails the gate on any deselected or skipped test. The independent dependency gate installs `cargo-audit` version `0.22.2` from crates.io with `--locked` and audits **every** shipped native `Cargo.lock` against RustSec; no Python panel or MCP runtime requirements are audited.
 
+The installer unit suite's deliberately ignored real-agent smoke is a separate CI step:
+CI builds both native host executables, compiles the installer library test runner,
+then executes `isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke` as root
+in a private mount namespace with temporary `tmpfs` mounts at `/etc`, `/var/lib`
+and `/run`. The gate requires exactly one passing test; an ignored default Cargo
+result is not evidence for that smoke, and no host paths are mutated outside the
+namespace.
+
 ## Lab tiers on the disposable host
 
 `scripts/dev/remote-gate.sh <tier>` syncs the working tree to the lab host (`ams-test` by

@@ -40,6 +40,26 @@ jobs:
           command -v node
           command -v go
           command -v google-chrome || command -v chromium
+      - name: Real installer and agent in a private host namespace
+        run: |
+          # The default library suite ignores this privileged smoke by design; execute it
+          # explicitly with real compiled binaries, never as an implicit skip.
+          cargo build --manifest-path version_agent/Cargo.toml --locked --bin proxy-control-version-agent
+          cargo test --manifest-path installer/Cargo.toml --locked --lib --no-run \
+            --message-format=json > "$RUNNER_TEMP/installer-tests.jsonl"
+          test_bin=$(jq -r 'select(.reason == "compiler-artifact" and .target.kind == ["lib"] and .profile.test and .executable != null) | .executable' \
+            "$RUNNER_TEMP/installer-tests.jsonl")
+          test -x "$test_bin"
+          sudo env TEST_BIN="$test_bin" \
+            PC_SERVICES_SMOKE_INSTALLER="$PWD/installer/target/debug/proxy-control-installer" \
+            PC_SERVICES_SMOKE_AGENT="$PWD/version_agent/target/debug/proxy-control-version-agent" \
+            unshare --mount --propagation private /bin/bash -euo pipefail -c '
+              for dir in /etc /var/lib /run; do mount -t tmpfs tmpfs "$dir"; done
+              "$TEST_BIN" adapters::services_tests::isolated_real_agent_engine_and_cli_fresh_repair_resume_smoke \
+                --ignored --exact --nocapture
+            ' | tee "$RUNNER_TEMP/installer-agent-smoke.log"
+          grep -Fq 'test result: ok. 1 passed; 0 failed; 0 ignored;' \
+            "$RUNNER_TEMP/installer-agent-smoke.log"
       - name: Ruff and full native-panel black-box tests
         run: |
           .venv/bin/ruff check .

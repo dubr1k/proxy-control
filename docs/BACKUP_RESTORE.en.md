@@ -16,12 +16,12 @@ A backup is usable only when it is consistent, protected as a credential, checks
 | Xray-router | `/var/lib/xray-router` (generations, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; the managers' copies `/var/lib/naive-manager/xray-router-ingress` and `/var/lib/mieru-manager/xray-router-ingress` travel with their state directories; the binaries come from the pinned archive, never from a backup |
 | AmneziaWG | `/var/lib/awg-manager` (0700, root: the server keys and the issued peers — without them every client config stops working), `secrets/awg-manager-token`, `.env.amneziawg`; the image is rebuilt from the pinned amneziawg-go commit, never restored from a backup |
 | TrustTunnel | `/var/lib/trusttunnel-manager` (0700, root: `state.json` with the accesses' passwords and the traffic counters), `secrets/trusttunnel-manager-token`, `.env.trusttunnel`; the image is rebuilt from the pinned endpoint archive, the name's certificate is issued again (the Certbot lineage of its name) |
-| Fleet central | panel DB, ingress config, public server certificate, client CA certificate; offline CA private key separately |
-| Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
+| Fleet v2 central | panel SQLite and its separately stored master key (encrypted node-sync credentials, node links, grants and generations); HTTPS server certificate/key and Nginx routes |
+| Fleet v2 node | its own panel SQLite and separate master key, HTTPS certificate/key, local manager/runtime state and secrets; node-sync key digests reside in the node database |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests and installer backups |
 | Deployment | exact Git revision, image IDs/digests, binary digests, complete `COMPOSE_FILE`, package/unit versions |
 
-Never keep the offline fleet CA key and online node backups in one broadly accessible archive.
+If an older Fleet v1 installation still exists, additionally preserve its agent SQLite/outbox, mTLS node key/certificate, trusted CA, ingress configuration, service env/units and offline CA private key until explicit migration. Never bundle the offline CA private key with broadly accessible node backups; the native release does not install this v1 PKI.
 
 ### The panel master key
 
@@ -59,11 +59,15 @@ right key rather than starting the panel, which will fail closed anyway.
 
 ## Preparation
 
-1. Stop new mutations.
+1. Schedule a consistent snapshot window for non-SQLite state; SQLite online backup does not require stopping its writers.
 2. Record the exact revision and runtime identities.
 3. Put services into a known state.
 4. Create a root-only destination on separate storage.
 5. Keep secret paths/content out of shared logs.
+
+Run the following commands from the installed deployment directory in a root
+shell (for example, `sudo -s`, which preserves the current directory). The
+backup path under `/root` must not be created by an unprivileged shell.
 
 ```bash
 umask 077

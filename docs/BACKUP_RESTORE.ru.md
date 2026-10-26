@@ -16,12 +16,12 @@ Backup считается пригодным только если он согл
 | Xray-router | `/var/lib/xray-router` (поколения, `current.json`, `journal.json`, `state.json`), `secrets/xray-router-manager-token`, `secrets/xray-router-ingress-naive` / `-mieru`, `.env.xray-router`; копии менеджеров `/var/lib/naive-manager/xray-router-ingress` и `/var/lib/mieru-manager/xray-router-ingress` едут вместе с их каталогами состояния; бинари берутся из закреплённого архива, никогда из резервной копии |
 | AmneziaWG | `/var/lib/awg-manager` (0700, root: ключи сервера и выданные пиры — без них все конфиги клиентов перестанут работать), `secrets/awg-manager-token`, `.env.amneziawg`; образ пересобирается из закреплённого коммита amneziawg-go, а не восстанавливается из копии |
 | TrustTunnel | `/var/lib/trusttunnel-manager` (0700, root: `state.json` с паролями доступов и счётчиками трафика), `secrets/trusttunnel-manager-token`, `.env.trusttunnel`; образ собирается заново из закреплённого архива endpoint, сертификат имени выпускается заново (линия Certbot с его именем) |
-| Fleet central | panel DB, ingress config, public server cert, client CA certificate; offline CA private key отдельно |
-| Fleet node | agent SQLite/outbox, node certificate/key, trusted CA, local Telemt token, service env/unit |
+| Центральная панель Fleet v2 | БД панели и отдельно хранимый мастер-ключ (зашифрованные ключи `node-sync`, связи узлов, доступы и поколения); HTTPS-сертификат/ключ сервера и маршруты Nginx |
+| Узел Fleet v2 | собственная БД панели и отдельный мастер-ключ, HTTPS-сертификат/ключ, локальное состояние и секреты менеджеров/протоколов; хеши ключей `node-sync` хранятся в БД узла |
 | Host routing | Nginx stream/http files, exact modes/owners, ownership manifests и installer backups |
 | Deployment | exact Git revision, image IDs/digests, binary digests, полный `COMPOSE_FILE`, package/unit versions |
 
-Не складывайте offline fleet CA key и node backups в один доступный online archive.
+Если ещё установлена Fleet v1, дополнительно сохраните БД/outbox агента, mTLS-ключ и сертификат узла, доверенный CA, настройки ingress, env/units служб и закрытый ключ автономного CA до явной миграции. Не храните закрытый ключ CA вместе с широко доступными копиями узлов; нативный выпуск не устанавливает PKI версии v1.
 
 ### Мастер-ключ панели
 
@@ -59,11 +59,15 @@ docker run --rm -v "$restored_data":/data -v "$restored_key":/key:ro \
 
 ## Подготовка
 
-1. Остановите новые mutations.
+1. Согласуйте окно для согласованной копии остальных сервисов; online backup SQLite не требует остановки писателей.
 2. Запишите exact revision и runtime identities.
 3. Убедитесь, что все services находятся в известном состоянии.
 4. Создайте root-only destination на отдельном filesystem/storage.
 5. Не выводите secret paths/content в общий лог.
+
+Выполняйте следующие команды в каталоге установленного проекта из root shell
+(например, через `sudo -s`, сохраняющий текущий каталог). Каталог копии в
+`/root` не создаётся из непривилегированного shell.
 
 Пример метаданных:
 
