@@ -1,5 +1,4 @@
 """Runtime enforcement, including deadlines when the central panel is unreachable."""
-from types import SimpleNamespace
 import asyncio
 
 import pytest
@@ -27,13 +26,13 @@ async def _enabled(app):
 
 async def test_suspension_reaches_remote_runtime_and_resume_preserves_disabled_grant(pair):
     node, central, _, person, _, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     central.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert await _enabled(node) is False
     await central.state.lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="test")
     central.state.clients.set_state(person.id, "active", actor=ACTOR, ip="test")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert await _enabled(node) is False
     assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "disabled"
 
@@ -50,16 +49,16 @@ async def test_local_suspension_is_pending_until_runtime_readback_and_retries(pa
         raise AdapterError("manager unavailable")
 
     monkeypatch.setattr(adapter, "disable", fail)
-    await app.state.access_enforcer.tick()
+    await app.tick("enforcer")
     assert app.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
     assert await _enabled(app) is True
     monkeypatch.setattr(adapter, "disable", disable)
-    await app.state.access_enforcer.tick()
+    await app.tick("enforcer")
     assert await _enabled(app) is False
     observed = app.state.clients.client_with_grants(person.id)[1][0]
     assert observed.observed_state == "disabled" and observed.desired_state == "enabled"
     app.state.clients.set_state(person.id, "active", actor=ACTOR, ip="test")
-    await app.state.access_enforcer.tick()
+    await app.tick("enforcer")
     assert await _enabled(app) is True
 
 
@@ -114,11 +113,11 @@ async def test_local_provisioning_finishes_disabled_outside_validity_window(pair
 async def test_local_clock_transition_enables_then_expires_without_request(pair):
     _, app, _ = pair
     person, grant = await _local(app, valid_from=9999999998, valid_until=9999999999)
-    app.state.clients.clock = SimpleNamespace(time=lambda: 9999999998)
-    await app.state.access_enforcer.tick()
+    app.clock.set(9999999998)
+    await app.tick("enforcer")
     assert await _enabled(app) is True
-    app.state.clients.clock = SimpleNamespace(time=lambda: 9999999999)
-    await app.state.access_enforcer.tick()
+    app.clock.set(9999999999)
+    await app.tick("enforcer")
     assert await _enabled(app) is False
     assert app.state.clients.client_with_grants(person.id)[1][0].desired_state == "enabled"
 
@@ -128,14 +127,14 @@ async def test_remote_clock_transition_enforces_without_central_or_new_generatio
     with central.state.database.transaction() as db:
         central.state.clients.store.update_grant(db, grant.id, valid_from=9999999998, valid_until=9999999999)
         central.state.clients.notify(db, person.id)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert await _enabled(node) is False
     with node.state.database.connect() as db:
         generation = node.state.managed.latest(db)["generation"]
-    node.state.reconciler.clock = SimpleNamespace(time=lambda: 9999999998)
-    await node.state.access_enforcer.tick()
+    node.clock.set(9999999998)
+    await node.tick("enforcer")
     assert await _enabled(node) is True
-    node.state.reconciler.clock = SimpleNamespace(time=lambda: 9999999999)
+    node.clock.set(9999999999)
     await node.state.reconciler.run_pending()  # a restart must recheck a converged generation
     assert await _enabled(node) is False
     with node.state.database.connect() as db:
@@ -162,7 +161,7 @@ async def test_local_readback_does_not_accept_a_success_reply_without_runtime_ch
         return AppliedGrant(runtime_username="alice", enabled=False)
 
     monkeypatch.setattr(app.state.adapters["naive"], "disable", dishonest)
-    await app.state.access_enforcer.tick()
+    await app.tick("enforcer")
     assert app.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"
     assert await _enabled(app) is True
 
@@ -185,7 +184,7 @@ async def test_local_enforcement_batches_runtime_inventory_per_protocol(pair, mo
         return await discover()
 
     monkeypatch.setattr(adapter, "discover", count)
-    await app.state.access_enforcer.tick()
+    await app.tick("enforcer")
     assert all(row["enabled"] is False for row in await app.state.naive.list_users())
     assert reads == 2  # one plan and one readback, independent of the number of grants
 
@@ -193,7 +192,7 @@ async def test_local_enforcement_batches_runtime_inventory_per_protocol(pair, mo
 async def test_background_timer_expires_access_without_a_request(pair):
     _, app, _ = pair
     await _local(app, valid_until=9999999999)
-    app.state.clients.clock = SimpleNamespace(time=lambda: 9999999999)
+    app.clock.set(9999999999)
     enforcer = app.state.access_enforcer
     enforcer.interval = 0.001
     task = asyncio.create_task(enforcer.run_forever())
@@ -210,14 +209,14 @@ async def test_background_timer_expires_access_without_a_request(pair):
 async def test_lifespan_enforces_expired_local_access_before_serving(pair):
     _, app, _ = pair
     await _local(app, valid_until=9999999999)
-    app.state.clients.clock = SimpleNamespace(time=lambda: 9999999999)
+    app.clock.set(9999999999)
     async with app.router.lifespan_context(app):
         assert await _enabled(app) is False
 
 
 async def test_remote_option_drift_does_not_report_suspended_runtime_as_enabled(pair, monkeypatch):
     node, central, _, person, _, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
 
     async def unsupported(ref, options):
         return None
@@ -226,14 +225,14 @@ async def test_remote_option_drift_does_not_report_suspended_runtime_as_enabled(
     with central.state.database.transaction() as db:
         central.state.clients.store.update_grant(db, grant.id, protocol_options_json='{"quota_bytes":100}')
     central.state.clients.set_state(person.id, "suspended", actor=ACTOR, ip="test")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert await _enabled(node) is False
     assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "disabled"
 
 
 async def _drifted_report(pair, monkeypatch, **window):
     node, central, node_id, person, _, grant = await _remote(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
 
     async def unsupported(ref, options):
         return None
@@ -242,7 +241,7 @@ async def _drifted_report(pair, monkeypatch, **window):
     with central.state.database.transaction() as db:
         central.state.clients.store.update_grant(db, grant.id, protocol_options_json='{"quota_bytes":100}', **window)
         central.state.clients.notify(db, person.id)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     with node.state.database.connect() as db:
         report = node.state.managed.observed(db)
     assert report.resources[0].state == "drifted"
@@ -262,7 +261,7 @@ async def test_drift_report_does_not_infer_node_runtime_from_central_clock(pair,
     node, central, node_id, person, report = await _drifted_report(
         pair, monkeypatch, valid_from=1, valid_until=9999999999,
     )
-    central.state.pusher.clock = SimpleNamespace(time=lambda: central_now)
+    central.clock.set(central_now)
     assert await _enabled(node) is True
     central.state.pusher._absorb(node_id, report, {})
     assert central.state.clients.client_with_grants(person.id)[1][0].observed_state == "pending"

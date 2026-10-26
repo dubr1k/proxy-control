@@ -63,10 +63,10 @@ async def test_key_management_is_owner_only_and_never_lists_plaintext(client, lo
                               headers={"X-CSRF-Token": client.cookies["panel_csrf"]})).status_code == 403
 
 
+@pytest.mark.panel_settings(api_key_rate_per_minute=3)
 async def test_key_rate_limit_answers_429(client, login_user):
     body = await _key(client, login_user, "monitor")
     client.cookies.clear()
     headers = {"Authorization": f"Bearer {body['plaintext']}"}
-    client._transport.app.state.key_rate.limit = 3
     codes = [(await client.get("/api/clients", headers=headers)).status_code for _ in range(4)]
     assert codes == [200, 200, 200, 429]

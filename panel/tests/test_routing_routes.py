@@ -14,13 +14,13 @@ def _csrf(client) -> dict:
     return {"X-CSRF-Token": client.cookies["panel_csrf"]}
 
 
-async def test_viewer_reads_and_previews_but_never_mutates(client, login_user):
+async def test_viewer_reads_and_previews_but_never_mutates(client, server, login_user):
     await login_user(client)
     put = await client.put("/api/routing/policies/local/naive", json={**WARP, "expected_revision": None}, headers=_csrf(client))
     assert put.status_code == 200 and put.json()["revision"] == 1
     await client.post("/api/auth/logout", headers=_csrf(client))
     client.cookies.clear()
-    client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await login_user(client, "reader", "viewer correct horse battery")
     targets = await client.get("/api/routing/targets")
     assert targets.status_code == 200

@@ -14,7 +14,8 @@ import time
 import httpx
 import pytest
 
-from panel.app import Settings, create_app
+from panel.app import Settings
+from panel.tests.harness.server import panel_app
 from panel.keyring import Keyring
 from panel.mieru import MemoryMieru
 from panel.naive import MemoryNaive
@@ -51,7 +52,7 @@ def clock():
 def app(tmp_path, clock):
     master_key = tmp_path / "panel-master-key"
     Keyring.generate().save(master_key)
-    app = create_app(
+    app = panel_app(
         Settings(
             database_path=tmp_path / "panel.sqlite3", master_key_file=master_key,
             session_cookie_secure=False, allowed_hosts=(PANEL_HOST, SUB_HOST),
@@ -438,7 +439,7 @@ async def test_subscription_management_needs_a_writer_role_and_a_configured_url(
 async def test_the_endpoint_is_off_entirely_without_a_subscription_host(tmp_path, token):
     master_key = tmp_path / "other-master-key"
     Keyring.generate().save(master_key)
-    dark = create_app(
+    dark = panel_app(
         Settings(
             database_path=tmp_path / "dark.sqlite3", master_key_file=master_key,
             session_cookie_secure=False, allowed_hosts=(PANEL_HOST, SUB_HOST),

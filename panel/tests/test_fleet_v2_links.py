@@ -79,11 +79,11 @@ async def test_delete_releases_imported_grants_instead_of_refusing(pair):
     them back to the node — their grant rows go, their credentials are revoked, and no
     generation asks the node to delete the accounts. Only a provisioned grant blocks."""
     node, central, plaintext = pair
-    await node.state.naive.create("alice", None, password="alice-secret", operation_id="pre")
+    await node.naive.create("alice", None, password="alice-secret", operation_id="pre")
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=ACTOR, ip="x")
     from panel.fleet_v2.importing import ImportItem, import_resources
     await import_resources(central.state, node_id, [ImportItem("naive", "alice", "new")], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()  # the node adopts alice as the central's
+    await central.tick("pusher")  # the node adopts alice as the central's
     with node.state.database.connect() as db:
         assert ("naive", "alice") in node.state.managed.resources(db)
     with central.state.database.connect() as db:
@@ -98,7 +98,7 @@ async def test_delete_releases_imported_grants_instead_of_refusing(pair):
         audit = db.execute("SELECT detail_json FROM audit_log WHERE action='node.unlink'").fetchone()
     assert '"released_imported": 1' in audit["detail_json"]
     # The account is untouched and local again on the node.
-    assert "alice" in [u["username"] for u in await node.state.naive.list_users()]
+    assert "alice" in [u["username"] for u in await node.naive.list_users()]
     with node.state.database.connect() as db:
         assert node.state.managed.resources(db) == {} and node.state.managed.master_guid(db) is None
 

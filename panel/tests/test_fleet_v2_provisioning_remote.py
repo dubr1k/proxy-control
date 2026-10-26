@@ -67,7 +67,7 @@ async def test_a_remote_grant_names_its_pending_credential_and_never_touches_the
     assert len(secret) == 32 and int(secret, 16) >= 0
     assert [(r.ref, r.credential_ref, r.desired_state) for r in document.resources] == \
         [(f"grant:{grant.id}", f"grant:{grant.id}:1", "enabled")]
-    assert await central.state.telemt.list_users() == []  # the central's own runtime is not the node's
+    assert await central.telemt.list_users() == []  # the central's own runtime is not the node's
 
 
 async def test_run_leaves_remote_steps_to_the_pusher_and_finishes_local_ones(pair):
@@ -78,13 +78,13 @@ async def test_run_leaves_remote_steps_to_the_pusher_and_finishes_local_ones(pai
     result = await central.state.provisioning.run(operation)
     assert result.status == "pending_remote"
     assert sorted(step.status for step in result.steps) == ["active", "remote"]
-    assert "bob" in [u["username"] for u in await central.state.naive.list_users()]
-    assert "alice" not in [u["username"] for u in await central.state.naive.list_users()]
+    assert "bob" in [u["username"] for u in await central.naive.list_users()]
+    assert "alice" not in [u["username"] for u in await central.naive.list_users()]
     # Resuming changes nothing: the remote step is the node's to finish.
     assert (await central.state.provisioning.run(operation)).status == "pending_remote"
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
-    assert "alice" in [u["username"] for u in await node.state.naive.list_users()]
+    assert "alice" in [u["username"] for u in await node.naive.list_users()]
 
 
 async def test_a_failed_local_step_compensates_and_withdraws_the_remote_grant(pair):
@@ -100,8 +100,8 @@ async def test_a_failed_local_step_compensates_and_withdraws_the_remote_grant(pa
     with central.state.database.connect() as db:
         latest = central.state.desired.latest(db, node_id)
     assert latest["generation"] == 2 and [r.desired_state for r in latest["document"].resources] == ["deleted"]
-    await central.state.pusher.tick()
-    assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]
+    await central.tick("pusher")
+    assert "alice" not in [u["username"] for u in await node.naive.list_users()]
     with central.state.database.connect() as db:
         alice = db.execute("SELECT observed_state FROM access_grants WHERE runtime_username='alice'").fetchone()
     assert alice is None  # the node confirmed it missing: the withdrawn row is purged, the name is free
@@ -112,7 +112,7 @@ async def test_compensation_never_sends_a_node_confirmed_remote_step_to_a_local_
 
     node, central, node_id, client = await _linked(pair)
     # An unrelated local user with the same runtime name on the central's own runtime.
-    await central.state.naive.create("alice", None, password="local-secret", operation_id="local")
+    await central.naive.create("alice", None, password="local-secret", operation_id="local")
     remote = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     local = GrantIntent(protocol="naive", node_id="local", runtime_username="bob", options=NaiveOptions())
     operation = await central.state.provisioning.start(client.id, [remote, local], actor=ACTOR, ip="x")
@@ -135,7 +135,7 @@ async def test_compensation_never_sends_a_node_confirmed_remote_step_to_a_local_
     central.state.provisioning.faults["after_apply"] = "naive"
     result = await central.state.provisioning.run(operation)
     assert result.status == "compensated" and sorted(step.status for step in result.steps) == ["compensated"] * 2
-    users = [u["username"] for u in await central.state.naive.list_users()]
+    users = [u["username"] for u in await central.naive.list_users()]
     assert "alice" in users and "bob" not in users  # the local runtime's alice is not the node's
     with central.state.database.connect() as db:
         latest = central.state.desired.latest(db, node_id)
@@ -202,12 +202,12 @@ async def test_remote_links_render_with_the_nodes_runtime_host_port_and_fake_tls
     form and keeps the host/port/share template it learned — the bundle and the
     subscription then carry what the runtime actually serves (spec §6, ADR 003)."""
     node, central, node_id, client = await _linked(pair)
-    node.state.telemt.public_host, node.state.telemt.public_port = "proxy.node.example", 8443
+    node.telemt.public_host, node.telemt.public_port = "proxy.node.example", 8443
     intents = [GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions()),
                GrantIntent(protocol="mieru", node_id=node_id, runtime_username="alice", options=MieruOptions(quotas=[]))]
     operation = await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
     await central.state.provisioning.run(operation)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
     grants = {g.protocol: g for g in central.state.clients.client_with_grants(client.id)[1]}
     assert grants["mtproxy"].options.host == "proxy.node.example" and grants["mtproxy"].options.port == 8443

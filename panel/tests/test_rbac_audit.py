@@ -6,10 +6,9 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_viewer_cannot_mutate_and_admin_cannot_manage_admins(client, login_user):
-    store = client._transport.app.state.store
-    store.create_admin("viewer", "viewer password long enough", "viewer")
-    store.create_admin("admin", "admin password long enough", "admin")
+async def test_viewer_cannot_mutate_and_admin_cannot_manage_admins(client, server, login_user):
+    server.create_admin("viewer", "viewer password long enough", "viewer")
+    server.create_admin("admin", "admin password long enough", "admin")
     await login_user(client, "viewer", "viewer password long enough")
     csrf = client.cookies["panel_csrf"]
     assert (await client.post("/api/users", json={"username": "alice"}, headers={"X-CSRF-Token": csrf})).status_code == 403
@@ -39,9 +38,8 @@ async def test_mutations_create_secret_free_audit_records(client, login_user):
     assert secret not in str(audit)
 
 
-async def test_viewer_can_read_secret_free_audit(client, login_user):
-    store = client._transport.app.state.store
-    store.create_admin("viewer", "viewer password long enough", "viewer")
+async def test_viewer_can_read_secret_free_audit(client, server, login_user):
+    server.create_admin("viewer", "viewer password long enough", "viewer")
     await login_user(client, "viewer", "viewer password long enough")
     response = await client.get("/api/audit")
     assert response.status_code == 200

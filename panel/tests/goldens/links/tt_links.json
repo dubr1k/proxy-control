@@ -1,0 +1,115 @@
+[
+ {
+  "input": {
+   "hostname": "gate.example.com",
+   "addresses": [
+    "gate.example.com:443"
+   ],
+   "username": "alice",
+   "password": "s3cret-password",
+   "certificate_der": null
+  },
+  "link": "tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAhRnYXRlLmV4YW1wbGUuY29tOjQ0MwUFYWxpY2UGD3MzY3JldC1wYXNzd29yZAkBAQ",
+  "decoded": {
+   "version": 1,
+   "addresses": [
+    "gate.example.com:443"
+   ],
+   "has_ipv6": true,
+   "skip_verification": false,
+   "anti_dpi": false,
+   "upstream_protocol": 1,
+   "dns_upstreams": [],
+   "hostname": "gate.example.com",
+   "username": "alice",
+   "password": "s3cret-password"
+  }
+ },
+ {
+  "input": {
+   "hostname": "gate.example.com",
+   "addresses": [
+    "203.0.113.7:443",
+    "[2001:db8::7]:443"
+   ],
+   "username": "bob.tt",
+   "password": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+   "name": "Дом · TrustTunnel 🚀",
+   "certificate_der": null
+  },
+  "link": "tt://?AAEBARBnYXRlLmV4YW1wbGUuY29tAg8yMDMuMC4xMTMuNzo0NDMCEVsyMDAxOmRiODo6N106NDQzBQZib2IudHQGQIBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcAkBAQwa0JTQvtC8IMK3IFRydXN0VHVubmVsIPCfmoA",
+  "decoded": {
+   "version": 1,
+   "addresses": [
+    "203.0.113.7:443",
+    "[2001:db8::7]:443"
+   ],
+   "has_ipv6": true,
+   "skip_verification": false,
+   "anti_dpi": false,
+   "upstream_protocol": 1,
+   "dns_upstreams": [],
+   "hostname": "gate.example.com",
+   "username": "bob.tt",
+   "password": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+   "name": "Дом · TrustTunnel 🚀"
+  }
+ },
+ {
+  "input": {
+   "hostname": "self.example",
+   "addresses": [
+    "self.example:8443"
+   ],
+   "username": "carol",
+   "password": "x!y~z{}",
+   "certificate_der": "H5YwMwwDXXvs7PLDA9p9W7n37TAhCOoHCkY+1JisF2pAxDtVoF5LhfByAK2F3AbbKoQGNn14b3CEbDInw4RDfx+WMDMMA1177OzywwPafVu59+0wIQjqBwpGPtSYrBdqQMQ7VaBeS4XwcgCthdwG2yqEBjZ9eG9whGwyJ8OEQ38fljAzDANde+zs8sMD2n1bufftMCEI6gcKRj7UmKwXakDEO1WgXkuF8HIArYXcBtsqhAY2fXhvcIRsMifDhEN/H5YwMwwDXXvs7PLDA9p9W7n37TAhCOoHCkY+1JisF2pAxDtVoF5LhfByAK2F3AbbKoQGNn14b3CEbDInw4RDfx+WMDMMA1177OzywwPafVu59+0wIQjqBwpGPtSYrBdqQMQ7VaBeS4XwcgCthdwG2yqEBjZ9eG9whGwyJ8OEQ38=",
+   "upstream_protocol": 2
+  },
+  "link": "tt://?AAEBAQxzZWxmLmV4YW1wbGUCEXNlbGYuZXhhbXBsZTo4NDQzBQVjYXJvbAYHeCF5fnp7fQhBQB-WMDMMA1177OzywwPafVu59-0wIQjqBwpGPtSYrBdqQMQ7VaBeS4XwcgCthdwG2yqEBjZ9eG9whGwyJ8OEQ38fljAzDANde-zs8sMD2n1bufftMCEI6gcKRj7UmKwXakDEO1WgXkuF8HIArYXcBtsqhAY2fXhvcIRsMifDhEN_H5YwMwwDXXvs7PLDA9p9W7n37TAhCOoHCkY-1JisF2pAxDtVoF5LhfByAK2F3AbbKoQGNn14b3CEbDInw4RDfx-WMDMMA1177OzywwPafVu59-0wIQjqBwpGPtSYrBdqQMQ7VaBeS4XwcgCthdwG2yqEBjZ9eG9whGwyJ8OEQ38fljAzDANde-zs8sMD2n1bufftMCEI6gcKRj7UmKwXakDEO1WgXkuF8HIArYXcBtsqhAY2fXhvcIRsMifDhEN_CQEC",
+  "decoded": {
+   "version": 1,
+   "addresses": [
+    "self.example:8443"
+   ],
+   "has_ipv6": true,
+   "skip_verification": false,
+   "anti_dpi": false,
+   "upstream_protocol": 2,
+   "dns_upstreams": [],
+   "hostname": "self.example",
+   "username": "carol",
+   "password": "x!y~z{}",
+   "certificate": "H5YwMwwDXXvs7PLDA9p9W7n37TAhCOoHCkY+1JisF2pAxDtVoF5LhfByAK2F3AbbKoQGNn14b3CEbDInw4RDfx+WMDMMA1177OzywwPafVu59+0wIQjqBwpGPtSYrBdqQMQ7VaBeS4XwcgCthdwG2yqEBjZ9eG9whGwyJ8OEQ38fljAzDANde+zs8sMD2n1bufftMCEI6gcKRj7UmKwXakDEO1WgXkuF8HIArYXcBtsqhAY2fXhvcIRsMifDhEN/H5YwMwwDXXvs7PLDA9p9W7n37TAhCOoHCkY+1JisF2pAxDtVoF5LhfByAK2F3AbbKoQGNn14b3CEbDInw4RDfx+WMDMMA1177OzywwPafVu59+0wIQjqBwpGPtSYrBdqQMQ7VaBeS4XwcgCthdwG2yqEBjZ9eG9whGwyJ8OEQ38="
+  }
+ },
+ {
+  "input": {
+   "hostname": "insecure.example",
+   "addresses": [
+    "insecure.example:443"
+   ],
+   "username": "dave",
+   "password": "password1",
+   "skip_verification": true,
+   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "certificate_der": null
+  },
+  "link": "tt://?AAEBARBpbnNlY3VyZS5leGFtcGxlAhRpbnNlY3VyZS5leGFtcGxlOjQ0MwUEZGF2ZQYJcGFzc3dvcmQxBwEBCQEBDEEsYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh",
+  "decoded": {
+   "version": 1,
+   "addresses": [
+    "insecure.example:443"
+   ],
+   "has_ipv6": true,
+   "skip_verification": true,
+   "anti_dpi": false,
+   "upstream_protocol": 1,
+   "dns_upstreams": [],
+   "hostname": "insecure.example",
+   "username": "dave",
+   "password": "password1",
+   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+ }
+]

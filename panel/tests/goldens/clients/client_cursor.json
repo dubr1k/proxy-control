@@ -1,0 +1,1861 @@
+{
+ "database": "see subscriptions/ (same panel, more clients)",
+ "exchanges": [
+  {
+   "name": "limit=2:page=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "5990"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]},{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "be2f4a80ff989e5ee017a119bcd4ab016bd41570b4ff406d686424d6324153a0"
+   }
+  },
+  {
+   "name": "limit=2:page=1",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "545"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]},{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "4a6c9d11a564a9f8cf6b35b795c4854e231a3db601d38869d8f6827541f2d812"
+   }
+  },
+  {
+   "name": "limit=2:page=2",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "551"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "25007d71049750500b295f19eecc2efccd3714cfbce3ed46d3ccbdfbd18ee5f1"
+   }
+  },
+  {
+   "name": "limit=2:page=3",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "551"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "3d6196f1afc523d40d95124964f816e80ed46c0e4445c4d67a5b9ea6f484ac72"
+   }
+  },
+  {
+   "name": "limit=2:page=4",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "479"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "70f5e648456585286ef0d5a2590a0ffab23eb7f11740851bd74fd06c71d048c3"
+   }
+  },
+  {
+   "name": "limit=3&query=cursor:page=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=3&query=cursor",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "727"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "65dedb502d785049f25c08a99a500e266b5af249a8b3edf3d66fbae377a4a600"
+   }
+  },
+  {
+   "name": "limit=3&query=cursor:page=1",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=3&query=cursor&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "727"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ\",\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "766cefa11fed1f8e1ebba5269da15e5350c4ea0ceaedf9a86512bd452c854fb2"
+   }
+  },
+  {
+   "name": "limit=3&query=cursor:page=2",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=3&query=cursor&cursor=WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "301"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "9fb5e86ed9204a5fd79eb7a2d2fadc8953e709c83b5f282092219ddd41d67317"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "3617"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTQsICJiMTdkMGMxYy0yNDA3LTQ0YTYtOGEzMC1mNjJmZTQ0OTdkNWEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "5d82e42d8f57ae3e0b41f5a0a724fb0a0091774e6a43c5154bf351ebc48f8e97"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=1",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4NTQsICJiMTdkMGMxYy0yNDA3LTQ0YTYtOGEzMC1mNjJmZTQ0OTdkNWEiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "2570"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "678717efcba8a41477f20a1029433265dcbf52288d1aa3d38a8f10df9b5d959f"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=2",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "368"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "c7355e0ba9378db5057c052952716ab19b31c2057e06e841368665bc52f8ee32"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=3",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "374"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "5c5dd298bd61ed7ae11e420d785f7beb2651f5b0a3699412972a9b67435bc10c"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=4",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "374"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "c66052848641f17c5a3adc015fca74fca7539c891ac9a49050d0bcd350d2837d"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=5",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "374"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "3ae79f0949c737f06c10f6af8063cec713367d6244440acac6286a93dc8f7d1a"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=6",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "374"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "b3599d55cf6cf5c7d998afe2c64b7ef1e1c09237c9cc7b6b87638702f83bc36b"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=7",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "374"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "2f65f1ac5b3b0d9482e197b6ea00696220b2160d536fb15dd268bc90a1a75aec"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=8",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "374"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "f7aa01ef84056dae2181345d42954f79bbc3195f62a24adba4fdbb5911519001"
+   }
+  },
+  {
+   "name": "limit=1&state=active:page=9",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "302"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "58a50da98aecdb37b4c30a59c2467bcf51a2fd6128524a8685b00e94b81451f1"
+   }
+  },
+  {
+   "name": "limit=2&protocol=naive:page=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&protocol=naive",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "5917"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]},{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]}],\"next_cursor\":null,\"matched\":2,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "ae612b1570549325477efac8ec8d6a87789d5b91150da55c8c6e553f82f05b12"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "367"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "e31ce5f2bc587ea0770f1448c842cf0d3a970fab9ce8f0f1a2724ff8d3f27e81"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=1",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "373"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "7df6cec31c04b21dabb2479e4aa851f5421040a1cce8a5ca3cba60a2d6f37092"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=2",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "373"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "6866eb69bf79f5d2a23cc943d1696474e1e1a8d4bfc2c9145b3f98315a762843"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=3",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "373"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "f04fce00998f59d5d7f9eb1a3e140cb670fa8d8a3aa8f1e6aa28a9f4e385d2aa"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=4",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "373"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "edfc30469b9fea15e67f00fff4b1d2755899d3783d706139372f8b7bc78ce44b"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=5",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "373"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "db165fee3ebd0853d3acf4c4f8855abe486a7b262fe9a29a0108bbd5847d4696"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=6",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "373"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "9ee2504db31266b22c0bfb1f2a2a8a1134c3c195573dbce45c37ca70be1f0939"
+   }
+  },
+  {
+   "name": "limit=1&issue=empty:page=7",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "301"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "a4fdbe8fe0470edcf9f1d157aad0149f23cfd1896709d7c55583217f56bee9ee"
+   }
+  },
+  {
+   "name": "limit=200:page=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=200",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "7328"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]},{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]},{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]},{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+    },
+    "sha256": "38cca0d0375515dcca3108b32fdb48f2529fd859f6644d684eee885e8f5deffe"
+   }
+  },
+  {
+   "name": "invalid:limit=2&cursor=bogus",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&cursor=bogus",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 422,
+    "headers": [
+     [
+      "content-length",
+      "34"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"detail\":\"invalid client cursor\"}"
+    },
+    "sha256": "588c151b1df1b5d7ab261cfab863eeb3f934f30b81c9d65b5aaf7bb8a133c643"
+   }
+  },
+  {
+   "name": "invalid:limit=2&cursor=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=2&cursor=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 422,
+    "headers": [
+     [
+      "content-length",
+      "750"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"detail\":[{\"type\":\"string_too_long\",\"loc\":[\"query\",\"cursor\"],\"msg\":\"String should have at most 512 characters\",\"input\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"ctx\":{\"max_length\":512}}]}"
+    },
+    "sha256": "2f6cd489bbe74e7e8f700f9509c2e617b56262e052a18ed18f7e8cd7d7f43bb9"
+   }
+  },
+  {
+   "name": "invalid:limit=0",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=0",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 422,
+    "headers": [
+     [
+      "content-length",
+      "144"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"
+    },
+    "sha256": "a9234848bb181df473de085cf69d1a2bd1e4a51d1c8795e4707d4b66cbb97440"
+   }
+  },
+  {
+   "name": "invalid:limit=201",
+   "request": {
+    "method": "GET",
+    "path": "/api/clients?limit=201",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 422,
+    "headers": [
+     [
+      "content-length",
+      "144"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be less than or equal to 200\",\"input\":\"201\",\"ctx\":{\"le\":200}}]}"
+    },
+    "sha256": "c371b9603cb145b952ef5e776612fd328db3049a37877b3dfa0b737280fa72e6"
+   }
+  }
+ ]
+}

@@ -10,7 +10,7 @@ from panel.telemt import TelemtClient, TelemtError
 pytestmark = pytest.mark.anyio
 
 
-async def test_user_crud_rotate_and_one_time_reveal(client, login_user, telemt):
+async def test_user_crud_rotate_and_one_time_reveal(client, server, login_user, telemt):
     await login_user(client)
     csrf = client.cookies["panel_csrf"]
     created = await client.post("/api/users", json={"username": "alice"}, headers={"X-CSRF-Token": csrf})
@@ -19,7 +19,7 @@ async def test_user_crud_rotate_and_one_time_reveal(client, login_user, telemt):
     assert set(body) == {"username", "reveal_token"}
     # v0.2 added exactly one encrypted store; nothing else in the schema mentions
     # secrets, and that store keeps ciphertext rather than credential columns.
-    schema = str(client._transport.app.state.store.dump_schema()).lower()
+    schema = str(server.schema()).lower()
     assert set(re.findall(r"secret\w*", schema)) <= {
         "secret_versions", "secret_versions_key", "secret_versions_grant",
         # access_grants points at a secret version; the value itself stays ciphertext.
@@ -226,9 +226,8 @@ async def test_sparse_limit_update_keeps_existing_quota_state(client, login_user
     assert telemt.quota_usage["alice"]["used_bytes"] == 4_000
 
 
-async def test_viewer_cannot_change_or_reset_limits(client, login_user, telemt):
-    store = client._transport.app.state.store
-    store.create_admin("viewer-limits", "viewer password long enough", "viewer")
+async def test_viewer_cannot_change_or_reset_limits(client, server, login_user, telemt):
+    server.create_admin("viewer-limits", "viewer password long enough", "viewer")
     telemt.users["alice"] = {"username": "alice", "enabled": True}
     await login_user(client, "viewer-limits", "viewer password long enough")
     csrf = client.cookies["panel_csrf"]
@@ -509,9 +508,8 @@ async def test_admin_can_reopen_share_link_and_qr_without_exposing_it_in_lists_o
     assert link not in str(audit)
 
 
-async def test_viewer_cannot_reveal_existing_proxy_access(client, login_user, telemt):
-    store = client._transport.app.state.store
-    store.create_admin("viewer", "viewer password long enough", "viewer")
+async def test_viewer_cannot_reveal_existing_proxy_access(client, server, login_user, telemt):
+    server.create_admin("viewer", "viewer password long enough", "viewer")
     telemt.users["alice"] = {"username": "alice", "enabled": True, "links": {"tls": ["tg://secret"]}}
     await login_user(client, "viewer", "viewer password long enough")
     response = await client.post("/api/users/alice/access", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
@@ -638,12 +636,12 @@ async def test_busy_buttons_capture_their_target_instead_of_reading_it_after_awa
             assert handler == "button", name
 
 
-async def _writer(client):
-    return client._transport.app.state.settings.vnext_writer
+async def _writer(server):
+    return server.writer
 
 
 async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
-    client, login_user, telemt, naive, mieru
+    client, server, login_user, telemt, naive, mieru
 ):
     """The flag changes who owns the record, never what the caller sees."""
     await login_user(client)
@@ -662,11 +660,10 @@ async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
     )
     assert mieru_created.status_code == 201 and "reveal_token" in mieru_created.json()
 
-    app = client._transport.app
-    with app.state.database.connect() as db:
+    with server.db() as db:
         grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
         clients = [dict(row) for row in db.execute("SELECT * FROM clients")]
-    if await _writer(client) == "domain":
+    if await _writer(server) == "domain":
         # The domain writer owns the credential: that is the whole point of the flag.
         assert {row["protocol"] for row in grants} == {"mtproxy", "naive", "mieru"}
         assert all(row["origin"] == "provisioned" for row in grants)
@@ -682,7 +679,7 @@ async def test_the_domain_writer_records_a_client_and_grant_for_every_protocol(
         assert [row["display_name"] for row in clients] == ["alice"]
 
 
-async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, login_user, telemt, naive, mieru):
+async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, server, login_user, telemt, naive, mieru):
     """A username the panel has never seen is recorded, not merged and not recreated."""
     naive.seed("legacy-user", "pre-existing-password-0001")
     await login_user(client)
@@ -691,10 +688,9 @@ async def test_the_domain_writer_adopts_a_user_it_did_not_create(client, login_u
     assert disabled.status_code == 200 and disabled.json()["enabled"] is False
     assert naive.users["legacy-user"]["password"] == "pre-existing-password-0001"
 
-    app = client._transport.app
-    with app.state.database.connect() as db:
+    with server.db() as db:
         grants = [dict(row) for row in db.execute("SELECT * FROM access_grants")]
-    if await _writer(client) == "domain":
+    if await _writer(server) == "domain":
         assert [row["runtime_username"] for row in grants] == ["legacy-user"]
         assert grants[0]["origin"] == "imported" and grants[0]["desired_state"] == "disabled"
         # Adoption on the fly never invents a credential it does not have.

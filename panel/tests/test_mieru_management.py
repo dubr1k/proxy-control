@@ -257,7 +257,7 @@ async def test_mieru_kept_key_follows_the_users_lane_slot(client, login_user, mi
     assert "port=46101" in url and "port=8443" not in url
 
 
-async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(client, login_user, mieru, naive):
+async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(client, server, login_user, mieru, naive):
     """The page that keeps a key must not leave its grant behind: a subscription would go on
     listing an account the node no longer has."""
     await login_user(client)
@@ -267,7 +267,7 @@ async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(clien
     await client.post("/api/naive/users", json={"username": "phone"}, headers={"X-CSRF-Token": csrf})
     facade = client._transport.app.state.domain_facade
     # Mieru is always recorded (its key exists nowhere else); Naive only by the domain writer.
-    naive_recorded = client._transport.app.state.settings.vnext_writer == "domain"
+    naive_recorded = server.writer == "domain"
     assert facade.grant("mieru", "phone") is not None
     assert (facade.grant("naive", "phone") is not None) is naive_recorded
 
@@ -280,7 +280,7 @@ async def test_deleting_on_the_protocol_pages_takes_the_kept_grant_with_it(clien
     assert audit.count("grant.delete") == 1 + naive_recorded and "mieru.delete" in audit and "naive.delete" in audit
 
 
-async def test_viewer_cannot_see_a_kept_mieru_key(client, login_user, mieru):
+async def test_viewer_cannot_see_a_kept_mieru_key(client, server, login_user, mieru):
     await login_user(client)
     csrf = client.cookies["panel_csrf"]
     await client.post(
@@ -288,7 +288,7 @@ async def test_viewer_cannot_see_a_kept_mieru_key(client, login_user, mieru):
         json={"username": "phone", "quotas": [], "expected_revision": "rev-1"},
         headers={"X-CSRF-Token": csrf},
     )
-    client._transport.app.state.store.create_admin("watcher", "correct horse battery staple", "viewer")
+    server.create_admin("watcher", "correct horse battery staple", "viewer")
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": csrf})
     await login_user(client, "watcher")
     response = await client.post(
@@ -362,9 +362,8 @@ async def test_mieru_client_reads_the_manager_traffic_route():
     assert seen == {"method": "GET", "path": "/v1/traffic"}
 
 
-async def test_panel_mieru_viewer_is_read_only(client, login_user):
-    store = client._transport.app.state.store
-    store.create_admin("viewer-m", "viewer password long enough", "viewer")
+async def test_panel_mieru_viewer_is_read_only(client, server, login_user):
+    server.create_admin("viewer-m", "viewer password long enough", "viewer")
     await login_user(client, "viewer-m", "viewer password long enough")
     csrf = client.cookies["panel_csrf"]
     assert (await client.get("/api/mieru/users")).status_code == 200

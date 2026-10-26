@@ -13,17 +13,16 @@ async def login(client, username="owner", password="correct horse battery staple
                              headers={"X-CSRF-Token": csrf})
 
 
-async def test_readiness_requires_owner_or_admin_and_does_not_change_healthz(client):
+async def test_readiness_requires_owner_or_admin_and_does_not_change_healthz(client, server):
     assert (await client.get("/healthz")).json() == {"status": "ok"}
     assert (await client.get(PATH)).status_code == 401
-    app = client._transport.app
     for scope in ("monitor", "node-sync", "admin"):
-        _, key = app.state.api_keys.create(scope, scope, None, actor={"id": 1, "username": "owner"}, ip="x")
+        key = server.create_api_key(scope, scope)
         response = await client.get(PATH, headers={"Authorization": f"Bearer {key}"})
         assert response.status_code == (200 if scope == "admin" else 403)
         if scope == "admin":
             assert response.headers["cache-control"] == "no-store"
-    app.state.store.create_admin("viewer", "viewer passphrase long", "viewer")
+    server.create_admin("viewer", "viewer passphrase long", "viewer")
     await login(client, "viewer", "viewer passphrase long")
     assert (await client.get(PATH)).status_code == 403
     await login(client)
@@ -44,9 +43,9 @@ async def test_readiness_baseline_is_not_applicable_not_failed(client, login_use
 
 
 @pytest.mark.parametrize("state,expected", [("applying", "pending"), ("failed", "failed"), ("converged", "ready")])
-async def test_node_state_uses_actual_applied_timestamp(client, login_user, state, expected):
+async def test_node_state_uses_actual_applied_timestamp(client, server, login_user, state, expected):
     await login_user(client)
-    with client._transport.app.state.database.connect() as db:
+    with server.db(write=True) as db:
         db.execute("INSERT INTO managed_generations VALUES(1,'digest','secret-guid','{}',100,90,'converged')")
         db.execute("INSERT INTO managed_generations VALUES(2,'digest2','secret-guid','{}',110,?,?)",
                    (120 if state == "converged" else None, state))
@@ -57,9 +56,9 @@ async def test_node_state_uses_actual_applied_timestamp(client, login_user, stat
     assert "secret-guid" not in str(body)
 
 
-async def test_central_lag_and_provisioning_are_aggregate_and_secret_free(client, login_user):
+async def test_central_lag_and_provisioning_are_aggregate_and_secret_free(client, server, login_user):
     await login_user(client)
-    with client._transport.app.state.database.connect() as db:
+    with server.db(write=True) as db:
         db.execute("INSERT INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at) VALUES('secret-node','secret-topology','linked','{}',1,1)")
         db.execute("""INSERT INTO node_links(node_id,panel_url,tls_verify,api_key_secret_id,
                    desired_generation,acknowledged_generation,created_at,updated_at,last_heartbeat_at)

@@ -100,7 +100,7 @@ async def test_the_central_imports_with_the_import_purpose(pair):
     node, central, plaintext = pair
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
                                             actor=ACTOR, ip="x")
-    node.state.naive.seed("legacy", "pw-legacy")
+    node.naive.seed("legacy", "pw-legacy")
     result = await import_resources(central.state, node_id, [ImportItem("naive", "legacy", "new")], actor=ACTOR, ip="x")
     assert result["imported"][0]["has_credential"] is True and result["without_credential"] == []
     assert _audit(node, "fleet.credentials.capture")[-1]["detail_json"].count("import") == 1
@@ -126,7 +126,7 @@ async def test_deleting_a_grant_whose_user_is_already_gone_succeeds(client, logi
 
 # --- [T10] a compensated local step leaves no tombstone row ---
 
-async def test_a_compensated_local_grant_is_purged(client, login_user, naive):
+async def test_a_compensated_local_grant_is_purged(client, server, login_user, naive):
     app = client._transport.app
     await login_user(client)
     owner = app.state.clients.create_client("Alice", actor=ACTOR, ip="x")
@@ -142,7 +142,7 @@ async def test_a_compensated_local_grant_is_purged(client, login_user, naive):
     result = await app.state.provisioning.run(operation)
     assert result.status == "compensated"
     assert "alice" not in [u["username"] for u in await naive.list_users()]
-    with app.state.database.connect() as db:
+    with server.db() as db:
         rows = db.execute("SELECT desired_state, observed_state FROM access_grants WHERE client_id=?",
                           (owner.id,)).fetchall()
     assert rows == []  # no `deleted/missing` tombstone left behind

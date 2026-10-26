@@ -1,0 +1,1260 @@
+{
+ "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+ "desired_generations": [
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "generation": 1,
+   "digest": "167714534ed65e70e41f6f25e137045fede0231be084f3220233e578f5c4c4f5",
+   "content_digest": "3da2b086370ffee0638b3952c0017b9d1eec568af73295dae6f46478d6f87606",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":1,\"previous_generation\":0,\"created_at\":1793005893,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"dns\":[],\"obfuscation\":{}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[]},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":null,\"relay\":null}",
+   "previous_generation": 0,
+   "created_at": 1793005893,
+   "created_by": "system",
+   "pushed_at": 1793005893,
+   "acknowledged_at": 1793005893,
+   "wire_json": "{\"created_at\":1793005893,\"created_by\":\"system\",\"generation\":1,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"previous_generation\":0,\"resources\":[{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"desired_state\":\"enabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"mtproxy\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"runtime_username\":\"fleet-mt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"desired_state\":\"enabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"trusttunnel\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"runtime_username\":\"fleet-tt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"desired_state\":\"enabled\",\"options\":{\"dns\":[],\"obfuscation\":{},\"version\":\"3.1\"},\"origin\":\"provisioned\",\"protocol\":\"amneziawg\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"runtime_username\":\"fleet-awg31\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"desired_state\":\"enabled\",\"options\":{\"quotas\":[]},\"origin\":\"provisioned\",\"protocol\":\"mieru\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"runtime_username\":\"fleet-mieru\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"desired_state\":\"enabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"naive\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"runtime_username\":\"fleet-naive\",\"valid_from\":null,\"valid_until\":null}],\"schema_version\":1}",
+   "recomputed_digest": "167714534ed65e70e41f6f25e137045fede0231be084f3220233e578f5c4c4f5",
+   "recomputed_content_digest": "3da2b086370ffee0638b3952c0017b9d1eec568af73295dae6f46478d6f87606"
+  },
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "generation": 2,
+   "digest": "f0c66658fea96fd8980e445af73d95e09840219627eba130c01510142f49b801",
+   "content_digest": "38e556a82a3093624b26c669e2927068521a887902c0318ae8e580a7fab40926",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":2,\"previous_generation\":1,\"created_at\":1793005894,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "previous_generation": 1,
+   "created_at": 1793005894,
+   "created_by": "system",
+   "pushed_at": 1793005894,
+   "acknowledged_at": 1793005894,
+   "wire_json": "{\"created_at\":1793005894,\"created_by\":\"system\",\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1}},\"generation\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"previous_generation\":1,\"resources\":[{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"desired_state\":\"enabled\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"mtproxy\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"runtime_username\":\"fleet-mt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"desired_state\":\"enabled\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"trusttunnel\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"runtime_username\":\"fleet-tt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"desired_state\":\"enabled\",\"options\":{\"address\":\"10.66.31.2\",\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"mtu\":1280,\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"},\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"version\":\"3.1\"},\"origin\":\"provisioned\",\"protocol\":\"amneziawg\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"runtime_username\":\"fleet-awg31\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"desired_state\":\"enabled\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"origin\":\"provisioned\",\"protocol\":\"mieru\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"runtime_username\":\"fleet-mieru\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"desired_state\":\"enabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"naive\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"runtime_username\":\"fleet-naive\",\"valid_from\":null,\"valid_until\":null}],\"schema_version\":1}",
+   "recomputed_digest": "f0c66658fea96fd8980e445af73d95e09840219627eba130c01510142f49b801",
+   "recomputed_content_digest": "38e556a82a3093624b26c669e2927068521a887902c0318ae8e580a7fab40926"
+  },
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "generation": 3,
+   "digest": "6aa3bf4c8f661127c4f35ccd1f55452e027947548552d8b496f3cf06afa21cc4",
+   "content_digest": "69ee2b097740289040b3133438c629df0e45b12bfb19e0a8c23fd025361bb3aa",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":3,\"previous_generation\":2,\"created_at\":1793005894,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "previous_generation": 2,
+   "created_at": 1793005894,
+   "created_by": "system",
+   "pushed_at": 1793005895,
+   "acknowledged_at": 1793005895,
+   "wire_json": "{\"created_at\":1793005894,\"created_by\":\"system\",\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1}},\"generation\":3,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"previous_generation\":2,\"resources\":[{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"desired_state\":\"disabled\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"mtproxy\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"runtime_username\":\"fleet-mt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"desired_state\":\"disabled\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"trusttunnel\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"runtime_username\":\"fleet-tt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"desired_state\":\"disabled\",\"options\":{\"address\":\"10.66.31.2\",\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"mtu\":1280,\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"},\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"version\":\"3.1\"},\"origin\":\"provisioned\",\"protocol\":\"amneziawg\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"runtime_username\":\"fleet-awg31\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"desired_state\":\"disabled\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"origin\":\"provisioned\",\"protocol\":\"mieru\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"runtime_username\":\"fleet-mieru\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"desired_state\":\"disabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"naive\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"runtime_username\":\"fleet-naive\",\"valid_from\":null,\"valid_until\":null}],\"schema_version\":1}",
+   "recomputed_digest": "6aa3bf4c8f661127c4f35ccd1f55452e027947548552d8b496f3cf06afa21cc4",
+   "recomputed_content_digest": "69ee2b097740289040b3133438c629df0e45b12bfb19e0a8c23fd025361bb3aa"
+  },
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "generation": 4,
+   "digest": "06c17ed9779b3485d6ba3cd1608b04ea3359cc19ca7beda4c43d30d2715c78ac",
+   "content_digest": "38e556a82a3093624b26c669e2927068521a887902c0318ae8e580a7fab40926",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":4,\"previous_generation\":3,\"created_at\":1793005895,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "previous_generation": 3,
+   "created_at": 1793005895,
+   "created_by": "system",
+   "pushed_at": 1793005896,
+   "acknowledged_at": 1793005896,
+   "wire_json": "{\"created_at\":1793005895,\"created_by\":\"system\",\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1}},\"generation\":4,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"previous_generation\":3,\"resources\":[{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"desired_state\":\"enabled\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"mtproxy\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"runtime_username\":\"fleet-mt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"desired_state\":\"enabled\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"trusttunnel\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"runtime_username\":\"fleet-tt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"desired_state\":\"enabled\",\"options\":{\"address\":\"10.66.31.2\",\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"mtu\":1280,\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"},\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"version\":\"3.1\"},\"origin\":\"provisioned\",\"protocol\":\"amneziawg\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"runtime_username\":\"fleet-awg31\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"desired_state\":\"enabled\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"origin\":\"provisioned\",\"protocol\":\"mieru\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"runtime_username\":\"fleet-mieru\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"desired_state\":\"enabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"naive\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"runtime_username\":\"fleet-naive\",\"valid_from\":null,\"valid_until\":null}],\"schema_version\":1}",
+   "recomputed_digest": "06c17ed9779b3485d6ba3cd1608b04ea3359cc19ca7beda4c43d30d2715c78ac",
+   "recomputed_content_digest": "38e556a82a3093624b26c669e2927068521a887902c0318ae8e580a7fab40926"
+  },
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "generation": 5,
+   "digest": "7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32",
+   "content_digest": "ff104e11ef0fd62fd1618ccc2a8bc1eb443e5a2b9f1e810d03450611555e1989",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":5,\"previous_generation\":4,\"created_at\":1793005896,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"deleted\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "previous_generation": 4,
+   "created_at": 1793005896,
+   "created_by": "system",
+   "pushed_at": 1793005896,
+   "acknowledged_at": 1793005896,
+   "wire_json": "{\"created_at\":1793005896,\"created_by\":\"system\",\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1}},\"generation\":5,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"previous_generation\":4,\"resources\":[{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"desired_state\":\"deleted\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"mtproxy\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"runtime_username\":\"fleet-mt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"desired_state\":\"enabled\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"origin\":\"provisioned\",\"protocol\":\"trusttunnel\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"runtime_username\":\"fleet-tt\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"desired_state\":\"enabled\",\"options\":{\"address\":\"10.66.31.2\",\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"mtu\":1280,\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"},\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"version\":\"3.1\"},\"origin\":\"provisioned\",\"protocol\":\"amneziawg\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"runtime_username\":\"fleet-awg31\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"desired_state\":\"enabled\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"origin\":\"provisioned\",\"protocol\":\"mieru\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"runtime_username\":\"fleet-mieru\",\"valid_from\":null,\"valid_until\":null},{\"credential_origin\":\"caller\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"desired_state\":\"enabled\",\"options\":{},\"origin\":\"provisioned\",\"protocol\":\"naive\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"runtime_username\":\"fleet-naive\",\"valid_from\":null,\"valid_until\":null}],\"schema_version\":1}",
+   "recomputed_digest": "7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32",
+   "recomputed_content_digest": "ff104e11ef0fd62fd1618ccc2a8bc1eb443e5a2b9f1e810d03450611555e1989"
+  }
+ ],
+ "observed_generations": [
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "applied_generation": 5,
+   "digest": "7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32",
+   "reconcile_state": "converged",
+   "resources_json": "[{\"ref\": \"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\", \"protocol\": \"amneziawg\", \"runtime_username\": \"fleet-awg31\", \"state\": \"enabled\", \"error\": null, \"revision\": \"3\", \"learned\": {\"address\": \"10.66.31.2\"}}, {\"ref\": \"grant:cb467a32-f7bc-4821-a500-162ee7639469\", \"protocol\": \"mieru\", \"runtime_username\": \"fleet-mieru\", \"state\": \"enabled\", \"error\": null, \"revision\": \"rev-4\", \"learned\": {\"share_template\": \"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}}, {\"ref\": \"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\", \"protocol\": \"mtproxy\", \"runtime_username\": \"fleet-mt\", \"state\": \"missing\", \"error\": null, \"revision\": null, \"learned\": {\"host\": \"proxy.example.com\", \"port\": 443}}, {\"ref\": \"grant:e790f341-055c-4690-bda0-00d719c424cd\", \"protocol\": \"naive\", \"runtime_username\": \"fleet-naive\", \"state\": \"enabled\", \"error\": null, \"revision\": null, \"learned\": {}}, {\"ref\": \"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\", \"protocol\": \"trusttunnel\", \"runtime_username\": \"fleet-tt\", \"state\": \"enabled\", \"error\": null, \"revision\": \"3\", \"learned\": {\"hostname\": \"gate.example.com\", \"port\": 443}}]",
+   "reported_at": 1793005896,
+   "relay_json": null
+  }
+ ],
+ "node_links": [
+  {
+   "node_id": "16bc64cb-2337-4a53-b98c-83335b5dd136",
+   "panel_url": "https://node.example",
+   "tls_verify": "verify",
+   "status": "online",
+   "identity_json": "{\"guid\": \"16bc64cb-2337-4a53-b98c-83335b5dd136\", \"panel_version\": \"3.3.0\", \"api_version\": 2, \"master_guid\": \"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\", \"protocols\": {\"mtproxy\": {\"enabled\": true, \"public_host\": \"proxy.example.com\", \"public_port\": 443, \"daemon\": \"ok\", \"egress\": {\"backend\": \"mtproxy_native\", \"capabilities\": [\"whole_direct\"], \"providers\": {}, \"revision\": \"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\", \"mode\": \"direct\", \"restart_required\": false, \"applied_digest\": \"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\", \"warnings\": [], \"router_attached\": false}}, \"naive\": {\"enabled\": true, \"public_host\": \"naive.example.com\", \"public_port\": 443, \"daemon\": \"ok\", \"egress\": {\"backend\": \"naive_native\", \"capabilities\": [\"block_cidr\", \"block_domain\", \"whole_direct\", \"whole_warp\"], \"providers\": {\"warp\": {\"reachable\": true}}, \"revision\": \"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\", \"mode\": \"direct\", \"restart_required\": false, \"applied_digest\": \"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\", \"warnings\": [], \"router_attached\": false}}, \"mieru\": {\"enabled\": true, \"public_host\": \"naive.example.com\", \"public_port\": 8443, \"daemon\": \"ok\", \"egress\": {\"backend\": \"mieru_native\", \"capabilities\": [\"block_cidr\", \"block_domain\", \"selective_cidr\", \"selective_domain\", \"whole_direct\", \"whole_warp\"], \"providers\": {\"warp\": {\"reachable\": true}}, \"revision\": \"rev-4\", \"mode\": \"direct\", \"restart_required\": true, \"applied_digest\": \"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\", \"warnings\": [], \"router_attached\": false}}, \"amneziawg\": {\"enabled\": true, \"public_host\": \"awg.example.com\", \"public_port\": 0, \"daemon\": \"ok\", \"versions\": [\"1.5\", \"2.0\", \"3.1\"], \"egress\": {\"backend\": \"amneziawg_native\", \"capabilities\": [\"whole_direct\", \"whole_warp\"], \"providers\": {\"warp\": {\"reachable\": null}, \"router\": {\"reachable\": true}}, \"revision\": \"0\", \"mode\": \"direct\", \"restart_required\": false, \"applied_digest\": \"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\", \"warnings\": [], \"router_attached\": false}}, \"trusttunnel\": {\"enabled\": true, \"public_host\": \"gate.example.com\", \"public_port\": 443, \"daemon\": \"ok\", \"egress\": {\"backend\": \"trusttunnel_native\", \"capabilities\": [\"whole_direct\"], \"providers\": {}, \"revision\": \"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\", \"mode\": \"direct\", \"restart_required\": false, \"applied_digest\": \"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\", \"warnings\": [], \"router_attached\": false}}}, \"capabilities\": [\"generation.v1\", \"credentials.capture\", \"versions.update\", \"versions.check\", \"unlink\", \"egress.v1\", \"egress.mtproxy.v1\", \"protocol.amneziawg.v1\", \"protocol.trusttunnel.v1\", \"egress.trusttunnel.v1\", \"egress.amneziawg.v1\", \"metrics.v1\"], \"router\": null}",
+   "status_json": "{\"versions\": {\"enabled\": true, \"upstream_enabled\": true, \"checked_at\": null, \"components\": {\"telemt\": {\"current\": \"3.4.24\", \"available\": [{\"version\": \"3.4.24\", \"kind\": \"image\"}, {\"version\": \"3.4.25\", \"kind\": \"image\"}]}, \"naive\": {\"current\": \"2.11.3\", \"available\": [{\"version\": \"2.11.3\", \"kind\": \"binary\"}, {\"version\": \"2.11.4\", \"kind\": \"binary\"}]}, \"mita\": {\"current\": \"3.34.0\", \"available\": [{\"version\": \"3.34.0\", \"kind\": \"binary\"}, {\"version\": \"3.35.0\", \"kind\": \"binary\"}, {\"version\": \"3.36.0\", \"kind\": \"binary\"}]}, \"panel\": {\"current\": \"0.10.0-beta.1\", \"status\": \"ready\", \"available\": [{\"version\": \"0.10.0-beta.1\", \"kind\": \"release\", \"source\": \"upstream\"}, {\"version\": \"0.11.0-beta.1\", \"kind\": \"release\", \"source\": \"upstream\"}]}}}, \"host\": {\"cpu\": {\"used_percent\": 12.5, \"cores\": 4, \"load_average\": [0.5, 0.4, 0.3]}, \"memory\": {\"total_bytes\": 4106223616, \"available_bytes\": 2979237888, \"used_bytes\": 1126985728, \"used_percent\": 27.4}, \"swap\": {\"total_bytes\": 2147483648, \"available_bytes\": 2013265920, \"used_bytes\": 134217728, \"used_percent\": 6.2}, \"disk\": {\"total_bytes\": 84825800704, \"available_bytes\": 71940702208, \"used_bytes\": 9771899289, \"used_percent\": 11.5}}, \"managed_resources\": 4, \"users\": {\"mtproxy\": {\"central\": 0, \"local\": 0}, \"naive\": {\"central\": 1, \"local\": 0}, \"mieru\": {\"central\": 1, \"local\": 0}, \"amneziawg\": {\"central\": 1, \"local\": 0}, \"trusttunnel\": {\"central\": 1, \"local\": 0}}, \"protocols\": {\"mtproxy\": {\"enabled\": true, \"public_host\": \"proxy.example.com\", \"public_port\": 443, \"daemon\": \"ok\", \"traffic\": {\"upload_bytes\": null, \"download_bytes\": null, \"total_bytes\": 0}}, \"naive\": {\"enabled\": true, \"public_host\": \"naive.example.com\", \"public_port\": 443, \"daemon\": \"ok\", \"traffic\": {\"upload_bytes\": 0, \"download_bytes\": 0, \"total_bytes\": 0}}, \"mieru\": {\"enabled\": true, \"public_host\": \"naive.example.com\", \"public_port\": 8443, \"daemon\": \"ok\", \"traffic\": null}, \"amneziawg\": {\"enabled\": true, \"public_host\": \"awg.example.com\", \"public_port\": 0, \"daemon\": \"ok\", \"versions\": [\"1.5\", \"2.0\", \"3.1\"], \"traffic\": {\"upload_bytes\": 0, \"download_bytes\": 0, \"total_bytes\": 0}}, \"trusttunnel\": {\"enabled\": true, \"public_host\": \"gate.example.com\", \"public_port\": 443, \"daemon\": \"ok\", \"traffic\": {\"upload_bytes\": 0, \"download_bytes\": 0, \"total_bytes\": 0}}}}",
+   "desired_generation": 5,
+   "acknowledged_generation": 5
+  }
+ ],
+ "managed_generations": [
+  {
+   "generation": 1,
+   "digest": "167714534ed65e70e41f6f25e137045fede0231be084f3220233e578f5c4c4f5",
+   "master_guid": "1a1e02ae-af88-44d6-a1e4-553dda89d0bf",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":1,\"previous_generation\":0,\"created_at\":1793005893,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"dns\":[],\"obfuscation\":{}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[]},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":null,\"relay\":null}",
+   "received_at": 1793005893,
+   "applied_at": 1793005893,
+   "state": "converged"
+  },
+  {
+   "generation": 2,
+   "digest": "f0c66658fea96fd8980e445af73d95e09840219627eba130c01510142f49b801",
+   "master_guid": "1a1e02ae-af88-44d6-a1e4-553dda89d0bf",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":2,\"previous_generation\":1,\"created_at\":1793005894,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "received_at": 1793005894,
+   "applied_at": 1793005894,
+   "state": "converged"
+  },
+  {
+   "generation": 3,
+   "digest": "6aa3bf4c8f661127c4f35ccd1f55452e027947548552d8b496f3cf06afa21cc4",
+   "master_guid": "1a1e02ae-af88-44d6-a1e4-553dda89d0bf",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":3,\"previous_generation\":2,\"created_at\":1793005894,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "received_at": 1793005895,
+   "applied_at": 1793005895,
+   "state": "converged"
+  },
+  {
+   "generation": 4,
+   "digest": "06c17ed9779b3485d6ba3cd1608b04ea3359cc19ca7beda4c43d30d2715c78ac",
+   "master_guid": "1a1e02ae-af88-44d6-a1e4-553dda89d0bf",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":4,\"previous_generation\":3,\"created_at\":1793005895,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "received_at": 1793005895,
+   "applied_at": 1793005896,
+   "state": "converged"
+  },
+  {
+   "generation": 5,
+   "digest": "7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32",
+   "master_guid": "1a1e02ae-af88-44d6-a1e4-553dda89d0bf",
+   "document_json": "{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":5,\"previous_generation\":4,\"created_at\":1793005896,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"deleted\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"companion\":null,\"passthrough\":false}},\"relay\":null}",
+   "received_at": 1793005896,
+   "applied_at": 1793005896,
+   "state": "converged"
+  }
+ ],
+ "managed_resources": [
+  {
+   "protocol": "amneziawg",
+   "runtime_username": "fleet-awg31",
+   "ref": "grant:bc4847df-ed5f-4f8f-985b-598a0d04638c",
+   "credential_ref": "grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1",
+   "generation": 5,
+   "state": "enabled",
+   "last_error": null,
+   "revision": "3",
+   "updated_at": 1793005896,
+   "learned_json": "{\"address\": \"10.66.31.2\"}"
+  },
+  {
+   "protocol": "mieru",
+   "runtime_username": "fleet-mieru",
+   "ref": "grant:cb467a32-f7bc-4821-a500-162ee7639469",
+   "credential_ref": "grant:cb467a32-f7bc-4821-a500-162ee7639469:1",
+   "generation": 5,
+   "state": "enabled",
+   "last_error": null,
+   "revision": "rev-4",
+   "updated_at": 1793005896,
+   "learned_json": "{\"share_template\": \"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}"
+  },
+  {
+   "protocol": "mtproxy",
+   "runtime_username": "fleet-mt",
+   "ref": "grant:2eae05cc-f40a-4b51-98b1-2e01545bf443",
+   "credential_ref": "grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1",
+   "generation": 5,
+   "state": "missing",
+   "last_error": null,
+   "revision": null,
+   "updated_at": 1793005896,
+   "learned_json": "{\"host\": \"proxy.example.com\", \"port\": 443}"
+  },
+  {
+   "protocol": "naive",
+   "runtime_username": "fleet-naive",
+   "ref": "grant:e790f341-055c-4690-bda0-00d719c424cd",
+   "credential_ref": "grant:e790f341-055c-4690-bda0-00d719c424cd:1",
+   "generation": 5,
+   "state": "enabled",
+   "last_error": null,
+   "revision": null,
+   "updated_at": 1793005896,
+   "learned_json": "{}"
+  },
+  {
+   "protocol": "trusttunnel",
+   "runtime_username": "fleet-tt",
+   "ref": "grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e",
+   "credential_ref": "grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1",
+   "generation": 5,
+   "state": "enabled",
+   "last_error": null,
+   "revision": "3",
+   "updated_at": 1793005896,
+   "learned_json": "{\"hostname\": \"gate.example.com\", \"port\": 443}"
+  }
+ ],
+ "wire": [
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":null,\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-1\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":0,\"users\":{\"mtproxy\":{\"central\":0,\"local\":0},\"naive\":{\"central\":0,\"local\":0},\"mieru\":{\"central\":0,\"local\":0},\"amneziawg\":{\"central\":0,\"local\":0},\"trusttunnel\":{\"central\":0,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[],\"naive\":[],\"mieru\":[],\"amneziawg\":[],\"trusttunnel\":[]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":null,\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-1\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":0,\"users\":{\"mtproxy\":{\"central\":0,\"local\":0},\"naive\":{\"central\":0,\"local\":0},\"mieru\":{\"central\":0,\"local\":0},\"amneziawg\":{\"central\":0,\"local\":0},\"trusttunnel\":{\"central\":0,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[],\"naive\":[],\"mieru\":[],\"amneziawg\":[],\"trusttunnel\":[]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":null,\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-1\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":0,\"users\":{\"mtproxy\":{\"central\":0,\"local\":0},\"naive\":{\"central\":0,\"local\":0},\"mieru\":{\"central\":0,\"local\":0},\"amneziawg\":{\"central\":0,\"local\":0},\"trusttunnel\":{\"central\":0,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[],\"naive\":[],\"mieru\":[],\"amneziawg\":[],\"trusttunnel\":[]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "PUT",
+    "url": "https://node.example/api/fleet/v2/generation",
+    "body": {
+     "text": "{\"expected_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"generation\":{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":1,\"previous_generation\":0,\"created_at\":1793005893,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"dns\":[],\"obfuscation\":{}},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[]},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null}]},\"secrets\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"f5949000367ff8fe225dcb956f3f7881\",\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\":\"UsP8fY5PZARAu-4040SHkNlbC8iwUCUp\",\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\":\"{\\\"private_key\\\":\\\"YGMpvyDwoZNavyeFy5rVsJND0fu5vxY/tp5v3aBRYUc=\\\",\\\"preshared_key\\\":\\\"X/vFP0bXOaYHVIKkyaB9DLa0fTQvqm4hrEGYfoGOdjc=\\\"}\",\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\":\"VafMjhxDzo_1RbiR62aifwLe4flJHq1q\",\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\":\"0yJgdqdkljTR9ryviey3Jq73RJTkxCZD\"}}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"observed\":{\"applied_generation\":1,\"digest\":\"167714534ed65e70e41f6f25e137045fede0231be084f3220233e578f5c4c4f5\",\"reconcile_state\":\"converged\",\"resources\":[{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"state\":\"enabled\",\"error\":null,\"revision\":\"1\",\"learned\":{\"address\":\"10.66.31.2\",\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"mtu\":1280,\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"},\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\"}},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"state\":\"enabled\",\"error\":null,\"revision\":\"rev-2\",\"learned\":{\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}},{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{\"host\":\"proxy.example.com\",\"port\":443}},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{}},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"state\":\"enabled\",\"error\":null,\"revision\":\"1\",\"learned\":{\"hostname\":\"gate.example.com\",\"port\":443}}],\"reported_at\":1793005893,\"egress\":{},\"relay\":null},\"credentials\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\"}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-2\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":true,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-2\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":true,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-2\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":true,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "PUT",
+    "url": "https://node.example/api/fleet/v2/generation",
+    "body": {
+     "text": "{\"expected_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"generation\":{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":2,\"previous_generation\":1,\"created_at\":1793005894,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\"}}},\"secrets\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\",\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\":\"UsP8fY5PZARAu-4040SHkNlbC8iwUCUp\",\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\":\"{\\\"private_key\\\":\\\"YGMpvyDwoZNavyeFy5rVsJND0fu5vxY/tp5v3aBRYUc=\\\",\\\"preshared_key\\\":\\\"X/vFP0bXOaYHVIKkyaB9DLa0fTQvqm4hrEGYfoGOdjc=\\\"}\",\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\":\"VafMjhxDzo_1RbiR62aifwLe4flJHq1q\",\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\":\"0yJgdqdkljTR9ryviey3Jq73RJTkxCZD\"}}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"observed\":{\"applied_generation\":2,\"digest\":\"f0c66658fea96fd8980e445af73d95e09840219627eba130c01510142f49b801\",\"reconcile_state\":\"converged\",\"resources\":[{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"state\":\"enabled\",\"error\":null,\"revision\":\"1\",\"learned\":{\"address\":\"10.66.31.2\"}},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"state\":\"enabled\",\"error\":null,\"revision\":\"rev-2\",\"learned\":{\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}},{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{\"host\":\"proxy.example.com\",\"port\":443}},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{}},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"state\":\"enabled\",\"error\":null,\"revision\":\"1\",\"learned\":{\"hostname\":\"gate.example.com\",\"port\":443}}],\"reported_at\":1793005894,\"egress\":{\"naive\":{\"state\":\"converged\",\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"error\":null,\"router\":null,\"lanes\":[]}},\"relay\":null},\"credentials\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\"}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-2\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":true,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-2\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":true,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "PUT",
+    "url": "https://node.example/api/fleet/v2/generation",
+    "body": {
+     "text": "{\"expected_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"generation\":{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":3,\"previous_generation\":2,\"created_at\":1793005894,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"disabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\"}}},\"secrets\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\",\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\":\"UsP8fY5PZARAu-4040SHkNlbC8iwUCUp\",\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\":\"{\\\"private_key\\\":\\\"YGMpvyDwoZNavyeFy5rVsJND0fu5vxY/tp5v3aBRYUc=\\\",\\\"preshared_key\\\":\\\"X/vFP0bXOaYHVIKkyaB9DLa0fTQvqm4hrEGYfoGOdjc=\\\"}\",\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\":\"VafMjhxDzo_1RbiR62aifwLe4flJHq1q\",\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\":\"0yJgdqdkljTR9ryviey3Jq73RJTkxCZD\"}}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"observed\":{\"applied_generation\":3,\"digest\":\"6aa3bf4c8f661127c4f35ccd1f55452e027947548552d8b496f3cf06afa21cc4\",\"reconcile_state\":\"converged\",\"resources\":[{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"state\":\"disabled\",\"error\":null,\"revision\":\"2\",\"learned\":{\"address\":\"10.66.31.2\"}},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"state\":\"disabled\",\"error\":null,\"revision\":\"rev-3\",\"learned\":{\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}},{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"state\":\"disabled\",\"error\":null,\"revision\":null,\"learned\":{\"host\":\"proxy.example.com\",\"port\":443}},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"state\":\"disabled\",\"error\":null,\"revision\":null,\"learned\":{}},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"state\":\"disabled\",\"error\":null,\"revision\":\"2\",\"learned\":{\"hostname\":\"gate.example.com\",\"port\":443}}],\"reported_at\":1793005895,\"egress\":{\"naive\":{\"state\":\"converged\",\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"error\":null,\"router\":null,\"lanes\":[]}},\"relay\":null},\"credentials\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\"}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-3\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":false,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":false,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":false,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":false,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":false,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "PUT",
+    "url": "https://node.example/api/fleet/v2/generation",
+    "body": {
+     "text": "{\"expected_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"generation\":{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":4,\"previous_generation\":3,\"created_at\":1793005895,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\"}}},\"secrets\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\",\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\":\"UsP8fY5PZARAu-4040SHkNlbC8iwUCUp\",\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\":\"{\\\"private_key\\\":\\\"YGMpvyDwoZNavyeFy5rVsJND0fu5vxY/tp5v3aBRYUc=\\\",\\\"preshared_key\\\":\\\"X/vFP0bXOaYHVIKkyaB9DLa0fTQvqm4hrEGYfoGOdjc=\\\"}\",\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\":\"VafMjhxDzo_1RbiR62aifwLe4flJHq1q\",\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\":\"0yJgdqdkljTR9ryviey3Jq73RJTkxCZD\"}}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"observed\":{\"applied_generation\":4,\"digest\":\"06c17ed9779b3485d6ba3cd1608b04ea3359cc19ca7beda4c43d30d2715c78ac\",\"reconcile_state\":\"converged\",\"resources\":[{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"state\":\"enabled\",\"error\":null,\"revision\":\"3\",\"learned\":{\"address\":\"10.66.31.2\"}},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"state\":\"enabled\",\"error\":null,\"revision\":\"rev-4\",\"learned\":{\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}},{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{\"host\":\"proxy.example.com\",\"port\":443}},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{}},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"state\":\"enabled\",\"error\":null,\"revision\":\"3\",\"learned\":{\"hostname\":\"gate.example.com\",\"port\":443}}],\"reported_at\":1793005896,\"egress\":{\"naive\":{\"state\":\"converged\",\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"error\":null,\"router\":null,\"lanes\":[]}},\"relay\":null},\"credentials\":{\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\":\"eef5949000367ff8fe225dcb956f3f7881\"}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-4\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":5,\"users\":{\"mtproxy\":{\"central\":1,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[{\"runtime_username\":\"fleet-mt\",\"enabled\":true,\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"ownership\":\"central\",\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\"}],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "PUT",
+    "url": "https://node.example/api/fleet/v2/generation",
+    "body": {
+     "text": "{\"expected_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"generation\":{\"schema_version\":1,\"node_guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"generation\":5,\"previous_generation\":4,\"created_at\":1793005896,\"created_by\":\"system\",\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"deleted\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null}],\"egress\":{\"naive\":{\"backend\":\"naive_native\",\"policy_id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"policy_revision\":1,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\"}}},\"secrets\":{\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\":\"UsP8fY5PZARAu-4040SHkNlbC8iwUCUp\",\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\":\"{\\\"private_key\\\":\\\"YGMpvyDwoZNavyeFy5rVsJND0fu5vxY/tp5v3aBRYUc=\\\",\\\"preshared_key\\\":\\\"X/vFP0bXOaYHVIKkyaB9DLa0fTQvqm4hrEGYfoGOdjc=\\\"}\",\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\":\"VafMjhxDzo_1RbiR62aifwLe4flJHq1q\",\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\":\"0yJgdqdkljTR9ryviey3Jq73RJTkxCZD\"}}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"observed\":{\"applied_generation\":5,\"digest\":\"7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32\",\"reconcile_state\":\"converged\",\"resources\":[{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"state\":\"enabled\",\"error\":null,\"revision\":\"3\",\"learned\":{\"address\":\"10.66.31.2\"}},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"state\":\"enabled\",\"error\":null,\"revision\":\"rev-4\",\"learned\":{\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}},{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"state\":\"missing\",\"error\":null,\"revision\":null,\"learned\":{\"host\":\"proxy.example.com\",\"port\":443}},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{}},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"state\":\"enabled\",\"error\":null,\"revision\":\"3\",\"learned\":{\"hostname\":\"gate.example.com\",\"port\":443}}],\"reported_at\":1793005896,\"egress\":{\"naive\":{\"state\":\"converged\",\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"error\":null,\"router\":null,\"lanes\":[]}},\"relay\":null},\"credentials\":{}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/identity",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-4\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/status",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":4,\"users\":{\"mtproxy\":{\"central\":0,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}}"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://node.example/api/fleet/v2/inventory",
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "text": "{\"protocols\":{\"mtproxy\":[],\"naive\":[{\"runtime_username\":\"fleet-naive\",\"enabled\":true,\"options\":{\"quota_bytes\":null},\"ownership\":\"central\",\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\"}],\"mieru\":[{\"runtime_username\":\"fleet-mieru\",\"enabled\":true,\"options\":{\"quotas\":[]},\"ownership\":\"central\",\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\"}],\"amneziawg\":[{\"runtime_username\":\"fleet-awg31\",\"enabled\":true,\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\"},\"ownership\":\"central\",\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\"}],\"trusttunnel\":[{\"runtime_username\":\"fleet-tt\",\"enabled\":true,\"options\":{},\"ownership\":\"central\",\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\"}]}}"
+    }
+   }
+  }
+ ],
+ "exchanges": [
+  {
+   "name": "link",
+   "request": {
+    "method": "POST",
+    "path": "/api/nodes/link",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1",
+     "content-type": "application/json"
+    },
+    "body": {
+     "text": "{\"display_name\":\"Edge «1»\",\"url\":\"https://node.example\",\"api_key\":\"pc_b65bec29_xEXWWm4z5dEZvx2UDIXStV73ZBUpZHhqzJSaYmhwsxI\",\"tls_verify\":\"verify\",\"allow_private_address\":false,\"auto_import\":true}"
+    }
+   },
+   "response": {
+    "status": 201,
+    "headers": [
+     [
+      "content-length",
+      "50"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\"}"
+    },
+    "sha256": "5ac49830145abe76c71a68d11c488957d5e870c5ed87480930d9cfef3bb640bc"
+   }
+  },
+  {
+   "name": "grants",
+   "request": {
+    "method": "POST",
+    "path": "/api/clients/40afb27f-1540-4f0d-b3ca-5c4d54f04cbb/grants",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1",
+     "content-type": "application/json"
+    },
+    "body": {
+     "text": "{\"grants\":[{\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\"},{\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\"},{\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\"},{\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"options\":{\"version\":\"3.1\"},\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\"},{\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\"}]}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "81"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"operation_id\":\"52776879-80a4-4057-aacf-627ddc0580fe\",\"status\":\"pending_remote\"}"
+    },
+    "sha256": "60e3e8d16ff34e83e761d60d94dab82accc082681bc3c2a7af56899fd5e2ef4c"
+   }
+  },
+  {
+   "name": "policy",
+   "request": {
+    "method": "PUT",
+    "path": "/api/routing/policies/16bc64cb-2337-4a53-b98c-83335b5dd136/naive",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1",
+     "content-type": "application/json"
+    },
+    "body": {
+     "text": "{\"rules\":[{\"action\":\"block\",\"match\":{\"domains\":[\"example.com\",\"*.example.com\"]},\"note\":\"ads\"}],\"expected_revision\":null}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "664"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"8058517d-5d32-4eb0-a476-244d2719031e\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005894,\"updated_at\":1793005894,\"applied_current\":false}"
+    },
+    "sha256": "1d2dd56e7591e7eb2180145c39c4121e74c37ad57ad83f7f53c8bb2145f53c88"
+   }
+  },
+  {
+   "name": "apply",
+   "request": {
+    "method": "POST",
+    "path": "/api/routing/policies/16bc64cb-2337-4a53-b98c-83335b5dd136/naive/apply",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1",
+     "content-type": "application/json"
+    },
+    "body": {
+     "text": "{\"expected_revision\":1}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "1382"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"8058517d-5d32-4eb0-a476-244d2719031e\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"4c2d5b68-0b10-469c-80ee-4290d037caf2\",\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"applying\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005894,\"updated_at\":1793005894,\"applied_current\":false},\"applied\":null,\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":null,\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}]},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"diff\":[\"-null\",\"+{\",\"+ \\\"acl\\\": [\",\"+  {\",\"+   \\\"deny\\\": [\",\"+    \\\"example.com\\\",\",\"+    \\\"*.example.com\\\"\",\"+   ]\",\"+  }\",\"+ ],\",\"+ \\\"schema\\\": 1,\",\"+ \\\"upstream\\\": null\",\"+}\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"to_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+    },
+    "sha256": "cc86c062b6dd085f5cfc17122ddad23b414ba1e18b582261ae517c0be9df1aa1"
+   }
+  },
+  {
+   "name": "suspend",
+   "request": {
+    "method": "POST",
+    "path": "/api/clients/40afb27f-1540-4f0d-b3ca-5c4d54f04cbb/state",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1",
+     "content-type": "application/json"
+    },
+    "body": {
+     "text": "{\"state\":\"suspended\"}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "157"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"id\":\"40afb27f-1540-4f0d-b3ca-5c4d54f04cbb\",\"display_name\":\"Fleet client\",\"state\":\"suspended\",\"metadata\":{},\"created_at\":1793005892,\"updated_at\":1793005894}"
+    },
+    "sha256": "ac90c6e946e4fb8ef438308d976759d004679f1825704df143bd97a025a9f144"
+   }
+  },
+  {
+   "name": "resume",
+   "request": {
+    "method": "POST",
+    "path": "/api/clients/40afb27f-1540-4f0d-b3ca-5c4d54f04cbb/state",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1",
+     "content-type": "application/json"
+    },
+    "body": {
+     "text": "{\"state\":\"active\"}"
+    }
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "154"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"id\":\"40afb27f-1540-4f0d-b3ca-5c4d54f04cbb\",\"display_name\":\"Fleet client\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005892,\"updated_at\":1793005895}"
+    },
+    "sha256": "6875265f6c931c403e1e5cb92b243862362c8d2445621037abed3bff7c49dfc4"
+   }
+  },
+  {
+   "name": "delete-grant",
+   "request": {
+    "method": "POST",
+    "path": "/api/clients/grants/2eae05cc-f40a-4b51-98b1-2e01545bf443/delete",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "11"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"ok\":true}"
+    },
+    "sha256": "4062edaf750fb8074e7e83e0c9028c94e32468a8b6f1614774328ef045150f93"
+   }
+  },
+  {
+   "name": "nodes",
+   "request": {
+    "method": "GET",
+    "path": "/api/nodes",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "5964"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"items\":[{\"node_id\":\"local\",\"display_name\":\"Этот сервер\",\"kind\":\"local\",\"disabled\":false,\"enrollment_state\":\"local\",\"connectivity_state\":\"not_applicable\",\"daemon_health\":\"unknown\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1793005891,\"certificates\":[],\"pending_commands\":0,\"transport\":\"v1\",\"link\":null,\"services\":{\"telemt\":\"ok\",\"naive\":\"ok\",\"mieru\":\"ok\",\"amneziawg\":\"ok\",\"trusttunnel\":\"ok\"},\"identity\":{\"guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"master_guid\":null,\"awg_versions\":[\"1.5\",\"2.0\",\"3.1\"]}},{\"node_id\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"display_name\":\"Edge «1»\",\"kind\":\"remote\",\"disabled\":false,\"enrollment_state\":\"linked\",\"connectivity_state\":\"online\",\"daemon_health\":\"reported\",\"inventory\":{},\"capabilities\":[],\"last_seen_at\":null,\"last_checked_at\":1793005892,\"certificates\":[],\"pending_commands\":0,\"transport\":\"panel\",\"link\":{\"panel_url\":\"https://node.example\",\"tls_verify\":\"verify\",\"status\":\"online\",\"latency_ms\":127,\"panel_version\":\"3.3.0\",\"last_heartbeat_at\":1793005896,\"last_error\":null,\"desired_generation\":5,\"acknowledged_generation\":5,\"identity\":{\"guid\":\"16bc64cb-2337-4a53-b98c-83335b5dd136\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":\"1a1e02ae-af88-44d6-a1e4-553dda89d0bf\",\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mtproxy_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"cdcba19e9c59d7cc4e562a31cbd0f8e3c85fcc47347c6acf7c632f89975a428e\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"mieru_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"selective_cidr\",\"selective_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"rev-4\",\"mode\":\"direct\",\"restart_required\":true,\"applied_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\",\"warnings\":[],\"router_attached\":false}},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"egress\":{\"backend\":\"amneziawg_native\",\"capabilities\":[\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":null},\"router\":{\"reachable\":true}},\"revision\":\"0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"warnings\":[],\"router_attached\":false}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"trusttunnel_native\",\"capabilities\":[\"whole_direct\"],\"providers\":{},\"revision\":\"1b82325062287416f78851fd3dca34db7ef40c41a719e152b2647d5b2f7fc0bb\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"1e575380373df4597b2f9affeb98a409029ee5a40b37c219a8e4426a76c3035e\",\"warnings\":[],\"router_attached\":false}}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null},\"status_json\":{\"versions\":{\"enabled\":true,\"upstream_enabled\":true,\"checked_at\":null,\"components\":{\"telemt\":{\"current\":\"3.4.24\",\"available\":[{\"version\":\"3.4.24\",\"kind\":\"image\"},{\"version\":\"3.4.25\",\"kind\":\"image\"}]},\"naive\":{\"current\":\"2.11.3\",\"available\":[{\"version\":\"2.11.3\",\"kind\":\"binary\"},{\"version\":\"2.11.4\",\"kind\":\"binary\"}]},\"mita\":{\"current\":\"3.34.0\",\"available\":[{\"version\":\"3.34.0\",\"kind\":\"binary\"},{\"version\":\"3.35.0\",\"kind\":\"binary\"},{\"version\":\"3.36.0\",\"kind\":\"binary\"}]},\"panel\":{\"current\":\"0.10.0-beta.1\",\"status\":\"ready\",\"available\":[{\"version\":\"0.10.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"},{\"version\":\"0.11.0-beta.1\",\"kind\":\"release\",\"source\":\"upstream\"}]}}},\"host\":{\"cpu\":{\"used_percent\":12.5,\"cores\":4,\"load_average\":[0.5,0.4,0.3]},\"memory\":{\"total_bytes\":4106223616,\"available_bytes\":2979237888,\"used_bytes\":1126985728,\"used_percent\":27.4},\"swap\":{\"total_bytes\":2147483648,\"available_bytes\":2013265920,\"used_bytes\":134217728,\"used_percent\":6.2},\"disk\":{\"total_bytes\":84825800704,\"available_bytes\":71940702208,\"used_bytes\":9771899289,\"used_percent\":11.5}},\"managed_resources\":4,\"users\":{\"mtproxy\":{\"central\":0,\"local\":0},\"naive\":{\"central\":1,\"local\":0},\"mieru\":{\"central\":1,\"local\":0},\"amneziawg\":{\"central\":1,\"local\":0},\"trusttunnel\":{\"central\":1,\"local\":0}},\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"proxy.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":null,\"download_bytes\":null,\"total_bytes\":0}},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"ok\",\"traffic\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"awg.example.com\",\"public_port\":0,\"daemon\":\"ok\",\"versions\":[\"1.5\",\"2.0\",\"3.1\"],\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"traffic\":{\"upload_bytes\":0,\"download_bytes\":0,\"total_bytes\":0}}}},\"has_api_key\":true,\"config_dirty\":false,\"enabled\":true,\"auto_import\":true,\"observed_generation\":5,\"observed_state\":\"converged\"}}]}"
+    },
+    "sha256": "8ed900537c14c0dbcd7fad8d9a28280f51f1666e61f2f967d26f2aebe4799eb6"
+   }
+  },
+  {
+   "name": "generations",
+   "request": {
+    "method": "GET",
+    "path": "/api/nodes/16bc64cb-2337-4a53-b98c-83335b5dd136/generations",
+    "host": "testserver",
+    "headers": {
+     "accept": "*/*",
+     "user-agent": "python-httpx/0.28.1"
+    },
+    "body": null
+   },
+   "response": {
+    "status": 200,
+    "headers": [
+     [
+      "content-length",
+      "3693"
+     ],
+     [
+      "content-type",
+      "application/json"
+     ],
+     [
+      "content-security-policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+     ],
+     [
+      "x-content-type-options",
+      "nosniff"
+     ],
+     [
+      "x-frame-options",
+      "DENY"
+     ],
+     [
+      "referrer-policy",
+      "no-referrer"
+     ],
+     [
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=()"
+     ],
+     [
+      "cache-control",
+      "no-store"
+     ],
+     [
+      "x-request-id",
+      "<volatile>"
+     ]
+    ],
+    "body": {
+     "text": "{\"desired\":{\"generation\":5,\"digest\":\"7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32\",\"content_digest\":\"ff104e11ef0fd62fd1618ccc2a8bc1eb443e5a2b9f1e810d03450611555e1989\",\"pushed_at\":1793005896,\"acknowledged_at\":1793005896,\"resources\":[{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"desired_state\":\"deleted\",\"credential_ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"host\":\"proxy.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"ContentPaddingAddition\":\"0-32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"Jc\":\"5\",\"Jmax\":\"50\",\"Jmin\":\"10\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\"}},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"},\"valid_from\":null,\"valid_until\":null,\"lane\":null},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"desired_state\":\"enabled\",\"credential_ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd:1\",\"credential_origin\":\"caller\",\"origin\":\"provisioned\",\"options\":{},\"valid_from\":null,\"valid_until\":null,\"lane\":null}],\"created_at\":1793005896},\"observed\":{\"applied_generation\":5,\"digest\":\"7428b1bba543fbdc8886904187e4517025c04c05a41f4ade43dbcb2d88bb0c32\",\"reconcile_state\":\"converged\",\"resources\":[{\"ref\":\"grant:bc4847df-ed5f-4f8f-985b-598a0d04638c\",\"protocol\":\"amneziawg\",\"runtime_username\":\"fleet-awg31\",\"state\":\"enabled\",\"error\":null,\"revision\":\"3\",\"learned\":{\"address\":\"10.66.31.2\"}},{\"ref\":\"grant:cb467a32-f7bc-4821-a500-162ee7639469\",\"protocol\":\"mieru\",\"runtime_username\":\"fleet-mieru\",\"state\":\"enabled\",\"error\":null,\"revision\":\"rev-4\",\"learned\":{\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=fleet-mieru&port=8443&protocol=TCP\"}},{\"ref\":\"grant:2eae05cc-f40a-4b51-98b1-2e01545bf443\",\"protocol\":\"mtproxy\",\"runtime_username\":\"fleet-mt\",\"state\":\"missing\",\"error\":null,\"revision\":null,\"learned\":{\"host\":\"proxy.example.com\",\"port\":443}},{\"ref\":\"grant:e790f341-055c-4690-bda0-00d719c424cd\",\"protocol\":\"naive\",\"runtime_username\":\"fleet-naive\",\"state\":\"enabled\",\"error\":null,\"revision\":null,\"learned\":{}},{\"ref\":\"grant:618caec1-d45e-4ae4-8db4-a52d3c5fbd7e\",\"protocol\":\"trusttunnel\",\"runtime_username\":\"fleet-tt\",\"state\":\"enabled\",\"error\":null,\"revision\":\"3\",\"learned\":{\"hostname\":\"gate.example.com\",\"port\":443}}],\"reported_at\":1793005896,\"egress\":{},\"relay\":null}}"
+    },
+    "sha256": "23c1da1bee5781903a389507322d71b0580ae800aab8400782199cb52f4310c7"
+   }
+  }
+ ]
+}

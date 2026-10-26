@@ -61,16 +61,16 @@ def _transport(central, node, transport) -> None:
 @pytest.mark.parametrize("code", [429, 500, 503])
 async def test_a_429_or_5xx_heartbeat_answer_is_not_offline(pair, code):
     node, central, node_id, client = await _link(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert _link_row(central, node_id)["status"] == "online"
     transport = _Answering(httpx.ASGITransport(app=node), "/api/fleet/v2/identity", code)
     _transport(central, node, transport)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     link = _link_row(central, node_id)
     assert link["status"] == "online" and link["last_error"] == f"NodeRejected: {code}"
     assert _events(central) == ["node.up"]
     transport.broken = False
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert _link_row(central, node_id)["last_error"] is None and _events(central) == ["node.up"]
 
 
@@ -79,10 +79,10 @@ async def test_a_bare_gateway_5xx_is_offline(pair, code):
     """[v0.4 lab] a 5xx page without the panel's JSON is the reverse proxy in front of a dead
     panel container: the node is down, not refusing — `offline` and `node.down`."""
     node, central, node_id, client = await _link(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     html = b"<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center></body></html>"
     _transport(central, node, _Answering(httpx.ASGITransport(app=node), "/api/fleet/v2/identity", code, html))
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     link = _link_row(central, node_id)
     assert link["status"] == "offline" and _events(central) == ["node.up", "node.down"]
 
@@ -90,25 +90,25 @@ async def test_a_bare_gateway_5xx_is_offline(pair, code):
 async def test_a_404_heartbeat_answer_is_still_offline(pair):
     """Anything else the node refuses (a panel without Fleet v2 at that URL) stays a down link."""
     node, central, node_id, client = await _link(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     _transport(central, node, _Answering(httpx.ASGITransport(app=node), "/api/fleet/v2/identity", 404))
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert _link_row(central, node_id)["status"] == "offline" and _events(central) == ["node.up", "node.down"]
 
 
 async def test_a_refusing_node_does_not_get_a_push_until_it_answers_again(pair):
     node, central, node_id, client = await _link(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     transport = _Answering(httpx.ASGITransport(app=node), "/api/fleet/v2/status", 503)
     _transport(central, node, transport)
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
-    assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]
+    await central.tick("pusher")
+    assert "alice" not in [u["username"] for u in await node.naive.list_users()]
     assert _link_row(central, node_id)["status"] == "online"
     transport.broken = False
-    await central.state.pusher.tick()
-    assert "alice" in [u["username"] for u in await node.state.naive.list_users()]
+    await central.tick("pusher")
+    assert "alice" in [u["username"] for u in await node.naive.list_users()]
 
 
 # --- [T8] heartbeat bodies are bounded like a push ---
@@ -117,13 +117,13 @@ async def test_an_oversized_heartbeat_body_is_refused_before_it_is_parsed(pair):
     from panel.fleet_v2 import client as client_module
 
     node, central, node_id, client = await _link(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     huge = b'{"guid": "' + b"x" * (client_module.MAX_RESPONSE_BYTES + 1) + b'"}'
     _transport(central, node, _Answering(httpx.ASGITransport(app=node), "/api/fleet/v2/identity", 200, huge))
     with pytest.raises(NodeRejected) as caught:
         await central.state.links.client_for(node_id).identity()
     assert caught.value.code == "response_too_large"
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert _link_row(central, node_id)["status"] == "offline"
 
 
@@ -139,7 +139,7 @@ async def test_a_late_report_about_an_older_generation_never_escrows(pair):
     node, central, node_id, client = await _link(pair)
     intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     grant = central.state.clients.client_with_grants(client.id)[1][0]
     escrowed = _escrowed(central, node_id, grant)
     assert escrowed.startswith("ee")
@@ -159,7 +159,7 @@ async def test_escrowing_the_same_plaintext_again_does_not_rewrite_the_version(p
     node, central, node_id, client = await _link(pair)
     intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     grant = central.state.clients.client_with_grants(client.id)[1][0]
     plaintext = _escrowed(central, node_id, grant)
 
@@ -200,25 +200,27 @@ async def test_repeatedly_uncaptured_credential_defers_the_push_and_names_the_re
     from panel.fleet_v2 import node_routes, pusher as pusher_module
 
     node, central, node_id, client = await _link(pair)
-    create = node.state.telemt.create_user
+    create = node.telemt.create_user
 
     async def slow_create(*args, **kwargs):
         await asyncio.sleep(0.05)
         return await create(*args, **kwargs)
 
-    monkeypatch.setattr(node.state.telemt, "create_user", slow_create)
+    monkeypatch.setattr(node.telemt, "create_user", slow_create)
     monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 0.001)
     intent = GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username="alice", options=MtproxyOptions())
     operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()  # 202
-    await asyncio.sleep(0.1)
+    await central.tick("pusher")  # 202
+    await node.settle()  # the node's background apply finishes
+    # Only that push was slow: over the managers' wire a later apply takes longer than 1 ms.
+    monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 25.0)
 
     async def nothing(ref):
         return None
 
     monkeypatch.setattr(node.state.adapters["mtproxy"], "capture", nothing)
     for _ in range(pusher_module.WITHHELD_TICKS_BEFORE_BACKOFF):
-        await central.state.pusher.tick()
+        await central.tick("pusher")
     status = central.state.provisioning.status(operation)
     step = status["steps"][0]
     assert status["status"] == "pending_remote" and step["status"] == "remote"
@@ -246,12 +248,12 @@ async def test_update_without_a_secret_store_is_a_409_with_a_code(pair, login_us
 
 async def test_probe_of_a_paused_link_only_heartbeats(pair):
     node, central, node_id, client = await _link(pair)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     central.state.links.set_enabled(node_id, False, actor=ACTOR, ip="x")
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
     await central.state.pusher.sync_node(node_id)
-    assert "alice" not in [u["username"] for u in await node.state.naive.list_users()]
+    assert "alice" not in [u["username"] for u in await node.naive.list_users()]
     assert _link_row(central, node_id)["last_heartbeat_at"] is not None
 
 
@@ -261,7 +263,7 @@ async def test_force_delete_removes_a_node_with_an_unconfirmed_deletion(pair):
     node, central, node_id, client = await _link(pair)
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     grant = central.state.clients.client_with_grants(client.id)[1][0]
     await central.state.lifecycle.delete(grant.id, actor=ACTOR, ip="x")  # the node never confirms it
 
@@ -291,11 +293,11 @@ async def test_delete_with_imported_and_provisioned_grants_is_refused_and_keeps_
     from panel.fleet_v2.importing import ImportItem, import_resources
 
     node, central, node_id, client = await _link(pair)
-    node.state.naive.seed("legacy", "pw-legacy")
+    node.naive.seed("legacy", "pw-legacy")
     await import_resources(central.state, node_id, [ImportItem("naive", "legacy", "new")], actor=ACTOR, ip="x")
     intent = GrantIntent(protocol="naive", node_id=node_id, runtime_username="alice", options=NaiveOptions())
     await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     with pytest.raises(LinkConflict, match="provisioned grant"):
         await central.state.links.delete(node_id, actor=ACTOR, ip="x")
     with central.state.database.connect() as db:
@@ -335,7 +337,7 @@ async def test_a_pending_credential_version_is_not_rendered(pair):
                                      public_hosts=lambda nid: public_hosts_for(central.state, nid))
 
     assert artifacts() == {}  # the version is `pending`: the bare secret is not a link yet
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     grant = central.state.clients.client_with_grants(client.id)[1][0]
     assert "tg://proxy" in artifacts()[grant.id][0].value
 
@@ -347,7 +349,7 @@ async def test_an_imported_grant_without_a_credential_is_captured_after_a_202(pa
     from panel.fleet_v2.importing import ImportItem, import_resources
 
     node, central, node_id, client = await _link(pair)
-    await node.state.telemt.create_user("legacy")
+    await node.telemt.create_user("legacy")
     # The node cannot answer the capture at import time: the grant lands without a secret.
     telemt_adapter = node.state.adapters["mtproxy"]
     capture = telemt_adapter.capture
@@ -372,12 +374,14 @@ async def test_an_imported_grant_without_a_credential_is_captured_after_a_202(pa
         return await apply(generation)
 
     monkeypatch.setattr(node.state.reconciler, "apply", slow_apply)
-    await central.state.pusher.tick()  # 202
-    await asyncio.sleep(0.1)
-    await central.state.pusher.tick()  # the poll captures the imported user's live link
+    await central.tick("pusher")  # 202
+    await node.settle()  # the node's background apply finishes
+    # Only that push was slow: over the managers' wire a later apply takes longer than 1 ms.
+    monkeypatch.setattr(node_routes, "APPLY_DEADLINE", 25.0)
+    await central.tick("pusher")  # the poll captures the imported user's live link
     grant = legacy()
     assert grant.secret_ref is not None
-    assert _escrowed(central, node_id, grant) == (await node.state.telemt.current_access("legacy"))["secret"]
+    assert _escrowed(central, node_id, grant) == (await node.telemt.current_access("legacy"))["secret"]
 
 
 # --- [fix wave, I2] one Telemt inventory read per apply, not one per resource ---
@@ -440,7 +444,7 @@ async def test_reconcile_reads_the_telemt_inventory_once_per_pass(pair, monkeypa
     intents = [GrantIntent(protocol="mtproxy", node_id=node_id, runtime_username=f"u{i}", options=MtproxyOptions())
                for i in range(5)]
     await central.state.provisioning.start(client.id, intents, actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     entered = []
     real = node.state.adapters["mtproxy"].batch
 
@@ -451,8 +455,8 @@ async def test_reconcile_reads_the_telemt_inventory_once_per_pass(pair, monkeypa
     monkeypatch.setattr(node.state.adapters["mtproxy"], "batch", counted)
     for grant in central.state.clients.client_with_grants(client.id)[1]:
         await central.state.lifecycle.set_enabled(grant.id, False, actor=ACTOR, ip="x")
-    await central.state.pusher.tick()
-    assert all(not row["enabled"] for row in await node.state.telemt.list_users())
+    await central.tick("pusher")
+    assert all(not row["enabled"] for row in await node.telemt.list_users())
     assert len(entered) == 1  # one batch for the protocol's whole pass
 
 

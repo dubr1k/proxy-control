@@ -9,13 +9,14 @@ import httpx
 import pytest
 
 from panel.app import Settings, create_app
+from panel.tests.harness.server import panel_app
 from panel.naive import MemoryNaive, NaiveClient, NaiveError
 from panel.telemt import MemoryTelemt
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_naive_list_is_secret_free_and_viewer_is_read_only(client, login_user, naive):
+async def test_naive_list_is_secret_free_and_viewer_is_read_only(client, server, login_user, naive):
     naive.seed("phone", "hidden-password", enabled=True)
     await login_user(client)
 
@@ -43,7 +44,7 @@ async def test_naive_list_is_secret_free_and_viewer_is_read_only(client, login_u
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": client.cookies["panel_csrf"]})
     client.cookies.clear()
-    client._transport.app.state.store.create_admin("naive-viewer", "viewer correct horse battery", "viewer")
+    server.create_admin("naive-viewer", "viewer correct horse battery", "viewer")
     await login_user(client, "naive-viewer", "viewer correct horse battery")
     csrf = client.cookies["panel_csrf"]
     assert (await client.get("/api/naive/users")).status_code == 200
@@ -192,7 +193,7 @@ async def test_naive_feature_is_hidden_and_routes_fail_closed_when_disabled(tmp_
         allowed_hosts=("testserver",),
         naive_enabled=False,
     )
-    app = create_app(settings, telemt=MemoryTelemt(), naive=MustNotCallNaive())
+    app = panel_app(settings, telemt=MemoryTelemt(), naive=MustNotCallNaive())
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -225,16 +226,13 @@ async def test_naive_feature_is_hidden_and_routes_fail_closed_when_disabled(tmp_
 
 
 async def test_dashboard_stays_available_when_enabled_naive_manager_is_degraded(
-    client, login_user,
+    client, login_user, naive, monkeypatch,
 ):
-    class BrokenNaive(MemoryNaive):
-        async def health(self):
-            raise NaiveError("manager contains internal details")
+    async def broken(*_args):
+        raise NaiveError("manager contains internal details")
 
-        async def list_users(self):
-            raise NaiveError("manager contains internal details")
-
-    client._transport.app.state.naive = BrokenNaive()
+    monkeypatch.setattr(naive, "health", broken)
+    monkeypatch.setattr(naive, "list_users", broken)
     await login_user(client)
 
     response = await client.get("/api/dashboard")
@@ -302,9 +300,9 @@ async def test_naive_traffic_is_allowlisted_in_users_and_dashboard_and_admin_can
     assert any(row["action"] == "naive.traffic.reset" for row in audit)
 
 
-async def test_viewer_cannot_reset_naive_traffic(client, login_user, naive):
+async def test_viewer_cannot_reset_naive_traffic(client, server, login_user, naive):
     naive.seed("phone", "hidden", enabled=True)
-    client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await login_user(client, "reader", "viewer correct horse battery")
     response = await client.post(
         "/api/naive/users/phone/traffic/reset",
@@ -409,7 +407,7 @@ async def test_naive_create_accepts_quota_and_invalid_quota_never_reaches_manage
     assert naive.calls == []
 
 
-async def test_naive_rotation_on_its_page_replaces_the_kept_credential(client, login_user, naive):
+async def test_naive_rotation_on_its_page_replaces_the_kept_credential(client, server, login_user, naive):
     """A subscription serves the escrowed password: a rotation here must replace it,
     or the client's feed keeps handing out the password the node no longer accepts. An
     account the panel does not record (the legacy writer's create) stays unrecorded: the
@@ -418,7 +416,7 @@ async def test_naive_rotation_on_its_page_replaces_the_kept_credential(client, l
     csrf = client.cookies["panel_csrf"]
     await client.post("/api/naive/users", json={"username": "ios-phone"}, headers={"X-CSRF-Token": csrf})
     facade = client._transport.app.state.domain_facade
-    recorded = client._transport.app.state.settings.vnext_writer == "domain"
+    recorded = server.writer == "domain"
     first = facade.credential("naive", "ios-phone").decode() if recorded else None
     assert (facade.grant("naive", "ios-phone") is not None) is recorded
 
@@ -433,9 +431,9 @@ async def test_naive_rotation_on_its_page_replaces_the_kept_credential(client, l
         assert facade.grant("naive", "ios-phone") is None
 
 
-async def test_viewer_cannot_change_naive_quota(client, login_user, naive):
+async def test_viewer_cannot_change_naive_quota(client, server, login_user, naive):
     naive.seed("phone", "hidden", enabled=True)
-    client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await login_user(client, "reader", "viewer correct horse battery")
     response = await client.post(
         "/api/naive/users/phone/quota",

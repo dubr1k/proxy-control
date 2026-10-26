@@ -205,7 +205,8 @@ async def test_the_real_client_speaks_the_manager_contract():
 
 import httpx  # noqa: E402
 
-from panel.app import Settings, create_app  # noqa: E402
+from panel.app import Settings  # noqa: E402
+from panel.tests.harness.server import panel_app  # noqa: E402
 from panel.keyring import Keyring  # noqa: E402
 from panel.mieru import MemoryMieru  # noqa: E402
 from panel.naive import MemoryNaive  # noqa: E402
@@ -227,7 +228,7 @@ async def api(tmp_path, awg):
         allowed_hosts=("testserver",), reveal_ttl_seconds=60, naive_public_host="vpn.example.com",
         naive_enabled=True, mieru_enabled=True, amneziawg_enabled=True, vnext_writer="domain",
     )
-    app = create_app(settings, telemt=MemoryTelemt(public_host="proxy.example.com"), naive=MemoryNaive(),
+    app = panel_app(settings, telemt=MemoryTelemt(public_host="proxy.example.com"), naive=MemoryNaive(),
                      mieru=MemoryMieru(), amneziawg=awg,
                      version_client=VersionClient(str(tmp_path / "missing-version-agent.sock")))
     app.state.store.create_admin("owner", "correct horse battery staple", "owner")
@@ -303,7 +304,7 @@ async def test_a_version_the_node_does_not_serve_is_refused_before_anything_is_w
     awg = MemoryAmneziawg(versions=("2.0",))
     master_key = tmp_path / "k"
     Keyring.generate().save(master_key)
-    app = create_app(Settings(database_path=tmp_path / "p.sqlite3", master_key_file=master_key,
+    app = panel_app(Settings(database_path=tmp_path / "p.sqlite3", master_key_file=master_key,
                               session_cookie_secure=False, allowed_hosts=("testserver",), amneziawg_enabled=True,
                               naive_public_host="vpn.example.com", vnext_writer="domain"),
                      telemt=MemoryTelemt(), naive=MemoryNaive(), mieru=MemoryMieru(), amneziawg=awg,
@@ -358,28 +359,22 @@ async def test_the_protocol_filter_and_the_search_know_amneziawg(api):
 # ---- a central and a linked node ----------------------------------------------------------------
 
 from panel.clients.models import AmneziawgOptions as _Options  # noqa: E402
-from panel.fleet_v2.client import NodeClient  # noqa: E402
+from panel.tests.harness.server import start_panel  # noqa: E402
 
 ACTOR = {"id": 1, "username": "owner"}
 
 
-def _awg_app(tmp_path, name, awg=None, enabled=True):
-    key = tmp_path / f"{name}-key"
-    Keyring.generate().save(key)
-    settings = Settings(database_path=tmp_path / f"{name}.sqlite3", master_key_file=key, session_cookie_secure=False,
-                        allowed_hosts=("testserver", f"{name}.example"), naive_public_host=f"{name}.example",
-                        amneziawg_enabled=enabled, version_agent_socket=str(tmp_path / "none.sock"))
-    return create_app(settings, telemt=MemoryTelemt(public_host=f"{name}.example"), naive=MemoryNaive(),
-                      mieru=MemoryMieru(), amneziawg=awg or MemoryAmneziawg(),
-                      version_client=VersionClient(str(tmp_path / "none.sock")))
+def _awg_app(tmp_path, name, awg=None, enabled=True, node_routes=None):
+    return start_panel(tmp_path, name=name, hosts=("testserver", f"{name}.example"), naive_public_host=f"{name}.example",
+                       amneziawg_enabled=enabled, telemt=MemoryTelemt(public_host=f"{name}.example"),
+                       naive=MemoryNaive(), mieru=MemoryMieru(), amneziawg=awg or MemoryAmneziawg(),
+                       node_routes=node_routes)
 
 
 async def _linked_awg(tmp_path, *, node_enabled=True):
     node = _awg_app(tmp_path, "node", enabled=node_enabled)
-    central = _awg_app(tmp_path, "central", enabled=False)
-    _, plaintext = node.state.api_keys.create("central", "node-sync", None, actor=ACTOR, ip="x")
-    central.state.links.client_factory = lambda url, key, **kw: NodeClient(
-        url, key, transport=httpx.ASGITransport(app=node), **kw)
+    central = _awg_app(tmp_path, "central", enabled=False, node_routes={"node.example": node})
+    plaintext = node.create_api_key("central", "node-sync")
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
                                             actor=ACTOR, ip="x")
     return node, central, node_id
@@ -393,15 +388,15 @@ async def test_a_linked_node_applies_the_access_and_the_central_learns_its_detai
     operation = await central.state.provisioning.start(client.id, [intent], actor=ACTOR, ip="x")
     assert central.state.provisioning.status(operation)["status"] == "pending_remote"
     # the central has no AmneziaWG manager of its own and never called one
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert central.state.provisioning.status(operation)["status"] == "succeeded"
-    assert list(node.state.amneziawg.peer_table) == ["alice-awg31"]
+    assert list(node.amneziawg.peer_table) == ["alice-awg31"]
     [grant] = central.state.clients.client_with_grants(client.id)[1]
     assert grant.observed_state == "enabled" and grant.options.version == "3.1"
     assert grant.options.port == 51822 and grant.options.address.startswith("10.66.31.")
     assert grant.options.obfuscation["HeaderProtectionKey"]
     # the node never saw the client's private key: only what the adapter derives from it
-    stored = node.state.amneziawg.peer_table["alice-awg31"]
+    stored = node.amneziawg.peer_table["alice-awg31"]
     with central.state.database.connect() as db:
         credential = central.state.secrets.reveal(db, grant.secret_ref, purpose="grant.credential",
                                                   grant_id=grant.id, permitted_node_id=node_id)
@@ -484,7 +479,7 @@ async def test_the_overview_says_so_when_the_manager_is_down_or_the_feature_is_o
 
     master_key = tmp_path / "off-key"
     Keyring.generate().save(master_key)
-    app = create_app(Settings(database_path=tmp_path / "off.sqlite3", master_key_file=master_key,
+    app = panel_app(Settings(database_path=tmp_path / "off.sqlite3", master_key_file=master_key,
                               session_cookie_secure=False, allowed_hosts=("testserver",), vnext_writer="domain"),
                      telemt=MemoryTelemt(), naive=MemoryNaive(), mieru=MemoryMieru(), amneziawg=MemoryAmneziawg(),
                      version_client=VersionClient(str(tmp_path / "none.sock")))

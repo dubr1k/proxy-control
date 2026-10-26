@@ -132,11 +132,11 @@ async def test_client_delete_route_refuses_then_removes_and_the_token_stops_reso
 
 
 @pytest.mark.anyio
-async def test_client_delete_route_is_closed_to_viewers(client, login_user):
+async def test_client_delete_route_is_closed_to_viewers(client, server, login_user):
     await login_user(client)
     headers = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     client_id = (await client.post("/api/clients", json={"display_name": "Чужой"}, headers=headers)).json()["id"]
-    client._transport.app.state.store.create_admin("viewer", "viewer password long enough", "viewer")  # noqa: SLF001
+    server.create_admin("viewer", "viewer password long enough", "viewer")  # noqa: SLF001
     await login_user(client, "viewer", "viewer password long enough")
     viewer = {"X-CSRF-Token": client.cookies["panel_csrf"]}
     assert (await client.delete(f"/api/clients/{client_id}", headers=viewer)).status_code == 403

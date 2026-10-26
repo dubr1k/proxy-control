@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from panel.protocols import RouterAdapter
 from panel.routing.exits import ExitInput, parse_share_link
 from panel.routing.models import normalise_exit
 from panel.xray_router import MemoryXrayRouter
@@ -24,13 +23,10 @@ def _csrf(client) -> dict:
 
 
 @pytest.fixture
-def router(client, naive, mieru):
-    app = client._transport.app
-    fake = MemoryXrayRouter()
-    app.state.router = RouterAdapter(fake)
-    app.state.routing.router = app.state.router
+def router(xray_router, naive, mieru):
+    """The shared panel wired to the router double (over its socket); the fakes know their ingress."""
     naive.router_url, mieru.router_url = "socks5://127.0.0.1:45101", "socks5://127.0.0.1:45102"
-    return fake
+    return xray_router
 
 
 def test_share_links_become_exit_inputs_and_the_panel_shape_is_the_routers():
@@ -73,7 +69,7 @@ def test_exit_input_refuses_the_impossible():
         normalise_exit("exit:")
 
 
-async def test_exits_crud_import_test_and_the_policy_that_uses_one(client, login_user, router):
+async def test_exits_crud_import_test_and_the_policy_that_uses_one(client, server, login_user, router):
     await login_user(client)
     headers = _csrf(client)
     created = await client.post("/api/routing/exits", headers=headers, json={
@@ -139,10 +135,10 @@ async def test_exits_crud_import_test_and_the_policy_that_uses_one(client, login
     bad = await client.post("/api/routing/policies/local/naive/preview", headers=headers,
                             json={**policy, "default_egress": "exit:nope", "rules": []})
     assert bad.json()["reasons"][0]["code"] == "exit_unknown"
-    actions = [row["action"] for row in client._transport.app.state.store.audits()]
+    actions = [row["action"] for row in server.audits()]
     for action in ("routing.exit.create", "routing.exit.import", "routing.exit.test", "routing.exit.disable", "routing.exit.enable", "routing.exit.update"):
         assert action in actions, action
-    assert all("p2" not in json.dumps(row.get("detail", "")) for row in client._transport.app.state.store.audits())
+    assert all("p2" not in json.dumps(row.get("detail", "")) for row in server.audits())
 
 
 async def test_exits_are_owner_only_and_a_native_backend_refuses_them(client, login_user, router):
@@ -164,14 +160,12 @@ async def test_exits_are_owner_only_and_a_native_backend_refuses_them(client, lo
     assert (await client.post("/api/routing/exits", headers=_csrf(client), json={"node_id": "local", "name": "x", "protocol": "socks", "address": "h", "port": 1})).status_code == 403
 
 
-async def test_a_linked_panels_exit_is_tested_through_its_fleet_api(pair):
-    node, central, plaintext = pair
+async def test_a_linked_panels_exit_is_tested_through_its_fleet_api(pair_factory):
     fake = MemoryXrayRouter()
-    node.state.router = RouterAdapter(fake)
-    node.state.routing.router = node.state.router
+    node, central, plaintext = pair_factory(node={"router": fake})
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False,
                                             actor=ACTOR, ip="x", auto_import=False)
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     data = ExitInput(name="edge socks", protocol="socks", address="10.0.0.9", port=1080, credential={"username": "u", "password": "p"})
     created = central.state.routing.create_exit(node_id, data, actor=ACTOR, ip="x")
     result = await central.state.routing.test_exit(created["id"], actor=ACTOR, ip="x")

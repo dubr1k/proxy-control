@@ -275,8 +275,8 @@ async def test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_li
     from panel.fleet_v2.importing import ImportItem, import_resources
     actor = {"id": 1, "username": "owner"}
     node, central, plaintext = pair
-    node.state.telemt.public_host, node.state.telemt.public_port = "relay.node.example", 8443
-    await node.state.telemt.create_user("dave")
+    node.telemt.public_host, node.telemt.public_port = "relay.node.example", 8443
+    await node.telemt.create_user("dave")
     node_id = await central.state.links.add("Edge", "https://node.example", plaintext, "verify", None, False, actor=actor, ip="x")
     result = await import_resources(central.state, node_id, [ImportItem("mtproxy", "dave", "new")], actor=actor, ip="x")
     assert result["without_credential"] == []
@@ -286,7 +286,7 @@ async def test_a_remotely_imported_mtproxy_user_renders_with_the_nodes_telemt_li
     assert "server=relay.node.example&port=8443&" in link  # Telemt's endpoint, not the panel's host
     assert "server=testserver" not in link and "server=node.example" not in link
     # The node adopts the user on the next push and reports what its runtime taught.
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     with node.state.database.connect() as db:
         learned = node.state.managed.resources(db)[("mtproxy", "dave")]["learned_json"]
     assert '"host": "relay.node.example"' in learned and '"port": 8443' in learned

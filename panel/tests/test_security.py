@@ -151,10 +151,10 @@ async def test_concurrent_login_batch_reserves_attempts_and_bounds_argon2(
 
 
 async def test_successful_login_releases_only_its_own_reservation(
-    client, login_user, monkeypatch
+    client, server, login_user, monkeypatch
 ):
     store = client._transport.app.state.store
-    with store.connect() as db:
+    with server.db() as db:
         admin = dict(
             db.execute(
                 "SELECT * FROM admins WHERE username='owner'"
@@ -196,10 +196,10 @@ async def test_successful_login_releases_only_its_own_reservation(
 
 
 async def test_successful_login_preserves_concurrent_failed_reservation(
-    client, monkeypatch
+    client, server, monkeypatch
 ):
     store = client._transport.app.state.store
-    with store.connect() as db:
+    with server.db() as db:
         admin = dict(
             db.execute(
                 "SELECT * FROM admins WHERE username='owner'"

@@ -181,7 +181,8 @@ async def test_the_app_wires_the_generation_hook_to_every_change(tmp_path, login
     """Registering the hook once must cover every mutation path, not just direct ones."""
     import httpx
 
-    from panel.app import Settings, create_app
+    from panel.app import Settings
+    from panel.tests.harness.server import panel_app
     from panel.mieru import MemoryMieru
     from panel.naive import MemoryNaive
     from panel.telemt import MemoryTelemt
@@ -189,7 +190,7 @@ async def test_the_app_wires_the_generation_hook_to_every_change(tmp_path, login
 
     master_key = tmp_path / "panel-master-key"
     Keyring.generate().save(master_key)
-    app = create_app(
+    app = panel_app(
         Settings(
             database_path=tmp_path / "panel.sqlite3", session_cookie_secure=False,
             allowed_hosts=("testserver",), naive_public_host="naive.example.com",

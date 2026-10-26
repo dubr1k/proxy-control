@@ -1,0 +1,340 @@
+[
+ {
+  "version": 1,
+  "name": "baseline-v0.1.0",
+  "checksum": "65266de1f801afb3720c00be88b27870bff1598636d4ea1a1c37a529bbdc8033",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS admins (\n      id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,\n      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),\n      active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)",
+   "CREATE TABLE IF NOT EXISTS sessions (\n      token_hash TEXT PRIMARY KEY, admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,\n      csrf_hash TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,\n      last_seen_at INTEGER NOT NULL)",
+   "CREATE TABLE IF NOT EXISTS login_attempts (\n      scope TEXT NOT NULL, happened_at INTEGER NOT NULL, reservation_id TEXT NOT NULL DEFAULT '')",
+   "CREATE INDEX IF NOT EXISTS login_attempts_scope_time ON login_attempts(scope,happened_at)",
+   "CREATE TABLE IF NOT EXISTS audit_log (\n      id INTEGER PRIMARY KEY, happened_at INTEGER NOT NULL, actor_id INTEGER,\n      actor_username TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL,\n      detail_json TEXT NOT NULL DEFAULT '{}', ip TEXT NOT NULL)",
+   "CREATE TABLE IF NOT EXISTS fleet_nodes (\n      node_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, auth_state TEXT NOT NULL,\n      inventory_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      next_sequence INTEGER NOT NULL DEFAULT 1, last_result_sequence INTEGER NOT NULL DEFAULT 0,\n      last_seen_at INTEGER)",
+   "CREATE TABLE IF NOT EXISTS fleet_commands (\n      command_id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      sequence INTEGER NOT NULL, idempotency_key TEXT NOT NULL, protocol_version INTEGER NOT NULL,\n      operation TEXT NOT NULL, expected_revision TEXT NOT NULL, payload_json TEXT NOT NULL,\n      status TEXT NOT NULL CHECK(status IN ('queued','dispatched','succeeded','failed','indeterminate')),\n      result_json TEXT, created_at INTEGER NOT NULL, completed_at INTEGER,\n      actor TEXT NOT NULL DEFAULT 'system', expires_at INTEGER NOT NULL DEFAULT 0,\n      payload_sha256 TEXT NOT NULL DEFAULT '', dispatched_at INTEGER,\n      UNIQUE(node_id,sequence), UNIQUE(node_id,idempotency_key))",
+   "CREATE INDEX IF NOT EXISTS fleet_commands_node_sequence ON fleet_commands(node_id,sequence)",
+   "CREATE TABLE IF NOT EXISTS fleet_certificates (\n      serial TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      fingerprint_sha256 TEXT NOT NULL UNIQUE, not_before INTEGER NOT NULL, not_after INTEGER NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('active','revoked')), issued_at INTEGER NOT NULL, revoked_at INTEGER)"
+  ]
+ },
+ {
+  "version": 2,
+  "name": "audit-structured",
+  "checksum": "f094bd8f6e7a21e390b9d021cc65f8db1663eb6cc2d27d7370e63b79b0826c1d",
+  "statements": [
+   "ALTER TABLE audit_log ADD COLUMN request_id TEXT",
+   "ALTER TABLE audit_log ADD COLUMN correlation_id TEXT",
+   "ALTER TABLE audit_log ADD COLUMN reason_code TEXT",
+   "ALTER TABLE audit_log ADD COLUMN generation INTEGER",
+   "ALTER TABLE audit_log ADD COLUMN before_digest TEXT",
+   "ALTER TABLE audit_log ADD COLUMN after_digest TEXT",
+   "CREATE INDEX IF NOT EXISTS audit_log_request ON audit_log(request_id)"
+  ]
+ },
+ {
+  "version": 3,
+  "name": "secret-versions",
+  "checksum": "154d0677662fe5ef743706e23ac3934cf3c1b66abe2e0d3b0447e763aead47ad",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS secret_versions (\n      secret_id TEXT NOT NULL, version INTEGER NOT NULL, purpose TEXT NOT NULL,\n      grant_id TEXT, permitted_node_id TEXT, key_id TEXT NOT NULL,\n      nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('pending','active','retiring','revoked')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      PRIMARY KEY(secret_id, version))",
+   "CREATE INDEX IF NOT EXISTS secret_versions_key ON secret_versions(key_id)",
+   "CREATE INDEX IF NOT EXISTS secret_versions_grant ON secret_versions(grant_id, state)"
+  ]
+ },
+ {
+  "version": 4,
+  "name": "node-lifecycle",
+  "checksum": "0db82e9647af5823246f7976bc55154705a8c66fab37235d6999169907f9256a",
+  "statements": [
+   "ALTER TABLE fleet_nodes ADD COLUMN kind TEXT NOT NULL DEFAULT 'remote' CHECK(kind IN ('local','remote'))",
+   "ALTER TABLE fleet_nodes ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0"
+  ]
+ },
+ {
+  "version": 5,
+  "name": "local-node",
+  "checksum": "a6c4042ff026a51e1e9cb5a814eff944b5bcce8b13362af6769f80a8ca38633c",
+  "statements": [
+   "INSERT OR IGNORE INTO fleet_nodes(node_id,display_name,auth_state,inventory_json,created_at,updated_at,kind)\n       VALUES('local','Этот сервер','local','{}',CAST(strftime('%s','now') AS INTEGER),\n              CAST(strftime('%s','now') AS INTEGER),'local')"
+  ]
+ },
+ {
+  "version": 6,
+  "name": "clients-and-grants",
+  "checksum": "e9b0c301fb155193f8a57908b5a594df4239750ae46436a51b18849c91891e9d",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS clients (\n      id TEXT PRIMARY KEY, display_name TEXT NOT NULL,\n      state TEXT NOT NULL CHECK(state IN ('active','suspended','archived')),\n      metadata_json TEXT NOT NULL DEFAULT '{}',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+   "CREATE TABLE IF NOT EXISTS access_grants (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      protocol TEXT NOT NULL CHECK(protocol IN ('mtproxy','naive','mieru')),\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      endpoint_id TEXT NOT NULL DEFAULT 'default',\n      runtime_username TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      desired_state TEXT NOT NULL CHECK(desired_state IN ('enabled','disabled','deleted')),\n      observed_state TEXT NOT NULL DEFAULT 'unknown'\n        CHECK(observed_state IN ('unknown','pending','enabled','disabled','missing')),\n      valid_from INTEGER, valid_until INTEGER,\n      protocol_options_json TEXT NOT NULL DEFAULT '{}',\n      origin TEXT NOT NULL CHECK(origin IN ('imported','provisioned')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(protocol,node_id,endpoint_id,runtime_username))",
+   "CREATE INDEX IF NOT EXISTS access_grants_client ON access_grants(client_id)"
+  ]
+ },
+ {
+  "version": 7,
+  "name": "provisioning-operations",
+  "checksum": "2ef3fab99218ab4b466cd961d35b8e5de2f85d5998bf7026477b7467edff7642",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS provisioning_operations (\n      operation_id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      status TEXT NOT NULL CHECK(status IN\n        ('pending','applying','succeeded','compensating','compensated','manual_intervention_required')),\n      steps_json TEXT NOT NULL,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+   "CREATE INDEX IF NOT EXISTS provisioning_operations_client ON provisioning_operations(client_id)"
+  ]
+ },
+ {
+  "version": 8,
+  "name": "client-subscriptions",
+  "checksum": "999ab285cba4061ccc16698ef930007d7d2a2ab4b0959504712507931298a1e0",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS client_subscriptions (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      public_token_hash TEXT NOT NULL UNIQUE,\n      generation INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL CHECK(state IN ('active','revoked')),\n      update_interval_hours INTEGER NOT NULL DEFAULT 12,\n      last_fetched_at INTEGER,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, revoked_at INTEGER)",
+   "CREATE UNIQUE INDEX IF NOT EXISTS client_subscriptions_one_active ON client_subscriptions(client_id) WHERE state='active'"
+  ]
+ },
+ {
+  "version": 9,
+  "name": "panel-settings-and-api-keys",
+  "checksum": "4f7ee8475c471e6a7d872bff9a59a688d5ded2260d3733740673f0f1c083834b",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS panel_settings (\n      key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
+   "CREATE TABLE IF NOT EXISTS api_keys (\n      id INTEGER PRIMARY KEY, name TEXT NOT NULL,\n      scope TEXT NOT NULL CHECK(scope IN ('admin','monitor','node-sync')),\n      prefix TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE,\n      enabled INTEGER NOT NULL DEFAULT 1, expires_at INTEGER,\n      created_at INTEGER NOT NULL, created_by TEXT NOT NULL, last_used_at INTEGER)",
+   "CREATE INDEX IF NOT EXISTS api_keys_prefix ON api_keys(prefix)"
+  ]
+ },
+ {
+  "version": 10,
+  "name": "fleet-v2-managed",
+  "checksum": "2cb4b8da09553a7146a3866218c6100c82a4d6bbf6b359d5d93681445f572600",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS managed_generations (\n      generation INTEGER PRIMARY KEY, digest TEXT NOT NULL, master_guid TEXT NOT NULL,\n      document_json TEXT NOT NULL, received_at INTEGER NOT NULL, applied_at INTEGER,\n      state TEXT NOT NULL CHECK(state IN ('received','applying','converged','failed')))",
+   "CREATE TABLE IF NOT EXISTS managed_resources (\n      protocol TEXT NOT NULL, runtime_username TEXT NOT NULL, ref TEXT NOT NULL,\n      credential_ref TEXT, generation INTEGER NOT NULL, state TEXT NOT NULL,\n      last_error TEXT, revision TEXT, updated_at INTEGER NOT NULL,\n      PRIMARY KEY(protocol, runtime_username))"
+  ]
+ },
+ {
+  "version": 11,
+  "name": "fleet-v2-links",
+  "checksum": "d4d672944a9854fece96e449cbdf20519757253fa9f228884d37cef878c77ec8",
+  "statements": [
+   "ALTER TABLE fleet_nodes ADD COLUMN transport TEXT NOT NULL DEFAULT 'v1' CHECK(transport IN ('v1','panel'))",
+   "CREATE TABLE IF NOT EXISTS node_links (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      panel_url TEXT NOT NULL, tls_verify TEXT NOT NULL CHECK(tls_verify IN ('verify','pin')),\n      pinned_cert_sha256 TEXT, api_key_secret_id TEXT NOT NULL, allow_private_address INTEGER NOT NULL DEFAULT 0,\n      enabled INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('unknown','online','offline')),\n      latency_ms INTEGER, panel_version TEXT, identity_json TEXT NOT NULL DEFAULT '{}',\n      status_json TEXT NOT NULL DEFAULT '{}', last_heartbeat_at INTEGER, last_error TEXT,\n      config_dirty INTEGER NOT NULL DEFAULT 0, desired_generation INTEGER NOT NULL DEFAULT 0,\n      acknowledged_generation INTEGER NOT NULL DEFAULT 0,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+   "CREATE TABLE IF NOT EXISTS desired_generations (\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      generation INTEGER NOT NULL, digest TEXT NOT NULL, content_digest TEXT NOT NULL,\n      document_json TEXT NOT NULL,\n      previous_generation INTEGER NOT NULL, created_at INTEGER NOT NULL, created_by TEXT NOT NULL,\n      pushed_at INTEGER, acknowledged_at INTEGER, PRIMARY KEY(node_id, generation))",
+   "CREATE TABLE IF NOT EXISTS observed_generations (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      applied_generation INTEGER NOT NULL, digest TEXT NOT NULL, reconcile_state TEXT NOT NULL,\n      resources_json TEXT NOT NULL, reported_at INTEGER NOT NULL)"
+  ]
+ },
+ {
+  "version": 12,
+  "name": "provisioning-pending-remote",
+  "checksum": "0e409295295f7e5eb9068703d17230168d7c43e5bb856e44c0e2298db07281aa",
+  "statements": [
+   "DROP INDEX IF EXISTS provisioning_operations_client",
+   "ALTER TABLE provisioning_operations RENAME TO provisioning_operations_old",
+   "CREATE TABLE provisioning_operations (\n      operation_id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      status TEXT NOT NULL CHECK(status IN\n        ('pending','pending_remote','applying','succeeded','compensating','compensated',\n         'manual_intervention_required')),\n      steps_json TEXT NOT NULL,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+   "INSERT INTO provisioning_operations SELECT operation_id,client_id,status,steps_json,created_at,updated_at\n       FROM provisioning_operations_old",
+   "DROP TABLE provisioning_operations_old",
+   "CREATE INDEX provisioning_operations_client ON provisioning_operations(client_id)"
+  ]
+ },
+ {
+  "version": 13,
+  "name": "fleet-v2-learned-options",
+  "checksum": "d6b39ee2cfee0822a97589d729f1804c7212680042ae8d072ea6f3eb98ff5d00",
+  "statements": [
+   "ALTER TABLE managed_resources ADD COLUMN learned_json TEXT"
+  ]
+ },
+ {
+  "version": 14,
+  "name": "routing-policies",
+  "checksum": "628ac9b5966a545caf3c32eea49fa68db24ca30694299a23195fb338663141a2",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru')),\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT CHECK(default_egress IS NULL OR default_egress='warp'),\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol))",
+   "CREATE TABLE IF NOT EXISTS routing_rules (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(policy_id, position))",
+   "CREATE TABLE IF NOT EXISTS routing_applies (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)",
+   "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+   "CREATE TABLE IF NOT EXISTS managed_egress (\n      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru')),\n      generation INTEGER NOT NULL, revision TEXT, digest TEXT,\n      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),\n      last_error TEXT, updated_at INTEGER NOT NULL)"
+  ]
+ },
+ {
+  "version": 15,
+  "name": "routing-xray-router",
+  "checksum": "3e50af81b5f555d0ccdcb16ff6af120ae5b86e727d7e676c33ce731f85d18f6e",
+  "statements": [
+   "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+   "CREATE TABLE routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru')),\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','xray_router')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT CHECK(default_egress IS NULL OR default_egress='warp'),\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol))",
+   "INSERT INTO routing_policies SELECT id,node_id,protocol,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at\n       FROM routing_policies_old",
+   "CREATE TABLE routing_rules_v15 (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(policy_id, position))",
+   "INSERT INTO routing_rules_v15 SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at\n       FROM routing_rules",
+   "DROP TABLE routing_rules",
+   "ALTER TABLE routing_rules_v15 RENAME TO routing_rules",
+   "DROP INDEX IF EXISTS routing_applies_policy",
+   "CREATE TABLE routing_applies_v15 (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)",
+   "INSERT INTO routing_applies_v15 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,\n       detail,document_json,actor,created_at FROM routing_applies",
+   "DROP TABLE routing_applies",
+   "ALTER TABLE routing_applies_v15 RENAME TO routing_applies",
+   "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+   "DROP TABLE routing_policies_old",
+   "ALTER TABLE managed_egress ADD COLUMN router_revision TEXT",
+   "ALTER TABLE managed_egress ADD COLUMN router_digest TEXT"
+  ]
+ },
+ {
+  "version": 16,
+  "name": "routing-chains-lanes",
+  "checksum": "f0e8b982652d2f95d6f6f78594f77023905e3acbbd8cbdd9be0ade6550c5f559",
+  "statements": [
+   "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+   "CREATE TABLE routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru')),\n      lane TEXT NOT NULL DEFAULT 'svc',\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','xray_router')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT,\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol, lane))",
+   "INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at)\n       SELECT id,node_id,protocol,'svc',backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at\n       FROM routing_policies_old",
+   "CREATE TABLE routing_rules_v16 (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(policy_id, position))",
+   "INSERT INTO routing_rules_v16 SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at\n       FROM routing_rules",
+   "DROP TABLE routing_rules",
+   "ALTER TABLE routing_rules_v16 RENAME TO routing_rules",
+   "DROP INDEX IF EXISTS routing_applies_policy",
+   "CREATE TABLE routing_applies_v16 (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)",
+   "INSERT INTO routing_applies_v16 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,\n       detail,document_json,actor,created_at FROM routing_applies",
+   "DROP TABLE routing_applies",
+   "ALTER TABLE routing_applies_v16 RENAME TO routing_applies",
+   "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+   "DROP TABLE routing_policies_old",
+   "ALTER TABLE access_grants ADD COLUMN routing_lane TEXT",
+   "CREATE TABLE IF NOT EXISTS relay_peers (\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      source_node_id TEXT NOT NULL,\n      exit TEXT NOT NULL CHECK(exit IN ('direct','warp')),\n      secret_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL,\n      PRIMARY KEY(node_id, source_node_id, exit))",
+   "CREATE TABLE IF NOT EXISTS router_relays (\n      node_id TEXT PRIMARY KEY REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      port INTEGER, public_key TEXT, short_id TEXT, server_name TEXT,\n      enabled INTEGER NOT NULL DEFAULT 0,\n      updated_at INTEGER NOT NULL)",
+   "ALTER TABLE observed_generations ADD COLUMN relay_json TEXT"
+  ]
+ },
+ {
+  "version": 17,
+  "name": "links-auto-import",
+  "checksum": "7b0cf9f4a1f854b5d167d605207a5569f2c3bf78e2630fd7aa19f96edb5b421e",
+  "statements": [
+   "ALTER TABLE node_links ADD COLUMN auto_import INTEGER NOT NULL DEFAULT 1"
+  ]
+ },
+ {
+  "version": 18,
+  "name": "routing-presets",
+  "checksum": "3c3d33b5d60b106bb5f49b95e42a63c0bffbf8625d9da411a58d162f4f153a53",
+  "statements": [
+   "ALTER TABLE routing_rules ADD COLUMN preset TEXT"
+  ]
+ },
+ {
+  "version": 19,
+  "name": "routing-exits",
+  "checksum": "cae2c5422b2c9876a55160464f940eb83ee4f8aeeabbe00c5148094e3405c72f",
+  "statements": [
+   "CREATE TABLE IF NOT EXISTS egress_exits (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      name TEXT NOT NULL,\n      protocol TEXT NOT NULL CHECK(protocol IN ('socks','http','vless','trojan','shadowsocks')),\n      settings_json TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      enabled INTEGER NOT NULL DEFAULT 1,\n      last_test_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, name))"
+  ]
+ },
+ {
+  "version": 20,
+  "name": "subscription-escrow",
+  "checksum": "d6765c96a25cb3a5f1fb554318d380271625ca3cef82607196aa0ef85afc423a",
+  "statements": [
+   "ALTER TABLE client_subscriptions ADD COLUMN secret_id TEXT",
+   "ALTER TABLE client_subscriptions ADD COLUMN secret_version INTEGER"
+  ]
+ },
+ {
+  "version": 21,
+  "name": "routing-mtproxy",
+  "checksum": "025b2a47207de02b5930a0a8822313ffd9833b2997da7cd7c56f25e9e2c5d074",
+  "statements": [
+   "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+   "CREATE TABLE routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru','mtproxy')),\n      lane TEXT NOT NULL DEFAULT 'svc',\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','mtproxy_native','xray_router')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT,\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol, lane))",
+   "INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at)\n       SELECT id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at\n       FROM routing_policies_old",
+   "CREATE TABLE routing_rules_v21 (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, preset TEXT,\n      UNIQUE(policy_id, position))",
+   "INSERT INTO routing_rules_v21(id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset)\n       SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset FROM routing_rules",
+   "DROP TABLE routing_rules",
+   "ALTER TABLE routing_rules_v21 RENAME TO routing_rules",
+   "DROP INDEX IF EXISTS routing_applies_policy",
+   "CREATE TABLE routing_applies_v21 (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)",
+   "INSERT INTO routing_applies_v21 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,\n       detail,document_json,actor,created_at FROM routing_applies",
+   "DROP TABLE routing_applies",
+   "ALTER TABLE routing_applies_v21 RENAME TO routing_applies",
+   "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+   "DROP TABLE routing_policies_old",
+   "ALTER TABLE managed_egress RENAME TO managed_egress_old",
+   "CREATE TABLE managed_egress (\n      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru','mtproxy')),\n      generation INTEGER NOT NULL, revision TEXT, digest TEXT,\n      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),\n      last_error TEXT, updated_at INTEGER NOT NULL, router_revision TEXT, router_digest TEXT)",
+   "INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest)\n       SELECT protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest FROM managed_egress_old",
+   "DROP TABLE managed_egress_old"
+  ]
+ },
+ {
+  "version": 22,
+  "name": "grant-labels",
+  "checksum": "929a0111f484f7a79ec979fde52db5cbcb7b5f897e7a2974b23f98b45b293182",
+  "statements": [
+   "ALTER TABLE access_grants ADD COLUMN label TEXT"
+  ]
+ },
+ {
+  "version": 23,
+  "name": "amneziawg-grants",
+  "checksum": "1c2e547b56ed72c5050c683b8349e5e0c91abd99203a11184c66c241e3f01293",
+  "statements": [
+   "ALTER TABLE access_grants RENAME TO access_grants_old",
+   "CREATE TABLE access_grants (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      protocol TEXT NOT NULL CHECK(protocol IN ('mtproxy','naive','mieru','amneziawg')),\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      endpoint_id TEXT NOT NULL DEFAULT 'default',\n      runtime_username TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      desired_state TEXT NOT NULL CHECK(desired_state IN ('enabled','disabled','deleted')),\n      observed_state TEXT NOT NULL DEFAULT 'unknown'\n        CHECK(observed_state IN ('unknown','pending','enabled','disabled','missing')),\n      valid_from INTEGER, valid_until INTEGER,\n      protocol_options_json TEXT NOT NULL DEFAULT '{}',\n      origin TEXT NOT NULL CHECK(origin IN ('imported','provisioned')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      routing_lane TEXT, label TEXT,\n      UNIQUE(protocol,node_id,endpoint_id,runtime_username))",
+   "INSERT INTO access_grants(id,client_id,protocol,node_id,endpoint_id,runtime_username,secret_id,secret_version,\n       desired_state,observed_state,valid_from,valid_until,protocol_options_json,origin,created_at,updated_at,\n       routing_lane,label)\n       SELECT id,client_id,protocol,node_id,endpoint_id,runtime_username,secret_id,secret_version,\n       desired_state,observed_state,valid_from,valid_until,protocol_options_json,origin,created_at,updated_at,\n       routing_lane,label FROM access_grants_old",
+   "DROP TABLE access_grants_old",
+   "CREATE INDEX IF NOT EXISTS access_grants_client ON access_grants(client_id)"
+  ]
+ },
+ {
+  "version": 24,
+  "name": "trusttunnel",
+  "checksum": "e368fcd92557728fb1c84fa6b889f013f0c6cf0900cdad25e7408b0f762c28e1",
+  "statements": [
+   "ALTER TABLE access_grants RENAME TO access_grants_old",
+   "CREATE TABLE access_grants (\n      id TEXT PRIMARY KEY,\n      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,\n      protocol TEXT NOT NULL CHECK(protocol IN ('mtproxy','naive','mieru','amneziawg','trusttunnel')),\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE RESTRICT,\n      endpoint_id TEXT NOT NULL DEFAULT 'default',\n      runtime_username TEXT NOT NULL,\n      secret_id TEXT, secret_version INTEGER,\n      desired_state TEXT NOT NULL CHECK(desired_state IN ('enabled','disabled','deleted')),\n      observed_state TEXT NOT NULL DEFAULT 'unknown'\n        CHECK(observed_state IN ('unknown','pending','enabled','disabled','missing')),\n      valid_from INTEGER, valid_until INTEGER,\n      protocol_options_json TEXT NOT NULL DEFAULT '{}',\n      origin TEXT NOT NULL CHECK(origin IN ('imported','provisioned')),\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      routing_lane TEXT, label TEXT,\n      UNIQUE(protocol,node_id,endpoint_id,runtime_username))",
+   "INSERT INTO access_grants(id,client_id,protocol,node_id,endpoint_id,runtime_username,secret_id,secret_version,\n       desired_state,observed_state,valid_from,valid_until,protocol_options_json,origin,created_at,updated_at,\n       routing_lane,label)\n       SELECT id,client_id,protocol,node_id,endpoint_id,runtime_username,secret_id,secret_version,\n       desired_state,observed_state,valid_from,valid_until,protocol_options_json,origin,created_at,updated_at,\n       routing_lane,label FROM access_grants_old",
+   "DROP TABLE access_grants_old",
+   "CREATE INDEX IF NOT EXISTS access_grants_client ON access_grants(client_id)",
+   "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+   "CREATE TABLE routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru','mtproxy','trusttunnel')),\n      lane TEXT NOT NULL DEFAULT 'svc',\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','mtproxy_native','trusttunnel_native','xray_router')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT,\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol, lane))",
+   "INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at)\n       SELECT id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at\n       FROM routing_policies_old",
+   "CREATE TABLE routing_rules_v24 (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, preset TEXT,\n      UNIQUE(policy_id, position))",
+   "INSERT INTO routing_rules_v24(id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset)\n       SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset FROM routing_rules",
+   "DROP TABLE routing_rules",
+   "ALTER TABLE routing_rules_v24 RENAME TO routing_rules",
+   "DROP INDEX IF EXISTS routing_applies_policy",
+   "CREATE TABLE routing_applies_v24 (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)",
+   "INSERT INTO routing_applies_v24 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,\n       detail,document_json,actor,created_at FROM routing_applies",
+   "DROP TABLE routing_applies",
+   "ALTER TABLE routing_applies_v24 RENAME TO routing_applies",
+   "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+   "DROP TABLE routing_policies_old",
+   "ALTER TABLE managed_egress RENAME TO managed_egress_old",
+   "CREATE TABLE managed_egress (\n      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru','mtproxy','trusttunnel')),\n      generation INTEGER NOT NULL, revision TEXT, digest TEXT,\n      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),\n      last_error TEXT, updated_at INTEGER NOT NULL, router_revision TEXT, router_digest TEXT)",
+   "INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest)\n       SELECT protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest FROM managed_egress_old",
+   "DROP TABLE managed_egress_old"
+  ]
+ },
+ {
+  "version": 25,
+  "name": "metrics",
+  "checksum": "2fb403a77e10f7ff8d50007242194918ea97e9ae8dc688082fa68c2a5efb2eea",
+  "statements": [
+   "CREATE TABLE metric_rollups (\n      resolution INTEGER NOT NULL, bucket INTEGER NOT NULL, node_id TEXT NOT NULL, series TEXT NOT NULL,\n      sum REAL NOT NULL, count INTEGER NOT NULL, max REAL NOT NULL, last REAL NOT NULL,\n      PRIMARY KEY(resolution, bucket, node_id, series)) WITHOUT ROWID",
+   "CREATE INDEX metric_rollups_series ON metric_rollups(node_id, series, resolution, bucket)"
+  ]
+ },
+ {
+  "version": 26,
+  "name": "amneziawg_egress",
+  "checksum": "adda564d671163b8169162d49bf9e6225bbc9d3515f244b1d4848ca17c26c918",
+  "statements": [
+   "ALTER TABLE routing_policies RENAME TO routing_policies_old",
+   "CREATE TABLE routing_policies (\n      id TEXT PRIMARY KEY,\n      node_id TEXT NOT NULL REFERENCES fleet_nodes(node_id) ON DELETE CASCADE,\n      protocol TEXT NOT NULL CHECK(protocol IN ('naive','mieru','mtproxy','trusttunnel','amneziawg')),\n      lane TEXT NOT NULL DEFAULT 'svc',\n      backend TEXT NOT NULL CHECK(backend IN ('naive_native','mieru_native','mtproxy_native','trusttunnel_native','amneziawg_native','xray_router')),\n      default_action TEXT NOT NULL CHECK(default_action IN ('direct','egress')),\n      default_egress TEXT,\n      fallback TEXT NOT NULL CHECK(fallback IN ('fail_closed','approved_direct')),\n      revision INTEGER NOT NULL DEFAULT 1,\n      state TEXT NOT NULL DEFAULT 'draft' CHECK(state IN ('draft','applying','applied','failed','rolled_back')),\n      applied_revision INTEGER, applied_digest TEXT, applied_at INTEGER, last_error TEXT,\n      desired_json TEXT,\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,\n      UNIQUE(node_id, protocol, lane))",
+   "INSERT INTO routing_policies(id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at)\n       SELECT id,node_id,protocol,lane,backend,default_action,default_egress,fallback,revision,\n       state,applied_revision,applied_digest,applied_at,last_error,desired_json,created_at,updated_at\n       FROM routing_policies_old",
+   "CREATE TABLE routing_rules_v26 (\n      id TEXT PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,\n      match_json TEXT NOT NULL,\n      action TEXT NOT NULL CHECK(action IN ('direct','block','egress')),\n      egress TEXT, note TEXT NOT NULL DEFAULT '',\n      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, preset TEXT,\n      UNIQUE(policy_id, position))",
+   "INSERT INTO routing_rules_v26(id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset)\n       SELECT id,policy_id,position,enabled,match_json,action,egress,note,created_at,updated_at,preset FROM routing_rules",
+   "DROP TABLE routing_rules",
+   "ALTER TABLE routing_rules_v26 RENAME TO routing_rules",
+   "DROP INDEX IF EXISTS routing_applies_policy",
+   "CREATE TABLE routing_applies_v26 (\n      id INTEGER PRIMARY KEY,\n      policy_id TEXT NOT NULL REFERENCES routing_policies(id) ON DELETE CASCADE,\n      revision INTEGER NOT NULL, digest TEXT, backend TEXT NOT NULL, compiler_version TEXT NOT NULL,\n      runtime_version TEXT,\n      outcome TEXT NOT NULL CHECK(outcome IN ('applied','failed','rolled_back')),\n      detail TEXT, document_json TEXT, actor TEXT NOT NULL, created_at INTEGER NOT NULL)",
+   "INSERT INTO routing_applies_v26 SELECT id,policy_id,revision,digest,backend,compiler_version,runtime_version,outcome,\n       detail,document_json,actor,created_at FROM routing_applies",
+   "DROP TABLE routing_applies",
+   "ALTER TABLE routing_applies_v26 RENAME TO routing_applies",
+   "CREATE INDEX IF NOT EXISTS routing_applies_policy ON routing_applies(policy_id, id)",
+   "DROP TABLE routing_policies_old",
+   "ALTER TABLE managed_egress RENAME TO managed_egress_old",
+   "CREATE TABLE managed_egress (\n      protocol TEXT PRIMARY KEY CHECK(protocol IN ('naive','mieru','mtproxy','trusttunnel','amneziawg')),\n      generation INTEGER NOT NULL, revision TEXT, digest TEXT,\n      state TEXT NOT NULL CHECK(state IN ('converged','failed','unsupported')),\n      last_error TEXT, updated_at INTEGER NOT NULL, router_revision TEXT, router_digest TEXT)",
+   "INSERT INTO managed_egress(protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest)\n       SELECT protocol,generation,revision,digest,state,last_error,updated_at,router_revision,router_digest FROM managed_egress_old",
+   "DROP TABLE managed_egress_old"
+  ]
+ }
+]

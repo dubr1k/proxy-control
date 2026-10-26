@@ -169,14 +169,11 @@ async def _link(pair):
 
 
 @pytest.fixture
-def routed_pair(pair):
+def routed_pair(pair_factory):
     """The node of `pair` runs a memory router and its naive manager knows the ingress."""
-    node, central, plaintext = pair
     router = MemoryXrayRouter()
-    node.state.router = RouterAdapter(router)
-    node.state.routing.router = node.state.router
-    node.state.reconciler.router = node.state.router
-    node.state.naive.router_url = "socks5://127.0.0.1:45101"
+    node, central, plaintext = pair_factory(node={"router": router})
+    node.naive.router_url = "socks5://127.0.0.1:45101"
     return node, central, plaintext, router
 
 
@@ -187,7 +184,7 @@ def _warp(**extra):
 async def test_identity_reports_router_capability_and_attachment(routed_pair):
     node, central, plaintext, router = routed_pair
     node, central, node_id = await _link((node, central, plaintext))
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     with central.state.database.connect() as db:
         identity = central.state.links.link(db, node_id)["identity"]
     assert "egress.router.v1" in identity["capabilities"] and identity["router"]["available"] is True
@@ -204,19 +201,19 @@ async def test_remote_attach_apply_and_detach_through_generations(routed_pair):
     node, central, plaintext, router = routed_pair
     node, central, node_id = await _link((node, central, plaintext))
     routing = central.state.routing
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     # Attach: the generation carries the router's pass-through with the attach companion.
     item = await routing.attach(node_id, "naive", **CTX)
     assert item["policy"]["backend"] == "xray_router" and item["policy"]["state"] == "applying"
     with central.state.database.connect() as db:
         section = central.state.desired.latest(db, node_id)["document"].egress["naive"]
     assert section.backend == "xray_router" and section.companion == attach_document("naive") and section.passthrough is True
-    await central.state.pusher.tick()
-    assert node.state.naive.egress_document == attach_document("naive")
+    await central.tick("pusher")
+    assert node.naive.egress_document == attach_document("naive")
     policy = routing.get(node_id, "naive")
     # An empty policy *is* the pass-through: applied. (With rules it would wait as a draft.)
     assert policy.state == "applied" and policy.applied_digest == document_digest(ROUTER_DIRECT_INTENT)
-    await central.state.pusher.tick()  # the identity (attachment) refreshes with the next heartbeat
+    await central.tick("pusher")  # the identity (attachment) refreshes with the next heartbeat
     items = {(i["node_id"], i["protocol"]): i for i in await routing.targets()}
     assert items[(node_id, "naive")]["router"]["attached"] is True and items[(node_id, "naive")]["backend"] == "xray_router"
     # A router policy with a geosite rule, applied through the next generation.
@@ -224,7 +221,7 @@ async def test_remote_attach_apply_and_detach_through_generations(routed_pair):
                  expected_revision=policy.revision, **CTX)
     result = await routing.apply(node_id, "naive", expected_revision=policy.revision + 1, **CTX)
     assert result["policy"].state == "applying" and result["compiled"].attach == attach_document("naive")
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     assert router.documents["naive"]["rules"][0]["geosites"] == ["category-ads-all"]
     policy = routing.get(node_id, "naive")
     assert policy.state == "applied" and policy.applied_current is True
@@ -234,13 +231,13 @@ async def test_remote_attach_apply_and_detach_through_generations(routed_pair):
     # Rollback on the router, remotely: back to the pass-through.
     result = await routing.rollback(node_id, "naive", expected_revision=policy.revision, **CTX)
     assert result["compiled"].document == ROUTER_DIRECT_INTENT
-    await central.state.pusher.tick()
-    assert router.documents["naive"] == ROUTER_DIRECT_INTENT and node.state.naive.egress_document == attach_document("naive")
+    await central.tick("pusher")
+    assert router.documents["naive"] == ROUTER_DIRECT_INTENT and node.naive.egress_document == attach_document("naive")
     # Detach: the native document back to direct, then the router pass-through.
     item = await routing.detach(node_id, "naive", **CTX)
     assert item["policy"]["backend"] == "naive_native"
-    await central.state.pusher.tick()
-    assert node.state.naive.egress_document == NAIVE_DIRECT and router.documents["naive"] == ROUTER_DIRECT_INTENT
+    await central.tick("pusher")
+    assert node.naive.egress_document == NAIVE_DIRECT and router.documents["naive"] == ROUTER_DIRECT_INTENT
     policy = routing.get(node_id, "naive")
     assert policy.backend == "naive_native" and policy.state == "draft"
     audits = central.state.store.audits(action="routing.target.attach")
@@ -250,7 +247,7 @@ async def test_remote_attach_apply_and_detach_through_generations(routed_pair):
 async def test_remote_apply_router_policy_on_node_without_capability_is_422(pair):
     node, central, node_id = await _link(pair)
     routing = central.state.routing
-    await central.state.pusher.tick()
+    await central.tick("pusher")
     routing.save(node_id, "naive", _warp(backend="xray_router"), expected_revision=None, **CTX)
     with pytest.raises(RoutingError) as caught:
         await routing.apply(node_id, "naive", expected_revision=1, **CTX)

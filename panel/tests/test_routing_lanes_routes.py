@@ -7,7 +7,6 @@ from __future__ import annotations
 import pytest
 
 from panel.routing.document import attach_document
-from panel.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
 
@@ -19,16 +18,10 @@ def _csrf(client) -> dict:
 
 
 @pytest.fixture
-def router(client, naive, mieru):
-    from panel.protocols import RouterAdapter
-
-    app = client._transport.app
-    fake = MemoryXrayRouter()
-    app.state.router = RouterAdapter(fake)
-    app.state.routing.router = app.state.router
-    app.state.lanes.router = app.state.router
+def router(xray_router, naive, mieru):
+    """The shared panel wired to the router double (over its socket); the fakes know their ingress."""
     naive.router_url, mieru.router_url = "socks5://127.0.0.1:45101", "socks5://127.0.0.1:45102"
-    return fake
+    return xray_router
 
 
 async def _grant(client, login_user, protocol="naive", username="alice"):
@@ -48,7 +41,7 @@ async def _attach(client, csrf, protocol="naive"):
     assert attached.status_code == 200, attached.text
 
 
-async def test_a_grant_gets_its_own_lane_and_loses_it_again(client, login_user, router, naive):
+async def test_a_grant_gets_its_own_lane_and_loses_it_again(client, server, login_user, router, naive):
     grant_id, client_id, csrf = await _grant(client, login_user)
     await _attach(client, csrf)
     enabled = await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=csrf)
@@ -69,7 +62,7 @@ async def test_a_grant_gets_its_own_lane_and_loses_it_again(client, login_user, 
     assert [lane_view["lane"] for lane_view in item["lanes"]] == [lane]
     listing = (await client.get(f"/api/clients/{client_id}")).json()
     assert listing["grants"][0]["routing_lane"] == "own"
-    audits = client._transport.app.state.store.audits()
+    audits = server.audits()
     assert any(row["action"] == "grant.lane.enable" for row in audits)
     # enabling twice is idempotent; disabling returns alice to the service and drops the policy
     assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=csrf)).json()["mode"] == "own"
@@ -77,7 +70,7 @@ async def test_a_grant_gets_its_own_lane_and_loses_it_again(client, login_user, 
     assert disabled.status_code == 200 and disabled.json()["mode"] == "service"
     assert naive.lane_table == {} and lane not in router.lane_accounts["naive"]
     assert (await client.get(f"/api/routing/policies/local/naive?lane={lane}")).status_code == 404
-    assert any(row["action"] == "grant.lane.disable" for row in client._transport.app.state.store.audits())
+    assert any(row["action"] == "grant.lane.disable" for row in server.audits())
 
 
 async def test_a_lane_policy_with_rules_applies_as_one_intent_with_the_service(client, login_user, router, naive):
@@ -111,7 +104,7 @@ async def test_a_lane_policy_with_rules_applies_as_one_intent_with_the_service(c
     assert (await client.get("/api/routing/policies/local/naive?lane=bogus")).status_code == 422
 
 
-async def test_deleting_a_laned_grant_drops_the_lane_first(client, login_user, router, naive):
+async def test_deleting_a_laned_grant_drops_the_lane_first(client, server, login_user, router, naive):
     grant_id, _client_id, csrf = await _grant(client, login_user)
     await _attach(client, csrf)
     assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=csrf)).status_code == 200
@@ -120,11 +113,11 @@ async def test_deleting_a_laned_grant_drops_the_lane_first(client, login_user, r
     assert deleted.status_code == 200, deleted.text
     assert naive.lane_table == {} and lane not in router.lane_accounts["naive"]
     assert (await client.get(f"/api/routing/policies/local/naive?lane={lane}")).status_code == 404
-    actions = [row["action"] for row in client._transport.app.state.store.audits()]  # newest first
+    actions = [row["action"] for row in server.audits()]  # newest first
     assert actions.index("grant.lane.disable") > actions.index("grant.delete")
 
 
-async def test_lane_refusals_carry_codes(client, login_user, router, naive):
+async def test_lane_refusals_carry_codes(client, server, login_user, router, naive):
     grant_id, first_client, csrf = await _grant(client, login_user)
     # without the service attached to the router, the lane's policy says so
     await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=csrf)
@@ -150,12 +143,12 @@ async def test_lane_refusals_carry_codes(client, login_user, router, naive):
     # a viewer may read a lane's policy but not set one
     await client.post("/api/auth/logout", headers=csrf)
     client.cookies.clear()
-    client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await login_user(client, "reader", "viewer correct horse battery")
     assert (await client.post(f"/api/routing/lanes/{grant_id}", json={"mode": "own"}, headers=_csrf(client))).status_code == 403
 
 
-async def test_targets_learn_a_relay_the_installer_enabled_on_the_local_router(client, login_user, router, naive):
+async def test_targets_learn_a_relay_the_installer_enabled_on_the_local_router(client, server, login_user, router, naive):
     """The installer enables the relay straight on the manager (v0.7): the panel's registry
     learns it from the router's view when the targets are read — no owner action needed."""
     await login_user(client)
@@ -163,11 +156,11 @@ async def test_targets_learn_a_relay_the_installer_enabled_on_the_local_router(c
     targets = await client.get("/api/routing/targets")
     item = next(item for item in targets.json()["items"] if item["protocol"] == "naive" and item["node_id"] == "local")
     assert item["relay"] == {"enabled": True, "port": 45443, "pending": False, "known": True}
-    with client._transport.app.state.database.connect() as db:
+    with server.db() as db:
         assert client._transport.app.state.relays.relay(db, "local")["public_key"] == router.public_key
 
 
-async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_itself_is_a_loop(client, login_user, router, naive):
+async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_itself_is_a_loop(client, server, login_user, router, naive):
     await login_user(client)
     csrf = _csrf(client)
     enabled = await client.post("/api/routing/relay/local/enable", headers=csrf)
@@ -177,11 +170,11 @@ async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_its
     targets = await client.get("/api/routing/targets")
     item = next(item for item in targets.json()["items"] if item["protocol"] == "naive" and item["node_id"] == "local")
     assert item["exits"] == []  # a node never exits through itself
-    assert any(row["action"] == "routing.relay.enable" for row in client._transport.app.state.store.audits())
+    assert any(row["action"] == "routing.relay.enable" for row in server.audits())
     rotated = await client.post("/api/routing/relay/local/rotate", headers=csrf)
     assert rotated.status_code == 200 and rotated.json()["rotated"] == 0
     await _attach(client, csrf)
-    own = client._transport.app.state.panel_guid
+    own = server.panel_guid
     body = {"default_action": "egress", "default_egress": f"node:{own}", "fallback": "fail_closed", "rules": [], "expected_revision": 1}
     put = await client.put("/api/routing/policies/local/naive", json=body, headers=csrf)
     assert put.status_code == 200, put.text
@@ -194,7 +187,7 @@ async def test_relay_enable_rotate_and_an_exit_through_this_nodes_relay_from_its
     # not an owner: refused
     await client.post("/api/auth/logout", headers=csrf)
     client.cookies.clear()
-    client._transport.app.state.store.create_admin("reader", "viewer correct horse battery", "viewer")
+    server.create_admin("reader", "viewer correct horse battery", "viewer")
     await login_user(client, "reader", "viewer correct horse battery")
     assert (await client.post("/api/routing/relay/local/enable", headers=_csrf(client))).status_code == 403
 
