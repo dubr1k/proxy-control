@@ -219,9 +219,9 @@ impl RuntimeAdapter {
                             match listener.accept() {
                                 Ok((mut stream, _)) => {
                                     stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
-                                    let mut bytes = [0; 4096];
-                                    let count = stream.read(&mut bytes).unwrap();
-                                    assert!(bytes[..count].starts_with(b"GET / HTTP/1.1\r\n"));
+                                    let mut request_line = [0; b"GET / HTTP/1.1\r\n".len()];
+                                    stream.read_exact(&mut request_line).unwrap();
+                                    assert_eq!(&request_line, b"GET / HTTP/1.1\r\n");
                                     stream
                                 .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
                                 .unwrap();

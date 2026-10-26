@@ -152,7 +152,11 @@ fn status_through(proxies: &[SocketAddr], destination: &Destination, deadline: I
 struct ClientCommand(Child);
 impl Drop for ClientCommand {
     fn drop(&mut self) {
-        let _ = self.0.kill();
+        // try_wait reaps a finished child. Never send a signal to that PID: it may
+        // already have been reused by an unrelated process.
+        if matches!(self.0.try_wait(), Ok(None)) {
+            let _ = self.0.kill();
+        }
         let _ = self.0.wait();
     }
 }
