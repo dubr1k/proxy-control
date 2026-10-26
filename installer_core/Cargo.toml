@@ -1,0 +1,23 @@
+[package]
+name = "installer-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+license = "MIT"
+description = "Proxy Control installer core: TOML configuration, the typed model, the planner and its digest, reports, operator credentials, the argparse-compatible command line and verify-release."
+publish = false
+
+[lib]
+name = "installer_core"
+path = "src/lib.rs"
+
+[dependencies]
+libc = "0.2"
+pc_host = { path = "../pc_host" }
+# No `preserve_order`: every JSON this crate writes is key-sorted (the plan digest depends on it).
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
