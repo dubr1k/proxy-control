@@ -11,7 +11,7 @@ use installer::adapter::Adapter;
 use installer::error::Error;
 use installer::journal::{CheckpointData, RollbackTarget};
 use installer::model::InstallerConfig;
-use installer::plan::{Action, AuditFacts, Evidence, InstallPlan, ReleaseIdentity};
+use installer::planner::{Action, AuditFacts, Evidence, InstallPlan, ReleaseIdentity};
 use installer::{TransactionEngine, TransactionStore};
 use serde_json::{json, Map, Value};
 
@@ -235,16 +235,17 @@ pub fn install(root: &Path, project_source: &Path, agent_source: Option<&Path>) 
             order.push(action.adapter.clone());
         }
     }
-    let plan = InstallPlan {
-        config: json!({"profile": "test"}),
-        facts: AuditFacts::default(),
-        release: ReleaseIdentity::new("v-test", &"b".repeat(40), &"a".repeat(64)),
-        adapter_dependencies: order.iter().map(|name| (name.clone(), Vec::new())).collect(),
-        adapter_order: order,
+    let dependencies = order.iter().map(|name| (name.clone(), Vec::new())).collect();
+    let plan = InstallPlan::new(
+        json!({"profile": "test"}),
+        AuditFacts::default(),
+        ReleaseIdentity::new("v-test", &"b".repeat(40), &"a".repeat(64), Default::default(), Default::default())
+            .unwrap(),
+        order,
+        dependencies,
         actions,
-        schema: 1,
-    }
-    .checked()
+        1,
+    )
     .unwrap();
     engine.apply(&plan, &plan.digest()).unwrap();
     engine
