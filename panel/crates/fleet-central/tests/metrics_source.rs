@@ -676,3 +676,49 @@ async fn concurrent_identical_history_calls_share_one_request() {
     assert_eq!(harness.node("berlin").calls(), 1);
     assert_eq!(harness.counters.clients_built.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn completed_shared_future_is_retired_before_immediate_same_key_reentry() {
+    let harness = Harness::new(vec![("berlin", FakeNode::new())]);
+    for round in 0..50 {
+        lock(&harness.node("berlin").state).history_body = Some(object(json!({"round": round})));
+        lock(&harness.node("berlin").state).summary_body = object(json!({"round": round}));
+        assert_eq!(history(&harness, "berlin", &["host.cpu"], "1h", 240).await["round"], round);
+        assert_eq!(summary(&harness, "berlin", "1h").await["round"], round);
+        lock(&harness.node("berlin").state).live_body = live_entry(f64::from(round), "ok", 0.0);
+        assert_eq!(live(&harness, "berlin").await["host"]["cpu_percent"], f64::from(round));
+        harness.clock.advance(2.1);
+    }
+    assert_eq!(harness.node("berlin").calls(), 150);
+}
+
+#[tokio::test]
+async fn failed_history_and_summary_do_not_poison_the_next_shared_future() {
+    let harness = Harness::new(vec![("berlin", FakeNode::new())]);
+    for error in [
+        NodeError::Unreachable("ReadTimeout".into()),
+        NodeError::Rejected { status: 404, code: None, detail: "missing".into() },
+        NodeError::Rejected { status: 503, code: Some("warming_up".into()), detail: "private".into() },
+    ] {
+        harness.node("berlin").set_failure(error.clone());
+        let expected = if matches!(error, NodeError::Rejected { status: 404, .. }) { "unsupported" } else { "unavailable" };
+        assert_eq!(history(&harness, "berlin", &["host.cpu"], "6h", 60).await["status"], expected);
+        assert_eq!(summary(&harness, "berlin", "6h").await["status"], expected);
+        lock(&harness.node("berlin").state).failure = None;
+        assert_eq!(history(&harness, "berlin", &["host.cpu"], "6h", 60).await["status"], "ok");
+        assert_eq!(summary(&harness, "berlin", "6h").await["status"], "ok");
+    }
+    assert_eq!(harness.node("berlin").calls(), 12);
+}
+
+#[tokio::test]
+async fn history_deduplication_distinguishes_series_range_and_point_count() {
+    let harness = Harness::new(vec![("berlin", FakeNode::new().delayed(Duration::from_millis(20)))]);
+    let cpu = vec!["host.cpu".to_owned()]; let memory = vec!["host.mem".to_owned()];
+    let (a,b,c,d) = tokio::join!(
+        harness.source.history("berlin",&cpu,"1h",60),harness.source.history("berlin",&memory,"1h",60),
+        harness.source.history("berlin",&cpu,"6h",60),harness.source.history("berlin",&cpu,"1h",120),
+    );
+    for answer in [a,b,c,d] { assert_eq!(answer.unwrap()["status"],"ok"); }
+    assert_eq!(harness.node("berlin").calls(), 4);
+}

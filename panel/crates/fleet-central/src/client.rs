@@ -750,15 +750,18 @@ mod tests {
     struct Reply {
         status: u16,
         body: Vec<u8>,
+        extra_headers: String,
+        keep_alive: bool,
+        delay: Duration,
     }
 
     impl Reply {
         fn json(status: u16, body: Value) -> Self {
-            Self { status, body: body.to_string().into_bytes() }
+            Self { status, body: body.to_string().into_bytes(), extra_headers: String::new(), keep_alive: false, delay: Duration::ZERO }
         }
 
         fn bytes(status: u16, body: Vec<u8>) -> Self {
-            Self { status, body }
+            Self { status, body, extra_headers: String::new(), keep_alive: false, delay: Duration::ZERO }
         }
     }
 
@@ -767,6 +770,7 @@ mod tests {
         request_line: String,
         headers: String,
         body: Vec<u8>,
+        server_name: Option<String>,
     }
 
     struct TlsServer {
@@ -817,20 +821,22 @@ mod tests {
                     stream.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
                     let connection = ServerConnection::new(config.clone()).unwrap();
                     let mut tls = StreamOwned::new(connection, stream);
-                    let Some(request) = read_request(&mut tls) else {
-                        // A pin mismatch ends the handshake before an HTTP request exists.
-                        continue;
-                    };
-                    server_requests.lock().unwrap().push(request);
-                    let Some(reply) = replies.get(answered) else { continue };
-                    answered += 1;
-                    let head = format!(
-                        "HTTP/1.1 {} OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n",
-                        reply.status,
-                        reply.body.len()
-                    );
-                    if tls.write_all(head.as_bytes()).and_then(|()| tls.write_all(&reply.body)).is_ok() {
-                        let _ = tls.flush();
+                    while let Some(mut request) = read_request(&mut tls) {
+                        request.server_name = tls.conn.server_name().map(str::to_owned);
+                        server_requests.lock().unwrap().push(request);
+                        let Some(reply) = replies.get(answered) else { break };
+                        answered += 1;
+                        if !reply.delay.is_zero() { std::thread::sleep(reply.delay); }
+                        let head = format!(
+                            "HTTP/1.1 {} OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: {}\r\n{}\r\n",
+                            reply.status,
+                            reply.body.len(),
+                            if reply.keep_alive { "keep-alive" } else { "close" },
+                            reply.extra_headers,
+                        );
+                        if tls.write_all(head.as_bytes()).and_then(|()| tls.write_all(&reply.body)).and_then(|()| tls.flush()).is_err() || !reply.keep_alive {
+                            break;
+                        }
                     }
                 }
             });
@@ -890,6 +896,7 @@ mod tests {
             request_line: headers.lines().next().unwrap_or_default().to_owned(),
             headers,
             body: bytes[body_start..body_start + content_length].to_vec(),
+            server_name: None,
         })
     }
 
@@ -1072,4 +1079,6 @@ mod tests {
             "GET /api/fleet/v2/metrics/history?series=cpu%2Cmem&range=1+h&points=60 HTTP/1.1"
         );
     }
+
+    include!("client_native_tests.rs");
 }
