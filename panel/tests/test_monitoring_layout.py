@@ -104,9 +104,16 @@ def browser():
     assert port, "Chromium DevTools did not start"
     target = None
     while target is None and time.monotonic() < deadline:
-        pages = [t for t in json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5)) if t.get("type") == "page"]
+        # A busy CI runner may leave the DevTools endpoint silent for a while: retry until the deadline.
+        try:
+            listing = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5))
+        except OSError:
+            time.sleep(0.5)
+            continue
+        pages = [t for t in listing if t.get("type") == "page"]
         target = pages[0]["webSocketDebuggerUrl"] if pages else None
         time.sleep(0.1)
+    assert target, "Chromium DevTools has no page"
     devtools = DevTools(target)
     devtools.call("Page.enable")
     devtools.call("Page.addScriptToEvaluateOnNewDocument", {"source": INSTRUMENT})
