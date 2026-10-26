@@ -23,3 +23,6 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> CentralResult<T> + S
 
 #[cfg(test)]
 mod native_fixture;
+
+#[cfg(test)]
+mod routing_coverage;
