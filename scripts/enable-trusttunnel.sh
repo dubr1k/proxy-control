@@ -56,7 +56,7 @@ cd "$DIR"
 # the manager's sources and the shared Rust crate its image builds against
 for tree in trusttunnel_manager pc_common; do
   rm -rf "$DIR/$tree.new" && cp -a "$SRC/$tree" "$DIR/$tree.new"
-  rm -rf "$DIR/$tree" && mv "$DIR/$tree.new" "$DIR/$tree"
+  rm -rf "${DIR:?}/${tree:?}" && mv "$DIR/$tree.new" "$DIR/$tree"
   # a release unpacked by an ordinary user must not leave that user as the owner of root-run code
   chown -R root:root "$DIR/$tree"
 done
