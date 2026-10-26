@@ -6,24 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from panel.mieru import MemoryMieru
-from panel.naive import MemoryNaive
-from panel.telemt import MemoryTelemt
-from panel.tests.harness import fake_managers, markers
-from panel.tests.harness.server import BRIDGE, IMPL, start_panel
-
-# `PANEL_IMPL=rust` runs the black-box tests against the binary from `PANEL_RUST_BIN`
-# (panel/tests/harness/server.py); the legacy writer is not ported, so it has only `domain`.
-WRITERS = ["legacy", "domain"]
+from panel.tests.harness import fake_managers
+from panel.tests.harness.memories.mieru import MemoryMieru
+from panel.tests.harness.memories.naive import MemoryNaive
+from panel.tests.harness.memories.telemt import MemoryTelemt
+from panel.tests.harness.server import start_panel
 
 
 def pytest_configure(config):
-    markers.register(config)
     config.addinivalue_line("markers", "panel_settings(**settings): extra settings of the shared panel (`server`)")
-
-
-def pytest_collection_modifyitems(config, items):
-    markers.apply(config, items, impl=IMPL)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -82,21 +73,6 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.fixture(autouse=True)
-def bridge_answers(monkeypatch):
-    """The MTProxy ingress bridge (v1.1) is a container on the Compose network: in tests it
-    answers, instead of a DNS lookup of `xray-router-ingress` that would only time out
-    (`server.probe_bridge(False)` makes it fail; the Rust binary gets `/__test/probe-bridge`)."""
-    import panel.protocols.telemt as telemt_adapter
-
-    BRIDGE["answer"] = True
-
-    async def probe(_ingress):
-        return BRIDGE["answer"]
-
-    monkeypatch.setattr(telemt_adapter, "_probe_bridge", probe)
-
-
 @pytest.fixture
 def telemt() -> MemoryTelemt:
     return MemoryTelemt(public_host="proxy.example.com", public_port=443)
@@ -131,19 +107,14 @@ def panel_server(tmp_path: Path):
 @pytest.fixture
 def xray_router():
     """The Xray-router double; a test that asks for it gets the shared panel wired to it."""
-    from panel.xray_router import MemoryXrayRouter
+    from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 
     return MemoryXrayRouter()
 
 
-@pytest.fixture(params=WRITERS)
+@pytest.fixture
 async def server(request, panel_server, telemt: MemoryTelemt, naive: MemoryNaive, mieru: MemoryMieru):
-    """Every API test runs against both writers.
-
-    The domain writer must be indistinguishable from the outside: same status codes,
-    same response shapes, same audit actions. Anything that differs is a regression,
-    not a new feature.
-    """
+    """The actual Rust panel with manager wire doubles and credential escrow."""
     # Credential escrow is part of the panel now, so the shared panel has a keyring.
     extra = {"router": request.getfixturevalue("xray_router")} if "xray_router" in request.fixturenames else {}
     marker = request.node.get_closest_marker("panel_settings")
@@ -153,7 +124,7 @@ async def server(request, panel_server, telemt: MemoryTelemt, naive: MemoryNaive
         name="panel", key_name="panel-master-key", telemt=telemt, naive=naive, mieru=mieru,
         login_attempts=3, login_window_seconds=60, reveal_ttl_seconds=60,
         naive_public_host="naive.example.com", naive_enabled=True, mieru_enabled=True,
-        vnext_writer=request.param, **extra,
+        **extra,
     )
     value.create_admin("owner", "correct horse battery staple", "owner")
     yield value

@@ -1,70 +1,61 @@
-"""`python -m panel.cli api-key-create / api-key-revoke` (v0.11, spec §9a): the installer
-issues the MCP server's panel key and parses one JSON line from stdout."""
+"""Installer-facing API key commands through the actual panel binary."""
 from __future__ import annotations
 
 import json
 
 import pytest
 
-from panel import cli
-from panel.api_keys import ApiKeyService
-from panel.database import Database
-from panel.migrations import apply_migrations
+pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture
-def database_path(tmp_path):
-    path = tmp_path / "panel.sqlite3"
-    apply_migrations(Database(path))
-    return path
+def create(server, name="mcp", scope="admin", *extra):
+    code, out, err = server.cli("api-key-create", "--name", name, "--scope", scope, *extra)
+    assert code == 0, (out, err)
+    assert err == "" and len(out.splitlines()) == 1
+    return json.loads(out)
 
 
-def _run(monkeypatch, capsys, database_path, *argv):
-    monkeypatch.setattr("sys.argv", ["panel.cli", "--database", str(database_path), *argv])
-    cli.main()
-    return capsys.readouterr()
-
-
-def test_create_prints_one_json_line_with_the_plaintext(monkeypatch, capsys, database_path):
-    out = _run(monkeypatch, capsys, database_path, "api-key-create", "--name", "mcp", "--scope", "admin")
-    assert out.err == ""
-    lines = out.out.splitlines()
-    assert len(lines) == 1
-    row = json.loads(lines[0])
+async def test_create_prints_one_json_line_with_the_plaintext(panel_server):
+    server = panel_server()
+    row = create(server)
     assert set(row) == {"id", "name", "scope", "plaintext"}
     assert row["name"] == "mcp" and row["scope"] == "admin" and row["plaintext"].startswith("pc_")
-    service = ApiKeyService(Database(database_path))
-    user = service.authenticate(row["plaintext"])
-    assert user["role"] == "owner" and user["via"] == "api-key"
-    with Database(database_path).connect() as db:
-        audit = db.execute("SELECT actor_username, ip, action FROM audit_log ORDER BY id DESC").fetchone()
-    assert (audit["actor_username"], audit["ip"], audit["action"]) == ("installer", "127.0.0.1", "api_key.create")
+    response = await server.client.get("/api/auth/me", headers={"Authorization": f"Bearer {row['plaintext']}"})
+    assert response.status_code == 200 and response.json()["role"] == "owner"
+    with server.db() as db:
+        audit = db.execute("SELECT actor_username, ip, action FROM audit_log WHERE action='api_key.create' ORDER BY id DESC").fetchone()
+        stored = str([dict(r) for r in db.execute("SELECT * FROM api_keys")])
+    assert tuple(audit) == ("installer", "127.0.0.1", "api_key.create")
+    assert row["plaintext"] not in stored
 
 
-def test_create_honours_expires_days(monkeypatch, capsys, database_path):
-    out = _run(monkeypatch, capsys, database_path, "api-key-create", "--name", "short", "--scope", "monitor",
-               "--expires-days", "7")
-    row = json.loads(out.out)
-    listed = ApiKeyService(Database(database_path)).list()
-    key = next(item for item in listed if item["id"] == row["id"])
-    assert key["expires_at"] is not None and key["scope"] == "monitor"
+async def test_create_honours_expires_days(panel_server):
+    server = panel_server()
+    row = create(server, "short", "monitor", "--expires-days", "7")
+    with server.db() as db:
+        key = db.execute("SELECT * FROM api_keys WHERE id=?", (row["id"],)).fetchone()
+    assert key["scope"] == "monitor"
+    assert key["expires_at"] - key["created_at"] == 7 * 86400
 
 
-def test_create_refuses_a_name_that_is_still_enabled(monkeypatch, capsys, database_path):
-    _run(monkeypatch, capsys, database_path, "api-key-create", "--name", "mcp", "--scope", "admin")
-    with pytest.raises(SystemExit) as exc:
-        _run(monkeypatch, capsys, database_path, "api-key-create", "--name", "mcp", "--scope", "admin")
-    assert exc.value.code != 0
-    assert len(ApiKeyService(Database(database_path)).list()) == 1
+async def test_create_refuses_a_name_that_is_still_enabled(panel_server):
+    server = panel_server()
+    create(server)
+    code, _, _ = server.cli("api-key-create", "--name", "mcp", "--scope", "admin")
+    assert code != 0
+    with server.db() as db:
+        assert db.execute("SELECT count(*) FROM api_keys").fetchone()[0] == 1
 
 
-def test_revoke_deletes_every_key_of_that_name(monkeypatch, capsys, database_path):
-    created = json.loads(_run(monkeypatch, capsys, database_path, "api-key-create", "--name", "mcp", "--scope", "admin").out)
-    out = _run(monkeypatch, capsys, database_path, "api-key-revoke", "--name", "mcp")
-    assert json.loads(out.out) == {"revoked": 1}
-    assert ApiKeyService(Database(database_path)).list() == []
-    assert ApiKeyService(Database(database_path)).authenticate(created["plaintext"]) is None
-    # Revoking again is not an error: the installer's rollback may run twice.
-    assert json.loads(_run(monkeypatch, capsys, database_path, "api-key-revoke", "--name", "mcp").out) == {"revoked": 0}
-    # A revoked name can be issued again.
-    _run(monkeypatch, capsys, database_path, "api-key-create", "--name", "mcp", "--scope", "admin")
+async def test_revoke_deletes_every_key_of_that_name(panel_server):
+    server = panel_server()
+    created = create(server)
+    code, out, _ = server.cli("api-key-revoke", "--name", "mcp")
+    assert code == 0 and json.loads(out) == {"revoked": 1}
+    with server.db() as db:
+        assert db.execute("SELECT count(*) FROM api_keys").fetchone()[0] == 0
+    response = await server.client.get("/api/auth/me", headers={"Authorization": f"Bearer {created['plaintext']}"})
+    assert response.status_code == 401
+    code, out, _ = server.cli("api-key-revoke", "--name", "mcp")
+    assert code == 0 and json.loads(out) == {"revoked": 0}
+    create(server)

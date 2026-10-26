@@ -389,3 +389,69 @@ fn a_hostile_uri_artifact_gets_no_link_only_copyable_text() {
         assert!(!page.contains("onmouseover=\"alert"));
     }
 }
+
+#[test]
+fn labels_override_display_names_without_becoming_manifest_fields_or_changing_secrets() {
+    let (mut manifest, artifacts) = fixture();
+    manifest.grants = vec![manifest.grants[1].clone()];
+    manifest.grants[0].label = "My phone".into();
+    let options = RenderOptions::default();
+    let outbound = outbounds(&manifest, &artifacts, "nekobox");
+    assert_eq!(outbound[0]["tag"], "My phone");
+    assert_eq!(outbound[0]["password"], "naive-pass-01");
+    let raw = text(Format::Raw, &manifest, &artifacts, &options);
+    assert!(raw.contains("#My%20phone"));
+    let json: Value = serde_json::from_slice(
+        &renderers::render(Format::Manifest, &manifest, &artifacts, &options).unwrap(),
+    )
+    .unwrap();
+    assert!(json["grants"][0].get("label").is_none());
+    assert!(json["grants"][0].get("node_name").is_none());
+}
+
+#[test]
+fn duplicate_access_labels_get_order_independent_suffixes() {
+    let (mut manifest, mut artifacts) = fixture();
+    let mut second = manifest.grants[1].clone();
+    second.grant_id = "second-phone".into();
+    artifacts.insert(second.grant_id.clone(), artifacts["g-naive"].clone());
+    manifest.grants = vec![manifest.grants[1].clone(), second];
+    for grant in &mut manifest.grants {
+        grant.label = "Phone".into();
+    }
+    let names = |manifest: &Manifest| {
+        outbounds(manifest, &artifacts, "nekobox")
+            .into_iter()
+            .map(|outbound| outbound["tag"].as_str().unwrap().to_string())
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let before = names(&manifest);
+    assert_eq!(before.len(), 2);
+    assert!(before.iter().all(|name| name.starts_with("Phone [")));
+    manifest.grants.reverse();
+    assert_eq!(names(&manifest), before);
+}
+
+#[test]
+fn trusttunnel_variants_preserve_credentials_and_only_relax_tls_for_untrusted_certificates() {
+    let (manifest, artifacts) = fixture();
+    for client in ["nekobox", "hiddify", "throne", "fork"] {
+        let outbounds = outbounds(&manifest, &artifacts, client);
+        let tt: Vec<_> = outbounds.iter().filter(|outbound| outbound["type"] == "trusttunnel").collect();
+        assert_eq!(tt.len(), 2, "{client}");
+        for outbound in tt {
+            assert_eq!(outbound["password"], "tt-pass-CANARY-01");
+            assert!(outbound["tls"]["enabled"].as_bool().unwrap());
+            assert_eq!(outbound["tls"]["server_name"], "gate.example.com");
+        }
+    }
+    for client in ["karing", "singbox"] {
+        assert!(outbounds(&manifest, &artifacts, client).iter().all(|outbound| outbound["type"] != "trusttunnel"));
+    }
+    let clash = text(Format::Clash, &manifest, &artifacts, &RenderOptions::default());
+    let proxies = clash.split("proxy-groups:").next().unwrap();
+    let trusted = proxies.split("username: 'trusted'").nth(1).unwrap().split("  - name:").next().unwrap();
+    let untrusted = proxies.split("username: 'selfsigned'").nth(1).unwrap().split("  - name:").next().unwrap();
+    assert!(!trusted.contains("skip-cert-verify"));
+    assert!(untrusted.contains("skip-cert-verify: true"));
+}

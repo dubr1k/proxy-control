@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import pytest
 
-from panel.xray_router import MemoryXrayRouter
+from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
-ACTOR = {"id": 1, "username": "owner"}
+
 
 
 def _csrf(client) -> dict:

@@ -1,29 +1,24 @@
-"""The sidebar badges (owner, 2026-10-18: «количество клиентов появляется только после того как
-я нажму, при старте панели у всех черточки»): every badge is painted at start-up from one
-place, whichever section the panel opens on, and kept fresh while the tab is visible."""
+"""Sidebar badge refresh executes the navigation module served by the Rust panel."""
 
 from __future__ import annotations
 
 import json
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
-JS = Path(__file__).resolve().parent.parent / "static/js"
 NODE = shutil.which("node")
 
+pytestmark = pytest.mark.anyio
 
-
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
 # The Clients badge counts working clients only: archived ones have their own pill.
-def test_all_badges_fill_without_visiting_any_section_and_a_failed_list_shows_a_dash():
-    tmp = Path(tempfile.mkdtemp())
-    shutil.copy(JS / "common.js", tmp / "common.mjs")
-    shutil.copy(JS / "state.js", tmp / "state.mjs")
-    (tmp / "nav.mjs").write_text((JS / "nav-counts.js").read_text().replace("./common.js", "./common.mjs").replace("./state.js", "./state.mjs"))
+async def test_all_badges_fill_without_visiting_any_section_and_a_failed_list_shows_a_dash(server, tmp_path):
+    for name in ("common", "state", "nav-counts"):
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        source = response.text.replace("./common.js", "./common.mjs").replace("./state.js", "./state.mjs")
+        (tmp_path / f"{name}.mjs").write_text(source)
     code = """
 import * as nav from %s;
 const badges = {};
@@ -45,7 +40,8 @@ for (const k of Object.keys(badges)) badges[k].textContent = "x";
 const broken = { root, api: async (path) => { if (path === "/api/clients") throw new Error("down"); return answers[path]; } };
 await nav.refreshNavCounts(broken);
 console.log(JSON.stringify({ first, clientsWhenDown: String(badges["#clients-count"].textContent), usersWhenClientsDown: String(badges["#users-count"].textContent) }));
-""" % json.dumps((tmp / "nav.mjs").as_uri())
+""" % json.dumps((tmp_path / "nav-counts.mjs").as_uri())
+    assert NODE is not None
     out = json.loads(subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True, check=True).stdout)
     assert out["first"] == {
         "#clients-count": "25", "#users-count": "10", "#mieru-count": "10", "#naive-count": "7",

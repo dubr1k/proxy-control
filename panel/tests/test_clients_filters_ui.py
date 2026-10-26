@@ -1,18 +1,14 @@
-"""«Клиенты» (v1.0.2): search and filters, and the grant rows that open the grant window.
-
-The real modules run in Node (as in test_mobile_badges_presets): the filter is the code the
-screen uses, not a re-implementation of it.
-"""
+"""Execute the Rust panel's served client-filter modules against realistic client and node data."""
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-STATIC = ROOT / "static"
+import pytest
+
+pytestmark = pytest.mark.anyio
 
 CLIENTS = [
     {"client": {"id": "c1", "display_name": "Ноутбук Сергея", "state": "active"}, "grants": [
@@ -32,11 +28,17 @@ NODES = [
 ]
 
 
-def _node(tmp_path: Path, body: str) -> dict:
-    shutil.copytree(STATIC / "js", tmp_path / "js")
+async def _node(server, tmp_path: Path, body: str) -> dict:
+    js = tmp_path / "js"
+    js.mkdir()
+    for name in ("clients", "common", "grant", "placement", "state", "access", "trusttunnel-clients", "link-chooser"):
+        response = await server.client.get(f"/static/js/{name}.js")
+        assert response.status_code == 200, name
+        (js / f"{name}.js").write_text(response.text)
     (tmp_path / "package.json").write_text('{"type":"module"}')
     script = f"""
       import {{ matchesClient, CLIENT_FILTER_DEFAULT, renderClients, handleClientsClick, handleClientsInput, openImportModal }} from './js/clients.js';
+      import {{ createPanelState }} from './js/state.js';
       globalThis.window = {{ location: {{ origin: 'https://example.test' }} }};
       const clients = {json.dumps(CLIENTS)};
       const nodes = {json.dumps(NODES)};
@@ -52,8 +54,8 @@ def _node(tmp_path: Path, body: str) -> dict:
     return json.loads(result.stdout)
 
 
-def test_search_and_filters_select_the_right_clients(tmp_path: Path) -> None:
-    found = _node(tmp_path, """
+async def test_search_and_filters_select_the_right_clients(server, tmp_path: Path) -> None:
+    found = await _node(server, tmp_path, """
       console.log(JSON.stringify({
         all: pick({}),
         byName: pick({ query: 'НОУТБУК' }),
@@ -95,19 +97,17 @@ def test_search_and_filters_select_the_right_clients(tmp_path: Path) -> None:
     assert found["deletedIsNotOrphan"] == []
 
 
-def test_the_screen_opens_on_active_clients_and_the_card_keeps_two_buttons_and_a_menu(tmp_path: Path) -> None:
-    result = _node(tmp_path, """
+async def test_the_screen_opens_on_active_clients_and_the_card_keeps_two_buttons_and_a_menu(server, tmp_path: Path) -> None:
+    result = await _node(server, tmp_path, """
       await renderClients(context, 1);
       const cards = view.innerHTML.split('<article').slice(1);
       const buttons = (html) => (html.match(/<button[^>]*data-client-action="[a-z]+"/g) || []).length;
       state.clientFilter = { ...CLIENT_FILTER_DEFAULT, query: 'нет такого' };
       context.api = async (path) => path.startsWith('/api/clients') ? { items: [], total: 3, matched: 0, counts: {} } : { items: nodes };
       await renderClients(context, 1);
-      console.log(JSON.stringify({ initial: CLIENT_FILTER_DEFAULT.state, cards, empty: view.innerHTML }));
+      console.log(JSON.stringify({ initial: CLIENT_FILTER_DEFAULT.state, initialState: createPanelState().clientFilter.state, cards, empty: view.innerHTML }));
     """)
-    assert result["initial"] == "active"
-    # the state the panel starts with and the one «Сбросить» restores are the same
-    assert 'clientFilter: { query: "", state: "active"' in (STATIC / "js" / "state.js").read_text()
+    assert result["initial"] == result["initialState"] == "active"
     active, suspended, archived = result["cards"]
     for card in (active, suspended):
         menu = card[card.index('class="client-menu"'):]
@@ -126,11 +126,11 @@ def test_the_screen_opens_on_active_clients_and_the_card_keeps_two_buttons_and_a
     assert 'data-client-action="show-all"' in result["empty"]
 
 
-def test_the_card_lists_clickable_grant_rows_and_escapes_names(tmp_path: Path) -> None:
-    rendered = _node(tmp_path, """
+async def test_the_card_lists_clickable_grant_rows_and_escapes_names(server, tmp_path: Path) -> None:
+    rendered = (await _node(server, tmp_path, """
       await renderClients(context, 1);
       console.log(JSON.stringify({ html: view.innerHTML }));
-    """)["html"]
+    """))["html"]
     # every live grant is a row that opens its own window; the deleted one is not listed
     for grant_id in ("g1", "g2", "g3"):
         assert f'data-grant-open="{grant_id}"' in rendered
@@ -145,21 +145,11 @@ def test_the_card_lists_clickable_grant_rows_and_escapes_names(tmp_path: Path) -
     assert "<b>телефон</b>" not in rendered and "&lt;b&gt;телефон&lt;/b&gt;" in rendered
 
 
-def test_the_grant_window_is_wired_and_reveals_one_grant() -> None:
-    grant = (STATIC / "js" / "grant.js").read_text()
-    main = (STATIC / "js" / "main.js").read_text()
-    html = (STATIC / "index.html").read_text()
-    assert "/links?grant_id=" in grant and "/api/reveal/" in grant
-    # nothing of the link survives the window; only Telegram's own link becomes an href
-    assert 'state.link = null;\n      query("#grant-link-body", root).innerHTML = "";' in grant
-    assert "proxyLink(value)" in grant and "qrSource(artifact.qr)" in grant
-    assert "createGrantDialog" in main and "context.grants.bind()" in main and "handleClientsInput" in main
-    for element in ('id="grant-window"', 'id="grant-facts"', 'id="grant-link"', 'id="grant-link-body"', 'id="grant-actions"', 'id="grant-error"'):
-        assert element in html, element
 
 
-def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_responses(tmp_path):
-    result = _node(tmp_path, """
+
+async def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_responses(server, tmp_path):
+    result = await _node(server, tmp_path, """
       const rows = Array.from({length: 123}, (_, i) => ({client: {id: `id-${i}`, display_name: `Person ${i}`, state:'active'}, grants: []}));
       const calls = [];
       const list = {innerHTML:''}, counter = {textContent:''};
@@ -209,8 +199,8 @@ def test_paging_and_server_search_keep_the_dom_bounded_and_discard_stale_respons
     assert all("limit=50" in path for path in result["calls"] if path.startswith("/api/clients"))
 
 
-def test_import_still_offers_clients_outside_the_current_page(tmp_path):
-    result = _node(tmp_path, """
+async def test_import_still_offers_clients_outside_the_current_page(server, tmp_path):
+    result = await _node(server, tmp_path, """
       const rows = Array.from({length:123},(_,i)=>({client:{id:`id-${i}`,display_name:`Person ${i}`},grants:[]}));
       state.clients = rows.slice(0,50);
       const elements = new Map();

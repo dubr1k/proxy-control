@@ -1,11 +1,7 @@
-"""Conformance harness of the panel test suite (Rust port, WP0).
+"""External acceptance harness for the actual Rust panel binary.
 
-- `fake_managers`: every in-memory manager double re-hosted behind a real server that speaks the
-  manager's wire protocol (Unix sockets; TCP for Telemt). The panel reaches them through its real
-  clients, so the same tests hold a Python panel and a Rust panel to one wire contract.
-- `server`: `PanelServer` — one panel under test, `PANEL_IMPL=python` (in-process app) or
-  `PANEL_IMPL=rust` (the binary from `PANEL_RUST_BIN` on a Unix socket), with the clock/tick/
-  probe-bridge hooks and CLI seeding.
-- `markers`: the automatic `blackbox` / `internal` / `unit` / `static` / `browser` / `fleet_v1`
-  classification and what `PANEL_IMPL=rust` deselects.
+`server` launches the panel built with Cargo's `test-hooks` feature, seeds it through its
+CLI, and exposes HTTP, read-only SQL, clock and explicit loop-tick seams. `fake_managers`
+serves the test-owned `memories` over real manager wire protocols. No Python panel
+implementation, in-process ASGI fallback, or migration-category deselection is used.
 """

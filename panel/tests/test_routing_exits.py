@@ -4,18 +4,18 @@ in a router intent, and the test through this server's router and a linked panel
 from __future__ import annotations
 
 import json
-from pathlib import Path
+
 
 import pytest
 
-from panel.routing.exits import ExitInput, parse_share_link
-from panel.routing.models import normalise_exit
-from panel.xray_router import MemoryXrayRouter
+
+
+from panel.tests.harness.memories.xray_router import MemoryXrayRouter
 
 pytestmark = pytest.mark.anyio
-ACTOR = {"id": 1, "username": "owner"}
+
 UUID = "9d3b6b2c-1e6a-4b2a-9f0e-3c2f8a1d5e77"
-PUBLIC_KEY = "a" * 43
+
 
 
 def _csrf(client) -> dict:
@@ -29,44 +29,10 @@ def router(xray_router, naive, mieru):
     return xray_router
 
 
-def test_share_links_become_exit_inputs_and_the_panel_shape_is_the_routers():
-    vless = parse_share_link(f"vless://{UUID}@vpn.example.org:443?type=tcp&security=reality&sni=www.example.com&pbk={PUBLIC_KEY}&sid=0123abcd&fp=chrome&flow=xtls-rprx-vision#NL%20vless")
-    assert vless.name == "NL vless" and vless.protocol == "vless" and vless.security.kind == "reality" and vless.flow == "xtls-rprx-vision"
-    trojan = parse_share_link("trojan://pw@t.example.org:8443?type=ws&path=%2Fws&host=t.example.org&sni=t.example.org#tr")
-    assert trojan.transport.network == "ws" and trojan.transport.path == "/ws" and trojan.security.kind == "tls"
-    import base64
-    ss_new = "ss://" + base64.urlsafe_b64encode(b"aes-256-gcm:secret").decode().rstrip("=") + "@203.0.113.5:8388#ss1"
-    ss_old = "ss://" + base64.b64encode(b"aes-256-gcm:secret@203.0.113.5:8388").decode() + "#ss2"
-    for link, name in ((ss_new, "ss1"), (ss_old, "ss2")):
-        ss = parse_share_link(link)
-        assert ss.protocol == "shadowsocks" and ss.method == "aes-256-gcm" and ss.credential.password == "secret" and ss.name == name
-    socks = parse_share_link("socks://user:pass@10.0.0.2:1080#lab")
-    assert socks.protocol == "socks" and socks.credential.username == "user"
-    plain = parse_share_link("http://10.0.0.3:3128")
-    assert plain.protocol == "http" and plain.credential is None
-    for bad in ("wireguard://x", "vless://nope@host", "ss://!!!", "ftp://x:1", ""):
-        with pytest.raises(ValueError):
-            parse_share_link(bad)
-    # What the panel normalises is exactly what the router validates: the Rust manager validates the
-    # specs of tests/fixtures/xray-router-contract.json (xray_router_manager/src/tests.rs).
-    contract = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "xray-router-contract.json"
-    specs = [{**item.settings(), "credential": json.loads(item.credential_bytes() or b"{}")}
-             for item in (vless, trojan, ss, socks, plain)]
-    assert specs == json.loads(contract.read_text())["panel_exit_specs"]
 
 
-def test_exit_input_refuses_the_impossible():
-    with pytest.raises(ValueError, match="needs a method"):
-        ExitInput(name="x", protocol="shadowsocks", address="h.example", port=1, credential={"password": "p"})
-    with pytest.raises(ValueError, match="tcp only"):
-        ExitInput(name="x", protocol="socks", address="h.example", port=1, transport={"network": "ws"})
-    with pytest.raises(ValueError, match="needs a uuid"):
-        ExitInput(name="x", protocol="vless", address="h.example", port=1, credential={"uuid": "nope"})
-    with pytest.raises(ValueError, match="public key"):
-        ExitInput(name="x", protocol="vless", address="h.example", port=1, credential={"uuid": UUID}, security={"kind": "reality", "server_name": "a.b"})
-    assert normalise_exit("exit:abc-123") == "exit:abc-123"
-    with pytest.raises(ValueError):
-        normalise_exit("exit:")
+
+
 
 
 async def test_exits_crud_import_test_and_the_policy_that_uses_one(client, server, login_user, router):

@@ -1,17 +1,9 @@
 """The in-memory manager doubles behind real servers that speak each manager's wire protocol.
 
-Every `Memory*` double of the panel (`MemoryNaive`, `MemoryMieru`, `MemoryAmneziawg`,
-`MemoryTrusttunnel`, `MemoryXrayRouter`, `MemoryTelemt`, `MemoryVersions`, and the metrics double
-`MemoryAgentMetrics`) is served by a small HTTP/1.1 server: a Unix socket for the managers and the
-version agent, TCP `127.0.0.1:<port>` for Telemt (its URL is an http URL). The server checks the
-header the real client sends (`X-Naive-Token`, `X-Mieru-Token`, `X-Awg-Token`,
-`X-Trusttunnel-Token`, `X-Xray-Router-Token`, Telemt's `Authorization`; none for the version agent)
-and dispatches each request to the **same object the test holds**, so `naive.seed(...)`,
-`naive.calls`, `telemt.users`, `router.fail_next` keep working while the panel — Python or Rust —
-talks to the double only over the wire, through its real client.
-
-Wire rules (the inverse of the panel's clients, `panel/{naive,mieru,amneziawg,trusttunnel,
-xray_router,telemt,versions}.py`):
+The test-owned `Memory*` doubles are served by real HTTP/1.1 listeners: Unix sockets for
+managers and the version agent, loopback TCP for Telemt. Every request passes through the
+Rust panel's real client. Tests can seed state, inspect calls, and inject wire failures
+without importing or running any production Python panel code.
 
 - a result is answered `200` with its JSON (`null` for None); AmneziaWG's `instances`/`peers` and
   TrustTunnel's `clients` are wrapped in their envelope key; Telemt answers its envelope
@@ -35,7 +27,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import contextvars
 import inspect
 import json
 import os
@@ -57,10 +48,6 @@ _REASONS = {200: "OK", 204: "No Content", 401: "Unauthorized", 404: "Not Found",
 
 # Every server created and not closed yet; the ones not attached to a loop wait here.
 _SERVERS: list["FakeManagerServer"] = []
-# The server whose double is running right now (set around every dispatch): a double patched by a
-# test that calls "the original" it read from the panel's client lands back in the double, not on
-# the wire again (`original = app.state.naive.create; monkeypatch.setattr(app.state.naive, "create", …)`).
-_DISPATCHING: contextvars.ContextVar = contextvars.ContextVar("fake_manager_dispatching", default=None)
 # Every manager set not closed yet (its private directory is removed by `close_all`).
 _SETS: list["FakeManagers"] = []
 
@@ -366,15 +353,12 @@ class FakeManagerServer:
             if function is None:
                 return 404, {"detail": "not found"}
             args, kwargs = route.args([unquote(group) for group in match.groups()], payload, headers)
-            token = _DISPATCHING.set(self)
             try:
                 result = function(*args, **kwargs)
                 if inspect.isawaitable(result):
                     result = await result
             except Exception as exc:  # noqa: BLE001 - mapped onto the wire below
                 return self._error(exc)
-            finally:
-                _DISPATCHING.reset(token)
             return 200, route.wrap(result) if route.wrap else result
         return 404, {"detail": "not found"}
 
@@ -384,7 +368,7 @@ class FakeManagerServer:
             return (404, {"ok": False, "error": body}) if self.spec.telemt else (404, body)
         status = getattr(exc, "status_code", None)
         if self.spec.telemt:
-            from panel.telemt import TelemtError, TelemtIndeterminate
+            from .memories.telemt import TelemtError, TelemtIndeterminate
             if isinstance(exc, TelemtIndeterminate) or not isinstance(exc, TelemtError):
                 self._note(exc)
                 return DROP
@@ -433,74 +417,6 @@ def close_all() -> None:
         server.close()
 
 
-# -- the panel's real clients, sharing the double with the test --------------------------------
-
-_BACKED: dict[type, type] = {}
-
-
-def _backed_class(base: type) -> type:
-    """A subclass of a real client whose own methods go over the wire, while every attribute it
-    lacks (`seed`, `users`, `calls`, `fail_next`, …) reads and writes the double behind it. A test
-    that holds `app.state.naive` (or `node.state.router.client`) therefore sees the double, and
-    one that patches a method of it patches what the server dispatches to."""
-    cls = _BACKED.get(base)
-    if cls is not None:
-        return cls
-
-    def __init__(self, memory, server, *args, **kwargs):
-        object.__setattr__(self, "_harness_init", True)
-        object.__setattr__(self, "memory", memory)
-        object.__setattr__(self, "server", server)
-        base.__init__(self, *args, **kwargs)
-        object.__setattr__(self, "_harness_own", frozenset(self.__dict__))
-        object.__setattr__(self, "_harness_init", False)
-
-    def __getattr__(self, name):
-        if name.startswith("_harness") or name in {"memory", "server"}:
-            raise AttributeError(name)
-        return getattr(object.__getattribute__(self, "memory"), name)
-
-    def _local(self, name) -> bool:
-        state = self.__dict__
-        return state.get("_harness_init", True) or name in state.get("_harness_own", ())
-
-    def __setattr__(self, name, value):
-        if _local(self, name):
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self.memory, name, value)
-
-    def __delattr__(self, name):
-        if _local(self, name):
-            object.__delattr__(self, name)
-        else:
-            delattr(self.memory, name)
-
-    namespace = {"__init__": __init__, "__getattr__": __getattr__, "__setattr__": __setattr__,
-                 "__delattr__": __delattr__}
-    for name, member in inspect.getmembers(base, inspect.iscoroutinefunction):
-        if not name.startswith("_"):
-            namespace[name] = _reentrant(name, member)
-    cls = type(f"SocketBacked{base.__name__}", (base,), namespace)
-    _BACKED[base] = cls
-    return cls
-
-
-def _reentrant(name: str, wire):
-    """The client's method over the wire — unless the double behind it is the one calling (a test's
-    patched method calling the original it captured): then the double's own, unpatched method."""
-    async def method(self, *args, **kwargs):
-        server = self.__dict__.get("server")
-        if server is not None and _DISPATCHING.get() is server:
-            own = getattr(type(server.memory), name, None)
-            if own is not None:
-                return await own(server.memory, *args, **kwargs)
-        return await wire(self, *args, **kwargs)
-
-    method.__name__ = method.__qualname__ = name
-    return method
-
-
 # kind → (env of the socket or URL, env of the token file, client class import path)
 ENV = {
     "naive": ("NAIVE_MANAGER_SOCKET", "NAIVE_MANAGER_TOKEN_FILE"),
@@ -513,34 +429,6 @@ ENV = {
 }
 KINDS = tuple(ENV)
 
-
-def _client_class(kind: str) -> type:
-    if kind == "naive":
-        from panel.naive import NaiveClient as cls
-    elif kind == "mieru":
-        from panel.mieru import MieruClient as cls
-    elif kind == "amneziawg":
-        from panel.amneziawg import AmneziawgClient as cls
-    elif kind == "trusttunnel":
-        from panel.trusttunnel import TrusttunnelClient as cls
-    elif kind == "router":
-        from panel.xray_router import XrayRouterClient as cls
-    elif kind == "telemt":
-        from panel.telemt import TelemtClient as cls
-    else:
-        from panel.versions import VersionClient as cls
-    return cls
-
-
-def kind_of(memory) -> str | None:
-    """Which manager a double stands for, by its class name (`MemoryNaive` → `naive`)."""
-    names = {"MemoryNaive": "naive", "MemoryMieru": "mieru", "MemoryAmneziawg": "amneziawg",
-             "MemoryTrusttunnel": "trusttunnel", "MemoryXrayRouter": "router", "MemoryTelemt": "telemt",
-             "MemoryVersions": "versions", "MemoryAgentMetrics": "versions"}
-    for klass in type(memory).__mro__:
-        if klass.__name__ in names:
-            return names[klass.__name__]
-    return None
 
 
 class FakeManagers:
@@ -555,7 +443,6 @@ class FakeManagers:
         self.servers: dict[str, FakeManagerServer] = {}
         self.tokens: dict[str, str] = {}
         self.memories: dict[str, Any] = {}
-        self._clients: dict[str, Any] = {}
         # a bound, never-listening TCP socket: connecting to it is refused, and nobody else gets the port
         self._refusing = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._refusing.bind(("127.0.0.1", 0))
@@ -592,20 +479,8 @@ class FakeManagers:
             return server.url if server else self._refused_url
         return self.path(kind)
 
-    def client(self, kind: str):
-        """The panel's real client for this manager (shared with the double when there is one)."""
-        if kind in self._clients:
-            return self._clients[kind]
-        cls = _client_class(kind)
-        address = self.address(kind)
-        args = (address,) if kind == "versions" else (address, self.token(kind))
-        server = self.servers.get(kind)
-        value = _backed_class(cls)(server.memory, server, *args) if server else cls(*args)
-        self._clients[kind] = value
-        return value
-
     def env(self, kinds=KINDS) -> dict[str, str]:
-        """What the Rust binary needs to reach the same servers (`PANEL_IMPL=rust`)."""
+        """Environment for the actual panel's manager clients."""
         env = {}
         for kind in kinds:
             address_env, token_env = ENV[kind]

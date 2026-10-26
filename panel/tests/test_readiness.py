@@ -74,13 +74,4 @@ async def test_central_lag_and_provisioning_are_aggregate_and_secret_free(client
     assert not any(secret in str(body) for secret in ("secret-node", "secret-topology", "secret.example", "secret-key", "secret-client"))
 
 
-async def test_database_query_failure_reports_hard_failure(client, login_user, monkeypatch):
-    await login_user(client)
-    database = client._transport.app.state.database
-    def broken():
-        raise OSError("private path")
-    monkeypatch.setattr(database, "connect", broken)
-    response = await client.get(PATH)
-    assert response.status_code == 503
-    assert response.headers["cache-control"] == "no-store"
-    assert response.json() == {"status": "failed", "database": {"queryable": False}}
+

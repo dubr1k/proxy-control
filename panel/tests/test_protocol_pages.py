@@ -1,15 +1,14 @@
-"""WP8 protocol projections over real panel HTTP and manager sockets (Python and Rust)."""
+"""Protocol projections over real Rust panel HTTP and manager sockets."""
 from __future__ import annotations
 
 import json
 
 import pytest
 
-from panel.amneziawg import MemoryAmneziawg
-from panel.mieru import MieruError
-from panel.naive import NaiveError
-from panel.tests.harness.server import IMPL
-from panel.trusttunnel import MemoryTrusttunnel
+from panel.tests.harness.memories.amneziawg import MemoryAmneziawg
+from panel.tests.harness.memories.mieru import MieruError
+from panel.tests.harness.memories.naive import NaiveError
+from panel.tests.harness.memories.trusttunnel import MemoryTrusttunnel
 
 pytestmark = pytest.mark.anyio
 
@@ -119,7 +118,6 @@ async def test_manager_error_status_and_fixed_detail_cross_the_http_stack(
     assert response.json() == {"detail": f"{label} manager unavailable"}
 
 
-@pytest.mark.xfail(IMPL == "python", reason="Python MTProxy page bypassed the kept-grant lifecycle", strict=True)
 @pytest.mark.parametrize("operation", ["rotate", "delete"])
 async def test_mtproxy_page_keeps_client_credentials_in_sync(panel_server, telemt, login_user, operation):
     """Owner-approved Python bug fixes: the live runtime and client access must not diverge."""

@@ -426,6 +426,44 @@ async fn a_failed_local_step_compensates_and_withdraws_the_remote_grant() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn compensation_never_sends_a_node_confirmed_remote_step_to_a_local_manager() {
+    let env = Env::new("confirmed-compensation");
+    let node = edge(&env);
+    let person = env.clients.create_client("A", &ctx()).unwrap().id;
+    env.fake(Protocol::Naive).seed("alice", "unrelated-local-credential");
+    let operation = env
+        .provisioning
+        .start(&person, vec![intent_on(Protocol::Naive, "alice", &node), intent(Protocol::Naive, "bob")], &ctx())
+        .await
+        .unwrap();
+    let alice = env.grants(&person).into_iter().find(|grant| grant.runtime_username == "alice").unwrap();
+    let database = env.database.clone();
+    let provisioning = env.provisioning.clone();
+    let in_flight = operation.clone();
+    let grant_id = alice.id.clone();
+    *env.fake(Protocol::Naive).after_create.lock().unwrap() = Some(Box::new(move || {
+        let observed = report(json!([{
+            "ref": format!("grant:{grant_id}"), "protocol": "naive",
+            "runtime_username": "alice", "state": "enabled",
+        }]));
+        database
+            .transaction(|db| provisioning.remote_applied(db, &observed, &HashSet::new(), None))
+            .unwrap();
+        assert_eq!(provisioning.status(&in_flight).unwrap()["status"], "applying");
+    }));
+    env.provisioning.faults.set("after_apply", "naive");
+    let result = env.provisioning.run(&operation).await.unwrap();
+    assert_eq!(result.status, "compensated");
+    let status = env.provisioning.status(&operation).unwrap();
+    assert!(status["steps"].as_array().unwrap().iter().all(|step| step["status"] == "compensated"));
+    assert_eq!(env.fake(Protocol::Naive).names(), ["alice"]);
+    assert_eq!(env.fake(Protocol::Naive).users.lock().unwrap()["alice"].password, b"unrelated-local-credential");
+    let tombstone = env.database.with_connection(|db| store::grant(db, &alice.id)).unwrap();
+    assert_eq!((tombstone.desired_state, tombstone.observed_state), (GrantDesiredState::Deleted, GrantObservedState::Enabled));
+    assert!(!env.fake(Protocol::Naive).calls.lock().unwrap().iter().any(|call| call == "delete:alice"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_remote_amneziawg_grant_needs_the_version_the_node_serves() {
     let env = Env::new("awg");
     let node = edge(&env);
