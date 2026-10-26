@@ -69,7 +69,7 @@
   → digest подтверждает владелец → `install --accept-plan`). Этот файл (AGENTS.md) — протокол
   **разработки**, а не инструкция по установке. Изменение установщика, его флагов, путей,
   вопросов мастера или примеров обновляет оба раздела на двух языках в том же коммите; структуру
-  сторожит `tests/test_installer_docs.py`.
+  сторожит нативный тест `installer/tests/documented_cli.rs`.
 - Proxy Control — отдельная панель (MTProxy, NaiveProxy, Mieru), которую можно поставить рядом
   с 3x-ui. Не описывайте её как «панель для 3x-ui».
 - **Истории до 1.0.0 нет.** Документы описывают текущее поведение: без «с v0.x», «since v0.x»,
@@ -100,9 +100,16 @@ python3 -m venv .venv
 После каждого существенного изменения выполните весь набор:
 
 ```bash
+cargo test --manifest-path panel/Cargo.toml --workspace --locked
+cargo test --manifest-path version_agent/Cargo.toml --locked
+cargo test --manifest-path pc_host/Cargo.toml --locked
+cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks
+cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer
+install -D -m 0755 installer/target/debug/proxy-control-installer \
+  installer/bin/linux-amd64/proxy-control-installer
+PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
+  sudo --preserve-env=PANEL_IMPL,PANEL_RUST_BIN .venv/bin/python -m pytest -q -ra
 .venv/bin/ruff check .
-sudo .venv/bin/python -m pytest -q
-.venv/bin/python -m unittest -v tests/test_deploy.py
 python3 scripts/check-doc-links.py
 bash scripts/dev/check-js-syntax.sh
 
@@ -140,29 +147,24 @@ NAIVE_PUBLIC_HOST=naive.example.com MIERU_PUBLIC_HOST=mieru.example.com \
 MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true \
 MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 \
   docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml config -q
-FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 \
-FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key \
-  docker compose -f compose.yaml -f compose.agent.yaml config -q
-FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key \
-FLEET_CLIENT_CA=/tmp/client-ca.crt \
-  docker compose -f compose.yaml -f compose.fleet-central.yaml config -q
 ```
+
+Fleet v1 (mTLS-контейнеры `fleet-agent`/`fleet-ingress`) снят с поставки.
+Связанные панели Fleet v2 используют HTTPS API самой панели и не добавляют Compose-слой.
 
 Перед этими командами создайте в изолированной копии только синтетические
 `secrets/users.conf`, `secrets/telemt-api-token`, `secrets/naive-manager-token`,
 `secrets/mieru-manager-token` и `.env` по примеру CI. Не подключайте настоящие
 `.env`, Docker secrets, сертификаты или тома.
 
-Затем соберите все затронутые образы и проверьте runtime identity:
+Затем соберите все затронутые образы. Панель запускает entrypoint от root только для
+подготовки секретов и сбрасывает права до `panel` перед запуском бинарника;
+`docker run --entrypoint id` обходит эту проверку. В одноразовом стенде проверьте UID
+запущенного процесса панели отдельно.
 
 ```bash
-docker build -f panel/Dockerfile -t proxy-control-panel:test panel
+docker build -f panel/Dockerfile -t proxy-control-panel:test .
 docker build -f mieru_manager/Dockerfile -t proxy-control-mieru-manager:test .
-docker build -f deploy/Dockerfile.agent -t proxy-control-agent:test .
-docker build -f deploy/Dockerfile.ingress -t proxy-control-ingress:test .
-
-test "$(docker run --rm --entrypoint id proxy-control-ingress:test -u)" = 10001
-test "$(docker run --rm --entrypoint id proxy-control-ingress:test -g)" = 10001
 ```
 
 Для Naive дополнительно соберите зафиксированный Caddy и проверьте не только
@@ -229,8 +231,9 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 - NaiveProxy: cover HTTPS → authenticated `CONNECT` → payload → закрытие
   туннеля → учёт;
 - Mieru: точный статус `RUNNING`, TCP/UDP-клиент, manager health и Unix-сокет;
-- Fleet: mTLS без клиентского сертификата должен отклоняться, зарегистрированный
-  узел должен пройти inventory cycle;
+- Fleet: связанная панель v2 должна принять поколение через HTTPS с ключом
+  `node-sync`; установленный Fleet v1 требует отдельной миграции, а не проверки
+  старого mTLS-входа в новой поставке;
 - резервную копию, `PRAGMA integrity_check`, режимы файлов и отсутствие
   секретов в логах.
 
@@ -297,10 +300,10 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 
 | Что | Где / чем | Команда проверки |
 | --- | --- | --- |
-| Compose-проект узла | `/opt/mtproxy-shared443`, проект `mtproxy`, `.env` root-only с `COMPOSE_FILE=…` | `cd /opt/mtproxy-shared443 && sudo docker compose ps --format '{{.Name}} {{.Status}}'` — все `healthy` |
+| Compose-проект узла | `/opt/mtproxy-shared443`, текущий проект `proxy_panel_by_dubr1k` (у ещё не перенесённого узла `mtproxy`), `.env` root-only с `COMPOSE_FILE=…` | `cd /opt/mtproxy-shared443 && sudo docker compose ps --format '{{.Name}} {{.Status}}'` — все `healthy` |
 | Панель | контейнер `proxy-control-panel`, `127.0.0.1:8787`, том `panel-data` | `curl -fsS -H 'Host: <panel-domain>' http://127.0.0.1:8787/healthz` |
-| Версия и схема базы | `VERSION` в каталоге проекта; `db-status` | `sudo docker exec proxy-control-panel python -m panel.cli db-status` |
-| Мастер-ключ | `secrets/panel-master-key` | `sudo docker exec proxy-control-panel python -m panel.cli master-key-verify --path /run/panel/master-key` (печатает счётчики, не значения) |
+| Версия и схема базы | `VERSION` в каталоге проекта; `db-status` | `sudo docker exec proxy-control-panel panel cli db-status` |
+| Мастер-ключ | `secrets/panel-master-key` | `sudo docker exec proxy-control-panel panel cli master-key-verify --path /run/panel/master-key` (печатает счётчики, не значения) |
 | Nginx / 443 | stream-map `/etc/nginx/stream.d/proxy-control.conf` (fresh), TLS панели `127.0.0.1:8443` | `sudo nginx -t && ss -lntp 'sport = :443'` — владелец nginx |
 | Сертификаты | `/etc/letsencrypt/live/{proxy-control,naive,three-xui-*}` | `sudo certbot certificates` (без вывода ключей) |
 | NaiveProxy | `caddy-naive.service`, `/var/lib/naive-manager/Caddyfile`, `proxy-control-naive-manager` | `systemctl is-active caddy-naive` |
@@ -309,7 +312,7 @@ LAB_RESET=1 bash scripts/lab/guest-runner.sh host "$RELEASE_SHA256"
 | WARP | `warp-svc`, SOCKS5 `127.0.0.1:40000` | `warp-cli status`; `curl -s --proxy socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace \| grep '^warp='` |
 | 3x-ui (managed) | `x-ui.service`, панель `127.0.0.1:8451`, inbound 8449/8450, UDP/443 | `systemctl is-active x-ui && ss -lntup \| grep -E ':(8449\|8450\|8451)\b'` |
 | version-agent | `version-agent.service`, `/run/proxy-control/version-agent.sock` | `sudo curl --fail --unix-socket /run/proxy-control/version-agent.sock http://version-agent/v1/health` |
-| Установщик | журнал `/var/lib/proxy-control/installer/state.json`, отчёты `/var/lib/proxy-control/reports` | `sudo python3 -m installer.cli status --json` (из распакованного релиза) |
+| Установщик | журнал `/var/lib/proxy-control/installer/state.json`, отчёты `/var/lib/proxy-control/reports` | `sudo /opt/mtproxy-shared443/installer/bin/linux-amd64/proxy-control-installer status --json` |
 | Аудит панели | таблица `audit`, экран «Журнал», `GET /api/audit` | `GET /api/audit?action=<код>&limit=50` |
 
 API панели: сессия (`POST /api/auth/login` → cookie `panel_session` + `panel_csrf`; каждая
@@ -339,8 +342,8 @@ sudo nginx -t && ss -lntp 'sport = :443' | grep -q nginx && echo NGINX_443_OK
 curl -sSI "https://$PANEL_DOMAIN/login" | head -1                       # HTTP/2 200
 curl -sS -o /dev/null -w '%{http_code}\n' "https://$PANEL_DOMAIN/s/x"    # 404 на домене панели
 systemctl is-active caddy-naive mita 2>/dev/null                          # по профилю
-sudo python3 -m installer.cli report --config /root/proxy-control.toml --output /var/lib/proxy-control/reports
-sudo python3 -c 'import json;r=json.load(open("/var/lib/proxy-control/reports/report.json"));print(sorted(r))'  # только факты приёмки; учётные данные в отчёте не бывают
+sudo /opt/mtproxy-shared443/installer/bin/linux-amd64/proxy-control-installer report --config /root/proxy-control.toml --output /var/lib/proxy-control/reports
+sudo jq -r 'keys | .[]' /var/lib/proxy-control/reports/report.json  # только ключи фактов приёмки, не секреты
 ```
 
 Отчёт владельцу: домены, профиль, digest плана, `VERSION`, статус контейнеров/служб,
@@ -353,10 +356,10 @@ Telegram, вход в панель человеком).
 ```bash
 # B1. Ключ node-sync (только владелец; через ключ admin узла или сессию владельца)
 resp=$(curl -sS "${hdr[@]}" -X POST "$NODE/api/keys" -d '{"name":"central","scope":"node-sync"}')   # 201 {"key": {id, name, prefix, scope, …}, "plaintext": "pc_…"}
-python3 -c 'import json,sys;d=json.loads(sys.argv[1])["key"];print(d["id"],d["prefix"],d["scope"])' "$resp"   # печатать id/prefix/scope, НИКОГДА plaintext
-NODE_SYNC_KEY=$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["plaintext"])' "$resp"); unset resp   # только в переменную; передаётся центру в C2 и нигде не выводится
+printf '%s' "$resp" | jq -r '.key | [.id, .prefix, .scope] | @tsv'    # только id/prefix/scope, НИКОГДА plaintext
+NODE_SYNC_KEY=$(printf '%s' "$resp" | jq -er '.plaintext'); unset resp  # только в переменную, не в вывод
 # B2. Идентичность узла, как её увидит центр
-curl -sS -H "Authorization: Bearer $NODE_SYNC_KEY" "$NODE/api/fleet/v2/identity" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["guid"],d["panel_version"],d["master_guid"],sorted(d["capabilities"]))'
+curl -sS -H "Authorization: Bearer $NODE_SYNC_KEY" "$NODE/api/fleet/v2/identity" | jq '{guid, panel_version, master_guid, capabilities}'
 #   master_guid должен быть null (никем не управляется); panel_version — та же сборка, что у центра
 # B3. (по желанию) version-agent — docs/UPGRADING.ru.md («Обновление из панели через version-agent»); проверка: /v1/health по сокету
 ```
@@ -638,7 +641,7 @@ uncertain, stop at a safe boundary and name the missing proof.
   `plan --json` → the owner confirms the digest → `install --accept-plan`). This file (AGENTS.md)
   is the **development** protocol, not an installation guide. A change to the installer, its
   flags, paths, wizard questions or examples updates both sections in both languages in the same
-  commit; `tests/test_installer_docs.py` guards the structure.
+  commit; `installer/tests/documented_cli.rs` checks those examples with the native parser.
 - Proxy Control is a separate panel (MTProxy, NaiveProxy, Mieru) that can run next to 3x-ui. Do
   not describe it as «a panel for 3x-ui».
 - **There is no history before 1.0.0.** Documents describe the current behaviour: no «since
@@ -669,9 +672,16 @@ with `sudo` without substituting production secrets.
 After every material change, run the complete gate set:
 
 ```bash
+cargo test --manifest-path panel/Cargo.toml --workspace --locked
+cargo test --manifest-path version_agent/Cargo.toml --locked
+cargo test --manifest-path pc_host/Cargo.toml --locked
+cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks
+cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer
+install -D -m 0755 installer/target/debug/proxy-control-installer \
+  installer/bin/linux-amd64/proxy-control-installer
+PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
+  sudo --preserve-env=PANEL_IMPL,PANEL_RUST_BIN .venv/bin/python -m pytest -q -ra
 .venv/bin/ruff check .
-sudo .venv/bin/python -m pytest -q
-.venv/bin/python -m unittest -v tests/test_deploy.py
 python3 scripts/check-doc-links.py
 bash scripts/dev/check-js-syntax.sh
 
@@ -709,13 +719,10 @@ NAIVE_PUBLIC_HOST=naive.example.com MIERU_PUBLIC_HOST=mieru.example.com \
 MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true \
 MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 \
   docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml config -q
-FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 \
-FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key \
-  docker compose -f compose.yaml -f compose.agent.yaml config -q
-FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key \
-FLEET_CLIENT_CA=/tmp/client-ca.crt \
-  docker compose -f compose.yaml -f compose.fleet-central.yaml config -q
 ```
+
+Fleet v1 (the mTLS `fleet-agent`/`fleet-ingress` containers) is retired.
+Fleet v2 links panels through each panel's HTTPS API, without a Compose overlay.
 
 Before these commands, create only synthetic `secrets/users.conf`,
 `secrets/telemt-api-token`, `secrets/naive-manager-token`,
@@ -723,16 +730,13 @@ Before these commands, create only synthetic `secrets/users.conf`,
 CI example. Do not mount real `.env` files, Docker secrets, certificates, or
 volumes.
 
-Build all affected images and check runtime identity:
+Build all affected images. The panel entrypoint starts as root only to stage secrets,
+then drops to `panel` before launching the binary; `docker run --entrypoint id` bypasses
+that path. Verify the live panel process UID separately in the disposable lab.
 
 ```bash
-docker build -f panel/Dockerfile -t proxy-control-panel:test panel
+docker build -f panel/Dockerfile -t proxy-control-panel:test .
 docker build -f mieru_manager/Dockerfile -t proxy-control-mieru-manager:test .
-docker build -f deploy/Dockerfile.agent -t proxy-control-agent:test .
-docker build -f deploy/Dockerfile.ingress -t proxy-control-ingress:test .
-
-test "$(docker run --rm --entrypoint id proxy-control-ingress:test -u)" = 10001
-test "$(docker run --rm --entrypoint id proxy-control-ingress:test -g)" = 10001
 ```
 
 For Naive, build the pinned Caddy and verify both the version and the required

@@ -23,7 +23,7 @@ boundary you are changing.
 - [AmneziaWG: версии 1.5, 2.0 и 3.1, конфиг и QR](../AMNEZIAWG.ru.md)
 - [TrustTunnel: VPN поверх HTTP/2 и TLS, ссылка `tt://`, QR и конфиг](../TRUSTTUNNEL.ru.md)
 - [Мониторинг: ресурсы и трафик по протоколам в прямом эфире, история, оповещения, API](../MONITORING.ru.md)
-- [Связанные панели (Fleet v2) и транспорт mTLS (Fleet v1)](../FLEET.ru.md)
+- [Связанные панели (Fleet v2, HTTPS и API-ключ `node-sync`)](../FLEET.ru.md)
 - [Маршрутизация: политики исходящего трафика, выходы, цепи и полосы](ROUTING.ru.md)
 - [Xray-router](XRAY_ROUTER.ru.md)
 - [MCP-сервер: панель как инструменты Claude Code и Claude Desktop](MCP.ru.md) и [навыки для ИИ](../skills/README.md)
@@ -110,7 +110,7 @@ boundary you are changing.
 - [AmneziaWG: versions 1.5, 2.0 and 3.1, config and QR](../AMNEZIAWG.en.md)
 - [TrustTunnel: a VPN over HTTP/2 and TLS, the `tt://` link, QR and config](../TRUSTTUNNEL.en.md)
 - [Monitoring: live resources and per-protocol traffic, history, alerts, API](../MONITORING.en.md)
-- [Linked panels (Fleet v2) and the mTLS transport (Fleet v1)](../FLEET.en.md)
+- [Linked panels (Fleet v2, HTTPS and a `node-sync` API key)](../FLEET.en.md)
 - [Routing: outbound policies, exits, chains and lanes](ROUTING.en.md)
 - [The Xray-router](XRAY_ROUTER.en.md)
 - [The MCP server: the panel as tools for Claude Code and Claude Desktop](MCP.en.md) and [AI skills](../skills/README.md)
@@ -189,4 +189,4 @@ boundary you are changing.
 - Back up a complete generation before changing runtime, state, identities, ports or routes.
 - A healthy process is not a protocol test. Validate MTProto `resPQ`, Naive authenticated CONNECT and Mieru end-to-end transport.
 - Never claim unavailable accounting precision.
-- A linked panel (Fleet v2) is added by URL and a `node-sync` API key and is managed only after it accepted a generation; for Fleet v1, registry creation is not enrollment — enrollment requires certificate issuance, binding, mTLS authorization and a successful command/result cycle.
+- A linked panel (Fleet v2) is added by URL and a `node-sync` API key and is managed only after it accepted a generation. An installed Fleet v1 agent or ingress requires an explicit state migration and backup; neither service is part of a new installation.

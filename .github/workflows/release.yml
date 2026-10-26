@@ -1,12 +1,12 @@
 name: Release
 
-# The gate is the disposable lab host (`scripts/dev/remote-gate.sh full|compose|lab-container|
-# lab-host` on ams-test): that is where the release is built, installed and probed with
-# real protocol clients. CI does not gate; it confirms. It rebuilds the tagged commit
-# twice, requires identical bytes, refuses to publish anything but the archive digest the
-# lab accepted (`expected_sha256`), attests provenance and publishes after a human
-# confirms. The project targets x86-64 VPS hosts, the only architecture the installer
-# accepts. No job here has SSH access or touches a production environment.
+# Acceptance is on the disposable lab host (`scripts/dev/remote-gate.sh full|compose|
+# lab-container|lab-host` on ams-test): the release is installed and probed with real
+# protocol clients there. CI independently checks release packaging and native host crates,
+# rebuilds the tagged commit twice, and refuses any archive digest other than the one
+# accepted by the lab (`expected_sha256`). Provenance is attested before publication.
+# The project targets x86-64 VPS hosts, the only architecture the installer accepts.
+# No job here has SSH access or touches a production environment.
 
 on:
   push:
@@ -43,35 +43,35 @@ env:
 jobs:
   quality:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Python environment
+      - name: Python environment for release-tool tests
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r panel/requirements-dev.txt
-      - name: Ruff and installer tests
+      - name: Ruff and release packaging regressions
         run: |
           .venv/bin/ruff check .
-          .venv/bin/python -m pytest -q tests/test_installer_*.py \
-            tests/test_three_xui_api.py tests/test_release_build.py
+          .venv/bin/python -m pytest -q tests/test_release_build.py
       - name: Host crates (fmt, clippy, tests) in the pinned builder image
         run: |
           # Every crate of release/host-binaries.list that exists, inside the image that builds
           # the shipped binaries (release/Dockerfile.host-binaries, stage `check`).
           docker buildx build --platform linux/amd64 --file release/Dockerfile.host-binaries \
             --target checked --output "type=local,dest=$RUNNER_TEMP/host-crates-checked" .
-      - name: Tag, VERSION, and manifest agree
+      - name: Tag and VERSION agree
         run: |
           version=${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}
           test "$(cat VERSION)" = "$version"
           test "${GITHUB_REF_TYPE}" != "tag" || test "${GITHUB_REF_NAME}" = "v$version"
-          .venv/bin/python release/verify.py manifest release/external-artifacts.json
-
+          case "$version" in
+            4.0.*-*) echo "4.0 pre-releases must be tested privately; publication is disabled" >&2; exit 1 ;;
+          esac
   build-twice-and-compare:
     needs: quality
     runs-on: ubuntu-24.04
@@ -95,6 +95,11 @@ jobs:
           cat bin-a/host-binaries.builder bin-a/host-binaries.sha256
           cmp bin-a/host-binaries.sha256 bin-b/host-binaries.sha256 \
             || { diff bin-a/host-binaries.sha256 bin-b/host-binaries.sha256 >&2; exit 1; }
+      - name: Verify the external-artifact manifest with the built native installer
+        run: |
+          test -x bin-a/installer/bin/linux-amd64/proxy-control-installer
+          bin-a/installer/bin/linux-amd64/proxy-control-installer \
+            verify-release manifest release/external-artifacts.json
       - name: Build the release twice and require identical bytes
         id: build
         env:
@@ -192,7 +197,8 @@ jobs:
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           draft: true
-          # A version with a pre-release suffix (`-alpha.1`, `-beta.1`) is published as one.
+          # Other release trains may use pre-release suffixes; 4.0 prereleases are
+          # refused in quality while 3.3.0 hosts still exist.
           prerelease: ${{ contains(needs.build-twice-and-compare.outputs.version, '-') }}
           tag_name: v${{ needs.build-twice-and-compare.outputs.version }}
           files: |

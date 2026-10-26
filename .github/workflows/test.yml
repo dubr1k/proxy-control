@@ -14,25 +14,66 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Pinned Rust binaries for external black-box tests
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup default 1.99.0
+          cargo build --manifest-path panel/Cargo.toml --locked -p panel-web --features test-hooks
+          cargo build --manifest-path installer/Cargo.toml --locked --bin proxy-control-installer
+          install -D -m 0755 installer/target/debug/proxy-control-installer \
+            installer/bin/linux-amd64/proxy-control-installer
       - name: Python environment
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r panel/requirements-dev.txt
-      - name: Ruff and full tests
+      - name: Native test prerequisites
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx libnginx-mod-stream jq
+          test -f /usr/lib/nginx/modules/ngx_stream_module.so
+          command -v nginx
+          command -v node
+          command -v go
+          command -v google-chrome || command -v chromium
+      - name: Ruff and full native-panel black-box tests
         run: |
           .venv/bin/ruff check .
-          # Root-only permission tests exercise the built runtime images.
+          # The panel binary serves HTTP in a separate process; host checks also run as root
+          # in this ephemeral runner. Pytest discovers the full external suite.
           docker build -f panel/Dockerfile -t mtproxy-panel:latest .
           docker build -f mieru_manager/Dockerfile -t mtproxy-mieru-manager:latest .
-          # Ownership, native Nginx and nftables syntax tests intentionally
-          # exercise root-only kernel/filesystem contracts in the ephemeral runner.
-          sudo .venv/bin/python -m pytest -q
-          .venv/bin/python -m unittest -v tests/test_deploy.py
+          sudo env PANEL_IMPL=rust PANEL_RUST_BIN="$PWD/panel/target/debug/panel" \
+            PANEL_TEST_IMAGE=mtproxy-panel:latest .venv/bin/python - <<'PY'
+          import sys
+          import pytest
+
+          class FullSuite:
+              deselected = 0
+              skipped = 0
+
+              def pytest_deselected(self, items):
+                  self.deselected += len(items)
+
+              def pytest_collectreport(self, report):
+                  if report.skipped:
+                      self.skipped += 1
+
+              def pytest_runtest_logreport(self, report):
+                  if report.skipped:
+                      self.skipped += 1
+
+          guard = FullSuite()
+          status = pytest.main(["-q", "-ra"], plugins=[guard])
+          if guard.deselected or guard.skipped:
+              print(f"Incomplete test suite: {guard.deselected} deselected, {guard.skipped} skipped", file=sys.stderr)
+              raise SystemExit(1)
+          raise SystemExit(status)
+          PY
       - name: MTProxy bridge (Go)
         run: |
           # The toolchain the router image builds the bridge with (xray_router_manager/Dockerfile).
@@ -58,35 +99,50 @@ jobs:
           grep -q 'not bundled' THIRD_PARTY_NOTICES.md
           grep -Fq 'caddy:2.11.7-builder@sha256:d842facfd63b960922e57444ff76fd8f0793a66dfdcf481af8026e1f4e6a39b4' docker/Dockerfile.caddy-naive
           grep -Fq 'github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@d62c80d3dd2c706b6b87579844d2397bddd18317' docker/Dockerfile.caddy-naive
-          sudo install -d /usr/local/libexec /opt/proxy-control/venv/bin /opt/mtproxy-agent/venv/bin /opt/mtproxy-panel/venv/bin
+          sudo install -d /usr/local/libexec /opt/proxy-control/version_agent/bin/linux-amd64
           sudo install -m 0755 /bin/true /usr/local/libexec/check-naive-caddy-build
           sudo install -m 0755 scripts/caddy-naive-adapt /usr/local/libexec/caddy-naive-adapt
           sudo install -m 0755 scripts/mieru-mss-clamp.sh /usr/local/libexec/mieru-mss-clamp
           sudo install -m 0755 /bin/true /usr/local/bin/caddy
           sudo install -m 0755 /bin/true /usr/bin/mita
           sudo install -m 0755 /bin/true /usr/local/bin/mieru-manager
-          sudo install -m 0755 /bin/true /opt/proxy-control/venv/bin/python
-          sudo install -m 0755 /bin/true /opt/mtproxy-agent/venv/bin/python
-          sudo install -m 0755 /bin/true /opt/mtproxy-panel/venv/bin/python
+          sudo install -m 0755 /bin/true /opt/proxy-control/version_agent/bin/linux-amd64/proxy-control-version-agent
           printf '[Unit]\nDescription=CI stub mita dependency\n[Service]\nType=oneshot\nExecStart=/bin/true\n' | sudo tee /etc/systemd/system/mita.service >/dev/null
           systemd-analyze verify deploy/*.service
           git diff --check
 
   dependency-audit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    strategy:
-      matrix:
-        component: [panel]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Audit pinned runtime dependencies
+      - name: Audit every native dependency lock with pinned RustSec
         run: |
-          python3 -m venv .audit-venv
-          .audit-venv/bin/python -m pip install pip-audit==2.10.1
-          .audit-venv/bin/python -m pip_audit --strict --no-deps --disable-pip -r "${{ matrix.component }}/requirements.txt"
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup default 1.99.0
+          cargo install --locked --version '=0.22.2' cargo-audit
+          mapfile -d '' -t locks < <(git ls-files -z -- '*Cargo.lock')
+          test "${#locks[@]}" -gt 0
+          for lock in "${locks[@]}"; do
+            cargo audit --file "$lock"
+          done
+
+  native-panel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pinned Rust panel workspace (fmt, clippy, tests)
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.99.0
+          cargo fmt --manifest-path panel/Cargo.toml --all --check
+          cargo clippy --manifest-path panel/Cargo.toml --workspace --all-targets --locked -- -D warnings
+          cargo test --manifest-path panel/Cargo.toml --workspace --locked
 
   host-crates:
     runs-on: ubuntu-24.04
@@ -163,7 +219,7 @@ jobs:
           printf 'ci-naive-manager-token-0123456789abcdef0123456789abcdef\n' > secrets/naive-manager-token
           printf 'ci-mieru-manager-token-0123456789abcdef0123456789abcdef\n' > secrets/mieru-manager-token
           printf 'MIERU_MANAGER_TOKEN_FILE=%s\n' "$PWD/secrets/mieru-manager-token" >> .env
-          for name in mcp-panel-key mcp-token xray-router-manager-token xray-router-ingress-naive xray-router-ingress-mieru; do
+          for name in mcp-panel-key mcp-token xray-router-manager-token xray-router-ingress-naive xray-router-ingress-mieru awg-manager-token trusttunnel-manager-token; do
             printf 'ci-%s-placeholder\n' "$name" > "secrets/$name"
           done
       - name: Render every Compose model
@@ -172,8 +228,6 @@ jobs:
           NAIVE_PUBLIC_HOST=naive.example.com docker compose -f compose.yaml -f compose.naive.yaml config -q
           MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.mieru.yaml config -q
           NAIVE_PUBLIC_HOST=naive.example.com MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml config -q
-          FLEET_NODE_ID=node-ci FLEET_CENTRAL_URL=https://fleet.example.com:8790 FLEET_CLIENT_CERT=/tmp/client.crt FLEET_CLIENT_KEY=/tmp/client.key docker compose -f compose.yaml -f compose.agent.yaml config -q
-          FLEET_SERVER_CERT=/tmp/server.crt FLEET_SERVER_KEY=/tmp/server.key FLEET_CLIENT_CA=/tmp/client-ca.crt docker compose -f compose.yaml -f compose.fleet-central.yaml config -q
           export MCP_DOMAIN=mcp.example.com MCP_PANEL_HOST=panel.example.com
           export XRAY_ROUTER_XRAY_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           export XRAY_ROUTER_GEOIP_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -181,6 +235,14 @@ jobs:
           docker compose -f compose.yaml -f compose.mcp.yaml config -q
           docker compose -f compose.yaml -f compose.naive.yaml -f compose.xray-router.yaml config -q
           MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml -f compose.xray-router.yaml -f compose.mcp.yaml config -q
+          mkdir -p "$RUNNER_TEMP/awg-state" "$RUNNER_TEMP/trusttunnel-state" "$RUNNER_TEMP/trusttunnel-certs"
+          AMNEZIAWG_PUBLIC_HOST=awg.example.com AWG_MANAGER_TOKEN_FILE="$PWD/secrets/awg-manager-token" \
+            AWG_MANAGER_STATE_DIR="$RUNNER_TEMP/awg-state" \
+            docker compose -f compose.yaml -f compose.amneziawg.yaml config -q
+          TT_HOSTNAME=tt.example.com TRUSTTUNNEL_PUBLIC_HOST=tt.example.com \
+            TRUSTTUNNEL_MANAGER_TOKEN_FILE="$PWD/secrets/trusttunnel-manager-token" \
+            TT_MANAGER_STATE_DIR="$RUNNER_TEMP/trusttunnel-state" TT_CERT_DIR="$RUNNER_TEMP/trusttunnel-certs" \
+            docker compose -f compose.yaml -f compose.trusttunnel.yaml config -q
       - name: Render documented Mieru quickstart without secret contents
         run: |
           mkdir -p "$RUNNER_TEMP/mieru-render/state"
@@ -202,14 +264,10 @@ jobs:
           NAIVE_PUBLIC_HOST=naive.example.com docker compose -f compose.yaml -f compose.naive.yaml build panel naive-manager
           MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.mieru.yaml build mieru-manager
           NAIVE_PUBLIC_HOST=naive.example.com MIERU_PUBLIC_HOST=mieru.example.com MIERU_MITA_GID=321 MIERU_MITA_BIN=/bin/true MIERU_MITA_SHA256=4aa03abde846548692dc479359fd9d6c378c0b0e3ab22f94b2c22b1e54dcdb31 docker compose -f compose.yaml -f compose.naive.yaml -f compose.mieru.yaml build panel naive-manager mieru-manager
-          docker build -f deploy/Dockerfile.agent -t proxy-control-agent:test .
-          docker build -f deploy/Dockerfile.ingress -t proxy-control-ingress:test .
           docker build -f xray_router_manager/Dockerfile -t proxy-control-xray-router:test .
           docker build -f mcp_server/Dockerfile -t proxy-control-mcp:test .
           test "$(docker run --rm --entrypoint id proxy-control-xray-router:test -u)" = 10006
           test "$(docker run --rm --entrypoint id proxy-control-mcp:test -u)" = 10007
-          test "$(docker run --rm --entrypoint id proxy-control-ingress:test -u)" = 10001
-          test "$(docker run --rm --entrypoint id proxy-control-ingress:test -g)" = 10001
       - name: Build and validate pinned Caddy
         run: |
           mkdir -p "$RUNNER_TEMP/caddy-naive"

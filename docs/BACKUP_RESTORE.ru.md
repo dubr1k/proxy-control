@@ -79,43 +79,43 @@ docker compose images --format json > "$backup/compose-images.json"
 
 ## SQLite
 
-Предпочтителен online backup API. Для panel container пример зависит от фактического DB path:
+Используйте online backup штатным SQLite CLI на хосте по фактическому mount `/data`
+панели. Оператору для этой процедуры нужен `sqlite3` на хосте; работающим панели и
+установщику не требуются ни Python, ни SQLite CLI. Каталог `$backup` создан выше
+только для root; не храните копию внутри работающего контейнера:
 
 ```bash
-docker exec -i proxy-control-panel python - <<'PY'
-import sqlite3
-src = sqlite3.connect('/data/panel.sqlite3')
-dst = sqlite3.connect('/data/panel.backup.sqlite3')
-with dst:
-    src.backup(dst)
-print(dst.execute('PRAGMA integrity_check').fetchone()[0])
-dst.close(); src.close()
-PY
+db_dir=$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' proxy-control-panel)
+test -n "$db_dir" && sudo test -f "$db_dir/panel.sqlite3" || exit 1
+sudo sqlite3 "$db_dir/panel.sqlite3" ".backup '$backup/panel.sqlite3'"
+sudo sqlite3 "$backup/panel.sqlite3" 'PRAGMA integrity_check;'
 ```
 
-После этого скопируйте backup file в защищённое место и удалите staging copy. Альтернатива — остановить writer и копировать DB + `-wal` + `-shm` вместе. Никогда не копируйте только main DB при active WAL writer.
-
-Проверка:
-
-```bash
-sqlite3 panel.backup.sqlite3 'PRAGMA integrity_check;'
-```
-
-Ожидается ровно `ok`.
+Ожидается ровно `ok`. Перенесите копию в защищённое внешнее хранилище.
+Альтернатива — остановить **всех** писателей (включая установленный Fleet v1 ingress)
+и скопировать DB + `-wal` + `-shm` вместе. Нельзя копировать только основной файл
+при работающем WAL-писателе; том и ключи Fleet v1 не удаляются молча.
 
 ## Docker volumes
 
-Остановите mutation-capable services или используйте application-consistent snapshot. Архивируйте volume без изменения ownership:
+Остановите службы-писатели только в согласованное окно работ или используйте
+application-consistent snapshot. Сначала запишите, какие службы работали.
+При установленном Fleet v1 ingress это ещё один писатель БД: команда для текущего
+Compose-проекта ниже сама по себе не доказывает остановку всех писателей.
 
 ```bash
+docker compose ps --status running --services
 docker compose stop panel mtproxy
 # Выполните проверенный volume snapshot/backup механизм вашей платформы.
-docker compose up -d
+# Верните только службы, работавшие до окна работ.
 ```
 
 Не удаляйте volume после backup. `telemt-config` содержит credentials и API-mutated source of truth; удаление заставит entrypoint повторно импортировать исходный `users.conf`.
 
-Runtime-команда `proxyctl uninstall` по умолчанию сохраняет Compose named volumes, но сохранность на том же host не заменяет backup. `uninstall --purge-data` фиксирует отдельную crash-resumable фазу удаления томов; используйте её только после off-host копирования и проверки restore snapshot выше, а interrupted uninstall продолжайте с тем же flag.
+Штатный `uninstall` нативного установщика сохраняет постоянные данные;
+`uninstall --purge-data` — отдельная необратимая операция. Применяйте её только
+после проверенного восстановления внешней резервной копии и повторяйте тот же
+флаг при прерывании удаления.
 
 ## Naive generation
 

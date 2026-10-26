@@ -77,41 +77,42 @@ docker compose images --format json > "$backup/compose-images.json"
 
 ## SQLite
 
-Prefer the online backup API. Example for the panel container:
+Use SQLite's online backup command on the host against the panel's actual `/data` mount.
+The operator needs the `sqlite3` CLI on the host for this backup procedure; the running
+panel and installer do not need Python or SQLite CLI. Use the root-only `$backup`
+directory created above, not a file inside the live container:
 
 ```bash
-docker exec -i proxy-control-panel python - <<'PY'
-import sqlite3
-src = sqlite3.connect('/data/panel.sqlite3')
-dst = sqlite3.connect('/data/panel.backup.sqlite3')
-with dst:
-    src.backup(dst)
-print(dst.execute('PRAGMA integrity_check').fetchone()[0])
-dst.close(); src.close()
-PY
+db_dir=$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' proxy-control-panel)
+test -n "$db_dir" && sudo test -f "$db_dir/panel.sqlite3" || exit 1
+sudo sqlite3 "$db_dir/panel.sqlite3" ".backup '$backup/panel.sqlite3'"
+sudo sqlite3 "$backup/panel.sqlite3" 'PRAGMA integrity_check;'
 ```
 
-Copy the backup file to protected storage and remove the staging copy. Alternatively stop the writer and copy DB + `-wal` + `-shm` together. Never copy only the main DB while a WAL writer is active.
-
-```bash
-sqlite3 panel.backup.sqlite3 'PRAGMA integrity_check;'
-```
-
-The expected output is exactly `ok`.
+The expected integrity output is exactly `ok`. Copy the backup to protected off-host
+storage. Alternatively stop **every** writer (including any installed legacy Fleet v1
+ingress) and copy DB + `-wal` + `-shm` together. Never copy just the main DB while a
+WAL writer is active; an installed Fleet v1 writer must not be removed silently.
 
 ## Docker volumes
 
-Stop mutation-capable services or use an application-consistent snapshot:
+Stop mutation-capable services only during an explicitly scheduled outage, or use
+an application-consistent snapshot. Record which services were running first.
+If legacy Fleet v1 ingress is installed, it is another database writer: do not
+use this limited Compose command as proof the database is quiescent.
 
 ```bash
+docker compose ps --status running --services
 docker compose stop panel mtproxy
 # Use the validated volume snapshot mechanism for your platform.
-docker compose up -d
+# Restart only services that were running before this outage.
 ```
 
 The `telemt-config` volume is credential-bearing and contains API-mutated source of truth. Deleting it causes the entrypoint to import the original `users.conf` again.
 
-Runtime `proxyctl uninstall` preserves Compose named volumes by default, but preservation on the same host is not a backup. `uninstall --purge-data` commits a separate crash-resumable volume-purge phase; use it only after the snapshot above has been copied off-host and restore-verified, and repeat the same flag if that uninstall is interrupted.
+The native installer's `uninstall` keeps persistent data by default; `uninstall --purge-data`
+is a separate destructive operation. Use it only after an off-host snapshot has been
+restore-tested and repeat the same flag if an uninstall is interrupted.
 
 ## Naive generation
 

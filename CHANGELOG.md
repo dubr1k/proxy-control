@@ -10,12 +10,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The panel container runs the native Rust `panel` executable on Debian, without a Python interpreter. Administrative commands use `panel cli`; secret staging and health checks are subcommands of the same executable. UID 10001, GID 101, socket groups and the read-only runtime contract are unchanged.
 - Panel image builds reject an incomplete or stale shared-source generation. `pc_common/RELEASE` must match `VERSION`; the release builder checks the same invariant before assembling an archive.
 - The Rust panel implements the existing MTProxy, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, dashboard, host-resource and version APIs, including their validation, secret-free projections, one-time reveals and manager-error responses.
+- Panel self-updates refuse installed Fleet v1 systemd units, on-disk overlays and legacy Compose containers in either historical project before touching release files or the database. Existing certificates, journals and volumes require an explicit migration to Fleet v2.
 
 ### Fixed
 - Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.
 
 ### Removed
 - Fleet v1 node registration, certificate revocation and raw-command controls, including their OpenAPI operations. The Nodes screen and navigation badge use `/api/nodes` and linked panels.
+- Fleet v1 agent and ingress Compose overlays, Dockerfiles, example environments and systemd units are no longer shipped; existing deployments are not automatically removed.
 
 ### Installer
 - Rust service adapters manage WARP, MCP and the version-agent. The agent installs and owns its complete release tree and executes the prebuilt Rust binary; repair accepts pre-4.0 Python checkpoints and preserves operator environment values. MCP uses the panel binary CLI and version overrides. WARP downloads are removed after success or failure.
