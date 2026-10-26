@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Backup and restore drill (v0.6) on an installed node, as root, the way docs/BACKUP_RESTORE
-says: fixture data through the panel API → a backup (the panel's online SQLite copy, the
+"""Backup and restore drill on an installed lab node, as root, the way docs/BACKUP_RESTORE
+says: fixture data through the panel API → a host-side online SQLite copy, the
 master key apart, each manager's state directory and the router's state and secrets with
 their writers stopped, SHA256SUMS) → the generation broken on purpose (database, states,
 secrets gone) → restored from the backup (`master-key-verify` first) → the same users,
@@ -13,6 +13,7 @@ bytes are the contract. Everything it creates carries its own prefix and is remo
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import http.cookiejar
 import json
@@ -21,6 +22,7 @@ import secrets
 import shutil
 import ssl
 import subprocess
+import sqlite3
 import sys
 import tarfile
 import tempfile
@@ -36,6 +38,15 @@ ROUTER_STATE = Path("/var/lib/xray-router")
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def sqlite_online_backup(source: Path, destination: Path) -> str:
+    with closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as database:
+        with closing(sqlite3.connect(destination)) as backup:
+            database.backup(backup)
+            integrity = backup.execute("PRAGMA integrity_check").fetchone()[0]
+    os.chmod(destination, 0o600)
+    return integrity
 
 
 def run(*argv: str, check: bool = True, timeout: int = 600) -> str:
@@ -158,8 +169,8 @@ class Drill:
                                 {"grants": [{"protocol": "naive", "node_id": "local", "runtime_username": f"{self.prefix}-cl", "options": {}}]})
         self.check("fixture.grant_issued", started["status"] == "succeeded", json.dumps(started))
         url = None
-        # v0.10: the subscription is issued with the client and its reveal token comes back
-        # from the create; a second POST would be refused («already has an active subscription»).
+        # The subscription is issued with the client and its reveal token comes back
+        # from create; a second POST would be refused («already has an active subscription»).
         token = client.get("subscription_reveal_token")
         if not token:
             status, body = self.api.request(f"/api/clients/{self.client_id}/subscription")
@@ -185,15 +196,11 @@ class Drill:
             return 0
 
     def take_backup(self) -> None:
-        # The panel: SQLite through the online backup API, integrity checked, the master key apart.
-        out = run("docker", "exec", "-i", "proxy-control-panel", "python", "-c",
-                  "import sqlite3; s=sqlite3.connect('/data/panel.sqlite3'); d=sqlite3.connect('/data/panel.backup.sqlite3');\n"
-                  "d.execute('PRAGMA journal_mode=DELETE')\n"
-                  "with d: s.backup(d)\n"
-                  "print(d.execute('PRAGMA integrity_check').fetchone()[0]); d.close(); s.close()")
-        self.check("backup.sqlite_online_copy_ok", out.strip() == "ok", out[-100:])
-        run("docker", "cp", "proxy-control-panel:/data/panel.backup.sqlite3", str(self.backup / "panel.sqlite3"))
-        run("docker", "exec", "proxy-control-panel", "rm", "-f", "/data/panel.backup.sqlite3")
+        # Python belongs to this external lab controller, never to the native panel image.
+        mounts = json.loads(run("docker", "inspect", "proxy-control-panel"))[0]["Mounts"]
+        data = Path(next(mount["Source"] for mount in mounts if mount["Destination"] == "/data"))
+        integrity = sqlite_online_backup(data / "panel.sqlite3", self.backup / "panel.sqlite3")
+        self.check("backup.sqlite_online_copy_ok", integrity == "ok", integrity)
         shutil.copyfile(self.project / "secrets/panel-master-key", self.keys / "panel-master-key")
         os.chmod(self.keys / "panel-master-key", 0o600)
         # Each generation with its writer stopped: the managers and the router, not the daemons.
@@ -238,8 +245,8 @@ class Drill:
             "cp /backup/panel.sqlite3 /data/panel.sqlite3 && chown 10001:10001 /data/panel.sqlite3 && chmod 0600 /data/panel.sqlite3")
         # The pair proven before the panel starts: `master-key-verify` exits non-zero when the
         # key and the database do not belong together (docs/BACKUP_RESTORE).
-        verify = subprocess.run(["docker", "run", "--rm", "-v", f"{volume}:/data", "-v", f"{self.keys}:/key:ro", "--entrypoint", "python",
-                                 "mtproxy-panel:latest", "-m", "panel.cli", "--database", "/data/panel.sqlite3", "master-key-verify", "--path", "/key/panel-master-key"],
+        verify = subprocess.run(["docker", "run", "--rm", "-v", f"{volume}:/data", "-v", f"{self.keys}:/key:ro", "--entrypoint", "/usr/local/bin/panel",
+                                 "mtproxy-panel:latest", "cli", "--database", "/data/panel.sqlite3", "master-key-verify", "--path", "/key/panel-master-key"],
                                 capture_output=True, text=True, timeout=120)
         self.check("restore.master_key_verify_matches", verify.returncode == 0, (verify.stdout + verify.stderr)[-200:])
         self.report["facts"]["master_key_verify"] = verify.stdout.strip()[-160:]

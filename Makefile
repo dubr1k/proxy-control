@@ -27,10 +27,14 @@ lab-reset:
 	$(LAB) reset
 
 lab-smoke:
-	$(LAB) run --mode smoke --output lab-results
+	@test -n "$(RELEASE_ARCHIVE)" && test -n "$(RELEASE_SHA256)" || { echo "set RELEASE_ARCHIVE and RELEASE_SHA256" >&2; exit 2; }
+	$(LAB) run --mode smoke --output lab-results \
+	  --release-archive $(RELEASE_ARCHIVE) --release-sha256 $(RELEASE_SHA256)
 
 lab-full:
-	$(LAB) run --mode full --output lab-results
+	@test -n "$(RELEASE_ARCHIVE)" && test -n "$(RELEASE_SHA256)" || { echo "set RELEASE_ARCHIVE and RELEASE_SHA256" >&2; exit 2; }
+	$(LAB) run --mode full --output lab-results \
+	  --release-archive $(RELEASE_ARCHIVE) --release-sha256 $(RELEASE_SHA256)
 
 # Release acceptance runs against one exact archive:
 #   make lab-release RELEASE_ARCHIVE=dist/proxy-control-v2.0.0.tar.gz \

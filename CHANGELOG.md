@@ -21,6 +21,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The panel container runs the native Rust `panel` executable on Debian, without a Python interpreter. Administrative commands use `panel cli`; secret staging and health checks are subcommands of the same executable. UID 10001, GID 101, socket groups and the read-only runtime contract are unchanged.
 - Panel image builds reject an incomplete or stale shared-source generation. `pc_common/RELEASE` must match `VERSION`; the release builder checks the same invariant before assembling an archive.
 - The Rust panel implements the existing MTProxy, NaiveProxy, Mieru, AmneziaWG, TrustTunnel, dashboard, host-resource and version APIs, including their validation, secret-free projections, one-time reveals and manager-error responses.
+- Fleet, backup and QEMU acceptance launch the native panel and installer commands. QEMU smoke
+  remains offline and checks invalid-config refusal without host mutations; the full modes run
+  the native lifecycle matrix. The external backup controller copies SQLite online from the
+  inspected data mount without requiring Python inside the panel container.
 
 ### Fixed
 - Rotating an MTProxy key on its protocol page replaces the credential kept for client links and subscriptions. Deleting the account also removes its grant and revokes its kept credential, matching the other protocol pages.

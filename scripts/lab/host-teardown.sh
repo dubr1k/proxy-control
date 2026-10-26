@@ -17,7 +17,7 @@ RELEASE_ROOT=${RELEASE_ROOT:-/tmp/proxy-control-release/proxy-control}
 
 # 1. The installer's own generation, purged the way the runner purges it.
 if [[ -d $RELEASE_ROOT ]]; then
-  ( cd "$RELEASE_ROOT" && PYTHONPATH="$RELEASE_ROOT" python3 -m installer.cli --root / uninstall --purge-data >/dev/null 2>&1 ) || true
+  "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer" --root / uninstall --purge-data >/dev/null 2>&1 || true
 fi
 # Both projects: 3.0 renamed the stack `mtproxy` to `proxy_panel_by_dubr1k`.
 for project in proxy_panel_by_dubr1k mtproxy; do

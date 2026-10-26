@@ -48,7 +48,7 @@ def panel_session(panel_host):
     import httpx
 
     password = secrets.token_urlsafe(24)
-    sh("python", "-m", "panel.cli", "create-admin", "--username", "awgremote", "--role", "owner",
+    sh("/usr/local/bin/panel", "cli", "create-admin", "--username", "awgremote", "--role", "owner",
        "--password-stdin", input=password + "\n", check=True)
     http = httpx.Client(base_url="http://127.0.0.1:8787", headers={"Host": panel_host}, timeout=60)
     csrf = http.get("/login").cookies["panel_csrf"]

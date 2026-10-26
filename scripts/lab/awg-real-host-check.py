@@ -52,7 +52,7 @@ def suffix(version):
 assert os.environ.get("AWG_REAL_HOST") == "1" and os.geteuid() == 0, "lab host only: AWG_REAL_HOST=1, root"
 WORK.mkdir(exist_ok=True)
 password = secrets.token_urlsafe(24)
-sh("docker", "exec", "-i", "proxy-control-panel", "python", "-m", "panel.cli", "create-admin", "--username", "awgcheck",
+sh("docker", "exec", "-i", "proxy-control-panel", "/usr/local/bin/panel", "cli", "create-admin", "--username", "awgcheck",
    "--role", "owner", "--password-stdin", input=password + "\n", check=True)
 http = httpx.Client(base_url="http://127.0.0.1:8787", headers={"Host": PANEL_HOST}, timeout=30)
 page = http.get("/login")

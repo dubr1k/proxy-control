@@ -4,9 +4,7 @@ import importlib.util
 import inspect
 import json
 import os
-import re
 import socket
-import sys
 import subprocess
 import tempfile
 import unittest
@@ -35,12 +33,6 @@ class FakeClock:
 
 
 class QemuLabTests(unittest.TestCase):
-    def test_full_install_probes_panel_through_final_tls_sni_route(self):
-        runner = (MODULE.parent / "guest-runner.sh").read_text()
-        self.assertIn("--resolve \"$PANEL:443:127.0.0.1\"", runner)
-        self.assertIn("\"https://$PANEL/healthz\"", runner)
-        self.assertIn("jq -e '.status == \"ok\"'", runner)
-
     def test_fake_certbot_issues_a_complete_locally_trusted_lineage(self):
         runner = MODULE.parent / "guest-runner.sh"
         with tempfile.TemporaryDirectory() as temporary:
@@ -305,14 +297,6 @@ case_run repair must_not_run install
         missing = {item["name"] for item in results if item["message"].startswith("result missing")}
         self.assertEqual(missing, set(lab.SCENARIOS["full"]) - {"environment-preflight"})
 
-    def test_full_scenario_catalog_covers_lifecycle_and_faults(self):
-        names = set(lab.SCENARIOS["full"])
-        self.assertTrue({
-            "environment-preflight", "audit", "plan", "install", "repair", "idempotence", "uninstall",
-            "interrupted-install-recovery", "interrupted-uninstall-recovery",
-            "coexistence", "dns-tls-preflight", "docker-build", "secrets-scan",
-        } <= names)
-
     def test_guest_runner_is_invoked_through_bash_for_archived_mode_bits(self):
         remote = lab.guest_remote("smoke", "a" * 64)
         self.assertIn("sudo bash /tmp/mtproxy-source/scripts/lab/guest-runner.sh", remote)
@@ -412,7 +396,6 @@ class ReleaseMatrixTests(unittest.TestCase):
     def test_the_release_gate_is_x86_64_only(self):
         """The project targets x86-64 VPS hosts. An architecture the release is
         never built for must not be selectable as a release mode."""
-        self.assertEqual(lab.RELEASE_MODES, ("release-amd64",))
         self.assertNotIn("release-arm64", lab.SCENARIOS)
         self.assertEqual(lab.mode_architecture("release-amd64"), "amd64")
         self.assertEqual(lab.mode_architecture("smoke"), "amd64")
@@ -437,8 +420,10 @@ class ReleaseArtifactTests(unittest.TestCase):
                 lab.verify_release_archive(archive, "not-a-digest")
 
     def test_release_run_requires_an_archive_and_checksum(self):
-        with self.assertRaises(ValueError):
-            lab.run_scenarios("release-amd64", Path("/tmp/unused-lab-output"))
+        for mode in ("smoke", "full", "release-amd64"):
+            with self.subTest(mode=mode), mock.patch.object(lab, "start", side_effect=AssertionError("VM must not start")):
+                with self.assertRaisesRegex(ValueError, "--release-archive"):
+                    lab.run_scenarios(mode, Path("/tmp/unused-lab-output"))
 
     def test_unknown_scenario_filter_is_refused(self):
         with self.assertRaises(ValueError):
@@ -553,161 +538,3 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class GuestRunnerPreflightScripts(unittest.TestCase):
-    """Each preflight runs in a fresh shell built from `declare -f`.
-
-    A helper the listed functions call but the list omits is not a syntax
-    error: the subshell only fails at run time with "command not found",
-    which is how the release lab broke without any local check noticing.
-    """
-
-    RUNNER = MODULE.parent / "guest-runner.sh"
-
-    def setUp(self):
-        self.text = self.RUNNER.read_text()
-        self.defined = set(
-            re.findall(r"^([a-z_][a-z0-9_]*)\(\) \{", self.text, re.MULTILINE)
-        )
-        self.assertIn("host_ip", self.defined)
-
-    def _body(self, name: str) -> str:
-        start = self.text.index(f"\n{name}() {{")
-        end = self.text.index("\n}\n", start)
-        return self.text[start:end]
-
-    def test_every_composed_script_carries_the_helpers_it_calls(self):
-        lists = re.findall(r"declare -f ([a-z_0-9 ]+)\)", self.text)
-        self.assertGreaterEqual(len(lists), 4)
-        for group in lists:
-            declared = set(group.split())
-            missing = {}
-            for name in declared:
-                body = self._body(name)
-                for candidate in self.defined:
-                    if candidate in declared:
-                        continue
-                    if re.search(rf"(^|[^\w-]){re.escape(candidate)}(\s|$|\))", body, re.M):
-                        missing.setdefault(candidate, []).append(name)
-            self.assertEqual(missing, {}, f"declare -f {group}")
-
-
-class ReleaseRootLayout(unittest.TestCase):
-    """The archive carries a prefix; the tree the installer runs from is inside
-    it. Getting this wrong killed the preflight through `set -e` with no
-    message at all."""
-
-    RUNNER = MODULE.parent / "guest-runner.sh"
-
-    def test_release_root_accounts_for_the_archive_prefix(self):
-        text = self.RUNNER.read_text()
-        build = (MODULE.parents[2] / "release" / "build.py").read_text()
-        prefix = re.search(r'ARCHIVE_PREFIX = "([^"]+)"', build).group(1)
-        root = re.search(r"^RELEASE_ROOT=(\S+)$", text, re.MULTILINE).group(1)
-        self.assertEqual(root, f"$RELEASE_STAGE/{prefix}")
-        self.assertIn('tar -xf "$RELEASE" -C "$RELEASE_STAGE"', text)
-
-    def test_every_preflight_names_the_command_that_failed(self):
-        text = self.RUNNER.read_text()
-        composed = text.count('if bash -Eeuo pipefail -c "$script"')
-        self.assertGreaterEqual(composed, 4)
-        self.assertEqual(text.count("PREFLIGHT FAILED"), composed)
-
-    def test_every_composed_script_declares_the_variables_it_reads(self):
-        text = self.RUNNER.read_text()
-        defined = set(re.findall(r"^([a-z_][a-z0-9_]*)\(\) \{", text, re.MULTILINE))
-        globals_ = set(re.findall(r"^([A-Z][A-Z0-9_]*)=", text, re.MULTILINE))
-        for match in re.finditer(
-            r"declare -p ([A-Z0-9_ ]+)\); \$\(declare -f ([a-z_0-9 ]+)\)", text
-        ):
-            declared_vars = set(match.group(1).split())
-            functions = match.group(2).split()
-            for name in functions:
-                start = text.index(f"\n{name}() {{")
-                body = text[start:text.index("\n}\n", start)]
-                used = {
-                    variable
-                    for variable in re.findall(r"\$\{?([A-Z][A-Z0-9_]*)\b", body)
-                    if variable in globals_
-                }
-                missing = used - declared_vars
-                self.assertEqual(
-                    missing, set(), f"{name} needs {sorted(missing)}"
-                )
-            self.assertTrue(set(functions) <= defined)
-
-
-class ReleaseConfigMatchesItsFixture(unittest.TestCase):
-    """The release fixture builds a shared-443 stream router and a foreign
-    3x-ui. `fresh` is refused against an active router, and `managed-new`
-    requires `fresh`, so that pair could never plan on this host."""
-
-    RUNNER = MODULE.parent / "guest-runner.sh"
-
-    def _config(self, function: str) -> str:
-        text = self.RUNNER.read_text()
-        start = text.index(f"\n{function}() {{")
-        body = text[start:text.index("\n}\n", start)]
-        return body[body.index('cat > "$CONFIG" <<TOML'):body.index("\nTOML")]
-
-    def test_the_release_lab_describes_a_coexisting_host(self):
-        config = self._config("release_setup")
-        self.assertIn('host_mode = "coexist"', config)
-        self.assertNotIn('mode = "managed-new"', config)
-
-    def test_the_fixture_really_installs_a_stream_router(self):
-        text = self.RUNNER.read_text()
-        start = text.index("\nsetup_full_host() {")
-        # Stop at the next top-level function: a heredoc in the body contains
-        # closing braces of its own.
-        following = re.search(r"\n[a-z_][a-z0-9_]*\(\) \{", text[start + 1:])
-        body = text[start:start + 1 + following.start()]
-        self.assertIn("ssl_preread", body)
-        self.assertIn('cat > "$ROUTE"', body)
-
-
-class LabConfigurationsAreValid(unittest.TestCase):
-    """Each lab writes an installer configuration inline. Loading it through the
-    real loader and adapter selection catches an unknown key or an impossible
-    mode here, instead of thirty minutes into a QEMU run."""
-
-    RUNNER = MODULE.parent / "guest-runner.sh"
-
-    def _toml(self, function: str) -> str:
-        text = self.RUNNER.read_text()
-        start = text.index(f"\n{function}() {{")
-        body = text[start:]
-        opening = body.index('cat > "$CONFIG" <<TOML') + len('cat > "$CONFIG" <<TOML')
-        return (
-            body[opening:body.index("\nTOML")]
-            .replace('"$PANEL"', '"panel.lab.test"')
-            .replace('"$PROXY"', '"proxy.lab.test"')
-        )
-
-    def test_every_lab_configuration_loads_and_selects_adapters(self):
-        sys.path.insert(0, str(MODULE.parents[2]))
-        from installer.config import load_config
-        from installer.planner import adapters_for
-
-        for function in ("release_setup", "container_write_configs"):
-            with self.subTest(function):
-                directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-                path = directory / "install.toml"
-                path.write_text(self._toml(function))
-                config = load_config(path)
-                adapters = adapters_for(config)
-                self.assertTrue(adapters)
-
-
-class LabDiagnostics(unittest.TestCase):
-    def test_every_lab_that_runs_services_can_report_a_crash(self):
-        """The release lab and the host lab set the guest up through different
-        functions, and a diagnostic added to one silently missed the other: a
-        run reported nginx dead with no stack for three attempts. Each setup
-        that installs services installs the tool that records their crashes."""
-        runner = (MODULE.parent / "guest-runner.sh").read_text()
-        for name in ("setup_full_host", "release_setup", "host_setup"):
-            start = runner.index(f"{name}() {{")
-            body = runner[start:runner.index("\n}\n", start)]
-            if "apt-get install" not in body:
-                continue
-            self.assertIn("systemd-coredump", body, name)

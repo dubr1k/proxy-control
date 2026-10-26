@@ -10,7 +10,6 @@ ROOT=/tmp/mtproxy-source
 if [[ ${MODE:-} == container || ${MODE:-} == host ]]; then
   ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 fi
-FIXTURE=/tmp/proxyctl-host
 PROXY=proxy.lab.test
 PANEL=panel.lab.test
 ROUTE=/etc/nginx/stream.d/routes.conf
@@ -162,90 +161,51 @@ add_hosts() {
   fi
 }
 
-make_fixture() {
-  rm -rf "$FIXTURE"
-  mkdir -p "$FIXTURE/etc/nginx/stream.d" "$FIXTURE/etc/nginx/sites-enabled" \
-    "$FIXTURE/usr/local/x-ui/bin" "$FIXTURE/etc/letsencrypt/live/$PROXY" \
-    "$FIXTURE/etc/letsencrypt/live/$PANEL" "$FIXTURE/var/lib/lab-status"
-  cat > "$FIXTURE/etc/nginx/nginx.conf" <<'EOF'
-stream { include /etc/nginx/stream.d/*.conf; }
-EOF
-  cat > "$FIXTURE$ROUTE" <<'EOF'
-map $ssl_preread_server_name $shared_backend {
-    old-xray.lab.test 127.0.0.1:9443;
-    default 127.0.0.1:8443;
-}
-server { listen 443; proxy_pass $shared_backend; ssl_preread on; }
-EOF
-  cat > "$FIXTURE/usr/local/x-ui/bin/config.json" <<'EOF'
-{"inbounds":[{"tag":"xray-reality","protocol":"vless","listen":"127.0.0.1","port":9443,"streamSettings":{"security":"reality","realitySettings":{"serverNames":["old-xray.lab.test"]}}}],"outbounds":[{"tag":"warp"}]}
-EOF
-  printf 'active\n' > "$FIXTURE/var/lib/lab-status/nginx"
-  printf 'active\n' > "$FIXTURE/var/lib/lab-status/xray"
-  printf 'active\n' > "$FIXTURE/var/lib/lab-status/3x-ui"
-  printf 'active\n' > "$FIXTURE/var/lib/lab-status/warp"
-  openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$PROXY" \
-    -addext "subjectAltName=DNS:$PROXY,DNS:$PANEL" \
-    -keyout /tmp/lab.key -out /tmp/lab.crt >/dev/null 2>&1
-  for domain in "$PROXY" "$PANEL"; do
-    cp /tmp/lab.crt "$FIXTURE/etc/letsencrypt/live/$domain/fullchain.pem"
-    cp /tmp/lab.key "$FIXTURE/etc/letsencrypt/live/$domain/privkey.pem"
-  done
-  find "$FIXTURE" -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/fixture.before
-}
-
-proxy_args() {
-  printf '%s\n' --proxy-domain "$PROXY" --panel-domain "$PANEL" --email lab@example.invalid \
-    --route-file "$ROUTE" --users owner,phone --protocol-probe /usr/local/bin/lab-probe \
-    --source-dir "$ROOT"
-}
-
 archive_integrity() {
   [[ -n $EXPECTED_ARCHIVE_SHA ]]
   [[ $(sha256sum /tmp/mtproxy-source.tar | cut -d' ' -f1) == "$EXPECTED_ARCHIVE_SHA" ]]
   [[ $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true) == "" ]] # archive is intentionally metadata-free
-  test -f "$ROOT/scripts/proxyctl.py"
+  test -f "$ROOT/scripts/lab/guest-runner.sh"
 }
 
-audit_fixture() {
-  python3 "$ROOT/scripts/proxyctl.py" --root "$FIXTURE" audit \
-    --proxy-domain "$PROXY" --panel-domain "$PANEL" --json >/tmp/audit.json
-  python3 - <<'PY'
-import json
-r=json.load(open('/tmp/audit.json'))
-assert r['nginx']['sni_map_count'] == 1
-assert r['xray']['installed'] and r['xray']['outbound_tags'] == ['warp']
-assert all(d['dns_matches_host'] and d['tls_certificate_present'] for d in r['domains'])
-PY
+native_smoke_artifact() {
+  test -s "$RELEASE_SHA"
+  [[ $(sha256sum "$RELEASE" | cut -d' ' -f1) == "$(cat "$RELEASE_SHA")" ]]
+  rm -rf "$RELEASE_STAGE"
+  mkdir -p "$RELEASE_STAGE"
+  tar -xzf "$RELEASE" -C "$RELEASE_STAGE"
+  release_artifact_integrity
 }
 
-plan_fixture() {
-  mapfile -t args < <(proxy_args)
-  python3 "$ROOT/scripts/proxyctl.py" --root "$FIXTURE" plan "${args[@]}" --json >/tmp/plan.json
-  python3 -m json.tool /tmp/plan.json >/dev/null
+native_smoke_cli() {
+  local binary="$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer"
+  test "$("$binary" --version)" = "proxy-control-installer $(cat "$RELEASE_ROOT/VERSION")"
+  "$binary" verify-release manifest "$RELEASE_ROOT/release/external-artifacts.json" >/tmp/native-smoke-cli.out
+  grep -qx 'manifest: ok' /tmp/native-smoke-cli.out
 }
 
-coexist_fixture() {
-  find "$FIXTURE" -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/fixture.after
-  cmp /tmp/fixture.before /tmp/fixture.after
-  grep -qx active "$FIXTURE"/var/lib/lab-status/{nginx,xray,3x-ui,warp}
+native_smoke_invalid_config() {
+  local fixture=/tmp/native-installer-smoke rc
+  rm -rf "$fixture"
+  mkdir -p "$fixture"
+  printf 'operator-owned bytes\n' > "$fixture/operator-file"
+  printf 'schema = [\n' > "$fixture/invalid.toml"
+  find "$fixture" -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/native-smoke-before.sha256
+  if "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer" --root "$fixture" \
+      plan --config "$fixture/invalid.toml" --json >/tmp/native-smoke-plan.out 2>&1; then
+    return 1
+  else
+    rc=$?
+    test "$rc" -eq 2
+  fi
+  grep -q 'BLOCKED:.*invalid TOML' /tmp/native-smoke-plan.out
 }
 
-dns_tls_fixture() {
-  python3 - <<'PY'
-import json
-r=json.load(open('/tmp/audit.json'))
-assert {d['domain'] for d in r['domains']} == {'proxy.lab.test','panel.lab.test'}
-assert all(d['a_records'] == ['10.0.2.15'] for d in r['domains'])
-assert all(not d['unhandled_aaaa'] for d in r['domains'])
-assert all(d['tls_certificate_present'] for d in r['domains'])
-PY
+native_smoke_coexistence() {
+  find /tmp/native-installer-smoke -type f -print0 | sort -z | xargs -0 sha256sum >/tmp/native-smoke-after.sha256
+  cmp /tmp/native-smoke-before.sha256 /tmp/native-smoke-after.sha256
 }
 
-secrets_scan() {
-  ! grep -ERi '(panel-bootstrap-password|telemt-api-token)[=:][^[:space:]]+|tg://proxy\?.*secret=' \
-    /tmp/audit.json /tmp/plan.json 2>/dev/null
-}
 
 write_fake_certbot() {
   local destination=$1
@@ -421,95 +381,34 @@ EOF
   systemctl is-active nginx lab-xray lab-warp lab-3x-ui > /tmp/status.before
 }
 
-full_environment_preflight() {
-  local started log script
-  started=$(python3 -c 'import time; print(time.time())')
-  log=$(mktemp)
-  script="$(declare -p PROXY PANEL ROUTE BASELINE); $(declare -f host_ip add_hosts write_fake_certbot setup_full_host); setup_full_host"
-  # `set -e` kills the composed script silently when a `test` or a `read` fails,
-  # and the report then carries whatever apt printed last. Name the command.
-  script="trap 'printf \"PREFLIGHT FAILED: %s\\n\" \"\$BASH_COMMAND\" >&2' ERR; $script"
-  if bash -Eeuo pipefail -c "$script" >"$log" 2>&1; then
-    emit environment-preflight passed "$started"
-    rm -f "$log"
-    return 0
-  fi
-  emit environment-preflight failed "$started" "$(tail -n 5 "$log" | tr '\n' ' ')"
-  sed 's/^/environment-preflight: /' "$log" >&2
-  rm -f "$log"
-  return 1
-}
-
-runtime_cmd() {
-  mapfile -t args < <(proxy_args)
-  python3 "$ROOT/scripts/proxyctl.py" "$1" "${args[@]}"
-}
-
-full_audit() { python3 "$ROOT/scripts/proxyctl.py" audit --proxy-domain "$PROXY" --panel-domain "$PANEL" --json >/tmp/audit.json; }
-full_plan() { runtime_cmd plan >/tmp/plan.json; }
-full_install() {
-  test ! -e /var/lib/proxy-control/runtime.json
-  test ! -e /var/lib/proxy-control/ownership.json
-  test ! -e /opt/mtproxy-shared443
-  run_captured /tmp/install.out runtime_cmd install
-  systemctl is-active docker nginx >/dev/null
-  curl --insecure --fail --silent --show-error \
-    --resolve "$PANEL:443:127.0.0.1" "https://$PANEL/healthz" | jq -e '.status == "ok"' >/dev/null
-  test "$(stat -c %a /var/lib/proxy-control/runtime.json)" = 600
-  jq -e '.status == "active" and (.owned_packages == [])' /var/lib/proxy-control/runtime.json >/dev/null
-  test "$(stat -c %a /var/lib/proxy-control/ownership.json)" = 600
-}
-full_repair() { python3 "$ROOT/scripts/proxyctl.py" repair; test "$(jq -r .status /var/lib/proxy-control/runtime.json)" = active; }
-full_idempotence() {
-  local before after
-  before=$(sha256sum /var/lib/proxy-control/runtime.json | cut -d' ' -f1)
-  run_captured /tmp/idempotent.out runtime_cmd install
-  after=$(sha256sum /var/lib/proxy-control/runtime.json | cut -d' ' -f1)
-  [[ $before == "$after" ]]
-}
-full_uninstall() {
-  python3 "$ROOT/scripts/proxyctl.py" uninstall
-  python3 "$ROOT/scripts/proxyctl.py" uninstall
-  test ! -e /var/lib/proxy-control/runtime.json
-  test ! -e /var/lib/proxy-control/ownership.json
-  sha256sum -c "$BASELINE" >/dev/null
-  systemctl is-active nginx lab-xray lab-warp lab-3x-ui > /tmp/status.after
-  cmp /tmp/status.before /tmp/status.after
-  dpkg-query -W nginx-full docker.io docker-compose-v2 certbot >/dev/null
-  rm -rf /opt/mtproxy-shared443
-}
 
 interrupt_install_recovery() {
-  test ! -e /var/lib/proxy-control/runtime.json
-  test ! -e /var/lib/proxy-control/ownership.json
-  test ! -e /opt/mtproxy-shared443
-  mapfile -t args < <(proxy_args)
-  set +e
-  PROXYCTL_TEST_CRASH_AFTER_PHASE=project_rendered \
-    python3 "$ROOT/scripts/proxyctl.py" install "${args[@]}" >/tmp/interrupted-install.log 2>&1
-  local interrupted_rc=$?
-  set -e
-  test "$interrupted_rc" -eq 137
-  test -f /var/lib/proxy-control/runtime.json
-  test "$(jq -r .phase /var/lib/proxy-control/runtime.json)" = project_rendered
-  run_captured /tmp/recovered-install.out runtime_cmd install
-  test "$(jq -r .status /var/lib/proxy-control/runtime.json)" = active
-  test -f /var/lib/proxy-control/ownership.json
+  # Reinstall a native generation, then replay a valid interrupted native checkpoint.
+  release_audit
+  release_install
+  release_crash_every_phase
+  test "$(jq -r .status "$INSTALLER_STATE")" = active
 }
 
 interrupt_uninstall_recovery() {
-  test "$(jq -r .status /var/lib/proxy-control/runtime.json)" = active
-  test -f /var/lib/proxy-control/ownership.json
-  set +e
-  PROXYCTL_TEST_CRASH_AFTER_PHASE=compose_down \
-    python3 "$ROOT/scripts/proxyctl.py" uninstall >/tmp/interrupted-uninstall.log 2>&1
-  local interrupted_rc=$?
-  set -e
-  test "$interrupted_rc" -eq 137
-  test "$(jq -r .phase /var/lib/proxy-control/runtime.json)" = compose_down
-  python3 "$ROOT/scripts/proxyctl.py" uninstall
-  test ! -e /var/lib/proxy-control/runtime.json
-  test ! -e /var/lib/proxy-control/ownership.json
+  # Persist the state the native engine writes immediately before its first inverse.
+  # The following real resume must remove the generation, and a second uninstall is inert.
+  python3 - "$INSTALLER_STATE" <<'UNINSTALLPY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+state = json.loads(path.read_text())
+assert state["status"] == "active"
+state["status"] = "uninstalling"
+state["purge_data"] = False
+state["rollback_target"] = "uninstalled"
+state["checkpoints"][-1]["phase"] = "rollback_in_progress"
+path.write_text(json.dumps(state))
+UNINSTALLPY
+  installer_cmd resume --json >/tmp/interrupted-uninstall.json
+  test "$(jq -r .status "$INSTALLER_STATE")" = uninstalled
+  installer_cmd uninstall --json >/tmp/interrupted-uninstall-again.json
+  test ! -e /opt/mtproxy-shared443/compose.yaml
 }
 
 docker_build_check() {
@@ -532,10 +431,6 @@ full_coexist() {
   ss -lnt | grep -q ':9443 '
 }
 
-full_dns_tls() {
-  full_audit
-  dns_tls_fixture
-}
 
 full_secrets_scan() {
   if grep -ERi 'tg://proxy\?.*secret=|telemt-api-token[=:][^[:space:]]+|panel-bootstrap-password[=:][^[:space:]]+' \
@@ -551,7 +446,7 @@ full_secrets_scan() {
 # ----------------------------------------------------------------------
 
 installer_cmd() {
-  python3 -m installer.cli --root / "$@"
+  "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer" --root / "$@"
 }
 
 stage_mita_package() {
@@ -686,7 +581,7 @@ release_artifact_integrity() {
   test -s "$RELEASE_SHA"
   [[ $(sha256sum "$RELEASE" | cut -d' ' -f1) == "$(cat "$RELEASE_SHA")" ]]
   test -f "$RELEASE_ROOT/install.sh"
-  test -f "$RELEASE_ROOT/installer/cli.py"
+  test -x "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer"
   python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['tag'] and d['commit'] and len(d['manifest_sha256'])==64" "$RELEASE_ROOT/release/release.json"
 }
 
@@ -1048,14 +943,14 @@ container_environment_preflight() {
 }
 
 container_cmd() {
-  ( cd "$RELEASE_ROOT" && PYTHONPATH="$RELEASE_ROOT" python3 -m installer.cli --root / "$@" )
+  "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer" --root / "$@"
 }
 
 container_artifact_integrity() {
   test -s "$RELEASE_SHA"
   [[ $(sha256sum "$RELEASE" | cut -d' ' -f1) == "$(cat "$RELEASE_SHA")" ]]
   test -f "$RELEASE_ROOT/install.sh"
-  test -f "$RELEASE_ROOT/installer/cli.py"
+  test -x "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer"
   python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['tag'] and d['commit'] and len(d['manifest_sha256'])==64" \
     "$RELEASE_ROOT/release/release.json"
   # The release is the only installer under test: nothing here comes from the
@@ -1184,8 +1079,8 @@ host_setup() {
   if [[ ${LAB_RESET:-0} == 1 ]]; then
     # Disposable host only: return it to a pristine state so a rerun measures
     # the installer, not the residue of the previous attempt.
-    ( cd "$RELEASE_ROOT" && PYTHONPATH="$RELEASE_ROOT" python3 -m installer.cli --root / \
-        uninstall --purge-data >/dev/null 2>&1 ) || true
+    "$RELEASE_ROOT/installer/bin/linux-amd64/proxy-control-installer" --root / \
+        uninstall --purge-data >/dev/null 2>&1 || true
     # Remove the Compose project the same way the installer detects it: by
     # label, not by container name.
     # Both projects: 3.0 renamed the stack `mtproxy` to `proxy_panel_by_dubr1k`.
@@ -1463,33 +1358,18 @@ if [[ ${GUEST_RUNNER_LIB_ONLY:-0} == 1 ]]; then
   return 0 2>/dev/null || exit 0
 fi
 
-add_hosts
-make_fixture
+if [[ $MODE == full || $MODE == release-amd64 ]]; then
+  archive_integrity
+fi
+
 if [[ $MODE == smoke ]]; then
   case_run archive-integrity archive_integrity
-  case_run audit audit_fixture
-  case_run plan plan_fixture
-  case_run coexistence coexist_fixture
-  case_run dns-tls-preflight dns_tls_fixture
-  case_run secrets-scan secrets_scan
-elif [[ $MODE == full ]]; then
-  if ! full_environment_preflight; then
-    exit "$RESULTS_FAILED"
-  fi
-  CASE_STATUS[environment-preflight]=passed
-  case_run audit full_audit environment-preflight
-  case_run plan full_plan audit
-  case_run install full_install plan
-  case_run docker-build docker_build_check install
-  case_run repair full_repair install
-  case_run idempotence full_idempotence repair
-  case_run secrets-scan full_secrets_scan idempotence
-  case_run dns-tls-preflight full_dns_tls idempotence
-  case_run uninstall full_uninstall idempotence
-  case_run interrupted-install-recovery interrupt_install_recovery uninstall
-  case_run interrupted-uninstall-recovery interrupt_uninstall_recovery interrupted-install-recovery
-  case_run coexistence full_coexist interrupted-uninstall-recovery
-elif [[ $MODE == release-amd64 ]]; then
+  case_run release-artifact-integrity native_smoke_artifact archive-integrity
+  case_run native-cli native_smoke_cli release-artifact-integrity
+  case_run invalid-config-refusal native_smoke_invalid_config native-cli
+  case_run coexistence native_smoke_coexistence invalid-config-refusal
+  case_run secrets-scan full_secrets_scan native-cli invalid-config-refusal
+elif [[ $MODE == full || $MODE == release-amd64 ]]; then
   if ! release_environment_preflight; then
     exit "$RESULTS_FAILED"
   fi

@@ -50,18 +50,14 @@ RELEASE_SCENARIOS = (
 )
 
 SCENARIOS = {
-    "smoke": ("archive-integrity", "audit", "plan", "coexistence", "dns-tls-preflight", "secrets-scan"),
-    "full": (
-        "environment-preflight", "audit", "plan", "install", "docker-build", "repair", "idempotence",
-        "secrets-scan", "dns-tls-preflight", "uninstall",
-        "interrupted-install-recovery", "interrupted-uninstall-recovery",
-        "coexistence",
-    ),
+    "smoke": ("archive-integrity", "release-artifact-integrity", "native-cli",
+              "invalid-config-refusal", "coexistence", "secrets-scan"),
+    "full": RELEASE_SCENARIOS,
     "release-amd64": RELEASE_SCENARIOS,
 }
 # The project targets x86-64 VPS hosts, and that is the only architecture the
 # release is built for and the lab proves.
-RELEASE_MODES = ("release-amd64",)
+RELEASE_MODES = tuple(SCENARIOS)
 
 
 def release_scenarios() -> tuple[str, ...]:
@@ -70,8 +66,6 @@ def release_scenarios() -> tuple[str, ...]:
 
 
 def mode_architecture(mode: str) -> str:
-    if mode in RELEASE_MODES:
-        return mode.split("-", 1)[1]
     return "amd64"
 
 

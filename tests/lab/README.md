@@ -1,10 +1,10 @@
 # Isolated Ubuntu 24.04 installer lab
 
-This lab boots an official, checksum-pinned Ubuntu 24.04 cloud image in QEMU. It does not use KVM, TAP, bridges, host firewall rules, host Docker, or production credentials. QEMU always uses TCG, two virtual CPUs, 3 GiB RAM, and a disposable qcow2 overlay. `smoke` uses restricted user-mode networking with no guest outbound access. `full` uses user-mode NAT only after cloud-init installs a fail-closed nftables policy: established SSH replies, slirp DNS, DHCP, and public TCP ports 80/443 are allowed; loopback is available only on the guest loopback interface, while link-local, metadata, carrier-grade NAT, documentation, multicast, RFC1918, and other destinations are rejected. The only inbound mapping in either mode is a checked random loopback TCP port forwarded to guest SSH.
+This lab boots an official, checksum-pinned Ubuntu 24.04 cloud image in QEMU. It does not use KVM, TAP, bridges, host firewall rules, host Docker, or production credentials. QEMU always uses TCG, two virtual CPUs, 3 GiB RAM, and a disposable qcow2 overlay. `smoke` keeps restricted user-mode networking with no guest outbound access. The other modes use user-mode NAT behind a fail-closed nftables policy allowing established SSH replies, slirp DNS, DHCP and public TCP ports 80/443, while rejecting private, metadata and other special-purpose destinations. The only inbound mapping is a checked random loopback TCP port forwarded to guest SSH.
 
 ## Prerequisites
 
-Ubuntu host packages: `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `openssh-client`, `curl`, `shellcheck`, and Python 3. The guest needs outbound package/image access only in `full` mode. No ACME request is made: the full fixture injects a local deterministic Certbot-compatible certificate generator, and DNS is supplied through guest-only `/etc/hosts` entries.
+Ubuntu host packages: `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `openssh-client`, `curl`, `shellcheck`, and Python 3 for the external controller. Every run requires an exact release archive containing the native host binaries. `smoke` makes no network requests and installs no packages; the full matrix needs guest package/image access. No ACME request is made: a local Certbot-compatible certificate generator issues lab certificates, with guest-only DNS.
 
 ## Commands
 
@@ -12,9 +12,9 @@ Ubuntu host packages: `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `ope
 make lab-test       # host helper tests, Bash parse check, ShellCheck
 make lab-prepare    # verify/download pinned base; create key, seed, overlay
 make lab-start      # boot and wait for cloud-init/SSH readiness
-make lab-smoke      # real VM: archive, audit, plan, fixtures, report
+make lab-smoke RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz RELEASE_SHA256=<sha256>
 make lab-reset      # stop and create a fresh overlay/ephemeral key
-make lab-full       # all lifecycle, recovery, coexistence, Docker scenarios
+make lab-full RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz RELEASE_SHA256=<sha256>
 make lab-release RELEASE_ARCHIVE=dist/proxy-control-vX.Y.Z.tar.gz \
                  RELEASE_SHA256=<sha256> \
                  [LAB_SCENARIOS="audit plan"]
@@ -28,15 +28,15 @@ Direct CLI equivalents are available through `python3 scripts/lab/qemu_lab.py {p
 
 ## Modes and isolation
 
-`smoke` is intended for TCG CI and normally completes without guest package installation. It copies `git archive HEAD` exactly into the guest, verifies the archive digest, then exercises audit/plan against deterministic Nginx/Xray/DNS/TLS fixtures and proves they remain byte-identical.
+`smoke` verifies the source snapshot and the exact native release archive, checks the native CLI/version and manifest verifier, and proves malformed TOML is refused without changing an operator-owned fixture. It does not install the panel generation, install packages or use guest outbound access. Full audit/plan and DNS/TLS acceptance remain in `full` and `release-amd64`.
 
-`full` installs Nginx, Docker/Compose, and test dependencies inside the disposable VM. It runs audit, plan, install, repair, repeat-install idempotence, uninstall twice, SIGKILL-based interrupted install/uninstall recovery, shared-443/Xray/3x-ui/WARP preservation, local DNS/TLS preflight, Compose image build verification, package/manifest checks, listener checks, and artifact secret scans. It can take well over an hour under TCG. Run `make lab-reset` before an independent full validation.
+`full` runs the complete native release matrix: audit, plan, installation, repair, repeated-install idempotence, restart recovery, interrupted-journal recovery, uninstall twice, shared-443/3x-ui preservation, real protocol clients, image checks and secret scans. Interrupted native checkpoints are replayed through the real installer. Run `make lab-reset` before an independent validation.
 
 The base cache is `${XDG_CACHE_HOME:-~/.cache}/mtproxy-installer-lab`. All mutable state and private ephemeral SSH keys are under ignored `.lab-state/`; reports are under ignored `lab-results/`. The private key is never attached as a VM drive and no production secret is embedded.
 
 ## Release acceptance
 
-`release-amd64` validates one exact release archive rather than the working tree. The controller refuses to start unless `--release-archive` and `--release-sha256` are both given and the archive hashes to that value, and the guest re-verifies the same digest before unpacking. The installer under test is the one inside that archive: the guest drives `python3 -m installer.cli` from the unpacked release, never from the checked-out repository.
+All three QEMU modes validate one exact release archive, not an interpreter from the checkout. The controller refuses to start a run without `--release-archive` and `--release-sha256`, or when the digest differs. The guest checks the archive again and executes `installer/bin/linux-amd64/proxy-control-installer` from that release. `release-amd64` and `full` select the complete release matrix; `smoke` selects the non-installing subset.
 
 Each architecture is pinned separately in `scripts/lab/image.json` (schema 2) with its official image URL, SHA-256, QEMU binary, machine, CPU, and minimum QEMU version. An architecture whose `sha256` is still `null` fails closed with a named error instead of trusting a download; record the official checksum from the `source_checksums` URL before using it. Both shipped architectures are pinned, and `test_an_unpinned_image_fails_closed` proves the refusal on a synthetic entry rather than by leaving a real one unpinned.
 
@@ -52,7 +52,7 @@ Reality TCP and XHTTP, Hysteria2 - are **not** client-tested by this matrix;
 the separate gate below is pending native-stand execution. In `existing`
 mode the installer only adopts and routes them.
 
-That matrix covers coexistence with an existing 3x-ui and an ambiguous multi-map Nginx, real protocol clients for Telemt, Naive and Mieru, Docker build verification, repair, repeated install idempotence, restart recovery, a crash injected into every durable phase, secret scans, DNS/TLS preflight, uninstall twice, a foreign holder of a fixed identity, interrupted install/uninstall recovery, and final coexistence. VLESS TCP/XHTTP and Hysteria2 are not client-tested by this matrix, as described above.
+The matrix includes coexistence with an existing 3x-ui and an ambiguous multi-map Nginx, real protocol clients for Telemt, Naive and Mieru, image verification, repair, idempotence, restart recovery, replay of each durable checkpoint phase, secret scans, DNS/TLS preflight, repeated uninstall, foreign-identity refusal and interrupted native uninstall recovery. VLESS TCP/XHTTP and Hysteria2 are not client-tested by this matrix, as described above.
 
 ### Pending managed 3x-ui real-client gate
 
@@ -172,31 +172,24 @@ blocker; do not edit a foreign route to satisfy this checklist.
 
 `--scenario NAME` (repeatable, or `LAB_SCENARIOS` through the Makefile) runs a subset. A filtered run is recorded as `filtered_scenarios` in the report and is only valid against what it declared: it can never stand in for a full release report. `qemu_lab.validate_report()` treats any required scenario missing from a full report as a failure even when the guest exits zero.
 
-### First update from an older version-agent
+### First Rust-only update
 
-The old agent cannot execute the new installer-ownership handoff during its first
-update. In the disposable acceptance host, test the exact
-`1.1.0 → candidate → reconcile-panel-update → repair` sequence. Keep the
-SHA-256-pinned candidate archive used for the update and a pre-update backup.
-After the panel reports the candidate version, run the candidate's installer
-from its extracted release directory, **before** `repair`:
+The supported migration is `3.3.0 → 4.0` through the candidate's verified
+`install-release.sh --update`, not through the old Python agent's UI update.
+Keep the SHA-256-pinned candidate archive and a pre-update backup. Exercise hosts
+both with and without an installer journal: replace and verify the Rust agent
+before requesting the panel update, then check code, unit/tmpfiles and journal
+ownership, retained operator settings, manager reconciliation and neighboring SNI.
 
-```bash
-python3 -m installer.cli reconcile-panel-update \
-  --archive /path/to/proxy-control-vX.Y.Z.tar.gz \
-  --sha256 '<independently pinned 64-character archive digest>'
-python3 -m installer.cli repair
-```
+The old UI update must fail closed without replacing the installed generation.
+A wrong digest, missing agent binary, empty running image identity or unrelated
+owned-file drift must also fail without rewriting ownership. Force a failed
+handoff in a disposable host and verify the previous code, unit/tmpfiles and
+journal are restored. Record native installer status and SQLite integrity before
+and after repair; exercise uninstall and rollback in a separately reset run.
+Then exercise a native `4.0 → 4.0.1` agent update. A healthy panel or the old
+agent's `ready` state is not proof that any of these transitions passed.
 
-The reconciliation verifies the archive, release identity, running panel
-version, every unrelated owned file, and the complete replaced file set for
-both Core and `/opt/proxy-control/version_agent`. Their checkpoints change in
-one state write; the agent's unit, environment and state remain outside this
-handoff. A
-wrong digest or foreign drift must fail without rewriting ownership. Record the
-installer status and SQLite integrity before and after repair; also exercise
-uninstall and rollback in a separately reset disposable run. Do not infer this
-transition passed from a healthy panel or from the old agent's `ready` state.
 
 `report.json` is schema 2 and records the mode, architecture, pinned image, source archive digest, release archive digest, and the plan digest the guest accepted, next to per-scenario results. `report.xml` and the sanitized `guest.log` are written beside it.
 
