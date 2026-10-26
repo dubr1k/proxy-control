@@ -153,10 +153,16 @@ pub fn compose(context: &AdapterContext, args: &[&str]) -> Result<(), Error> {
     env_files.push(format!("{project}/.env.xray-router"));
     compose_files.push(format!("{project}/compose.xray-router.yaml"));
     let overrides = format!("{project}/version-overrides/compose.versions.yaml");
-    if host(context, &overrides)?.is_file() { compose_files.push(overrides); }
+    if host(context, &overrides)?.is_file() {
+        compose_files.push(overrides);
+    }
     let mut argv = vec!["docker".to_owned(), "compose".into(), "--project-directory".into(), project.into()];
-    for path in env_files { argv.extend(["--env-file".into(), path]); }
-    for path in compose_files { argv.extend(["-f".into(), path]); }
+    for path in env_files {
+        argv.extend(["--env-file".into(), path]);
+    }
+    for path in compose_files {
+        argv.extend(["-f".into(), path]);
+    }
     argv.extend(args.iter().map(|s| (*s).into()));
     run(context, &argv.iter().map(String::as_str).collect::<Vec<_>>(), None)
 }

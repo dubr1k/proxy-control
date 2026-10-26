@@ -148,7 +148,11 @@ impl Transport for ThreeXuiClient {
             } else {
                 Box::new(socket)
             };
-            let authority = if self.host.contains(':') { format!("[{}]:{}", self.host, self.port) } else { format!("{}:{}", self.host, self.port) };
+            let authority = if self.host.contains(':') {
+                format!("[{}]:{}", self.host, self.port)
+            } else {
+                format!("{}:{}", self.host, self.port)
+            };
             let mut request = format!("{method} {path} HTTP/1.1\r\nHost: {authority}\r\nConnection: close\r\n");
             for (name, value) in headers {
                 request.push_str(&format!("{name}: {value}\r\n"));
@@ -332,7 +336,14 @@ impl<T: Transport> ThreeXuiApi<T> {
         if contract["version"] != "3.10.2" {
             return Err(failure("the 3x-ui API contract is not the pinned version"));
         }
-        Ok(Self { client, contract, base_path: base_path.into(), cookie: None, csrf: None, setting_forms: BTreeMap::new() })
+        Ok(Self {
+            client,
+            contract,
+            base_path: base_path.into(),
+            cookie: None,
+            csrf: None,
+            setting_forms: BTreeMap::new(),
+        })
     }
     fn endpoint(&self, name: &str, parameters: &BTreeMap<String, String>) -> Result<(String, String, String), Error> {
         let entry =
@@ -421,7 +432,11 @@ impl<T: Transport> ThreeXuiApi<T> {
                 (&["port"][..], "the panel objects to a port"),
                 (&["validation", "invalid"][..], "the panel says the form failed its validation"),
                 (&["path"][..], "the panel objects to a path"),
-            ].into_iter().filter(|(words,_)| words.iter().any(|word| message.contains(word))).map(|(_,hint)| hint).collect();
+            ]
+            .into_iter()
+            .filter(|(words, _)| words.iter().any(|word| message.contains(word)))
+            .map(|(_, hint)| hint)
+            .collect();
             let suffix = if hints.is_empty() { String::new() } else { format!(" ({})", hints.join("; ")) };
             return Err(failure(&format!("the local 3x-ui request to {path} was rejected{suffix}")));
         }
@@ -451,7 +466,9 @@ impl<T: Transport> ThreeXuiApi<T> {
     fn simple(&mut self, name: &str, payload: Value) -> Result<Value, Error> {
         self.call(name, payload.as_object().ok_or_else(|| failure("invalid request payload"))?, &BTreeMap::new(), true)
     }
-    pub fn authenticated(&self) -> bool { self.cookie.is_some() }
+    pub fn authenticated(&self) -> bool {
+        self.cookie.is_some()
+    }
     pub fn login(&mut self, username: &str, password: &str) -> Result<(), Error> {
         self.cookie = None;
         self.csrf = None;
@@ -461,7 +478,9 @@ impl<T: Transport> ThreeXuiApi<T> {
         if response.status != 200 {
             return Err(failure("the 3x-ui panel did not serve its login page"));
         }
-        if response.body.len() > LIMIT { return Err(failure("the 3x-ui response exceeded its bound")); }
+        if response.body.len() > LIMIT {
+            return Err(failure("the 3x-ui response exceeded its bound"));
+        }
         self.csrf = Some(parse_csrf_token(&String::from_utf8_lossy(&response.body))?);
         self.cookie = response.cookies.first().map(|v| v.split(';').next().unwrap_or("").trim().into());
         self.call(
@@ -495,8 +514,12 @@ impl<T: Transport> ThreeXuiApi<T> {
             .into_iter()
             .filter(|(key, _)| !key.starts_with("has"))
             .map(|(key, value)| {
-                let rendered = self.setting_forms.get(&key).filter(|(original, _)| original == &value)
-                    .map(|(_, rendered)| rendered.clone()).unwrap_or_else(|| form_value(&value));
+                let rendered = self
+                    .setting_forms
+                    .get(&key)
+                    .filter(|(original, _)| original == &value)
+                    .map(|(_, rendered)| rendered.clone())
+                    .unwrap_or_else(|| form_value(&value));
                 (key, Value::String(rendered))
             })
             .collect();

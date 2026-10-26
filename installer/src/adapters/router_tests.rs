@@ -311,7 +311,12 @@ fn rollback_does_not_remove_foreign_tree_when_apply_never_staged() {
     let root = TempDir::new("xui-rollback-foreign");
     let context = context(&root);
     let adapter = ThreeXuiAdapter::new(&context);
-    let action = adapter.plan(&config(), &AuditFacts::default()).unwrap().into_iter().find(|a| a.id == "three_xui.runtime").unwrap();
+    let action = adapter
+        .plan(&config(), &AuditFacts::default())
+        .unwrap()
+        .into_iter()
+        .find(|a| a.id == "three_xui.runtime")
+        .unwrap();
     let checkpoint = adapter.prepare(&action).unwrap();
     let tree = h::host(&context, "/usr/local/x-ui").unwrap();
     fs::create_dir_all(&tree).unwrap();
@@ -327,7 +332,9 @@ fn managed_templates_use_real_protocol_contract_and_distinct_clients() {
         ("vless-xhttp-domain".into(), "xhttp.example.com".into()),
         ("hysteria-domain".into(), "hy.example.com".into()),
     ]);
-    let templates = crate::three_xui_templates::managed_inbounds(&selected, &"a".repeat(43), &"b".repeat(43), Some("subscription")).unwrap();
+    let templates =
+        crate::three_xui_templates::managed_inbounds(&selected, &"a".repeat(43), &"b".repeat(43), Some("subscription"))
+            .unwrap();
     let mut ids = std::collections::BTreeSet::new();
     for (index, inbound) in templates.iter().enumerate() {
         let settings: Value = serde_json::from_str(inbound["settings"].as_str().unwrap()).unwrap();
@@ -340,7 +347,9 @@ fn managed_templates_use_real_protocol_contract_and_distinct_clients() {
             assert_eq!(inbound["listen"], "127.0.0.1");
             assert_eq!(stream["security"], "reality");
             assert_eq!(stream["realitySettings"]["dest"], "127.0.0.1:8443");
-            for client in settings["clients"].as_array().unwrap() { assert!(ids.insert(client["id"].as_str().unwrap().to_owned())); }
+            for client in settings["clients"].as_array().unwrap() {
+                assert!(ids.insert(client["id"].as_str().unwrap().to_owned()));
+            }
             assert_eq!(settings["clients"][0]["flow"], if index == 0 { "xtls-rprx-vision" } else { "" });
         } else {
             assert_eq!(stream["network"], "hysteria");
@@ -354,7 +363,12 @@ fn managed_templates_use_real_protocol_contract_and_distinct_clients() {
 #[test]
 fn reality_keypair_supports_pinned_xray_output_without_echoing_bad_output() {
     for (private_label, public_label) in [("PrivateKey", "PublicKey"), ("Private key", "Password (PublicKey)")] {
-        let pair = crate::three_xui_templates::parse_reality_keypair(&format!("{private_label}: {}\n{public_label}: {}\n", "a".repeat(43), "b".repeat(43))).unwrap();
+        let pair = crate::three_xui_templates::parse_reality_keypair(&format!(
+            "{private_label}: {}\n{public_label}: {}\n",
+            "a".repeat(43),
+            "b".repeat(43)
+        ))
+        .unwrap();
         assert_eq!(pair, ("a".repeat(43), "b".repeat(43)));
     }
     let error = crate::three_xui_templates::parse_reality_keypair("SECRET invalid private key").unwrap_err();
@@ -372,9 +386,24 @@ fn compose_preserves_sibling_env_and_overlay_order() {
     h::compose(&context, &["up", "-d", "--wait", "xray-router"]).unwrap();
     let argv = runner.argvs().pop().unwrap();
     let envs: Vec<_> = argv.windows(2).filter(|pair| pair[0] == "--env-file").map(|pair| pair[1].clone()).collect();
-    assert_eq!(envs, [".env", ".env.naive", ".env.mieru", ".env.amneziawg", ".env.trusttunnel", ".env.xray-router"].map(|name| format!("/opt/mtproxy-shared443/{name}")));
+    assert_eq!(
+        envs,
+        [".env", ".env.naive", ".env.mieru", ".env.amneziawg", ".env.trusttunnel", ".env.xray-router"]
+            .map(|name| format!("/opt/mtproxy-shared443/{name}"))
+    );
     let overlays: Vec<_> = argv.windows(2).filter(|pair| pair[0] == "-f").map(|pair| pair[1].clone()).collect();
-    assert_eq!(overlays, ["compose.yaml", "compose.naive.yaml", "compose.mieru.yaml", "compose.amneziawg.yaml", "compose.trusttunnel.yaml", "compose.xray-router.yaml"].map(|name| format!("/opt/mtproxy-shared443/{name}")));
+    assert_eq!(
+        overlays,
+        [
+            "compose.yaml",
+            "compose.naive.yaml",
+            "compose.mieru.yaml",
+            "compose.amneziawg.yaml",
+            "compose.trusttunnel.yaml",
+            "compose.xray-router.yaml"
+        ]
+        .map(|name| format!("/opt/mtproxy-shared443/{name}"))
+    );
 }
 
 #[test]
@@ -389,12 +418,17 @@ fn existing_audit_whitelists_facts_and_hashes_complete_tree() {
     h::atomic(&context, "/etc/systemd/system/x-ui.service", b"unit-content", 0o644).unwrap();
     let audit = ThreeXuiAdapter::new(&context).audit_existing().unwrap();
     let encoded = audit.to_string();
-    for secret in ["NEVER-IN-PLAN", "\"privateKey\"", "\"clients\"", "\"settings\""] { assert!(!encoded.contains(secret)); }
+    for secret in ["NEVER-IN-PLAN", "\"privateKey\"", "\"clients\"", "\"settings\""] {
+        assert!(!encoded.contains(secret));
+    }
     assert_eq!(audit["client_total"], 1);
     assert_eq!(audit["digests"]["database"], pc_host::fs::sha256_hex(b"database-content"));
     assert_eq!(audit["digests"]["unit"], pc_host::fs::sha256_hex(b"unit-content"));
     let config_digest = pc_host::fs::sha256_file(&tree.join("bin/config.json")).unwrap();
-    let identity = format!("D bin\nF bin/config.json {config_digest}\nF extra {}\nL link extra\n", pc_host::fs::sha256_hex(b"binary-content"));
+    let identity = format!(
+        "D bin\nF bin/config.json {config_digest}\nF extra {}\nL link extra\n",
+        pc_host::fs::sha256_hex(b"binary-content")
+    );
     assert_eq!(audit["digests"]["binary_tree"], pc_host::fs::sha256_hex(identity.as_bytes()));
 }
 

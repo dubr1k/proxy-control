@@ -483,8 +483,9 @@ impl Adapter for ThreeXuiAdapter {
         pc_host::fs::durable_mkdir(&staging, 0o700)?;
         let result = (|| {
             let extracted = staging.join("release");
-            pc_host::archive::safe_extract_tar(&archive, &extracted, &self.archive_manifest(&pin.sha256)?)
-                .map_err(|error| Error::other("ArtifactError", format!("3x-ui release layout/digest does not match: {error}")))?;
+            pc_host::archive::safe_extract_tar(&archive, &extracted, &self.archive_manifest(&pin.sha256)?).map_err(
+                |error| Error::other("ArtifactError", format!("3x-ui release layout/digest does not match: {error}")),
+            )?;
             let nested = extracted.join("x-ui");
             let tree = if nested.is_dir() { &nested } else { &extracted };
             let binary = tree.join("x-ui");
@@ -549,7 +550,11 @@ impl Adapter for ThreeXuiAdapter {
             if installed {
                 let ports = listening(&h::checked(&self.context, &["ss", "-lntH"])?);
                 for backend in routes.values() {
-                    let port = backend.rsplit(':').next().and_then(|port| port.parse::<u16>().ok()).ok_or_else(|| fail("invalid route backend"))?;
+                    let port = backend
+                        .rsplit(':')
+                        .next()
+                        .and_then(|port| port.parse::<u16>().ok())
+                        .ok_or_else(|| fail("invalid route backend"))?;
                     let own_listener = [8451, 2096].contains(&port) && ports.contains(&port);
                     let audited = audit["inbounds"].as_array().into_iter().flatten().any(|item| {
                         item["port"].as_u64() == Some(u64::from(port))

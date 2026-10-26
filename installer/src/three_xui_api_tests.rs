@@ -330,7 +330,12 @@ fn leaf_pin_accepts_installed_leaf_before_credentials() {
 #[test]
 fn whole_form_keeps_nested_python_dict_insertion_order() {
     let raw = br#"{"success":true,"obj":{"keep":{"z":1,"a":[true,null,{"last":2,"first":3}]},"hasKey":true}}"#;
-    let fixture = Fixture::new(vec![page(), login_response(), ApiResponse { status: 200, body: raw.to_vec(), cookies: vec![] }, response(json!({"success":true}))]);
+    let fixture = Fixture::new(vec![
+        page(),
+        login_response(),
+        ApiResponse { status: 200, body: raw.to_vec(), cookies: vec![] },
+        response(json!({"success":true})),
+    ]);
     let mut api = ThreeXuiApi::new(&fixture, "/").unwrap();
     api.login("owner", "secret").unwrap();
     api.configure_panel("/private/", 8451, "127.0.0.1", None, None).unwrap();
@@ -340,7 +345,8 @@ fn whole_form_keeps_nested_python_dict_insertion_order() {
 
 #[test]
 fn float_form_values_match_python_goldens() {
-    let cases: Value = serde_json::from_str(include_str!("../../tests/fixtures/host-golden/vectors/float-repr.json")).unwrap();
+    let cases: Value =
+        serde_json::from_str(include_str!("../../tests/fixtures/host-golden/vectors/float-repr.json")).unwrap();
     for case in cases.as_array().unwrap() {
         let text = case["json"].as_str().unwrap();
         if let Ok(value) = serde_json::from_str::<Value>(text) {
@@ -351,7 +357,11 @@ fn float_form_values_match_python_goldens() {
 
 #[test]
 fn warp_rejects_existing_tag_and_empty_confirmed_domains() {
-    let fixture = Fixture::new(vec![page(), login_response(), response(json!({"success":true,"obj":{"xraySetting":{"outbounds":[{"tag":"WARP"}],"routing":{"rules":[]}}}}))]);
+    let fixture = Fixture::new(vec![
+        page(),
+        login_response(),
+        response(json!({"success":true,"obj":{"xraySetting":{"outbounds":[{"tag":"WARP"}],"routing":{"rules":[]}}}})),
+    ]);
     let mut api = ThreeXuiApi::new(&fixture, "/").unwrap();
     api.login("owner", "secret").unwrap();
     assert!(api.configure_warp(40000, &[]).is_err());
@@ -364,7 +374,13 @@ fn warp_merges_existing_template_and_preserves_final_policy_last() {
     let final_rule = json!({"outboundTag":"direct","network":"tcp,udp"});
     let current = json!({"xraySetting":{"outbounds":[{"tag":"direct"}],"routing":{"rules":[final_rule,{"outboundTag":"blocked","domain":["geosite:private"]},final_rule]}},"outboundTestUrl":"https://example.com/probe"});
     let candidate = json!({"outbounds":[{"tag":"direct"},{"tag":"WARP","protocol":"socks","settings":{"servers":[{"address":"127.0.0.1","port":40000}]}}],"routing":{"rules":[{"outboundTag":"blocked","domain":["geosite:private"]},{"type":"field","domain":["domain:example.com","geosite:youtube"],"outboundTag":"WARP"},final_rule]}});
-    let fixture = Fixture::new(vec![page(), login_response(), response(json!({"success":true,"obj":current})), response(json!({"success":true})), response(json!({"success":true,"obj":{"xraySetting":candidate}}))]);
+    let fixture = Fixture::new(vec![
+        page(),
+        login_response(),
+        response(json!({"success":true,"obj":current})),
+        response(json!({"success":true})),
+        response(json!({"success":true,"obj":{"xraySetting":candidate}})),
+    ]);
     let mut api = ThreeXuiApi::new(&fixture, "/").unwrap();
     api.login("owner", "secret").unwrap();
     api.configure_warp(40000, &["example.com".into(), "geosite:youtube".into()]).unwrap();

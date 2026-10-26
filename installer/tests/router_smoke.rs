@@ -448,3 +448,30 @@ fn real_hidden_bootstrap_cli_rotates_and_rejects_default_credential() {
     assert!(state.lock().unwrap().rotated);
     assert!(state.lock().unwrap().settings["wholeForm"].as_str().unwrap().contains("webPort=8451"));
 }
+
+#[test]
+fn tar_layout_mismatch_fails_before_installing_or_claiming_generation() {
+    let temp = Temp::new();
+    let root = temp.0.join("root");
+    fs::create_dir_all(&root).unwrap();
+    let tree = pin_tree(&temp);
+    tar_fixture(&root, &tree);
+    let layout = tree.join("release/three-xui-layout-amd64.json");
+    let mut document: Value = serde_json::from_slice(&fs::read(&layout).unwrap()).unwrap();
+    document["entries"].as_array_mut().unwrap().pop();
+    fs::write(layout, serde_json::to_vec(&document).unwrap()).unwrap();
+    let context = AdapterContext { root: root.clone(), tree, runner: Arc::new(RecordingRunner::new()) };
+    let config =
+        installer_core::config::load_config(&repo().join("examples/installer/managed-three-xui.toml")).unwrap();
+    let adapter = ThreeXuiAdapter::new(&context);
+    let action = adapter
+        .plan(&config, &AuditFacts::default())
+        .unwrap()
+        .into_iter()
+        .find(|action| action.id == "three_xui.runtime")
+        .unwrap();
+    let checkpoint = adapter.prepare(&action).unwrap();
+    assert!(adapter.apply(&action, checkpoint).unwrap_err().to_string().contains("layout/digest"));
+    assert!(!root.join("usr/local/x-ui").exists());
+    assert!(!root.join("etc/proxy-control/three-xui-owned").exists());
+}

@@ -138,10 +138,23 @@ impl XrayRouterAdapter {
         Ok(missing)
     }
     fn checkpoint(&self, action: &Action, checkpoint: CheckpointData) -> Result<CheckpointData, Error> {
-        let required = ["owner", "adoption", "marker_value", "identities_created", "bin_preexisting", "state_preexisting", "secrets_preexisting", "ownership"];
-        if checkpoint.len() != required.len() || required.iter().any(|key| !checkpoint.contains_key(*key))
+        let required = [
+            "owner",
+            "adoption",
+            "marker_value",
+            "identities_created",
+            "bin_preexisting",
+            "state_preexisting",
+            "secrets_preexisting",
+            "ownership",
+        ];
+        if checkpoint.len() != required.len()
+            || required.iter().any(|key| !checkpoint.contains_key(*key))
             || ["bin_preexisting", "state_preexisting"].iter().any(|key| !checkpoint[*key].is_boolean())
-            || ["identities_created", "secrets_preexisting"].iter().any(|key| checkpoint[*key].as_object().is_none_or(|map| map.values().any(|value| !value.is_boolean()))) {
+            || ["identities_created", "secrets_preexisting"]
+                .iter()
+                .any(|key| checkpoint[*key].as_object().is_none_or(|map| map.values().any(|value| !value.is_boolean())))
+        {
             return Err(h::err("Xray-router checkpoint is invalid"));
         }
         if checkpoint.get("owner") != Some(&json!(action.owner))
@@ -494,11 +507,21 @@ impl Adapter for XrayRouterAdapter {
             let pinned = &selected[&format!("{member}-digest")];
             if pc_host::archive::verify_artifact(&path, pinned).is_err() {
                 let state_path = h::host(&self.context, "/var/lib/proxy-control/version-agent/state.json")?;
-                let state: Value = fs::read(state_path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(Value::Null);
+                let state: Value = fs::read(state_path)
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+                    .unwrap_or(Value::Null);
                 let component = &state["components"]["xray"];
-                let accepted = component["members"][member].as_str().filter(|digest| digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
-                if component["status"] == "rollback_failed" || accepted.is_none_or(|digest| pc_host::archive::verify_artifact(&path, digest).is_err()) {
-                    return Err(Error::other("ArtifactError", format!("installed Xray member does not match its pin: {member}")));
+                let accepted = component["members"][member].as_str().filter(|digest| {
+                    digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+                });
+                if component["status"] == "rollback_failed"
+                    || accepted.is_none_or(|digest| pc_host::archive::verify_artifact(&path, digest).is_err())
+                {
+                    return Err(Error::other(
+                        "ArtifactError",
+                        format!("installed Xray member does not match its pin: {member}"),
+                    ));
                 }
             }
         }
@@ -530,7 +553,13 @@ impl Adapter for XrayRouterAdapter {
             }
         }
         let credential = fs::read_to_string(h::host(&self.context, SECRETS[1])?)?;
-        if !credential.trim().split_once(':').is_some_and(|(user,password)| !user.is_empty() && user.len() <= 64 && (16..=128).contains(&password.len()) && user.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)) && password.bytes().all(|b| b.is_ascii_alphanumeric() || b"._~-".contains(&b))) {
+        if !credential.trim().split_once(':').is_some_and(|(user, password)| {
+            !user.is_empty()
+                && user.len() <= 64
+                && (16..=128).contains(&password.len())
+                && user.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+                && password.bytes().all(|b| b.is_ascii_alphanumeric() || b"._~-".contains(&b))
+        }) {
             return Err(h::err("the naive ingress credential is malformed"));
         }
         let probe = "/var/lib/proxy-control/router-probe.conf";
@@ -583,7 +612,9 @@ impl Adapter for XrayRouterAdapter {
             }
             let port = &selected["relay-port"];
             let output = h::checked(&self.context, &["ss", "-H", "-lnt", &format!("sport = :{port}")])?;
-            if !output.lines().filter_map(|line| line.split_whitespace().nth(3)).any(|address| [format!("0.0.0.0:{port}"), format!("*:{port}"), format!("[::]:{port}")].contains(&address.to_owned())) {
+            if !output.lines().filter_map(|line| line.split_whitespace().nth(3)).any(|address| {
+                [format!("0.0.0.0:{port}"), format!("*:{port}"), format!("[::]:{port}")].contains(&address.to_owned())
+            }) {
                 return Err(h::err("the relay inbound does not listen on its public port"));
             }
         }
@@ -668,27 +699,46 @@ mod tests {
     use pc_host::runner::RecordingRunner;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
-    fn tree() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into() }
+    fn tree() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into()
+    }
     #[test]
     fn env_bytes_match_python_kitchen_sink_golden() {
         let root = TempDir::new("router-env-golden");
-        let context = AdapterContext { root: root.path().into(), tree: tree(), runner: Arc::new(RecordingRunner::new()) };
-        let config = installer_core::config::load_config(&tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml")).unwrap();
+        let context =
+            AdapterContext { root: root.path().into(), tree: tree(), runner: Arc::new(RecordingRunner::new()) };
+        let config = installer_core::config::load_config(
+            &tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml"),
+        )
+        .unwrap();
         let adapter = XrayRouterAdapter::new(&context);
         let action = adapter.plan(&config, &AuditFacts::default()).unwrap().remove(0);
-        assert_eq!(adapter.env(&adapter.selection(&action).unwrap()).as_bytes(), fs::read(tree().join("tests/fixtures/host-golden/renders/kitchen-sink/xray_router/env")).unwrap());
+        assert_eq!(
+            adapter.env(&adapter.selection(&action).unwrap()).as_bytes(),
+            fs::read(tree().join("tests/fixtures/host-golden/renders/kitchen-sink/xray_router/env")).unwrap()
+        );
     }
     #[test]
     fn checkpoint_rejects_missing_unknown_and_wrong_typed_fields() {
         let root = TempDir::new("router-checkpoint");
-        let context = AdapterContext { root: root.path().into(), tree: tree(), runner: Arc::new(RecordingRunner::new()) };
-        let config = installer_core::config::load_config(&tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml")).unwrap();
+        let context =
+            AdapterContext { root: root.path().into(), tree: tree(), runner: Arc::new(RecordingRunner::new()) };
+        let config = installer_core::config::load_config(
+            &tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml"),
+        )
+        .unwrap();
         let adapter = XrayRouterAdapter::new(&context);
         let action = adapter.plan(&config, &AuditFacts::default()).unwrap().remove(0);
         let valid = json!({"owner":action.owner,"adoption":"absent","marker_value":"a".repeat(32),"identities_created":{},"bin_preexisting":false,"state_preexisting":false,"secrets_preexisting":{},"ownership":{}}).as_object().unwrap().clone();
         assert!(adapter.checkpoint(&action, valid.clone()).is_ok());
-        let mut bad = valid.clone(); bad.insert("unknown".into(), json!(true)); assert!(adapter.checkpoint(&action,bad).is_err());
-        let mut bad = valid.clone(); bad.remove("bin_preexisting"); assert!(adapter.checkpoint(&action,bad).is_err());
-        let mut bad = valid; bad.insert("identities_created".into(), json!({"user":"true"})); assert!(adapter.checkpoint(&action,bad).is_err());
+        let mut bad = valid.clone();
+        bad.insert("unknown".into(), json!(true));
+        assert!(adapter.checkpoint(&action, bad).is_err());
+        let mut bad = valid.clone();
+        bad.remove("bin_preexisting");
+        assert!(adapter.checkpoint(&action, bad).is_err());
+        let mut bad = valid;
+        bad.insert("identities_created".into(), json!({"user":"true"}));
+        assert!(adapter.checkpoint(&action, bad).is_err());
     }
 }

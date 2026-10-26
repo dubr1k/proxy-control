@@ -22,14 +22,14 @@ use crate::error::Error;
 #[cfg(test)]
 pub(crate) mod example;
 
-mod router_host;
-#[cfg(test)]
-mod router_tests;
 pub mod certificates;
 pub mod core;
 pub mod firewall;
 pub mod nginx;
 pub mod packages;
+mod router_host;
+#[cfg(test)]
+mod router_tests;
 pub mod three_xui;
 pub mod xray_router;
 
