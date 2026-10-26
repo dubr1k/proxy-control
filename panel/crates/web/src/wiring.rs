@@ -17,6 +17,9 @@ use std::sync::Arc;
 use panel_core::clock::SharedClock;
 use panel_core::db::Database;
 use panel_core::settings::Settings;
+use panel_metrics::sources::LocalName;
+use panel_metrics::{ManagerMeters, Metrics};
+use panel_nodes::NodeLifecycleService;
 use panel_secrets::api_keys::ApiKeyService;
 use panel_secrets::events::EventBus;
 use panel_secrets::secrets_store::SecretStore;
@@ -77,12 +80,37 @@ pub fn build(settings: Settings, static_dir: PathBuf) -> Result<AppState, String
 /// The other packages' services, in `create_app`'s order (`app.py:146-252`): protocol adapters
 /// (WP6), clients/provisioning/facade/lifecycle (WP7), subscriptions (WP9), versions (WP8), the
 /// fleet (WP11/WP12), routing and lanes (WP10), metrics (WP13). Each adds `services.insert(…)`.
-pub fn services(_core: &Arc<Core>) -> Result<Services, String> {
-    let services = Services::new();
+pub fn services(core: &Arc<Core>) -> Result<Services, String> {
+    let mut services = Services::new();
+    // `app.state.nodes = NodeLifecycleService(...)` (WP11), on the panel's clock.
+    let nodes = NodeLifecycleService::new(core.database.clone(), core.clock.clone());
+    services.insert(nodes.clone());
+    // `setup_metrics(app, settings, source=build_fleet_metrics_source(app))` (WP13): the collector
+    // reads the host agent and the five protocol managers; the local node's name comes from the
+    // node store. The fleet source (WP12) is plugged in with `Metrics::set_source`; until then
+    // linked nodes answer `unsupported`.
+    let managers = &core.managers;
+    let local_name: LocalName = Arc::new(move || nodes.local().ok().map(|view| view.display_name));
+    let meters = ManagerMeters {
+        versions: Some(Arc::new(managers.versions.clone())),
+        trusttunnel: Some(Arc::new(managers.trusttunnel.clone())),
+        amneziawg: Some(Arc::new(managers.amneziawg.clone())),
+        telemt: Some(managers.telemt.clone()),
+        mieru: Some(Arc::new(managers.mieru.clone())),
+        naive: Some(Arc::new(managers.naive.clone())),
+        local_name: Some(local_name),
+    };
+    let metrics = Metrics::setup(&core.settings, core.database.clone(), Arc::new(meters), core.clock.clone());
+    services.insert(metrics);
     Ok(services)
 }
 
 /// Background loops and pre-serve work (`_lifespan`, `app.py:70-89`): the access enforcer's
 /// `tick(force=True)` before serving (WP7), then the loops `pusher` (WP12), `enforcer` (WP7) and
 /// `metrics` (WP13, only when `PANEL_METRICS_ENABLED`), registered in that order.
-pub fn register_lifespan(_state: &AppState) {}
+pub fn register_lifespan(state: &AppState) {
+    // `metrics`: `collector.run_forever()` when metrics are on (no startup work of its own).
+    if let Some(collector) = state.service::<Arc<Metrics>>().collector() {
+        state.lifespan.register_loop(Arc::new(crate::routes::metrics::MetricsLoop(collector.clone())));
+    }
+}

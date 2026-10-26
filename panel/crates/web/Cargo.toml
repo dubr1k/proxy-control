@@ -24,6 +24,9 @@ panel-core = { path = "../core" }
 panel-model = { path = "../model" }
 panel-secrets = { path = "../secrets" }
 panel-managers = { path = "../managers" }
+panel-protocols = { path = "../protocols" }
+panel-nodes = { path = "../nodes" }
+panel-metrics = { path = "../metrics", features = ["managers"] }
 # Handlers and extractors only: routing, middleware and serving are the panel's own (Starlette
 # first-match semantics, exact headers and bodies).
 axum = { version = "0.8", default-features = false }
