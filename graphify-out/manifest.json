@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "panel/tests/conftest.py": {
-    "mtime": 1790872127.0964022,
-    "seen": 1791122825.207107,
-    "ast_hash": "bb8e76a8ed463e6e3c4c686ba9859de6",
+    "mtime": 1793005981.4907446,
+    "seen": 1793013880.2435699,
+    "ast_hash": "8c7cd694592c36631c2dd2717cc6d8b0",
     "semantic_hash": ""
   },
   "panel/tests/test_agent_transport.py": {
@@ -126,33 +126,33 @@
     "semantic_hash": "01d92ed4171a7e907ea9e210f8308cdb"
   },
   "panel/tests/test_fleet.py": {
-    "mtime": 1788619879.429709,
-    "seen": 1791122825.2071118,
-    "ast_hash": "7a6422172d7039d64e4ac2851cc12a06",
-    "semantic_hash": "7a6422172d7039d64e4ac2851cc12a06"
+    "mtime": 1793005981.500864,
+    "seen": 1793013880.243754,
+    "ast_hash": "6d9496e819646309ec49ec1224855c6e",
+    "semantic_hash": ""
   },
   "panel/tests/test_mieru_management.py": {
-    "mtime": 1792958761.3942106,
-    "seen": 1792959228.608145,
-    "ast_hash": "10990e6775d8463f0d095f70a2df0e0b",
+    "mtime": 1793005981.503351,
+    "seen": 1793013880.2439501,
+    "ast_hash": "7649df83a5011575c46b1198c1c48c9a",
     "semantic_hash": ""
   },
   "panel/tests/test_naive_management.py": {
-    "mtime": 1792962201.525442,
-    "seen": 1793003558.109518,
-    "ast_hash": "8d3ed9875a7188addc48d6205af360d0",
+    "mtime": 1793005981.5036917,
+    "seen": 1793013880.244024,
+    "ast_hash": "3c6171ae5900cd81d9808dac22f3f1e0",
     "semantic_hash": ""
   },
   "panel/tests/test_rbac_audit.py": {
-    "mtime": 1787325790.351495,
-    "seen": 1791122825.207121,
-    "ast_hash": "0f968eaeb35a385e255eeedd98952ec8",
-    "semantic_hash": "0f968eaeb35a385e255eeedd98952ec8"
+    "mtime": 1793005981.5045166,
+    "seen": 1793013880.244113,
+    "ast_hash": "2a2847fbd6eadc679d109f6fff208dae",
+    "semantic_hash": ""
   },
   "panel/tests/test_security.py": {
-    "mtime": 1792336265.8874328,
-    "seen": 1792356415.84754,
-    "ast_hash": "5dfea2540eac3fd61d91d0139d2483d8",
+    "mtime": 1793005981.506747,
+    "seen": 1793013880.2442932,
+    "ast_hash": "51b25566a84296e78c48eff112f3f4bc",
     "semantic_hash": ""
   },
   "panel/tests/test_store.py": {
@@ -162,15 +162,15 @@
     "semantic_hash": "b060d689a072ce03ea8951f2dc5a7bb3"
   },
   "panel/tests/test_users_adapter_ui.py": {
-    "mtime": 1792949211.999419,
-    "seen": 1792955420.513534,
-    "ast_hash": "f49afaeafa4599bd8340f1c9f544700e",
+    "mtime": 1793005981.5081027,
+    "seen": 1793013880.2444842,
+    "ast_hash": "4f8cd7fb514c82759a0e3eae8ff8c12e",
     "semantic_hash": ""
   },
   "panel/tests/test_versions.py": {
-    "mtime": 1792354624.782486,
-    "seen": 1792356415.8475451,
-    "ast_hash": "db44d952b897b17a2ef839e470ff927b",
+    "mtime": 1793005981.5084305,
+    "seen": 1793013880.2444842,
+    "ast_hash": "bc24e331d57b1029347408ce682381d9",
     "semantic_hash": ""
   },
   "panel/versions.py": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "tests/test_mieru_deployment.py": {
-    "mtime": 1792958761.3948345,
-    "seen": 1792959228.608247,
-    "ast_hash": "3e41fcd67d42f75180bb8d930e9936f2",
+    "mtime": 1793007878.9309595,
+    "seen": 1793013880.246621,
+    "ast_hash": "aaa0b1e7d80c85653ead1932da5ef8ec",
     "semantic_hash": ""
   },
   "tests/test_panel_entrypoint.py": {
@@ -540,9 +540,9 @@
     "semantic_hash": "e1f242e1abaeecc2541fd83e77ef49b6"
   },
   ".github/workflows/test.yml": {
-    "mtime": 1792962156.8304987,
-    "seen": 1793003558.1055949,
-    "ast_hash": "078c623f45adca1876e03d1d7088022d",
+    "mtime": 1793010957.1018887,
+    "seen": 1793013880.237557,
+    "ast_hash": "9c0e3a4bfc3639b693159feb471534c7",
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
@@ -636,15 +636,15 @@
     "semantic_hash": ""
   },
   "README.en.md": {
-    "mtime": 1793002352.6182103,
-    "seen": 1793003558.113075,
-    "ast_hash": "0be727e14892fd346febd6169661dac8",
+    "mtime": 1793007746.9251797,
+    "seen": 1793013880.247925,
+    "ast_hash": "2cb722339cb61c634f159c281bfda951",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793002352.6185374,
-    "seen": 1793003558.113076,
-    "ast_hash": "47af6053041b5494ca150bcd4fcc4fef",
+    "mtime": 1793007746.9253762,
+    "seen": 1793013880.247926,
+    "ast_hash": "d86ac6cc0719a7d85ca23149406a8009",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -990,9 +990,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "release/build.py": {
-    "mtime": 1790881241.1656766,
-    "seen": 1791122825.207136,
-    "ast_hash": "a3ef52b428c923f7b09b14ccc439c30e",
+    "mtime": 1793007746.9257135,
+    "seen": 1793013880.244831,
+    "ast_hash": "c3bc154e80726ea2cd1a3520b0ed8326",
     "semantic_hash": ""
   },
   "release/external-artifacts.json": {
@@ -1002,9 +1002,9 @@
     "semantic_hash": ""
   },
   "release/sbom.py": {
-    "mtime": 1789736567.1381474,
-    "seen": 1791122825.207137,
-    "ast_hash": "3ba4e69e034ccc54a3175094abb85e99",
+    "mtime": 1793007746.926468,
+    "seen": 1793013880.2448971,
+    "ast_hash": "27907c1a1679241a18c45a66a8f6fa69",
     "semantic_hash": ""
   },
   "release/three-xui-layout-amd64.json": {
@@ -1266,9 +1266,9 @@
     "semantic_hash": ""
   },
   "tests/test_release_build.py": {
-    "mtime": 1792962156.8370936,
-    "seen": 1793003558.112167,
-    "ast_hash": "29c113c7e9da88c37531defb2b075c0a",
+    "mtime": 1793011352.1836529,
+    "seen": 1793013880.246737,
+    "ast_hash": "84b277141b9e20b4130eb9cca48a54c1",
     "semantic_hash": ""
   },
   "tests/test_three_xui_api.py": {
@@ -1326,15 +1326,15 @@
     "semantic_hash": "f349243069d9435ee971de64fbbcd026"
   },
   ".github/workflows/release.yml": {
-    "mtime": 1790864956.1995525,
-    "seen": 1791122825.207187,
-    "ast_hash": "25c5b1d1ab07bc06cf47e536c3bee4d4",
+    "mtime": 1793007746.9244077,
+    "seen": 1793013880.237557,
+    "ast_hash": "a15011c8883b86b183a77ef67a7d3b08",
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1793002390.763434,
-    "seen": 1793003558.1128309,
-    "ast_hash": "7e904250a7179805088d3bb90751b6e2",
+    "mtime": 1793007774.3255522,
+    "seen": 1793013880.247704,
+    "ast_hash": "f7ec2b1adb5a3d036672d1bbc8369beb",
     "semantic_hash": ""
   },
   "docs/INSTALLER_REFERENCE.en.md": {
@@ -1404,9 +1404,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_vnext_characterization.py": {
-    "mtime": 1790610961.5411212,
-    "seen": 1791122825.2071319,
-    "ast_hash": "8368bb9ca8bd0dade314037cf480edb2",
+    "mtime": 1793005981.5088737,
+    "seen": 1793013880.244499,
+    "ast_hash": "66dd52c2fda3e4a72508763007e79468",
     "semantic_hash": ""
   },
   "scripts/dev/check-js-syntax.sh": {
@@ -1542,9 +1542,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_node_routes.py": {
-    "mtime": 1792336265.886652,
-    "seen": 1792356415.84753,
-    "ast_hash": "9aa13f13c984049ad62feb3a4f3cb95e",
+    "mtime": 1793005981.504038,
+    "seen": 1793013880.244054,
+    "ast_hash": "09477a68c64235c3d436f8c5cff2044e",
     "semantic_hash": ""
   },
   "panel/clients/__init__.py": {
@@ -1596,9 +1596,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_client_import.py": {
-    "mtime": 1789736567.1326237,
-    "seen": 1791122825.20711,
-    "ast_hash": "56d27a9e9815f50519e575c405cab88a",
+    "mtime": 1793005981.5003023,
+    "seen": 1793013880.24368,
+    "ast_hash": "6336d8d2df1819bfe50082661a6551f1",
     "semantic_hash": ""
   },
   "panel/tests/test_telemt_recovery.py": {
@@ -1758,15 +1758,15 @@
     "semantic_hash": ""
   },
   "panel/tests/test_subscription_http.py": {
-    "mtime": 1792949211.998591,
-    "seen": 1792955420.513528,
-    "ast_hash": "6cd0e525107a04bf1ac18b3d3a6b8cf4",
+    "mtime": 1793005981.5070548,
+    "seen": 1793013880.244351,
+    "ast_hash": "63edbc5f7f787fb8b9516873e4f2a38a",
     "semantic_hash": ""
   },
   "panel/tests/test_subscription_lifecycle.py": {
-    "mtime": 1789984666.911016,
-    "seen": 1791122825.207129,
-    "ast_hash": "aa59a54b3f62f4780b5f2304214b9f8d",
+    "mtime": 1793005981.5073764,
+    "seen": 1793013880.244352,
+    "ast_hash": "be99023afe65b3a3243d84573d8d7f68",
     "semantic_hash": ""
   },
   "panel/tests/test_subscription_renderers.py": {
@@ -1848,9 +1848,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_api_key_auth.py": {
-    "mtime": 1789736567.1324165,
-    "seen": 1791122825.2071092,
-    "ast_hash": "d54ea1e4bf4d59c1faeda90d4661a7e9",
+    "mtime": 1793005981.5000017,
+    "seen": 1793013880.243607,
+    "ast_hash": "6512c4cc86726972557a700bb98db1dc",
     "semantic_hash": ""
   },
   "panel/tests/test_api_keys.py": {
@@ -1932,9 +1932,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_fleet_v2_links.py": {
-    "mtime": 1791020062.158938,
-    "seen": 1791122825.207113,
-    "ast_hash": "cf496eb4cd3c826e29efcf277119d97f",
+    "mtime": 1793005981.5014966,
+    "seen": 1793013880.243785,
+    "ast_hash": "0c34b042992d07cb4a945d9d8f184d29",
     "semantic_hash": ""
   },
   "panel/fleet_v2/pusher.py": {
@@ -1944,15 +1944,15 @@
     "semantic_hash": ""
   },
   "panel/tests/test_fleet_v2_provisioning_remote.py": {
-    "mtime": 1789736567.1343706,
-    "seen": 1791122825.2071161,
-    "ast_hash": "6667df134527e497a5a69f09c70b23c0",
+    "mtime": 1793005981.5021274,
+    "seen": 1793013880.2438312,
+    "ast_hash": "9c96f3159a14aeab6d5817c2da4af9c6",
     "semantic_hash": ""
   },
   "panel/tests/test_fleet_v2_pusher.py": {
-    "mtime": 1791020062.1594067,
-    "seen": 1791122825.2071161,
-    "ast_hash": "c19a8759fe512655baed10f25aa984a5",
+    "mtime": 1793005981.5023308,
+    "seen": 1793013880.2438312,
+    "ast_hash": "847c25b1e495aae6afa5ee8f33c905cd",
     "semantic_hash": ""
   },
   "panel/clients/lifecycle.py": {
@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_grant_lifecycle.py": {
-    "mtime": 1789736567.134697,
-    "seen": 1791122825.207117,
-    "ast_hash": "8aa5d029908db0c9219e046d4703264a",
+    "mtime": 1793005981.5024977,
+    "seen": 1793013880.243861,
+    "ast_hash": "7ff9c1c80205c0b7898509297dd14297",
     "semantic_hash": ""
   },
   "panel/fleet_v2/central_routes.py": {
@@ -1980,15 +1980,15 @@
     "semantic_hash": ""
   },
   "panel/tests/test_fleet_v2_central_routes.py": {
-    "mtime": 1791020062.1586154,
-    "seen": 1791122825.207113,
-    "ast_hash": "a675eb916f357dc64e0148338a22e66f",
+    "mtime": 1793005981.5012584,
+    "seen": 1793013880.243755,
+    "ast_hash": "0a10ebf72446347729cff94e8311a4bb",
     "semantic_hash": ""
   },
   "panel/tests/test_subscription_multi_node.py": {
-    "mtime": 1791734527.5669045,
-    "seen": 1792249834.174487,
-    "ast_hash": "7bc43cc050613a1ed5ed167c821ddac4",
+    "mtime": 1793005981.5076132,
+    "seen": 1793013880.244353,
+    "ast_hash": "fb83a8f5262da2ba62ad6363b5230c61",
     "semantic_hash": ""
   },
   "panel/static/js/keys.js": {
@@ -2070,21 +2070,21 @@
     "semantic_hash": ""
   },
   "panel/tests/test_fleet_v2_post_merge.py": {
-    "mtime": 1791120965.4387548,
-    "seen": 1791122825.207114,
-    "ast_hash": "03bacc4ae94c094f25aec62842d60e28",
+    "mtime": 1793005981.501687,
+    "seen": 1793013880.243815,
+    "ast_hash": "9958b7822e94a35743a2d8164e55c5ab",
     "semantic_hash": ""
   },
   "panel/tests/test_fleet_v2_post_merge_node.py": {
-    "mtime": 1791120965.4389799,
-    "seen": 1791122825.207115,
-    "ast_hash": "64b5c462923f01611012b8f44ce9b2af",
+    "mtime": 1793005981.501907,
+    "seen": 1793013880.243815,
+    "ast_hash": "f3b11cdb273531c1f9c1bc8aa9fc5a31",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_fleet.py": {
-    "mtime": 1790873156.7071252,
-    "seen": 1791122825.207123,
-    "ast_hash": "fbd6e649af8c55c0c38986ada00a3734",
+    "mtime": 1793005981.5053084,
+    "seen": 1793013880.244173,
+    "ast_hash": "c6293ef0d25465a1812a790ea8f7d994",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_ir.py": {
@@ -2094,9 +2094,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_routing_routes.py": {
-    "mtime": 1790873156.7076766,
-    "seen": 1791122825.207126,
-    "ast_hash": "660174015cddf8c2cf8157d0338555a1",
+    "mtime": 1793005981.5065548,
+    "seen": 1793013880.244235,
+    "ast_hash": "32251d9bcbeb0f7c2c5fa94dc76f8c9c",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_service.py": {
@@ -2184,15 +2184,15 @@
     "semantic_hash": ""
   },
   "panel/tests/test_routing_fleet_router.py": {
-    "mtime": 1789736567.1359315,
-    "seen": 1791122825.207124,
-    "ast_hash": "576f8abb238d6766d11e37f90d7df900",
+    "mtime": 1793005981.505588,
+    "seen": 1793013880.2441752,
+    "ast_hash": "9d11caaded2da19a38818163aaa39da7",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_router_routes.py": {
-    "mtime": 1790873156.7072794,
-    "seen": 1791122825.207126,
-    "ast_hash": "b3a0e740132d9b1ee9ceeaa7a42d89f3",
+    "mtime": 1793005981.5063128,
+    "seen": 1793013880.24422,
+    "ast_hash": "b74ff33ac3eba460a23bb9b9cd5997fe",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_router_service.py": {
@@ -2418,9 +2418,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_openapi_routes.py": {
-    "mtime": 1790007074.797298,
-    "seen": 1791122825.20712,
-    "ast_hash": "0265c2c48ef1c5b237a5d87fcc04088b",
+    "mtime": 1793005981.5042877,
+    "seen": 1793013880.244055,
+    "ast_hash": "486a5e144f525f000511c9f25d770a49",
     "semantic_hash": ""
   },
   "panel/tests/test_placement_ui_contract.py": {
@@ -2436,21 +2436,21 @@
     "semantic_hash": ""
   },
   "panel/tests/test_routing_exits.py": {
-    "mtime": 1793002344.8930058,
-    "seen": 1793003558.1097229,
-    "ast_hash": "991d109f829bc8190c0fb24db728ae8f",
+    "mtime": 1793005981.5049968,
+    "seen": 1793013880.244173,
+    "ast_hash": "973120d487c7c25b054aa34b04cbb429",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_fleet_chains.py": {
-    "mtime": 1789736567.1358263,
-    "seen": 1791122825.207123,
-    "ast_hash": "a5e2385ad3baf5c5dcbf4d90ad5da28d",
+    "mtime": 1793005981.505453,
+    "seen": 1793013880.244174,
+    "ast_hash": "0bf6d8dc7d8df2e624db742ca94b0cc7",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_geodata.py": {
-    "mtime": 1789746202.5968232,
-    "seen": 1791122825.207124,
-    "ast_hash": "c8029df92d9f0e49f7a7d32e6bcec3a0",
+    "mtime": 1793005981.5059621,
+    "seen": 1793013880.2441752,
+    "ast_hash": "353289b3a9cea1f8c7a41df378429e16",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_lanes_models.py": {
@@ -2460,9 +2460,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_routing_lanes_routes.py": {
-    "mtime": 1789736567.1361744,
-    "seen": 1791122825.207125,
-    "ast_hash": "ff0332b9d350ac4bb0b77374fa33e1f3",
+    "mtime": 1793005981.506102,
+    "seen": 1793013880.2442062,
+    "ast_hash": "4b1009d406698d4e4eb1660c89d4561c",
     "semantic_hash": ""
   },
   "panel/tests/test_routing_presets.py": {
@@ -2784,9 +2784,9 @@
     "semantic_hash": ""
   },
   "tests/test_update_host.py": {
-    "mtime": 1793002365.5038545,
-    "seen": 1793003558.112326,
-    "ast_hash": "6b7f80521f99b83b75adddfceea3c3db",
+    "mtime": 1793007746.8726072,
+    "seen": 1793013880.246896,
+    "ast_hash": "6eb59e4fab7f09a6cda6720ce89cfce6",
     "semantic_hash": ""
   },
   "tests/test_xray_router_bridge.py": {
@@ -2814,15 +2814,15 @@
     "semantic_hash": ""
   },
   "panel/tests/test_access_enforcement.py": {
-    "mtime": 1791020062.1580317,
-    "seen": 1791122825.207108,
-    "ast_hash": "41cbe75ab42320949a18c7853f0fa669",
+    "mtime": 1793005981.4992793,
+    "seen": 1793013880.2435899,
+    "ast_hash": "ee7b72acad92d6f4c6ef027beec844c1",
     "semantic_hash": ""
   },
   "panel/tests/test_client_listing.py": {
-    "mtime": 1792949211.9963357,
-    "seen": 1792955420.513495,
-    "ast_hash": "4730fcfd8ebbfac4ba62e3863fe87f14",
+    "mtime": 1793005981.5006304,
+    "seen": 1793013880.243695,
+    "ast_hash": "8c1f9843ab0b4cffd2eaba64f339a1bf",
     "semantic_hash": ""
   },
   "panel/tests/test_resource_boundaries.py": {
@@ -2862,9 +2862,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_readiness.py": {
-    "mtime": 1791049367.7058198,
-    "seen": 1791122825.2071218,
-    "ast_hash": "7232c30429f2a43b0e88b27fd380fbbd",
+    "mtime": 1793005981.5047653,
+    "seen": 1793013880.244114,
+    "ast_hash": "49083efcc9dbff60f589dc1cfba10c22",
     "semantic_hash": ""
   },
   "scripts/lab/fleet-measure.py": {
@@ -2952,9 +2952,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_amneziawg.py": {
-    "mtime": 1792319280.7088637,
-    "seen": 1792326059.989689,
-    "ast_hash": "612cd964ac4105c4988c0fcbba1aa151",
+    "mtime": 1793005981.499855,
+    "seen": 1793013880.243606,
+    "ast_hash": "042b21d1b07f74ac68b3b6f560e3f50c",
     "semantic_hash": ""
   },
   "scripts/lab/awg-acceptance.sh": {
@@ -3048,9 +3048,9 @@
     "semantic_hash": ""
   },
   "scripts/enable-amneziawg.sh": {
-    "mtime": 1792958003.5805416,
-    "seen": 1792958545.2871108,
-    "ast_hash": "29c110d7a98c21590bc5d5663a671cca",
+    "mtime": 1793010888.02646,
+    "seen": 1793013880.2450671,
+    "ast_hash": "ee4c8808860988d491b2c6cd1107f569",
     "semantic_hash": ""
   },
   "tests/test_enable_amneziawg_script.py": {
@@ -3138,9 +3138,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_trusttunnel.py": {
-    "mtime": 1792482410.0053113,
-    "seen": 1792484181.487993,
-    "ast_hash": "d4226abba7be2fbe08b88c810cf48f02",
+    "mtime": 1793005981.5078654,
+    "seen": 1793013880.2444391,
+    "ast_hash": "a941d459490d41ea69dd831713f4389e",
     "semantic_hash": ""
   },
   "panel/tests/test_trusttunnel_ui_contract.py": {
@@ -3168,9 +3168,9 @@
     "semantic_hash": ""
   },
   "scripts/enable-trusttunnel.sh": {
-    "mtime": 1792954851.194996,
-    "seen": 1792955420.513553,
-    "ast_hash": "f23a668770dfede83a21df05678d763c",
+    "mtime": 1793010888.0267599,
+    "seen": 1793013880.245068,
+    "ast_hash": "a558f994bfd8c2bb66b053dd0c075779",
     "semantic_hash": ""
   },
   "scripts/lab/trusttunnel-live-check.py": {
@@ -3312,9 +3312,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_metrics_api.py": {
-    "mtime": 1792962156.8358326,
-    "seen": 1793003558.109375,
-    "ast_hash": "9c402207441315c335d3c5cbef7ed988",
+    "mtime": 1793005981.5026748,
+    "seen": 1793013880.2439191,
+    "ast_hash": "b07d762b68cf0634baaa6520979428a3",
     "semantic_hash": ""
   },
   "panel/tests/test_metrics_collector.py": {
@@ -3324,9 +3324,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_metrics_fleet.py": {
-    "mtime": 1792354624.7802165,
-    "seen": 1792356415.8475258,
-    "ast_hash": "5e6ad6dd677fe56eb94403753a5cb097",
+    "mtime": 1793005981.5030901,
+    "seen": 1793013880.2439349,
+    "ast_hash": "1268aec269be7d34ec841b9828237f62",
     "semantic_hash": ""
   },
   "panel/tests/test_metrics_store.py": {
@@ -3336,9 +3336,9 @@
     "semantic_hash": ""
   },
   "panel/tests/test_monitoring_layout.py": {
-    "mtime": 1792354624.780803,
-    "seen": 1792356415.847528,
-    "ast_hash": "6c85ab376b316a9dce3e0c8ab7332a0e",
+    "mtime": 1793012800.909462,
+    "seen": 1793013880.243994,
+    "ast_hash": "3700db05c706edce6a4f6431eff05001",
     "semantic_hash": ""
   },
   "panel/tests/test_monitoring_ui_contract.py": {
@@ -5097,6 +5097,4218 @@
     "mtime": 1793004704.30136,
     "seen": 1793005104.0418692,
     "ast_hash": "da2c3e233ae29f634862861e6f536939",
+    "semantic_hash": ""
+  },
+  "installer/Cargo.toml": {
+    "mtime": 1793011352.1817071,
+    "seen": 1793013880.23799,
+    "ast_hash": "f5b215469645f57296eaeb066468d14f",
+    "semantic_hash": ""
+  },
+  "installer/src/adapter.rs": {
+    "mtime": 1793011352.181843,
+    "seen": 1793013880.238395,
+    "ast_hash": "5035751e6849219f631fb62449e5cf0c",
+    "semantic_hash": ""
+  },
+  "installer/src/cli.rs": {
+    "mtime": 1793011352.1819367,
+    "seen": 1793013880.238396,
+    "ast_hash": "98d8bf54f327c412c0b2aadbb6f58ad1",
+    "semantic_hash": ""
+  },
+  "installer/src/engine.rs": {
+    "mtime": 1793011352.18203,
+    "seen": 1793013880.238397,
+    "ast_hash": "5946c8ef343217d1080d1b4b52ea305b",
+    "semantic_hash": ""
+  },
+  "installer/src/error.rs": {
+    "mtime": 1793011352.1821246,
+    "seen": 1793013880.2383978,
+    "ast_hash": "ab83da223b276a015a04c4b0c06eebc9",
+    "semantic_hash": ""
+  },
+  "installer/src/handoff.rs": {
+    "mtime": 1793011352.1822364,
+    "seen": 1793013880.2383978,
+    "ast_hash": "ee47e34f5d9903aaaa51cbb89095cff1",
+    "semantic_hash": ""
+  },
+  "installer/src/journal.rs": {
+    "mtime": 1793011352.1823363,
+    "seen": 1793013880.238399,
+    "ast_hash": "b409b4b9b91c5863bece3b75089f4864",
+    "semantic_hash": ""
+  },
+  "installer/src/lib.rs": {
+    "mtime": 1793011352.1824064,
+    "seen": 1793013880.238399,
+    "ast_hash": "bb6ace002670f0ba53c4923bef8e510a",
+    "semantic_hash": ""
+  },
+  "installer/src/main.rs": {
+    "mtime": 1793011352.1824732,
+    "seen": 1793013880.238399,
+    "ast_hash": "4ac112e91ee8064c8b8f588b662acfed",
+    "semantic_hash": ""
+  },
+  "installer/src/migration.rs": {
+    "mtime": 1793011352.1825554,
+    "seen": 1793013880.2384,
+    "ast_hash": "d519f7585cc0ead143525ff8db5b8671",
+    "semantic_hash": ""
+  },
+  "installer/src/model.rs": {
+    "mtime": 1793011352.1826234,
+    "seen": 1793013880.2384,
+    "ast_hash": "83bf9f70ea2ea8672670f504fb07ea3d",
+    "semantic_hash": ""
+  },
+  "installer/src/plan.rs": {
+    "mtime": 1793011352.1827226,
+    "seen": 1793013880.238401,
+    "ast_hash": "526b5e36867288df487f495ffa5f13a3",
+    "semantic_hash": ""
+  },
+  "installer/src/store.rs": {
+    "mtime": 1793011352.1828012,
+    "seen": 1793013880.238401,
+    "ast_hash": "872d74189e76eb7fce9d15b3e01ba98c",
+    "semantic_hash": ""
+  },
+  "installer/src/testkit.rs": {
+    "mtime": 1793011352.1828768,
+    "seen": 1793013880.2384021,
+    "ast_hash": "ab9c188e0877b0767f033523e68feb3a",
+    "semantic_hash": ""
+  },
+  "installer/src/tests/fakes.rs": {
+    "mtime": 1793011352.1829777,
+    "seen": 1793013880.238403,
+    "ast_hash": "1ce962e0e354e3ab31b56cac3d48465f",
+    "semantic_hash": ""
+  },
+  "installer/src/tests/golden.rs": {
+    "mtime": 1793011352.18306,
+    "seen": 1793013880.238403,
+    "ast_hash": "bceb7e67bef451f113726c01c93620c4",
+    "semantic_hash": ""
+  },
+  "installer/src/tests/handoff.rs": {
+    "mtime": 1793011352.18316,
+    "seen": 1793013880.238403,
+    "ast_hash": "8d346a0d475494a0cd82427f9eb9848c",
+    "semantic_hash": ""
+  },
+  "installer/src/tests/migration.rs": {
+    "mtime": 1793011352.183232,
+    "seen": 1793013880.238404,
+    "ast_hash": "3df187cc88a3eb8840202fb0e7ea2d5d",
+    "semantic_hash": ""
+  },
+  "installer/src/tests/mod.rs": {
+    "mtime": 1793011352.1832952,
+    "seen": 1793013880.2384052,
+    "ast_hash": "bab0aec89eb5ed4164435a4406d777d9",
+    "semantic_hash": ""
+  },
+  "installer/src/tests/transaction.rs": {
+    "mtime": 1793011352.1833892,
+    "seen": 1793013880.2384052,
+    "ast_hash": "42784bf12976a8ed734ce318eda11073",
+    "semantic_hash": ""
+  },
+  "installer_core/Cargo.toml": {
+    "mtime": 1793012132.054059,
+    "seen": 1793013880.2384481,
+    "ast_hash": "6ea0bc7e1ee38640c79a3bef56156b2b",
+    "semantic_hash": ""
+  },
+  "installer_core/src/argparse.rs": {
+    "mtime": 1793012132.0542407,
+    "seen": 1793013880.2384481,
+    "ast_hash": "e75e2f042ba9531733a6fe3d91e3405e",
+    "semantic_hash": ""
+  },
+  "installer_core/src/awg_ports.rs": {
+    "mtime": 1793012132.0543542,
+    "seen": 1793013880.2384489,
+    "ast_hash": "3b5ebdfe8f37f47b7d360bf4dc86840c",
+    "semantic_hash": ""
+  },
+  "installer_core/src/cli.rs": {
+    "mtime": 1793012132.0544562,
+    "seen": 1793013880.2384489,
+    "ast_hash": "5a496704823ddc1e8ac8b6692a4742fa",
+    "semantic_hash": ""
+  },
+  "installer_core/src/cli_tests.rs": {
+    "mtime": 1793012132.0545664,
+    "seen": 1793013880.2384498,
+    "ast_hash": "0b17ef86f169dd3d64d5337b777da7ea",
+    "semantic_hash": ""
+  },
+  "installer_core/src/config.rs": {
+    "mtime": 1793012132.054691,
+    "seen": 1793013880.2384498,
+    "ast_hash": "756db2de3d38cf396431f65220c95f06",
+    "semantic_hash": ""
+  },
+  "installer_core/src/config_tests.rs": {
+    "mtime": 1793012132.0547867,
+    "seen": 1793013880.238451,
+    "ast_hash": "295c6688eb8314abc6b7593e9032abfd",
+    "semantic_hash": ""
+  },
+  "installer_core/src/credentials.rs": {
+    "mtime": 1793012132.0548925,
+    "seen": 1793013880.238451,
+    "ast_hash": "c23af043e60b4ad96da4cfbbc0239697",
+    "semantic_hash": ""
+  },
+  "installer_core/src/credentials_tests.rs": {
+    "mtime": 1793012132.0549896,
+    "seen": 1793013880.238452,
+    "ast_hash": "220c7aba58ce32281cbc8861cde4327f",
+    "semantic_hash": ""
+  },
+  "installer_core/src/ipaddr.rs": {
+    "mtime": 1793012132.0550873,
+    "seen": 1793013880.238452,
+    "ast_hash": "c00836c58132347bb113c20b2bc84228",
+    "semantic_hash": ""
+  },
+  "installer_core/src/lib.rs": {
+    "mtime": 1793012132.0551877,
+    "seen": 1793013880.238453,
+    "ast_hash": "9cd77482195295a656726a8e4e92ecfe",
+    "semantic_hash": ""
+  },
+  "installer_core/src/model.rs": {
+    "mtime": 1793012132.0553129,
+    "seen": 1793013880.238453,
+    "ast_hash": "0b1f5c35e36b45e83efae3f4bbb4be91",
+    "semantic_hash": ""
+  },
+  "installer_core/src/planner.rs": {
+    "mtime": 1793012132.0554163,
+    "seen": 1793013880.238454,
+    "ast_hash": "d7e34518c363c988fa2345f4b0f2d0f8",
+    "semantic_hash": ""
+  },
+  "installer_core/src/planner_tests.rs": {
+    "mtime": 1793012132.0555186,
+    "seen": 1793013880.238454,
+    "ast_hash": "83316e4474c25dd39ca03c307ac1c714",
+    "semantic_hash": ""
+  },
+  "installer_core/src/pystr.rs": {
+    "mtime": 1793012132.0556138,
+    "seen": 1793013880.238454,
+    "ast_hash": "314669d3d7f7f29f1b8a4647ee383e34",
+    "semantic_hash": ""
+  },
+  "installer_core/src/report.rs": {
+    "mtime": 1793012132.0557117,
+    "seen": 1793013880.238455,
+    "ast_hash": "57540aa257614b516f51461ede4a7f87",
+    "semantic_hash": ""
+  },
+  "installer_core/src/report_tests.rs": {
+    "mtime": 1793012132.0557985,
+    "seen": 1793013880.238456,
+    "ast_hash": "36fd7c045396bba4712529fa28a66d15",
+    "semantic_hash": ""
+  },
+  "installer_core/src/secret.rs": {
+    "mtime": 1793012132.0559118,
+    "seen": 1793013880.238456,
+    "ast_hash": "42541af51e48cbc64c39381351bab4dc",
+    "semantic_hash": ""
+  },
+  "installer_core/src/toml.rs": {
+    "mtime": 1793012132.0560372,
+    "seen": 1793013880.238456,
+    "ast_hash": "c0dc99a8e4e05bef3ea094ab49de1651",
+    "semantic_hash": ""
+  },
+  "installer_core/src/verify_release.rs": {
+    "mtime": 1793012132.0561392,
+    "seen": 1793013880.2384572,
+    "ast_hash": "bc8670c0a90604890938897fc3b6bdec",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/data/argparse-python.json": {
+    "mtime": 1793012132.0563357,
+    "seen": 1793013880.2384572,
+    "ast_hash": "2cc4a97aeb01b7c5e0b87fa8b2536f27",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/differential.rs": {
+    "mtime": 1793012132.0564365,
+    "seen": 1793013880.2384582,
+    "ast_hash": "587e1376075cfba6659df64581772dc8",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/golden_argparse.rs": {
+    "mtime": 1793012132.0565336,
+    "seen": 1793013880.2384582,
+    "ast_hash": "1403569113fa208ff9ccac3d0c5ffaf3",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/golden_config.rs": {
+    "mtime": 1793012132.0566387,
+    "seen": 1793013880.2384589,
+    "ast_hash": "3905a189af8c5a247354d6e5b828d5e1",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/golden_plans.rs": {
+    "mtime": 1793012132.0567424,
+    "seen": 1793013880.2384589,
+    "ast_hash": "33b238976673b9df87fef05f15b6bf39",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/golden_reports.rs": {
+    "mtime": 1793012132.056834,
+    "seen": 1793013880.2384589,
+    "ast_hash": "b027478c770c9f79cea051c534228824",
+    "semantic_hash": ""
+  },
+  "installer_core/tests/golden_vectors.rs": {
+    "mtime": 1793012132.0569208,
+    "seen": 1793013880.2384598,
+    "ast_hash": "66a2af02cd95503be8951a87eef0eeca",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/Cargo.toml": {
+    "mtime": 1793013011.0316,
+    "seen": 1793013880.239548,
+    "ast_hash": "86a397f630bbbf59aa2648e17eccff14",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/context.rs": {
+    "mtime": 1793013011.0317042,
+    "seen": 1793013880.239549,
+    "ast_hash": "b3387724a836c62da586af30e505a136",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/cursor.rs": {
+    "mtime": 1793013011.0317886,
+    "seen": 1793013880.239549,
+    "ast_hash": "299c0e8020303cf9da2a188ca36ad8fa",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/enforcement.rs": {
+    "mtime": 1793013011.0318525,
+    "seen": 1793013880.2395499,
+    "ast_hash": "275e1b67d1c713af450fe9f60a5937f4",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/error.rs": {
+    "mtime": 1793013011.0319254,
+    "seen": 1793013880.2395499,
+    "ast_hash": "2d4dfc3f7f3202655012439e36c5a1ff",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/facade.rs": {
+    "mtime": 1793013011.0320492,
+    "seen": 1793013880.239551,
+    "ast_hash": "bf7930168c63bd3dd5eb316fcfa30211",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/hooks.rs": {
+    "mtime": 1793013011.032133,
+    "seen": 1793013880.239551,
+    "ast_hash": "07f2bf8e0c72104b6cf5d8b452530450",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/hosts.rs": {
+    "mtime": 1793013011.032213,
+    "seen": 1793013880.239552,
+    "ast_hash": "aa0bd1791abdd41db2365d5008779cdf",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/importer.rs": {
+    "mtime": 1793013011.032295,
+    "seen": 1793013880.239552,
+    "ast_hash": "653b6d7b16f53b8bed9fe429e5c5825a",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/lib.rs": {
+    "mtime": 1793013011.0323799,
+    "seen": 1793013880.239553,
+    "ast_hash": "ab0fa9e1ec87ee015b6be2a5bffcabbc",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/lifecycle.rs": {
+    "mtime": 1793013011.0324793,
+    "seen": 1793013880.239553,
+    "ast_hash": "d8df505a8a40769ddeb67e52c3bd5a7b",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/managed.rs": {
+    "mtime": 1793013011.0325406,
+    "seen": 1793013880.2395542,
+    "ast_hash": "57a527472e8bf2d515f6e9aa18cdf416",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/models.rs": {
+    "mtime": 1793013011.0326223,
+    "seen": 1793013880.2395542,
+    "ast_hash": "1819afd806edc66e302821f484413b88",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/provisioning.rs": {
+    "mtime": 1793013011.0327394,
+    "seen": 1793013880.2395542,
+    "ast_hash": "bac9b0bea27d991e2c7f32267ae50ad3",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/service.rs": {
+    "mtime": 1793013011.0328445,
+    "seen": 1793013880.2395551,
+    "ast_hash": "653bc7dbaf50656250320ec45a7207f5",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/store.rs": {
+    "mtime": 1793013011.0329604,
+    "seen": 1793013880.2395551,
+    "ast_hash": "43c8db4db22e0f46379d15bbf7bf19f2",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/src/subscriptions.rs": {
+    "mtime": 1793013011.0330393,
+    "seen": 1793013880.239556,
+    "ast_hash": "6cda4d75a21117b436e4d1600d118587",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/common/mod.rs": {
+    "mtime": 1793013011.033173,
+    "seen": 1793013880.239557,
+    "ast_hash": "7bab6a669b01bed3eedda9e0d765cb30",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/domain.rs": {
+    "mtime": 1793013011.0332756,
+    "seen": 1793013880.239557,
+    "ast_hash": "4ae5853c73f4181e38bbd3bc73103fce",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/fixtures/record_request_models.py": {
+    "mtime": 1793013011.0333924,
+    "seen": 1793013880.239557,
+    "ast_hash": "5e29680c55ec671aba1c93002021da5a",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/fixtures/request_models.json": {
+    "mtime": 1793013011.0334883,
+    "seen": 1793013880.239558,
+    "ast_hash": "3376e03a7bd51208ae972c1ed9789862",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/golden_audit.rs": {
+    "mtime": 1793013011.033582,
+    "seen": 1793013880.239558,
+    "ast_hash": "11ec44612cb73d19c9d34e265737652f",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/import.rs": {
+    "mtime": 1793013011.0336685,
+    "seen": 1793013880.239559,
+    "ast_hash": "f849190b29c42950aea08764d9f0d744",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/lifecycle.rs": {
+    "mtime": 1793013011.0337653,
+    "seen": 1793013880.239559,
+    "ast_hash": "4ee64875c643a0a32d9aa6aee4d15f32",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/listing.rs": {
+    "mtime": 1793013011.0338547,
+    "seen": 1793013880.23956,
+    "ast_hash": "a2f09583e8428f2df74749e8e340b7c5",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/request_models.rs": {
+    "mtime": 1793013011.0339434,
+    "seen": 1793013880.23956,
+    "ast_hash": "b23f064b65a083a39035ad7df2c5b085",
+    "semantic_hash": ""
+  },
+  "panel/crates/clients/tests/saga.rs": {
+    "mtime": 1793013011.0340223,
+    "seen": 1793013880.2395608,
+    "ast_hash": "e95aac76fe1b8ab9a71d920c03c67cd6",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/Cargo.toml": {
+    "mtime": 1793012244.836206,
+    "seen": 1793013880.240372,
+    "ast_hash": "8319310042b4f64917b6794f14100b4d",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/central.rs": {
+    "mtime": 1793012244.8363376,
+    "seen": 1793013880.240373,
+    "ast_hash": "a217507d6903617733533f6def59e33d",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/lib.rs": {
+    "mtime": 1793012244.8364303,
+    "seen": 1793013880.240373,
+    "ast_hash": "f267af33e2c7eeff70b4558cd60916b0",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/guard.rs": {
+    "mtime": 1793012244.836572,
+    "seen": 1793013880.240373,
+    "ast_hash": "2fa384a789bf57a15a4a68cea84a293a",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/managed.rs": {
+    "mtime": 1793012244.8366747,
+    "seen": 1793013880.240374,
+    "ast_hash": "cedcc5f60acbabd3ba8698b2bb1153bd",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/mod.rs": {
+    "mtime": 1793012244.8367734,
+    "seen": 1793013880.240374,
+    "ast_hash": "769d40dce8ffa03e3de7c6a7a891fcfb",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/models.rs": {
+    "mtime": 1793012244.836871,
+    "seen": 1793013880.240375,
+    "ast_hash": "5bf052e346c7ee66a4ffc50abbf1ff8e",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/reconcile.rs": {
+    "mtime": 1793012244.8370214,
+    "seen": 1793013880.240375,
+    "ast_hash": "af2c24e78cbdd907ecade934065d1941",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/runtime.rs": {
+    "mtime": 1793012244.8371465,
+    "seen": 1793013880.240375,
+    "ast_hash": "c7992e14a680df5cc4a929a1774dddff",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/service.rs": {
+    "mtime": 1793012244.8372655,
+    "seen": 1793013880.240376,
+    "ast_hash": "5c76cfa6c4c86bf64b2c5f40856d8505",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/src/node/traffic.rs": {
+    "mtime": 1793012244.8373604,
+    "seen": 1793013880.240376,
+    "ast_hash": "aabcd4792dbaefbaf8ef0e4fee31e8f2",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/tests/goldens.rs": {
+    "mtime": 1793012244.8374822,
+    "seen": 1793013880.2403772,
+    "ast_hash": "7856d390a4910510248dca10b8e75786",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/tests/node.rs": {
+    "mtime": 1793012244.8375852,
+    "seen": 1793013880.2403772,
+    "ast_hash": "ef1df3edd1d8a91e3ee2726e4ab56965",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/tests/reconcile.rs": {
+    "mtime": 1793012244.837697,
+    "seen": 1793013880.2403781,
+    "ast_hash": "8a3d4d877622d6ed9b41e8983c39cc13",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/tests/support/doubles.rs": {
+    "mtime": 1793012244.8378572,
+    "seen": 1793013880.2403781,
+    "ast_hash": "81633a2f01581ca914ea1bc7329e5b92",
+    "semantic_hash": ""
+  },
+  "panel/crates/fleet/tests/support/mod.rs": {
+    "mtime": 1793012244.8379667,
+    "seen": 1793013880.2403781,
+    "ast_hash": "7479f906d5c0df6557624db57160c3ad",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/Cargo.toml": {
+    "mtime": 1793007960.928989,
+    "seen": 1793013880.2408068,
+    "ast_hash": "16f8ae64526a12ca82e9bb18f4b1de7e",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/collector.rs": {
+    "mtime": 1793007960.9291406,
+    "seen": 1793013880.2408068,
+    "ast_hash": "cd6edb07eb23b176531620af54cbd765",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/lib.rs": {
+    "mtime": 1793007960.929258,
+    "seen": 1793013880.240808,
+    "ast_hash": "d1672b8d085a5a2e7a7ede81b6c992fa",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/pyfloat.rs": {
+    "mtime": 1793007960.9293554,
+    "seen": 1793013880.240808,
+    "ast_hash": "71298c472a40245b6eb1db34cab213d3",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/query.rs": {
+    "mtime": 1793007960.9294457,
+    "seen": 1793013880.240809,
+    "ast_hash": "bb953b70d08719bc361553e71d482a2c",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/rates.rs": {
+    "mtime": 1793007960.929551,
+    "seen": 1793013880.240809,
+    "ast_hash": "a4b708c7801cda0f6d355d27892b6a56",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/ring.rs": {
+    "mtime": 1793007960.9296196,
+    "seen": 1793013880.24081,
+    "ast_hash": "c5d8d4762c06eba943071a3dd0ca8290",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/routes.rs": {
+    "mtime": 1793007960.9297085,
+    "seen": 1793013880.24081,
+    "ast_hash": "8ec4b8d4edf0cd7c3c018459cf3abf4f",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/sources.rs": {
+    "mtime": 1793007960.9297986,
+    "seen": 1793013880.24081,
+    "ast_hash": "3e1ab27dd0a1808d487ab9bd1c3132a2",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/sse.rs": {
+    "mtime": 1793007960.9298863,
+    "seen": 1793013880.240811,
+    "ast_hash": "5cd396e1d428d0b97ea5b51beef2cd71",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/src/store.rs": {
+    "mtime": 1793007960.9299796,
+    "seen": 1793013880.240811,
+    "ast_hash": "39272e3c4c5099ffc2c5c20320852f68",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/common/mod.rs": {
+    "mtime": 1793007960.9301178,
+    "seen": 1793013880.240812,
+    "ast_hash": "8e5b1968302a889c9c483db41598ab47",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/fixtures/floats.json": {
+    "mtime": 1793007960.9302535,
+    "seen": 1793013880.240812,
+    "ast_hash": "7d5135af9d4b68501d940520f97b8fb7",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/fixtures/record.py": {
+    "mtime": 1793007960.930383,
+    "seen": 1793013880.240813,
+    "ast_hash": "c472379a3b2d17d436e79c5e4dfb0523",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/fixtures/routes.json": {
+    "mtime": 1793007960.9305723,
+    "seen": 1793013880.240813,
+    "ast_hash": "27474c92c3cc16804689f2d843794a51",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/fixtures/sse.json": {
+    "mtime": 1793007960.931364,
+    "seen": 1793013880.240813,
+    "ast_hash": "01b3b76e202d34dc722cf4f79d8cac52",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/floats.rs": {
+    "mtime": 1793007960.931431,
+    "seen": 1793013880.240814,
+    "ast_hash": "407d8254beae76c45a9237d18ab1043f",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/routes.rs": {
+    "mtime": 1793007960.9315083,
+    "seen": 1793013880.240814,
+    "ast_hash": "ea89eb0e152865bfd8b7dd312516401a",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/scenarios.rs": {
+    "mtime": 1793007960.9316034,
+    "seen": 1793013880.2408152,
+    "ast_hash": "8c5abb71fc156ed3a2b9396c5609c7f7",
+    "semantic_hash": ""
+  },
+  "panel/crates/metrics/tests/sse.rs": {
+    "mtime": 1793007960.9316835,
+    "seen": 1793013880.2408152,
+    "ast_hash": "44d0f2b828ab80a45b19d5055fc0ab9e",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/Cargo.toml": {
+    "mtime": 1793007928.1130102,
+    "seen": 1793013880.241299,
+    "ast_hash": "2bb98e552498eab18c90a4550186dee2",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/certificates.rs": {
+    "mtime": 1793007928.1131551,
+    "seen": 1793013880.2412999,
+    "ast_hash": "6deff32631038b6522f19b9434b56c4b",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/error.rs": {
+    "mtime": 1793007928.1132455,
+    "seen": 1793013880.2412999,
+    "ast_hash": "ff0d73e9b955314786247ff8feae8d50",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/fleet_compat.rs": {
+    "mtime": 1793007928.113321,
+    "seen": 1793013880.241301,
+    "ast_hash": "2227d75dc2048fd35f861df1947ea452",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/lib.rs": {
+    "mtime": 1793007928.1134005,
+    "seen": 1793013880.241301,
+    "ast_hash": "c25c5935a8eb5c9bfd0f12a51bc4b5dc",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/read_model.rs": {
+    "mtime": 1793007928.1134872,
+    "seen": 1793013880.241302,
+    "ast_hash": "56243d028907f505c2b0797b9be75de0",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/registry.rs": {
+    "mtime": 1793007928.1135726,
+    "seen": 1793013880.241302,
+    "ast_hash": "6c1886b60fde359b4416687dd0fe3b3a",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/routes.rs": {
+    "mtime": 1793007928.113842,
+    "seen": 1793013880.241303,
+    "ast_hash": "9b6a60aa9068a7b30542b9dad939934d",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/src/service.rs": {
+    "mtime": 1793007928.1139517,
+    "seen": 1793013880.241303,
+    "ast_hash": "364597b9da6634ca2946bf014817363a",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/common/mod.rs": {
+    "mtime": 1793007928.1140866,
+    "seen": 1793013880.2413042,
+    "ast_hash": "541f646afb2242a78cfb56a287b03d4a",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/fixtures/generators/gen_nodes.py": {
+    "mtime": 1793007928.1142328,
+    "seen": 1793013880.2413042,
+    "ast_hash": "1b2d753f73b5cd75946fecb1f10f04a8",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/fixtures/http.json": {
+    "mtime": 1793007928.1145718,
+    "seen": 1793013880.2413042,
+    "ast_hash": "53263f849547dd581c5a728a486e96e8",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/fixtures/nodes.json": {
+    "mtime": 1793007928.1149085,
+    "seen": 1793013880.241305,
+    "ast_hash": "0ddbe0c72c56bc23065eb1b2039c2bfb",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/golden_service.rs": {
+    "mtime": 1793007928.115,
+    "seen": 1793013880.241305,
+    "ast_hash": "c9c013721f8094cf71eafd58c74d1404",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/lifecycle.rs": {
+    "mtime": 1793007928.1150744,
+    "seen": 1793013880.241306,
+    "ast_hash": "44cc185619c05fca0a59102be648c37a",
+    "semantic_hash": ""
+  },
+  "panel/crates/nodes/tests/routes.rs": {
+    "mtime": 1793007928.115157,
+    "seen": 1793013880.241306,
+    "ast_hash": "418e457b7d5455b074d45424ec59f93a",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/Cargo.toml": {
+    "mtime": 1793009155.1419024,
+    "seen": 1793013880.241306,
+    "ast_hash": "277aee68f245913c95bfe0884c249d14",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/amneziawg.rs": {
+    "mtime": 1793009155.142033,
+    "seen": 1793013880.2413068,
+    "ast_hash": "f5f93d091537330ad2244b6168c0c6ae",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/api.rs": {
+    "mtime": 1793009155.1421542,
+    "seen": 1793013880.2413068,
+    "ast_hash": "b3306c737683a6b51123303f43203b23",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/error.rs": {
+    "mtime": 1793009155.1422791,
+    "seen": 1793013880.241308,
+    "ast_hash": "6dd23918a51ddce294a17b8d575252bf",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/lib.rs": {
+    "mtime": 1793009155.1423616,
+    "seen": 1793013880.241308,
+    "ast_hash": "495d676e05059bfb03e44c4c80c2e1ae",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/mieru.rs": {
+    "mtime": 1793009155.14246,
+    "seen": 1793013880.241309,
+    "ast_hash": "0df0bd88cbf34d2ada782cf0fc4a8f5e",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/naive.rs": {
+    "mtime": 1793009155.142542,
+    "seen": 1793013880.241309,
+    "ast_hash": "4bbaa89f327b832b57b7fb869eb9b434",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/qr.rs": {
+    "mtime": 1793009155.142626,
+    "seen": 1793013880.24131,
+    "ast_hash": "e1fb49f83b7e095f70a785fb1239a958",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/reveals.rs": {
+    "mtime": 1793009155.1427083,
+    "seen": 1793013880.24131,
+    "ast_hash": "f89abb54f76be85b80773bb62aef8649",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/telemt.rs": {
+    "mtime": 1793009155.1428115,
+    "seen": 1793013880.24131,
+    "ast_hash": "ccb05176490fe8a1558ae3492adfe167",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/trusttunnel.rs": {
+    "mtime": 1793009155.142909,
+    "seen": 1793013880.241311,
+    "ast_hash": "58b852279aa7604e70a9eaa390cf8865",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/trusttunnel_link.rs": {
+    "mtime": 1793009155.1430001,
+    "seen": 1793013880.241311,
+    "ast_hash": "f62c54354dce20f6ed412ac94020b081",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/util.rs": {
+    "mtime": 1793009155.1430628,
+    "seen": 1793013880.241312,
+    "ast_hash": "2873754e851f6ea3911f3e99e9b69a51",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/src/xray_router.rs": {
+    "mtime": 1793009155.1431358,
+    "seen": 1793013880.241312,
+    "ast_hash": "5b21ddfb5b22b420e87a4af5293bacc8",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/contract.rs": {
+    "mtime": 1793009155.143249,
+    "seen": 1793013880.241313,
+    "ast_hash": "fc82f78c87b91ef3a8dbf88171242549",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/gen_transcript_tests.py": {
+    "mtime": 1793009155.1433387,
+    "seen": 1793013880.241313,
+    "ast_hash": "a9bddb4501fbb67cb5cdb7c451b48da4",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/goldens.json": {
+    "mtime": 1793009155.1437821,
+    "seen": 1793013880.241313,
+    "ast_hash": "c0b2641e89e9da865e3a78a90cf99355",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/record_goldens.py": {
+    "mtime": 1793009155.1438844,
+    "seen": 1793013880.241314,
+    "ast_hash": "7a23401738c415435b08cb88ecd1d9bb",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/record_transcripts.py": {
+    "mtime": 1793009155.144109,
+    "seen": 1793013880.241314,
+    "ast_hash": "68f995815a2d00f917297752ecb55478",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/run.sh": {
+    "mtime": 1793010897.2282145,
+    "seen": 1793013880.2413151,
+    "ast_hash": "c7b5aa61889c9909bad1aa0e7365d3f1",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/transcript_cases.rs": {
+    "mtime": 1793009155.14432,
+    "seen": 1793013880.2413151,
+    "ast_hash": "dae01a415bc828788c6941f6adbacf31",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/goldens.rs": {
+    "mtime": 1793009155.1452625,
+    "seen": 1793013880.241316,
+    "ast_hash": "de7e8d6735ba1a5624ddda8a181c3d22",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/transcripts.rs": {
+    "mtime": 1793009155.1453986,
+    "seen": 1793013880.241316,
+    "ast_hash": "e5909c1e693002120573a5f0ce3a00e7",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/Cargo.toml": {
+    "mtime": 1793013011.034133,
+    "seen": 1793013880.241706,
+    "ast_hash": "1f1b075579fe861aa06806edc4e60de7",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/openapi/panel-openapi.json": {
+    "mtime": 1793009811.2378411,
+    "seen": 1793013880.241707,
+    "ast_hash": "49f1d983b15c04067378da3c4374a62f",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/auth.rs": {
+    "mtime": 1793009811.237972,
+    "seen": 1793013880.241707,
+    "ast_hash": "14ff81a1b3df4e212f6362621855f7f8",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/cli.rs": {
+    "mtime": 1793009811.2380662,
+    "seen": 1793013880.241707,
+    "ast_hash": "4c7ae2f71375a6d333b11c71c8b09d96",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/healthcheck.rs": {
+    "mtime": 1793009811.2381341,
+    "seen": 1793013880.241708,
+    "ast_hash": "1506d30aef662e15019f62018fedc5f8",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/json_loads.rs": {
+    "mtime": 1793009811.238275,
+    "seen": 1793013880.241708,
+    "ast_hash": "bbc240bbd22ee27c43541636786241c7",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/mime_table.rs": {
+    "mtime": 1793009811.2383754,
+    "seen": 1793013880.241709,
+    "ast_hash": "5562af69429c2901232f684e20976cb9",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/mod.rs": {
+    "mtime": 1793009811.2384558,
+    "seen": 1793013880.241709,
+    "ast_hash": "dbc242a8a59d89339cc91a8145e4a7a1",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/request.rs": {
+    "mtime": 1793009811.2385538,
+    "seen": 1793013880.2417102,
+    "ast_hash": "fc614ba971eed009a86f3f41d19e61a9",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/response.rs": {
+    "mtime": 1793009811.2386277,
+    "seen": 1793013880.2417102,
+    "ast_hash": "0a776e4b02f5c0e614b39a35cc9d929c",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/router.rs": {
+    "mtime": 1793009811.2387276,
+    "seen": 1793013880.2417102,
+    "ast_hash": "2665978170d89c2dc3997f598299fb41",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/http/static_files.rs": {
+    "mtime": 1793009811.23882,
+    "seen": 1793013880.2417111,
+    "ast_hash": "0ff7e2fad5cec966efaa20506414f6db",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/lib.rs": {
+    "mtime": 1793009811.238913,
+    "seen": 1793013880.241712,
+    "ast_hash": "316172dc89c5371e47634ac6bfa89f04",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/lifespan.rs": {
+    "mtime": 1793009811.239012,
+    "seen": 1793013880.241712,
+    "ast_hash": "3811ba528b7be05a6a21c08747b7a36d",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/main.rs": {
+    "mtime": 1793009811.2390804,
+    "seen": 1793013880.241712,
+    "ast_hash": "d64d0ce5ae7bd030dcec3c41da73653a",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/models.rs": {
+    "mtime": 1793009811.2391589,
+    "seen": 1793013880.2417128,
+    "ast_hash": "0c6e6f0c82aec0d77de645b2311a005f",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/api_keys.rs": {
+    "mtime": 1793009811.2392614,
+    "seen": 1793013880.2417128,
+    "ast_hash": "12dcb1bdcbd08f1a5cd1cc30416bfb23",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/auth.rs": {
+    "mtime": 1793009811.2393482,
+    "seen": 1793013880.241714,
+    "ast_hash": "4d5dd514d4e0ad720b9014b0421a7897",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/clients.rs": {
+    "mtime": 1793013011.0342348,
+    "seen": 1793013880.241714,
+    "ast_hash": "4512b47482e53ffc22675c648324dcba",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/fleet_node.rs": {
+    "mtime": 1793012244.8382392,
+    "seen": 1793013880.241715,
+    "ast_hash": "404b13dfaaa0c58314b09ca31139c3a2",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/mod.rs": {
+    "mtime": 1793013011.0343385,
+    "seen": 1793013880.241715,
+    "ast_hash": "35e6372c7ce22ac898fcd30c92ace294",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/openapi.rs": {
+    "mtime": 1793009811.2395132,
+    "seen": 1793013880.241716,
+    "ast_hash": "35081e2b69a3a34879a53ff579e12394",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/readiness.rs": {
+    "mtime": 1793009811.2395923,
+    "seen": 1793013880.241716,
+    "ast_hash": "bcd0f45af2559acdbb5a4fbf185e512d",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/routes/test_hooks.rs": {
+    "mtime": 1793009811.2396784,
+    "seen": 1793013880.241717,
+    "ast_hash": "3223402f8bfa99b7a01a8ced429b22f1",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/server.rs": {
+    "mtime": 1793009811.239774,
+    "seen": 1793013880.241717,
+    "ast_hash": "a4388da7edd0d7bf41c40bc421236f08",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/state.rs": {
+    "mtime": 1793009811.2398672,
+    "seen": 1793013880.241718,
+    "ast_hash": "b57654289f5370b2c26d9981884569de",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/src/wiring.rs": {
+    "mtime": 1793013011.0344589,
+    "seen": 1793013880.241718,
+    "ast_hash": "a8ad344c92689ae77c37bff5dfb10e1a",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/auth_flows.rs": {
+    "mtime": 1793012244.8385954,
+    "seen": 1793013880.241719,
+    "ast_hash": "b1a3ac513031307713894c49e642e89b",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/clients_routes.rs": {
+    "mtime": 1793013011.034536,
+    "seen": 1793013880.241719,
+    "ast_hash": "9d7240157a9cb84266ed543f622fb53f",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/common/mod.rs": {
+    "mtime": 1793009811.2402246,
+    "seen": 1793013880.241719,
+    "ast_hash": "a136c0292165dd24cbcfc37c98c453c9",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/framework_probes.json": {
+    "mtime": 1793009811.2403846,
+    "seen": 1793013880.24172,
+    "ast_hash": "3f1c8ef8d7e7b55099e307d7ba3ba391",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/gen_mime_table.py": {
+    "mtime": 1793009811.2404792,
+    "seen": 1793013880.24172,
+    "ast_hash": "ce90b845123eb36c67602966d6281377",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/json_corpus.json": {
+    "mtime": 1793009811.2405558,
+    "seen": 1793013880.2417212,
+    "ast_hash": "bd705ceb14a41cacc6beda6a11afab55",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/make_probes.py": {
+    "mtime": 1793009811.2406409,
+    "seen": 1793013880.2417212,
+    "ast_hash": "bb85360d31365f3030e0127eb0b76ede",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/probes.json": {
+    "mtime": 1793009811.2408764,
+    "seen": 1793013880.2417212,
+    "ast_hash": "92f4bc526427343dd9872cc020808c93",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/python_constants.json": {
+    "mtime": 1793009811.2409823,
+    "seen": 1793013880.241722,
+    "ast_hash": "f9e29a905aa4bc88f4f6b242a3e66f44",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/fixtures/record_goldens.py": {
+    "mtime": 1793009811.241091,
+    "seen": 1793013880.241722,
+    "ast_hash": "2d0a77f5c93db5e074ff4223bf8c9df6",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/framework_probes.rs": {
+    "mtime": 1793009811.2411833,
+    "seen": 1793013880.2417228,
+    "ast_hash": "62a10f3dd0a2663f53aa08560fab66d4",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/healthcheck.rs": {
+    "mtime": 1793009811.2412534,
+    "seen": 1793013880.2417228,
+    "ast_hash": "51d27e7417d9382e0b804d8c5e70ddfb",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/openapi_routes.rs": {
+    "mtime": 1793009811.2413208,
+    "seen": 1793013880.2417228,
+    "ast_hash": "5d2c02275cd44f640c158719e4edf237",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/python_goldens.rs": {
+    "mtime": 1793009811.241399,
+    "seen": 1793013880.241724,
+    "ast_hash": "ac6ac9dd92edff4fddd22e7c8b25b1b7",
+    "semantic_hash": ""
+  },
+  "panel/crates/web/tests/test_hooks.rs": {
+    "mtime": 1793013011.03464,
+    "seen": 1793013880.241724,
+    "ast_hash": "67d9b124024dd30984e516a79422d39a",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/audit/audit.json": {
+    "mtime": 1793005981.4910653,
+    "seen": 1793013880.243571,
+    "ast_hash": "55b2b1225c1438198684d4245dac2089",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/clients/client_cursor.json": {
+    "mtime": 1793005981.4912684,
+    "seen": 1793013880.243571,
+    "ast_hash": "149054f12edc68b4d215168d413de216",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/errors/error_bodies.json": {
+    "mtime": 1793005981.4915085,
+    "seen": 1793013880.243572,
+    "ast_hash": "f2ea6cdf7b2f31c60c682c81debb3c99",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/fleet/fleet.json": {
+    "mtime": 1793005981.4917789,
+    "seen": 1793013880.243572,
+    "ast_hash": "606d4f88b84d7a089addcc6f0c3c8995",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/index.json": {
+    "mtime": 1793005981.4918783,
+    "seen": 1793013880.243573,
+    "ast_hash": "5d20cd2d38e71e2e9a56a6e4fbd41576",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/keyring/keyring-1.json": {
+    "mtime": 1793005981.4919925,
+    "seen": 1793013880.243573,
+    "ast_hash": "6a1cdca6c45c2024fe6bb4beadaea64d",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/keyring/keyring-2.json": {
+    "mtime": 1793005981.4920962,
+    "seen": 1793013880.243573,
+    "ast_hash": "80dce031667a0b7f522754d5f745b8c9",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/keyring/keyring-3.json": {
+    "mtime": 1793005981.4921882,
+    "seen": 1793013880.243574,
+    "ast_hash": "79827aa110f620ab3dd827b89152a569",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/links/tt_links.json": {
+    "mtime": 1793005981.492434,
+    "seen": 1793013880.243574,
+    "ast_hash": "425b8bcffece2ea5765289a8967acb15",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/migrations.json": {
+    "mtime": 1793005981.4925818,
+    "seen": 1793013880.243575,
+    "ast_hash": "ebe5cc09e7ffeb7cdb9a47e4b620554f",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v01.json": {
+    "mtime": 1793005981.4926643,
+    "seen": 1793013880.243575,
+    "ast_hash": "dee01a0c6946d649c6d69b6c5d5ae203",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v02.json": {
+    "mtime": 1793005981.4927492,
+    "seen": 1793013880.243576,
+    "ast_hash": "07e802c97882d1aca810088daca72dd5",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v03.json": {
+    "mtime": 1793005981.4928265,
+    "seen": 1793013880.243576,
+    "ast_hash": "041defa466ebd6bdcb80f1450328b76d",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v04.json": {
+    "mtime": 1793005981.4929092,
+    "seen": 1793013880.243577,
+    "ast_hash": "323e46d5611efa80a9cad2bae9657f79",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v05.json": {
+    "mtime": 1793005981.492989,
+    "seen": 1793013880.243577,
+    "ast_hash": "efe32d0f63642173fe7096faef7b0400",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v06.json": {
+    "mtime": 1793005981.493099,
+    "seen": 1793013880.243577,
+    "ast_hash": "1b0e1ddcb050f3ef0574750f37241a1a",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v07.json": {
+    "mtime": 1793005981.493219,
+    "seen": 1793013880.2435782,
+    "ast_hash": "ed5e2bba30e2f9d530c92ef5aa969d4f",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v08.json": {
+    "mtime": 1793005981.4933228,
+    "seen": 1793013880.2435782,
+    "ast_hash": "171aa2d5d7c3fc59c2c024544b32011c",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v09.json": {
+    "mtime": 1793005981.493431,
+    "seen": 1793013880.243579,
+    "ast_hash": "b558ae0530efd0db0900d9c049f88c77",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v10.json": {
+    "mtime": 1793005981.4935472,
+    "seen": 1793013880.243579,
+    "ast_hash": "30eb1e23d8f222d27e60b29328388a9b",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v11.json": {
+    "mtime": 1793005981.4936378,
+    "seen": 1793013880.243579,
+    "ast_hash": "fd35ab42a85f4b05e2481966b12fb5da",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v12.json": {
+    "mtime": 1793005981.4937415,
+    "seen": 1793013880.2435799,
+    "ast_hash": "eb0f45b9290d0b3eb5cec8084cc7ec60",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v13.json": {
+    "mtime": 1793005981.4938521,
+    "seen": 1793013880.2435799,
+    "ast_hash": "6c87e0aefe5b2f90c3d10d12231932c8",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v14.json": {
+    "mtime": 1793005981.4939609,
+    "seen": 1793013880.2435808,
+    "ast_hash": "363efa1128005662a87b1c67d3d855e5",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v15.json": {
+    "mtime": 1793005981.494061,
+    "seen": 1793013880.2435808,
+    "ast_hash": "1c8ed21799045d7911294947fb9cb878",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v16.json": {
+    "mtime": 1793005981.4941988,
+    "seen": 1793013880.243582,
+    "ast_hash": "14bd148a6cee3fefff1b3723e1b1f5f6",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v17.json": {
+    "mtime": 1793005981.494318,
+    "seen": 1793013880.243582,
+    "ast_hash": "a5fb32b924f7ca4c65195f2c04a7449d",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v18.json": {
+    "mtime": 1793005981.4944253,
+    "seen": 1793013880.243582,
+    "ast_hash": "955e1778b7fe634b8fae1f30ca5bc3f6",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v19.json": {
+    "mtime": 1793005981.494532,
+    "seen": 1793013880.243583,
+    "ast_hash": "c220b0d7189707a8fb171494fe38e916",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v20.json": {
+    "mtime": 1793005981.494645,
+    "seen": 1793013880.243583,
+    "ast_hash": "b6c698fec964727756fdccfefff1b7ee",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v21.json": {
+    "mtime": 1793005981.4948575,
+    "seen": 1793013880.243584,
+    "ast_hash": "0369eb0329560d6b12b91c73b4171f58",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v22.json": {
+    "mtime": 1793005981.49498,
+    "seen": 1793013880.243584,
+    "ast_hash": "f3fac9f719ba9c9bba80f4ce74c46426",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v23.json": {
+    "mtime": 1793005981.4950907,
+    "seen": 1793013880.243585,
+    "ast_hash": "0df2f25d7a6ce74c8057c03a172b20f6",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v24.json": {
+    "mtime": 1793005981.4951856,
+    "seen": 1793013880.243585,
+    "ast_hash": "aca87fd09152f772d2d2e69c20cc753f",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v25.json": {
+    "mtime": 1793005981.495297,
+    "seen": 1793013880.243586,
+    "ast_hash": "1a27e16f37ca4101c9f8c1d803ed2dbd",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/migrations/schema-v26.json": {
+    "mtime": 1793005981.4954093,
+    "seen": 1793013880.243586,
+    "ast_hash": "460bdd2a3b51c06c0ebd3eb915805675",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/routing/routing.json": {
+    "mtime": 1793005981.495716,
+    "seen": 1793013880.243587,
+    "ast_hash": "4ea0798a854b1ff24407856d46cbb5e2",
+    "semantic_hash": ""
+  },
+  "panel/tests/goldens/subscriptions/subscriptions-master-key.json": {
+    "mtime": 1793005981.4958794,
+    "seen": 1793013880.243587,
+    "ast_hash": "52d76e2804b47a15e41f8b8cfba878d1",
+    "semantic_hash": ""
+  },
+  "panel/tests/harness/__init__.py": {
+    "mtime": 1793005981.497644,
+    "seen": 1793013880.243587,
+    "ast_hash": "ba3331fda2376bda8fbc47e61c2ccd62",
+    "semantic_hash": ""
+  },
+  "panel/tests/harness/contract_stub.py": {
+    "mtime": 1793005981.497729,
+    "seen": 1793013880.2435882,
+    "ast_hash": "9fa42426d27d214524755d299e595655",
+    "semantic_hash": ""
+  },
+  "panel/tests/harness/fake_managers.py": {
+    "mtime": 1793005981.4978428,
+    "seen": 1793013880.2435882,
+    "ast_hash": "80f3c19d04277625f3ced42e933b3015",
+    "semantic_hash": ""
+  },
+  "panel/tests/harness/markers.py": {
+    "mtime": 1793005981.497945,
+    "seen": 1793013880.2435892,
+    "ast_hash": "1574666376275131734ec7e9a6632b79",
+    "semantic_hash": ""
+  },
+  "panel/tests/harness/server.py": {
+    "mtime": 1793005981.4980516,
+    "seen": 1793013880.2435892,
+    "ast_hash": "8e82734ebd6d3e07b41f104e8f3ff71f",
+    "semantic_hash": ""
+  },
+  "pc_host/Cargo.toml": {
+    "mtime": 1793008773.5238085,
+    "seen": 1793013880.244749,
+    "ast_hash": "7aa0498638f951ee93efdae236bc31c4",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/dirfd.rs": {
+    "mtime": 1793008773.52395,
+    "seen": 1793013880.24475,
+    "ast_hash": "8bec8d39393d5e4b9f12b372a393294b",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/identity.rs": {
+    "mtime": 1793008773.5240476,
+    "seen": 1793013880.24475,
+    "ast_hash": "22b16eedd21c9354df5eb96d4815a71f",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/identity_tests.rs": {
+    "mtime": 1793008773.5241475,
+    "seen": 1793013880.2447512,
+    "ast_hash": "e6a0079d85eeb2727534a5eccb8a46c3",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/mod.rs": {
+    "mtime": 1793008773.5242484,
+    "seen": 1793013880.2447512,
+    "ast_hash": "c2f5ba6535883e715224928691b79236",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/panel.rs": {
+    "mtime": 1793008773.5243506,
+    "seen": 1793013880.244752,
+    "ast_hash": "13ee560c4076e100bafc4e670370cb21",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/panel_tests.rs": {
+    "mtime": 1793008773.5244331,
+    "seen": 1793013880.244752,
+    "ast_hash": "aa94d2af492ff54fdbcfe23a7e5f4b57",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/release.rs": {
+    "mtime": 1793008773.5245261,
+    "seen": 1793013880.244753,
+    "ast_hash": "e60cee08acd5c1841fa56c0b24fe7819",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/safe.rs": {
+    "mtime": 1793008773.5246434,
+    "seen": 1793013880.244753,
+    "ast_hash": "f423deeaf416f3facbc0ed408bf41550",
+    "semantic_hash": ""
+  },
+  "pc_host/src/archive/safe_tests.rs": {
+    "mtime": 1793008773.52477,
+    "seen": 1793013880.2447538,
+    "ast_hash": "b75339b79f118c701753417f8deadacb",
+    "semantic_hash": ""
+  },
+  "pc_host/src/error.rs": {
+    "mtime": 1793008773.5248492,
+    "seen": 1793013880.2447538,
+    "ast_hash": "bcbfca7ed9a6a8792061f3e74e1fb254",
+    "semantic_hash": ""
+  },
+  "pc_host/src/fs.rs": {
+    "mtime": 1793008773.524936,
+    "seen": 1793013880.244755,
+    "ast_hash": "18fc0a1be1b1eb9bab650a5df75051eb",
+    "semantic_hash": ""
+  },
+  "pc_host/src/json.rs": {
+    "mtime": 1793008773.5250351,
+    "seen": 1793013880.244755,
+    "ast_hash": "5a8ed73e81394eb6d1669279d139fd17",
+    "semantic_hash": ""
+  },
+  "pc_host/src/lib.rs": {
+    "mtime": 1793008773.525129,
+    "seen": 1793013880.244756,
+    "ast_hash": "1b7d70c2fa1c57bfd8da604ab0bedc72",
+    "semantic_hash": ""
+  },
+  "pc_host/src/lock.rs": {
+    "mtime": 1793008773.525199,
+    "seen": 1793013880.244756,
+    "ast_hash": "99c9abe5534155ec1af71696358c5cda",
+    "semantic_hash": ""
+  },
+  "pc_host/src/net.rs": {
+    "mtime": 1793008773.5253046,
+    "seen": 1793013880.244756,
+    "ast_hash": "d5d8c1db041e9ffb8bdf97ab7c10adc6",
+    "semantic_hash": ""
+  },
+  "pc_host/src/pytext.rs": {
+    "mtime": 1793008773.52538,
+    "seen": 1793013880.244757,
+    "ast_hash": "ed763b7886618188070b5fa3ee95f487",
+    "semantic_hash": ""
+  },
+  "pc_host/src/runner/fake.rs": {
+    "mtime": 1793008773.5254886,
+    "seen": 1793013880.244757,
+    "ast_hash": "0811fc38bf036d2b4921587fdbf26a6e",
+    "semantic_hash": ""
+  },
+  "pc_host/src/runner/mod.rs": {
+    "mtime": 1793008773.5255744,
+    "seen": 1793013880.2447581,
+    "ast_hash": "80c9dd55597d6291e8ea45488b3d5aef",
+    "semantic_hash": ""
+  },
+  "pc_host/src/runner/system.rs": {
+    "mtime": 1793008773.525658,
+    "seen": 1793013880.2447581,
+    "ast_hash": "16f5cc188cfe046b1967a2abcae4bbde",
+    "semantic_hash": ""
+  },
+  "pc_host/src/testarchive.rs": {
+    "mtime": 1793008773.525748,
+    "seen": 1793013880.244759,
+    "ast_hash": "1b7eeda119765cc8a8eda21eafcb6907",
+    "semantic_hash": ""
+  },
+  "pc_host/src/testutil.rs": {
+    "mtime": 1793008773.525824,
+    "seen": 1793013880.244759,
+    "ast_hash": "29de75a335146a32573e0d876b40f134",
+    "semantic_hash": ""
+  },
+  "pc_host/src/url.rs": {
+    "mtime": 1793008773.525918,
+    "seen": 1793013880.24476,
+    "ast_hash": "75af49533769ab690f9ea1fe7e7feb85",
+    "semantic_hash": ""
+  },
+  "pc_host/tests/cross_python.rs": {
+    "mtime": 1793008773.5260475,
+    "seen": 1793013880.24476,
+    "ast_hash": "8dd9a5ff3b451c4e5c5e2a7af935e49a",
+    "semantic_hash": ""
+  },
+  "pc_host/tests/golden_json.rs": {
+    "mtime": 1793008773.5261312,
+    "seen": 1793013880.24476,
+    "ast_hash": "b2e0bca8b69b613e3bb02ec6002bc389",
+    "semantic_hash": ""
+  },
+  "pc_host/tests/net_tls.rs": {
+    "mtime": 1793008773.526212,
+    "seen": 1793013880.244761,
+    "ast_hash": "320875d12bd8792da76129a5aad7e365",
+    "semantic_hash": ""
+  },
+  "pc_host/tests/runner_linux.rs": {
+    "mtime": 1793008773.5263064,
+    "seen": 1793013880.244761,
+    "ast_hash": "8caf2b6002b1185ee096123926f55b72",
+    "semantic_hash": ""
+  },
+  "scripts/dev/record-argparse-goldens.py": {
+    "mtime": 1793012132.0570195,
+    "seen": 1793013880.245023,
+    "ast_hash": "46017deb7c0fb6995a9eb1ff8d139e15",
+    "semantic_hash": ""
+  },
+  "scripts/dev/record-host-goldens.py": {
+    "mtime": 1793005589.3571272,
+    "seen": 1793013880.245023,
+    "ast_hash": "56efbf8563b1cb39e0965197f3f0bf21",
+    "semantic_hash": ""
+  },
+  "scripts/dev/record-panel-goldens.py": {
+    "mtime": 1793005981.509036,
+    "seen": 1793013880.245024,
+    "ast_hash": "c38515fcc8e02d07769a6f9195fca3d4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/INDEX.json": {
+    "mtime": 1793005589.357385,
+    "seen": 1793013880.2456589,
+    "ast_hash": "4bd853db73b2394b7b4802561a0024e7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/seed/state.core.json": {
+    "mtime": 1793005589.3576097,
+    "seen": 1793013880.2456589,
+    "ast_hash": "0d5938d977a8d83783da7a3877af89a1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/seed/state.json": {
+    "mtime": 1793005589.357691,
+    "seen": 1793013880.2456598,
+    "ast_hash": "c3da94421fc6d92b78df1c201fb7cbc1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/seed/versions.json": {
+    "mtime": 1793005589.3577495,
+    "seen": 1793013880.2456598,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/00-seed/state.json": {
+    "mtime": 1793005589.357898,
+    "seen": 1793013880.245661,
+    "ast_hash": "c3da94421fc6d92b78df1c201fb7cbc1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/00-seed/versions.json": {
+    "mtime": 1793005589.3579712,
+    "seen": 1793013880.245661,
+    "ast_hash": "b7f4920df57cec4e25b312d5e5bba6b3",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/01-check-upstream/state.json": {
+    "mtime": 1793005589.358066,
+    "seen": 1793013880.245661,
+    "ast_hash": "1c0c6ede612267142f5220ee72a2f4e9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/01-check-upstream/versions.json": {
+    "mtime": 1793005589.3581305,
+    "seen": 1793013880.245662,
+    "ast_hash": "2880c3ae2e76624dc7f986547ecbdb5c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/02-update-telemt/state.json": {
+    "mtime": 1793005589.3582387,
+    "seen": 1793013880.245662,
+    "ast_hash": "bace28e235c663aaa9ffa2a930113eae",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/02-update-telemt/versions.json": {
+    "mtime": 1793005589.3583095,
+    "seen": 1793013880.245663,
+    "ast_hash": "aa847d0ea0f6b0f59e64051d08cc9f05",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/03-update-mita/state.json": {
+    "mtime": 1793005589.3584137,
+    "seen": 1793013880.245663,
+    "ast_hash": "a7f8fd2ad97737d8f3e95bcc52d575f9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/03-update-mita/versions.json": {
+    "mtime": 1793005589.358472,
+    "seen": 1793013880.245663,
+    "ast_hash": "f96e8517dd4fd5ef268a5d70faab0db7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/04-update-xray/state.json": {
+    "mtime": 1793005589.3585718,
+    "seen": 1793013880.245664,
+    "ast_hash": "3223d7a9c11a03501668a08ede289e35",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/04-update-xray/versions.json": {
+    "mtime": 1793005589.3586516,
+    "seen": 1793013880.245664,
+    "ast_hash": "e97a50df30b557767f075ac855856d53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/05-update-naive-rolled-back/state.json": {
+    "mtime": 1793005589.3587368,
+    "seen": 1793013880.245665,
+    "ast_hash": "3223d7a9c11a03501668a08ede289e35",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/05-update-naive-rolled-back/versions.json": {
+    "mtime": 1793005589.3587973,
+    "seen": 1793013880.245665,
+    "ast_hash": "e97a50df30b557767f075ac855856d53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/compose.versions.yaml": {
+    "mtime": 1793005589.3588607,
+    "seen": 1793013880.245665,
+    "ast_hash": "5ca563f213e4914e72ff45707912d3af",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/agent/updates/steps.json": {
+    "mtime": 1793005589.3591087,
+    "seen": 1793013880.245666,
+    "ast_hash": "17b6f465cb0da0ffbd5ec60dfe42a8cb",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/config/cli-blocked.json": {
+    "mtime": 1793005589.359207,
+    "seen": 1793013880.245666,
+    "ast_hash": "e00ae1660149975bd50f26fb6a1f8571",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/config/errors.json": {
+    "mtime": 1793005589.3593404,
+    "seen": 1793013880.245667,
+    "ast_hash": "5bec780755cdd7ace16aa6354bc670dd",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/config/render/round-trip.json": {
+    "mtime": 1793005589.3600404,
+    "seen": 1793013880.245667,
+    "ast_hash": "ffaa5567970a9699e7a75583a8776ea1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/commands.json": {
+    "mtime": 1793005589.360209,
+    "seen": 1793013880.2456682,
+    "ast_hash": "c252f9492246e9a4d6e973d1b398c169",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/install-stdout.json": {
+    "mtime": 1793005589.360363,
+    "seen": 1793013880.2456682,
+    "ast_hash": "6f3c7a2a45280e676adb29c565e4cc41",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/journal/modes.json": {
+    "mtime": 1793005589.3604822,
+    "seen": 1793013880.2456682,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/journal/ownership.json": {
+    "mtime": 1793005589.360575,
+    "seen": 1793013880.2456691,
+    "ast_hash": "564724658ae310348710db8d8cb5f03c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/journal/plan.json": {
+    "mtime": 1793005589.360678,
+    "seen": 1793013880.2456691,
+    "ast_hash": "b11ae2c913301a22213bba082703c05c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/journal/report.json": {
+    "mtime": 1793005589.3607533,
+    "seen": 1793013880.2456698,
+    "ast_hash": "6c79795316c0c0a4c0329039f390cc45",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/journal/state.json": {
+    "mtime": 1793005589.3608544,
+    "seen": 1793013880.2456698,
+    "ast_hash": "1beee40fa60c8e810c32ec44ddb32902",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/report/modes.json": {
+    "mtime": 1793005589.3609452,
+    "seen": 1793013880.2456698,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/report/report.json": {
+    "mtime": 1793005589.3610063,
+    "seen": 1793013880.2456708,
+    "ast_hash": "02bf3d7fcc30eb5f403929bda2bf54da",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/report/stdout.json": {
+    "mtime": 1793005589.3610678,
+    "seen": 1793013880.2456708,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.362684,
+    "seen": 1793013880.2456708,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.3641543,
+    "seen": 1793013880.245672,
+    "ast_hash": "0d5938d977a8d83783da7a3877af89a1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/root/tree.json": {
+    "mtime": 1793005589.364487,
+    "seen": 1793013880.245672,
+    "ast_hash": "6ac318a70f7c4a3e5221a1610db78061",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/status.json": {
+    "mtime": 1793005589.364575,
+    "seen": 1793013880.245673,
+    "ast_hash": "6f3c7a2a45280e676adb29c565e4cc41",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/commands.json": {
+    "mtime": 1793005589.3647912,
+    "seen": 1793013880.245673,
+    "ast_hash": "c73cc6a9d32d4128baef6491c287d688",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/install-stdout.json": {
+    "mtime": 1793005589.3649473,
+    "seen": 1793013880.245673,
+    "ast_hash": "642b2c4e38155e02e2f6d48b06ce2da2",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/journal/modes.json": {
+    "mtime": 1793005589.3650386,
+    "seen": 1793013880.245674,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/journal/ownership.json": {
+    "mtime": 1793005589.3651214,
+    "seen": 1793013880.245674,
+    "ast_hash": "5d775ab9efb580fdbaffe1685764d28a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/journal/plan.json": {
+    "mtime": 1793005589.365236,
+    "seen": 1793013880.245675,
+    "ast_hash": "442130cc288a60d9f34a8055cb9b2b08",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/journal/report.json": {
+    "mtime": 1793005589.36532,
+    "seen": 1793013880.245675,
+    "ast_hash": "1beb9025e0141ee83b037baddca207c3",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/journal/state.json": {
+    "mtime": 1793005589.3654234,
+    "seen": 1793013880.245675,
+    "ast_hash": "02d8bc5d746b27b530e6b8b17d67d4f4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/report/modes.json": {
+    "mtime": 1793005589.3655264,
+    "seen": 1793013880.245676,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/report/report.json": {
+    "mtime": 1793005589.3656063,
+    "seen": 1793013880.245676,
+    "ast_hash": "dd0b43aa90b31538e8271c9a12827e67",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/report/stdout.json": {
+    "mtime": 1793005589.3656883,
+    "seen": 1793013880.245677,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.3676362,
+    "seen": 1793013880.245677,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/root/files/usr/bin/mita": {
+    "mtime": 1793005589.3687193,
+    "seen": 1793013880.245677,
+    "ast_hash": "0599e894ed4837cfe75a0f5dbc743846",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.3692188,
+    "seen": 1793013880.2456782,
+    "ast_hash": "67e45133abe0eeec6852cd52feee9a9a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/root/tree.json": {
+    "mtime": 1793005589.3696277,
+    "seen": 1793013880.2456782,
+    "ast_hash": "a9b606314da00e0941572023a58cae54",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/status.json": {
+    "mtime": 1793005589.369734,
+    "seen": 1793013880.2456791,
+    "ast_hash": "642b2c4e38155e02e2f6d48b06ce2da2",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/commands.json": {
+    "mtime": 1793005589.369947,
+    "seen": 1793013880.2456791,
+    "ast_hash": "9ebf24679f323ab68a56c0954775b2b9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/install-stdout.json": {
+    "mtime": 1793005589.3701303,
+    "seen": 1793013880.24568,
+    "ast_hash": "6439fe7d328259a0b518f6f0167f21ac",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/journal/modes.json": {
+    "mtime": 1793005589.3702567,
+    "seen": 1793013880.24568,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/journal/ownership.json": {
+    "mtime": 1793005589.3703516,
+    "seen": 1793013880.24568,
+    "ast_hash": "f71f4880b2ad5d2e743a44abaf0bc3ad",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/journal/plan.json": {
+    "mtime": 1793005589.3704681,
+    "seen": 1793013880.2456808,
+    "ast_hash": "f50097ddf071b550a7ddbabe0d203b0b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/journal/report.json": {
+    "mtime": 1793005589.3705497,
+    "seen": 1793013880.2456808,
+    "ast_hash": "32bf3b5b624b770a9953593b80d6c44f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/journal/state.json": {
+    "mtime": 1793005589.3706613,
+    "seen": 1793013880.2456808,
+    "ast_hash": "6b0664b7d0cf25833c32facff338657a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/report/modes.json": {
+    "mtime": 1793005589.3708067,
+    "seen": 1793013880.245682,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/report/report.json": {
+    "mtime": 1793005589.370902,
+    "seen": 1793013880.245682,
+    "ast_hash": "9b982b380f469156061dac2c015b8abd",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/report/stdout.json": {
+    "mtime": 1793005589.370989,
+    "seen": 1793013880.245683,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/files/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+    "mtime": 1793005589.372214,
+    "seen": 1793013880.245683,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.3734827,
+    "seen": 1793013880.245683,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.3748322,
+    "seen": 1793013880.245684,
+    "ast_hash": "1a8b5929c4bb995df0aee2036d7334ae",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/tree.json": {
+    "mtime": 1793005589.3752444,
+    "seen": 1793013880.245684,
+    "ast_hash": "71ace284e871d2737fe9be3db7694fc9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/status.json": {
+    "mtime": 1793005589.3753283,
+    "seen": 1793013880.245685,
+    "ast_hash": "6439fe7d328259a0b518f6f0167f21ac",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/commands.json": {
+    "mtime": 1793005589.3756156,
+    "seen": 1793013880.245685,
+    "ast_hash": "9dc4aaaaa701babadffb76aacc15b39b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/install-stdout.json": {
+    "mtime": 1793005589.3757904,
+    "seen": 1793013880.245685,
+    "ast_hash": "6f26b03d5dd6fb92ce044714ebc15b71",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/journal/modes.json": {
+    "mtime": 1793005589.3758883,
+    "seen": 1793013880.245686,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/journal/ownership.json": {
+    "mtime": 1793005589.375973,
+    "seen": 1793013880.245686,
+    "ast_hash": "40a2bf9c01aa4e68ef50633b64da124a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/journal/plan.json": {
+    "mtime": 1793005589.3760731,
+    "seen": 1793013880.245687,
+    "ast_hash": "d42515daa3f0d16fd2afe8227d67dcdd",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/journal/report.json": {
+    "mtime": 1793005589.3761678,
+    "seen": 1793013880.245687,
+    "ast_hash": "55afb3295b61847db11878961b176d50",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/journal/state.json": {
+    "mtime": 1793005589.376266,
+    "seen": 1793013880.245687,
+    "ast_hash": "1ba16360d48b0a8fb5da09f0907c06d2",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/report/modes.json": {
+    "mtime": 1793005589.3763685,
+    "seen": 1793013880.245688,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/report/report.json": {
+    "mtime": 1793005589.3764422,
+    "seen": 1793013880.245688,
+    "ast_hash": "db20e55456cc506dabd1b50979138b50",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/report/stdout.json": {
+    "mtime": 1793005589.376496,
+    "seen": 1793013880.2456892,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.378765,
+    "seen": 1793013880.2456892,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.3799825,
+    "seen": 1793013880.2456892,
+    "ast_hash": "0d5938d977a8d83783da7a3877af89a1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/root/tree.json": {
+    "mtime": 1793005589.3803408,
+    "seen": 1793013880.24569,
+    "ast_hash": "3585f95526d5e2eff4fff0ed51857ca6",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/status.json": {
+    "mtime": 1793005589.380438,
+    "seen": 1793013880.24569,
+    "ast_hash": "6f26b03d5dd6fb92ce044714ebc15b71",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/commands.json": {
+    "mtime": 1793005589.380665,
+    "seen": 1793013880.2456908,
+    "ast_hash": "5b5da84a77083b759c7c55254eb7c4e7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/install-stdout.json": {
+    "mtime": 1793005589.3808131,
+    "seen": 1793013880.2456908,
+    "ast_hash": "49a09930422561a6a648569e5af2d338",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/journal/modes.json": {
+    "mtime": 1793005589.3808978,
+    "seen": 1793013880.2456908,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/journal/ownership.json": {
+    "mtime": 1793005589.3810835,
+    "seen": 1793013880.245692,
+    "ast_hash": "e62687701f209fbc51d1d6a803a66a1a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/journal/plan.json": {
+    "mtime": 1793005589.3812468,
+    "seen": 1793013880.245692,
+    "ast_hash": "2e2e3d50141ad731e7cc101b57525256",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/journal/report.json": {
+    "mtime": 1793005589.3813455,
+    "seen": 1793013880.245693,
+    "ast_hash": "f609d9988a14877e2b1c5bae89ead73d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/journal/state.json": {
+    "mtime": 1793005589.3814785,
+    "seen": 1793013880.245693,
+    "ast_hash": "c97a088301d5703b7e91c3feb9396d6b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/report/modes.json": {
+    "mtime": 1793005589.381586,
+    "seen": 1793013880.245693,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/report/report.json": {
+    "mtime": 1793005589.3816726,
+    "seen": 1793013880.245694,
+    "ast_hash": "06f836a27bdf806ddbffcf8690c38a57",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/report/stdout.json": {
+    "mtime": 1793005589.3817477,
+    "seen": 1793013880.245694,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.3833778,
+    "seen": 1793013880.2456949,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.384488,
+    "seen": 1793013880.2456949,
+    "ast_hash": "0d5938d977a8d83783da7a3877af89a1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/root/tree.json": {
+    "mtime": 1793005589.3848438,
+    "seen": 1793013880.2456949,
+    "ast_hash": "12fe1ea5cdc1da7d50e917727af03892",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/status.json": {
+    "mtime": 1793005589.384933,
+    "seen": 1793013880.245696,
+    "ast_hash": "49a09930422561a6a648569e5af2d338",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/commands.json": {
+    "mtime": 1793005589.3851383,
+    "seen": 1793013880.245696,
+    "ast_hash": "2eed7cf3f51d5e1be41a2b2dacc238b4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/install-stdout.json": {
+    "mtime": 1793005589.3853092,
+    "seen": 1793013880.245697,
+    "ast_hash": "56e67f38760135a3aa709fb4d63b4a22",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/journal/modes.json": {
+    "mtime": 1793005589.3854227,
+    "seen": 1793013880.245697,
+    "ast_hash": "7a7ff9dfcfdbcc4e3c42b3e529bde11a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/journal/ownership.json": {
+    "mtime": 1793005589.3855245,
+    "seen": 1793013880.245697,
+    "ast_hash": "8691420f389e0360da7f1e855db7c3a7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/journal/plan.json": {
+    "mtime": 1793005589.3856304,
+    "seen": 1793013880.245698,
+    "ast_hash": "f2c62053672985635b36461d1edec95e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/journal/report.json": {
+    "mtime": 1793005589.3857198,
+    "seen": 1793013880.245698,
+    "ast_hash": "a4d64be999d054b1a816eecb31d1d2f0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/journal/state.json": {
+    "mtime": 1793005589.3858252,
+    "seen": 1793013880.245698,
+    "ast_hash": "c56267220c18da1020d2ee615534f161",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/report/modes.json": {
+    "mtime": 1793005589.385943,
+    "seen": 1793013880.2456992,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/report/report.json": {
+    "mtime": 1793005589.3860345,
+    "seen": 1793013880.2456992,
+    "ast_hash": "78f2dd3cbf892458945b5881ede9908c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/report/stdout.json": {
+    "mtime": 1793005589.3861122,
+    "seen": 1793013880.2456992,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.3877254,
+    "seen": 1793013880.2457001,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/usr/local/x-ui/bin/config.json": {
+    "mtime": 1793005589.3888307,
+    "seen": 1793013880.2457001,
+    "ast_hash": "7ad2f312ae41d967797f19d2b7e7edad",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/usr/local/x-ui/bin/xray-linux-amd64": {
+    "mtime": 1793005589.3889136,
+    "seen": 1793013880.245701,
+    "ast_hash": "33e4fd94e2560e008e2c3b431d0e3419",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/usr/local/x-ui/x-ui": {
+    "mtime": 1793005589.3889816,
+    "seen": 1793013880.245701,
+    "ast_hash": "f2cb7079ec5222f7026e7735c4739e58",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.3891466,
+    "seen": 1793013880.245701,
+    "ast_hash": "0d5938d977a8d83783da7a3877af89a1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/tree.json": {
+    "mtime": 1793005589.3894627,
+    "seen": 1793013880.2457018,
+    "ast_hash": "e4098f2af8e657b01673777b1990e9a4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/status.json": {
+    "mtime": 1793005589.3895464,
+    "seen": 1793013880.2457018,
+    "ast_hash": "56e67f38760135a3aa709fb4d63b4a22",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/commands.json": {
+    "mtime": 1793005589.389738,
+    "seen": 1793013880.245703,
+    "ast_hash": "40a788aead5d6aef236fa156ea5cfbf7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/install-stdout.json": {
+    "mtime": 1793005589.3898654,
+    "seen": 1793013880.245703,
+    "ast_hash": "79da9c7023b6a3996aeb6ce629708114",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/journal/modes.json": {
+    "mtime": 1793005589.3899636,
+    "seen": 1793013880.245703,
+    "ast_hash": "7a7ff9dfcfdbcc4e3c42b3e529bde11a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/journal/ownership.json": {
+    "mtime": 1793005589.3900633,
+    "seen": 1793013880.245704,
+    "ast_hash": "c5d03cbc69e3e22f9048d7467e8e4954",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/journal/plan.json": {
+    "mtime": 1793005589.3901715,
+    "seen": 1793013880.245704,
+    "ast_hash": "f6efe0b648bd8ae8ac3b8e9afbfba2cd",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/journal/report.json": {
+    "mtime": 1793005589.3902602,
+    "seen": 1793013880.245704,
+    "ast_hash": "a873fe1a70120b349f66b312b1d579ab",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/journal/state.json": {
+    "mtime": 1793005589.3903975,
+    "seen": 1793013880.245705,
+    "ast_hash": "cfbb8741b457c4e4c81962ba293db4b2",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/report/modes.json": {
+    "mtime": 1793005589.3905065,
+    "seen": 1793013880.245705,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/report/report.json": {
+    "mtime": 1793005589.3905797,
+    "seen": 1793013880.245706,
+    "ast_hash": "0a066118ea59d0c2a6f1c2b83d368f31",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/report/stdout.json": {
+    "mtime": 1793005589.3906746,
+    "seen": 1793013880.245706,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+    "mtime": 1793005589.391972,
+    "seen": 1793013880.245706,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.3934479,
+    "seen": 1793013880.245707,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/usr/bin/mita": {
+    "mtime": 1793005589.3945277,
+    "seen": 1793013880.245707,
+    "ast_hash": "0599e894ed4837cfe75a0f5dbc743846",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/usr/local/x-ui/bin/config.json": {
+    "mtime": 1793005589.3947775,
+    "seen": 1793013880.245707,
+    "ast_hash": "7ad2f312ae41d967797f19d2b7e7edad",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/usr/local/x-ui/bin/xray-linux-amd64": {
+    "mtime": 1793005589.3948302,
+    "seen": 1793013880.245708,
+    "ast_hash": "33e4fd94e2560e008e2c3b431d0e3419",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/usr/local/x-ui/x-ui": {
+    "mtime": 1793005589.3948784,
+    "seen": 1793013880.245708,
+    "ast_hash": "f2cb7079ec5222f7026e7735c4739e58",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.3953776,
+    "seen": 1793013880.245709,
+    "ast_hash": "a36aef1e3cb39f316899f733589b275c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/tree.json": {
+    "mtime": 1793005589.395727,
+    "seen": 1793013880.245709,
+    "ast_hash": "0f1cf04042335aa9511d1360cc3147de",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/status.json": {
+    "mtime": 1793005589.3957987,
+    "seen": 1793013880.245709,
+    "ast_hash": "79da9c7023b6a3996aeb6ce629708114",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/commands.json": {
+    "mtime": 1793005589.3959904,
+    "seen": 1793013880.2457101,
+    "ast_hash": "24208c4c2a38c234e915750f46f626d3",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/install-stdout.json": {
+    "mtime": 1793005589.3961535,
+    "seen": 1793013880.2457101,
+    "ast_hash": "1e3e20f0ac2c166d0fee3c043f031812",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/journal/modes.json": {
+    "mtime": 1793005589.3962479,
+    "seen": 1793013880.245711,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/journal/ownership.json": {
+    "mtime": 1793005589.396353,
+    "seen": 1793013880.245711,
+    "ast_hash": "0a6a91afa2106c96bb03037c5ec11602",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/journal/plan.json": {
+    "mtime": 1793005589.3964612,
+    "seen": 1793013880.245711,
+    "ast_hash": "59a65b0e783064835e9eacbdd5ee06b0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/journal/report.json": {
+    "mtime": 1793005589.3965745,
+    "seen": 1793013880.2457118,
+    "ast_hash": "b9618733710f593779d3eb804e729d5a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/journal/state.json": {
+    "mtime": 1793005589.3967152,
+    "seen": 1793013880.2457118,
+    "ast_hash": "72e027d78ff3111cbfa02b17e98aa017",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/report/modes.json": {
+    "mtime": 1793005589.3969414,
+    "seen": 1793013880.245713,
+    "ast_hash": "3e3a09c3ec6af33d01f70664294a3525",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/report/report.json": {
+    "mtime": 1793005589.3970284,
+    "seen": 1793013880.245713,
+    "ast_hash": "70caf3b12233e4e4cabc53e7911064c7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/report/stdout.json": {
+    "mtime": 1793005589.397101,
+    "seen": 1793013880.245714,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+    "mtime": 1793005589.398718,
+    "seen": 1793013880.245714,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.400727,
+    "seen": 1793013880.245715,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/usr/bin/mita": {
+    "mtime": 1793005589.4028742,
+    "seen": 1793013880.245715,
+    "ast_hash": "0599e894ed4837cfe75a0f5dbc743846",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/usr/local/lib/proxy-control/xray-router/xray": {
+    "mtime": 1793005589.4033167,
+    "seen": 1793013880.245715,
+    "ast_hash": "044ab288c4b337b24ec970fed5708a2b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.4041746,
+    "seen": 1793013880.2457159,
+    "ast_hash": "c3da94421fc6d92b78df1c201fb7cbc1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/tree.json": {
+    "mtime": 1793005589.4048896,
+    "seen": 1793013880.2457159,
+    "ast_hash": "d350cc4ae77ae6aae7010d754cf7120c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/status.json": {
+    "mtime": 1793005589.4049788,
+    "seen": 1793013880.2457159,
+    "ast_hash": "1e3e20f0ac2c166d0fee3c043f031812",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/commands.json": {
+    "mtime": 1793005589.4051766,
+    "seen": 1793013880.245717,
+    "ast_hash": "bc337db228ac4c57a1fac847679f90d4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/install-stdout.json": {
+    "mtime": 1793005589.405306,
+    "seen": 1793013880.245717,
+    "ast_hash": "976e633936da9351d456a51709c7c336",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/journal/modes.json": {
+    "mtime": 1793005589.4053807,
+    "seen": 1793013880.245718,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/journal/ownership.json": {
+    "mtime": 1793005589.4054816,
+    "seen": 1793013880.245718,
+    "ast_hash": "66dbc70cf92c25c64075f224587ccecc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/journal/plan.json": {
+    "mtime": 1793005589.4055612,
+    "seen": 1793013880.245718,
+    "ast_hash": "73ef689c7b29f0d89441c1dbc2ecfaf0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/journal/report.json": {
+    "mtime": 1793005589.405861,
+    "seen": 1793013880.245719,
+    "ast_hash": "d838bebfeb048d02a6eb38dd34cde86b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/journal/state.json": {
+    "mtime": 1793005589.4059973,
+    "seen": 1793013880.245719,
+    "ast_hash": "489974f9952bcf23c5a38b07f973a266",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/report/modes.json": {
+    "mtime": 1793005589.406098,
+    "seen": 1793013880.2457201,
+    "ast_hash": "c9a6bfe8246f39f1b32eccee893e1509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/report/report.json": {
+    "mtime": 1793005589.406275,
+    "seen": 1793013880.2457201,
+    "ast_hash": "99a11e6ecfc12e44c3df4ba7995e5acf",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/report/stdout.json": {
+    "mtime": 1793005589.4063318,
+    "seen": 1793013880.2457201,
+    "ast_hash": "146e464f7cdb9d50597c0f25959772b7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/etc/letsencrypt/renewal-hooks/deploy/proxy-control-naive-caddy": {
+    "mtime": 1793005589.408077,
+    "seen": 1793013880.245721,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/etc/proxy-control/versions.json": {
+    "mtime": 1793005589.410203,
+    "seen": 1793013880.245721,
+    "ast_hash": "a71cc4c1a9a97761994552b372d5a47a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/usr/bin/mita": {
+    "mtime": 1793005589.4116192,
+    "seen": 1793013880.245721,
+    "ast_hash": "0599e894ed4837cfe75a0f5dbc743846",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/usr/local/x-ui/bin/xray-linux-amd64": {
+    "mtime": 1793005589.4120588,
+    "seen": 1793013880.245722,
+    "ast_hash": "7f1ba5d9f583b59bec61ea2ba97cb5a4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/usr/local/x-ui/x-ui": {
+    "mtime": 1793005589.4121423,
+    "seen": 1793013880.245722,
+    "ast_hash": "f2cb7079ec5222f7026e7735c4739e58",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/usr/local/x-ui/x-ui.sh": {
+    "mtime": 1793005589.4122918,
+    "seen": 1793013880.2457228,
+    "ast_hash": "7f1ba5d9f583b59bec61ea2ba97cb5a4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/var/lib/proxy-control/version-agent/state.json": {
+    "mtime": 1793005589.4131246,
+    "seen": 1793013880.2457228,
+    "ast_hash": "a36aef1e3cb39f316899f733589b275c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/tree.json": {
+    "mtime": 1793005589.4136596,
+    "seen": 1793013880.2457228,
+    "ast_hash": "1ffd5bad916f922837508b7743bf49f9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/status.json": {
+    "mtime": 1793005589.4137425,
+    "seen": 1793013880.245724,
+    "ast_hash": "976e633936da9351d456a51709c7c336",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/after/modes.json": {
+    "mtime": 1793005589.4139967,
+    "seen": 1793013880.245724,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/after/ownership.json": {
+    "mtime": 1793005589.414102,
+    "seen": 1793013880.245725,
+    "ast_hash": "5d0a5736429467a4ab474cd17fbca9d2",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/after/plan.json": {
+    "mtime": 1793005589.4142258,
+    "seen": 1793013880.245725,
+    "ast_hash": "59a65b0e783064835e9eacbdd5ee06b0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/after/report.json": {
+    "mtime": 1793005589.4143448,
+    "seen": 1793013880.245725,
+    "ast_hash": "bd6edede650b39328e6097843867ff9e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/after/state.json": {
+    "mtime": 1793005589.4144852,
+    "seen": 1793013880.2457259,
+    "ast_hash": "2db80b1d686d9802b4570077e99a4e6d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/before/modes.json": {
+    "mtime": 1793005589.4145951,
+    "seen": 1793013880.2457259,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/before/ownership.json": {
+    "mtime": 1793005589.4146862,
+    "seen": 1793013880.2457259,
+    "ast_hash": "dde5aa554cf9c5a3c9abae4389f93bdb",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/before/plan.json": {
+    "mtime": 1793005589.4147809,
+    "seen": 1793013880.245727,
+    "ast_hash": "59a65b0e783064835e9eacbdd5ee06b0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/before/report.json": {
+    "mtime": 1793005589.4148796,
+    "seen": 1793013880.245727,
+    "ast_hash": "bd6edede650b39328e6097843867ff9e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/before/state.json": {
+    "mtime": 1793005589.415027,
+    "seen": 1793013880.245727,
+    "ast_hash": "d54f11feead15415f38aac400a9aa7bc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/handoff/update.json": {
+    "mtime": 1793005589.4150958,
+    "seen": 1793013880.245728,
+    "ast_hash": "3df14526d6f786bb696139e736c23ff9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/installed/modes.json": {
+    "mtime": 1793005589.4152653,
+    "seen": 1793013880.245728,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/installed/ownership.json": {
+    "mtime": 1793005589.415353,
+    "seen": 1793013880.245729,
+    "ast_hash": "378e4351bf93d0f2d3ab1d723f3ed01c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/installed/plan.json": {
+    "mtime": 1793005589.4155986,
+    "seen": 1793013880.245729,
+    "ast_hash": "2cd09b08f747bfea488afb9347318525",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/installed/report.json": {
+    "mtime": 1793005589.41568,
+    "seen": 1793013880.245729,
+    "ast_hash": "3f7508de216c0b91db22e23092b18876",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/installed/state.json": {
+    "mtime": 1793005589.4157975,
+    "seen": 1793013880.2457302,
+    "ast_hash": "c7c3247b50711f0c8d8b020e8bdf8d12",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/journal/modes.json": {
+    "mtime": 1793005589.4159038,
+    "seen": 1793013880.2457302,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/journal/ownership.json": {
+    "mtime": 1793005589.4159875,
+    "seen": 1793013880.2457302,
+    "ast_hash": "a71e60da34ce8a123185dc91eeff7784",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/journal/plan.json": {
+    "mtime": 1793005589.4160712,
+    "seen": 1793013880.245731,
+    "ast_hash": "2cd09b08f747bfea488afb9347318525",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/journal/report.json": {
+    "mtime": 1793005589.416144,
+    "seen": 1793013880.245731,
+    "ast_hash": "3f7508de216c0b91db22e23092b18876",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/journal/state.json": {
+    "mtime": 1793005589.4162667,
+    "seen": 1793013880.245732,
+    "ast_hash": "546105c044d5c284a2da1f952d8efb63",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/home-like/summary.json": {
+    "mtime": 1793005589.4163537,
+    "seen": 1793013880.245732,
+    "ast_hash": "daef496eb9e0e1d4696fdc20b16eb9f3",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/applying/modes.json": {
+    "mtime": 1793005589.4164786,
+    "seen": 1793013880.245732,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/applying/ownership.json": {
+    "mtime": 1793005589.4165783,
+    "seen": 1793013880.245733,
+    "ast_hash": "273edc20e96ff6add15d7a4c4430b7a9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/applying/plan.json": {
+    "mtime": 1793005589.4166737,
+    "seen": 1793013880.245733,
+    "ast_hash": "442130cc288a60d9f34a8055cb9b2b08",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/applying/report.json": {
+    "mtime": 1793005589.4167612,
+    "seen": 1793013880.245734,
+    "ast_hash": "77959dc531f2b080c20037e9f91bee5e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/applying/state.json": {
+    "mtime": 1793005589.4168632,
+    "seen": 1793013880.245734,
+    "ast_hash": "6e4cc124a1bcddd994586f5f19ba16fe",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/resume.json": {
+    "mtime": 1793005589.416937,
+    "seen": 1793013880.245734,
+    "ast_hash": "78e2a51544c5cc3e55b25febcad5161c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/resumed/modes.json": {
+    "mtime": 1793005589.4170218,
+    "seen": 1793013880.245735,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/resumed/ownership.json": {
+    "mtime": 1793005589.4171069,
+    "seen": 1793013880.245735,
+    "ast_hash": "e36264d61db188af48d3d1b454217a54",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/resumed/plan.json": {
+    "mtime": 1793005589.417199,
+    "seen": 1793013880.245736,
+    "ast_hash": "442130cc288a60d9f34a8055cb9b2b08",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/resumed/report.json": {
+    "mtime": 1793005589.4172873,
+    "seen": 1793013880.245736,
+    "ast_hash": "fd6ce62f978c22cfd16b88dc16e686c8",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/interrupted/resumed/state.json": {
+    "mtime": 1793005589.4173865,
+    "seen": 1793013880.245736,
+    "ast_hash": "925c2403ed78ba7e66d5166186d6e8a0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/lock.json": {
+    "mtime": 1793005589.4174633,
+    "seen": 1793013880.245737,
+    "ast_hash": "5ee6157b4d217021077b9ac2e6494767",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/repaired/modes.json": {
+    "mtime": 1793005589.4175494,
+    "seen": 1793013880.245737,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/repaired/ownership.json": {
+    "mtime": 1793005589.417637,
+    "seen": 1793013880.245737,
+    "ast_hash": "3b7ff0179bec54fe401c594075eb9d37",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/repaired/plan.json": {
+    "mtime": 1793005589.4177344,
+    "seen": 1793013880.245738,
+    "ast_hash": "f50097ddf071b550a7ddbabe0d203b0b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/repaired/repair.json": {
+    "mtime": 1793005589.4178116,
+    "seen": 1793013880.245738,
+    "ast_hash": "7ef5208abbea02b5f8be99e28b50e661",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/repaired/report.json": {
+    "mtime": 1793005589.4178777,
+    "seen": 1793013880.245739,
+    "ast_hash": "d2f701a63f8559cfc8cec3fa7035a267",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/repaired/state.json": {
+    "mtime": 1793005589.4179819,
+    "seen": 1793013880.245739,
+    "ast_hash": "a2c48573e32151711d1edd027a432958",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/rolled-back/modes.json": {
+    "mtime": 1793005589.4180806,
+    "seen": 1793013880.245739,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/rolled-back/outcome.json": {
+    "mtime": 1793005589.418146,
+    "seen": 1793013880.24574,
+    "ast_hash": "772b01752a4825751eb712f0da0da530",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/rolled-back/ownership.json": {
+    "mtime": 1793005589.4182084,
+    "seen": 1793013880.24574,
+    "ast_hash": "0f29736638f2a430a48747563aa4c47e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/rolled-back/plan.json": {
+    "mtime": 1793005589.4182901,
+    "seen": 1793013880.2457411,
+    "ast_hash": "2e2e3d50141ad731e7cc101b57525256",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/rolled-back/report.json": {
+    "mtime": 1793005589.4183564,
+    "seen": 1793013880.2457411,
+    "ast_hash": "371fec560fa1f4a7f0207c7176f0e14d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/rolled-back/state.json": {
+    "mtime": 1793005589.4184654,
+    "seen": 1793013880.2457411,
+    "ast_hash": "c24a80324405c56813949d27a9eb8980",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled-purged/modes.json": {
+    "mtime": 1793005589.4185762,
+    "seen": 1793013880.245742,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled-purged/ownership.json": {
+    "mtime": 1793005589.418639,
+    "seen": 1793013880.245742,
+    "ast_hash": "0f29736638f2a430a48747563aa4c47e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled-purged/plan.json": {
+    "mtime": 1793005589.4186997,
+    "seen": 1793013880.245743,
+    "ast_hash": "2e2e3d50141ad731e7cc101b57525256",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled-purged/report.json": {
+    "mtime": 1793005589.4187665,
+    "seen": 1793013880.245743,
+    "ast_hash": "2b8408bdda46d5beb21bac8b82282147",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled-purged/state.json": {
+    "mtime": 1793005589.4188569,
+    "seen": 1793013880.245743,
+    "ast_hash": "996f71ecda7377021f6d39a64b2a8e27",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled-purged/uninstall.json": {
+    "mtime": 1793005589.4189184,
+    "seen": 1793013880.2457442,
+    "ast_hash": "701c006eed1fd733759b4c104d7908e1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/modes.json": {
+    "mtime": 1793005589.4190063,
+    "seen": 1793013880.2457442,
+    "ast_hash": "c1e0cf50573eba551d7305353a843b1c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/ownership.json": {
+    "mtime": 1793005589.4190576,
+    "seen": 1793013880.245745,
+    "ast_hash": "0f29736638f2a430a48747563aa4c47e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/plan.json": {
+    "mtime": 1793005589.4191265,
+    "seen": 1793013880.245745,
+    "ast_hash": "f50097ddf071b550a7ddbabe0d203b0b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/report.json": {
+    "mtime": 1793005589.4191952,
+    "seen": 1793013880.245745,
+    "ast_hash": "03155cc742bddc17feffa1e453088c53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/state.json": {
+    "mtime": 1793005589.4192877,
+    "seen": 1793013880.245746,
+    "ast_hash": "a30ad4e742d0229faf73534f7a61585e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/tree-after.json": {
+    "mtime": 1793005589.419372,
+    "seen": 1793013880.245746,
+    "ast_hash": "62315d7ae9e65e4f1a895c2382114278",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/journals/uninstalled/uninstall.json": {
+    "mtime": 1793005589.4194396,
+    "seen": 1793013880.2457469,
+    "ast_hash": "fcb9554d58d306b6ba7a2dff1054c5a4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/metrics/inputs.json": {
+    "mtime": 1793005589.4195366,
+    "seen": 1793013880.2457469,
+    "ast_hash": "64fc542730d025fefcdf8f1b71e2eb3a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/metrics/parse-counters.json": {
+    "mtime": 1793005589.419915,
+    "seen": 1793013880.2457469,
+    "ast_hash": "98422cd592f53294d686e7ffc32f0bce",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/metrics/port-maps.json": {
+    "mtime": 1793005589.419981,
+    "seen": 1793013880.245748,
+    "ast_hash": "3e34e52ff1a28c36674c3f5f64b1ac24",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/metrics/sampler.json": {
+    "mtime": 1793005589.420051,
+    "seen": 1793013880.245748,
+    "ast_hash": "aac7a1effd5a8fd97a6924bde749ceac",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/coexist-ingress/audit-commands.json": {
+    "mtime": 1793005589.420189,
+    "seen": 1793013880.245749,
+    "ast_hash": "b44e069b7c4a5b6f8d0bbad82576c6b4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/coexist-ingress/digests.json": {
+    "mtime": 1793005589.4203873,
+    "seen": 1793013880.245749,
+    "ast_hash": "dfe108e610424546049af30c5ae5980d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/coexist-ingress/plan-cli.json": {
+    "mtime": 1793005589.420462,
+    "seen": 1793013880.245749,
+    "ast_hash": "b7db8739a855e4165e7035f07e5e39ca",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/coexist-ingress/plan.json": {
+    "mtime": 1793005589.4206123,
+    "seen": 1793013880.24575,
+    "ast_hash": "e07ad7f0d6ed6e04be63ef66b0c81b50",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-amneziawg/audit-commands.json": {
+    "mtime": 1793005589.420803,
+    "seen": 1793013880.24575,
+    "ast_hash": "d3d995b4b2c052ce7eafe38aab94d49d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-amneziawg/digests.json": {
+    "mtime": 1793005589.4209435,
+    "seen": 1793013880.2457511,
+    "ast_hash": "3386b9baa0dca570ac67183e0964f0ab",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-amneziawg/plan-cli.json": {
+    "mtime": 1793005589.4210289,
+    "seen": 1793013880.2457511,
+    "ast_hash": "2c21541e74c6e9981605c30389787f23",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-amneziawg/plan.json": {
+    "mtime": 1793005589.421184,
+    "seen": 1793013880.2457511,
+    "ast_hash": "8862257af6221b2dad19efc8158d0ffb",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-mieru/audit-commands.json": {
+    "mtime": 1793005589.4213748,
+    "seen": 1793013880.245752,
+    "ast_hash": "bb9dee2ea2fd103b0fccc3045d6b80e5",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-mieru/digests.json": {
+    "mtime": 1793005589.4214885,
+    "seen": 1793013880.245752,
+    "ast_hash": "3379d57955f538b5455acfdca6a5ce84",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-mieru/plan-cli.json": {
+    "mtime": 1793005589.4215553,
+    "seen": 1793013880.245752,
+    "ast_hash": "a335ff594e0182f04979b5ae144830e7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-mieru/plan.json": {
+    "mtime": 1793005589.4217086,
+    "seen": 1793013880.245753,
+    "ast_hash": "f5a8d396cae3881e5bd6ed9b7fc40f85",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-naive/audit-commands.json": {
+    "mtime": 1793005589.421813,
+    "seen": 1793013880.245753,
+    "ast_hash": "2202c855205a226f0f1d0b96315bde8a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-naive/digests.json": {
+    "mtime": 1793005589.4219315,
+    "seen": 1793013880.245754,
+    "ast_hash": "272b7b4d8b645154898b97c656d4fe5e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-naive/plan-cli.json": {
+    "mtime": 1793005589.4220037,
+    "seen": 1793013880.245754,
+    "ast_hash": "291e5833fdc23de081fc3ca51271a399",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-naive/plan.json": {
+    "mtime": 1793005589.4221737,
+    "seen": 1793013880.245754,
+    "ast_hash": "0db347702026769bd8d2f2d8d3c8faf0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-trusttunnel/audit-commands.json": {
+    "mtime": 1793005589.422343,
+    "seen": 1793013880.245755,
+    "ast_hash": "2d57e03c7ef09040be04940598141126",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-trusttunnel/digests.json": {
+    "mtime": 1793005589.422481,
+    "seen": 1793013880.245755,
+    "ast_hash": "1995bd9bc717c510db4fd103828e4c38",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-trusttunnel/plan-cli.json": {
+    "mtime": 1793005589.4225688,
+    "seen": 1793013880.245755,
+    "ast_hash": "1269795999ba86746e5cc5aed64b09a5",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-trusttunnel/plan.json": {
+    "mtime": 1793005589.4227252,
+    "seen": 1793013880.245756,
+    "ast_hash": "60f58fc05223b204ce89e212a5806b30",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core/audit-commands.json": {
+    "mtime": 1793005589.4229076,
+    "seen": 1793013880.245756,
+    "ast_hash": "d3d995b4b2c052ce7eafe38aab94d49d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core/digests.json": {
+    "mtime": 1793005589.423072,
+    "seen": 1793013880.2457569,
+    "ast_hash": "1e40a66024f98bafcc462ce880fa59f6",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core/plan-cli.json": {
+    "mtime": 1793005589.423149,
+    "seen": 1793013880.2457569,
+    "ast_hash": "0ab0f5d2ee6fdac101d7c1c7abbd8fa4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core/plan.json": {
+    "mtime": 1793005589.4233656,
+    "seen": 1793013880.2457569,
+    "ast_hash": "c38ee93965892b073af11ad6afc70044",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/existing-three-xui/audit-commands.json": {
+    "mtime": 1793005589.4235423,
+    "seen": 1793013880.245763,
+    "ast_hash": "12926e7aad2b05f6793944eea6c9e013",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/existing-three-xui/digests.json": {
+    "mtime": 1793005589.4236593,
+    "seen": 1793013880.245764,
+    "ast_hash": "e752d771fc4684998565dc4023dbc69b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/existing-three-xui/plan-cli.json": {
+    "mtime": 1793005589.4237347,
+    "seen": 1793013880.245764,
+    "ast_hash": "cd8e888781f9953531db4228b3545f64",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/existing-three-xui/plan.json": {
+    "mtime": 1793005589.4238732,
+    "seen": 1793013880.2457652,
+    "ast_hash": "57467d3ea80e0e1aab7a9ef369abca2c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/full-three-xui/audit-commands.json": {
+    "mtime": 1793005589.4239724,
+    "seen": 1793013880.2457652,
+    "ast_hash": "0070f543f20123703d9d8192ff61dd75",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/full-three-xui/digests.json": {
+    "mtime": 1793005589.4240947,
+    "seen": 1793013880.2457652,
+    "ast_hash": "a44f6ff657d7ad8acb30423562ffdb04",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/full-three-xui/plan-cli.json": {
+    "mtime": 1793005589.424181,
+    "seen": 1793013880.245766,
+    "ast_hash": "126fd98b532f97b29dcb27f6324a64a7",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/full-three-xui/plan.json": {
+    "mtime": 1793005589.4243324,
+    "seen": 1793013880.245766,
+    "ast_hash": "9b675347f3f0a137ffa1f286739c6fb6",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/index.json": {
+    "mtime": 1793005589.4244173,
+    "seen": 1793013880.2457669,
+    "ast_hash": "efaab14a8c41e146a3c46fc8df1587d4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/kitchen-sink/audit-commands.json": {
+    "mtime": 1793005589.4245298,
+    "seen": 1793013880.2457669,
+    "ast_hash": "431a1bdc54c1273f9dc097e49a92d76f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/kitchen-sink/digests.json": {
+    "mtime": 1793005589.4247184,
+    "seen": 1793013880.2457669,
+    "ast_hash": "38ac7d2ecfad962e64b98c79eda0cc9b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/kitchen-sink/plan-cli.json": {
+    "mtime": 1793005589.4248145,
+    "seen": 1793013880.2457678,
+    "ast_hash": "ef163fb4edb9295d8ebb1a6208472f5c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/kitchen-sink/plan.json": {
+    "mtime": 1793005589.424987,
+    "seen": 1793013880.2457678,
+    "ast_hash": "c3997e8e15462a8f63ca003fa1bb06dd",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/managed-three-xui/audit-commands.json": {
+    "mtime": 1793005589.4250996,
+    "seen": 1793013880.2457678,
+    "ast_hash": "f79cfd73def7126df039eabf7a3a0b00",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/managed-three-xui/digests.json": {
+    "mtime": 1793005589.425229,
+    "seen": 1793013880.245769,
+    "ast_hash": "960bc89943d1fcd4fa140510f6468c37",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/managed-three-xui/plan-cli.json": {
+    "mtime": 1793005589.4253182,
+    "seen": 1793013880.245769,
+    "ast_hash": "6b8e8bb87be22ee30066abecb4edf4fc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/managed-three-xui/plan.json": {
+    "mtime": 1793005589.4254668,
+    "seen": 1793013880.24577,
+    "ast_hash": "50d24024312de23a3d126cf39c47ab1f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/release.json": {
+    "mtime": 1793005589.4255319,
+    "seen": 1793013880.24577,
+    "ast_hash": "6f8579478091ecb3dbd1ae4441f3c27d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/coexist-ingress/actions.json": {
+    "mtime": 1793005589.425823,
+    "seen": 1793013880.24577,
+    "ast_hash": "6c0bfbad98d9fd8ac6e0f4414da731d3",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/coexist-ingress/core/compose.yaml": {
+    "mtime": 1793005589.4259193,
+    "seen": 1793013880.245771,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/coexist-ingress/core/file-modes.json": {
+    "mtime": 1793005589.4260452,
+    "seen": 1793013880.245771,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/coexist-ingress/naive/deploy-hook": {
+    "mtime": 1793005589.4264736,
+    "seen": 1793013880.245771,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/coexist-ingress/naive/file-modes.json": {
+    "mtime": 1793005589.426618,
+    "seen": 1793013880.2457721,
+    "ast_hash": "40988760737c17c65f337c822635f69c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/coexist-ingress/nginx/specification.json": {
+    "mtime": 1793005589.4267204,
+    "seen": 1793013880.2457721,
+    "ast_hash": "1f800f26601b4a22fff050ca547b01e9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/actions.json": {
+    "mtime": 1793005589.427736,
+    "seen": 1793013880.2457721,
+    "ast_hash": "f77f66c0dbad602ff6558007e86fbdcc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/core/compose.yaml": {
+    "mtime": 1793005589.4278367,
+    "seen": 1793013880.245773,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/core/file-modes.json": {
+    "mtime": 1793005589.4279804,
+    "seen": 1793013880.245773,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/mieru/bootstrap-input.json": {
+    "mtime": 1793005589.428156,
+    "seen": 1793013880.245774,
+    "ast_hash": "fc10f5cb07d07ed7766b329211b507cc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/naive/deploy-hook": {
+    "mtime": 1793005589.4284878,
+    "seen": 1793013880.245774,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/naive/file-modes.json": {
+    "mtime": 1793005589.4285967,
+    "seen": 1793013880.245774,
+    "ast_hash": "40988760737c17c65f337c822635f69c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/direct/nginx/specification.json": {
+    "mtime": 1793005589.4286828,
+    "seen": 1793013880.2457752,
+    "ast_hash": "7e3922d7b52fe2e9730fde5c93c6aa32",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/actions.json": {
+    "mtime": 1793005589.4294245,
+    "seen": 1793013880.2457752,
+    "ast_hash": "a59e5c7475c88aeef733cfcc45edc2d6",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/core/compose.yaml": {
+    "mtime": 1793005589.4296083,
+    "seen": 1793013880.245776,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/core/file-modes.json": {
+    "mtime": 1793005589.4297369,
+    "seen": 1793013880.245776,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/mieru/bootstrap-input.json": {
+    "mtime": 1793005589.4299052,
+    "seen": 1793013880.245776,
+    "ast_hash": "c50fda02509b11008cb338cccff5b112",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/naive/deploy-hook": {
+    "mtime": 1793005589.4302382,
+    "seen": 1793013880.245777,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/naive/file-modes.json": {
+    "mtime": 1793005589.4303536,
+    "seen": 1793013880.245777,
+    "ast_hash": "40988760737c17c65f337c822635f69c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/egress-swapped/nginx/specification.json": {
+    "mtime": 1793005589.4304473,
+    "seen": 1793013880.2457778,
+    "ast_hash": "d008a9d5c94be40780d263a9f65a0999",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/existing-three-xui/actions.json": {
+    "mtime": 1793005589.431409,
+    "seen": 1793013880.2457778,
+    "ast_hash": "23d439d190d9b793262ab504a46ff65f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/existing-three-xui/core/compose.yaml": {
+    "mtime": 1793005589.4315178,
+    "seen": 1793013880.245779,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/existing-three-xui/core/file-modes.json": {
+    "mtime": 1793005589.431666,
+    "seen": 1793013880.245779,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/existing-three-xui/nginx/specification.json": {
+    "mtime": 1793005589.4318466,
+    "seen": 1793013880.245779,
+    "ast_hash": "9dcd7fced8fd651f6b619097c9d12db6",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/ingress-upgrade/outcome.json": {
+    "mtime": 1793005589.4324324,
+    "seen": 1793013880.24578,
+    "ast_hash": "cc26a788c5a4db08e9eba168ab5470ec",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/actions.json": {
+    "mtime": 1793005589.4329011,
+    "seen": 1793013880.24578,
+    "ast_hash": "870e5f97352941be99b41b4a2e49dfe0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/core/compose.yaml": {
+    "mtime": 1793005589.4330857,
+    "seen": 1793013880.245781,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/core/file-modes.json": {
+    "mtime": 1793005589.4332066,
+    "seen": 1793013880.245781,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/mieru/bootstrap-input.json": {
+    "mtime": 1793005589.433348,
+    "seen": 1793013880.245781,
+    "ast_hash": "94d786eefb6e49129da7a0d58386007e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/naive/deploy-hook": {
+    "mtime": 1793005589.4337115,
+    "seen": 1793013880.245782,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/naive/file-modes.json": {
+    "mtime": 1793005589.4338531,
+    "seen": 1793013880.245782,
+    "ast_hash": "40988760737c17c65f337c822635f69c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/kitchen-sink/nginx/specification.json": {
+    "mtime": 1793005589.433947,
+    "seen": 1793013880.245782,
+    "ast_hash": "99d09cd9281c8a7c8f4f22bc4655fb3d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/actions.json": {
+    "mtime": 1793005589.435075,
+    "seen": 1793013880.245783,
+    "ast_hash": "3c9ef3f0559234bcb216cff42a85b57a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/core/compose.yaml": {
+    "mtime": 1793005589.4351838,
+    "seen": 1793013880.245783,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/core/file-modes.json": {
+    "mtime": 1793005589.4353342,
+    "seen": 1793013880.245784,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/mieru/bootstrap-input.json": {
+    "mtime": 1793005589.4355123,
+    "seen": 1793013880.245784,
+    "ast_hash": "f1337d4ca5894d272a572cd47a420195",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/naive/deploy-hook": {
+    "mtime": 1793005589.435874,
+    "seen": 1793013880.245785,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/naive/file-modes.json": {
+    "mtime": 1793005589.4360137,
+    "seen": 1793013880.245785,
+    "ast_hash": "40988760737c17c65f337c822635f69c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/nginx/specification.json": {
+    "mtime": 1793005589.4361258,
+    "seen": 1793013880.245785,
+    "ast_hash": "a50a39092b3d8d687e9bd414af23c660",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/three-xui/add-inbound-bodies.json": {
+    "mtime": 1793005589.4363644,
+    "seen": 1793013880.2457862,
+    "ast_hash": "89569be3926ae10cea9b9b89d8aa2d1e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/three-xui/managed-config.json": {
+    "mtime": 1793005589.4364288,
+    "seen": 1793013880.2457862,
+    "ast_hash": "b1d081599c78e47e6e3355ba99cfc98c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui-warp/three-xui/warp-routing.json": {
+    "mtime": 1793005589.4365044,
+    "seen": 1793013880.245787,
+    "ast_hash": "e233a7ec7607b648c16cc41e686d204d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/actions.json": {
+    "mtime": 1793005589.4374094,
+    "seen": 1793013880.245787,
+    "ast_hash": "591ce09cc3a2e009715d7586b1e81124",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/core/compose.yaml": {
+    "mtime": 1793005589.437528,
+    "seen": 1793013880.245787,
+    "ast_hash": "6f9fc01fdab1b3f3a80dbc1b21f40f53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/core/file-modes.json": {
+    "mtime": 1793005589.4376721,
+    "seen": 1793013880.2457879,
+    "ast_hash": "392d6bdb31dba3d71bcea7e350bb8175",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/mieru/bootstrap-input.json": {
+    "mtime": 1793005589.43783,
+    "seen": 1793013880.2457879,
+    "ast_hash": "f1337d4ca5894d272a572cd47a420195",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/naive/deploy-hook": {
+    "mtime": 1793005589.4381356,
+    "seen": 1793013880.2457888,
+    "ast_hash": "6d003002aadea27f6ded7d3a87cfe989",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/naive/file-modes.json": {
+    "mtime": 1793005589.438258,
+    "seen": 1793013880.2457888,
+    "ast_hash": "40988760737c17c65f337c822635f69c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/nginx/specification.json": {
+    "mtime": 1793005589.4383724,
+    "seen": 1793013880.2457888,
+    "ast_hash": "a50a39092b3d8d687e9bd414af23c660",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/three-xui/add-inbound-bodies.json": {
+    "mtime": 1793005589.4386046,
+    "seen": 1793013880.24579,
+    "ast_hash": "bce8da6d099d21b4fa7a2ba556a2cb48",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/three-xui/managed-config.json": {
+    "mtime": 1793005589.4386654,
+    "seen": 1793013880.24579,
+    "ast_hash": "e3d883d99f85de21f58b862a7c725111",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/managed-three-xui/three-xui/warp-routing.json": {
+    "mtime": 1793005589.4387226,
+    "seen": 1793013880.24579,
+    "ast_hash": "362bed274d80043ecbaa53bda1a048c4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/nginx/ensure-stream-context.json": {
+    "mtime": 1793005589.4390953,
+    "seen": 1793013880.245791,
+    "ast_hash": "c98b99fe3946597c588ef639edadf64a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/renders/nginx/patch-owned-map.json": {
+    "mtime": 1793005589.439173,
+    "seen": 1793013880.245791,
+    "ast_hash": "b52315ff30743191422c79afba4807c4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/compare-versions.json": {
+    "mtime": 1793005589.4392874,
+    "seen": 1793013880.245792,
+    "ast_hash": "d61d800acf1e63f4954e0c14d9ff0fcb",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/float-repr.json": {
+    "mtime": 1793005589.4393609,
+    "seen": 1793013880.245792,
+    "ast_hash": "17337ec8a0764db20d8c17e9d0f1b6be",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/ipaddress.json": {
+    "mtime": 1793005589.4394362,
+    "seen": 1793013880.245792,
+    "ast_hash": "88e4a750012975fceb05a2faaed5faa0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/json-key-order.json": {
+    "mtime": 1793005589.4395127,
+    "seen": 1793013880.245793,
+    "ast_hash": "617179ea98c26210fc9c53a7a6aff0a8",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/json-strings.json": {
+    "mtime": 1793005589.439583,
+    "seen": 1793013880.245793,
+    "ast_hash": "4c87302c34a5c0fd00f59eda019987da",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/round.json": {
+    "mtime": 1793005589.4396572,
+    "seen": 1793013880.245793,
+    "ast_hash": "009d6403e813b7b7120389063e843062",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/str-digits.json": {
+    "mtime": 1793005589.4397244,
+    "seen": 1793013880.245794,
+    "ast_hash": "c0905ee81f62ae4dbd79dc7fa3a7134d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/str-lower.json": {
+    "mtime": 1793005589.439789,
+    "seen": 1793013880.245794,
+    "ast_hash": "76ebbe382fb37cb58ee86027b4bf3acf",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/str-of-scalars.json": {
+    "mtime": 1793005589.4398658,
+    "seen": 1793013880.245795,
+    "ast_hash": "66fae81f9797951b31eb6f75e22a37ca",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/str-strip.json": {
+    "mtime": 1793005589.4399421,
+    "seen": 1793013880.245795,
+    "ast_hash": "18e7883db1deff4c002b8373ef1e8f9e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/validators-domain.json": {
+    "mtime": 1793005589.4400256,
+    "seen": 1793013880.245795,
+    "ast_hash": "7e7b94cf083ca97f6551bf16ab97459d",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/vectors/validators-version.json": {
+    "mtime": 1793005589.4400997,
+    "seen": 1793013880.2457962,
+    "ast_hash": "9800edc12605c24b0998900d608ca2e5",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/already-installed-continue.json": {
+    "mtime": 1793005589.4402444,
+    "seen": 1793013880.2457962,
+    "ast_hash": "bc81ef38160c89eefe6c605adf5baa70",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/already-installed.json": {
+    "mtime": 1793005589.440394,
+    "seen": 1793013880.2457962,
+    "ast_hash": "351ec04fca66f37faddf563077e6bd9e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/core-apply-install.json": {
+    "mtime": 1793005589.4405525,
+    "seen": 1793013880.2457972,
+    "ast_hash": "9a246c6f468a3dd7f20161b0e6a60556",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/core-save.json": {
+    "mtime": 1793005589.4407253,
+    "seen": 1793013880.2457972,
+    "ast_hash": "63aa3f1b2526fb4fbba20ade4dce9479",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/eof.json": {
+    "mtime": 1793005589.4408808,
+    "seen": 1793013880.2457979,
+    "ast_hash": "869750337b023c7ce0c2567f2104a51e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/full-quit-at-digest.json": {
+    "mtime": 1793005589.4410567,
+    "seen": 1793013880.2457979,
+    "ast_hash": "5508024c7c250e0fc2dbd473d45a07dc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/invalid-config.json": {
+    "mtime": 1793005589.4412425,
+    "seen": 1793013880.2457979,
+    "ast_hash": "e7d9b987f4b87f343d8a9e766143180e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/invalid-inputs.json": {
+    "mtime": 1793005589.4414127,
+    "seen": 1793013880.2457988,
+    "ast_hash": "0b153df6bced6e3dbb3dcca1e8f0dc0f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/managed-three-xui-save.json": {
+    "mtime": 1793005589.4415815,
+    "seen": 1793013880.2457988,
+    "ast_hash": "61a0763e63b05bbcb9865a57aa65e5dd",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/i18n-catalogue.json": {
+    "mtime": 1793005589.441739,
+    "seen": 1793013880.2457988,
+    "ast_hash": "ddeafc8d027b340796560023f4b78124",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/already-installed-continue.json": {
+    "mtime": 1793005589.4418397,
+    "seen": 1793013880.2458,
+    "ast_hash": "b013f06ca33e00f417de504bc73f8729",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/already-installed.json": {
+    "mtime": 1793005589.4419618,
+    "seen": 1793013880.2458,
+    "ast_hash": "9ef304fc6853b8a3fde6bae27d5abf0f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/core-apply-install.json": {
+    "mtime": 1793005589.4420958,
+    "seen": 1793013880.245801,
+    "ast_hash": "4fe73252b32bf77236c4fd001837f3e5",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/core-save.json": {
+    "mtime": 1793005589.4422462,
+    "seen": 1793013880.245801,
+    "ast_hash": "d9f6df6e5e0f67c1396ef144c179e63c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/eof.json": {
+    "mtime": 1793005589.4423728,
+    "seen": 1793013880.245801,
+    "ast_hash": "56516c6a6aaf749600563161aedc7962",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/full-quit-at-digest.json": {
+    "mtime": 1793005589.4425209,
+    "seen": 1793013880.245802,
+    "ast_hash": "d5376e4a548ea6e88ab2f8c95d9d5acc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/invalid-config.json": {
+    "mtime": 1793005589.442679,
+    "seen": 1793013880.245802,
+    "ast_hash": "e53ba6161de973b00c093166e2bd5386",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/invalid-inputs.json": {
+    "mtime": 1793005589.442825,
+    "seen": 1793013880.245802,
+    "ast_hash": "46da3251923d229103ee2a7738544d53",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/managed-three-xui-save.json": {
+    "mtime": 1793005589.442978,
+    "seen": 1793013880.245803,
+    "ast_hash": "bedeb1ec287ddaa787f04618e004bcfb",
+    "semantic_hash": ""
+  },
+  "version_agent/Cargo.toml": {
+    "mtime": 1793012196.3737884,
+    "seen": 1793013880.247234,
+    "ast_hash": "760f8f54a585429461c4cbe288d0661a",
+    "semantic_hash": ""
+  },
+  "version_agent/src/artifacts.rs": {
+    "mtime": 1793012196.373904,
+    "seen": 1793013880.247333,
+    "ast_hash": "754c400412f11f3a542c9d7f8a20ebc6",
+    "semantic_hash": ""
+  },
+  "version_agent/src/catalog.rs": {
+    "mtime": 1793012196.3740163,
+    "seen": 1793013880.247333,
+    "ast_hash": "3ce1c79c635cfcc4eafdd619351d2ca6",
+    "semantic_hash": ""
+  },
+  "version_agent/src/catalog/tests.rs": {
+    "mtime": 1793012196.3741565,
+    "seen": 1793013880.247334,
+    "ast_hash": "c4a875afaf8b4be4aec44ffabf78161c",
+    "semantic_hash": ""
+  },
+  "version_agent/src/errors.rs": {
+    "mtime": 1793012196.3742378,
+    "seen": 1793013880.247334,
+    "ast_hash": "079c63697a5e411b97cc01208d0ca707",
+    "semantic_hash": ""
+  },
+  "version_agent/src/host.rs": {
+    "mtime": 1793012196.3743353,
+    "seen": 1793013880.247335,
+    "ast_hash": "808f5030681cd377c7a7f9d790dd7a8d",
+    "semantic_hash": ""
+  },
+  "version_agent/src/hostmetrics.rs": {
+    "mtime": 1793012196.3744514,
+    "seen": 1793013880.247335,
+    "ast_hash": "635b5de59d9844584f9647867f1c9904",
+    "semantic_hash": ""
+  },
+  "version_agent/src/hostmetrics/tests.rs": {
+    "mtime": 1793012196.3746045,
+    "seen": 1793013880.247336,
+    "ast_hash": "bae150c098ea37c6f7f4e1f6f4664584",
+    "semantic_hash": ""
+  },
+  "version_agent/src/lib.rs": {
+    "mtime": 1793012196.3746862,
+    "seen": 1793013880.247336,
+    "ast_hash": "e385e1217ef6d795e885cb5bd929ee4e",
+    "semantic_hash": ""
+  },
+  "version_agent/src/logging.rs": {
+    "mtime": 1793012196.374755,
+    "seen": 1793013880.247336,
+    "ast_hash": "011449ad240e34819d3f39be91b59135",
+    "semantic_hash": ""
+  },
+  "version_agent/src/main.rs": {
+    "mtime": 1793012196.3748362,
+    "seen": 1793013880.2473369,
+    "ast_hash": "30291130192043c4663478a9ffab5990",
+    "semantic_hash": ""
+  },
+  "version_agent/src/metrics_ports.rs": {
+    "mtime": 1793012196.374928,
+    "seen": 1793013880.2473369,
+    "ast_hash": "2429bec8bfd7fe04bdd1b1ad870a4c32",
+    "semantic_hash": ""
+  },
+  "version_agent/src/metrics_ports/tests.rs": {
+    "mtime": 1793012196.3750427,
+    "seen": 1793013880.247338,
+    "ast_hash": "a7f82db8d9c9c901a961b382769dac0c",
+    "semantic_hash": ""
+  },
+  "version_agent/src/py.rs": {
+    "mtime": 1793012196.3751311,
+    "seen": 1793013880.247338,
+    "ast_hash": "23219e0739cb0f809d45cd57d8fce817",
+    "semantic_hash": ""
+  },
+  "version_agent/src/runner.rs": {
+    "mtime": 1793012196.3752089,
+    "seen": 1793013880.247339,
+    "ast_hash": "23fb39be2f090212d3c570e8ff86c566",
+    "semantic_hash": ""
+  },
+  "version_agent/src/server.rs": {
+    "mtime": 1793012196.3753014,
+    "seen": 1793013880.247339,
+    "ast_hash": "a6e3fb6adb5c62a8e65f679b4152331c",
+    "semantic_hash": ""
+  },
+  "version_agent/src/server/tests.rs": {
+    "mtime": 1793012196.3754163,
+    "seen": 1793013880.247339,
+    "ast_hash": "023e94c4eda10f4dee8b7bdf8d4370df",
+    "semantic_hash": ""
+  },
+  "version_agent/src/service.rs": {
+    "mtime": 1793012196.3755732,
+    "seen": 1793013880.24734,
+    "ast_hash": "4c34215a384fb6503edcb6d130bcdd76",
+    "semantic_hash": ""
+  },
+  "version_agent/src/service/tests.rs": {
+    "mtime": 1793012196.375717,
+    "seen": 1793013880.24734,
+    "ast_hash": "cf5aa6c8df928809e1c28ca4e41711d1",
+    "semantic_hash": ""
+  },
+  "version_agent/src/testutil.rs": {
+    "mtime": 1793012196.375792,
+    "seen": 1793013880.2473412,
+    "ast_hash": "81e4c764a070e2d6133b191692ad07f0",
+    "semantic_hash": ""
+  },
+  "version_agent/src/upstream.rs": {
+    "mtime": 1793012196.3759003,
+    "seen": 1793013880.2473412,
+    "ast_hash": "8101d99e8704f67154f736a6d60de184",
+    "semantic_hash": ""
+  },
+  "version_agent/src/upstream/tests.rs": {
+    "mtime": 1793012196.3760476,
+    "seen": 1793013880.2473412,
+    "ast_hash": "b0eb27d083b387cadd39a27967aece5e",
+    "semantic_hash": ""
+  },
+  "panel/crates/protocols/tests/fixtures/transcript-tests.txt": {
+    "mtime": 1793009155.1442416,
+    "seen": 1793013880.248909,
+    "ast_hash": "2d22b03959d1eb7659cc9bd5c58a5519",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/README.md": {
+    "mtime": 1793005589.3574817,
+    "seen": 1793013880.249043,
+    "ast_hash": "baf2251703f1ef46b3fa3e4f930664f0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.3642786,
+    "seen": 1793013880.249044,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.3643813,
+    "seen": 1793013880.249044,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-amneziawg/status.txt": {
+    "mtime": 1793005589.3646564,
+    "seen": 1793013880.249044,
+    "ast_hash": "ba07785fff37f8589b3acdcc3d5ee4b3",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.369375,
+    "seen": 1793013880.249045,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.3694997,
+    "seen": 1793013880.249045,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-mieru/status.txt": {
+    "mtime": 1793005589.3698196,
+    "seen": 1793013880.249046,
+    "ast_hash": "fb8e6ebc57c4d1b4f1e2c09c8e3b620b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/files/var/www/edge.example.com/index.html": {
+    "mtime": 1793005589.3749378,
+    "seen": 1793013880.249046,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.3750496,
+    "seen": 1793013880.249047,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.375132,
+    "seen": 1793013880.249047,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-naive/status.txt": {
+    "mtime": 1793005589.3753927,
+    "seen": 1793013880.249048,
+    "ast_hash": "8542dd4430e0b5e4d492609ff51d4509",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.3801296,
+    "seen": 1793013880.249048,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.3802352,
+    "seen": 1793013880.2490492,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core-trusttunnel/status.txt": {
+    "mtime": 1793005589.380538,
+    "seen": 1793013880.2490492,
+    "ast_hash": "9b3e17b44c7bb61324f651797cf9ee3c",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.384628,
+    "seen": 1793013880.2490492,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.384744,
+    "seen": 1793013880.2490501,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/core/status.txt": {
+    "mtime": 1793005589.3850172,
+    "seen": 1793013880.2490501,
+    "ast_hash": "f19d851c25d71563455290397f835fdf",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.3892877,
+    "seen": 1793013880.2490509,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.3893745,
+    "seen": 1793013880.2490509,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/existing-three-xui/status.txt": {
+    "mtime": 1793005589.389622,
+    "seen": 1793013880.2490509,
+    "ast_hash": "1bec78f42105ee4fa38c4ce93c7efddc",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/var/www/edge.example.com/index.html": {
+    "mtime": 1793005589.3954759,
+    "seen": 1793013880.2490518,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.3955562,
+    "seen": 1793013880.2490518,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.3956413,
+    "seen": 1793013880.249053,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/full-three-xui/status.txt": {
+    "mtime": 1793005589.3958666,
+    "seen": 1793013880.249053,
+    "ast_hash": "53e33e8ff3274646c4b1226faf8b0d8f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/var/www/edge.example.com/index.html": {
+    "mtime": 1793005589.4045613,
+    "seen": 1793013880.249053,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.4046621,
+    "seen": 1793013880.249054,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.404762,
+    "seen": 1793013880.249054,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/kitchen-sink/status.txt": {
+    "mtime": 1793005589.4050522,
+    "seen": 1793013880.249055,
+    "ast_hash": "cacd0c64248b73032933103ab2b0886f",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/var/www/edge.example.com/index.html": {
+    "mtime": 1793005589.4132707,
+    "seen": 1793013880.249055,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/var/www/panel.example.com/index.html": {
+    "mtime": 1793005589.4133854,
+    "seen": 1793013880.249055,
+    "ast_hash": "83ac178a86bf01967d66c3c898729190",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/root/files/var/www/relay.example.com/index.html": {
+    "mtime": 1793005589.4135044,
+    "seen": 1793013880.249056,
+    "ast_hash": "6502ada2eddc13b34c096b85727b3695",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/installs/managed-three-xui/status.txt": {
+    "mtime": 1793005589.4138184,
+    "seen": 1793013880.249056,
+    "ast_hash": "56fde8509599b334e301c6f476eda9c4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/coexist-ingress/plan-cli.txt": {
+    "mtime": 1793005589.4205306,
+    "seen": 1793013880.249056,
+    "ast_hash": "c08147c875a6592b4f5c346689b469f1",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-amneziawg/plan-cli.txt": {
+    "mtime": 1793005589.4210975,
+    "seen": 1793013880.249057,
+    "ast_hash": "01a3d9c8e14fe27a0c2801fb7c7567d8",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-mieru/plan-cli.txt": {
+    "mtime": 1793005589.4216166,
+    "seen": 1793013880.249057,
+    "ast_hash": "8116b8630bda582ee8139e607841dff9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-naive/plan-cli.txt": {
+    "mtime": 1793005589.4220822,
+    "seen": 1793013880.249058,
+    "ast_hash": "a4db854069a5f654da2592b05fa380f9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core-trusttunnel/plan-cli.txt": {
+    "mtime": 1793005589.4226344,
+    "seen": 1793013880.249058,
+    "ast_hash": "e6ecca4d77fa07b703d68c78b476b63e",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/core/plan-cli.txt": {
+    "mtime": 1793005589.4232159,
+    "seen": 1793013880.249058,
+    "ast_hash": "911bb6e71b8a9257dd7ab6132bf01ed0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/existing-three-xui/plan-cli.txt": {
+    "mtime": 1793005589.4237998,
+    "seen": 1793013880.249059,
+    "ast_hash": "8861cae9afa901147866d2f922ff7782",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/full-three-xui/plan-cli.txt": {
+    "mtime": 1793005589.4242535,
+    "seen": 1793013880.249059,
+    "ast_hash": "ee9c771fa4475b253497f0ec1edef24b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/kitchen-sink/plan-cli.txt": {
+    "mtime": 1793005589.4249032,
+    "seen": 1793013880.2490602,
+    "ast_hash": "bd127417c9812e8ff3d4ce1664d1b9ab",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/plans/managed-three-xui/plan-cli.txt": {
+    "mtime": 1793005589.425391,
+    "seen": 1793013880.2490602,
+    "ast_hash": "9be5cc8a6ecac5a72dd9ffaa1dbdd738",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/already-installed-continue.stdout.txt": {
+    "mtime": 1793005589.440321,
+    "seen": 1793013880.2490602,
+    "ast_hash": "398c609341a982cd1feb5ebb863a5d00",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/already-installed.stdout.txt": {
+    "mtime": 1793005589.4404647,
+    "seen": 1793013880.249061,
+    "ast_hash": "d70c315be6d8ff65c09ad4c0b0f74a27",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/core-apply-install.stdout.txt": {
+    "mtime": 1793005589.4406443,
+    "seen": 1793013880.249061,
+    "ast_hash": "e83e75138ee88fcd1cde9f3b5e9ef0e9",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/core-save.stdout.txt": {
+    "mtime": 1793005589.4408076,
+    "seen": 1793013880.2490618,
+    "ast_hash": "466d7a8205aea1c3d8a0c13548ceaac0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/eof.stdout.txt": {
+    "mtime": 1793005589.4409606,
+    "seen": 1793013880.2490618,
+    "ast_hash": "5a9fc424a305b59c647395b851b4a9b4",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/full-quit-at-digest.stdout.txt": {
+    "mtime": 1793005589.4411547,
+    "seen": 1793013880.2490618,
+    "ast_hash": "23c8c8f74c99ce577feaf58af511464b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/invalid-config.stdout.txt": {
+    "mtime": 1793005589.4413245,
+    "seen": 1793013880.249063,
+    "ast_hash": "6af30654a19e22e233a32c2928e8c353",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/invalid-inputs.stdout.txt": {
+    "mtime": 1793005589.4415026,
+    "seen": 1793013880.249063,
+    "ast_hash": "efddda454c5050934cb10382f0f98942",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/en/managed-three-xui-save.stdout.txt": {
+    "mtime": 1793005589.4416504,
+    "seen": 1793013880.249064,
+    "ast_hash": "4bb3189765a707191cfbc48854748e4b",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/already-installed-continue.stdout.txt": {
+    "mtime": 1793005589.4419014,
+    "seen": 1793013880.249064,
+    "ast_hash": "d4375bb06fb04e03fbd1f20ae7b9b444",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/already-installed.stdout.txt": {
+    "mtime": 1793005589.4420226,
+    "seen": 1793013880.249064,
+    "ast_hash": "eb7920c2b1167b2efebbfe4893658c18",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/core-apply-install.stdout.txt": {
+    "mtime": 1793005589.442176,
+    "seen": 1793013880.249065,
+    "ast_hash": "d56e1df86dd60b35c7a5a9e844421bb0",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/core-save.stdout.txt": {
+    "mtime": 1793005589.4423082,
+    "seen": 1793013880.249065,
+    "ast_hash": "782e9b0a039bc3959b2bc03ce2eca12a",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/eof.stdout.txt": {
+    "mtime": 1793005589.4424362,
+    "seen": 1793013880.249065,
+    "ast_hash": "4121d3aacdd25a6336eeb8ab30e02b30",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/full-quit-at-digest.stdout.txt": {
+    "mtime": 1793005589.442604,
+    "seen": 1793013880.2490659,
+    "ast_hash": "1977b1b8c0b5da46da5a5f5f6dad22fa",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/invalid-config.stdout.txt": {
+    "mtime": 1793005589.4427495,
+    "seen": 1793013880.2490659,
+    "ast_hash": "8105d4d03f6fb154866c18b738e4a3fa",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/invalid-inputs.stdout.txt": {
+    "mtime": 1793005589.442906,
+    "seen": 1793013880.249067,
+    "ast_hash": "5d078c351c135ffb682319240c81be47",
+    "semantic_hash": ""
+  },
+  "tests/fixtures/host-golden/wizard/ru/managed-three-xui-save.stdout.txt": {
+    "mtime": 1793005589.4430544,
+    "seen": 1793013880.249067,
+    "ast_hash": "d7cb057a8c7cf88b1b4b70a99bc3a176",
     "semantic_hash": ""
   }
 }
