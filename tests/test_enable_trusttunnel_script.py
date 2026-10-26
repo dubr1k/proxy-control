@@ -3,7 +3,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from installer.adapters.trusttunnel import TT_SHA256_AARCH64
+TT_SHA256_AARCH64 = "c2aee17a1ced349283cba4775202e2baba053b8ea835d4cc23dc67d16c6b9686"
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "enable-trusttunnel.sh"
 
@@ -41,3 +41,22 @@ def test_the_script_writes_the_installers_env_contract():
     assert "ufw" not in text.replace("no firewall rule", "")
     assert "for tree in trusttunnel_manager pc_common; do" in text
     assert "/usr/local/bin/trusttunnel-manager healthcheck" in text and "python -m trusttunnel_manager" not in text
+    assert "proxy-control-installer" in text and "release-pin --manifest" in text
+    assert "python3" not in text
+
+
+def test_release_pin_binary_matches_reviewed_manifest():
+    import json
+
+    binary = Path(os.environ.get("PROXY_CONTROL_INSTALLER_BINARY",
+                                str(SCRIPT.parents[1] / "installer/bin/linux-amd64/proxy-control-installer")))
+    assert binary.is_file(), "build the installer and set PROXY_CONTROL_INSTALLER_BINARY"
+    manifest = SCRIPT.parents[1] / "release/external-artifacts.json"
+    entry = next(item for item in json.loads(manifest.read_text())["artifacts"] if item["name"] == "trusttunnel")
+    command = [str(binary), "release-pin", "--manifest", str(manifest), "trusttunnel", "amd64"]
+    result = subprocess.run(command, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f'{entry["version"]} {entry["platforms"]["amd64"]["sha256"]}\n'
+    refused = subprocess.run([*command[:-1], "arm64"], capture_output=True, text=True)
+    assert refused.returncode == 2
+    assert refused.stdout == ""

@@ -67,6 +67,10 @@ GitHub: архив endpoint скачивается и сверяется по SH
 sudo scripts/enable-trusttunnel.sh --host gate.example.org
 ```
 
+В распакованном релизе нужен `installer/bin/linux-amd64/proxy-control-installer`.
+Скрипт читает закреплённую версию через `release-pin`, проверяющий весь манифест релиза;
+Python на сервере не требуется.
+
 Сертификат для имени должен быть выпущен заранее (линия certbot с тем же именем), а ваш Nginx `stream` — отправлять
 это имя на `127.0.0.1:4453` (строка `gate.example.org 127.0.0.1:4453;` в карте `$ssl_preread_server_name`).
 Скрипт копирует менеджер и оверлей Compose, создаёт токен и каталог состояния (учётные данные не

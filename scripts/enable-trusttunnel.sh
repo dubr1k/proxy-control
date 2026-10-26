@@ -44,12 +44,7 @@ if ss -H -ltn "sport = :$LISTEN_PORT" 2>/dev/null | grep -q . && ! ss -H -ltnp "
   echo "TCP port $LISTEN_PORT is already in use by another program" >&2; exit 2
 fi
 TT_SHA256_AARCH64=c2aee17a1ced349283cba4775202e2baba053b8ea835d4cc23dc67d16c6b9686
-read -r TT_VERSION TT_SHA256 < <(python3 - "$SRC/release/external-artifacts.json" <<'PY'
-import json, sys
-entry = next(item for item in json.load(open(sys.argv[1]))["artifacts"] if item["name"] == "trusttunnel")
-print(entry["version"], entry["platforms"]["amd64"]["sha256"])
-PY
-)
+read -r TT_VERSION TT_SHA256 < <("$SRC/installer/bin/linux-amd64/proxy-control-installer" release-pin --manifest "$SRC/release/external-artifacts.json" trusttunnel amd64)
 
 echo "== files"
 cd "$DIR"
@@ -63,7 +58,7 @@ done
 install -m 0644 "$SRC/compose.trusttunnel.yaml" "$DIR/compose.trusttunnel.yaml"
 install -d -m 0700 "$DIR/secrets" /var/lib/trusttunnel-manager
 if [[ ! -s secrets/trusttunnel-manager-token ]]; then
-  ( umask 077; python3 -c 'import secrets; print(secrets.token_hex(32))' > secrets/trusttunnel-manager-token )
+  ( umask 077; { head -c32 /dev/urandom | od -An -tx1 | tr -d ' \n'; printf '\n'; } > secrets/trusttunnel-manager-token )
 fi
 chmod 600 secrets/trusttunnel-manager-token
 

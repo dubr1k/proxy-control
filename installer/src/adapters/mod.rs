@@ -29,6 +29,7 @@ pub(crate) mod example;
 #[cfg(test)]
 mod services_tests;
 
+pub mod amneziawg;
 pub mod certificates;
 pub mod core;
 pub mod firewall;
@@ -39,6 +40,12 @@ mod router_host;
 mod router_tests;
 pub mod three_xui;
 pub mod xray_router;
+pub mod trusttunnel;
+mod vpn;
+#[cfg(test)]
+mod vpn_smoke;
+#[cfg(test)]
+mod vpn_tests;
 
 /// What every adapter is constructed with.
 #[derive(Clone)]
@@ -73,6 +80,8 @@ pub fn registry(context: &AdapterContext) -> Vec<Arc<dyn Adapter>> {
         Arc::new(version_agent::VersionAgentAdapter::new(context)),
         Arc::new(three_xui::ThreeXuiAdapter::new(context)),
         Arc::new(xray_router::XrayRouterAdapter::new(context)),
+        Arc::new(amneziawg::AmneziaWgAdapter::new(context)),
+        Arc::new(trusttunnel::TrustTunnelAdapter::new(context)),
     ]
 }
 

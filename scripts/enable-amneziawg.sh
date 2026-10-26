@@ -78,27 +78,7 @@ done
 NEED=()
 for v in "${VERS[@]}"; do [[ -n ${PORT[$v]:-} ]] || NEED+=("$v"); done
 if (( ${#NEED[@]} )); then
-  PICKED=$(python3 - "$BOUND" "${PORT[@]}" -- "${NEED[@]}" <<'PY'
-import hashlib, socket, sys
-bound_arg, *rest = sys.argv[1:]
-split = rest.index("--")
-fixed, need = rest[:split], rest[split + 1:]
-taken = {int(p) for p in bound_arg.split()} | {int(p) for p in fixed}
-try:
-    ident = open("/etc/machine-id").read().strip() or socket.gethostname()
-except OSError:
-    ident = socket.gethostname()
-for version in need:
-    for attempt in range(4096):
-        port = 10240 + int.from_bytes(hashlib.sha256(f"{ident}:{version}:{attempt}".encode()).digest(), "big") % 21761
-        if port not in taken:
-            taken.add(port)
-            print(f"{version}={port}")
-            break
-    else:
-        sys.exit("no free port found")
-PY
-  )
+  PICKED=$("$SRC/installer/bin/linux-amd64/proxy-control-installer" awg-ports "$BOUND" "${PORT[@]}" -- "${NEED[@]}")
   for entry in $PICKED; do PORT[${entry%%=*}]=${entry#*=}; done
 fi
 PORTS="" SUBNETS=""
@@ -126,7 +106,7 @@ done
 install -m 0644 "$SRC/compose.amneziawg.yaml" "$DIR/compose.amneziawg.yaml"
 install -d -m 0700 "$DIR/secrets" /var/lib/awg-manager
 if [[ ! -s secrets/awg-manager-token ]]; then
-  ( umask 077; python3 -c 'import secrets; print(secrets.token_hex(32))' > secrets/awg-manager-token )
+  ( umask 077; { head -c32 /dev/urandom | od -An -tx1 | tr -d ' \n'; printf '\n'; } > secrets/awg-manager-token )
 fi
 chmod 600 secrets/awg-manager-token
 ( umask 077; cat > .env.amneziawg <<E
