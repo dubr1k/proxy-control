@@ -15,7 +15,7 @@ use axum::response::Response;
 use common::{fixture, Rig};
 use futures_util::StreamExt;
 use panel_core::pyjson;
-use panel_metrics::routes::{self, Caller, MetricsState};
+use panel_metrics::routes::{self, Caller, MetricsHttp, MetricsState};
 use panel_metrics::{FleetMeters, Metrics};
 use panel_model::metrics::{MetricsNode, NodeMetricsSource};
 use panel_model::protocols::BoxFuture;
@@ -42,6 +42,16 @@ impl MetricsState for TestState {
         &self.metrics
     }
 
+    fn still_valid<'a>(&'a self, _caller: &'a Caller, _headers: &'a HeaderMap) -> BoxFuture<'a, bool> {
+        Box::pin(async move { *self.valid.lock().unwrap() })
+    }
+
+    fn linked_nodes(&self) -> BoxFuture<'_, Result<Vec<MetricsNode>, Response>> {
+        Box::pin(async move { Ok(self.linked.lock().unwrap().clone()) })
+    }
+}
+
+impl MetricsHttp for TestState {
     fn current<'a>(&'a self, parts: &'a Parts) -> BoxFuture<'a, Result<Caller, Response>> {
         Box::pin(async move {
             if parts.headers.get("cookie").is_none() {
@@ -49,14 +59,6 @@ impl MetricsState for TestState {
             }
             Ok(Caller { token_hash: TOKEN.into(), via_api_key: false })
         })
-    }
-
-    fn still_valid<'a>(&'a self, _caller: &'a Caller, _headers: &'a HeaderMap) -> BoxFuture<'a, bool> {
-        Box::pin(async move { *self.valid.lock().unwrap() })
-    }
-
-    fn linked_nodes(&self) -> BoxFuture<'_, Result<Vec<MetricsNode>, Response>> {
-        Box::pin(async move { Ok(self.linked.lock().unwrap().clone()) })
     }
 }
 
