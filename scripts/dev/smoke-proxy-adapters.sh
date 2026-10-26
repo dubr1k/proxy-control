@@ -7,13 +7,17 @@ if [[ ${1:-} == --inside ]]; then
     [[ $(readlink /proc/self/ns/net) != $(readlink /proc/1/ns/net) ]]
     ip link set lo up
     mkdir -p "$native/host-bin"
+    touch "$native/docker.sock"
+    mount --bind /run/docker.sock "$native/docker.sock"
+    export PC_PROXY_SMOKE_DOCKER_HOST="unix:$native/docker.sock"
     mount --bind /usr/bin "$native/host-bin"
-    for path in /etc /var/lib /var/log /var/www /opt /run /usr/local/bin /usr/local/libexec /usr/share/doc; do
+    for path in /etc /var/lib /var/log /var/tmp /var/www /opt /run /usr/local/bin /usr/local/libexec /usr/share/doc; do
         [[ -d $path && ! -L $path ]] || { printf 'Missing safe lab mountpoint: %s\n' "$path" >&2; exit 1; }
         mount -t tmpfs -o mode=0755 tmpfs "$path"
     done
     mount -t tmpfs -o mode=0755 tmpfs /usr/bin
     for path in "$native/host-bin/"*; do
+        case "${path##*/}" in mita|mieru) continue;; esac
         "$native/host-bin/ln" -s "$path" "/usr/bin/${path##*/}"
     done
     PC_PROXY_SMOKE_TREE="$root" PC_PROXY_SMOKE_NATIVE="$native" PC_PROXY_SMOKE_INSTALLER="$installer" \
@@ -73,4 +77,26 @@ cargo build --manifest-path "$root/installer/Cargo.toml" --locked --bin proxy-co
 testbin=$(cargo test --manifest-path "$root/installer/Cargo.toml" --locked --lib --no-run --message-format=json | \
     python3 -c 'import json,sys; rows=(json.loads(line) for line in sys.stdin); print(next(r["executable"] for r in rows if r.get("reason")=="compiler-artifact" and r.get("target",{}).get("name")=="installer" and r.get("profile",{}).get("test") and r.get("executable")))')
 installer="$target/debug/proxy-control-installer"
-unshare --mount --net --propagation private bash "$0" --inside "$root" "$native" "$testbin" "$installer"
+# Both the engine and real native probe containers share this owned, otherwise empty network.
+# No host network or installed proxy participates in the acceptance dialogue.
+keeper="pc-wp5c-network-$$"
+export PC_PROXY_SMOKE_NETWORK="$keeper"
+export PC_PROXY_SMOKE_IMAGE="pc-wp5c-mieru-client:smoke-$$"
+cleanup() {
+    docker rm --force "$keeper" > /dev/null 2>&1 || true
+    docker image rm "$PC_PROXY_SMOKE_IMAGE" > /dev/null 2>&1 || true
+}
+trap cleanup EXIT
+docker run --detach --name "$keeper" --network none --entrypoint /bin/sh \
+    debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 \
+    -c 'exec sleep infinity' > /dev/null
+network_pid=$(docker inspect --format '{{.State.Pid}}' "$keeper")
+nsenter --net="/proc/$network_pid/ns/net" unshare --mount --propagation private \
+    bash "$0" --inside "$root" "$native" "$testbin" "$installer"
+if [[ ${PC_PROXY_SMOKE_PROTOCOL:-} != naive ]]; then
+    docker run --rm --network none --entrypoint /bin/sh "$PC_PROXY_SMOKE_IMAGE" -ec \
+        '! command -v python; ! command -v python3; test -z "$(find /usr /opt -iname "*python*" -print -quit)";
+         test "$(sha256sum /usr/local/bin/mieru | cut -d " " -f 1)" = 3529fc7190e073d89da1ea9bbf08aa481edca59866c466725b8231325b0b6577;
+         test -x /usr/local/bin/mieru-probe;
+         printf "NATIVE_MIERU_IMAGE_NO_PYTHON_PINNED_CLIENT_OK\n"'
+fi

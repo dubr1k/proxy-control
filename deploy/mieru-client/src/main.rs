@@ -2,7 +2,7 @@
 use std::env;
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::{Child, Command, ExitCode, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -149,23 +149,31 @@ fn status_through(proxies: &[SocketAddr], destination: &Destination, deadline: I
     Err(last)
 }
 
+struct ClientCommand(Child);
+impl Drop for ClientCommand {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 fn run_client(arguments: &[&str]) -> io::Result<bool> {
     // A daemon inherits stdout/stderr. Never capture a pipe it could keep open, or expose the
     // reveal's credentials through client diagnostics. Only command status is needed here.
-    let mut child = Command::new("mieru")
-        .args(arguments)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+    let mut child = ClientCommand(
+        Command::new("mieru")
+            .args(arguments)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?,
+    );
     let deadline = Instant::now() + COMMAND_TIMEOUT;
     loop {
-        if let Some(status) = child.try_wait()? {
+        if let Some(status) = child.0.try_wait()? {
             return Ok(status.success());
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
             return Err(io::Error::new(io::ErrorKind::TimedOut, "mieru command timed out"));
         }
         thread::sleep(Duration::from_millis(20));
@@ -194,10 +202,11 @@ fn run() -> Result<(), String> {
     {
         return Err("mieru could not apply the client configuration".into());
     }
+    // A failed start can still leave the daemon running. Arm cleanup before attempting it.
+    let _stop = StopClient;
     if !run_client(&["start"]).map_err(|_| "mieru client did not start")? {
         return Err("mieru client did not start".into());
     }
-    let _stop = StopClient;
     let deadline = Instant::now() + DEADLINE;
     let mut last_status = None;
     while Instant::now() < deadline {
@@ -235,6 +244,16 @@ mod tests {
             let length = output.len().min(1);
             self.0.read(&mut output[..length])
         }
+    }
+
+    #[test]
+    fn command_cleanup_kills_and_reaps_a_live_client_on_early_return() {
+        let child = Command::new("sleep").arg("60").spawn().unwrap();
+        let pid = child.id();
+        let path = std::path::PathBuf::from(format!("/proc/{pid}"));
+        assert!(path.exists());
+        drop(ClientCommand(child));
+        assert!(!path.exists(), "owned client must not survive or remain a zombie");
     }
 
     #[test]
