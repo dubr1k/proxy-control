@@ -217,9 +217,19 @@ fn every_acceptance_failure_and_inconsistent_count_is_refused() {
     let good = AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }.run(2).unwrap();
     require_acceptance(&good).unwrap();
     let document = serde_json::to_value(&good).unwrap();
-    for field in ["compose_config_ok", "panel_health_ok", "panel_login_ok", "telemt_api_internal",
-        "adjacent_sni_ok", "sensitive_scan_ok", "temporary_state_removed", "healthy_services", "respq_verified",
-        "expected_services", "respq_expected"] {
+    for field in [
+        "compose_config_ok",
+        "panel_health_ok",
+        "panel_login_ok",
+        "telemt_api_internal",
+        "adjacent_sni_ok",
+        "sensitive_scan_ok",
+        "temporary_state_removed",
+        "healthy_services",
+        "respq_verified",
+        "expected_services",
+        "respq_expected",
+    ] {
         let mut bad = document.clone();
         bad[field] = if document[field].is_boolean() { json!(false) } else { json!(0) };
         let bad: CoreAcceptance = serde_json::from_value(bad).unwrap();
@@ -261,9 +271,8 @@ fn owned_core() -> (crate::testkit::TempDir, Arc<CoreAdapter>) {
         tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
         runner,
     });
-    adapter.test_acceptance = Some(Arc::new(AcceptanceMock {
-        collision: false, cleanup_fails: false, cleanups: Default::default(),
-    }));
+    adapter.test_acceptance =
+        Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }));
     (root, Arc::new(adapter))
 }
 
@@ -281,7 +290,9 @@ fn core_rollback_preserves_credentials_and_neighboring_project_files_unless_purg
         assert!(adapter.rollback(&action, applied, purge, RollbackTarget::Uninstalled).unwrap().success);
         assert_eq!(fs::read_to_string(&neighbor).unwrap(), "operator data\n");
         assert_eq!(users.exists(), !purge);
-        if !purge { assert_eq!(fs::read(&users).unwrap(), secret); }
+        if !purge {
+            assert_eq!(fs::read(&users).unwrap(), secret);
+        }
     }
 }
 
@@ -324,19 +335,33 @@ fn unowned_project_probe_image_and_fixed_label_resources_are_not_adopted() {
             "image" => {
                 // Rules are first-match, so use a fresh responder for the image case below.
             }
-            "volume" => { runner.reply(&["docker", "volume", "ls"], Reply::ok("proxy_panel_by_dubr1k_panel-data\n")); }
-            _ => { runner.reply(&["docker", "container", "ls"], Reply::ok("foreign-container\n")); }
+            "volume" => {
+                runner.reply(&["docker", "volume", "ls"], Reply::ok("proxy_panel_by_dubr1k_panel-data\n"));
+            }
+            _ => {
+                runner.reply(&["docker", "container", "ls"], Reply::ok("foreign-container\n"));
+            }
         }
         let runner = if collision_kind == "image" {
             let responder = RecordingRunner::with_responder(|call| {
                 Some(if call.argv.starts_with(&["docker".into(), "image".into(), "inspect".into()]) {
-                    Reply::ok(if call.argv[4] == "{{.Id}}" { "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } else { "" })
-                } else { Reply::ok("") })
+                    Reply::ok(if call.argv[4] == "{{.Id}}" {
+                        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    } else {
+                        ""
+                    })
+                } else {
+                    Reply::ok("")
+                })
             });
             Arc::new(responder)
-        } else { runner };
+        } else {
+            runner
+        };
         let adapter = CoreAdapter::new(&AdapterContext {
-            root: root.path().into(), tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(), runner,
+            root: root.path().into(),
+            tree: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().into(),
+            runner,
         });
         assert!(adapter.prepare(&core_action()).is_err(), "{collision_kind}");
         assert!(!root.path().join("opt/mtproxy-shared443/secrets/users.conf").exists());
@@ -372,9 +397,13 @@ fn runtime_volume_purge_validates_all_names_and_labels_before_removing_anything(
         let runner = Arc::new(RecordingRunner::with_responder(move |call| {
             let args = &call.argv;
             if args.starts_with(&["docker".into(), "volume".into(), "ls".into()]) {
-                return Some(Reply::ok(if args.last().unwrap() == "label=com.docker.compose.project=proxy_panel_by_dubr1k" {
-                    "proxy_panel_by_dubr1k_naive-manager-run\nproxy_panel_by_dubr1k_mieru-manager-run\noperator-volume\nproxy_panel_by_dubr1k_panel-data\n"
-                } else { "" }));
+                return Some(Reply::ok(
+                    if args.last().unwrap() == "label=com.docker.compose.project=proxy_panel_by_dubr1k" {
+                        "proxy_panel_by_dubr1k_naive-manager-run\nproxy_panel_by_dubr1k_mieru-manager-run\noperator-volume\nproxy_panel_by_dubr1k_panel-data\n"
+                    } else {
+                        ""
+                    },
+                ));
             }
             if args.starts_with(&["docker".into(), "volume".into(), "inspect".into()]) {
                 let name = args.last().unwrap();
@@ -397,15 +426,21 @@ fn runtime_volume_purge_validates_all_names_and_labels_before_removing_anything(
             Some(Reply::ok(""))
         }));
         let adapter = CoreAdapter::new(&AdapterContext {
-            root: root.path().into(), tree: root.path().into(), runner: runner.clone(),
+            root: root.path().into(),
+            tree: root.path().into(),
+            runner: runner.clone(),
         });
         assert_eq!(adapter.purge_runtime_volumes().is_ok(), defect == "none", "{defect}");
-        let removed: Vec<Vec<String>> = runner.argvs().into_iter().filter(|a| {
-            a.starts_with(&["docker".into(), "volume".into(), "rm".into()])
-        }).collect();
+        let removed: Vec<Vec<String>> = runner
+            .argvs()
+            .into_iter()
+            .filter(|a| a.starts_with(&["docker".into(), "volume".into(), "rm".into()]))
+            .collect();
         if defect == "none" {
-            assert_eq!(removed.iter().map(|a| a.last().unwrap().as_str()).collect::<Vec<_>>(),
-                ["proxy_panel_by_dubr1k_naive-manager-run", "proxy_panel_by_dubr1k_mieru-manager-run"]);
+            assert_eq!(
+                removed.iter().map(|a| a.last().unwrap().as_str()).collect::<Vec<_>>(),
+                ["proxy_panel_by_dubr1k_naive-manager-run", "proxy_panel_by_dubr1k_mieru-manager-run"]
+            );
         } else {
             assert!(removed.is_empty(), "{defect}: {removed:?}");
         }
@@ -421,19 +456,23 @@ fn failed_temporary_cleanup_retains_owned_tombstone_until_success_or_explicit_pu
         let owner = root.path().join("opt/mtproxy-shared443").join(ACCEPTANCE_OWNER);
         let pending = root.path().join("opt/mtproxy-shared443").join(ACCEPTANCE_PENDING);
         fs::copy(&owner, &pending).unwrap();
-        Arc::get_mut(&mut adapter).unwrap().test_acceptance = Some(Arc::new(AcceptanceMock {
-            collision: false, cleanup_fails: true, cleanups: Default::default(),
-        }));
+        Arc::get_mut(&mut adapter).unwrap().test_acceptance =
+            Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: true, cleanups: Default::default() }));
         let evidence = adapter.rollback(&action, applied.clone(), purge, RollbackTarget::RolledBack).unwrap();
         assert_eq!(evidence.details["temporary_cleanup_pending"], true);
         assert!(owner.is_file() && pending.is_file());
         if !purge {
-            Arc::get_mut(&mut adapter).unwrap().test_acceptance = Some(Arc::new(AcceptanceMock {
-                collision: false, cleanup_fails: false, cleanups: Default::default(),
-            }));
+            Arc::get_mut(&mut adapter).unwrap().test_acceptance =
+                Some(Arc::new(AcceptanceMock { collision: false, cleanup_fails: false, cleanups: Default::default() }));
         }
-        let evidence = adapter.reconcile_rollback(&action, applied, purge,
-            if purge { RollbackTarget::Uninstalled } else { RollbackTarget::RolledBack }).unwrap();
+        let evidence = adapter
+            .reconcile_rollback(
+                &action,
+                applied,
+                purge,
+                if purge { RollbackTarget::Uninstalled } else { RollbackTarget::RolledBack },
+            )
+            .unwrap();
         assert_eq!(evidence.details["temporary_cleanup_pending"], false);
         assert!(!pending.exists());
         assert!(!owner.exists());
@@ -451,11 +490,21 @@ fn corrupt_core_checkpoint_refuses_lifecycle_without_mutating_generation_or_fore
             let victim = root.path().join("operator-file");
             fs::write(&victim, "operator bytes\n").unwrap();
             match defect {
-                "owner" => { checkpoint.insert("owner".into(), json!("foreign")); }
-                "unknown" => { checkpoint.insert("foreign".into(), json!(true)); }
-                "ownership" => { checkpoint.insert("ownership".into(), json!([])); }
-                _ => { checkpoint["ownership"].as_object_mut().unwrap().insert(
-                    "/operator-file".into(), json!({"sha256": sha256_hex(b"operator bytes\n"), "preserve": false})); }
+                "owner" => {
+                    checkpoint.insert("owner".into(), json!("foreign"));
+                }
+                "unknown" => {
+                    checkpoint.insert("foreign".into(), json!(true));
+                }
+                "ownership" => {
+                    checkpoint.insert("ownership".into(), json!([]));
+                }
+                _ => {
+                    checkpoint["ownership"].as_object_mut().unwrap().insert(
+                        "/operator-file".into(),
+                        json!({"sha256": sha256_hex(b"operator bytes\n"), "preserve": false}),
+                    );
+                }
             }
             let before = root.path().join("opt/mtproxy-shared443/.env");
             let original = fs::read(&before).ok();
@@ -469,4 +518,63 @@ fn corrupt_core_checkpoint_refuses_lifecycle_without_mutating_generation_or_fore
             assert_eq!(fs::read(&before).ok(), original, "{phase}/{defect}");
         }
     }
+}
+
+#[test]
+fn forged_checkpoint_ownership_refuses_foreign_project_file_and_off_domain_cover_before_mutation() {
+    for phase in ["apply", "repair", "rollback"] {
+        for (map, absolute) in [
+            ("planned_ownership", "/opt/mtproxy-shared443/operator-file"),
+            ("planned_ownership", "/var/www/neighbor.example.com/index.html"),
+            ("ownership", "/opt/mtproxy-shared443/operator-file"),
+            ("ownership", "/var/www/neighbor.example.com/index.html"),
+        ] {
+            if phase == "apply" && map == "ownership" {
+                continue; // Prepared checkpoints cannot have applied ownership at all.
+            }
+            let (root, adapter) = owned_core();
+            let action = core_action();
+            let prepared = adapter.prepare(&action).unwrap();
+            let mut checkpoint = if phase == "apply" { prepared } else { adapter.apply(&action, prepared).unwrap() };
+            let foreign = root.path().join(absolute.trim_start_matches('/'));
+            fs::create_dir_all(foreign.parent().unwrap()).unwrap();
+            fs::write(&foreign, b"operator bytes\n").unwrap();
+            checkpoint[map]
+                .as_object_mut()
+                .unwrap()
+                .insert(absolute.into(), json!({"sha256": sha256_hex(b"operator bytes\n"), "preserve": false}));
+            let generation = root.path().join("opt/mtproxy-shared443/.env");
+            let original = fs::read(&generation).ok();
+            let result = match phase {
+                "apply" => adapter.apply(&action, checkpoint).map(|_| ()),
+                "repair" => adapter.repair(&action, checkpoint).map(|_| ()),
+                _ => adapter.rollback(&action, checkpoint, true, RollbackTarget::Uninstalled).map(|_| ()),
+            };
+            assert!(result.is_err(), "{phase}/{map}/{absolute}");
+            assert_eq!(fs::read(&foreign).unwrap(), b"operator bytes\n", "{phase}/{map}/{absolute}");
+            assert_eq!(fs::read(&generation).ok(), original, "{phase}/{map}/{absolute}");
+        }
+    }
+}
+
+#[test]
+fn recorded_legacy_core_journal_keeps_exact_retired_script_but_refuses_other_scripts() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/host-golden/installs/core/journal/state.json");
+    let journal: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let data = journal["checkpoints"].as_array().unwrap().iter().find(|entry| entry["adapter"] == "core").unwrap()
+        ["data"]
+        .as_object()
+        .unwrap()
+        .clone();
+    let retired = format!("{PROJECT}/scripts/proxyctl.py");
+    assert!(data["ownership"].get(&retired).is_some());
+    let action = core_action();
+    CoreCheckpoint::read(&data, &action, true).unwrap().validate_paths(&selected()).unwrap();
+
+    let mut forged = data;
+    let neighbor = format!("{PROJECT}/scripts/operator.py");
+    let record = forged["planned_ownership"][&retired].clone();
+    forged["planned_ownership"].as_object_mut().unwrap().insert(neighbor, record);
+    assert!(CoreCheckpoint::read(&forged, &action, true).unwrap().validate_paths(&selected()).is_err());
 }

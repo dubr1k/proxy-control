@@ -212,9 +212,12 @@ def test_a_host_already_on_the_release_only_rebuilds_what_is_missing(host):
 
 
 def test_without_an_agent_it_points_to_the_manual_upgrade(host):
-    result = subprocess.run([str(host["binary"]), "--root", str(host["tmp"] / "host"), "update-host", "--version", "1.1.0", "--sha256", DIGEST],
+    # An explicit version must not require a neighbouring release tree just to report
+    # an unavailable agent (for example when invoking an installed recovery binary).
+    result = subprocess.run([str(host["binary"]), "--root", str(host["tmp"] / "host"), "--source", str(host["tmp"] / "absent-release"), "update-host", "--version", "1.1.0", "--sha256", DIGEST],
                             env={"PATH": "/usr/bin:/bin", "UPDATE_HOST_AGENT_SOCKET": str(host["tmp"] / "none.sock")}, capture_output=True, text=True, timeout=20)
-    assert result.returncode != 0 and "UPGRADING" in result.stderr
+    assert result.returncode != 0 and "version-agent not found" in result.stderr and "UPGRADING" in result.stderr
+    assert not host["log"].exists(), "a missing agent must refuse before any Docker mutation"
 
 
 def test_mcp_changes_are_rebuilt_with_the_installed_overlay(host):

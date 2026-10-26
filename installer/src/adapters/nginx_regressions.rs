@@ -19,7 +19,8 @@ impl Host {
         let dir = TempDir::new("nginx-safety");
         let root = dir.path().to_path_buf();
         fs::create_dir_all(root.join("etc/nginx/stream.d")).unwrap();
-        fs::write(root.join("etc/nginx/nginx.conf"), "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n").unwrap();
+        fs::write(root.join("etc/nginx/nginx.conf"), "events {}\nstream { include /etc/nginx/stream.d/*.conf; }\n")
+            .unwrap();
         let target = root.join(TARGET.trim_start_matches('/'));
         if link {
             let original = root.join("etc/nginx/original.conf");
@@ -34,12 +35,15 @@ impl Host {
             if call.argv == ["nginx", "-T"] {
                 let main = fs::read_to_string(observed.join("etc/nginx/nginx.conf")).unwrap();
                 let content = fs::read_to_string(observed.join(TARGET.trim_start_matches('/'))).unwrap_or_default();
-                Some(Reply::ok(&format!("# configuration file /etc/nginx/nginx.conf:\n{main}\n# configuration file {TARGET}:\n{content}\n")))
+                Some(Reply::ok(&format!(
+                    "# configuration file /etc/nginx/nginx.conf:\n{main}\n# configuration file {TARGET}:\n{content}\n"
+                )))
             } else {
                 None
             }
         }));
-        let adapter = NginxAdapter::new(&AdapterContext { root: root.clone(), tree: root.clone(), runner: runner.clone() });
+        let adapter =
+            NginxAdapter::new(&AdapterContext { root: root.clone(), tree: root.clone(), runner: runner.clone() });
         Self { _dir: dir, root, runner, adapter }
     }
 
@@ -49,12 +53,27 @@ impl Host {
 
     fn action(&self) -> Action {
         let (kind, resolved, link) = self.adapter.planned_path_identity(TARGET, false).unwrap();
-        Action::new("nginx.routes", "nginx", "proxy-control:nginx", vec![
-            "mode=coexist".into(), "stream_context=present".into(), format!("target={TARGET}"),
-            "variable=$sni_backend".into(), format!("path_kind={kind}"), format!("resolved_path={resolved}"),
-            format!("symlink_target={}", link.as_deref().unwrap_or("-")),
-            "route=panel.example.com 127.0.0.1:8443".into(), "route=relay.example.com 127.0.0.1:8445".into(),
-        ], vec!["audited active stream map".into()], vec!["selected routes active".into()], vec!["remove only owned routes".into()], false).unwrap()
+        Action::new(
+            "nginx.routes",
+            "nginx",
+            "proxy-control:nginx",
+            vec![
+                "mode=coexist".into(),
+                "stream_context=present".into(),
+                format!("target={TARGET}"),
+                "variable=$sni_backend".into(),
+                format!("path_kind={kind}"),
+                format!("resolved_path={resolved}"),
+                format!("symlink_target={}", link.as_deref().unwrap_or("-")),
+                "route=panel.example.com 127.0.0.1:8443".into(),
+                "route=relay.example.com 127.0.0.1:8445".into(),
+            ],
+            vec!["audited active stream map".into()],
+            vec!["selected routes active".into()],
+            vec!["remove only owned routes".into()],
+            false,
+        )
+        .unwrap()
     }
 
     fn applied(&self) -> (Action, CheckpointData) {
@@ -78,11 +97,19 @@ fn coexist_replay_and_rollback_preserve_adjacent_routes_and_symlink_metadata() {
         fs::write(host.path(), &adjacent).unwrap();
         assert!(host.adapter.verify(&action).unwrap().success);
         assert!(host.adapter.rollback(&action, replayed, false, RollbackTarget::Uninstalled).unwrap().success);
-        assert_eq!(fs::read_to_string(host.path()).unwrap(), ORIGINAL.replace("foreign.example.com", "neighbor.example.com"));
+        assert_eq!(
+            fs::read_to_string(host.path()).unwrap(),
+            ORIGINAL.replace("foreign.example.com", "neighbor.example.com")
+        );
         let after = host.path().metadata().unwrap();
-        assert_eq!((after.mode() & 0o777, after.uid(), after.gid()), (before.mode() & 0o777, before.uid(), before.gid()));
+        assert_eq!(
+            (after.mode() & 0o777, after.uid(), after.gid()),
+            (before.mode() & 0o777, before.uid(), before.gid())
+        );
         assert_eq!(host.path().symlink_metadata().unwrap().file_type().is_symlink(), link);
-        if link { assert_eq!(fs::read_link(host.path()).unwrap(), Path::new("../original.conf")); }
+        if link {
+            assert_eq!(fs::read_link(host.path()).unwrap(), Path::new("../original.conf"));
+        }
     }
 }
 
@@ -131,18 +158,41 @@ fn active_route_topology_drift_blocks_verify_and_rollback() {
 
 #[test]
 fn corrupt_or_unbound_checkpoint_never_mutates_selected_file() {
-    for defect in ["route_identity", "owner", "target"] {
-        let host = Host::new(false);
-        let action = host.action();
-        let mut prepared = host.adapter.prepare(&action).unwrap();
-        match defect {
-            "route_identity" => { prepared.insert("route_identity".into(), json!([])); }
-            "owner" => { prepared.insert("owner".into(), json!(42)); }
-            _ => { prepared.get_mut("route_identity").unwrap()["original_path"] = json!("/etc/nginx/other.conf"); }
+    for phase in ["apply", "repair", "rollback"] {
+        for defect in ["route_identity", "owner", "target", "unknown", "ownership"] {
+            let host = Host::new(false);
+            let action = host.action();
+            let prepared = host.adapter.prepare(&action).unwrap();
+            let mut checkpoint =
+                if phase == "apply" { prepared } else { host.adapter.apply(&action, prepared).unwrap() };
+            host.runner.clear();
+            let before = fs::read(host.path()).unwrap();
+            match defect {
+                "route_identity" => {
+                    checkpoint.insert("route_identity".into(), json!([]));
+                }
+                "owner" => {
+                    checkpoint.insert("owner".into(), json!("foreign"));
+                }
+                "target" => {
+                    checkpoint.get_mut("route_identity").unwrap()["original_path"] = json!("/etc/nginx/other.conf");
+                }
+                "unknown" => {
+                    checkpoint.insert("extra".into(), json!(true));
+                }
+                _ => {
+                    checkpoint.insert("ownership".into(), json!([]));
+                }
+            }
+            let result = match phase {
+                "apply" => host.adapter.apply(&action, checkpoint).map(|_| ()),
+                "repair" => host.adapter.repair(&action, checkpoint).map(|_| ()),
+                _ => host.adapter.rollback(&action, checkpoint, false, RollbackTarget::RolledBack).map(|_| ()),
+            };
+            assert!(result.is_err(), "{phase}/{defect}");
+            assert_eq!(fs::read(host.path()).unwrap(), before, "{phase}/{defect}");
+            assert!(host.runner.calls().is_empty(), "{phase}/{defect}");
         }
-        assert!(host.adapter.apply(&action, prepared).is_err(), "{defect}");
-        assert_eq!(fs::read_to_string(host.path()).unwrap(), ORIGINAL);
-        assert!(host.runner.calls().is_empty());
     }
 }
 
@@ -155,7 +205,7 @@ fn interrupted_apply_recovers_backup_but_refuses_a_missing_backup() {
         host.adapter.apply(&action, prepared.clone()).unwrap();
         if remove_backup {
             let spec = action_specification(&action).unwrap();
-            let identity = checkpoint_identity(&prepared, &spec).unwrap();
+            let identity = checkpoint_identity(&prepared, &spec, &action.owner).unwrap();
             fs::remove_file(host.adapter.backup_path(&action, &identity).unwrap()).unwrap();
         }
         let result = host.adapter.reconcile_apply(&action, prepared);

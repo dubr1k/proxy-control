@@ -25,10 +25,25 @@ const HELPERS: [(&str, &str); 2] = [
 ];
 pub struct XrayRouterAdapter {
     context: AdapterContext,
+    #[cfg(test)]
+    pub(super) probe_sleep: Option<std::sync::Arc<dyn Fn(std::time::Duration) + Send + Sync>>,
 }
 impl XrayRouterAdapter {
     pub fn new(context: &AdapterContext) -> Self {
-        Self { context: context.clone() }
+        Self {
+            context: context.clone(),
+            #[cfg(test)]
+            probe_sleep: None,
+        }
+    }
+    fn wait_probe_retry(&self) {
+        let delay = std::time::Duration::from_secs(3);
+        #[cfg(test)]
+        if let Some(wait) = &self.probe_sleep {
+            wait(delay);
+            return;
+        }
+        std::thread::sleep(delay);
     }
     fn selection(&self, action: &Action) -> Result<BTreeMap<String, String>, Error> {
         if action.id != "xray_router.runtime" {
@@ -564,26 +579,34 @@ impl Adapter for XrayRouterAdapter {
         }
         let probe = "/var/lib/proxy-control/router-probe.conf";
         h::atomic(&self.context, probe, format!("proxy-user = \"{}\"\n", credential.trim()).as_bytes(), 0o600)?;
-        let output = h::checked(
-            &self.context,
-            &[
-                "curl",
-                "--config",
-                h::host(&self.context, probe)?.to_str().ok_or_else(|| h::err("invalid probe path"))?,
-                "--fail",
-                "--silent",
-                "--show-error",
-                "--noproxy",
-                "",
-                "--socks5-hostname",
-                "127.0.0.1:45101",
-                "--max-time",
-                "20",
-                "https://www.cloudflare.com/cdn-cgi/trace",
-            ],
-        );
+        let probe_path = h::host(&self.context, probe)?;
+        let args = [
+            "curl",
+            "--config",
+            probe_path.to_str().ok_or_else(|| h::err("invalid probe path"))?,
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--noproxy",
+            "",
+            "--socks5-hostname",
+            "127.0.0.1:45101",
+            "--max-time",
+            "20",
+            "https://www.cloudflare.com/cdn-cgi/trace",
+        ];
+        let mut reached = false;
+        for attempt in 0..3 {
+            if h::checked(&self.context, &args).is_ok_and(|output| output.lines().any(|line| line.starts_with("ip="))) {
+                reached = true;
+                break;
+            }
+            if attempt < 2 {
+                self.wait_probe_retry();
+            }
+        }
         h::remove(&self.context, probe)?;
-        if !output?.lines().any(|line| line.starts_with("ip=")) {
+        if !reached {
             return Err(h::err("an authenticated CONNECT through the NaiveProxy ingress did not reach the Internet"));
         }
         h::checked(

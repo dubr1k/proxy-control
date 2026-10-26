@@ -74,6 +74,12 @@ def test_native_agent_health_and_socket_permissions(agent):
 
 @pytest.mark.parametrize("method,path,body", [("POST", "/v1/host", "{}"), ("POST", "/v1/update", "[]"), ("POST", "/v1/update", "not-json"), ("POST", "/v1/update", '{}'), ("GET", "/not-a-route", None)])
 def test_invalid_requests_are_refused_and_agent_stays_healthy(agent, method, path, body):
-    status, _ = request(agent, method, path, body)
-    assert status in (400, 404, 405)
+    status, response = request(agent, method, path, body)
+    if path == "/v1/update":
+        # The established public contract uses 422 for syntax and schema errors,
+        # with distinct error categories so clients can diagnose either failure.
+        detail = "invalid JSON" if body == "not-json" else "invalid update request"
+        assert (status, response) == (422, {"detail": detail})
+    else:
+        assert status in (400, 404, 405)
     assert request(agent, "GET", "/v1/health")[0] == 200

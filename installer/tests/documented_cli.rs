@@ -11,7 +11,8 @@ fn every_checked_command_parses_against_the_shipped_cli_and_loads_its_configurat
     let root = repository();
     let output = Command::new("python3")
         .arg("-c")
-        .arg(r#"
+        .arg(
+            r#"
 import json, pathlib, re, shlex, sys
 root = pathlib.Path(sys.argv[1])
 files = ['docs/INSTALLER_REFERENCE.ru.md', 'docs/INSTALLER_REFERENCE.en.md', 'INSTALL.ru.md', 'INSTALL.en.md',
@@ -25,7 +26,8 @@ for name in files:
             if line.strip() and not line.lstrip().startswith('#'):
                 commands.append([name, shlex.split(line)])
 print(json.dumps(commands))
-"#)
+"#,
+        )
         .arg(&root)
         .output()
         .unwrap();
@@ -43,7 +45,9 @@ print(json.dumps(commands))
         let offset = if arguments.starts_with(&["python3".into(), "-m".into(), "installer.cli".into()]) {
             3
         } else if arguments.first().is_some_and(|argument| {
-            Path::new(argument).file_name().is_some_and(|name| name == "install.sh" || name == "proxy-control-installer")
+            Path::new(argument)
+                .file_name()
+                .is_some_and(|name| name == "install.sh" || name == "proxy-control-installer")
         }) {
             1
         } else {

@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -31,7 +32,14 @@ def test_the_extractor_sees_template_parts_but_not_markup():
     assert not any(re.search(r"[<>=${}]|\bclass\b", item) for item in found)
 
 
-def test_real_translation_runtime_handles_composed_strings_and_preserves_typed_names():
+def test_real_translation_runtime_handles_composed_strings_and_preserves_typed_names(tmp_path):
+    # Node 18 defaults repository .js files to CommonJS; load the shipped bytes as an
+    # ES module in a private package, just as the browser loads them.
+    modules = tmp_path / "js"
+    modules.mkdir()
+    (modules / "package.json").write_text('{"type":"module"}')
+    for name in ("i18n.js", "common.js"):
+        shutil.copyfile(STATIC / "js" / name, modules / name)
     result = subprocess.run(
         ["node", "--input-type=module", "-e", r'''
 import assert from "node:assert/strict";
@@ -72,7 +80,7 @@ assert.equal(runtime.translate("изменить"), "изменить");
 const added = text("Как это работает");
 callback([{type: "childList", addedNodes: [added]}]);
 assert.equal(added.nodeValue, dictionary["Как это работает"]);
-''', str(STATIC / "i18n/en.json"), str(STATIC / "js/i18n.js")],
+''', str(STATIC / "i18n/en.json"), str(modules / "i18n.js")],
         text=True, capture_output=True, timeout=20,
     )
     assert result.returncode == 0, result.stderr

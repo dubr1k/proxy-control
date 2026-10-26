@@ -785,7 +785,7 @@ impl Adapter for NginxAdapter {
 
     fn apply(&self, action: &Action, checkpoint: CheckpointData) -> Result<CheckpointData> {
         let spec = action_specification(action)?;
-        let identity = checkpoint_identity(&checkpoint, &spec)?;
+        let identity = checkpoint_identity(&checkpoint, &spec, &action.owner)?;
         let path = self.validate_planned_path(&spec, false)?;
         if spec.stream_context == "create" {
             self.create_stream_context()?;
@@ -842,7 +842,7 @@ impl Adapter for NginxAdapter {
 
     fn reconcile_apply(&self, action: &Action, checkpoint: CheckpointData) -> Result<CheckpointData> {
         let spec = action_specification(action)?;
-        let identity = checkpoint_identity(&checkpoint, &spec)?;
+        let identity = checkpoint_identity(&checkpoint, &spec, &action.owner)?;
         let target = self.root_path(&identity.resolved_path)?;
         if target.is_file() {
             let current = fs::read(&target)?;
@@ -900,7 +900,7 @@ impl Adapter for NginxAdapter {
         _target: RollbackTarget,
     ) -> Result<Evidence> {
         let spec = action_specification(action)?;
-        let identity = checkpoint_identity(&checkpoint, &spec)?;
+        let identity = checkpoint_identity(&checkpoint, &spec, &action.owner)?;
         let path = self.validate_planned_path(&spec, true)?;
         let current = fs::read(&path)?;
         self.assert_active_route(action, &spec, true)?;
@@ -954,7 +954,7 @@ impl Adapter for NginxAdapter {
         target: RollbackTarget,
     ) -> Result<Evidence> {
         let spec = action_specification(action)?;
-        let identity = checkpoint_identity(&checkpoint, &spec)?;
+        let identity = checkpoint_identity(&checkpoint, &spec, &action.owner)?;
         let original = self.root_path(&spec.target)?;
         let exact_marker = format!("{OWNERSHIP_BEGIN} {}", action.id);
         let committed = if spec.mode == "fresh" && !path_exists(&original) {
@@ -987,7 +987,26 @@ impl Adapter for NginxAdapter {
     }
 }
 
-fn checkpoint_identity(checkpoint: &CheckpointData, spec: &RouteSpec) -> Result<RouteIdentity> {
+fn checkpoint_identity(checkpoint: &CheckpointData, spec: &RouteSpec, owner: &str) -> Result<RouteIdentity> {
+    let prepared = checkpoint.len() == 3
+        && checkpoint.contains_key("owner")
+        && checkpoint.contains_key("ownership")
+        && checkpoint.contains_key("route_identity");
+    let applied = checkpoint.len() == 5
+        && checkpoint.contains_key("owner")
+        && checkpoint.contains_key("ownership")
+        && checkpoint.contains_key("route_identity")
+        && checkpoint.contains_key("owned_sha256")
+        && checkpoint.contains_key("backup_path");
+    if !(prepared || applied)
+        || checkpoint.get("owner").and_then(Value::as_str) != Some(owner)
+        || !checkpoint.get("ownership").is_some_and(Value::is_object)
+        || (prepared && !checkpoint["ownership"].as_object().unwrap().is_empty())
+        || (applied
+            && (!checkpoint["owned_sha256"].as_str().is_some_and(hex64) || !checkpoint["backup_path"].is_string()))
+    {
+        return topology("Nginx checkpoint is invalid");
+    }
     let required: BTreeSet<&str> = [
         "exists",
         "original_path",

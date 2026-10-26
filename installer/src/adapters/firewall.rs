@@ -1265,8 +1265,11 @@ mod tests {
     }
 
     fn ufw_runner(rules: &[&str]) -> (Arc<RecordingRunner>, Arc<Mutex<FakeUfw>>) {
-        let state =
-            Arc::new(Mutex::new(FakeUfw { rules: rules.iter().map(|rule| (*rule).into()).collect(), ipv6: false, fail_ssh_allow: false }));
+        let state = Arc::new(Mutex::new(FakeUfw {
+            rules: rules.iter().map(|rule| (*rule).into()).collect(),
+            ipv6: false,
+            fail_ssh_allow: false,
+        }));
         let responder_state = state.clone();
         let runner = Arc::new(RecordingRunner::with_responder(move |call| {
             let argv: Vec<&str> = call.argv.iter().map(String::as_str).collect();
@@ -1397,7 +1400,9 @@ mod tests {
             let adapter = FirewallAdapter::new(&context);
             let action = adapter.plan(&config(), &facts()).unwrap().remove(0);
             let prepared = adapter.prepare(&action).unwrap();
-            let checkpoint = if phase == "apply" || phase == "reconcile_apply" { prepared } else {
+            let checkpoint = if phase == "apply" || phase == "reconcile_apply" {
+                prepared
+            } else {
                 adapter.apply(&action, prepared).unwrap()
             };
             let before = state.lock().unwrap().rules.clone();
@@ -1406,7 +1411,9 @@ mod tests {
                 "apply" => adapter.apply(&action, checkpoint).map(|_| ()),
                 "repair" => adapter.repair(&action, checkpoint).map(|_| ()),
                 "reconcile_apply" => adapter.reconcile_apply(&action, checkpoint).map(|_| ()),
-                "reconcile_rollback" => adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).map(|_| ()),
+                "reconcile_rollback" => {
+                    adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).map(|_| ())
+                }
                 _ => adapter.rollback(&action, checkpoint, false, RollbackTarget::RolledBack).map(|_| ()),
             };
             assert!(result.is_err(), "{phase}");
@@ -1418,19 +1425,21 @@ mod tests {
     fn interrupted_firewall_mutation_is_reconciled_without_claiming_operator_rules() {
         for resume_apply in [true, false] {
             let dir = TempDir::new("firewall-interrupted");
-            let (runner, state) = ufw_runner(&[
-                "22/tcp ALLOW IN Anywhere # operator:ssh", "80/tcp ALLOW IN Anywhere # operator:http",
-            ]);
+            let (runner, state) =
+                ufw_runner(&["22/tcp ALLOW IN Anywhere # operator:ssh", "80/tcp ALLOW IN Anywhere # operator:http"]);
             let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
             let adapter = FirewallAdapter::new(&context);
             let action = adapter.plan(&config(), &facts()).unwrap().remove(0);
             let prepared = adapter.prepare(&action).unwrap();
             adapter.apply(&action, prepared.clone()).unwrap();
             let checkpoint = if resume_apply { adapter.reconcile_apply(&action, prepared).unwrap() } else { prepared };
-            assert!(adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap().success);
-            assert_eq!(state.lock().unwrap().rules, [
-                "22/tcp ALLOW IN Anywhere # operator:ssh", "80/tcp ALLOW IN Anywhere # operator:http",
-            ]);
+            assert!(
+                adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap().success
+            );
+            assert_eq!(
+                state.lock().unwrap().rules,
+                ["22/tcp ALLOW IN Anywhere # operator:ssh", "80/tcp ALLOW IN Anywhere # operator:http",]
+            );
         }
     }
 
@@ -1438,7 +1447,8 @@ mod tests {
     fn ipv6_rule_does_not_cover_ipv4_and_repair_restores_only_missing_owned_family() {
         let dir = TempDir::new("firewall-families");
         let (runner, state) = ufw_runner(&[
-            "22/tcp ALLOW IN Anywhere # operator:ssh", "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
+            "22/tcp ALLOW IN Anywhere # operator:ssh",
+            "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
             "80/tcp (v6) ALLOW IN Anywhere (v6) # operator:http",
         ]);
         state.lock().unwrap().ipv6 = true;
@@ -1453,10 +1463,14 @@ mod tests {
         let repaired = adapter.repair(&action, applied).unwrap();
         assert!(state.lock().unwrap().rules.iter().any(|r| r.starts_with("443/tcp (v6)")));
         assert!(adapter.rollback(&action, repaired, false, RollbackTarget::Uninstalled).unwrap().success);
-        assert_eq!(state.lock().unwrap().rules, [
-            "22/tcp ALLOW IN Anywhere # operator:ssh", "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
-            "80/tcp (v6) ALLOW IN Anywhere (v6) # operator:http",
-        ]);
+        assert_eq!(
+            state.lock().unwrap().rules,
+            [
+                "22/tcp ALLOW IN Anywhere # operator:ssh",
+                "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
+                "80/tcp (v6) ALLOW IN Anywhere (v6) # operator:http",
+            ]
+        );
     }
 
     #[test]
@@ -1472,7 +1486,11 @@ mod tests {
         absent.listeners = json!({"tcp": [], "owners": {}, "ssh_socket_tcp": []}).as_object().unwrap().clone();
         assert!(adapter.plan(&config(), &absent).is_err());
         let mut ambiguous = facts();
-        ambiguous.listeners = json!({"tcp": [22, 2222], "owners": {"22": ["sshd"], "2222": ["sshd"]}, "ssh_socket_tcp": []}).as_object().unwrap().clone();
+        ambiguous.listeners =
+            json!({"tcp": [22, 2222], "owners": {"22": ["sshd"], "2222": ["sshd"]}, "ssh_socket_tcp": []})
+                .as_object()
+                .unwrap()
+                .clone();
         assert!(adapter.plan(&config(), &ambiguous).is_err());
     }
     #[test]
@@ -1504,5 +1522,41 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn selected_firewall_rules_follow_router_relay_and_mieru_lane_slots() {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../tests/fixtures/host-golden/plans/kitchen-sink/config.toml"),
+        )
+        .unwrap()
+        .replace("[amneziawg]\n", "[amneziawg]\nports = {\"1.5\" = 41821, \"2.0\" = 41822, \"3.1\" = 41823}\n");
+        let router = installer_core::config::parse_config(&source).unwrap();
+        let rules = selected_ports(&router).unwrap();
+        for port in ["tcp:45443", "tcp:46101", "tcp:46104", "tcp:46001", "udp:46002"] {
+            assert!(rules.contains(&port.to_string()), "{port}");
+        }
+        let plain =
+            source.replace("router = true", "router = false").replace("naive = \"router\"", "naive = \"direct\"");
+        let direct = selected_ports(&installer_core::config::parse_config(&plain).unwrap()).unwrap();
+        assert!(!direct.contains(&"tcp:45443".into()));
+        assert!(!direct.contains(&"tcp:46101".into()));
+    }
 
+    #[test]
+    fn trusttunnel_only_keeps_public_firewall_rules_at_tcp_http_and_https() {
+        let plain = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/installer/core.toml"),
+        )
+        .unwrap();
+        let disabled = installer_core::config::parse_config(&plain).unwrap();
+        let enabled_source = plain.replace("[domains]\n", "[domains]\ntrusttunnel = \"gate.example.org\"\n");
+        let enabled =
+            installer_core::config::parse_config(&format!("{enabled_source}\n[trusttunnel]\nenabled = true\n"))
+                .unwrap();
+        assert!(disabled.trusttunnel.is_none());
+        assert!(enabled.trusttunnel.is_some());
+        let expected = vec!["tcp:80".to_string(), "tcp:443".to_string()];
+        assert_eq!(selected_ports(&disabled).unwrap(), expected);
+        assert_eq!(selected_ports(&enabled).unwrap(), expected);
+    }
 }

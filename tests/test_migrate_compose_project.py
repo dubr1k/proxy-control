@@ -37,6 +37,8 @@ if args[:2] == ["inspect", "--format"] and "environment_file" in line:
 if args[:2] == ["inspect", "--format"]:
     out(state["image"])
 if args[0] == "compose":
+    if args[1:] == ["version", "--short"]:
+        out("2.40.3")
     project = args[args.index("--project-name") + 1]
     if "config" in args:
         out(json.dumps(state["config"]))
@@ -44,8 +46,6 @@ if args[0] == "compose":
         out("c-" + args[-1])
     if "up" in args and project in state.get("fail_up", []):
         sys.exit(1)
-    if "version" in args:
-        out("2.40.3")
     out()
 if args[:2] == ["volume", "inspect"] and "--format" not in args:
     sys.exit(0 if args[2] in state["volumes"] else 1)
@@ -67,6 +67,7 @@ out()
 
 @pytest.fixture
 def host(tmp_path, installer_binary):
+    (tmp_path / "root").mkdir()
     project = tmp_path / "project"
     project.mkdir()
     for name in ("compose.yaml", "compose.xray-router.yaml", ".env", ".env.xray-router"):

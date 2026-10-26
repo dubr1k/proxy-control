@@ -447,3 +447,232 @@ fn route_verification_rejects_a_public_audited_inbound_even_if_its_port_listens(
     existing(&context, "0.0.0.0", "tcp");
     assert!(adapter.verify(&action).unwrap_err().to_string().contains("not an audited loopback inbound"));
 }
+
+#[test]
+fn staged_pinned_router_relay_apply_verify_repair_and_rollback_are_owned() {
+    use crate::journal::RollbackTarget;
+    use std::collections::BTreeSet;
+    use std::io::Read;
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+    use std::time::Duration;
+    let root = TempDir::new("router-staged-relay-lifecycle");
+    let test_tree = root.path().join("release-tree");
+    fs::create_dir_all(test_tree.join("release")).unwrap();
+    fs::create_dir_all(test_tree.join("scripts")).unwrap();
+    for script in ["prepare-xray-router-state.sh", "rotate-xray-router-ingress.sh"] {
+        fs::copy(tree().join("scripts").join(script), test_tree.join("scripts").join(script)).unwrap();
+    }
+    let source_archive = tree().join("tests/fixtures/host-golden/agent/updates/downloads/Xray-linux-64.zip");
+    let bytes = fs::read(&source_archive).unwrap();
+    let mut manifest: Value =
+        serde_json::from_slice(&fs::read(tree().join("release/external-artifacts.json")).unwrap()).unwrap();
+    let xray =
+        manifest["artifacts"].as_array_mut().unwrap().iter_mut().find(|artifact| artifact["name"] == "xray").unwrap();
+    xray["platforms"]["amd64"]["sha256"] = json!(pc_host::fs::sha256_hex(&bytes));
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).unwrap();
+    for member in ["xray", "geoip.dat", "geosite.dat"] {
+        let mut content = Vec::new();
+        archive.by_name(member).unwrap().read_to_end(&mut content).unwrap();
+        xray["platforms"]["amd64"]["members"][member]["sha256"] = json!(pc_host::fs::sha256_hex(&content));
+        xray["platforms"]["amd64"]["members"][member]["size"] = json!(content.len());
+    }
+    fs::write(test_tree.join("release/external-artifacts.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+    let fault = Arc::new(Mutex::new(String::new()));
+    let selected_fault = fault.clone();
+    let running = Arc::new(Mutex::new(BTreeSet::<String>::new()));
+    let selected_running = running.clone();
+    let transient_attempts = Arc::new(AtomicUsize::new(0));
+    let selected_attempts = transient_attempts.clone();
+    let runner = Arc::new(RecordingRunner::with_responder(move |call| {
+        let fault = selected_fault.lock().unwrap();
+        let fault = fault.as_str();
+        if call.argv.starts_with(&["docker".into(), "compose".into()]) {
+            let mut running = selected_running.lock().unwrap();
+            if call.argv.iter().any(|arg| arg == "up") {
+                running.extend(["xray-router".into(), "xray-router-ingress".into()]);
+            } else if call.argv.iter().any(|arg| arg == "rm") {
+                running.remove(call.argv.last().unwrap());
+            }
+        }
+        if call.argv.starts_with(&["docker".into(), "container".into(), "ls".into()]) {
+            let selected = call.argv.iter().find_map(|arg| arg.strip_prefix("label=com.docker.compose.service="));
+            return Some(Reply::ok(if selected.is_some_and(|name| selected_running.lock().unwrap().contains(name)) {
+                "reviewed-owned-container\n"
+            } else {
+                ""
+            }));
+        }
+        let last = call.argv.last().map(String::as_str).unwrap_or("");
+        if fault == "status" && last == "--status" {
+            return Some(Reply::ok(r#"{"phase":"broken","artifacts":{},"running":null}"#));
+        }
+        if fault == "public-ingress" && last == "sport = :45104" {
+            return Some(Reply::ok("LISTEN 0 128 0.0.0.0:45104 0.0.0.0:*\n"));
+        }
+        if fault == "connect" && call.argv.first().is_some_and(|arg| arg == "curl") {
+            return Some(Reply::ok("no authenticated Internet response"));
+        }
+        if fault == "connect-twice" && call.argv.first().is_some_and(|arg| arg == "curl") {
+            match selected_attempts.fetch_add(1, Ordering::SeqCst) {
+                0 => return Some(Reply::exit(1, "", "transient CONNECT failure")),
+                1 => return Some(Reply::ok("no authenticated Internet response")),
+                _ => {}
+            }
+        }
+        if fault == "bridge" && call.argv.iter().any(|arg| arg == "/usr/local/bin/mtproxy-bridge") {
+            return Some(Reply::exit(1, "", "bridge unavailable"));
+        }
+        if fault == "relay" && last == "--relay" {
+            return Some(Reply::ok(r#"{"enabled":false}"#));
+        }
+        if fault == "relay-listener" && last == "sport = :45443" {
+            return Some(Reply::ok("LISTEN 0 128 127.0.0.1:45443 0.0.0.0:*\n"));
+        }
+        None
+    }));
+    runner.reply(
+        &[
+            "docker",
+            "exec",
+            "proxy-control-xray-router",
+            "/usr/local/bin/xray-router-manager",
+            "healthcheck",
+            "--relay-enable",
+        ],
+        Reply::ok(r#"{"enabled":true,"port":45443}"#),
+    );
+    runner.reply(
+        &["docker", "exec", "proxy-control-xray-router", "/usr/local/bin/xray-router-manager", "healthcheck", "--status"],
+        Reply::ok(r#"{"artifacts":{"xray":{"verified":true},"geoip":{"verified":true},"geosite":{"verified":true}},"running":{"generation":1},"phase":"idle"}"#),
+    );
+    runner.reply(
+        &[
+            "docker",
+            "exec",
+            "proxy-control-xray-router",
+            "/usr/local/bin/xray-router-manager",
+            "healthcheck",
+            "--relay",
+        ],
+        Reply::ok(r#"{"enabled":true,"port":45443,"server_name":"panel.example.com","public_key":"reviewed"}"#),
+    );
+    for port in [45101, 45102, 45104] {
+        runner.reply(
+            &["ss", "-H", "-lnt", &format!("sport = :{port}")],
+            Reply::ok(&format!("LISTEN 0 128 127.0.0.1:{port} 0.0.0.0:*\n")),
+        );
+    }
+    runner.reply(&["ss", "-H", "-lnt", "sport = :45443"], Reply::ok("LISTEN 0 128 0.0.0.0:45443 0.0.0.0:*\n"));
+    runner.reply(&["curl", "--config"], Reply::ok("ip=203.0.113.1\n"));
+    let context = AdapterContext { root: root.path().into(), tree: test_tree, runner: runner.clone() };
+    let path = h::host(&context, "/var/lib/proxy-control/Xray-linux-64.zip").unwrap();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, b"tampered staged archive").unwrap();
+    let config =
+        installer_core::config::load_config(&tree().join("tests/fixtures/host-golden/plans/kitchen-sink/config.toml"))
+            .unwrap();
+    let mut adapter = XrayRouterAdapter::new(&context);
+    let sleeps = Arc::new(Mutex::new(Vec::new()));
+    let recorded_sleeps = sleeps.clone();
+    adapter.probe_sleep = Some(Arc::new(move |delay| {
+        recorded_sleeps.lock().unwrap().push(delay);
+    }));
+    let action = adapter.plan(&config, &AuditFacts::default()).unwrap().remove(0);
+    assert!(adapter.prepare(&action).unwrap_err().to_string().contains("artifact digest mismatch"));
+    assert!(!runner.argvs().iter().any(|argv| argv.first().is_some_and(|value| value == "docker")));
+    fs::write(&path, &bytes).unwrap();
+    let checkpoint = adapter.prepare(&action).unwrap();
+    for defect in ["owner", "extra"] {
+        let mut forged = checkpoint.clone();
+        forged.insert(defect.into(), json!("foreign"));
+        assert!(adapter.apply(&action, forged).is_err());
+        assert!(!h::host(&context, "/usr/local/lib/proxy-control/xray-router").unwrap().exists());
+    }
+    let checkpoint = adapter.apply(&action, checkpoint).unwrap();
+    for member in ["xray", "geoip.dat", "geosite.dat"] {
+        assert!(h::host(&context, &format!("/usr/local/lib/proxy-control/xray-router/{member}")).unwrap().is_file());
+    }
+    let token = h::host(&context, "/opt/mtproxy-shared443/secrets/xray-router-manager-token").unwrap();
+    let prior_token = fs::read(&token).unwrap();
+    assert!(adapter.verify(&action).unwrap().success);
+    for defect in ["status", "public-ingress", "connect", "bridge", "relay", "relay-listener"] {
+        *fault.lock().unwrap() = defect.into();
+        sleeps.lock().unwrap().clear();
+        let probes_before = runner.argvs().iter().filter(|argv| argv.first().is_some_and(|arg| arg == "curl")).count();
+        assert!(adapter.verify(&action).is_err(), "{defect} must not verify");
+        assert!(!h::host(&context, "/var/lib/proxy-control/router-probe.conf").unwrap().exists());
+        if defect == "connect" {
+            let probes_after =
+                runner.argvs().iter().filter(|argv| argv.first().is_some_and(|arg| arg == "curl")).count();
+            assert_eq!(probes_after - probes_before, 3, "a failed CONNECT must receive exactly two retries");
+            assert_eq!(*sleeps.lock().unwrap(), [Duration::from_secs(3), Duration::from_secs(3)]);
+        }
+    }
+    *fault.lock().unwrap() = "connect-twice".into();
+    sleeps.lock().unwrap().clear();
+    assert!(adapter.verify(&action).unwrap().success, "the third authenticated CONNECT may succeed");
+    assert_eq!(transient_attempts.load(Ordering::SeqCst), 3);
+    assert_eq!(*sleeps.lock().unwrap(), [Duration::from_secs(3), Duration::from_secs(3)]);
+    fault.lock().unwrap().clear();
+    let executable = h::host(&context, "/usr/local/lib/proxy-control/xray-router/xray").unwrap();
+    let pinned_executable = fs::read(&executable).unwrap();
+    fs::write(&executable, b"version-agent-updated-xray").unwrap();
+    assert!(adapter.verify(&action).is_err());
+    let state = h::host(&context, "/var/lib/proxy-control/version-agent/state.json").unwrap();
+    fs::create_dir_all(state.parent().unwrap()).unwrap();
+    let updated = json!({"components":{"xray":{"version":"26.11.1","members":{"xray":pc_host::fs::sha256_hex(b"version-agent-updated-xray")}}}});
+    fs::write(&state, serde_json::to_vec(&updated).unwrap()).unwrap();
+    assert!(adapter.verify(&action).unwrap().success);
+    let mut failed = updated;
+    failed["components"]["xray"]["status"] = json!("rollback_failed");
+    fs::write(&state, serde_json::to_vec(&failed).unwrap()).unwrap();
+    assert!(adapter.verify(&action).is_err());
+    fs::write(&executable, &pinned_executable).unwrap();
+    let checkpoint = adapter.repair(&action, checkpoint).unwrap();
+    assert_eq!(fs::read(&token).unwrap(), prior_token);
+    let calls = runner.argvs();
+    let relay_calls = calls.iter().filter(|argv| argv.iter().any(|arg| arg == "--relay-enable")).count();
+    assert_eq!(relay_calls, 2, "both apply and repair enable the selected relay");
+    let compose_calls: Vec<_> =
+        calls.iter().filter(|argv| argv.starts_with(&["docker".into(), "compose".into()])).collect();
+    assert_eq!(compose_calls.len(), 2);
+    assert!(compose_calls.iter().all(|argv| {
+        argv.ends_with(&["xray-router".into(), "xray-router-ingress".into()])
+            && !argv.iter().any(|arg| arg == "naive" || arg == "mieru")
+    }));
+    adapter.rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap();
+    let removed: Vec<_> = runner.argvs().into_iter().filter(|argv| argv.iter().any(|arg| arg == "rm")).collect();
+    assert_eq!(
+        removed.iter().map(|argv| argv.last().unwrap().as_str()).collect::<Vec<_>>(),
+        ["xray-router-ingress", "xray-router"]
+    );
+    assert_eq!(fs::read(&token).unwrap(), prior_token);
+    assert!(!h::host(&context, "/opt/mtproxy-shared443/.env.xray-router").unwrap().exists());
+    assert!(!h::host(&context, "/usr/local/lib/proxy-control/xray-router/xray").unwrap().exists());
+    assert!(path.is_file(), "the operator-staged source archive is retained");
+    let mut legacy_action = action.clone();
+    legacy_action.mutations.retain(|mutation| {
+        !["relay-port=", "relay-server-name=", "port-trusttunnel="].iter().any(|key| mutation.starts_with(key))
+    });
+    runner.clear();
+    let legacy_checkpoint = adapter.prepare(&legacy_action).unwrap();
+    fs::set_permissions(&token, fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(adapter.apply(&legacy_action, legacy_checkpoint.clone()).is_err());
+    fs::set_permissions(&token, fs::Permissions::from_mode(0o600)).unwrap();
+    let legacy_checkpoint = adapter.apply(&legacy_action, legacy_checkpoint).unwrap();
+    assert!(adapter.verify(&legacy_action).unwrap().success);
+    let legacy_checkpoint = adapter.repair(&legacy_action, legacy_checkpoint).unwrap();
+    assert_eq!(fs::read(&token).unwrap(), prior_token);
+    assert!(!runner
+        .argvs()
+        .iter()
+        .any(|argv| { argv.iter().any(|arg| arg == "--relay-enable" || arg == "--relay" || arg == "sport = :45443") }));
+    let foreign = h::host(&context, "/opt/mtproxy-shared443/secrets/operator-owned-key").unwrap();
+    fs::write(&foreign, b"preserve").unwrap();
+    adapter.rollback(&legacy_action, legacy_checkpoint, true, RollbackTarget::Uninstalled).unwrap();
+    assert!(!token.exists());
+    assert_eq!(fs::read(&foreign).unwrap(), b"preserve");
+    assert!(path.is_file());
+}
