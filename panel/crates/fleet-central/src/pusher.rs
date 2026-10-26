@@ -1088,3 +1088,7 @@ mod tests {
         assert!(!backoff_active(None, 1, clock.monotonic()));
     }
 }
+
+#[cfg(test)]
+#[path = "native_tests.rs"]
+mod native_regressions;
