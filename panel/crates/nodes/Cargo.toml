@@ -1,0 +1,24 @@
+[package]
+name = "panel-nodes"
+description = "Nodes of the Proxy Control panel: the node registry and lifecycle (list, view, rename, disable/enable, pause/resume of a linked panel) with its audit rows, the read model the API and CLI show, and the /api/nodes routes. Fleet v1 transport is retired; only the rows it left behind are still read."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "panel_nodes"
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["json"] }
+panel-core = { path = "../core" }
+panel-model = { path = "../model" }
+panel-secrets = { path = "../secrets" }
+# Objects keep insertion order like Python dicts (unified across the workspace anyway).
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
