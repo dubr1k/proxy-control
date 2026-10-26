@@ -69,7 +69,6 @@ dist-again/
 # tracked (build.py refuses a tracked one). bin-a/ and bin-b/ are the twin builds CI compares.
 /installer/bin/
 /version_agent/bin/
-/release/host-probe/bin/
 /bin-a/
 /bin-b/
 

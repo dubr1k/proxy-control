@@ -12,7 +12,3 @@ lib pc_common
 lib pc_host
 bin installer proxy-control-installer
 bin version_agent proxy-control-version-agent
-# The pipeline probe (WP9): a tiny stand-in that proves the reproducible static build end to
-# end until the installer crate exists. Remove this line and release/host-probe/ once
-# installer/Cargo.toml lands.
-bin release/host-probe proxy-control-host-probe
