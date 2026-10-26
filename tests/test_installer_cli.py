@@ -76,3 +76,33 @@ def test_verify_release_checks_artifact_bytes(installer_binary, tmp_path):
     payload.write_bytes(b"tampered")
     result = invoke(installer_binary, tmp_path / "host", *arguments)
     assert result.returncode != 0
+
+
+def test_awg_ports_match_machine_identity_derivation_and_avoid_busy_port(installer_binary, tmp_path):
+    identity = "0123456789abcdef0123456789abcdef"
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc/machine-id").write_text(identity + "\n")
+
+    def derive(version, attempt):
+        return 10240 + int.from_bytes(hashlib.sha256(f"{identity}:{version}:{attempt}".encode()).digest(), "big") % 21761
+
+    command = [str(installer_binary), "awg-ports", "--root", str(tmp_path)]
+    first = subprocess.run([*command, "", "--", "1.5", "2.0", "3.1"], capture_output=True, text=True, timeout=10)
+    assert first.returncode == 0, first.stderr
+    got = dict(item.split("=") for item in first.stdout.split())
+    assert got == {version: str(derive(version, 0)) for version in ("1.5", "2.0", "3.1")}
+    busy = subprocess.run([*command, got["1.5"], "--", "1.5"], capture_output=True, text=True, timeout=10)
+    assert busy.returncode == 0, busy.stderr
+    assert dict(item.split("=") for item in busy.stdout.split())["1.5"] == str(derive("1.5", 1))
+
+
+def test_release_pin_cli_returns_reviewed_manifest_and_refuses_unknown_architecture(installer_binary, tmp_path):
+    manifest = ROOT / "release/external-artifacts.json"
+    entry = next(item for item in json.loads(manifest.read_text())["artifacts"] if item["name"] == "trusttunnel")
+    arguments = ("release-pin", "--manifest", str(manifest), "trusttunnel")
+    result = subprocess.run([str(installer_binary), *arguments, "amd64"], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f'{entry["version"]} {entry["platforms"]["amd64"]["sha256"]}\n'
+    refused = subprocess.run([str(installer_binary), *arguments, "arm64"], capture_output=True, text=True, timeout=10)
+    assert refused.returncode == 2
+    assert refused.stdout == ""

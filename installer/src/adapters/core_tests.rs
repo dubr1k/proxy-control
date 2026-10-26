@@ -324,8 +324,8 @@ fn unowned_project_probe_image_and_fixed_label_resources_are_not_adopted() {
             "image" => {
                 // Rules are first-match, so use a fresh responder for the image case below.
             }
-            "volume" => runner.reply(&["docker", "volume", "ls"], Reply::ok("proxy_panel_by_dubr1k_panel-data\n")),
-            _ => runner.reply(&["docker", "ps", "-a"], Reply::ok("foreign-container\n")),
+            "volume" => { runner.reply(&["docker", "volume", "ls"], Reply::ok("proxy_panel_by_dubr1k_panel-data\n")); }
+            _ => { runner.reply(&["docker", "ps", "-a"], Reply::ok("foreign-container\n")); }
         }
         let runner = if collision_kind == "image" {
             let responder = RecordingRunner::with_responder(|call| {
@@ -344,4 +344,22 @@ fn unowned_project_probe_image_and_fixed_label_resources_are_not_adopted() {
             assert_eq!(fs::read_to_string(root.path().join("opt/mtproxy-shared443/foreign")).unwrap(), "untouched");
         }
     }
+}
+
+#[test]
+fn real_shared_ingress_preserves_ip_rejects_spoofed_xff_and_keeps_raw_tls() {
+    let root = crate::testkit::TempDir::new("core-ingress-consumer");
+    fs::write(root.path().join("panel.conf"), panel_vhost(&selected())).unwrap();
+    let routes = vec![
+        ("naive.example.com".into(), "127.0.0.1:8445".into()),
+        ("panel.example.com".into(), "127.0.0.1:8443".into()),
+    ];
+    fs::write(
+        root.path().join("stream.conf"),
+        super::super::nginx::render_fresh(&routes, "proxy", "127.0.0.1:8443").unwrap(),
+    )
+    .unwrap();
+    let probe = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/ingress-client-ip.py");
+    let result = std::process::Command::new("python3").arg(probe).arg(root.path()).output().unwrap();
+    assert!(result.status.success(), "isolated Nginx consumer: {}", String::from_utf8_lossy(&result.stderr));
 }

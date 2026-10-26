@@ -2,17 +2,16 @@
 
 **English** · [Русский](INSTALL.ru.md)
 
-Root-only `install.sh` invokes transactional `scripts/proxyctl.py install`. Supported lifecycle:
+Root-only `install.sh` invokes the verified native `proxy-control-installer`. Supported lifecycle:
 
 ```text
-audit → plan → install → repair → uninstall
+wizard → plan → install → status/resume/repair → uninstall
 ```
 
 The installer always deploys Telemt/MTProxy and the panel. Selected profiles add
 NaiveProxy and/or Mieru in the same transaction after core acceptance. Linked
 panels (Fleet v2) are set up from the panel's UI after the install —
-[FLEET.en.md](FLEET.en.md); legacy Fleet v1 remains a separate manual
-integration.
+[FLEET.en.md](FLEET.en.md). Fleet v1 is retired; move all v1 nodes to v2 before 4.0.
 
 In `fresh` mode, the owned Nginx router preserves panel client IPs through private
 Unix sockets, without new TCP ports. In `coexist`, an operator-owned PROXY bridge
@@ -21,13 +20,16 @@ See the [ingress and migration reference](docs/INSTALLER_REFERENCE.en.md).
 
 ## The primary install path: a verified release
 
-After the first update by an older version-agent, run `reconcile-panel-update`
-with the exact archive and SHA-256 before `repair` to reconcile ownership of
-Core and agent code. See [installer commands](docs/INSTALLER_REFERENCE.en.md#commands).
+The release includes static native host binaries; neither Python nor Cargo is needed.
+Verification runs unprivileged in Bash/awk before a verified binary runs as root.
+For 3.3.0 → 4.0, use only `bash install-release.sh --update`: it migrates the agent,
+requires `status=ok`, `implementation=rust` and the target `version` before panel changes,
+then updates managers, ingress and Compose and repairs owned host helpers.
+Failure restores the previous agent and active ownership journal while preserving operator
+env, unit directives and drop-ins. See [transition and rollback](docs/UPGRADING.md).
 
-This is the supported way to install Proxy Control. It replaces the manual
-`scripts/proxyctl.py` sequence below, which stays documented for an existing
-deployment and for reviewing what the installer does.
+This is the supported way to install Proxy Control. Obsolete `proxyctl`, `mtproxy-deploy`
+and `check-deployment.sh` entry points are retired; use the native transaction CLI.
 
 Shortest is the install script published beside the archive (from v1.0.3): it carries its
 release's version and archive SHA-256, runs unprivileged, downloads and checks the four release
@@ -72,7 +74,7 @@ Nothing is ever downloaded and executed in one step.
 `install-bootstrap`. Use the `install-release.sh` published with that version instead:
 replace `releases/latest/download/` in the URLs above with `releases/download/v<version>/`.
 It performs the same `SHA256SUMS` and manifest checks, extracts the archive and runs the
-wizard `python3 -m installer.cli wizard` from the extracted `proxy-control/` directory.
+wizard `sudo bash install.sh wizard` from the extracted `proxy-control/` directory.
 
 The repository copy of the script —
 [`scripts/install-release.sh`](scripts/install-release.sh) — takes `--version X.Y.Z` and
@@ -100,6 +102,7 @@ is and never replaced. The URLs and digests are in
 
 - Ubuntu 24.04 with systemd;
 - root/sudo;
+- Bash, awk, curl, tar and sha256sum; no host Python or Rust toolchain;
 - DNS A/AAAA for proxy and panel names points directly to the host; for the optional TrustTunnel also its own name
   (a separate domain, an A record to the host, DNS only, no CDN proxy);
 - TCP/80 available for ACME HTTP-01;
@@ -143,7 +146,7 @@ Every command below runs from the unpacked release — the directory
 identity.
 
 ```bash installer-check
-python3 -m installer.cli plan --config examples/installer/core.toml --json
+sudo bash install.sh plan --config examples/installer/core.toml --json
 ```
 
 Point it at your own file instead of the example — the one the wizard wrote.
@@ -174,7 +177,7 @@ The plan has a digest, and installation does not start until you approve that
 exact digest:
 
 ```bash installer-check
-sudo python3 -m installer.cli install --config examples/installer/core.toml --accept-plan DIGEST
+sudo bash install.sh install --config examples/installer/core.toml --accept-plan DIGEST
 ```
 
 The installer:
@@ -214,9 +217,9 @@ Then do these by hand:
 ## 5. Status, resume, and repair
 
 ```bash installer-check
-sudo python3 -m installer.cli status --json
-sudo python3 -m installer.cli resume --json
-sudo python3 -m installer.cli repair --json
+sudo bash install.sh status --json
+sudo bash install.sh resume --json
+sudo bash install.sh repair --json
 ```
 
 `resume` continues an interrupted installation from its recorded phase. `repair`
@@ -228,8 +231,8 @@ command accepts arbitrary paths.
 ## 6. Uninstall
 
 ```bash installer-check
-sudo python3 -m installer.cli uninstall --json
-sudo python3 -m installer.cli uninstall --purge-data --json
+sudo bash install.sh uninstall --json
+sudo bash install.sh uninstall --purge-data --json
 ```
 
 Uninstall checkpoints its phases, removes only installer-owned routes, files,
@@ -244,7 +247,7 @@ again.
 ## Interrupted SSH
 
 An SSH exit code of `255` proves only that the transport dropped. On the target
-host check `sudo python3 -m installer.cli status --json`, the phase, the
+host check `sudo bash install.sh status --json`, the phase, the
 installer-owned files, the services, and the acceptance result. Do not blindly
 re-run the installation.
 
