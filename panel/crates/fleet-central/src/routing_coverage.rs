@@ -31,7 +31,7 @@ impl RoutingAdapters for AdaptersOnly {
 }
 
 fn advertised() -> Value {
-    json!({"backend":"naive_native","revision":"native-r0","mode":"direct","router_attached":true,
+    json!({"backend":"naive_native","revision":"native-r0","mode":"direct","router_attached":false,
         "capabilities":["whole_direct","whole_warp","block_domain","block_cidr"],
         "providers":{"warp":{"reachable":true},"router":{"reachable":true}}})
 }
@@ -529,6 +529,8 @@ async fn a_linked_nodes_chain_waits_for_its_report_and_uses_the_confirmed_direct
     exit.state.lock().unwrap().identity.insert("capabilities".into(), capabilities());
     let (routing, _, pusher, _) = services(&rig);
     pusher.tick().await.unwrap();
+    routing.attach(EDGE, "naive", &ctx()).await.unwrap();
+    report(&rig, &pusher, SectionState::Converged, None).await;
     routing.relay_enable(EXIT, 45443, &ctx()).await.unwrap();
     exit.state.lock().unwrap().push_state = ReconcileState::Applying;
     pusher.tick().await.unwrap();
@@ -561,14 +563,15 @@ async fn a_linked_nodes_chain_waits_for_its_report_and_uses_the_confirmed_direct
             &input(json!({
                 "backend":"xray_router","default_action":"egress","default_egress":format!("node:{EXIT}")
             })),
-            None,
+            Some(1),
             LANE_SERVICE,
             &ctx(),
         )
         .unwrap();
-    let pending = routing.apply(EDGE, "naive", 1, LANE_SERVICE, &ctx()).await.unwrap_err();
+    let pending = routing.apply(EDGE, "naive", 2, LANE_SERVICE, &ctx()).await.unwrap_err();
     assert_eq!(pending.code(), Some("unsupported"));
     assert_eq!(pending.refusal().unwrap().compiled.as_ref().unwrap().reasons[0].code, "relay_credential_pending");
+    exit.state.lock().unwrap().push_state = ReconcileState::Applying;
     pusher.tick().await.unwrap();
     let request = exit.state.lock().unwrap().pushes.last().unwrap().clone();
     let accounts = &request.generation.relay.as_ref().unwrap().accounts;
@@ -591,7 +594,12 @@ async fn a_linked_nodes_chain_waits_for_its_report_and_uses_the_confirmed_direct
         });
     }
     pusher.tick().await.unwrap();
-    let applied = routing.apply(EDGE, "naive", 1, LANE_SERVICE, &ctx()).await.unwrap();
+    assert!(
+        rig.desired.relay_confirmed(EXIT, &direct.email).unwrap(),
+        "confirmed direct account missing from observed relay: {:?}",
+        rig.env.database.with_connection(|db| DesiredStore::observed_relay(db, EXIT)).unwrap()
+    );
+    let applied = routing.apply(EDGE, "naive", 2, LANE_SERVICE, &ctx()).await.unwrap();
     let document = applied.compiled.document.as_ref().unwrap();
     assert_eq!(document["chains"]["c1"]["exit"], "direct");
     let hop = &document["chains"]["c1"]["hops"][0];

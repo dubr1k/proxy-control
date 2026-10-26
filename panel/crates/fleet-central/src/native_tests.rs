@@ -449,7 +449,10 @@ async fn offline_early_return_drops_client_and_pending_grant_recovers_without_du
     let persisted = rig.events.since(0, 100).unwrap();
     assert_eq!(persisted.len(), 2, "repeated online ticks do not repeat transition events");
     assert!(persisted.iter().all(|event| event["node_id"] == EDGE));
-    assert_eq!(persisted.iter().map(|event| event["name"].as_str().unwrap()).collect::<Vec<_>>(), ["node.down", "node.up"]);
+    assert_eq!(
+        persisted.iter().map(|event| event["name"].as_str().unwrap()).collect::<Vec<_>>(),
+        ["node.down", "node.up"]
+    );
 }
 
 #[tokio::test]
@@ -933,7 +936,11 @@ async fn import_capture_failure_and_mid_transaction_failure_leave_no_partial_cli
         client: "new".into(),
     };
     rig.node.state.lock().unwrap().errors.insert("capture", rejected(500, "capture failed"));
-    assert!(rig.importer.import_resources(EDGE, std::slice::from_ref(&decision), &domain::ctx(), None, false).await.is_err());
+    assert!(rig
+        .importer
+        .import_resources(EDGE, std::slice::from_ref(&decision), &domain::ctx(), None, false)
+        .await
+        .is_err());
     assert!(rig.grants().is_empty());
     assert_eq!(rig.env.count("SELECT count(*) FROM clients"), 0);
     rig.node.state.lock().unwrap().errors.clear();
