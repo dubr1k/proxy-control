@@ -1,8 +1,8 @@
 {
- "recorded_at": 1792961679,
+ "recorded_at": 1793005850,
  "python": "3.12.3",
  "panel_version": "3.3.0",
- "commit": null,
+ "commit": "5eea8382114fd3c7d6e8fc51b2a3ed81d3844f03",
  "synthetic": "every key, token, password and id here was generated for this recording in a throwaway directory against in-memory manager doubles; none is in use anywhere",
  "sections": {
   "keyring": {
@@ -85,7 +85,7 @@
   "keyring/secret_versions.json": "secret_versions rows (base64 nonce/ciphertext, the exact AAD text, the plaintext) under each keyring: a Rust SecretStore must decrypt every row",
   "migrations/migrations.json": "every migration: version, name, checksum, exact statement text",
   "migrations/schema-vNN.json": "sqlite_master (rowid order) and schema_migrations after migrations 1..NN",
-  "subscriptions/subscriptions.sqlite3": "database snapshot taken before the first fetch (with its master key subscriptions-master-key.json); open it with that keyring",
+  "subscriptions/subscriptions.db": "SQLite database snapshot taken before the first fetch (with its master key subscriptions-master-key.json); open it with that keyring",
   "subscriptions/subscriptions.json": "GET/HEAD /s/{token} exchanges: request (path, query, Accept, User-Agent, If-None-Match, Host) → status, headers in order, body by sha256 in `bodies`",
   "clients/client_cursor.json": "GET /api/clients?limit=… pages following next_cursor, plus invalid cursors",
   "routing/routing.json": "routing preview/put/apply/explain/history/rollback per protocol and policy, and the documents each manager double held after the apply",

@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "active_key_id": "k-a81e4cea",
+  "active_key_id": "k-a7c3379d",
   "keys": [
     {
-      "key_id": "k-a81e4cea",
+      "key_id": "k-a7c3379d",
       "state": "active",
-      "created_at": 1792961679,
-      "key_material": "tNPWssowYYmJeRMxf5EQHluT+ejdBz5YTV2sZZiDO7E="
+      "created_at": 1793005850,
+      "key_material": "rmj8ADXEyCx1rkFConhcVqEc2aFMHSHV634TnymyPQQ="
     }
   ]
 }

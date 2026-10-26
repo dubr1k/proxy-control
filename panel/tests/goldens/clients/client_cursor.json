@@ -54,16 +54,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961682,\"updated_at\":1792961682},\"grants\":[{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"3166d801-a0ab-4802-abda-fe04849465ce\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:3166d801-a0ab-4802-abda-fe04849465ce\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"85b6458e-e6da-4071-83c4-0aa645447f59\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:85b6458e-e6da-4071-83c4-0aa645447f59\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961684},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683}]},{\"client\":{\"id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961684,\"updated_at\":1792961684},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"f11570f7-7641-4816-be07-ef18ff4c2040\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:f11570f7-7641-4816-be07-ef18ff4c2040\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684}]}],\"next_cursor\":\"WzAsIDE3OTI5NjE2ODQsICIyMjJkZGNlMS04MDk1LTRhZTItODExNi1hZjZjNDExYmM2MDkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]},{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "19a3e278f088df1b406d1ef04f9c59c9ce0d4e6ea223fecef25e7c03bdfd0d01"
+    "sha256": "be2f4a80ff989e5ee017a119bcd4ab016bd41570b4ff406d686424d6324153a0"
    }
   },
   {
    "name": "limit=2:page=1",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTI5NjE2ODQsICIyMjJkZGNlMS04MDk1LTRhZTItODExNi1hZjZjNDExYmM2MDkiXQ",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -112,16 +112,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"9069249a-2121-4cb6-b8ca-82e139328724\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961685,\"updated_at\":1792961685},\"grants\":[]},{\"client\":{\"id\":\"22081d9a-f8d6-4df0-9321-6cf9f92dafef\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICIyMjA4MWQ5YS1mOGQ2LTRkZjAtOTMyMS02Y2Y5ZjkyZGFmZWYiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]},{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "8f8b2a08731b85152a41e10a9dca8b5b72dc71e862620e7cc16dafa15f2ae7e2"
+    "sha256": "4a6c9d11a564a9f8cf6b35b795c4854e231a3db601d38869d8f6827541f2d812"
    }
   },
   {
    "name": "limit=2:page=2",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTI5NjE3MTAsICIyMjA4MWQ5YS1mOGQ2LTRkZjAtOTMyMS02Y2Y5ZjkyZGFmZWYiXQ",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -170,16 +170,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"4aa1d945-dac0-4749-8280-abdbbda39278\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"6a45ebe1-dcf6-413c-8751-c8dbcd24fc71\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "02af439534db4d42b769176b780d3d27361756a41ded895f3ba0e85ea00a3f90"
+    "sha256": "25007d71049750500b295f19eecc2efccd3714cfbce3ed46d3ccbdfbd18ee5f1"
    }
   },
   {
    "name": "limit=2:page=3",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -228,16 +228,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"a7c6c3fb-fd28-4c85-b9b7-1bb1b3e1ec19\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"cff8daec-b52f-420f-a5df-99f2a88c2dc3\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJjZmY4ZGFlYy1iNTJmLTQyMGYtYTVkZi05OWYyYTg4YzJkYzMiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "2389f52da5b5d27e9cfb8c932471936992ecb3e60f10e3521611a3faba8b456b"
+    "sha256": "3d6196f1afc523d40d95124964f816e80ed46c0e4445c4d67a5b9ea6f484ac72"
    }
   },
   {
    "name": "limit=2:page=4",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTI5NjE3MTAsICJjZmY4ZGFlYy1iNTJmLTQyMGYtYTVkZi05OWYyYTg4YzJkYzMiXQ",
+    "path": "/api/clients?limit=2&cursor=WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -286,9 +286,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"f314c915-1420-494e-baa1-3c841392de44\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"50564dfd-4585-4541-9a4d-270084ba1bef\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961711,\"updated_at\":1792961711},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "e7dd9088c07495b38933c7ae2ca3f47a71b2d515a2b453b317ea172fc73addfa"
+    "sha256": "70f5e648456585286ef0d5a2590a0ffab23eb7f11740851bd74fd06c71d048c3"
    }
   },
   {
@@ -344,16 +344,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"22081d9a-f8d6-4df0-9321-6cf9f92dafef\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"4aa1d945-dac0-4749-8280-abdbbda39278\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"6a45ebe1-dcf6-413c-8751-c8dbcd24fc71\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ\",\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "b42fad5fa3537f0a9beb5bee31a06b63e8567627f5cb0c77f483d57cf019d8c4"
+    "sha256": "65dedb502d785049f25c08a99a500e266b5af249a8b3edf3d66fbae377a4a600"
    }
   },
   {
    "name": "limit=3&query=cursor:page=1",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=3&query=cursor&cursor=WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ",
+    "path": "/api/clients?limit=3&query=cursor&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -402,16 +402,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"a7c6c3fb-fd28-4c85-b9b7-1bb1b3e1ec19\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"cff8daec-b52f-420f-a5df-99f2a88c2dc3\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"f314c915-1420-494e-baa1-3c841392de44\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJmMzE0YzkxNS0xNDIwLTQ5NGUtYmFhMS0zYzg0MTM5MmRlNDQiXQ\",\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ\",\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "fd50c0d61577adc002638894c09ae80999313eda0424cd28f5311c0f78b129f0"
+    "sha256": "766cefa11fed1f8e1ebba5269da15e5350c4ea0ceaedf9a86512bd452c854fb2"
    }
   },
   {
    "name": "limit=3&query=cursor:page=2",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=3&query=cursor&cursor=WzAsIDE3OTI5NjE3MTAsICJmMzE0YzkxNS0xNDIwLTQ5NGUtYmFhMS0zYzg0MTM5MmRlNDQiXQ",
+    "path": "/api/clients?limit=3&query=cursor&cursor=WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -460,9 +460,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"50564dfd-4585-4541-9a4d-270084ba1bef\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961711,\"updated_at\":1792961711},\"grants\":[]}],\"next_cursor\":null,\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":7,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "9030a15fe1d12ce2d5355c332889c98135f12b2042526a071aab52af0fa1b4ae"
+    "sha256": "9fb5e86ed9204a5fd79eb7a2d2fadc8953e709c83b5f282092219ddd41d67317"
    }
   },
   {
@@ -518,16 +518,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961682,\"updated_at\":1792961682},\"grants\":[{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"3166d801-a0ab-4802-abda-fe04849465ce\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:3166d801-a0ab-4802-abda-fe04849465ce\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"85b6458e-e6da-4071-83c4-0aa645447f59\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:85b6458e-e6da-4071-83c4-0aa645447f59\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961684},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683}]}],\"next_cursor\":\"WzAsIDE3OTI5NjE2ODIsICI3M2JlNmVhNi0zZTZmLTQ2Y2QtYWI1MS01NzIxNzVkZDRhMDkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTQsICJiMTdkMGMxYy0yNDA3LTQ0YTYtOGEzMC1mNjJmZTQ0OTdkNWEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "ddee5d6711c7c697a26ff3b51fd76cbad3f0fd21616f2cb0f1724ecedffee3a0"
+    "sha256": "5d82e42d8f57ae3e0b41f5a0a724fb0a0091774e6a43c5154bf351ebc48f8e97"
    }
   },
   {
    "name": "limit=1&state=active:page=1",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE2ODIsICI3M2JlNmVhNi0zZTZmLTQ2Y2QtYWI1MS01NzIxNzVkZDRhMDkiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4NTQsICJiMTdkMGMxYy0yNDA3LTQ0YTYtOGEzMC1mNjJmZTQ0OTdkNWEiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -576,16 +576,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961684,\"updated_at\":1792961684},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"f11570f7-7641-4816-be07-ef18ff4c2040\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:f11570f7-7641-4816-be07-ef18ff4c2040\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684}]}],\"next_cursor\":\"WzAsIDE3OTI5NjE2ODQsICIyMjJkZGNlMS04MDk1LTRhZTItODExNi1hZjZjNDExYmM2MDkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "ce15ccc9751d26dfb3cdd949f14ff9350771d74e26e342bcc9bf6a7f7ef7ad51"
+    "sha256": "678717efcba8a41477f20a1029433265dcbf52288d1aa3d38a8f10df9b5d959f"
    }
   },
   {
    "name": "limit=1&state=active:page=2",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE2ODQsICIyMjJkZGNlMS04MDk1LTRhZTItODExNi1hZjZjNDExYmM2MDkiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4NTYsICIzNzNlNzJlZi0zNDFkLTRmZjItOWRhNy02ZDg2MTE1Y2Q4YjkiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -634,16 +634,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"9069249a-2121-4cb6-b8ca-82e139328724\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961685,\"updated_at\":1792961685},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE2ODUsICI5MDY5MjQ5YS0yMTIxLTRjYjYtYjhjYS04MmUxMzkzMjg3MjQiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "29e2357f0c0039235cccbbdfdf0ea32e9a3aacc3a4daa270828ce59c4d4bf85b"
+    "sha256": "c7355e0ba9378db5057c052952716ab19b31c2057e06e841368665bc52f8ee32"
    }
   },
   {
    "name": "limit=1&state=active:page=3",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE2ODUsICI5MDY5MjQ5YS0yMTIxLTRjYjYtYjhjYS04MmUxMzkzMjg3MjQiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -692,16 +692,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"22081d9a-f8d6-4df0-9321-6cf9f92dafef\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICIyMjA4MWQ5YS1mOGQ2LTRkZjAtOTMyMS02Y2Y5ZjkyZGFmZWYiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "40d82046fc93e1cff1e7ab5981f32fef44c4f909a11f62096b33ba1caec23a4e"
+    "sha256": "5c5dd298bd61ed7ae11e420d785f7beb2651f5b0a3699412972a9b67435bc10c"
    }
   },
   {
    "name": "limit=1&state=active:page=4",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE3MTAsICIyMjA4MWQ5YS1mOGQ2LTRkZjAtOTMyMS02Y2Y5ZjkyZGFmZWYiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -750,16 +750,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"4aa1d945-dac0-4749-8280-abdbbda39278\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICI0YWExZDk0NS1kYWMwLTQ3NDktODI4MC1hYmRiYmRhMzkyNzgiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "77285b20e525775bab7a4949a08acbe59bf5ae5749687517f401f8343fc8ff38"
+    "sha256": "c66052848641f17c5a3adc015fca74fca7539c891ac9a49050d0bcd350d2837d"
    }
   },
   {
    "name": "limit=1&state=active:page=5",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE3MTAsICI0YWExZDk0NS1kYWMwLTQ3NDktODI4MC1hYmRiYmRhMzkyNzgiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -808,16 +808,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"6a45ebe1-dcf6-413c-8751-c8dbcd24fc71\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "d0e755e19f4046fe1b66cb759df915878bb9e95ff784f3121766c1f27aedbd6b"
+    "sha256": "3ae79f0949c737f06c10f6af8063cec713367d6244440acac6286a93dc8f7d1a"
    }
   },
   {
    "name": "limit=1&state=active:page=6",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -866,16 +866,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"a7c6c3fb-fd28-4c85-b9b7-1bb1b3e1ec19\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJhN2M2YzNmYi1mZDI4LTRjODUtYjliNy0xYmIxYjNlMWVjMTkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "d6874216f5e620da497cce94012db689fd4881440247e4864758d1c0a5a2a589"
+    "sha256": "b3599d55cf6cf5c7d998afe2c64b7ef1e1c09237c9cc7b6b87638702f83bc36b"
    }
   },
   {
    "name": "limit=1&state=active:page=7",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE3MTAsICJhN2M2YzNmYi1mZDI4LTRjODUtYjliNy0xYmIxYjNlMWVjMTkiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -924,16 +924,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"cff8daec-b52f-420f-a5df-99f2a88c2dc3\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJjZmY4ZGFlYy1iNTJmLTQyMGYtYTVkZi05OWYyYTg4YzJkYzMiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "cfe29b4c50bbed6c09c0aff8b038567c79a648101153567c498afdfae14f1356"
+    "sha256": "2f65f1ac5b3b0d9482e197b6ea00696220b2160d536fb15dd268bc90a1a75aec"
    }
   },
   {
    "name": "limit=1&state=active:page=8",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE3MTAsICJjZmY4ZGFlYy1iNTJmLTQyMGYtYTVkZi05OWYyYTg4YzJkYzMiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -982,16 +982,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"f314c915-1420-494e-baa1-3c841392de44\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJmMzE0YzkxNS0xNDIwLTQ5NGUtYmFhMS0zYzg0MTM5MmRlNDQiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ\",\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "3652f86c2a86606c116905dbc671aeb8da42459ab12e07e2e10b6d87cbdc3c88"
+    "sha256": "f7aa01ef84056dae2181345d42954f79bbc3195f62a24adba4fdbb5911519001"
    }
   },
   {
    "name": "limit=1&state=active:page=9",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTI5NjE3MTAsICJmMzE0YzkxNS0xNDIwLTQ5NGUtYmFhMS0zYzg0MTM5MmRlNDQiXQ",
+    "path": "/api/clients?limit=1&state=active&cursor=WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1040,9 +1040,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"50564dfd-4585-4541-9a4d-270084ba1bef\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961711,\"updated_at\":1792961711},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "32fc95a342f1ec6d119aaee8daedf329f1b7934caf72af35ddbb99b46e910094"
+    "sha256": "58a50da98aecdb37b4c30a59c2467bcf51a2fd6128524a8685b00e94b81451f1"
    }
   },
   {
@@ -1098,9 +1098,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961682,\"updated_at\":1792961682},\"grants\":[{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"3166d801-a0ab-4802-abda-fe04849465ce\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:3166d801-a0ab-4802-abda-fe04849465ce\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"85b6458e-e6da-4071-83c4-0aa645447f59\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:85b6458e-e6da-4071-83c4-0aa645447f59\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961684},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683}]},{\"client\":{\"id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961684,\"updated_at\":1792961684},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"f11570f7-7641-4816-be07-ef18ff4c2040\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:f11570f7-7641-4816-be07-ef18ff4c2040\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684}]}],\"next_cursor\":null,\"matched\":2,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]},{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]}],\"next_cursor\":null,\"matched\":2,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "d50151ec4cccfaf60f3ddb3870e1e817967b0cea0712444c85e86ba5d21bf829"
+    "sha256": "ae612b1570549325477efac8ec8d6a87789d5b91150da55c8c6e553f82f05b12"
    }
   },
   {
@@ -1156,16 +1156,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"9069249a-2121-4cb6-b8ca-82e139328724\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961685,\"updated_at\":1792961685},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE2ODUsICI5MDY5MjQ5YS0yMTIxLTRjYjYtYjhjYS04MmUxMzkzMjg3MjQiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "a84fd348ec01dcb8f132ac09bd998aa46b3ef23600df9cb197ba01fe48934cbc"
+    "sha256": "e31ce5f2bc587ea0770f1448c842cf0d3a970fab9ce8f0f1a2724ff8d3f27e81"
    }
   },
   {
    "name": "limit=1&issue=empty:page=1",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE2ODUsICI5MDY5MjQ5YS0yMTIxLTRjYjYtYjhjYS04MmUxMzkzMjg3MjQiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4NTcsICIzY2JmZDBjZS1mMTRmLTQxODktOWFiMS1lNGFhOTc1OWY5MWIiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1214,16 +1214,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"22081d9a-f8d6-4df0-9321-6cf9f92dafef\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICIyMjA4MWQ5YS1mOGQ2LTRkZjAtOTMyMS02Y2Y5ZjkyZGFmZWYiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "09732d5ecb38f294957c4da456ddee315a5f06ee93bacfeb0a54ef735205cdc7"
+    "sha256": "7df6cec31c04b21dabb2479e4aa851f5421040a1cce8a5ca3cba60a2d6f37092"
    }
   },
   {
    "name": "limit=1&issue=empty:page=2",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE3MTAsICIyMjA4MWQ5YS1mOGQ2LTRkZjAtOTMyMS02Y2Y5ZjkyZGFmZWYiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICIwM2YyODBmOC0xYWEwLTRhMDQtYWZkNS0zYWYyOWRiNWE5Y2MiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1272,16 +1272,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"4aa1d945-dac0-4749-8280-abdbbda39278\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICI0YWExZDk0NS1kYWMwLTQ3NDktODI4MC1hYmRiYmRhMzkyNzgiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "7badeca3408ff273433ab8c99b5dee16a19db113650cc86152b19e4f31fb5a99"
+    "sha256": "6866eb69bf79f5d2a23cc943d1696474e1e1a8d4bfc2c9145b3f98315a762843"
    }
   },
   {
    "name": "limit=1&issue=empty:page=3",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE3MTAsICI0YWExZDk0NS1kYWMwLTQ3NDktODI4MC1hYmRiYmRhMzkyNzgiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICIzMzVmZjMyZS0yYjQ0LTQ3ZTUtOGM0ZC01N2RkNjMzYTIwMjAiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1330,16 +1330,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"6a45ebe1-dcf6-413c-8751-c8dbcd24fc71\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "69ae00eccf242d5e1bbf6a145162db4b3dbcffff9d990daabeb46bafb163c5cc"
+    "sha256": "f04fce00998f59d5d7f9eb1a3e140cb670fa8d8a3aa8f1e6aa28a9f4e385d2aa"
    }
   },
   {
    "name": "limit=1&issue=empty:page=4",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE3MTAsICI2YTQ1ZWJlMS1kY2Y2LTQxM2MtODc1MS1jOGRiY2QyNGZjNzEiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICI0YjI2N2RlMy1mYTFlLTQwYjctODRiZi03YTg5NGI0ZjM1ODIiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1388,16 +1388,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"a7c6c3fb-fd28-4c85-b9b7-1bb1b3e1ec19\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJhN2M2YzNmYi1mZDI4LTRjODUtYjliNy0xYmIxYjNlMWVjMTkiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "7ffc14e54477f12aad6535e4bb4a81c127b9cf41f41345128a038c06809b782b"
+    "sha256": "edfc30469b9fea15e67f00fff4b1d2755899d3783d706139372f8b7bc78ce44b"
    }
   },
   {
    "name": "limit=1&issue=empty:page=5",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE3MTAsICJhN2M2YzNmYi1mZDI4LTRjODUtYjliNy0xYmIxYjNlMWVjMTkiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICI2NmRmZmI1Mi0xNzViLTQxMTQtOGY0Mi1jMzExZWNlNTNkYzMiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1446,16 +1446,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"cff8daec-b52f-420f-a5df-99f2a88c2dc3\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJjZmY4ZGFlYy1iNTJmLTQyMGYtYTVkZi05OWYyYTg4YzJkYzMiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "81d65a080301cf3d659745dd98e486288fae927a71f38ff1005c2bd611b6a92a"
+    "sha256": "db165fee3ebd0853d3acf4c4f8855abe486a7b262fe9a29a0108bbd5847d4696"
    }
   },
   {
    "name": "limit=1&issue=empty:page=6",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE3MTAsICJjZmY4ZGFlYy1iNTJmLTQyMGYtYTVkZi05OWYyYTg4YzJkYzMiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICI3ZTUzOTlkNi1lOGNkLTQ5YzMtOTkyZC1lZWUxNzIwOTA3NWEiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1504,16 +1504,16 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"f314c915-1420-494e-baa1-3c841392de44\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTI5NjE3MTAsICJmMzE0YzkxNS0xNDIwLTQ5NGUtYmFhMS0zYzg0MTM5MmRlNDQiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":\"WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ\",\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "20c815dc5161110141eb08cb4917f32c4bb33e5b7201005da1a396c235e020a8"
+    "sha256": "9ee2504db31266b22c0bfb1f2a2a8a1134c3c195573dbce45c37ca70be1f0939"
    }
   },
   {
    "name": "limit=1&issue=empty:page=7",
    "request": {
     "method": "GET",
-    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTI5NjE3MTAsICJmMzE0YzkxNS0xNDIwLTQ5NGUtYmFhMS0zYzg0MTM5MmRlNDQiXQ",
+    "path": "/api/clients?limit=1&issue=empty&cursor=WzAsIDE3OTMwMDU4ODYsICJjNmMwNTVmZS1iZTc5LTRlMDAtYjY0YS1mYzJhNGE2NzU3MjkiXQ",
     "host": "testserver",
     "headers": {
      "accept": "*/*",
@@ -1562,9 +1562,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"50564dfd-4585-4541-9a4d-270084ba1bef\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961711,\"updated_at\":1792961711},\"grants\":[]}],\"next_cursor\":null,\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":8,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "7938eb1f399929ef6db444b7c0fc12ebf7c8723d63b2d1658b660de0aab659fc"
+    "sha256": "a4fdbe8fe0470edcf9f1d157aad0149f23cfd1896709d7c55583217f56bee9ee"
    }
   },
   {
@@ -1620,9 +1620,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"client\":{\"id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961682,\"updated_at\":1792961682},\"grants\":[{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"3166d801-a0ab-4802-abda-fe04849465ce\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:3166d801-a0ab-4802-abda-fe04849465ce\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"85b6458e-e6da-4071-83c4-0aa645447f59\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:85b6458e-e6da-4071-83c4-0aa645447f59\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:861bb1f1-8cd5-4d5f-8adb-ce0f31b26448\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:86b8be8c-eedb-4966-83f9-f249bdf7fca7\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961684},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"client_id\":\"73be6ea6-3e6f-46cd-ab51-572175dd4a09\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:e3396dd3-adc4-42cf-a9ab-9314c3d23c98\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961682,\"updated_at\":1792961683}]},{\"client\":{\"id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961684,\"updated_at\":1792961684},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:5dd2bc2f-98f7-4968-820d-3ca87382912d\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:d74f4881-fb8a-4af4-9b7f-37392c6a44b0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:d7e58e9b-94f7-4dd9-84a8-1b56cae94587\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1792961684,\"updated_at\":1792961685},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"f11570f7-7641-4816-be07-ef18ff4c2040\",\"client_id\":\"222ddce1-8095-4ae2-8116-af6c411bc609\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:f11570f7-7641-4816-be07-ef18ff4c2040\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1792961684,\"updated_at\":1792961684}]},{\"client\":{\"id\":\"9069249a-2121-4cb6-b8ca-82e139328724\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961685,\"updated_at\":1792961685},\"grants\":[]},{\"client\":{\"id\":\"22081d9a-f8d6-4df0-9321-6cf9f92dafef\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"4aa1d945-dac0-4749-8280-abdbbda39278\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"6a45ebe1-dcf6-413c-8751-c8dbcd24fc71\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"a7c6c3fb-fd28-4c85-b9b7-1bb1b3e1ec19\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"cff8daec-b52f-420f-a5df-99f2a88c2dc3\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"f314c915-1420-494e-baa1-3c841392de44\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961710,\"updated_at\":1792961710},\"grants\":[]},{\"client\":{\"id\":\"50564dfd-4585-4541-9a4d-270084ba1bef\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1792961711,\"updated_at\":1792961711},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
+     "text": "{\"items\":[{\"client\":{\"id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"display_name\":\"Алиса «тест» 🚀\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005854,\"updated_at\":1793005854},\"grants\":[{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=alice-mieru&port=8443&protocol=TCP\"},\"id\":\"1e040cb9-8a82-4413-81aa-fd10c88caced\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mieru\",\"secret_ref\":{\"secret_id\":\"grant:1e040cb9-8a82-4413-81aa-fd10c88caced\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2a030758-bb6b-4174-8778-0b28a001a4d9\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-naive\",\"secret_ref\":{\"secret_id\":\"grant:2a030758-bb6b-4174-8778-0b28a001a4d9\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"mtproxy\",\"options\":{\"data_quota_bytes\":null,\"rate_limit_up_bps\":null,\"rate_limit_down_bps\":null,\"max_tcp_conns\":null,\"max_unique_ips\":null,\"expiration\":null,\"host\":\"proxy.example.com\",\"port\":443},\"id\":\"5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-mt\",\"secret_ref\":{\"secret_id\":\"grant:5140b754-c9d0-4ff6-96d4-ddc9fceaa234\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005855},{\"protocol\":\"amneziawg\",\"options\":{\"version\":\"3.1\",\"address\":\"10.66.31.2\",\"port\":51822,\"server_public_key\":\"KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys=\",\"mtu\":1280,\"dns\":[\"1.1.1.1\",\"1.0.0.1\"],\"obfuscation\":{\"Jc\":\"5\",\"Jmin\":\"10\",\"Jmax\":\"50\",\"S1\":\"24\",\"S2\":\"28\",\"S3\":\"20\",\"S4\":\"32\",\"H1\":\"1\",\"H2\":\"2\",\"H3\":\"3\",\"H4\":\"4\",\"I1\":\"<b 0xc70000000108><r 16><t>\",\"HeaderProtectionKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"ContentPaddingAddition\":\"0-32\"}},\"id\":\"6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-awg31\",\"secret_ref\":{\"secret_id\":\"grant:6eca619e-8aeb-40ea-8690-b37ba86dc830\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"client_id\":\"b17d0c1c-2407-44a6-8a30-f62fe4497d5a\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"alice-tt\",\"secret_ref\":{\"secret_id\":\"grant:7cdbb91b-55c2-4b29-97fb-f9a67b033397\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005854,\"updated_at\":1793005856}]},{\"client\":{\"id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"display_name\":\"Bob's phone\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005856,\"updated_at\":1793005856},\"grants\":[{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"2af4b74c-e8ac-4914-859e-364012ce24d0\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive\",\"secret_ref\":{\"secret_id\":\"grant:2af4b74c-e8ac-4914-859e-364012ce24d0\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":\"Дом 'кухня'\\u0007 — Wi‑Fi\",\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"mieru\",\"options\":{\"quotas\":[],\"share_template\":\"mierus://{username}:{password}@mieru.example.com?profile=bob-mieru&port=8443&protocol=TCP\"},\"id\":\"487fc63b-208c-40f6-86c6-c2a297e573a4\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-mieru\",\"secret_ref\":{\"secret_id\":\"grant:487fc63b-208c-40f6-86c6-c2a297e573a4\",\"version\":1},\"desired_state\":\"disabled\",\"observed_state\":\"disabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"naive\",\"options\":{\"quota_bytes\":null},\"id\":\"a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-naive-2\",\"secret_ref\":{\"secret_id\":\"grant:a1a2f43d-0156-4d99-8b22-cccb8054debc\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857},{\"protocol\":\"trusttunnel\",\"options\":{\"hostname\":\"gate.example.com\",\"port\":443,\"certificate_der_b64\":null,\"name\":null},\"id\":\"aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"client_id\":\"373e72ef-341d-4ff2-9da7-6d86115cd8b9\",\"node_id\":\"local\",\"endpoint_id\":\"default\",\"runtime_username\":\"bob-tt\",\"secret_ref\":{\"secret_id\":\"grant:aff520dc-af69-4e3d-96f1-304ad9ff0957\",\"version\":1},\"desired_state\":\"enabled\",\"observed_state\":\"enabled\",\"valid_from\":null,\"valid_until\":null,\"origin\":\"provisioned\",\"routing_lane\":null,\"label\":null,\"created_at\":1793005856,\"updated_at\":1793005857}]},{\"client\":{\"id\":\"3cbfd0ce-f14f-4189-9ab1-e4aa9759f91b\",\"display_name\":\"Empty\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005857,\"updated_at\":1793005857},\"grants\":[]},{\"client\":{\"id\":\"03f280f8-1aa0-4a04-afd5-3af29db5a9cc\",\"display_name\":\"Cursor 0 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"335ff32e-2b44-47e5-8c4d-57dd633a2020\",\"display_name\":\"Cursor 1 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"4b267de3-fa1e-40b7-84bf-7a894b4f3582\",\"display_name\":\"Cursor 2 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"66dffb52-175b-4114-8f42-c311ece53dc3\",\"display_name\":\"Cursor 6 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"7e5399d6-e8cd-49c3-992d-eee17209075a\",\"display_name\":\"Cursor 3 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"c6c055fe-be79-4e00-b64a-fc2a4a675729\",\"display_name\":\"Cursor 5 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]},{\"client\":{\"id\":\"fe6bc1ae-8530-433d-8096-0d121907e2b0\",\"display_name\":\"Cursor 4 Ж\",\"state\":\"active\",\"metadata\":{},\"created_at\":1793005886,\"updated_at\":1793005886},\"grants\":[]}],\"next_cursor\":null,\"matched\":10,\"total\":10,\"counts\":{\"active\":10,\"suspended\":0,\"archived\":0},\"node_ids\":[\"local\"]}"
     },
-    "sha256": "80b661e56b1a070b1b5c6553d4693ece86925ecf07501931b714823260f90ff0"
+    "sha256": "38cca0d0375515dcca3108b32fdb48f2529fd859f6644d684eee885e8f5deffe"
    }
   },
   {

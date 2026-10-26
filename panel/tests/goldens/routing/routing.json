@@ -233,9 +233,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961712,\"applied_current\":false}"
+     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false}"
     },
-    "sha256": "641bc3facb7a3317fa93494eee99b1689f6b8f3699e7d4114c62a84eb4439a52"
+    "sha256": "5482bb571ff62f73520df48de5a8f1e0f45e00f4fd20a05113339e3080b96cd8"
    }
   },
   {
@@ -294,9 +294,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"applied_at\":1792961712,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961712,\"applied_current\":true},\"applied\":{\"revision\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"readback_sha256\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":{\"provider\":\"warp\"},\"acl\":[]},\"digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"diff\":[\"- \\\"upstream\\\": null\",\"+ \\\"upstream\\\": {\",\"+  \\\"provider\\\": \\\"warp\\\"\",\"+ }\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"to_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":true},\"applied\":{\"revision\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"readback_sha256\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":{\"provider\":\"warp\"},\"acl\":[]},\"digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"diff\":[\"- \\\"upstream\\\": null\",\"+ \\\"upstream\\\": {\",\"+  \\\"provider\\\": \\\"warp\\\"\",\"+ }\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"to_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "625644cdd5335b381a6452bea2df95cfcc4db0968ebf7f19f7ee9330a2fd5985"
+    "sha256": "721ed49b55f770b06066e8681ec7305c3b7cfe30bf5b61a92e1e598e7a4bc7b3"
    }
   },
   {
@@ -477,9 +477,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"94dcdc74-274d-4714-8f45-f31f94e36c82\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"applied_at\":1792961712,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961712,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"76ccc643-aa96-4959-975d-bfb52d1238a2\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false}"
     },
-    "sha256": "45dd8411505110fb88a1e9fca9aa4a8e565dd25678922971c51ec3343ca40cd4"
+    "sha256": "eddaaf531149b261cfee089aab7589544629e38f89457a2a27f8e16a4680c6f4"
    }
   },
   {
@@ -538,9 +538,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"94dcdc74-274d-4714-8f45-f31f94e36c82\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"applied_at\":1792961712,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961712,\"applied_current\":true},\"applied\":{\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"readback_sha256\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":null,\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}]},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"diff\":[\"- \\\"acl\\\": [],\",\"+ \\\"acl\\\": [\",\"+  {\",\"+   \\\"deny\\\": [\",\"+    \\\"example.com\\\",\",\"+    \\\"*.example.com\\\"\",\"+   ]\",\"+  }\",\"+ ],\",\"- \\\"upstream\\\": {\",\"-  \\\"provider\\\": \\\"warp\\\"\",\"- }\",\"+ \\\"upstream\\\": null\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"to_digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"76ccc643-aa96-4959-975d-bfb52d1238a2\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":true},\"applied\":{\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"readback_sha256\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":null,\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}]},\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"diff\":[\"- \\\"acl\\\": [],\",\"+ \\\"acl\\\": [\",\"+  {\",\"+   \\\"deny\\\": [\",\"+    \\\"example.com\\\",\",\"+    \\\"*.example.com\\\"\",\"+   ]\",\"+  }\",\"+ ],\",\"- \\\"upstream\\\": {\",\"-  \\\"provider\\\": \\\"warp\\\"\",\"- }\",\"+ \\\"upstream\\\": null\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"to_digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "d1d3f6ccbe8fab72511fea7e0f6d921a81244e26bdcdfda70817c0434caa417e"
+    "sha256": "6bffb594ae1257318ba28d1da870803e34a4da2c33e046bb597feee1b7907762"
    }
   },
   {
@@ -599,9 +599,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":\"94dcdc74-274d-4714-8f45-f31f94e36c82\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":\"76ccc643-aa96-4959-975d-bfb52d1238a2\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
     },
-    "sha256": "dc19646b6e2a0b4496d47f7a43df60883284b189feb5f6794b185f9035d96159"
+    "sha256": "ebe41d616578ccee65fe3814e05c7b212f39cf0af35e1330b56993eedfa7a08d"
    }
   },
   {
@@ -721,9 +721,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"727d59e0-93c3-44b6-aab5-5dbe16fc93ba\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"applied_at\":1792961712,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961712,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"a2fd91b7-2de6-45b8-972f-c89a1bd53afb\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false}"
     },
-    "sha256": "02be23a08ced0f35fc169d48d20b7f4bdcdb19e813ff5a7c040f34f9eb459886"
+    "sha256": "fd9293ff1febac76e6d58b9aeaf8ee8f177d5416000333fcff854c499a454182"
    }
   },
   {
@@ -782,9 +782,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"727d59e0-93c3-44b6-aab5-5dbe16fc93ba\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961713,\"applied_current\":true},\"applied\":{\"revision\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"readback_sha256\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":null,\"acl\":[{\"deny\":[\"203.0.113.0/24\",\"2001:db8::/32\"]}]},\"digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"diff\":[\"-    \\\"example.com\\\",\",\"-    \\\"*.example.com\\\"\",\"+    \\\"203.0.113.0/24\\\",\",\"+    \\\"2001:db8::/32\\\"\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"to_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"a2fd91b7-2de6-45b8-972f-c89a1bd53afb\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":true},\"applied\":{\"revision\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"readback_sha256\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":null,\"acl\":[{\"deny\":[\"203.0.113.0/24\",\"2001:db8::/32\"]}]},\"digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"diff\":[\"-    \\\"example.com\\\",\",\"-    \\\"*.example.com\\\"\",\"+    \\\"203.0.113.0/24\\\",\",\"+    \\\"2001:db8::/32\\\"\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"to_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\"},\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "5fde8350866c69c4d8b2893f8a9252b3b36d3876ce58597df690d21b3bdd7c8a"
+    "sha256": "91101d50c365843454d48b415d5f9716afc765c02812b847a49f732aef3fb566"
    }
   },
   {
@@ -965,9 +965,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"b8a1790e-0732-4c59-9f46-e69d7cf1676b\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"9fa81289-0856-46cd-98d9-bb3a9d429f9c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false}"
     },
-    "sha256": "b98ca78367bbbc3e295e29ff4fd9195493cd826da9eb5015e76e3648bb85c42b"
+    "sha256": "46818ec7e0cc9a5e66f77d3eabde5009a0f960c98ceb771ecf4b7e39ebe58600"
    }
   },
   {
@@ -1026,9 +1026,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"backend_capability_missing\",\"rule_id\":\"b8a1790e-0732-4c59-9f46-e69d7cf1676b\",\"message\":\"naive_native lacks selective_domain\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"backend_capability_missing\",\"rule_id\":\"9fa81289-0856-46cd-98d9-bb3a9d429f9c\",\"message\":\"naive_native lacks selective_domain\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "e6380b5f3655159f652deb0c25e16decba89d1d66bec6fdd2060865b6614fc14"
+    "sha256": "d573f048bc2ee4ec3de28b0c9e43f6fd72b2bd7fb431b689078ac07ee66e2ea1"
    }
   },
   {
@@ -1209,9 +1209,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"0c03a959-18bc-4eac-bb33-e973071d4fed\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"78081af3-1d0e-464a-84c0-2b83b3dae381\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"d3ae71c3-a3a0-42b8-b437-0bdec9b820be\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":5,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"3e2cfadb-841e-47ac-a26b-153b53386ef8\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"47019623-4ae3-4ad7-8717-23fb93aa1d03\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"ca62157a-c537-4e7e-bc55-288e7f2b3a2a\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":5,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false}"
     },
-    "sha256": "c5a4a5d8a83291a7db12c2dfab75cd4bbcfe52763a7b21dd4642ac07ff511c87"
+    "sha256": "05296f5e2c0d662f25a4c07d3a6eba582b46564d2003910b1ca0fc2cc4c33bbe"
    }
   },
   {
@@ -1270,9 +1270,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"0c03a959-18bc-4eac-bb33-e973071d4fed\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"78081af3-1d0e-464a-84c0-2b83b3dae381\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"d3ae71c3-a3a0-42b8-b437-0bdec9b820be\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"3e2cfadb-841e-47ac-a26b-153b53386ef8\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"47019623-4ae3-4ad7-8717-23fb93aa1d03\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"ca62157a-c537-4e7e-bc55-288e7f2b3a2a\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "f7560e66d9a27522de35ebaf999733799a3303b78aa23d4458d72c3acbbd1cfc"
+    "sha256": "440ad7a0fc44968bcafa6c5f436bb6e6d94e584c6a7d7ed0747fa9e7f547823e"
    }
   },
   {
@@ -1331,9 +1331,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"0c03a959-18bc-4eac-bb33-e973071d4fed\",\"78081af3-1d0e-464a-84c0-2b83b3dae381\",\"d3ae71c3-a3a0-42b8-b437-0bdec9b820be\"],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"3e2cfadb-841e-47ac-a26b-153b53386ef8\",\"47019623-4ae3-4ad7-8717-23fb93aa1d03\",\"ca62157a-c537-4e7e-bc55-288e7f2b3a2a\"],\"hop_names\":[]}"
     },
-    "sha256": "3cbece91d9e44cce8572bfaca07604b9d1bcc22cbea5a4d1b7fd22447e1fafef"
+    "sha256": "01507a042b5029b1f821a1a0d70fd27268afc49083ddbd3858f05b98f6d20273"
    }
   },
   {
@@ -1389,9 +1389,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"id\":3,\"policy_id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"revision\":3,\"digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"backend\":\"naive_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\\\", \\\"readback_sha256\\\": \\\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\\\", \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961713,\"document\":{\"acl\":[{\"deny\":[\"203.0.113.0/24\",\"2001:db8::/32\"]}],\"schema\":1,\"upstream\":null}},{\"id\":2,\"policy_id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"revision\":2,\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"backend\":\"naive_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\\\", \\\"readback_sha256\\\": \\\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\\\", \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961712,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null}},{\"id\":1,\"policy_id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"revision\":1,\"digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"backend\":\"naive_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\\\", \\\"readback_sha256\\\": \\\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\\\", \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961712,\"document\":{\"acl\":[],\"schema\":1,\"upstream\":{\"provider\":\"warp\"}}}]}"
+     "text": "{\"items\":[{\"id\":3,\"policy_id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"revision\":3,\"digest\":\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\",\"backend\":\"naive_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\\\", \\\"readback_sha256\\\": \\\"453dc36c7865df41bd53bf7c7903bf263b85fa3909faca380fc256f1e7f37596\\\", \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005888,\"document\":{\"acl\":[{\"deny\":[\"203.0.113.0/24\",\"2001:db8::/32\"]}],\"schema\":1,\"upstream\":null}},{\"id\":2,\"policy_id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"revision\":2,\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"backend\":\"naive_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\\\", \\\"readback_sha256\\\": \\\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\\\", \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005888,\"document\":{\"acl\":[{\"deny\":[\"example.com\",\"*.example.com\"]}],\"schema\":1,\"upstream\":null}},{\"id\":1,\"policy_id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"revision\":1,\"digest\":\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\",\"backend\":\"naive_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\\\", \\\"readback_sha256\\\": \\\"1838a7f7e1420f168620d1ac102d4e5d8dab58a2faa86286ad87115504a0997e\\\", \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005888,\"document\":{\"acl\":[],\"schema\":1,\"upstream\":{\"provider\":\"warp\"}}}]}"
     },
-    "sha256": "a3808c04ad1cce1df9017ae451a25e2daaea239264623d1b98b82ce3cb554cf9"
+    "sha256": "a129f6066678cbcf6b3913df958c003fc8d3d01b963902bf1ccd0e19efb199fb"
    }
   },
   {
@@ -1450,9 +1450,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"0c03a959-18bc-4eac-bb33-e973071d4fed\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"78081af3-1d0e-464a-84c0-2b83b3dae381\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"d3ae71c3-a3a0-42b8-b437-0bdec9b820be\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"615368c4-13f0-4603-8cec-0bd4f01c490d\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":5,\"state\":\"rolled_back\",\"applied_revision\":2,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961712,\"updated_at\":1792961713,\"applied_current\":false},\"applied\":{\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"readback_sha256\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":null,\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"3e2cfadb-841e-47ac-a26b-153b53386ef8\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"47019623-4ae3-4ad7-8717-23fb93aa1d03\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"ca62157a-c537-4e7e-bc55-288e7f2b3a2a\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"882cf8b2-3865-4532-b008-1f2118e7e496\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":5,\"state\":\"rolled_back\",\"applied_revision\":2,\"applied_digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false},\"applied\":{\"revision\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"readback_sha256\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":null,\"digest\":\"0174966dd03480a795ef2a6307a243fe256a01c05e7ab8b9adfaad5b34fdfd60\",\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"naive_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "be9d640abadb7f0fcde9b8132676fd64f5b8d8095076dca41252282ab463b7ec"
+    "sha256": "615478aeb3a50e31364db233800cb6fbcf630405837f89d507ecb09acba3777d"
    }
   },
   {
@@ -1572,9 +1572,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":false}"
     },
-    "sha256": "8ac75c135c65096209f56cda6f9724dcaf71001a0f86b87c640aa0cba2d25781"
+    "sha256": "22405eaac3b6e26ac4e9b0db2efe350a65abf0e41ba5acf9f1c39496d434e6fd"
    }
   },
   {
@@ -1633,9 +1633,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":1,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":true},\"applied\":{\"revision\":\"rev-2\",\"digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"domains\":[\"*\"],\"cidrs\":[\"*\"],\"action\":\"PROXY\",\"proxy\":\"warp\"}]},\"digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"diff\":[\"- \\\"proxies\\\": [],\",\"- \\\"rules\\\": [],\",\"+ \\\"proxies\\\": [\",\"+  {\",\"+   \\\"name\\\": \\\"warp\\\",\",\"+   \\\"provider\\\": \\\"warp\\\"\",\"+  }\",\"+ ],\",\"+ \\\"rules\\\": [\",\"+  {\",\"+   \\\"action\\\": \\\"PROXY\\\",\",\"+   \\\"cidrs\\\": [\",\"+    \\\"*\\\"\",\"+   ],\",\"+   \\\"domains\\\": [\",\"+    \\\"*\\\"\",\"+   ],\",\"+   \\\"proxy\\\": \\\"warp\\\"\",\"+  }\",\"+ ],\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-1\",\"to_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":1,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005888,\"applied_current\":true},\"applied\":{\"revision\":\"rev-2\",\"digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"domains\":[\"*\"],\"cidrs\":[\"*\"],\"action\":\"PROXY\",\"proxy\":\"warp\"}]},\"digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"diff\":[\"- \\\"proxies\\\": [],\",\"- \\\"rules\\\": [],\",\"+ \\\"proxies\\\": [\",\"+  {\",\"+   \\\"name\\\": \\\"warp\\\",\",\"+   \\\"provider\\\": \\\"warp\\\"\",\"+  }\",\"+ ],\",\"+ \\\"rules\\\": [\",\"+  {\",\"+   \\\"action\\\": \\\"PROXY\\\",\",\"+   \\\"cidrs\\\": [\",\"+    \\\"*\\\"\",\"+   ],\",\"+   \\\"domains\\\": [\",\"+    \\\"*\\\"\",\"+   ],\",\"+   \\\"proxy\\\": \\\"warp\\\"\",\"+  }\",\"+ ],\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-1\",\"to_digest\":\"53fadc90aed6753169e1bd8e88b97ce20a93def86d51400d40834e22a9b6b282\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "c999259a92e1f38a663736058eeddddeb2fed5c9ab2af070e651e20fa3c3b049"
+    "sha256": "76058aa26296d4e53f143729197b8197b2f207a6636dd3df649cb13975530337"
    }
   },
   {
@@ -1816,9 +1816,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"2b8c4776-e4ec-4f4e-a1a5-cfd2f24de4b9\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"e0e95da0-46ab-4944-b2c4-9ec1a040345a\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"applied_at\":1793005888,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "34c7af1907e510cf61e22a007f218fa4c7b4033a8cbdf11745f294184f4d3225"
+    "sha256": "7aedb0fb61093370e8c681c601b4fc6c24032e8aeb7e229809497b47864b0c21"
    }
   },
   {
@@ -1877,9 +1877,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"2b8c4776-e4ec-4f4e-a1a5-cfd2f24de4b9\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":true},\"applied\":{\"revision\":\"rev-3\",\"digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[],\"rules\":[{\"domains\":[\"example.com\"],\"cidrs\":[],\"action\":\"REJECT\",\"proxy\":null}]},\"digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"diff\":[\"- \\\"proxies\\\": [\",\"-  {\",\"-   \\\"name\\\": \\\"warp\\\",\",\"-   \\\"provider\\\": \\\"warp\\\"\",\"-  }\",\"- ],\",\"+ \\\"proxies\\\": [],\",\"-   \\\"action\\\": \\\"PROXY\\\",\",\"-   \\\"cidrs\\\": [\",\"-    \\\"*\\\"\",\"+   \\\"action\\\": \\\"REJECT\\\",\",\"+   \\\"cidrs\\\": [],\",\"+   \\\"domains\\\": [\",\"+    \\\"example.com\\\"\",\"-   \\\"domains\\\": [\",\"-    \\\"*\\\"\",\"-   ],\",\"-   \\\"proxy\\\": \\\"warp\\\"\",\"+   \\\"proxy\\\": null\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-2\",\"to_digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"e0e95da0-46ab-4944-b2c4-9ec1a040345a\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":true},\"applied\":{\"revision\":\"rev-3\",\"digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[],\"rules\":[{\"domains\":[\"example.com\"],\"cidrs\":[],\"action\":\"REJECT\",\"proxy\":null}]},\"digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"diff\":[\"- \\\"proxies\\\": [\",\"-  {\",\"-   \\\"name\\\": \\\"warp\\\",\",\"-   \\\"provider\\\": \\\"warp\\\"\",\"-  }\",\"- ],\",\"+ \\\"proxies\\\": [],\",\"-   \\\"action\\\": \\\"PROXY\\\",\",\"-   \\\"cidrs\\\": [\",\"-    \\\"*\\\"\",\"+   \\\"action\\\": \\\"REJECT\\\",\",\"+   \\\"cidrs\\\": [],\",\"+   \\\"domains\\\": [\",\"+    \\\"example.com\\\"\",\"-   \\\"domains\\\": [\",\"-    \\\"*\\\"\",\"-   ],\",\"-   \\\"proxy\\\": \\\"warp\\\"\",\"+   \\\"proxy\\\": null\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-2\",\"to_digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "cd5571775cb58fe1e752de1a0cb3b487c7fa8d530407d0c0056d71596d27157f"
+    "sha256": "24fbdcb4aee6fabcf3a0a1509150f2896953c1d56e78f2b4faded555cdac17b2"
    }
   },
   {
@@ -1938,9 +1938,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":\"2b8c4776-e4ec-4f4e-a1a5-cfd2f24de4b9\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":\"e0e95da0-46ab-4944-b2c4-9ec1a040345a\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
     },
-    "sha256": "61e6b9d1e157d4cc98e919a0d2d502f04e01f458c022bd6fa3df5f7de4f98eff"
+    "sha256": "f2cb185927301d564914e7b865057669c3cd72fd75ff8e4ea47e8861474fd55a"
    }
   },
   {
@@ -2060,9 +2060,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"a160ae78-066e-4b11-ad30-c13af15c614c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"d86eb4f3-fcb7-4474-9a21-145add2589c1\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":2,\"applied_digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "071768367e1b4c646527cb6200b0dc8a04c4572bf3dec4241e7c15f9e81f0661"
+    "sha256": "96c09a5aa527277c2cba7ccbcdaccd658b9a7ccb6701a81544cd77c54f856803"
    }
   },
   {
@@ -2121,9 +2121,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"a160ae78-066e-4b11-ad30-c13af15c614c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":true},\"applied\":{\"revision\":\"rev-4\",\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[],\"rules\":[{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"action\":\"REJECT\",\"proxy\":null}]},\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"diff\":[\"-   \\\"cidrs\\\": [],\",\"-   \\\"domains\\\": [\",\"-    \\\"example.com\\\"\",\"+   \\\"cidrs\\\": [\",\"+    \\\"203.0.113.0/24\\\",\",\"+    \\\"2001:db8::/32\\\"\",\"+   \\\"domains\\\": [],\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-3\",\"to_digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"d86eb4f3-fcb7-4474-9a21-145add2589c1\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":true},\"applied\":{\"revision\":\"rev-4\",\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[],\"rules\":[{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"action\":\"REJECT\",\"proxy\":null}]},\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"diff\":[\"-   \\\"cidrs\\\": [],\",\"-   \\\"domains\\\": [\",\"-    \\\"example.com\\\"\",\"+   \\\"cidrs\\\": [\",\"+    \\\"203.0.113.0/24\\\",\",\"+    \\\"2001:db8::/32\\\"\",\"+   \\\"domains\\\": [],\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-3\",\"to_digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "cab2dffee80e0e0434f5bdee1789b5f5bedbea6bb3d2dc7c3998607c07914052"
+    "sha256": "330ec47d6cda425a589b9fb657eca381b1ee18d7149ff8280b7c147530f7c125"
    }
   },
   {
@@ -2304,9 +2304,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"2e6b03c2-19cc-4a58-9db0-f179183579a1\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"3f1fe1ba-e8c2-4364-920c-76fac144f720\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":3,\"applied_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "727d0b6d43ffe3e5ce99b35e5a408c668464f171a2052cc7930a6ab2f00f2a26"
+    "sha256": "1ef2fd8f29b6227b12ed511618fb438ee4b03877b43749e33f45b831928f19f8"
    }
   },
   {
@@ -2365,9 +2365,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"2e6b03c2-19cc-4a58-9db0-f179183579a1\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":4,\"applied_digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":true},\"applied\":{\"revision\":\"rev-5\",\"digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"domains\":[\"openai.com\",\"ru\"],\"cidrs\":[],\"action\":\"PROXY\",\"proxy\":\"warp\"}]},\"digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"diff\":[\"- \\\"proxies\\\": [],\",\"+ \\\"proxies\\\": [\",\"+  {\",\"+   \\\"name\\\": \\\"warp\\\",\",\"+   \\\"provider\\\": \\\"warp\\\"\",\"+  }\",\"+ ],\",\"-   \\\"action\\\": \\\"REJECT\\\",\",\"-   \\\"cidrs\\\": [\",\"-    \\\"203.0.113.0/24\\\",\",\"-    \\\"2001:db8::/32\\\"\",\"+   \\\"action\\\": \\\"PROXY\\\",\",\"+   \\\"cidrs\\\": [],\",\"+   \\\"domains\\\": [\",\"+    \\\"openai.com\\\",\",\"+    \\\"ru\\\"\",\"-   \\\"domains\\\": [],\",\"-   \\\"proxy\\\": null\",\"+   \\\"proxy\\\": \\\"warp\\\"\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-4\",\"to_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"3f1fe1ba-e8c2-4364-920c-76fac144f720\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":4,\"applied_digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":true},\"applied\":{\"revision\":\"rev-5\",\"digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"domains\":[\"openai.com\",\"ru\"],\"cidrs\":[],\"action\":\"PROXY\",\"proxy\":\"warp\"}]},\"digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"diff\":[\"- \\\"proxies\\\": [],\",\"+ \\\"proxies\\\": [\",\"+  {\",\"+   \\\"name\\\": \\\"warp\\\",\",\"+   \\\"provider\\\": \\\"warp\\\"\",\"+  }\",\"+ ],\",\"-   \\\"action\\\": \\\"REJECT\\\",\",\"-   \\\"cidrs\\\": [\",\"-    \\\"203.0.113.0/24\\\",\",\"-    \\\"2001:db8::/32\\\"\",\"+   \\\"action\\\": \\\"PROXY\\\",\",\"+   \\\"cidrs\\\": [],\",\"+   \\\"domains\\\": [\",\"+    \\\"openai.com\\\",\",\"+    \\\"ru\\\"\",\"-   \\\"domains\\\": [],\",\"-   \\\"proxy\\\": null\",\"+   \\\"proxy\\\": \\\"warp\\\"\"],\"restart_required\":true,\"rollback\":{\"to_revision\":\"rev-4\",\"to_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\"},\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "d31db4d3647002e9068292b50628ee04ecfac0048954b117adcd4ca5453fed0f"
+    "sha256": "5861366d3d55a42b8034195fffc0f5c3f30e808fbcdaf982964eeadfe143054a"
    }
   },
   {
@@ -2548,9 +2548,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ceaa4076-440b-4c73-8d28-cddc11aa752c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"4929def4-1ee8-40d7-995a-612678e92c97\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"98e83952-e7a0-45bd-b9cd-4d36efad9c32\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":5,\"state\":\"applied\",\"applied_revision\":4,\"applied_digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"4564cbea-b698-483c-b858-957165541cc0\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"ad92ec58-5967-4d04-9568-4df3b59e0ca9\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"75167090-7f8e-46d1-b267-d26b9bd5aac2\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":5,\"state\":\"applied\",\"applied_revision\":4,\"applied_digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "23376e8aa53cfeea765c4a28eeea6551d8d3efaf2cd0c30c7798179864cabf24"
+    "sha256": "507187fd72c0a7c842d108fe0198769131f97d5fbcf8f31bf6208f31cf406be6"
    }
   },
   {
@@ -2609,9 +2609,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"ceaa4076-440b-4c73-8d28-cddc11aa752c\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"4929def4-1ee8-40d7-995a-612678e92c97\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"98e83952-e7a0-45bd-b9cd-4d36efad9c32\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"4564cbea-b698-483c-b858-957165541cc0\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"ad92ec58-5967-4d04-9568-4df3b59e0ca9\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"},{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"75167090-7f8e-46d1-b267-d26b9bd5aac2\",\"message\":\"matching by port, geosite, geoip or protocol is enforced only by xray_router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "317bd6228fcc90612c7253c7a258dc00271036fb7033e897bc5bf46bae942d62"
+    "sha256": "54a62b85ab266b8b246d7ee6232211bc1f9a80b3790a2b73f99da8c048edc0ee"
    }
   },
   {
@@ -2670,9 +2670,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"ceaa4076-440b-4c73-8d28-cddc11aa752c\",\"4929def4-1ee8-40d7-995a-612678e92c97\",\"98e83952-e7a0-45bd-b9cd-4d36efad9c32\"],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"4564cbea-b698-483c-b858-957165541cc0\",\"ad92ec58-5967-4d04-9568-4df3b59e0ca9\",\"75167090-7f8e-46d1-b267-d26b9bd5aac2\"],\"hop_names\":[]}"
     },
-    "sha256": "1a2095697ebc893e54e0454f63b3e66dc2af865c34b39575830a81343d3b28af"
+    "sha256": "e530934f5a74c28de1acfe67bb3505e1e985581d049b7ba526d934c9111f59c0"
    }
   },
   {
@@ -2728,9 +2728,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"id\":8,\"policy_id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"revision\":4,\"digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-5\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961713,\"document\":{\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"action\":\"PROXY\",\"cidrs\":[],\"domains\":[\"openai.com\",\"ru\"],\"proxy\":\"warp\"}],\"schema\":1}},{\"id\":7,\"policy_id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"revision\":3,\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-4\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961713,\"document\":{\"proxies\":[],\"rules\":[{\"action\":\"REJECT\",\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"domains\":[],\"proxy\":null}],\"schema\":1}},{\"id\":6,\"policy_id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"revision\":2,\"digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-3\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961713,\"document\":{\"proxies\":[],\"rules\":[{\"action\":\"REJECT\",\"cidrs\":[],\"domains\":[\"example.com\"],\"proxy\":null}],\"schema\":1}},{\"id\":5,\"policy_id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"revision\":1,\"digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-2\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961713,\"document\":{\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"action\":\"PROXY\",\"cidrs\":[\"*\"],\"domains\":[\"*\"],\"proxy\":\"warp\"}],\"schema\":1}}]}"
+     "text": "{\"items\":[{\"id\":8,\"policy_id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"revision\":4,\"digest\":\"d098ee2999c72c5c36d796f28c5a7d4eeb70e7e3d590764189abca13013f5244\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-5\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005889,\"document\":{\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"action\":\"PROXY\",\"cidrs\":[],\"domains\":[\"openai.com\",\"ru\"],\"proxy\":\"warp\"}],\"schema\":1}},{\"id\":7,\"policy_id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"revision\":3,\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-4\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005889,\"document\":{\"proxies\":[],\"rules\":[{\"action\":\"REJECT\",\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"domains\":[],\"proxy\":null}],\"schema\":1}},{\"id\":6,\"policy_id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"revision\":2,\"digest\":\"9781161d2b605a39a39f4c85d7d83b479cd52db5d5f97abc90d13f3697f2a866\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-3\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005889,\"document\":{\"proxies\":[],\"rules\":[{\"action\":\"REJECT\",\"cidrs\":[],\"domains\":[\"example.com\"],\"proxy\":null}],\"schema\":1}},{\"id\":5,\"policy_id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"revision\":1,\"digest\":\"92ad5149f670f2d70eff82e552f86c15f339971d7bc89b5779118812aa15fe50\",\"backend\":\"mieru_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"rev-2\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005888,\"document\":{\"proxies\":[{\"name\":\"warp\",\"provider\":\"warp\"}],\"rules\":[{\"action\":\"PROXY\",\"cidrs\":[\"*\"],\"domains\":[\"*\"],\"proxy\":\"warp\"}],\"schema\":1}}]}"
     },
-    "sha256": "b099d4d0247cac08871fe00589c68888a57f4ffe476c90d56adad915d2b2df80"
+    "sha256": "950159b63537a284558cec209fae8370088fa7a1052aa69130295cf5a63bad17"
    }
   },
   {
@@ -2789,9 +2789,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ceaa4076-440b-4c73-8d28-cddc11aa752c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"4929def4-1ee8-40d7-995a-612678e92c97\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"98e83952-e7a0-45bd-b9cd-4d36efad9c32\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"f66246ad-1a77-407f-9e8a-fe8717efef98\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":5,\"state\":\"rolled_back\",\"applied_revision\":3,\"applied_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"applied_at\":1792961713,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false},\"applied\":{\"revision\":\"rev-6\",\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":null,\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"diff\":[],\"restart_required\":true,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"4564cbea-b698-483c-b858-957165541cc0\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"ad92ec58-5967-4d04-9568-4df3b59e0ca9\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"75167090-7f8e-46d1-b267-d26b9bd5aac2\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"fb3dcc1a-e3b8-4aea-8903-6d39aa52e9fb\",\"node_id\":\"local\",\"protocol\":\"mieru\",\"lane\":\"svc\",\"backend\":\"mieru_native\",\"revision\":5,\"state\":\"rolled_back\",\"applied_revision\":3,\"applied_digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"applied_at\":1793005889,\"last_error\":null,\"created_at\":1793005888,\"updated_at\":1793005889,\"applied_current\":false},\"applied\":{\"revision\":\"rev-6\",\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":null,\"digest\":\"6fd9b290bed3b9d429f0d7ea3055109e6da29fa1c81eec49a68ac18e564f63cf\",\"diff\":[],\"restart_required\":true,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"mieru_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "cd705f448bca68d5917a33f021fda1658dbdd21b617197d5c7106b0bb4596b14"
+    "sha256": "5051149ec8c6f110adaf5cbbbf4e29bcc908f3b37b514c4563009565ec46eb7e"
    }
   },
   {
@@ -2911,9 +2911,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"b4e92b1d-382d-4251-a690-3ac6ddb64782\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"2b57f599-852c-477a-a72a-bc67f6ccce71\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "f82b3cc5c1551e45be62542f0702dbc776b57f4f49d68fad51cb1b99b30c24bf"
+    "sha256": "80b8eebcda986eb053a76dbe6f09697a183ecc66b40c1da460737c070044bc94"
    }
   },
   {
@@ -3155,9 +3155,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ad36fd06-b384-4bad-b2a0-07633b9b76e7\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"b4e92b1d-382d-4251-a690-3ac6ddb64782\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":2,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961713,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"c4a4463b-34a0-4085-a880-8b43c24f756e\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"2b57f599-852c-477a-a72a-bc67f6ccce71\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":2,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "a08049888652574f94a1053bf3d2961a2854d957abdfd576b0a9da05633d3fb6"
+    "sha256": "155a46f5a332c734a1332b0eb08ea4582e947d8a90e45fac5cae34ea98178734"
    }
   },
   {
@@ -3277,9 +3277,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":\"ad36fd06-b384-4bad-b2a0-07633b9b76e7\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":\"c4a4463b-34a0-4085-a880-8b43c24f756e\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
     },
-    "sha256": "1610e5098e2b6ac19d77fce80caaafec690061619f1bd6935146d2e4bfb1acce"
+    "sha256": "c801eb748643c0cdfa6dc9083ae7e58aa663b947d80fc52c58976fdd3ec317ac"
    }
   },
   {
@@ -3399,9 +3399,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"de7ac3cb-4088-4079-9b03-e6c3c58477c7\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"b4e92b1d-382d-4251-a690-3ac6ddb64782\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":3,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ca17179b-8e8e-4bcb-b704-163ae88d67cc\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"2b57f599-852c-477a-a72a-bc67f6ccce71\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":3,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "4d4d2d76577398864105df757dca7b4e6d5b7028f4e9c3265109b78cc98c6bfe"
+    "sha256": "23a745971dbf33bf5bfe2db99be749444f02477fe3ce72a1fd769d321a34833f"
    }
   },
   {
@@ -3643,9 +3643,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"6deea23c-c539-4b7b-8a1e-1dd6d806764e\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"b4e92b1d-382d-4251-a690-3ac6ddb64782\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":4,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"864599ef-e78c-4374-b1e8-6de3f9cae0fb\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"2b57f599-852c-477a-a72a-bc67f6ccce71\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":4,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "f08ef3a1114405bb6d81af68db123d43b5e0e7058c2f81e0dae98a8e5fcce18c"
+    "sha256": "41bb1eec125dacd2f1c37541992c66c4d4c9b0b600dc946ea8c9ee6f45f2ed57"
    }
   },
   {
@@ -3887,9 +3887,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"5bf8d142-90a6-433b-9c68-27f3f800c857\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"a72d1a57-8aed-4f2a-98fd-a3a6ff15d72c\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"8eef9a8c-bbc9-491c-b036-314ca3f71529\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"b4e92b1d-382d-4251-a690-3ac6ddb64782\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":5,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961713,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"1602cbdd-abed-4d9b-b3b4-ea9e3637d355\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"a3535b1b-fb58-4eca-94fd-c6a67ef67cbe\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"a1b27f1d-3c6b-427b-9953-28aaaff27730\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"2b57f599-852c-477a-a72a-bc67f6ccce71\",\"node_id\":\"local\",\"protocol\":\"mtproxy\",\"lane\":\"svc\",\"backend\":\"mtproxy_native\",\"revision\":5,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "cddcae392c3079cf1e69ac2ea5418e42a17543cef6823c7772fbe214fe5c0793"
+    "sha256": "64325fc0b1651d52e55de7e7c038e7dfd71f692506155ce104b71c37c2d03890"
    }
   },
   {
@@ -4009,9 +4009,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"5bf8d142-90a6-433b-9c68-27f3f800c857\",\"a72d1a57-8aed-4f2a-98fd-a3a6ff15d72c\",\"8eef9a8c-bbc9-491c-b036-314ca3f71529\"],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"1602cbdd-abed-4d9b-b3b4-ea9e3637d355\",\"a3535b1b-fb58-4eca-94fd-c6a67ef67cbe\",\"a1b27f1d-3c6b-427b-9953-28aaaff27730\"],\"hop_names\":[]}"
     },
-    "sha256": "f0f05bce93e584fcc1ab2d45c49dc18493fbc0caa37cc68146b4743f438a0a47"
+    "sha256": "d656253852efe6ebb23c7473ee56d982909e614bc722c1f1d65114b3d0caf3db"
    }
   },
   {
@@ -4250,9 +4250,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"4fc27410-91e9-4048-9e44-861330f7821f\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"6eb4bf2b-61dd-4ee4-9b86-8ad1f3c96ab0\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005889,\"applied_current\":false}"
     },
-    "sha256": "5300915aa7e81b2cb20a1dc866db99e7ab25b3c91daf103baa5ae98ffaf3a812"
+    "sha256": "0c5d07fbc2bf230b8a76e57faa4394afc0122f6f9aa02daf316bbffbeeddac91"
    }
   },
   {
@@ -4494,9 +4494,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ec714007-1b0b-442f-9f4c-1e8bafed2288\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"4fc27410-91e9-4048-9e44-861330f7821f\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":2,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"db59e1f6-eec4-4744-908d-da3366adb84b\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"6eb4bf2b-61dd-4ee4-9b86-8ad1f3c96ab0\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":2,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "303b7b41d27596b13d9fed1b39f46f448153cf133dbafcee5b68f47aa3c34c2b"
+    "sha256": "a7f7f86c491a04ee669a1ec18ad3287f3edd61bd13f5276181a975ab317403d4"
    }
   },
   {
@@ -4616,9 +4616,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":\"ec714007-1b0b-442f-9f4c-1e8bafed2288\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":\"db59e1f6-eec4-4744-908d-da3366adb84b\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
     },
-    "sha256": "d6d2ad82968a7c0b5ad3a83ca7654dac73bd97385276966675732d5c1b3fdad6"
+    "sha256": "64d68e66e9fe7e4aa4fdf1441293f8bd4657be54989f6503025194272e170954"
    }
   },
   {
@@ -4738,9 +4738,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"b3b71de0-365f-4ba5-a6c7-53e2a88cb43e\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"4fc27410-91e9-4048-9e44-861330f7821f\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":3,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"10adcce2-3a35-4821-8cc4-09cb8e398912\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"6eb4bf2b-61dd-4ee4-9b86-8ad1f3c96ab0\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":3,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "b6293dbe3a1598abd2823ac8fa889a6fe8739937c0cf607331bffeacd0ea79bf"
+    "sha256": "9d693409983558a0a517be106a03b74d28be6736a0a0c8500569b30fe7b7b053"
    }
   },
   {
@@ -4982,9 +4982,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"a41215fd-cfb5-4f37-aa01-e3967b3da389\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"4fc27410-91e9-4048-9e44-861330f7821f\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":4,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"57bea9d3-6ba5-401b-94ec-61c00b1e200d\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"6eb4bf2b-61dd-4ee4-9b86-8ad1f3c96ab0\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":4,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "84460dddbe29bcf668e56642166c73db37cc6b041ad8c7a1c78b2c54ba87ca58"
+    "sha256": "8a73b725173e43c230a3f14c750d42f6abfc40a32cdd27d13fdffa10570ebe1d"
    }
   },
   {
@@ -5226,9 +5226,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"e2903d0f-804f-4fb4-a414-90ae01e230b8\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"0ef90ff3-bd6e-45d1-99f4-6cf364d79c24\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"5826ad2d-35b4-4c00-8975-03ad3617b8ba\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"4fc27410-91e9-4048-9e44-861330f7821f\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":5,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"7c134ddd-a5e0-4fbc-8c7b-bfb6ddb27e97\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"23943b23-4720-401f-970f-636ae09cd047\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"5559a989-13bc-474d-b2db-89e7fe2f26d7\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"6eb4bf2b-61dd-4ee4-9b86-8ad1f3c96ab0\",\"node_id\":\"local\",\"protocol\":\"trusttunnel\",\"lane\":\"svc\",\"backend\":\"trusttunnel_native\",\"revision\":5,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005889,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "5942ee34ccbef21ea213d703c708f11d48d5bf38888c4fcb44643da4575a1706"
+    "sha256": "65a188f8bb00b4fd3f445525f2fde78610a9caa86c9aed48bd6c0d392cc0d68d"
    }
   },
   {
@@ -5348,9 +5348,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"e2903d0f-804f-4fb4-a414-90ae01e230b8\",\"0ef90ff3-bd6e-45d1-99f4-6cf364d79c24\",\"5826ad2d-35b4-4c00-8975-03ad3617b8ba\"],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"7c134ddd-a5e0-4fbc-8c7b-bfb6ddb27e97\",\"23943b23-4720-401f-970f-636ae09cd047\",\"5559a989-13bc-474d-b2db-89e7fe2f26d7\"],\"hop_names\":[]}"
     },
-    "sha256": "db9e99cf3ed26b43d7bfd260501aae64125165b398ecbc85640f07cbe9f5edb6"
+    "sha256": "725d15e9da96f37f551337652456ca359ebc3a508f5bcd0999e2636170928238"
    }
   },
   {
@@ -5589,9 +5589,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "48403264956d090ef0f680972654cc08cfd4358cfce9f5d044745fe2ac630655"
+    "sha256": "ddde08a837d7b6575ea2349073e2e51c32acc60154c244d780dbd235a8de2e0b"
    }
   },
   {
@@ -5650,9 +5650,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":1,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1792961714,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":true},\"applied\":{\"revision\":\"1\",\"digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":{\"provider\":\"warp\"}},\"digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"diff\":[\"- \\\"upstream\\\": null\",\"+ \\\"upstream\\\": {\",\"+  \\\"provider\\\": \\\"warp\\\"\",\"+ }\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"0\",\"to_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\"},\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"egress\",\"default_egress\":\"warp\",\"fallback\":\"fail_closed\",\"rules\":[],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":1,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1793005890,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005890,\"applied_current\":true},\"applied\":{\"revision\":\"1\",\"digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":{\"schema\":1,\"upstream\":{\"provider\":\"warp\"}},\"digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"diff\":[\"- \\\"upstream\\\": null\",\"+ \\\"upstream\\\": {\",\"+  \\\"provider\\\": \\\"warp\\\"\",\"+ }\"],\"restart_required\":false,\"rollback\":{\"to_revision\":\"0\",\"to_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\"},\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "ecc6bc1ec15fb2633a6d5534b8d10162175feb7e31f45d3bf6a87afdb248426e"
+    "sha256": "0408d85daa962f7dfa806f3e73f686397896eb3a03054ed32426c241f1ea8486"
    }
   },
   {
@@ -5833,9 +5833,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"437e7b98-f101-411e-93b3-5fa5f9612aa3\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1792961714,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"b7f0ce57-2917-49de-972a-7f4bdd632262\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":2,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1793005890,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "904262216bc9f71270599fa07e1598a27675f09565c5765f54e048fed345a1b2"
+    "sha256": "d1f1fff8800ab1d9b83ca416f5954c645e192914dc1328c5a3646c43f92cc84f"
    }
   },
   {
@@ -5894,9 +5894,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"437e7b98-f101-411e-93b3-5fa5f9612aa3\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"b7f0ce57-2917-49de-972a-7f4bdd632262\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "4eeea6941eba8fa8a6db6ca2c32d84e524c3349ec504f64b1a509a3cabeb12d4"
+    "sha256": "59913ff47ba9a4b2ec8e7db5a018521f259ad0cd8cbcf4f261dec93dc6d535bb"
    }
   },
   {
@@ -5955,9 +5955,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":\"437e7b98-f101-411e-93b3-5fa5f9612aa3\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":\"b7f0ce57-2917-49de-972a-7f4bdd632262\",\"action\":\"block\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[],\"hop_names\":[]}"
     },
-    "sha256": "36ea62ffe6e1974fb62e962f09944ae5c39665bc246046a841c4405e9ec9f54a"
+    "sha256": "7bd5f1516151fb1510404f4f879aedffbbe3fe4034ac003a853b06606b6939df"
    }
   },
   {
@@ -6077,9 +6077,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"698feb24-ec51-4014-8a8d-49d49f2548bd\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1792961714,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"a2ca7c8e-a459-4b3a-a40a-7a8e12a73253\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[\"203.0.113.0/24\",\"2001:db8::/32\"],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":3,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1793005890,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "60aa21b56d33588a575563505d56802bb12814ecd64149cf980f5fb99d416fb2"
+    "sha256": "a4fb3e2c895c0cb19ef61a962a160fbf89341dd3e579de03239ea8819b673215"
    }
   },
   {
@@ -6138,9 +6138,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"698feb24-ec51-4014-8a8d-49d49f2548bd\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"a2ca7c8e-a459-4b3a-a40a-7a8e12a73253\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "05379c736af7362f59bbb7aab27f8bb49caad64a8595941ff2456514042b2531"
+    "sha256": "a43d72b91686d833b7c76a581fff3479e7d0afd20d22b9f60bd295802c79f1d0"
    }
   },
   {
@@ -6321,9 +6321,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"559ca96e-f081-472c-bc71-5b171836e679\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1792961714,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961714,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ebbc92f2-e15d-47a9-a561-a6446b587120\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"openai.com\",\"*.ru\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null}],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":4,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1793005890,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "e78d8a34063132d2c97f1646129e715e470147458decc365c709653d7f87f551"
+    "sha256": "bf08ef985dc44fb1d36afcd2fe3ffe503d073cb6a13666a9aaec396882154b5e"
    }
   },
   {
@@ -6382,9 +6382,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"559ca96e-f081-472c-bc71-5b171836e679\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"ebbc92f2-e15d-47a9-a561-a6446b587120\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "9d81b742dd932b46500070b1935366f43e14e6b07a4b2bf6f41adca9a6c5edb0"
+    "sha256": "a8284cd7a478a5b3dab0e468a767f102b7eed67d7f183ab0cf8c7af0c1472de1"
    }
   },
   {
@@ -6565,9 +6565,9 @@
      ]
     ],
     "body": {
-     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"b42022cd-3ab2-475c-98c5-d76dbe53cc6c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"4b347072-e202-419a-992e-3a14bdf8edd5\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"c02e9890-b13f-4867-a0b1-5a6044dd35bb\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":5,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1792961714,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961715,\"applied_current\":false}"
+     "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"f55edd6a-e8a3-4236-8773-5f67e36dc990\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"4928c62c-7a48-4603-951b-a3b6e7858001\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"c8d18ffd-f29b-4c94-a487-4eea17c07bf6\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":5,\"state\":\"applied\",\"applied_revision\":1,\"applied_digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"applied_at\":1793005890,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005890,\"applied_current\":false}"
     },
-    "sha256": "867cf94ca897f730ad2603a3574d46ab969140ddac64b57a08ab574d8303c469"
+    "sha256": "82edf49fa5a4d88cf64775dd9402099a38aea8b98a034d8d9905024e53093750"
    }
   },
   {
@@ -6626,9 +6626,9 @@
      ]
     ],
     "body": {
-     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"b42022cd-3ab2-475c-98c5-d76dbe53cc6c\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"detail\":\"the policy cannot be enforced on this node\",\"code\":\"unsupported\",\"compiled\":{\"status\":\"unsupported\",\"reasons\":[{\"code\":\"rule_kind_unsupported\",\"rule_id\":\"f55edd6a-e8a3-4236-8773-5f67e36dc990\",\"message\":\"On its own AmneziaWG routes the whole tunnel: directly or through WARP. For rules by domain, address, port or protocol, custom exits and other nodes attach it to the node's Xray-router\"}],\"warnings\":[],\"document\":null,\"digest\":null,\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "d5b915c094d8176ff98921ddef1b322460eb758437340a6e63ddaa140e25131a"
+    "sha256": "2ec1c737eafee05c393c89808745ff211b12651df103d7c106a26912bb451147"
    }
   },
   {
@@ -6687,9 +6687,9 @@
      ]
     ],
     "body": {
-     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"b42022cd-3ab2-475c-98c5-d76dbe53cc6c\",\"4b347072-e202-419a-992e-3a14bdf8edd5\",\"c02e9890-b13f-4867-a0b1-5a6044dd35bb\"],\"hop_names\":[]}"
+     "text": "{\"lane\":\"svc\",\"rule_id\":null,\"action\":\"direct\",\"exit\":null,\"hops\":[],\"via\":null,\"uncertain\":[\"f55edd6a-e8a3-4236-8773-5f67e36dc990\",\"4928c62c-7a48-4603-951b-a3b6e7858001\",\"c8d18ffd-f29b-4c94-a487-4eea17c07bf6\"],\"hop_names\":[]}"
     },
-    "sha256": "093e2a62494ee4b39d65b3dc094e9f620bcba565969c948b0f48fec030b83e8f"
+    "sha256": "82ed1a644183837a5d448f37432a95ac640362958865b70891a9b0c992b7c1a8"
    }
   },
   {
@@ -6745,9 +6745,9 @@
      ]
     ],
     "body": {
-     "text": "{\"items\":[{\"id\":10,\"policy_id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"revision\":1,\"digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"backend\":\"amneziawg_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"1\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1792961714,\"document\":{\"schema\":1,\"upstream\":{\"provider\":\"warp\"}}}]}"
+     "text": "{\"items\":[{\"id\":10,\"policy_id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"revision\":1,\"digest\":\"664488495d35f2e19b2ae6d5c7b3de92e163954ab1909121c66f595e5e018851\",\"backend\":\"amneziawg_native\",\"compiler_version\":\"3\",\"runtime_version\":null,\"outcome\":\"applied\",\"detail\":\"{\\\"manager_revision\\\": \\\"1\\\", \\\"readback_sha256\\\": null, \\\"replayed\\\": false}\",\"actor\":\"owner\",\"created_at\":1793005890,\"document\":{\"schema\":1,\"upstream\":{\"provider\":\"warp\"}}}]}"
     },
-    "sha256": "f074bfe347b7f20559c9bcadd5c1106c831044c6ef938ba67c61317b6162cfaa"
+    "sha256": "32ec02bce3e9f3be6ff4937f37cb81f27bcb7ea5df0e9c4cde83da099bc1b703"
    }
   },
   {
@@ -6806,9 +6806,9 @@
      ]
     ],
     "body": {
-     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"b42022cd-3ab2-475c-98c5-d76dbe53cc6c\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"4b347072-e202-419a-992e-3a14bdf8edd5\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"c02e9890-b13f-4867-a0b1-5a6044dd35bb\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"4d92b868-4971-4ebd-a575-0168dc0cf7cb\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":5,\"state\":\"rolled_back\",\"applied_revision\":null,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"applied_at\":1792961715,\"last_error\":null,\"created_at\":1792961714,\"updated_at\":1792961715,\"applied_current\":false},\"applied\":{\"revision\":\"2\",\"digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":null,\"digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
+     "text": "{\"policy\":{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"f55edd6a-e8a3-4236-8773-5f67e36dc990\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[\"category-ads-all\"],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"\",\"preset\":null},{\"id\":\"4928c62c-7a48-4603-951b-a3b6e7858001\",\"position\":1,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[443,\"8000-8100\"],\"geosites\":[],\"geoips\":[\"ru\"],\"protocols\":[]},\"action\":\"egress\",\"egress\":\"warp\",\"note\":\"\",\"preset\":null},{\"id\":\"c8d18ffd-f29b-4c94-a487-4eea17c07bf6\",\"position\":2,\"enabled\":true,\"match\":{\"domains\":[],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[\"bittorrent\"]},\"action\":\"direct\",\"egress\":null,\"note\":\"\",\"preset\":null}],\"id\":\"22b91518-8f57-4e1b-8b31-868150451aa0\",\"node_id\":\"local\",\"protocol\":\"amneziawg\",\"lane\":\"svc\",\"backend\":\"amneziawg_native\",\"revision\":5,\"state\":\"rolled_back\",\"applied_revision\":null,\"applied_digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"applied_at\":1793005891,\"last_error\":null,\"created_at\":1793005890,\"updated_at\":1793005891,\"applied_current\":false},\"applied\":{\"revision\":\"2\",\"digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"readback_sha256\":null,\"replayed\":false},\"compiled\":{\"status\":\"supported\",\"reasons\":[],\"warnings\":[],\"document\":null,\"digest\":\"35c19df74c30d320cca413219c4582401b11a8cf848a51a3b09143d61f0772ab\",\"diff\":[],\"restart_required\":false,\"rollback\":null,\"compiler_version\":\"3\",\"backend\":\"amneziawg_native\",\"runtime_version\":null,\"attach\":null}}"
     },
-    "sha256": "0c52734a59ff99701170a3103143142920dce4d8f05708602b6cdf3850341ee7"
+    "sha256": "64e38ebeca68f7d0cb7d406cd1983cfa3a7075584a55c6d6298f605f2cd2d9d2"
    }
   }
  ],

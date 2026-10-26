@@ -299,7 +299,7 @@ async def record_subscriptions(out: Path, work: Path, scenario_dbs: dict) -> dic
     empty, empty_token = await client_with_grants(http, "Empty", [{"protocol": "naive", "runtime_username": "e-1"}])
     await must(await http.post(f"/api/clients/grants/{(await must(await http.get(f'/api/clients/{empty}')))['grants'][0]['id']}/delete"))
     await http.aclose()
-    snapshot_database(server.db_path, out / "subscriptions.sqlite3")
+    snapshot_database(server.db_path, out / "subscriptions.db")
     shutil.copyfile(server.key_path, out / "subscriptions-master-key.json")
     recorder = Recorder(dedupe=True)
     counter = 0
@@ -366,7 +366,7 @@ async def record_subscriptions(out: Path, work: Path, scenario_dbs: dict) -> dic
         "settings": {"PANEL_SUBSCRIPTION_URL": f"https://{SUB_HOST}", "PANEL_SINGBOX_FORK_CLIENTS": "karing,streisand",
                      "NAIVE_PUBLIC_HOST": "naive.example.com", "AMNEZIAWG_PUBLIC_HOST": "awg.example.com",
                      "TRUSTTUNNEL_PUBLIC_HOST": "gate.example.com", "MTPROXY_DOMAIN": "proxy.example.com"},
-        "database": "subscriptions.sqlite3 (snapshot before the first fetch)",
+        "database": "subscriptions.db (SQLite snapshot before the first fetch)",
         "master_key_file": "subscriptions-master-key.json",
         "tokens": {"alice": alice_token, "bob": bob_token, "empty": empty_token},
         "exchanges": recorder.items, "bodies": recorder.bodies})
@@ -706,7 +706,7 @@ LAYOUT = {
                                     "plaintext) under each keyring: a Rust SecretStore must decrypt every row",
     "migrations/migrations.json": "every migration: version, name, checksum, exact statement text",
     "migrations/schema-vNN.json": "sqlite_master (rowid order) and schema_migrations after migrations 1..NN",
-    "subscriptions/subscriptions.sqlite3": "database snapshot taken before the first fetch (with its master key "
+    "subscriptions/subscriptions.db": "SQLite database snapshot taken before the first fetch (with its master key "
                                            "subscriptions-master-key.json); open it with that keyring",
     "subscriptions/subscriptions.json": "GET/HEAD /s/{token} exchanges: request (path, query, Accept, User-Agent, "
                                         "If-None-Match, Host) → status, headers in order, body by sha256 in `bodies`",

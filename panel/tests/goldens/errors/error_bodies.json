@@ -1606,9 +1606,9 @@
     ]
    ],
    "body": {
-    "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"ed30a611-dd40-462c-972b-d1520867814e\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"92074da3-c354-40e9-a537-24da1aba8de0\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1792961721,\"updated_at\":1792961721,\"applied_current\":false}"
+    "text": "{\"default_action\":\"direct\",\"default_egress\":null,\"fallback\":\"fail_closed\",\"rules\":[{\"id\":\"2f98fa49-3695-4543-86e8-e6549212e9ff\",\"position\":0,\"enabled\":true,\"match\":{\"domains\":[\"example.com\",\"*.example.com\"],\"cidrs\":[],\"ports\":[],\"geosites\":[],\"geoips\":[],\"protocols\":[]},\"action\":\"block\",\"egress\":null,\"note\":\"ads\",\"preset\":null}],\"id\":\"3247f297-105a-4b03-ae82-81d32273ea1e\",\"node_id\":\"local\",\"protocol\":\"naive\",\"lane\":\"svc\",\"backend\":\"naive_native\",\"revision\":1,\"state\":\"draft\",\"applied_revision\":null,\"applied_digest\":null,\"applied_at\":null,\"last_error\":null,\"created_at\":1793005898,\"updated_at\":1793005898,\"applied_current\":false}"
    },
-   "sha256": "90f921d79c374d98891bdd7ec35e090a055d080c7925692980d6257fa21d77e4"
+   "sha256": "4bdc71e2db15fe644b1444892fa0a4ee2efced1d539f041048030f9de7c52c5a"
   }
  },
  {
@@ -1966,9 +1966,9 @@
     ]
    ],
    "body": {
-    "text": "{\"ts\":1792961722.002,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"local\",\"status\":\"unavailable\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
+    "text": "{\"ts\":1793005898.554,\"interval\":2.0,\"nodes\":[{\"node_id\":\"local\",\"name\":\"local\",\"status\":\"unavailable\",\"age_seconds\":null,\"host\":null,\"protocols\":{},\"top_clients\":[],\"kernel_counters\":null,\"alerts\":[]}]}"
    },
-   "sha256": "6591fc004c2ced49a79ac3502424c1753db7b43eeb13bfd947a7085a0516d34f"
+   "sha256": "40b1bac32607471d4d0ad2cf4f01f66a3a8682db606c20472bdebfe5205af4f1"
   }
  },
  {
@@ -2024,9 +2024,9 @@
     ]
    ],
    "body": {
-    "text": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":60,\"from\":1792958122,\"to\":1792961722,\"source\":\"rollup\",\"resolution\":60,\"series\":{\"host.cpu\":[[1792958100,null,null],[1792958160,null,null],[1792958220,null,null],[1792958280,null,null],[1792958340,null,null],[1792958400,null,null],[1792958460,null,null],[1792958520,null,null],[1792958580,null,null],[1792958640,null,null],[1792958700,null,null],[1792958760,null,null],[1792958820,null,null],[1792958880,null,null],[1792958940,null,null],[1792959000,null,null],[1792959060,null,null],[1792959120,null,null],[1792959180,null,null],[1792959240,null,null],[1792959300,null,null],[1792959360,null,null],[1792959420,null,null],[1792959480,null,null],[1792959540,null,null],[1792959600,null,null],[1792959660,null,null],[1792959720,null,null],[1792959780,null,null],[1792959840,null,null],[1792959900,null,null],[1792959960,null,null],[1792960020,null,null],[1792960080,null,null],[1792960140,null,null],[1792960200,null,null],[1792960260,null,null],[1792960320,null,null],[1792960380,null,null],[1792960440,null,null],[1792960500,null,null],[1792960560,null,null],[1792960620,null,null],[1792960680,null,null],[1792960740,null,null],[1792960800,null,null],[1792960860,null,null],[1792960920,null,null],[1792960980,null,null],[1792961040,null,null],[1792961100,null,null],[1792961160,null,null],[1792961220,null,null],[1792961280,null,null],[1792961340,null,null],[1792961400,null,null],[1792961460,null,null],[1792961520,null,null],[1792961580,null,null],[1792961640,null,null],[1792961700,null,null]]}}"
+    "text": "{\"status\":\"ok\",\"node_id\":\"local\",\"range\":\"1h\",\"step\":60,\"from\":1793002298,\"to\":1793005898,\"source\":\"rollup\",\"resolution\":60,\"series\":{\"host.cpu\":[[1793002260,null,null],[1793002320,null,null],[1793002380,null,null],[1793002440,null,null],[1793002500,null,null],[1793002560,null,null],[1793002620,null,null],[1793002680,null,null],[1793002740,null,null],[1793002800,null,null],[1793002860,null,null],[1793002920,null,null],[1793002980,null,null],[1793003040,null,null],[1793003100,null,null],[1793003160,null,null],[1793003220,null,null],[1793003280,null,null],[1793003340,null,null],[1793003400,null,null],[1793003460,null,null],[1793003520,null,null],[1793003580,null,null],[1793003640,null,null],[1793003700,null,null],[1793003760,null,null],[1793003820,null,null],[1793003880,null,null],[1793003940,null,null],[1793004000,null,null],[1793004060,null,null],[1793004120,null,null],[1793004180,null,null],[1793004240,null,null],[1793004300,null,null],[1793004360,null,null],[1793004420,null,null],[1793004480,null,null],[1793004540,null,null],[1793004600,null,null],[1793004660,null,null],[1793004720,null,null],[1793004780,null,null],[1793004840,null,null],[1793004900,null,null],[1793004960,null,null],[1793005020,null,null],[1793005080,null,null],[1793005140,null,null],[1793005200,null,null],[1793005260,null,null],[1793005320,null,null],[1793005380,null,null],[1793005440,null,null],[1793005500,null,null],[1793005560,null,null],[1793005620,null,null],[1793005680,null,null],[1793005740,null,null],[1793005800,null,null],[1793005860,null,null]]}}"
    },
-   "sha256": "6816f5498ecab140f6bb5396a803a86c787043cd92371c6f4e30950272d26aac"
+   "sha256": "fd7df84aebd2e0735d0cb5f8a14de45e783f4019a77a84a874a19939d5a2044d"
   }
  },
  {
@@ -2082,9 +2082,9 @@
     ]
    ],
    "body": {
-    "text": "{\"range\":\"24h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"24h\",\"from\":1792875322,\"to\":1792961722,\"step\":60,\"source\":\"rollup\",\"host\":{\"cpu\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"mem\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"swap\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"disk\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"load1\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"net_rx_bps\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"net_tx_bps\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"local\",\"status\":\"unavailable\",\"age_seconds\":null,\"alerts\":[]}]}"
+    "text": "{\"range\":\"24h\",\"nodes\":[{\"node_id\":\"local\",\"range\":\"24h\",\"from\":1792919498,\"to\":1793005898,\"step\":60,\"source\":\"rollup\",\"host\":{\"cpu\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"mem\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"swap\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"disk\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"load1\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"net_rx_bps\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null},\"net_tx_bps\":{\"avg\":null,\"p95\":null,\"max\":null,\"max_at\":null}},\"protocols\":{\"mtproxy\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"naive\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"mieru\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"amneziawg\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null},\"trusttunnel\":{\"up_bytes\":null,\"down_bytes\":null,\"total_bytes\":null,\"avg_bps\":null,\"peak_bps\":null,\"peak_at\":null,\"share_percent\":null,\"sessions_peak\":null,\"connections_peak\":null}},\"hours_of_day\":{},\"name\":\"local\",\"status\":\"unavailable\",\"age_seconds\":null,\"alerts\":[]}]}"
    },
-   "sha256": "3df736682c32f81847ccbf72573e4ceb1fe96a29235bccd942d6bd6dcdd2462c"
+   "sha256": "8a45f3f8e4f2b1dff6cac5f90b1c1994060d4056d1f052a099f8304550a57200"
   }
  },
  {
@@ -2256,9 +2256,9 @@
     ]
    ],
    "body": {
-    "text": "{\"guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":null,\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"testserver\",\"public_port\":443,\"daemon\":\"down\",\"egress\":null},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"down\",\"egress\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":0,\"daemon\":\"down\",\"versions\":[],\"egress\":null},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"down\",\"egress\":null}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
+    "text": "{\"guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"panel_version\":\"3.3.0\",\"api_version\":2,\"master_guid\":null,\"protocols\":{\"mtproxy\":{\"enabled\":true,\"public_host\":\"testserver\",\"public_port\":443,\"daemon\":\"down\",\"egress\":null},\"naive\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":443,\"daemon\":\"ok\",\"egress\":{\"backend\":\"naive_native\",\"capabilities\":[\"block_cidr\",\"block_domain\",\"whole_direct\",\"whole_warp\"],\"providers\":{\"warp\":{\"reachable\":true}},\"revision\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"mode\":\"direct\",\"restart_required\":false,\"applied_digest\":\"9f5718930896ccc791e379e4c9b162de3e22268602715a2fcf0f3937b523f9e0\",\"warnings\":[],\"router_attached\":false}},\"mieru\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":8443,\"daemon\":\"down\",\"egress\":null},\"amneziawg\":{\"enabled\":true,\"public_host\":\"naive.example.com\",\"public_port\":0,\"daemon\":\"down\",\"versions\":[],\"egress\":null},\"trusttunnel\":{\"enabled\":true,\"public_host\":\"gate.example.com\",\"public_port\":443,\"daemon\":\"down\",\"egress\":null}},\"capabilities\":[\"generation.v1\",\"credentials.capture\",\"versions.update\",\"versions.check\",\"unlink\",\"egress.v1\",\"egress.mtproxy.v1\",\"protocol.amneziawg.v1\",\"protocol.trusttunnel.v1\",\"egress.trusttunnel.v1\",\"egress.amneziawg.v1\",\"metrics.v1\"],\"router\":null}"
    },
-   "sha256": "4c51a607a908f74472e22d22be34191aa1b09191580d72518d1e2e5ee244ad78"
+   "sha256": "962eb516b3b64ca7066dc66b794d17d835a922753d5ff6d17df870cbacca338d"
   }
  },
  {
@@ -2331,7 +2331,7 @@
     "content-type": "application/json"
    },
    "body": {
-    "text": "{\"expected_guid\":\"another-guid\",\"generation\":{\"schema_version\":1,\"node_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"master_guid\":\"central-guid-1\",\"generation\":1,\"previous_generation\":0,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
+    "text": "{\"expected_guid\":\"another-guid\",\"generation\":{\"schema_version\":1,\"node_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"master_guid\":\"central-guid-1\",\"generation\":1,\"previous_generation\":0,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
    }
   },
   "response": {
@@ -2392,7 +2392,7 @@
     "content-type": "application/json"
    },
    "body": {
-    "text": "{\"expected_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"generation\":{\"schema_version\":1,\"node_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"master_guid\":\"central-guid-1\",\"generation\":2,\"previous_generation\":1,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
+    "text": "{\"expected_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"generation\":{\"schema_version\":1,\"node_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"master_guid\":\"central-guid-1\",\"generation\":2,\"previous_generation\":1,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
    }
   },
   "response": {
@@ -2436,9 +2436,9 @@
     ]
    ],
    "body": {
-    "text": "{\"observed\":{\"applied_generation\":2,\"digest\":\"af106edfbca7b8994b111c4f0b6aa0dd65b724a0cc2aa65a47e30a92602054da\",\"reconcile_state\":\"converged\",\"resources\":[],\"reported_at\":1792961722,\"egress\":{},\"relay\":null},\"credentials\":{}}"
+    "text": "{\"observed\":{\"applied_generation\":2,\"digest\":\"39b8df037e4f2194180ca8263dd8c8a562be8f36f0541140c104f0a56e21f414\",\"reconcile_state\":\"converged\",\"resources\":[],\"reported_at\":1793005898,\"egress\":{},\"relay\":null},\"credentials\":{}}"
    },
-   "sha256": "001176bb793c9eae0cb5a1780ea839b144553d9b2b029ee058b77127ad7c6d18"
+   "sha256": "2f77821c0c06850a67055a8f137446f070b0510ff07ec01ded9a68cc49610e4e"
   }
  },
  {
@@ -2453,7 +2453,7 @@
     "content-type": "application/json"
    },
    "body": {
-    "text": "{\"expected_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"generation\":{\"schema_version\":1,\"node_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"master_guid\":\"central-guid-1\",\"generation\":1,\"previous_generation\":0,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
+    "text": "{\"expected_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"generation\":{\"schema_version\":1,\"node_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"master_guid\":\"central-guid-1\",\"generation\":1,\"previous_generation\":0,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
    }
   },
   "response": {
@@ -2514,7 +2514,7 @@
     "content-type": "application/json"
    },
    "body": {
-    "text": "{\"expected_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"generation\":{\"schema_version\":1,\"node_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"master_guid\":\"central-guid-1\",\"generation\":2,\"previous_generation\":1,\"created_at\":1,\"created_by\":\"changed\",\"resources\":[]},\"secrets\":{}}"
+    "text": "{\"expected_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"generation\":{\"schema_version\":1,\"node_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"master_guid\":\"central-guid-1\",\"generation\":2,\"previous_generation\":1,\"created_at\":1,\"created_by\":\"changed\",\"resources\":[]},\"secrets\":{}}"
    }
   },
   "response": {
@@ -2575,7 +2575,7 @@
     "content-type": "application/json"
    },
    "body": {
-    "text": "{\"expected_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"generation\":{\"schema_version\":1,\"node_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"master_guid\":\"central-guid-2\",\"generation\":3,\"previous_generation\":2,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
+    "text": "{\"expected_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"generation\":{\"schema_version\":1,\"node_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"master_guid\":\"central-guid-2\",\"generation\":3,\"previous_generation\":2,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{}}"
    }
   },
   "response": {
@@ -2636,7 +2636,7 @@
     "content-type": "application/json"
    },
    "body": {
-    "text": "{\"expected_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"generation\":{\"schema_version\":1,\"node_guid\":\"884bdf85-9dc5-4d84-8cc0-c8351c402232\",\"master_guid\":\"central-guid-1\",\"generation\":3,\"previous_generation\":2,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{},\"surprise\":1}"
+    "text": "{\"expected_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"generation\":{\"schema_version\":1,\"node_guid\":\"4bc8bb8a-73f8-4026-98d9-71e48c25c5d0\",\"master_guid\":\"central-guid-1\",\"generation\":3,\"previous_generation\":2,\"created_at\":1,\"created_by\":\"golden\",\"resources\":[]},\"secrets\":{},\"surprise\":1}"
    }
   },
   "response": {
@@ -2738,9 +2738,9 @@
     ]
    ],
    "body": {
-    "text": "{\"applied_generation\":2,\"digest\":\"af106edfbca7b8994b111c4f0b6aa0dd65b724a0cc2aa65a47e30a92602054da\",\"reconcile_state\":\"converged\",\"resources\":[],\"reported_at\":1792961722,\"egress\":{},\"relay\":null}"
+    "text": "{\"applied_generation\":2,\"digest\":\"39b8df037e4f2194180ca8263dd8c8a562be8f36f0541140c104f0a56e21f414\",\"reconcile_state\":\"converged\",\"resources\":[],\"reported_at\":1793005898,\"egress\":{},\"relay\":null}"
    },
-   "sha256": "35197189163467334a8c942d3d41b24e56dead34281f7e9e3826ec260ce76dbd"
+   "sha256": "a191f88c28ad079cfa9ef0ce117468b5e304ea949786d0aaf809c1c1a3010a64"
   }
  },
  {
