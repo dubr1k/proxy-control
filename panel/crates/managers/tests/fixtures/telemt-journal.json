@@ -1,0 +1,96 @@
+{
+ "generator": "panel/crates/managers/tests/fixtures/record_journal.py",
+ "journal": {
+  "current": {
+   "document": {
+    "schema": 1,
+    "upstream": {
+     "provider": "router"
+    }
+   },
+   "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "operation_id": "op-1",
+   "applied_at": 1761400000.25,
+   "upstreams": [
+    {
+     "type": "socks5",
+     "address": "xray-router-ingress:45103",
+     "username": "telemt",
+     "weight": 1,
+     "enabled": true,
+     "note": "ключ"
+    }
+   ]
+  },
+  "previous": null,
+  "direct_upstreams": [
+   {
+    "type": "direct",
+    "weight": 1,
+    "enabled": true,
+    "scopes": "",
+    "ratio": 1e-05
+   }
+  ]
+ },
+ "written_b64": "eyJjdXJyZW50IjogeyJhcHBsaWVkX2F0IjogMTc2MTQwMDAwMC4yNSwgImRpZ2VzdCI6ICJkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkIiwgImRvY3VtZW50IjogeyJzY2hlbWEiOiAxLCAidXBzdHJlYW0iOiB7InByb3ZpZGVyIjogInJvdXRlciJ9fSwgIm9wZXJhdGlvbl9pZCI6ICJvcC0xIiwgInVwc3RyZWFtcyI6IFt7ImFkZHJlc3MiOiAieHJheS1yb3V0ZXItaW5ncmVzczo0NTEwMyIsICJlbmFibGVkIjogdHJ1ZSwgIm5vdGUiOiAiXHUwNDNhXHUwNDNiXHUwNDRlXHUwNDQ3IiwgInR5cGUiOiAic29ja3M1IiwgInVzZXJuYW1lIjogInRlbGVtdCIsICJ3ZWlnaHQiOiAxfV19LCAiZGlyZWN0X3Vwc3RyZWFtcyI6IFt7ImVuYWJsZWQiOiB0cnVlLCAicmF0aW8iOiAxZS0wNSwgInNjb3BlcyI6ICIiLCAidHlwZSI6ICJkaXJlY3QiLCAid2VpZ2h0IjogMX1dLCAicHJldmlvdXMiOiBudWxsfQ==",
+ "mode": 384,
+ "files_after_write": [
+  "telemt-egress.json"
+ ],
+ "read_missing": {
+  "kind": "ok",
+  "value": {
+   "current": null,
+   "previous": null,
+   "direct_upstreams": null
+  }
+ },
+ "read_back": {
+  "kind": "ok",
+  "value": {
+   "current": {
+    "applied_at": 1761400000.25,
+    "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "document": {
+     "schema": 1,
+     "upstream": {
+      "provider": "router"
+     }
+    },
+    "operation_id": "op-1",
+    "upstreams": [
+     {
+      "address": "xray-router-ingress:45103",
+      "enabled": true,
+      "note": "ключ",
+      "type": "socks5",
+      "username": "telemt",
+      "weight": 1
+     }
+    ]
+   },
+   "direct_upstreams": [
+    {
+     "enabled": true,
+     "ratio": 1e-05,
+     "scopes": "",
+     "type": "direct",
+     "weight": 1
+    }
+   ],
+   "previous": null
+  }
+ },
+ "read_corrupt": {
+  "kind": "error",
+  "message": "the Telemt egress journal is unreadable",
+  "code": "manual_intervention_required"
+ },
+ "read_list": {
+  "kind": "ok",
+  "value": [
+   1
+  ]
+ }
+}
