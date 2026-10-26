@@ -1,356 +1,44 @@
+"""Native privileged secret CLI and entrypoint fail-before-staging boundaries."""
 from __future__ import annotations
 
+import json
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from panel import stage_secret
-
-
 ROOT = Path(__file__).resolve().parents[1]
-ENTRYPOINT = ROOT / "panel" / "entrypoint.sh"
-RUNTIME_DIR = "/run/panel"
-TELEMT_TARGET = f"{RUNTIME_DIR}/telemt-api-token"
-NAIVE_TARGET = f"{RUNTIME_DIR}/naive-manager-token"
-MIERU_TARGET = f"{RUNTIME_DIR}/mieru-manager-token"
-MASTER_KEY_TARGET = f"{RUNTIME_DIR}/master-key"
 
 
-def _fake_command(command: str) -> str:
-    return f"""#!/bin/sh
-{{
-  printf '{command}'
-  for argument do
-    printf '\\t%s' "$argument"
-  done
-  printf '\\n'
-}} >> "$COMMAND_LOG"
-"""
+def stage(panel_binary, source, destination):
+    return subprocess.run([str(panel_binary), "stage-secret", "stage", str(source), str(destination)], text=True, capture_output=True, timeout=10)
 
 
-def run_entrypoint(
-    tmp_path: Path,
-    supplementary_groups: str | None,
-    *,
-    python3_exit: int = 0,
-    container_groups: str | None = None,
-    **extra_env: str,
-) -> subprocess.CompletedProcess[str]:
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    if container_groups is not None:
-        # What `id -G` says inside the container: root plus Compose's `group_add`.
-        (bin_dir / "id").write_text(f"#!/bin/sh\nprintf '%s\\n' '{container_groups}'\n")
-        (bin_dir / "id").chmod(0o755)
-    command_log = tmp_path / "commands.log"
-    environment_log = tmp_path / "environment.log"
-    runtime_override = tmp_path / "runtime-override"
-    runtime_override.mkdir()
-    for token_name in ("telemt-api-token", "naive-manager-token", "mieru-manager-token"):
-        (runtime_override / token_name).write_text("sentinel")
-
-    for command in ("install", "rm", "python3", "setpriv"):
-        script = _fake_command(command)
-        if command == "python3":
-            script += 'exit "$FAKE_PYTHON3_EXIT"\n'
-        elif command == "setpriv":
-            script += """printf '%s\n' \
-  "${TELEMT_API_TOKEN_FILE-}" \
-  "${NAIVE_MANAGER_TOKEN_FILE-}" \
-  "${MIERU_MANAGER_TOKEN_FILE-}" \
-  "${PANEL_MASTER_KEY_FILE-}" > "$ENVIRONMENT_LOG"
-"""
-        (bin_dir / command).write_text(script)
-        (bin_dir / command).chmod(0o755)
-
-    env = {
-        "PATH": f"{bin_dir}:/usr/bin:/bin",
-        "COMMAND_LOG": str(command_log),
-        "ENVIRONMENT_LOG": str(environment_log),
-        "FAKE_PYTHON3_EXIT": str(python3_exit),
-        # This attacker-controlled value must have no effect on privileged destinations.
-        "PANEL_RUNTIME_DIR": str(runtime_override),
-        **extra_env,
-    }
-    if supplementary_groups is not None:
-        env["PANEL_SUPPLEMENTARY_GROUPS"] = supplementary_groups
-
-    result = subprocess.run(
-        ["/bin/sh", str(ENTRYPOINT)],
-        cwd=ROOT,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    result.command_log = command_log  # type: ignore[attr-defined]
-    result.environment_log = environment_log  # type: ignore[attr-defined]
-    result.runtime_override = runtime_override  # type: ignore[attr-defined]
-    return result
-
-
-def logged_commands(result: subprocess.CompletedProcess[str]) -> list[list[str]]:
-    command_log: Path = result.command_log  # type: ignore[attr-defined]
-    if not command_log.exists():
-        return []
-    return [line.split("\t") for line in command_log.read_text().splitlines()]
-
-
-@pytest.mark.parametrize("value", [None, ""])
-def test_panel_entrypoint_clears_supplementary_groups_by_default(tmp_path: Path, value: str | None):
-    result = run_entrypoint(tmp_path, value)
-
-    assert result.returncode == 0, result.stderr
-    launch = logged_commands(result)[-1]
-    assert launch[0] == "setpriv"
-    assert "--clear-groups" in launch
-    assert "--init-groups" not in launch
-    assert "--keep-groups" not in launch
-
-
-def test_panel_entrypoint_sets_only_allowlisted_mieru_group(tmp_path: Path):
-    result = run_entrypoint(tmp_path, "10005")
-
-    assert result.returncode == 0, result.stderr
-    launch = logged_commands(result)[-1]
-    assert launch[0] == "setpriv"
-    assert launch[launch.index("--groups") + 1] == "10005"
-    assert "--clear-groups" not in launch
-    assert "--init-groups" not in launch
-    assert "--keep-groups" not in launch
-
-@pytest.mark.parametrize("groups", ["10001", "10001,10005"])
-def test_panel_entrypoint_sets_agent_and_mieru_groups(tmp_path: Path, groups: str):
-    result = run_entrypoint(tmp_path, groups)
-
-    assert result.returncode == 0, result.stderr
-    launch = logged_commands(result)[-1]
-    assert launch[launch.index("--groups") + 1] == groups
-    assert "--clear-groups" not in launch
-    assert "--init-groups" not in launch
-    assert "--keep-groups" not in launch
-
-
-def test_panel_entrypoint_keeps_the_groups_compose_added(tmp_path: Path):
-    """Overlays merge their `group_add` lists but the last one wins the env value: the
-    manager socket groups the container actually has are kept, duplicates once, root never."""
-    result = run_entrypoint(tmp_path, "10001,10005", container_groups="0 10001 10006 10005")
-
-    assert result.returncode == 0, result.stderr
-    launch = logged_commands(result)[-1]
-    assert launch[launch.index("--groups") + 1] == "10001,10006,10005"
-    # A group outside the allowlist that somehow reached the container is dropped, not passed on.
-    (tmp_path / "other").mkdir()
-    result = run_entrypoint(tmp_path / "other", "", container_groups="0 4 10006")
-    assert result.returncode == 0, result.stderr
-    launch = logged_commands(result)[-1]
-    assert launch[launch.index("--groups") + 1] == "10006"
-
-
-def test_panel_entrypoint_ignores_runtime_override_and_uses_fixed_privileged_destinations(
-    tmp_path: Path,
-):
-    mieru_source = tmp_path / "mieru-source"
-    mieru_source.write_text("source")
-    naive_source = tmp_path / "naive-source"
-    naive_source.write_text("source")
-
-    result = run_entrypoint(
-        tmp_path,
-        "10005",
-        MIERU_ENABLED="true",
-        MIERU_MANAGER_TOKEN_SOURCE=str(mieru_source),
-        NAIVE_MANAGER_TOKEN_SOURCE=str(naive_source),
-        TELEMT_API_TOKEN_FILE=str(tmp_path / "attacker-telemt-target"),
-        NAIVE_MANAGER_TOKEN_FILE=str(tmp_path / "attacker-naive-target"),
-        MIERU_MANAGER_TOKEN_FILE=str(tmp_path / "attacker-mieru-target"),
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert (result.runtime_override / "mieru-manager-token").read_text() == "sentinel"  # type: ignore[attr-defined]
-    assert {path.name: path.read_text() for path in result.runtime_override.iterdir()} == {  # type: ignore[attr-defined]
-        "telemt-api-token": "sentinel",
-        "naive-manager-token": "sentinel",
-        "mieru-manager-token": "sentinel",
-    }
-    assert logged_commands(result) == [
-        ["python3", str(ROOT / "panel" / "stage_secret.py"), "verify", str(mieru_source)],
-        ["install", "-d", "-m", "0700", "-o", "panel", "-g", "panel", RUNTIME_DIR],
-        [
-            "install",
-            "-m",
-            "0400",
-            "-o",
-            "panel",
-            "-g",
-            "panel",
-            "/run/secrets/telemt-api-token",
-            TELEMT_TARGET,
-        ],
-        ["install", "-m", "0400", "-o", "panel", "-g", "panel", str(naive_source), NAIVE_TARGET],
-        ["rm", "-f", "--", MIERU_TARGET],
-        [
-            "python3",
-            str(ROOT / "panel" / "stage_secret.py"),
-            "stage",
-            str(mieru_source),
-            MIERU_TARGET,
-        ],
-        [
-            "setpriv",
-            "--reuid=panel",
-            "--regid=panel",
-            "--groups",
-            "10005",
-            "--no-new-privs",
-            "uvicorn",
-            "panel.app:create_app",
-            "--factory",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            "8787",
-            "--proxy-headers",
-            "--forwarded-allow-ips",
-            "172.16.0.0/12",
-            "--no-access-log",
-        ],
-    ]
-    assert result.environment_log.read_text().splitlines() == [  # type: ignore[attr-defined]
-        TELEMT_TARGET,
-        NAIVE_TARGET,
-        MIERU_TARGET,
-        "",  # no master key source in this run, so the panel starts without a secret store
-    ]
-
-
-def test_panel_entrypoint_stages_the_master_key_only_when_the_secret_is_mounted(tmp_path: Path):
-    master_key_source = tmp_path / "panel-master-key"
-    master_key_source.write_text('{"schema": 1}')
-
-    staged = run_entrypoint(tmp_path, None, PANEL_MASTER_KEY_SOURCE=str(master_key_source))
-
-    assert staged.returncode == 0, staged.stderr
-    assert [
-        "install",
-        "-m",
-        "0400",
-        "-o",
-        "panel",
-        "-g",
-        "panel",
-        str(master_key_source),
-        MASTER_KEY_TARGET,
-    ] in logged_commands(staged)
-    assert staged.environment_log.read_text().splitlines()[-1] == MASTER_KEY_TARGET  # type: ignore[attr-defined]
-
-    second = tmp_path / "second"
-    second.mkdir()
-    absent = run_entrypoint(second, None, PANEL_MASTER_KEY_SOURCE=str(tmp_path / "missing"))
-
-    assert absent.returncode == 0, absent.stderr
-    assert not any(MASTER_KEY_TARGET in command for command in logged_commands(absent))
-    assert absent.environment_log.read_text().splitlines()[-1] == ""  # type: ignore[attr-defined]
-
-
-def test_panel_entrypoint_mieru_disabled_does_not_verify_stage_or_remove_token(tmp_path: Path):
-    result = run_entrypoint(
-        tmp_path,
-        None,
-        MIERU_ENABLED="false",
-        MIERU_MANAGER_TOKEN_SOURCE=str(tmp_path / "present-but-invalid"),
-    )
-
-    assert result.returncode == 0, result.stderr
-    commands = logged_commands(result)
-    assert all(command[0] not in {"python3", "rm"} for command in commands)
-
-
-def test_panel_entrypoint_mieru_validation_failure_precedes_all_staging(tmp_path: Path):
-    source = tmp_path / "invalid-source"
-    result = run_entrypoint(
-        tmp_path,
-        "10005",
-        python3_exit=64,
-        MIERU_ENABLED="true",
-        MIERU_MANAGER_TOKEN_SOURCE=str(source),
-    )
-
-    assert result.returncode == 64
-    assert logged_commands(result) == [
-        ["python3", str(ROOT / "panel" / "stage_secret.py"), "verify", str(source)]
-    ]
-
-
-def test_invalid_groups_fail_before_mieru_source_validation(tmp_path: Path):
-    result = run_entrypoint(
-        tmp_path,
-        "10004",
-        python3_exit=64,
-        MIERU_ENABLED="true",
-        MIERU_MANAGER_TOKEN_SOURCE=str(tmp_path / "missing"),
-    )
-
-    assert result.returncode == 64
-    assert "PANEL_SUPPLEMENTARY_GROUPS" in result.stderr
-    assert logged_commands(result) == []
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        "0",
-        "10003",
-        "10005,10005",
-        "10005,10004",
-        "10004",
-        " 10005",
-        "10005 ",
-        "10005,",
-        ",10005",
-        "root",
-        "+10005",
-        "010005",
-    ],
-)
-def test_panel_entrypoint_rejects_non_allowlisted_or_malformed_groups_before_launch(
-    tmp_path: Path, value: str
-):
-    result = run_entrypoint(tmp_path, value)
-
-    assert result.returncode == 64
-    assert "PANEL_SUPPLEMENTARY_GROUPS" in result.stderr
-    assert logged_commands(result) == []
-
-
-def test_stage_secret_stages_real_file_with_private_metadata(tmp_path: Path):
+def test_stage_secret_stages_real_file_with_private_metadata(panel_binary, tmp_path):
+    assert os.geteuid() == 0, "Run numeric ownership integration tests as root on ams-test"
     source = tmp_path / "source"
     destination = tmp_path / "destination"
     source.write_bytes(b"m" * 32)
-    source.chmod(stage_secret.SOURCE_MODE)
-    os.chown(source, stage_secret.SOURCE_UID, stage_secret.SOURCE_GID)
-
-    stage_secret.stage(str(source), str(destination))
-
+    source.chmod(0o440)
+    os.chown(source, 0, 10005)
+    result = stage(panel_binary, source, destination)
+    assert result.returncode == 0, result.stderr
     info = destination.stat()
     assert destination.read_bytes() == b"m" * 32
-    assert (info.st_uid, info.st_gid, info.st_mode & 0o777, info.st_nlink) == (
-        10001,
-        101,
-        0o400,
-        1,
-    )
+    assert (info.st_uid, info.st_gid, info.st_mode & 0o777, info.st_nlink) == (10001, 101, 0o400, 1)
+    destination_before = destination.read_bytes()
+    refused = stage(panel_binary, source, destination)
+    assert refused.returncode != 0
+    assert destination.read_bytes() == destination_before
 
 
-@pytest.mark.parametrize("defect", ["owner", "group", "mode", "short", "large", "hardlink", "symlink"])
-def test_stage_secret_rejects_invalid_source_without_creating_destination(
-    tmp_path: Path, defect: str
-):
+@pytest.mark.parametrize("defect", ["owner", "group", "mode", "short", "large", "hardlink", "symlink", "missing"])
+def test_stage_secret_rejects_invalid_source_without_creating_destination(panel_binary, tmp_path, defect):
+    assert os.geteuid() == 0, "Run numeric ownership integration tests as root on ams-test"
     source = tmp_path / "source"
     source.write_bytes(b"m" * (514 if defect == "large" else 31 if defect == "short" else 32))
-    source.chmod(0o440 if defect != "mode" else 0o600)
+    source.chmod(0o600 if defect == "mode" else 0o440)
     os.chown(source, 10003 if defect == "owner" else 0, 0 if defect == "group" else 10005)
     if defect == "hardlink":
         (tmp_path / "alias").hardlink_to(source)
@@ -358,45 +46,96 @@ def test_stage_secret_rejects_invalid_source_without_creating_destination(
         target = source
         source = tmp_path / "source-link"
         source.symlink_to(target)
+    elif defect == "missing":
+        source.unlink()
     destination = tmp_path / "destination"
-
-    with pytest.raises((OSError, stage_secret.StageError)):
-        stage_secret.stage(str(source), str(destination))
-
+    result = stage(panel_binary, source, destination)
+    assert result.returncode != 0
     assert not destination.exists()
 
 
-@pytest.mark.parametrize("groups", ["10008", "10001,10008", "10001,10005,10006,10007,10008"])
-def test_panel_entrypoint_accepts_the_trusttunnel_manager_group(tmp_path: Path, groups: str):
-    result = run_entrypoint(tmp_path, groups)
-
-    assert result.returncode == 0, result.stderr
-    launch = logged_commands(result)[-1]
-    assert launch[launch.index("--groups") + 1] == groups
-
-
-@pytest.mark.parametrize("groups", ["10009", "10008,10001", "10008,10008", "10001,10009,10008"])
-def test_panel_entrypoint_still_refuses_other_group_lists(tmp_path: Path, groups: str):
-    result = run_entrypoint(tmp_path, groups)
-
+@pytest.mark.parametrize("value", ["0", "10003", "10005,10005", "10005,10004", "10004", " 10005", "10005 ", "10005,", ",10005", "root", "+10005", "010005"])
+def test_panel_entrypoint_rejects_malformed_groups_before_launch(tmp_path, value):
+    # Invalid groups are rejected before even resolving the privileged native binary.
+    result = subprocess.run(["/bin/sh", str(ROOT / "panel/entrypoint.sh")], env={"PATH": "/usr/bin:/bin", "PANEL_SUPPLEMENTARY_GROUPS": value, "PANEL_RUNTIME_DIR": str(tmp_path)}, text=True, capture_output=True, timeout=10)
     assert result.returncode == 64
-    assert "10008" in result.stderr
-    assert logged_commands(result) == []
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_panel_entrypoint_stages_the_trusttunnel_manager_token(tmp_path: Path):
-    source = tmp_path / "trusttunnel-token"
-    source.write_text("sentinel")
-    (tmp_path / "run").mkdir()
-    result = run_entrypoint(tmp_path / "run", None, TRUSTTUNNEL_MANAGER_TOKEN_SOURCE=str(source))
-
+@pytest.mark.parametrize("enabled,groups,master,trust", [
+    (False, "", False, False),
+    (True, "10005", False, False),
+    (True, "10001,10005", True, False),
+    (False, "10008", False, True),
+    (True, "10001,10005,10008", True, True),
+])
+def test_entrypoint_stages_native_secrets_and_drops_privileges_in_private_namespace(
+    panel_binary, tmp_path, enabled, groups, master, trust,
+):
+    assert os.geteuid() == 0, "Run entrypoint namespaces as root on ams-test"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # Only installation/user lookup and the final daemon launch are harnessed.
+    # Secret verification/copy executes the unmodified real Rust panel.
+    install = bin_dir / "install"
+    install.write_text(
+        "#!/usr/bin/python3\nimport os,sys\n"
+        "args=sys.argv[1:]\n"
+        "for i in range(1,len(args)):\n"
+        " if args[i]=='panel' and args[i-1] in ('-o','-g'): args[i]='10001' if args[i-1]=='-o' else '101'\n"
+        "os.execv('/usr/bin/install',['install',*args])\n"
+    )
+    launch = bin_dir / "setpriv"
+    launch.write_text(
+        "#!/usr/bin/python3\nimport json,os,pathlib,sys\n"
+        "paths={name:os.environ.get(name) for name in ('TELEMT_API_TOKEN_FILE','MIERU_MANAGER_TOKEN_FILE','PANEL_MASTER_KEY_FILE','TRUSTTUNNEL_MANAGER_TOKEN_FILE')}\n"
+        "metadata={name:[pathlib.Path(path).read_text(),pathlib.Path(path).stat().st_uid,pathlib.Path(path).stat().st_gid,pathlib.Path(path).stat().st_mode&511] for name,path in paths.items() if path}\n"
+        "pathlib.Path(os.environ['LAUNCH_LOG']).write_text(json.dumps({'args':sys.argv[1:],'paths':paths,'metadata':metadata}))\n"
+    )
+    install.chmod(0o755)
+    launch.chmod(0o755)
+    sources = {}
+    for name in ("telemt", "mieru", "master", "trust"):
+        path = tmp_path / name
+        path.write_text("m" * 32)
+        path.chmod(0o440)
+        os.chown(path, 0, 10005)
+        sources[name] = path
+    # Prove the disabled manager is not validated at all.
+    if not enabled:
+        sources["mieru"].chmod(0o600)
+    override = tmp_path / "attacker-runtime"
+    override.mkdir()
+    sentinel = override / "mieru-manager-token"
+    sentinel.write_text("untouched")
+    log = tmp_path / "launch.json"
+    env = {
+        "PATH": f"{bin_dir}:/usr/bin:/bin", "LAUNCH_LOG": str(log),
+        "PANEL_SUPPLEMENTARY_GROUPS": groups, "MIERU_ENABLED": str(enabled).lower(),
+        "TELEMT_API_TOKEN_SOURCE": str(sources["telemt"]),
+        "MIERU_MANAGER_TOKEN_SOURCE": str(sources["mieru"]),
+        "PANEL_MASTER_KEY_SOURCE": str(sources["master"] if master else tmp_path / "absent-master"),
+        "TRUSTTUNNEL_MANAGER_TOKEN_SOURCE": str(sources["trust"] if trust else tmp_path / "absent-trust"),
+        "PANEL_RUNTIME_DIR": str(override),
+    }
+    result = subprocess.run(
+        ["unshare", "--mount", "--propagation", "private", "/bin/sh", "-eu", "-c",
+         'mount -t tmpfs none /run; mount -t tmpfs none /usr/local/bin; cp "$1" /usr/local/bin/panel; exec /bin/sh "$2"',
+         "entrypoint-test", str(panel_binary), str(ROOT / "panel/entrypoint.sh")],
+        env=env, text=True, capture_output=True, timeout=20,
+    )
     assert result.returncode == 0, result.stderr
-    installs = [line for line in logged_commands(result) if line[0] == "install"]
-    assert any(line[-2:] == [str(source), f"{RUNTIME_DIR}/trusttunnel-manager-token"] for line in installs)
-
-
-def test_panel_entrypoint_skips_the_trusttunnel_token_without_its_overlay(tmp_path: Path):
-    result = run_entrypoint(tmp_path, None, TRUSTTUNNEL_MANAGER_TOKEN_SOURCE=str(tmp_path / "absent"))
-
-    assert result.returncode == 0, result.stderr
-    assert all("trusttunnel" not in " ".join(line) for line in logged_commands(result))
+    recorded = json.loads(log.read_text())
+    assert recorded["args"][-1] == "/usr/local/bin/panel"
+    assert "--no-new-privs" in recorded["args"]
+    if groups:
+        assert recorded["args"][recorded["args"].index("--groups") + 1] == groups
+    else:
+        assert "--clear-groups" in recorded["args"]
+    for name, present in (("MIERU_MANAGER_TOKEN_FILE", enabled), ("PANEL_MASTER_KEY_FILE", master),
+                          ("TRUSTTUNNEL_MANAGER_TOKEN_FILE", trust)):
+        assert (recorded["paths"][name] is not None) == present
+    for name, values in recorded["metadata"].items():
+        assert recorded["paths"][name].startswith("/run/panel/")
+        assert values == ["m" * 32, 10001, 101, 0o400]
+    assert sentinel.read_text() == "untouched"

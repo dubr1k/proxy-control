@@ -1383,4 +1383,92 @@ mod tests {
             ("FirewallError", "UFW could not be disabled")
         );
     }
+
+    #[test]
+    fn authoritative_ipv6_drift_refuses_every_mutating_lifecycle_phase() {
+        for phase in ["apply", "repair", "rollback", "reconcile_apply", "reconcile_rollback"] {
+            let dir = TempDir::new("firewall-ipv6-drift");
+            let (runner, state) = ufw_runner(&["22/tcp ALLOW IN Anywhere # operator:ssh"]);
+            let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
+            let adapter = FirewallAdapter::new(&context);
+            let action = adapter.plan(&config(), &facts()).unwrap().remove(0);
+            let prepared = adapter.prepare(&action).unwrap();
+            let checkpoint = if phase == "apply" || phase == "reconcile_apply" { prepared } else {
+                adapter.apply(&action, prepared).unwrap()
+            };
+            let before = state.lock().unwrap().rules.clone();
+            state.lock().unwrap().ipv6 = true;
+            let result = match phase {
+                "apply" => adapter.apply(&action, checkpoint).map(|_| ()),
+                "repair" => adapter.repair(&action, checkpoint).map(|_| ()),
+                "reconcile_apply" => adapter.reconcile_apply(&action, checkpoint).map(|_| ()),
+                "reconcile_rollback" => adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).map(|_| ()),
+                _ => adapter.rollback(&action, checkpoint, false, RollbackTarget::RolledBack).map(|_| ()),
+            };
+            assert!(result.is_err(), "{phase}");
+            assert_eq!(state.lock().unwrap().rules, before);
+        }
+    }
+
+    #[test]
+    fn interrupted_firewall_mutation_is_reconciled_without_claiming_operator_rules() {
+        for resume_apply in [true, false] {
+            let dir = TempDir::new("firewall-interrupted");
+            let (runner, state) = ufw_runner(&[
+                "22/tcp ALLOW IN Anywhere # operator:ssh", "80/tcp ALLOW IN Anywhere # operator:http",
+            ]);
+            let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
+            let adapter = FirewallAdapter::new(&context);
+            let action = adapter.plan(&config(), &facts()).unwrap().remove(0);
+            let prepared = adapter.prepare(&action).unwrap();
+            adapter.apply(&action, prepared.clone()).unwrap();
+            let checkpoint = if resume_apply { adapter.reconcile_apply(&action, prepared).unwrap() } else { prepared };
+            assert!(adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap().success);
+            assert_eq!(state.lock().unwrap().rules, [
+                "22/tcp ALLOW IN Anywhere # operator:ssh", "80/tcp ALLOW IN Anywhere # operator:http",
+            ]);
+        }
+    }
+
+    #[test]
+    fn ipv6_rule_does_not_cover_ipv4_and_repair_restores_only_missing_owned_family() {
+        let dir = TempDir::new("firewall-families");
+        let (runner, state) = ufw_runner(&[
+            "22/tcp ALLOW IN Anywhere # operator:ssh", "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
+            "80/tcp (v6) ALLOW IN Anywhere (v6) # operator:http",
+        ]);
+        state.lock().unwrap().ipv6 = true;
+        let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner };
+        let adapter = FirewallAdapter::new(&context);
+        let mut observed = facts();
+        observed.ownership.get_mut("ufw").unwrap()["ipv6_enabled"] = json!(true);
+        let action = adapter.plan(&config(), &observed).unwrap().remove(0);
+        let applied = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+        assert!(state.lock().unwrap().rules.iter().any(|r| r.starts_with("80/tcp ALLOW")));
+        state.lock().unwrap().rules.retain(|r| !r.starts_with("443/tcp (v6)"));
+        let repaired = adapter.repair(&action, applied).unwrap();
+        assert!(state.lock().unwrap().rules.iter().any(|r| r.starts_with("443/tcp (v6)")));
+        assert!(adapter.rollback(&action, repaired, false, RollbackTarget::Uninstalled).unwrap().success);
+        assert_eq!(state.lock().unwrap().rules, [
+            "22/tcp ALLOW IN Anywhere # operator:ssh", "22/tcp (v6) ALLOW IN Anywhere (v6) # operator:ssh",
+            "80/tcp (v6) ALLOW IN Anywhere (v6) # operator:http",
+        ]);
+    }
+
+    #[test]
+    fn unknown_ipv6_mode_or_unproven_ssh_preservation_refuses_planning() {
+        let dir = TempDir::new("firewall-unproven");
+        let (runner, _) = ufw_runner(&["22/tcp ALLOW IN Anywhere # operator:ssh"]);
+        let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner };
+        let adapter = FirewallAdapter::new(&context);
+        let mut unknown = facts();
+        unknown.ownership.get_mut("ufw").unwrap().as_object_mut().unwrap().remove("ipv6_enabled");
+        assert!(adapter.plan(&config(), &unknown).is_err());
+        let mut absent = facts();
+        absent.listeners = json!({"tcp": [], "owners": {}, "ssh_socket_tcp": []}).as_object().unwrap().clone();
+        assert!(adapter.plan(&config(), &absent).is_err());
+        let mut ambiguous = facts();
+        ambiguous.listeners = json!({"tcp": [22, 2222], "owners": {"22": ["sshd"], "2222": ["sshd"]}, "ssh_socket_tcp": []}).as_object().unwrap().clone();
+        assert!(adapter.plan(&config(), &ambiguous).is_err());
+    }
 }

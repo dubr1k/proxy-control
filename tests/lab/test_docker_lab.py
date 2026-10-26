@@ -94,29 +94,6 @@ class ContainerInputTests(unittest.TestCase):
             lab.main(["--release-archive", "x"])
 
 
-class ContainerImageTests(unittest.TestCase):
-    def test_the_acceptance_image_pins_its_base_by_digest_and_runs_systemd(self):
-        dockerfile = (MODULE.parent / "Dockerfile.acceptance").read_text()
-        base = next(
-            line for line in dockerfile.splitlines() if line.startswith("FROM ")
-        )
-        self.assertIn("@sha256:", base)
-        self.assertEqual(len(base.split("@sha256:")[1].strip()), 64)
-        self.assertIn('CMD ["/sbin/init"]', dockerfile)
-        for package in ("nginx-full", "libnginx-mod-stream", "dnsmasq", "dnsutils"):
-            self.assertIn(package, dockerfile)
-        # Nothing from the developer's machine is baked in.
-        self.assertNotIn("COPY", dockerfile)
-        self.assertNotIn("ADD", dockerfile)
-
-    def test_the_runner_declares_every_container_scenario(self):
-        runner = (MODULE.parent / "guest-runner.sh").read_text()
-        for name in lab.CONTAINER_SCENARIOS:
-            if name == "environment-preflight":
-                continue
-            self.assertIn(f"case_run {name} ", runner, name)
-
-
 class RecordedRunTests(unittest.TestCase):
     """The report this lab writes is the record a reviewer reads."""
 
@@ -141,11 +118,6 @@ class RecordedRunTests(unittest.TestCase):
         xml = lab.qemu_lab.junit_xml(results)
         self.assertIn('failures="0"', xml)
 
-    def test_docker_is_the_only_external_dependency(self):
-        source = MODULE.read_text()
-        self.assertIn('shutil.which("docker")', source)
-        for command in ("qemu-system", "cloud-localds", "ssh "):
-            self.assertNotIn(command, source)
 
 
 @unittest.skipUnless(

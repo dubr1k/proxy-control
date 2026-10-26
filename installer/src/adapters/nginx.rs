@@ -1576,3 +1576,7 @@ mod tests {
 #[cfg(test)]
 #[path = "nginx_smoke.rs"]
 mod smoke;
+
+#[cfg(test)]
+#[path = "nginx_regressions.rs"]
+mod regressions;

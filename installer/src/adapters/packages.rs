@@ -557,4 +557,66 @@ mod tests {
         adapter.rollback(&action, applied, true, RollbackTarget::Uninstalled).unwrap();
         assert!(runner.argvs().iter().any(|argv| argv.starts_with(&["apt-get".into(), "purge".into()])));
     }
+
+    #[test]
+    fn interrupted_apply_and_rollback_claim_only_packages_absent_before_prepare() {
+        for resume_apply in [false, true] {
+            let dir = TempDir::new("packages-interrupted");
+            let (runner, state) = apt_runner(BTreeMap::from([("curl".into(), "8.0".into())]));
+            let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
+            let adapter = PackagesAdapter::with_packages(&context, &["curl", "nginx-full"]);
+            let action = adapter.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+            let prepared = adapter.prepare(&action).unwrap();
+            adapter.apply(&action, prepared.clone()).unwrap();
+            let checkpoint = if resume_apply {
+                let applied = adapter.reconcile_apply(&action, prepared).unwrap();
+                assert_eq!(applied["installer_added"], json!({"nginx-full": "1.0"}));
+                assert_eq!(runner.argvs().iter().filter(|a| a.starts_with(&["apt-get".into(), "install".into()])).count(), 1);
+                applied
+            } else {
+                prepared
+            };
+            assert!(adapter.reconcile_rollback(&action, checkpoint, false, RollbackTarget::RolledBack).unwrap().success);
+            assert_eq!(*state.lock().unwrap(), BTreeMap::from([("curl".into(), "8.0".into())]));
+        }
+    }
+
+    #[test]
+    fn package_version_drift_blocks_repair_and_rollback_without_removal() {
+        for drifted in ["curl", "nginx-full"] {
+            let dir = TempDir::new("packages-drift");
+            let (runner, state) = apt_runner(BTreeMap::from([("curl".into(), "8.0".into())]));
+            let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
+            let adapter = PackagesAdapter::with_packages(&context, &["curl", "nginx-full"]);
+            let action = adapter.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+            let applied = adapter.apply(&action, adapter.prepare(&action).unwrap()).unwrap();
+            state.lock().unwrap().insert(drifted.into(), "operator-upgrade".into());
+            let before = state.lock().unwrap().clone();
+            assert!(adapter.repair(&action, applied.clone()).is_err());
+            assert!(adapter.rollback(&action, applied, false, RollbackTarget::RolledBack).is_err());
+            assert_eq!(*state.lock().unwrap(), before);
+            assert!(!runner.argvs().iter().any(|a| a.starts_with(&["apt-get".into(), "remove".into()])));
+        }
+    }
+
+    #[test]
+    fn malformed_package_status_and_unbound_checkpoints_fail_before_mutation() {
+        let dir = TempDir::new("packages-invalid");
+        let runner = Arc::new(RecordingRunner::new());
+        let context = AdapterContext { root: dir.path().into(), tree: dir.path().into(), runner: runner.clone() };
+        let adapter = PackagesAdapter::with_packages(&context, &["curl"]);
+        for status in ["curl\tii \t\n", "other\tii \t1\n", "curl\tii \t1\ncurl\tii \t1\n", "curl\tzz \t1\n"] {
+            runner.reply_once(&["dpkg-query"], Reply::ok(status));
+            assert!(adapter.status("curl").is_err(), "{status:?}");
+        }
+        let action = adapter.plan(&config(), &AuditFacts::default()).unwrap().remove(0);
+        for invalid in [
+            json!({"preexisting": {}, "installer_added": {"foreign": "1"}, "owner": OWNER, "ownership": {}}),
+            json!({"preexisting": {"curl": "1"}, "installer_added": {"curl": "1"}, "owner": OWNER, "ownership": {}}),
+            json!({"preexisting": [], "installer_added": {}, "owner": OWNER, "ownership": {}}),
+        ] {
+            assert!(adapter.apply(&action, invalid.as_object().unwrap().clone()).is_err());
+        }
+        assert!(!runner.argvs().iter().any(|a| a.first().is_some_and(|s| s == "apt-get")));
+    }
 }
