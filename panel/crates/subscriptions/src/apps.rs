@@ -250,7 +250,8 @@ pub fn apps_for(protocols: &[String]) -> Vec<AppEntry> {
             entries.push(entry);
         }
     }
-    entries.sort_by_key(|entry| (std::cmp::Reverse(entry.works.len()), entry.no.len() + entry.pending.len(), entry.order));
+    entries
+        .sort_by_key(|entry| (std::cmp::Reverse(entry.works.len()), entry.no.len() + entry.pending.len(), entry.order));
     entries
 }
 

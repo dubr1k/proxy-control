@@ -86,8 +86,33 @@ pub fn link_of<'a>(grant: &ManifestGrant, artifacts: &'a Artifacts) -> Result<&'
 
 /// `urllib.parse.uses_netloc`.
 const USES_NETLOC: [&str; 27] = [
-    "", "ftp", "http", "gopher", "nntp", "telnet", "imap", "wais", "file", "mms", "https", "shttp", "snews", "prospero",
-    "rtsp", "rtsps", "rtspu", "rsync", "svn", "svn+ssh", "sftp", "nfs", "git", "git+ssh", "ws", "wss", "itms-services",
+    "",
+    "ftp",
+    "http",
+    "gopher",
+    "nntp",
+    "telnet",
+    "imap",
+    "wais",
+    "file",
+    "mms",
+    "https",
+    "shttp",
+    "snews",
+    "prospero",
+    "rtsp",
+    "rtsps",
+    "rtspu",
+    "rsync",
+    "svn",
+    "svn+ssh",
+    "sftp",
+    "nfs",
+    "git",
+    "git+ssh",
+    "ws",
+    "wss",
+    "itms-services",
 ];
 
 /// `urllib.parse.urlunsplit` (Python 3.13).
@@ -98,9 +123,9 @@ pub fn urlunsplit(scheme: &str, netloc: &str, path: &str, query: &str, fragment:
             url = format!("/{url}");
         }
         url = format!("//{netloc}{url}");
-    } else if url.starts_with("//") {
-        url = format!("//{url}");
-    } else if !scheme.is_empty() && USES_NETLOC.contains(&scheme) && (url.is_empty() || url.starts_with('/')) {
+    } else if url.starts_with("//")
+        || (!scheme.is_empty() && USES_NETLOC.contains(&scheme) && (url.is_empty() || url.starts_with('/')))
+    {
         url = format!("//{url}");
     }
     if !scheme.is_empty() {
@@ -158,7 +183,8 @@ pub fn trusttunnel_fields(link: &str) -> Result<DeepLink, RenderError> {
 /// feed's display name.
 pub fn trusttunnel_share_url(link: &str, name: &str) -> Result<String, RenderError> {
     let fields = trusttunnel_fields(link)?;
-    let (Some(hostname), Some(username), Some(password)) = (&fields.hostname, &fields.username, &fields.password) else {
+    let (Some(hostname), Some(username), Some(password)) = (&fields.hostname, &fields.username, &fields.password)
+    else {
         return Err(not_renderable("trusttunnel"));
     };
     let spec = DeepLinkSpec {

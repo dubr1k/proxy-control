@@ -319,7 +319,11 @@ fn grant_section(
         }
         parts.push(format!("<h3>{}</h3>", escape(page.label(artifact))));
         if artifact.media_type == "text/uri-list" && is_deep_link(&value) {
-            parts.push(format!("<a class=\"btn primary\" href=\"{}\">{}</a>", escape(&value), page.t("Открыть", "Open")));
+            parts.push(format!(
+                "<a class=\"btn primary\" href=\"{}\">{}</a>",
+                escape(&value),
+                page.t("Открыть", "Open")
+            ));
         }
         let extra = if artifact.media_type == "text/uri-list" { page.qr(&value)? } else { String::new() };
         let label = page.t("Копировать ссылку", "Copy the link").to_string();
@@ -348,7 +352,11 @@ fn gets(page: &Page, entry: &AppEntry) -> String {
     }
     if !entry.no.is_empty() || !entry.pending.is_empty() {
         let missing: Vec<String> = entry.no.iter().chain(&entry.pending).cloned().collect();
-        lines.push(format!("{}: {}.", page.t("Не работает в этом приложении", "Not available in this app"), names(&missing)));
+        lines.push(format!(
+            "{}: {}.",
+            page.t("Не работает в этом приложении", "Not available in this app"),
+            names(&missing)
+        ));
     }
     lines.iter().map(|line| format!("<p class=\"muted small\">{}</p>", escape(line))).collect()
 }

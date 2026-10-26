@@ -1,0 +1,62 @@
+{
+  "outbounds": [
+    {
+      "type": "trusttunnel",
+      "tag": "TT · TrustTunnel [afbcdb56]",
+      "server": "gate.example.com",
+      "server_port": 443,
+      "username": "trusted",
+      "password": "tt-pass-CANARY-01",
+      "quic": false,
+      "tls": {
+        "enabled": true,
+        "server_name": "gate.example.com"
+      }
+    },
+    {
+      "type": "trusttunnel",
+      "tag": "Phone",
+      "server": "gate.example.com",
+      "server_port": 443,
+      "username": "selfsigned",
+      "password": "tt-pass-CANARY-01",
+      "quic": false,
+      "tls": {
+        "enabled": true,
+        "server_name": "gate.example.com",
+        "insecure": true
+      }
+    }
+  ],
+  "proxy_control": {
+    "generation": 3,
+    "client": "hiddify",
+    "unsupported": [
+      {
+        "protocol": "mtproxy",
+        "runtime_username": "alice",
+        "reason": "no MTProto import path"
+      },
+      {
+        "protocol": "naive",
+        "runtime_username": "bob",
+        "reason": "sing-box based, but the shipped core version and naive build variant are unverified"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "carol",
+        "reason": "sing-box based; the official core has no mieru outbound"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "dave",
+        "reason": "no stored credential"
+      },
+      {
+        "protocol": "mieru",
+        "runtime_username": "frank",
+        "reason": "sing-box based; the official core has no mieru outbound"
+      }
+    ]
+  }
+}

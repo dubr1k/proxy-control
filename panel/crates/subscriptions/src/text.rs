@@ -49,7 +49,9 @@ pub fn is_deep_link(text: &str) -> bool {
         return false;
     }
     let mut index = 1;
-    while index < folded.len() && (folded[index].is_ascii_lowercase() || folded[index].is_ascii_digit() || "+.-".contains(folded[index])) {
+    while index < folded.len()
+        && (folded[index].is_ascii_lowercase() || folded[index].is_ascii_digit() || "+.-".contains(folded[index]))
+    {
         index += 1;
     }
     if chars.get(index..index + 3) != Some(&[':', '/', '/'][..]) {
@@ -86,7 +88,10 @@ mod tests {
 
     #[test]
     fn escape_matches_html_escape() {
-        assert_eq!(escape("Sergey <b>&</b> O'Brien \"x\""), "Sergey &lt;b&gt;&amp;&lt;/b&gt; O&#x27;Brien &quot;x&quot;");
+        assert_eq!(
+            escape("Sergey <b>&</b> O'Brien \"x\""),
+            "Sergey &lt;b&gt;&amp;&lt;/b&gt; O&#x27;Brien &quot;x&quot;"
+        );
     }
 
     #[test]

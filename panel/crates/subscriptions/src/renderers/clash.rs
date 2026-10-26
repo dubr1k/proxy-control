@@ -88,7 +88,8 @@ fn trusttunnel_proxy(grant: &ManifestGrant, link: &str, label: &str) -> Result<P
     // `address.rpartition(":")[2]`: the whole text when there is no colon.
     let port = address.rsplit_once(':').map_or(address.as_str(), |(_, port)| port);
     let port = pytext::int_from_str(port).map_err(|_| refused())?;
-    let (Some(hostname), Some(username), Some(password)) = (&fields.hostname, &fields.username, &fields.password) else {
+    let (Some(hostname), Some(username), Some(password)) = (&fields.hostname, &fields.username, &fields.password)
+    else {
         return Err(refused());
     };
     let mut pairs: Pairs = vec![
@@ -128,9 +129,8 @@ pub fn render(manifest: &Manifest, artifacts: &Artifacts, max_bytes: usize) -> R
         }
         let reason = credential_reason(grant, artifacts);
         if reason.is_none() && grant.protocol == "mieru" {
-            let share = parse_share_url(link_of(grant, artifacts)?).map_err(|_| {
-                RenderError(format!("mieru {}: share link is not renderable", grant.runtime_username))
-            })?;
+            let share = parse_share_url(link_of(grant, artifacts)?)
+                .map_err(|_| RenderError(format!("mieru {}: share link is not renderable", grant.runtime_username)))?;
             all.extend(proxies(&share, &names[&grant.grant_id]));
             continue;
         }

@@ -25,8 +25,7 @@ pub fn protocol_title(protocol: &str) -> &str {
 /// turned into `’` (U+2019), the first 64 code points, stripped.
 pub fn display_text(value: &str) -> String {
     let normalized = pytext::nfc(value);
-    let printable: String =
-        normalized.chars().map(|ch| if pytext::is_printable_char(ch) { ch } else { ' ' }).collect();
+    let printable: String = normalized.chars().map(|ch| if pytext::is_printable_char(ch) { ch } else { ' ' }).collect();
     let folded = pytext::collapse_whitespace(&printable).replace('\'', "\u{2019}");
     pytext::strip(pytext::truncate(&folded, 64)).to_string()
 }

@@ -48,7 +48,8 @@ fn trusttunnel_outbound(grant: &ManifestGrant, link: &str, name: &str) -> Result
     let refused = || RenderError(format!("trusttunnel {}: link is not renderable", grant.runtime_username));
     let address = fields.addresses.first().ok_or_else(refused)?;
     let port = address.rsplit_once(':').map_or(address.as_str(), |(_, port)| port);
-    let (Some(hostname), Some(username), Some(password)) = (&fields.hostname, &fields.username, &fields.password) else {
+    let (Some(hostname), Some(username), Some(password)) = (&fields.hostname, &fields.username, &fields.password)
+    else {
         return Err(refused());
     };
     let mut tls = Map::new();
@@ -89,12 +90,12 @@ fn place(
         }
         return Ok((vec![trusttunnel_outbound(grant, link_of(grant, artifacts)?, name)?], None));
     }
-    let matrix_client = if client == "fork" || (client == "nekobox" && matches!(grant.protocol.as_str(), "naive" | "mieru"))
-    {
-        "karing"
-    } else {
-        client
-    };
+    let matrix_client =
+        if client == "fork" || (client == "nekobox" && matches!(grant.protocol.as_str(), "naive" | "mieru")) {
+            "karing"
+        } else {
+            client
+        };
     if compatibility::status(&grant.protocol, matrix_client) != Some("supported") {
         // The matrix is the source: what this client cannot load is named, not shipped.
         let reason = compatibility::note(&grant.protocol, matrix_client)
@@ -117,7 +118,12 @@ fn place(
     }
 }
 
-pub fn render(manifest: &Manifest, artifacts: &Artifacts, client: &str, max_bytes: usize) -> Result<Vec<u8>, RenderError> {
+pub fn render(
+    manifest: &Manifest,
+    artifacts: &Artifacts,
+    client: &str,
+    max_bytes: usize,
+) -> Result<Vec<u8>, RenderError> {
     if !CLIENTS.contains(&client) {
         return Err(RenderError(format!("unknown sing-box client: {client}")));
     }

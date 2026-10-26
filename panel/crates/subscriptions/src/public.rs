@@ -35,8 +35,13 @@ pub fn format_clients(name: &str) -> &'static [&'static str] {
 
 /// `FORK_AGENTS`: User-Agent tokens of the sing-box fork clients whose core has a TrustTunnel
 /// outbound; the first match names the cut.
-const FORK_AGENTS: [(&str, &str); 5] =
-    [("hiddify", "hiddify"), ("nyamebox", "nekobox"), ("nekobox", "nekobox"), ("nekoray", "nekobox"), ("throne", "throne")];
+const FORK_AGENTS: [(&str, &str); 5] = [
+    ("hiddify", "hiddify"),
+    ("nyamebox", "nekobox"),
+    ("nekobox", "nekobox"),
+    ("nekoray", "nekobox"),
+    ("throne", "throne"),
+];
 
 /// `fork_client(user_agent, extra)`: the renderer client a fork-core User-Agent asks for; the
 /// owner's extra tokens (`PANEL_SINGBOX_FORK_CLIENTS`, comma-separated) give `fork`.

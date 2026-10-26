@@ -33,7 +33,13 @@ pub fn routes() -> Routes {
 }
 
 /// A response with these headers, in this order (`content-length` and `content-type` last).
-fn answer(status: u16, headers: &[(&'static str, String)], body: Vec<u8>, length: Option<usize>, media_type: Option<&str>) -> Response {
+fn answer(
+    status: u16,
+    headers: &[(&'static str, String)],
+    body: Vec<u8>,
+    length: Option<usize>,
+    media_type: Option<&str>,
+) -> Response {
     let mut response = Response::new(Body::from(body));
     *response.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let target = response.headers_mut();
@@ -138,7 +144,8 @@ async fn subscription(State(app): State<AppState>, call: Call) -> Handled {
         } else {
             subscriptions.public_url(call.param("token"))
         };
-        options = RenderOptions { url, lang: lang.into(), updated_at: Some(found.updated_at), ..RenderOptions::default() };
+        options =
+            RenderOptions { url, lang: lang.into(), updated_at: Some(found.updated_at), ..RenderOptions::default() };
         variant = format!("{lang}:{}", found.updated_at);
     }
     let etag = SubscriptionService::etag(&manifest, format.version(), &variant).map_err(Failure::internal)?;
@@ -174,4 +181,3 @@ async fn subscription(State(app): State<AppState>, call: Call) -> Handled {
     let length = body.len();
     Ok(answer(200, &headers, body, Some(length), Some(format.media_type())))
 }
-

@@ -80,18 +80,18 @@ pub fn by_hash(db: &Conn, token_hash: &str) -> Result<Option<Subscription>, DbEr
 
 /// `revoke(db, client_id, now=…)`: how many rows went from active to revoked.
 pub fn revoke(db: &Conn, client_id: &str, now: i64) -> Result<usize, DbError> {
-    Ok(db.execute(
+    db.execute(
         "UPDATE client_subscriptions SET state='revoked',revoked_at=?,updated_at=? WHERE client_id=? AND state='active'",
         params![now, now, client_id],
-    )?)
+    )
 }
 
 /// `bump(db, client_id, now=…)`: how many live rows moved one generation on.
 pub fn bump(db: &Conn, client_id: &str, now: i64) -> Result<usize, DbError> {
-    Ok(db.execute(
+    db.execute(
         "UPDATE client_subscriptions SET generation=generation+1,updated_at=? WHERE client_id=? AND state='active'",
         params![now, client_id],
-    )?)
+    )
 }
 
 /// `record_fetch(db, subscription_id, now)`.

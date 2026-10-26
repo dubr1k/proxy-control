@@ -125,7 +125,14 @@ impl SubscriptionService {
         Ok(())
     }
 
-    fn record(db: &Conn, context: &AuditContext, action: &str, target: &str, generation: Option<i64>, detail: Value) -> Result<(), ClientsError> {
+    fn record(
+        db: &Conn,
+        context: &AuditContext,
+        action: &str,
+        target: &str,
+        generation: Option<i64>,
+        detail: Value,
+    ) -> Result<(), ClientsError> {
         let mut row: Record = context.row(action, target).detail(object(detail));
         row.generation = generation;
         audit::record(db, &row)?;
@@ -274,7 +281,11 @@ impl SubscriptionService {
     }
 
     /// `reveal_token(client_id, …)`: the escrowed token for an operator — audited, never logged.
-    pub fn reveal_token(&self, client_id: &str, context: &AuditContext) -> Result<(Subscription, String), ClientsError> {
+    pub fn reveal_token(
+        &self,
+        client_id: &str,
+        context: &AuditContext,
+    ) -> Result<(Subscription, String), ClientsError> {
         self.database.transaction(|db| {
             clients_store::client(db, client_id)?;
             let Some(current) = store::active(db, client_id)? else {
@@ -337,7 +348,13 @@ impl SubscriptionService {
 
     /// `record_fetch(subscription, now, status=…, format=…)`: the last-fetched mark and the event,
     /// in one transaction.
-    pub fn record_fetch(&self, subscription: &Subscription, now: i64, status: u16, format: &str) -> Result<(), ClientsError> {
+    pub fn record_fetch(
+        &self,
+        subscription: &Subscription,
+        now: i64,
+        status: u16,
+        format: &str,
+    ) -> Result<(), ClientsError> {
         self.database.transaction(|db| {
             store::record_fetch(db, &subscription.id, now)?;
             self.emit(
@@ -361,13 +378,13 @@ impl SubscriptionService {
         self.database.with_connection(|db| {
             let client = clients_store::client(db, &subscription.client_id)?;
             let grants = clients_store::client_grants(db, &subscription.client_id)?;
-            let generation =
-                store::active(db, &subscription.client_id)?.map_or(subscription.generation, |current| current.generation);
+            let generation = store::active(db, &subscription.client_id)?
+                .map_or(subscription.generation, |current| current.generation);
             let mut node_names = std::collections::HashMap::new();
             {
                 let mut statement = db.prepare("SELECT node_id, display_name FROM fleet_nodes")?;
-                let rows = statement
-                    .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)))?;
+                let rows =
+                    statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)))?;
                 for row in rows {
                     let (node_id, name) = row?;
                     node_names.insert(node_id, name.unwrap_or_default());

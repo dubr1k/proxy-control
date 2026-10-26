@@ -19,3 +19,6 @@ panel-protocols = { path = "../protocols" }
 panel-secrets = { path = "../secrets" }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 sha2 = "0.10"
+
+[dev-dependencies]
+panel-managers = { path = "../managers" }

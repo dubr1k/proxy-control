@@ -12,9 +12,7 @@ pub mod singbox;
 
 use panel_model::subscriptions::Manifest;
 
-pub use base::{
-    resolve_artifacts, Artifacts, RenderError, MAX_BYTES, MAX_GRANTS, MEDIA_TYPE_MANIFEST, NO_CREDENTIAL,
-};
+pub use base::{resolve_artifacts, Artifacts, RenderError, MAX_BYTES, MAX_GRANTS, MEDIA_TYPE_MANIFEST, NO_CREDENTIAL};
 
 /// One renderer of `RENDERERS`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

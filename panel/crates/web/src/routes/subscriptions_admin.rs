@@ -100,7 +100,7 @@ async fn events(State(app): State<AppState>, call: Call) -> Handled {
     let mut issues = Issues::new();
     let after = issues.query_int(&call, "after", Int::lax(Some(0), None), Some(0));
     let limit =
-        issues.query_int(&call, "limit", Int::lax(Some(1), Some(panel_secrets::events::MAX_PAGE)), Some(100));
+        issues.query_int(&call, "limit", Int::lax(Some(1), Some(panel_secrets::events::MAX_PAGE.into())), Some(100));
     issues.finish()?;
     let after = after.flatten().unwrap_or(0);
     let limit = limit.flatten().unwrap_or(100);
@@ -151,7 +151,8 @@ async fn rotate(State(app): State<AppState>, call: Call) -> Handled {
 
 async fn reveal(State(app): State<AppState>, call: Call) -> Handled {
     let user = app.roles(&call, OWNER_ADMIN).await?;
-    let (service, client_id, context) = (service(&app), call.param("client_id").to_string(), audit_context(&user, &call));
+    let (service, client_id, context) =
+        (service(&app), call.param("client_id").to_string(), audit_context(&user, &call));
     let payload = blocking(move || {
         let (subscription, token) = service.reveal_token(&client_id, &context)?;
         service.reveal_payload(&subscription, &token)
@@ -163,7 +164,8 @@ async fn reveal(State(app): State<AppState>, call: Call) -> Handled {
 
 async fn revoke(State(app): State<AppState>, call: Call) -> Handled {
     let user = app.roles(&call, OWNER_ADMIN).await?;
-    let (service, client_id, context) = (service(&app), call.param("client_id").to_string(), audit_context(&user, &call));
+    let (service, client_id, context) =
+        (service(&app), call.param("client_id").to_string(), audit_context(&user, &call));
     let existed = blocking(move || {
         let existed = service.get(&client_id)?.is_some();
         service.revoke(&client_id, &context)?;
